@@ -139,8 +139,13 @@ class ProjectManager:
 
         # If no chunks (or corrupted), generate from script
         if os.path.exists(self.script_path):
-            with open(self.script_path, "r", encoding="utf-8") as f:
-                script = json.load(f)
+            try:
+                with open(self.script_path, "r", encoding="utf-8") as f:
+                    script = json.load(f)
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"WARNING: annotated_script.json is also corrupted ({e}). Starting with empty chunks.")
+                return []
+
             chunks = group_into_chunks(script)
 
             # Initialize chunk status
