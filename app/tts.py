@@ -781,6 +781,7 @@ class TTSEngine:
                 prompt = model.create_voice_clone_prompt(
                     ref_audio=(audio_array, sample_rate),
                     ref_text=ref_text,
+                    x_vector_only_mode=True,
                 )
                 self._lora_prompt_cache[adapter_path] = prompt
                 print(f"Clone prompt cached for LoRA adapter.")
@@ -1380,6 +1381,7 @@ class TTSEngine:
                     prompt = model.create_voice_clone_prompt(
                         ref_audio=(audio_array, sample_rate),
                         ref_text=ref_text,
+                        x_vector_only_mode=True,
                     )
                     self._lora_prompt_cache[adapter_path] = prompt
                     print(f"Clone prompt cached for LoRA adapter.")

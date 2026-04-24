@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8,
                         help="Gradient accumulation steps")
     parser.add_argument("--device", default="auto", help="Device: auto, cuda, cpu")
+    parser.add_argument("--language", default="english",
+                        help="Language for codec prefix token (english, chinese, korean, japanese, etc.)")
     parser.add_argument("--max_audio_seconds", type=float, default=30.0,
                         help="Maximum audio duration in seconds (longer clips are skipped)")
     return parser.parse_args()
@@ -193,7 +195,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
 # ── Input construction ──────────────────────────────────────────────────
 
-def build_teacher_forcing_input(sample, hf_model, device, dtype):
+def build_teacher_forcing_input(sample, hf_model, device, dtype, language="english"):
     """Build the full teacher-forcing input sequence for one training sample.
 
     Replicates the generate() method's input construction but includes
@@ -236,7 +238,7 @@ def build_teacher_forcing_input(sample, hf_model, device, dtype):
     )  # [1, 3, D]
 
     # Codec prefix: [think_id, think_bos_id, language_id, think_eos_id]
-    language_id = tc.codec_language_id.get("english", None) if tc.codec_language_id else None
+    language_id = tc.codec_language_id.get(language, None) if tc.codec_language_id else None
     if language_id is not None:
         codec_prefill_list = [[tc.codec_think_id, tc.codec_think_bos_id,
                                language_id, tc.codec_think_eos_id]]
@@ -438,7 +440,7 @@ def train(args):
             try:
                 # Build teacher-forcing input
                 full_input, labels, all_codec_ids, prefill_len = build_teacher_forcing_input(
-                    sample, hf_model, device, dtype
+                    sample, hf_model, device, dtype, language=args.language
                 )
 
                 T = all_codec_ids.shape[0]  # number of audio frames
@@ -569,6 +571,7 @@ def train(args):
         "final_loss": avg_loss,
         "best_loss": best_loss,
         "training_time_seconds": round(training_time, 1),
+        "language": args.language,
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,
     }

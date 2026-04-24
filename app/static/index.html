@@ -511,6 +511,21 @@
                             <label class="form-label">Grad Accum Steps</label>
                             <input type="number" class="form-control" id="lora-grad-accum" value="8" min="1">
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Language</label>
+                            <select class="form-select" id="lora-language">
+                                <option value="english" selected>English</option>
+                                <option value="chinese">Chinese</option>
+                                <option value="german">German</option>
+                                <option value="italian">Italian</option>
+                                <option value="portuguese">Portuguese</option>
+                                <option value="spanish">Spanish</option>
+                                <option value="japanese">Japanese</option>
+                                <option value="korean">Korean</option>
+                                <option value="french">French</option>
+                                <option value="russian">Russian</option>
+                            </select>
+                        </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <button class="btn btn-success btn-lg" id="btn-lora-train" onclick="startLoraTraining()">
                                 <i class="fas fa-dumbbell me-1"></i>Start Training
@@ -539,6 +554,8 @@
                                 <dd class="col-sm-9">Samples processed per step. Limited by VRAM. Batch 1 with gradient accumulation is typical for 24GB cards.</dd>
                                 <dt class="col-sm-3">Grad Accum Steps</dt>
                                 <dd class="col-sm-9">Simulates larger batches by accumulating gradients over N steps before updating. Effective batch = batch_size x grad_accum. Higher values give smoother training at the cost of speed.</dd>
+                                <dt class="col-sm-3">Language</dt>
+                                <dd class="col-sm-9">Sets the codec language prefix token used during training. Must match the language of your training audio. For unsupported languages, try "english" as a proxy.</dd>
                             </dl>
                             <hr class="my-2">
                             <p class="mb-0"><strong>Training data tip:</strong> For expressive voices, include samples with varied emotions (happy, sad, angry, calm). Neutral-only training data will produce a flat voice that resists instruct prompting.</p>
@@ -2679,7 +2696,8 @@
                 batch_size: parseInt(document.getElementById('lora-batch-size').value) || 1,
                 lora_r: parseInt(document.getElementById('lora-rank').value) || 32,
                 lora_alpha: parseInt(document.getElementById('lora-alpha').value) || 128,
-                gradient_accumulation_steps: parseInt(document.getElementById('lora-grad-accum').value) || 8
+                gradient_accumulation_steps: parseInt(document.getElementById('lora-grad-accum').value) || 8,
+                language: document.getElementById('lora-language').value || 'english'
             };
 
             const btn = document.getElementById('btn-lora-train');

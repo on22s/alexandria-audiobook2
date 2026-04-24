@@ -194,6 +194,7 @@ class LoraTrainingRequest(BaseModel):
     lora_r: int = 32
     lora_alpha: int = 128
     gradient_accumulation_steps: int = 8
+    language: str = "english"
 
 class LoraTestRequest(BaseModel):
     adapter_id: str
@@ -1378,6 +1379,7 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
         "--lora_r", str(request.lora_r),
         "--lora_alpha", str(request.lora_alpha),
         "--gradient_accumulation_steps", str(request.gradient_accumulation_steps),
+        "--language", request.language,
     ]
 
     def on_training_complete():
