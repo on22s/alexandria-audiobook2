@@ -16,6 +16,8 @@ import threading
 import zipfile
 import subprocess
 import aiofiles
+from html.parser import HTMLParser
+import xml.etree.ElementTree as ET
 
 # Import ProjectManager
 from project import ProjectManager
@@ -414,12 +416,123 @@ async def save_config(config: AppConfig):
     project_manager.engine = None
     return {"status": "saved"}
 
+class _HTMLTextExtractor(HTMLParser):
+    """Strip HTML tags from EPUB content, preserving block-level structure."""
+    BLOCK_TAGS = frozenset({
+        'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'li', 'blockquote', 'br', 'hr', 'tr', 'section', 'article',
+    })
+    SKIP_TAGS = frozenset({'style', 'script'})
+
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+        self._pending_newline = False
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in self.SKIP_TAGS:
+            self._skip_depth += 1
+        elif tag in self.BLOCK_TAGS:
+            self._pending_newline = True
+
+    def handle_endtag(self, tag):
+        if tag.lower() in self.SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data):
+        if self._skip_depth > 0:
+            return
+        if self._pending_newline and self.parts:
+            self.parts.append('\n')
+            self._pending_newline = False
+        self.parts.append(data)
+
+    def get_text(self):
+        return ''.join(self.parts)
+
+
+def extract_epub_text(epub_path: str) -> str:
+    """Extract plain text from an EPUB file, ordered by spine (reading order).
+
+    Parses the EPUB ZIP structure directly using stdlib only:
+    META-INF/container.xml -> .opf manifest+spine -> XHTML content files.
+    """
+    with zipfile.ZipFile(epub_path, 'r') as zf:
+        # 1. Find the OPF file path from container.xml
+        container_xml = zf.read('META-INF/container.xml')
+        container = ET.fromstring(container_xml)
+        ns = {'c': 'urn:oasis:names:tc:opendocument:xmlns:container'}
+        rootfile_el = container.find('.//c:rootfile', ns)
+        if rootfile_el is None:
+            raise ValueError("Invalid EPUB: no rootfile found in container.xml")
+        opf_path = rootfile_el.get('full-path')
+
+        # 2. Parse the OPF to get manifest (id->href) and spine (reading order)
+        opf_xml = zf.read(opf_path)
+        opf = ET.fromstring(opf_xml)
+        # Detect OPF namespace (varies between EPUB 2 and 3)
+        opf_ns = opf.tag.split('}')[0] + '}' if '}' in opf.tag else ''
+
+        # Build manifest: id -> href (resolve relative to OPF directory)
+        opf_dir = opf_path.rsplit('/', 1)[0] + '/' if '/' in opf_path else ''
+        manifest = {}
+        for item in opf.findall(f'.//{opf_ns}item'):
+            item_id = item.get('id')
+            href = item.get('href')
+            media_type = item.get('media-type', '')
+            if item_id and href and 'html' in media_type:
+                manifest[item_id] = opf_dir + href
+
+        # Get spine order
+        spine_ids = []
+        for itemref in opf.findall(f'.//{opf_ns}itemref'):
+            idref = itemref.get('idref')
+            if idref:
+                spine_ids.append(idref)
+
+        # 3. Extract text from each spine item in order
+        chapters = []
+        for item_id in spine_ids:
+            href = manifest.get(item_id)
+            if href is None:
+                continue
+            try:
+                html_bytes = zf.read(href)
+            except KeyError:
+                continue
+            html_content = html_bytes.decode('utf-8', errors='replace')
+            extractor = _HTMLTextExtractor()
+            extractor.feed(html_content)
+            text = extractor.get_text().strip()
+            if text:
+                chapters.append(text)
+
+    return '\n\n'.join(chapters)
+
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     file_path = os.path.join(UPLOADS_DIR, file.filename)
     async with aiofiles.open(file_path, 'wb') as out_file:
         content = await file.read()
         await out_file.write(content)
+
+    # Convert EPUB to plain text
+    if file.filename.lower().endswith('.epub'):
+        try:
+            text = extract_epub_text(file_path)
+        except Exception as e:
+            os.remove(file_path)
+            raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {e}")
+        if not text.strip():
+            os.remove(file_path)
+            raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
+        txt_path = file_path.rsplit('.', 1)[0] + '.txt'
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        file_path = txt_path
 
     # Save input path to state.json to be compatible with original scripts if needed
     state_path = os.path.join(ROOT_DIR, "state.json")
