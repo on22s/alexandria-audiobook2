@@ -7,6 +7,7 @@ app/env/
 .*
 !.github/
 !.gitignore
+!.dockerignore
 ~*
 /logs/
 /cache/
@@ -68,4 +69,7 @@ builtin_lora/builtin_*/
 
 # Dataset builder working directory
 dataset_builder/
+
+# Docker persistent data
+data/
 

@@ -2079,4 +2079,6 @@ async def dataset_builder_delete(name: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=4200, access_log=False)
+    host = os.environ.get("ALEXANDRIA_HOST", "127.0.0.1")
+    port = int(os.environ.get("ALEXANDRIA_PORT", "4200"))
+    uvicorn.run(app, host=host, port=port, access_log=False)

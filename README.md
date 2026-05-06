@@ -101,6 +101,18 @@ No GPU or wrong OS? Run Alexandria on a free T4 GPU in your browser:
 
 Requires a free [ngrok account](https://dashboard.ngrok.com/signup) for the web UI tunnel. See the notebook for full instructions.
 
+### Option C: Docker (NVIDIA GPU)
+
+For integration into automated pipelines or server deployments:
+
+```bash
+git clone https://github.com/Finrandojin/alexandria-audiobook.git
+cd alexandria-audiobook
+docker compose up --build
+```
+
+Requires [Docker](https://docs.docker.com/get-docker/) with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). The web UI is available at `http://localhost:4200`. TTS models download on first use and are cached in a Docker volume. User data (uploads, voice configs, trained LoRA adapters, audio output) persists via bind mounts to the project directory.
+
 ## First Launch — What to Expect
 
 If this is your first time running Alexandria, read this before anything else.
