@@ -37,7 +37,7 @@ Transform any book or novel into a fully-voiced audiobook using AI-powered scrip
 - **Batch Processing** - Generate dozens of chunks simultaneously with 3-6x real-time throughput
 - **Codec Compilation** - Optional `torch.compile` optimization for 3-4x faster batch decoding
 - **Non-verbal Sounds** - LLM writes natural vocalizations ("Ahh!", "Mmm...", "Haha!") with context-aware instruct directions
-- **Natural Pauses** - Intelligent delays between speakers (500ms) and same-speaker segments (250ms)
+- **Natural Pauses** - Configurable silence between speakers (default 500ms) and same-speaker segments (default 250ms)
 
 ### Web UI Editor
 - **Streamlined Interface** - 5-step core pipeline (Setup, Script, Voices, Editor, Result) plus advanced tools (Designer, Dataset, Training)
@@ -176,7 +176,7 @@ Configure your LLM connection and TTS engine. At minimum you need:
 - Click **Save Configuration** when done
 
 **Step 2 — Script**
-- Select your book file (.txt or .md) using the file picker — it uploads automatically
+- Select your book file (.txt, .md, or .epub) using the file picker — it uploads automatically
 - Click **Generate Annotated Script** — this sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions
 - *(Optional)* Click **Review Script** if the generated script has issues — this runs a second LLM pass to fix speaker misattributions or formatting problems
 - You can save the script for later use with the Save feature below
@@ -220,7 +220,8 @@ Configure connections to your LLM and TTS engine.
 - **Sub-batching** - Split batches by text length to reduce wasted GPU compute on padding (enabled by default)
 - **Min Sub-batch Size** - Minimum chunks per sub-batch before allowing a split (default: 4)
 - **Length Ratio** - Maximum longest/shortest text length ratio before forcing a sub-batch split (default: 5)
-- **Max Chars** - Maximum total characters per sub-batch; lower values reduce VRAM usage (default: 3000)
+- **Speaker Change Pause** - Silence in milliseconds between different speakers during merge (default: 500)
+- **Same Speaker Pause** - Silence in milliseconds when the same speaker continues during merge (default: 250)
 
 **Prompt Settings (Advanced):**
 - **Generation Settings** - Chunk size and max tokens for LLM responses
@@ -229,7 +230,7 @@ Configure connections to your LLM and TTS engine.
 - **Prompt Customization** - System and user prompts used for script generation. Defaults are loaded from `default_prompts.txt` and can be customized per-session in the UI. Click "Reset to Defaults" to reload the file-based defaults (picks up edits without restarting the app)
 
 ### Script Tab
-Upload a text file and generate the annotated script. The LLM converts your book into a structured JSON format with:
+Upload a text file (.txt, .md, or .epub) and generate the annotated script. EPUB files are automatically converted to plain text on upload. The LLM converts your book into a structured JSON format with:
 - Speaker identification (NARRATOR vs character names)
 - Dialogue text with natural vocalizations (written as pronounceable text, not tags)
 - Style directions for TTS delivery
@@ -288,6 +289,7 @@ Train LoRA adapters on the Base model to create custom voice identities. Several
 - **Learning Rate** — Default 5e-6 (conservative). Higher trains faster but risks instability
 - **LoRA Rank** — Adapter capacity. High (64+) locks voice identity strongly but can flatten delivery. Low (8-16) preserves expressiveness
 - **LoRA Alpha** — Scaling factor. Effective strength = alpha / rank. Common starting point: alpha = 2x rank
+- **Language** — Language for the codec prefix token. Match this to your training data's language (English, Chinese, Korean, Japanese, etc.). Mismatched language can cause the adapter to lose speaker identity
 - **Batch Size / Grad Accum** — Batch 1 with gradient accumulation 8 is typical for 24GB cards
 
 **Training tips:**
@@ -462,16 +464,17 @@ curl -X POST http://127.0.0.1:4200/api/config \
       "sub_batch_enabled": true,
       "sub_batch_min_size": 4,
       "sub_batch_ratio": 5,
-      "sub_batch_max_chars": 3000
+      "pause_between_speakers_ms": 500,
+      "pause_same_speaker_ms": 250
     }
   }'
 ```
 
 ### Script Generation
 ```bash
-# Upload text file
+# Upload text file (supports .txt, .md, .epub)
 curl -X POST http://127.0.0.1:4200/api/upload \
-  -F "file=@mybook.txt"
+  -F "file=@mybook.epub"
 
 # Generate script (returns task ID)
 curl -X POST http://127.0.0.1:4200/api/generate_script
@@ -800,7 +803,6 @@ For script generation, non-thinking models work best:
 - If you see MIOpen warnings on AMD, these are handled automatically
 
 ### Out of memory errors
-- Reduce **Max Chars/Batch** in Setup (especially with long reference audio for clone/LoRA voices)
 - Reduce **Parallel Workers** (batch size)
 - Close other GPU-intensive applications
 - Try `device: cpu` as a fallback (much slower)
