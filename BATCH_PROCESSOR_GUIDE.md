@@ -48,17 +48,26 @@ python alexandria_batch_processor.py \
 
 ## Resume Capability
 
-The batch processor **automatically skips already-processed files**. If a batch is interrupted (crash, Ctrl+C, system reboot), simply rerun the same command - it will continue from where it left off.
+The batch processor supports **two layers of resume**:
+
+**1. File-level skip** — Files whose output zip (`alexandria_dataset_<name>.zip`) already exists are skipped on subsequent runs.
+
+**2. Mid-file resume** — If a file crashed mid-annotation (e.g., 50 hours into a 60-hour run), the batch processor passes `--resume` to the preparer automatically. The preparer reads its checkpoint and continues from the last completed segment.
+
+The preparer's `.source` marker in `dataset_temp/` ensures we never accidentally resume into a different file's partial work — if the marker doesn't match the current audio file, `dataset_temp/` is wiped and processing starts fresh.
 
 ```bash
 # First run - processes all 3 files
 python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf
-# (interrupted after book2.wav completes)
+# (book1 completes, book2 crashes 50h into annotation)
 
-# Second run - automatically skips book1 and book2, only processes book3
+# Second run:
+#  - book1.wav skipped (zip exists)
+#  - book2.wav resumes from last checkpoint (continues from segment ~4000)
+#  - book3.wav processed fresh
 python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf
 
-# Force reprocess everything
+# Force reprocess everything (no skip, no resume)
 python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf --force
 ```
 

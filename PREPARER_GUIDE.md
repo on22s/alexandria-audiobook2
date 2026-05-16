@@ -135,6 +135,14 @@ On `--resume`:
 
 **On success**: `dataset_temp/` is deleted after the zip is created.
 
+### Source-file safety check
+
+A `.source` marker is written into `dataset_temp/` containing the absolute path of the audio file being processed. On `--resume`:
+- If the marker matches the current `--audio` → resume safely.
+- If the marker is missing or points to a different file → **wipe `dataset_temp/` and start fresh** (logged as a warning).
+
+This prevents accidental corruption when reusing the working directory for different audiobooks. The batch processor relies on this guarantee to safely pass `--resume` on every retry.
+
 ## GPU Monitoring
 
 The preparer logs GPU stats at key points:
@@ -218,8 +226,8 @@ Error: Model file not found: ...
 - Informational warning from PyTorch — AMD ROCm doesn't support that memory optimization. PyTorch falls back to standard allocation. No action needed.
 
 ### Resume picked the wrong file
-- The preparer doesn't track which audio file produced `dataset_temp/`. If you change `--audio` between runs without clearing `dataset_temp/`, results will be inconsistent.
-- **Fix:** delete `dataset_temp/` before processing a different file, or pass a different working directory.
+- The preparer tracks the source via `dataset_temp/.source` marker. Mismatched markers cause `dataset_temp/` to be wiped automatically (with a warning) before fresh processing.
+- If you want to force a fresh start regardless, delete `dataset_temp/` manually or omit `--resume`.
 
 ### Out of disk space
 - Check `du -sh dataset_temp/ .alexandria_audio_24k.wav`.

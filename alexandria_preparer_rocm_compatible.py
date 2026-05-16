@@ -830,34 +830,82 @@ def _load_existing_checkpoint(temp_dir):
     return entries, resume_time, next_idx
 
 
-def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source, resume=False):
+def _wipe_temp_dir(temp_dir):
+    """Remove all preparer-generated files from temp_dir but keep the directory itself."""
+    if not os.path.exists(temp_dir):
+        return
+    for name in os.listdir(temp_dir):
+        full_path = os.path.join(temp_dir, name)
+        try:
+            if os.path.isfile(full_path) or os.path.islink(full_path):
+                os.remove(full_path)
+            elif os.path.isdir(full_path):
+                shutil.rmtree(full_path)
+        except Exception as e:
+            logger.warning(f"Failed to remove {full_path}: {e}")
+
+
+def _check_source_marker(temp_dir, audio_source_path):
+    """Return True if temp_dir's .source marker matches audio_source_path."""
+    marker_path = os.path.join(temp_dir, ".source")
+    if not os.path.exists(marker_path):
+        return False
+    try:
+        with open(marker_path, "r", encoding="utf-8") as f:
+            stored = f.read().strip()
+        return stored == os.path.abspath(audio_source_path)
+    except Exception:
+        return False
+
+
+def _write_source_marker(temp_dir, audio_source_path):
+    """Write the .source marker so future runs can verify this temp_dir's owner."""
+    marker_path = os.path.join(temp_dir, ".source")
+    with open(marker_path, "w", encoding="utf-8") as f:
+        f.write(os.path.abspath(audio_source_path))
+
+
+def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
+                    resume=False, audio_source_path=None):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
+    audio_source_path: the original input audio path, used to validate resume safety.
     """
     temp_dir = "dataset_temp"
     os.makedirs(temp_dir, exist_ok=True)
     checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
 
-    # Load checkpoint if resuming
-    if resume:
+    # Determine if existing dataset_temp/ belongs to this audio file
+    marker_matches = (
+        audio_source_path is not None
+        and _check_source_marker(temp_dir, audio_source_path)
+    )
+
+    if resume and marker_matches:
         existing_entries, resume_time, next_segment_idx = _load_existing_checkpoint(temp_dir)
         if existing_entries:
             logger.info(f"▶ Resuming from checkpoint: {len(existing_entries)} segments already processed")
+            logger.info(f"  ├─ Source verified: {audio_source_path}")
             logger.info(f"  ├─ Resume time: {resume_time:.2f}s")
             logger.info(f"  └─ Next segment index: {next_segment_idx}")
         else:
             logger.info("▶ --resume specified but no checkpoint found, starting fresh")
-            resume_time = 0.0
-            next_segment_idx = 0
-            existing_entries = []
+            existing_entries, resume_time, next_segment_idx = [], 0.0, 0
     else:
-        # Fresh start - clear any stale checkpoint
-        if os.path.exists(checkpoint_path):
-            os.remove(checkpoint_path)
-        existing_entries = []
-        resume_time = 0.0
-        next_segment_idx = 0
+        if resume and not marker_matches:
+            logger.warning(
+                "▶ --resume specified, but dataset_temp/ belongs to a different source file "
+                "(or has no marker). Wiping and starting fresh to avoid corrupting another run."
+            )
+        elif os.listdir(temp_dir):
+            logger.info("▶ Wiping stale dataset_temp/ contents for fresh start")
+        _wipe_temp_dir(temp_dir)
+        existing_entries, resume_time, next_segment_idx = [], 0.0, 0
+
+    # Always (re)write the source marker for the current run
+    if audio_source_path is not None:
+        _write_source_marker(temp_dir, audio_source_path)
 
     logger.info("▶ Loading Gemma 4 LLM model for annotations...")
     logger.info("  ├─ Device: GPU (CUDA/ROCm acceleration)")
@@ -1114,6 +1162,7 @@ def main():
                 args.chunk_size,
                 audio_24k_scratch,
                 resume=args.resume,
+                audio_source_path=args.audio,
             )
             logger.info(f"  Chunks annotated: {len(metadata)}")
         else:

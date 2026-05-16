@@ -243,6 +243,10 @@ class BatchProcessor:
             "--lang", self.language,
             "--output", output_name,
         ]
+        # Pass --resume unless --force was set; the preparer's source-marker check
+        # ensures we won't accidentally resume into a different file's partial work.
+        if not self.force:
+            cmd.append("--resume")
 
         start_time = time.monotonic()
         logger.info(f"Starting subprocess at {datetime.now().strftime('%H:%M:%S')}...")
