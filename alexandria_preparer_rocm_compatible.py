@@ -169,7 +169,17 @@ def get_gpu_stats():
                         if gpu_use_str != 'N/A':
                             stats['utilization_percent'] = float(gpu_use_str)
                         break  # Just get first GPU
-        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, ValueError, Exception):
+            else:
+                logger.debug(f"rocm-smi returned error: {result.returncode}, stderr: {result.stderr}")
+                stats['utilization_percent'] = None
+        except FileNotFoundError as e:
+            logger.debug(f"rocm-smi not found: {e}")
+            stats['utilization_percent'] = None
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError) as e:
+            logger.debug(f"rocm-smi parse error: {e}")
+            stats['utilization_percent'] = None
+        except Exception as e:
+            logger.debug(f"rocm-smi unexpected error: {e}")
             stats['utilization_percent'] = None
 
     except Exception as e:
