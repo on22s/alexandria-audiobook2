@@ -232,6 +232,7 @@ class BatchProcessor:
             logger.info(f"  └─ Batch ETA: calculating after first file completes...")
         logger.info("=" * 70)
 
+        output_name = f"alexandria_dataset_{file_name}.zip"
         cmd = [
             sys.executable,
             "-u",  # Unbuffered output for real-time streaming
@@ -239,7 +240,8 @@ class BatchProcessor:
             "--audio", audio_file,
             "--model", self.model_path,
             "--chunk-size", str(self.chunk_size),
-            "--lang", self.language
+            "--lang", self.language,
+            "--output", output_name,
         ]
 
         start_time = time.monotonic()
@@ -284,13 +286,8 @@ class BatchProcessor:
             if returncode == 0:
                 logger.info(f"✓ SUCCESS: {Path(audio_file).name} processed ({time_str})")
 
-                expected_output = "alexandria_dataset.zip"
-                if os.path.exists(expected_output):
-                    output_size = os.path.getsize(expected_output) / (1024 * 1024)
-                    output_name = f"alexandria_dataset_{file_name}.zip"
-
-                    # Atomically rename to prevent race conditions
-                    os.rename(expected_output, output_name)
+                if os.path.exists(output_name):
+                    output_size = os.path.getsize(output_name) / (1024 * 1024)
                     logger.info(f"  ├─ Output: {output_name} ({output_size:.1f} MB)")
                     logger.info(f"  └─ Time: {time_str}")
 
@@ -302,7 +299,7 @@ class BatchProcessor:
                         "time_seconds": elapsed_secs
                     })
                 else:
-                    logger.warning(f"⚠ Output file not created: {expected_output}")
+                    logger.warning(f"⚠ Output file not created: {output_name}")
                     self.results["failed"].append({
                         "file": audio_file,
                         "reason": "Output file not created",

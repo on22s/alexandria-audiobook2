@@ -23,6 +23,7 @@ os.environ["GPU_MAX_HW_QUEUES"] = "2"
 import argparse
 import torch
 import gc
+import time
 import librosa
 import logging
 import json
@@ -32,6 +33,7 @@ import shutil
 import soundfile as sf
 import numpy as np
 import traceback
+from collections import deque
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -202,6 +204,19 @@ def log_gpu_stats(label=""):
     else:
         logger.info(f"  └─ Utilization: (rocm-smi unavailable)")
 
+def format_duration(seconds):
+    """Format seconds as Xh Ym Zs (or smaller unit when applicable)."""
+    seconds = max(0, int(seconds))
+    hours = seconds // 3600
+    mins = (seconds % 3600) // 60
+    secs = seconds % 60
+    if hours > 0:
+        return f"{hours}h {mins}m"
+    elif mins > 0:
+        return f"{mins}m {secs}s"
+    else:
+        return f"{secs}s"
+
 def validate_inputs(args):
     """Validate input files."""
     logger.info("Validating input files...")
@@ -292,11 +307,11 @@ def transcribe_with_whisperx_cpu(audio_16k: np.ndarray, language: str = "en") ->
         raise
 
 def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tuple:
-    """Use Wav2Vec2 for continuous context-aware transcription."""
+    """Use Wav2Vec2 for continuous context-aware transcription with CTC word alignment."""
     if not TRANSFORMERS_WHISPER_AVAILABLE:
         raise ImportError("Transformers not available")
 
-    logger.info("▶ Initializing Wav2Vec2 ASR (continuous context-aware)...")
+    logger.info("▶ Initializing Wav2Vec2 ASR (CTC-aligned word timestamps)...")
     logger.info(f"  ├─ Model: facebook/wav2vec2-large-960h")
     logger.info(f"  ├─ Device: GPU (CUDA/ROCm)")
     logger.info(f"  └─ Language: {language}")
@@ -308,7 +323,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
         logger.debug("Loading Wav2Vec2 processor and model...")
         device_str = "cuda" if torch_module.cuda.is_available() else "cpu"
 
-        # Load pre-trained model
         processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
         model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
         model = model.to(device_str)
@@ -317,77 +331,90 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
         logger.info("✓ Wav2Vec2 model loaded to GPU")
         log_gpu_stats("after model load")
 
-        # Configure context window for better understanding
-        # Wav2Vec2 can handle up to ~30 seconds per chunk comfortably on modern GPUs
-        # Larger chunks = better context but higher memory usage
-        # For AMD Radeon RX 9070 XT (16GB+ VRAM): can use 30s chunks
-        chunk_length_secs = 30  # Can be 15, 20, 25, or 30 seconds
-        chunk_length = chunk_length_secs * 16000  # Convert to samples
-        overlap_secs = 3  # Overlap between chunks (3 seconds)
-        overlap = overlap_secs * 16000  # Convert to samples
+        # Frame rate: for wav2vec2-large-960h, CNN downsamples 16kHz audio by 320 → 50 frames/sec
+        inputs_to_logits_ratio = getattr(model.config, "inputs_to_logits_ratio", 320)
+        time_per_frame = inputs_to_logits_ratio / 16000.0  # seconds per logit frame (~0.02s)
+
+        chunk_length_secs = 30
+        chunk_length = chunk_length_secs * 16000
+        overlap_secs = 3
+        overlap = overlap_secs * 16000
         stride = chunk_length - overlap
+        half_overlap_secs = overlap_secs / 2.0
 
-        all_logits = []
-        num_chunks = (len(audio_16k) - chunk_length) // stride + 1
+        audio_duration = len(audio_16k) / 16000.0
 
-        logger.info(f"  ├─ Context window: {chunk_length_secs}s (larger = better understanding)")
-        logger.info(f"  ├─ Overlap: {overlap_secs}s (for seamless transitions)")
+        # Compute chunk start positions, ensuring last chunk reaches audio end
+        chunk_starts = list(range(0, max(1, len(audio_16k) - chunk_length + 1), stride))
+        # Append final chunk for any remaining audio
+        if not chunk_starts or chunk_starts[-1] + chunk_length < len(audio_16k):
+            tail_start = max(0, len(audio_16k) - chunk_length)
+            if not chunk_starts or tail_start > chunk_starts[-1]:
+                chunk_starts.append(tail_start)
+        num_chunks = len(chunk_starts)
+
+        logger.info(f"  ├─ Context window: {chunk_length_secs}s")
+        logger.info(f"  ├─ Overlap: {overlap_secs}s ({1.0/time_per_frame:.0f} Hz frame rate)")
+        logger.info(f"  ├─ Word timestamps: CTC frame alignment (true per-word timing)")
         logger.info(f"  └─ Processing {num_chunks} chunks...")
-        logger.debug(f"Processing {num_chunks} chunks with {overlap_secs}s overlap for context preservation...")
         log_gpu_stats("before chunk processing")
 
-        # Process chunks
-        for chunk_idx, i in enumerate(range(0, len(audio_16k) - chunk_length + 1, stride)):
-            chunk = audio_16k[i : i + chunk_length]
+        word_segments = []
+        chunk_times = deque(maxlen=10)  # rolling avg for ETA
+
+        for chunk_idx, sample_start in enumerate(chunk_starts):
+            chunk_t0 = time.monotonic()
+            chunk_end = min(sample_start + chunk_length, len(audio_16k))
+            chunk = audio_16k[sample_start:chunk_end]
+            chunk_offset_secs = sample_start / 16000.0
+            chunk_end_secs = chunk_end / 16000.0
 
             with torch_module.no_grad():
                 inputs = processor(chunk, sampling_rate=16000, return_tensors="pt", padding=True)
                 inputs = {k: v.to(device_str) for k, v in inputs.items()}
-
                 logits = model(**inputs).logits
-                all_logits.append(logits)
+                predicted_ids = torch_module.argmax(logits, dim=-1)
 
-            # Log GPU stats periodically (every 50 chunks to avoid spam)
-            if chunk_idx % 50 == 0 and chunk_idx > 0:
-                log_gpu_stats(f"chunk {chunk_idx}/{num_chunks}")
+            # CTC decode with word-level frame offsets
+            decoded = processor.batch_decode(predicted_ids, output_word_offsets=True)
+            word_offsets = decoded.word_offsets[0] if decoded.word_offsets else []
 
-        # Combine logits with proper handling of overlaps
-        logger.debug("Combining chunk logits with overlap handling...")
-        log_gpu_stats("during logits combination")
+            # Determine "owned" region for this chunk to avoid double-counting overlap:
+            #   - first chunk owns [chunk_start, chunk_end - half_overlap]
+            #   - middle chunks own [chunk_start + half_overlap, chunk_end - half_overlap]
+            #   - last chunk owns [chunk_start + half_overlap, audio_end]
+            is_first = (chunk_idx == 0)
+            is_last = (chunk_idx == num_chunks - 1)
+            owned_start = chunk_offset_secs if is_first else chunk_offset_secs + half_overlap_secs
+            owned_end = chunk_end_secs if is_last else chunk_end_secs - half_overlap_secs
 
-        # Process final chunk if audio length is not evenly divisible
-        if len(audio_16k) > i + chunk_length:
-            remaining = audio_16k[i + chunk_length :]
-            if len(remaining) > 0:
-                with torch_module.no_grad():
-                    inputs = processor(remaining, sampling_rate=16000, return_tensors="pt", padding=True)
-                    inputs = {k: v.to(device_str) for k, v in inputs.items()}
-                    logits = model(**inputs).logits
-                    all_logits.append(logits)
+            for wo in word_offsets:
+                word_start = chunk_offset_secs + wo["start_offset"] * time_per_frame
+                word_end = chunk_offset_secs + wo["end_offset"] * time_per_frame
+                # Use word center to decide ownership (avoids splitting across chunks)
+                word_center = (word_start + word_end) / 2.0
+                if owned_start <= word_center < owned_end:
+                    word_segments.append({
+                        "word": wo["word"].strip(),
+                        "start": word_start,
+                        "end": word_end
+                    })
 
-        # Get predictions from logits
-        predicted_ids = torch_module.argmax(torch_module.cat(all_logits, dim=1), dim=-1)
-        transcription = processor.batch_decode(predicted_ids)[0]
+            chunk_times.append(time.monotonic() - chunk_t0)
 
-        logger.info(f"✓ Wav2Vec2 transcription complete: {len(transcription.split())} words")
-
-        # Create word segments with timing
-        words = transcription.split()
-        duration = len(audio_16k) / 16000
-        time_per_word = duration / max(1, len(words))
-
-        word_segments = []
-        for idx, word in enumerate(words):
-            word_segments.append({
-                "word": word.strip(),
-                "start": idx * time_per_word,
-                "end": (idx + 1) * time_per_word
-            })
+            if (chunk_idx + 1) % 50 == 0 or chunk_idx == num_chunks - 1:
+                avg_chunk_s = sum(chunk_times) / len(chunk_times)
+                remaining = (num_chunks - chunk_idx - 1) * avg_chunk_s
+                logger.info(f"  ↳ Chunk {chunk_idx + 1}/{num_chunks} | avg {avg_chunk_s:.2f}s/chunk | ETA {format_duration(remaining)}")
+                log_gpu_stats(f"chunk {chunk_idx + 1}/{num_chunks}")
 
         del processor, model
         clear_vram()
 
-        logger.info(f"✓ Wav2Vec2 complete: {len(word_segments)} words extracted")
+        logger.info(f"✓ Wav2Vec2 complete: {len(word_segments)} words extracted with CTC-aligned timestamps")
+        if word_segments:
+            logger.debug(f"  First word: '{word_segments[0]['word']}' @ {word_segments[0]['start']:.3f}-{word_segments[0]['end']:.3f}s")
+            logger.debug(f"  Last word:  '{word_segments[-1]['word']}' @ {word_segments[-1]['start']:.3f}-{word_segments[-1]['end']:.3f}s")
         return word_segments, language
 
     except Exception as e:
@@ -756,13 +783,86 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str) -> 
     logger.critical("=" * 70)
     sys.exit(1)
 
-def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
-    """Create and annotate chunks."""
+def _read_audio_segment(audio_24k_source, start_s, end_s):
+    """Read an audio segment by time range from either an in-memory array or a soundfile path."""
+    start_samp = max(0, round(start_s * 24000))
+    end_samp = round(end_s * 24000)
+
+    if isinstance(audio_24k_source, (str, os.PathLike)):
+        with sf.SoundFile(str(audio_24k_source)) as f:
+            end_samp = min(end_samp, f.frames)
+            if end_samp <= start_samp:
+                return np.zeros(0, dtype=np.float32)
+            f.seek(start_samp)
+            data = f.read(end_samp - start_samp, dtype="float32", always_2d=False)
+        return data
+    else:
+        end_samp = min(end_samp, len(audio_24k_source))
+        slice_view = audio_24k_source[start_samp:end_samp]
+        if slice_view.dtype != np.float32:
+            return slice_view.astype(np.float32)
+        return slice_view
+
+
+def _load_existing_checkpoint(temp_dir):
+    """Read existing metadata.jsonl checkpoint and return (entries, resume_time, next_segment_idx)."""
+    checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
+    entries = []
+    if not os.path.exists(checkpoint_path):
+        return entries, 0.0, 0
+
+    try:
+        with open(checkpoint_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entries.append(json.loads(line))
+    except Exception as e:
+        logger.warning(f"Could not parse checkpoint {checkpoint_path}: {e}")
+        return [], 0.0, 0
+
+    if not entries:
+        return [], 0.0, 0
+
+    resume_time = max(e.get("end", 0.0) for e in entries)
+    next_idx = max(int(e["audio_filepath"].split("_")[1].split(".")[0]) for e in entries) + 1
+    return entries, resume_time, next_idx
+
+
+def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source, resume=False):
+    """Create and annotate chunks with periodic checkpointing and resume support.
+
+    audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
+    """
+    temp_dir = "dataset_temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
+
+    # Load checkpoint if resuming
+    if resume:
+        existing_entries, resume_time, next_segment_idx = _load_existing_checkpoint(temp_dir)
+        if existing_entries:
+            logger.info(f"▶ Resuming from checkpoint: {len(existing_entries)} segments already processed")
+            logger.info(f"  ├─ Resume time: {resume_time:.2f}s")
+            logger.info(f"  └─ Next segment index: {next_segment_idx}")
+        else:
+            logger.info("▶ --resume specified but no checkpoint found, starting fresh")
+            resume_time = 0.0
+            next_segment_idx = 0
+            existing_entries = []
+    else:
+        # Fresh start - clear any stale checkpoint
+        if os.path.exists(checkpoint_path):
+            os.remove(checkpoint_path)
+        existing_entries = []
+        resume_time = 0.0
+        next_segment_idx = 0
 
     logger.info("▶ Loading Gemma 4 LLM model for annotations...")
     logger.info("  ├─ Device: GPU (CUDA/ROCm acceleration)")
     logger.info("  ├─ GPU Layers: All (-1 = fully loaded to GPU)")
-    logger.info("  └─ Estimated speed: ~45-50 seconds per chunk")
+    logger.info("  └─ Periodic checkpoint: every 50 segments")
 
     try:
         logger.debug(f"Loading GGUF model from: {model_path}")
@@ -774,15 +874,12 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
         )
         logger.info("✓ Gemma 4 model loaded")
 
-        # Verify GPU usage
         if hasattr(llm, 'n_gpu_layers'):
             logger.info(f"  ├─ GPU Layers Loaded: {llm.n_gpu_layers}")
-        logger.info(f"  ├─ Model device: {llm.metadata.get('device', 'cuda (via n_gpu_layers=-1)')}")
-        logger.info(f"  └─ Context size: {llm.n_ctx} tokens")
+        logger.info(f"  └─ Model device: {llm.metadata.get('device', 'cuda (via n_gpu_layers=-1)')}")
 
-        # Log first inference to confirm GPU is being used
         logger.debug("Verifying GPU inference capability with test prompt...")
-        test_response = llm.create_chat_completion(
+        llm.create_chat_completion(
             messages=[{"role": "user", "content": "test"}],
             max_tokens=1
         )
@@ -794,126 +891,128 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
         logger.debug(traceback.format_exc())
         raise
 
-    metadata = []
-    segment_idx = 0
+    metadata = list(existing_entries)
+    segment_idx = next_segment_idx
     current_words = []
-    current_start = 0.0
-    context = []
+    current_start = resume_time  # Start fresh after the resume point
+    context = deque(maxlen=5)
+
+    # Pre-populate context from last 5 resumed entries for continuity
+    for prior in metadata[-5:]:
+        context.append(prior.get("text", ""))
 
     total_words = len(word_segments)
     logger.info(f"▶ Creating and annotating chunks (target: {chunk_size}s per chunk)...")
     logger.info(f"  Processing {total_words} word segments...")
 
-    # Estimate number of chunks and processing time
-    # Rough estimate: ~10-15 words per 10s chunk
-    estimated_chunks = max(1, int((len(word_segments) / 12) * (chunk_size / 10)))
-    estimated_secs = estimated_chunks * 46  # ~46 seconds per chunk
-    estimated_mins = estimated_secs // 60
-    estimated_hours = estimated_mins // 60
-    estimated_mins = estimated_mins % 60
-
-    if estimated_hours > 0:
-        time_str = f"{estimated_hours}h {estimated_mins}m"
+    # Estimate based on remaining audio
+    estimated_chunks_total = max(1, int((len(word_segments) / 12) * (chunk_size / 10)))
+    estimated_chunks_remaining = max(1, estimated_chunks_total - segment_idx)
+    logger.info(f"  ├─ Estimated total chunks: ~{estimated_chunks_total}")
+    if segment_idx > 0:
+        logger.info(f"  ├─ Already completed: {segment_idx}")
+        logger.info(f"  └─ Remaining to process: ~{estimated_chunks_remaining}")
     else:
-        time_str = f"{estimated_mins}m"
-
-    logger.info(f"  ├─ Estimated chunks: ~{estimated_chunks}")
-    logger.info(f"  └─ Estimated time: ~{time_str} ({estimated_secs}s @ ~46s/chunk)")
+        logger.info(f"  └─ Initial ETA will appear after first chunk completes")
     log_gpu_stats("before annotation loop")
 
-    for idx, word_data in enumerate(word_segments):
-        if "start" not in word_data or "end" not in word_data:
-            logger.debug(f"Skipping word {idx}: missing start/end")
-            continue
+    annotation_start_time = time.monotonic()
+    chunk_times = deque(maxlen=20)  # rolling window for dynamic ETA
 
-        word = word_data.get("word", "").strip()
-        if not word:
-            continue
+    # Open checkpoint file in append mode so we don't lose previous entries
+    checkpoint_file = open(checkpoint_path, "a", encoding="utf-8")
 
-        current_words.append(word)
-        current_end = word_data["end"]
-        duration = current_end - current_start
+    try:
+        for idx, word_data in enumerate(word_segments):
+            if "start" not in word_data or "end" not in word_data:
+                continue
 
-        if duration >= chunk_size or idx == len(word_segments) - 1:
-            if current_words and duration >= 1.0:
-                text = " ".join(current_words)
-                logger.debug(f"Creating segment {segment_idx}: {len(current_words)} words, {duration:.2f}s")
+            word_start_time = word_data["start"]
+            # Skip words before the resume point
+            if word_start_time < current_start:
+                continue
 
-                # Build prompt with context
-                ctx = " ".join(context[-3:]) if context else ""
-                if ctx:
-                    prompt = f"Previous: {ctx}\n\nAnnotate for TTS:\n{text}"
-                else:
-                    prompt = f"Annotate for TTS:\n{text}"
+            word = word_data.get("word", "").strip()
+            if not word:
+                continue
 
-                try:
-                    logger.debug(f"Generating annotation for segment {segment_idx} (GPU inference)...")
-                    response = llm.create_chat_completion(
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=512,
-                        temperature=0.7
-                    )
-                    annotated = response["choices"][0]["message"]["content"].strip()
-                    logger.debug(f"✓ GPU inference completed - annotation: {annotated[:50]}...")
-                    if segment_idx == 0:
-                        logger.info(f"✓ Gemma GPU inference confirmed - working on GPU")
-                except Exception as e:
-                    logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
-                    annotated = text
+            current_words.append(word)
+            current_end = word_data["end"]
+            duration = current_end - current_start
 
-                # Save audio
-                start_samp = max(0, round(current_start * 24000))
-                end_samp = min(len(audio_24k), round(current_end * 24000))
-                audio_slice = audio_24k[start_samp:end_samp].astype(np.float32)
+            if duration >= chunk_size or idx == len(word_segments) - 1:
+                if current_words and duration >= 1.0:
+                    chunk_t0 = time.monotonic()
+                    text = " ".join(current_words)
 
-                if len(audio_slice) > 0:
-                    seg_name = f"sample_{segment_idx:04d}.wav"
-                    logger.debug(f"Writing audio segment: {seg_name} ({len(audio_slice)} samples)")
-                    sf.write(f"dataset_temp/{seg_name}", audio_slice, 24000)
+                    # Build prompt with context (deque-based, last 3 entries)
+                    ctx = " ".join(list(context)[-3:]) if context else ""
+                    if ctx:
+                        prompt = f"Previous: {ctx}\n\nAnnotate for TTS:\n{text}"
+                    else:
+                        prompt = f"Annotate for TTS:\n{text}"
 
-                    metadata.append({
-                        "audio_filepath": seg_name,
-                        "text": annotated,
-                        "duration": len(audio_slice) / 24000
-                    })
+                    try:
+                        response = llm.create_chat_completion(
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=512,
+                            temperature=0.7
+                        )
+                        annotated = response["choices"][0]["message"]["content"].strip()
+                        if segment_idx == next_segment_idx:
+                            logger.info(f"✓ Gemma GPU inference confirmed - working on GPU")
+                    except Exception as e:
+                        logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
+                        annotated = text
 
-                    if (segment_idx + 1) % 10 == 0:
-                        elapsed_audio = (current_end - current_start)
-                        elapsed_proc_secs = (segment_idx + 1) * 46
-                        elapsed_proc_mins = elapsed_proc_secs // 60
-                        elapsed_proc_hours = elapsed_proc_mins // 60
-                        elapsed_proc_mins = elapsed_proc_mins % 60
+                    # Read audio segment (in-memory slice or disk seek)
+                    audio_slice = _read_audio_segment(audio_24k_source, current_start, current_end)
 
-                        if elapsed_proc_hours > 0:
-                            time_str = f"{elapsed_proc_hours}h {elapsed_proc_mins}m"
-                        else:
-                            time_str = f"{elapsed_proc_mins}m"
+                    if len(audio_slice) > 0:
+                        seg_name = f"sample_{segment_idx:04d}.wav"
+                        sf.write(os.path.join(temp_dir, seg_name), audio_slice, 24000)
 
-                        remaining_chunks = max(0, estimated_chunks - (segment_idx + 1))
-                        remaining_secs = remaining_chunks * 46
-                        remaining_mins = remaining_secs // 60
-                        remaining_hours = remaining_mins // 60
-                        remaining_mins = remaining_mins % 60
+                        entry = {
+                            "audio_filepath": seg_name,
+                            "text": annotated,
+                            "duration": len(audio_slice) / 24000,
+                            "start": current_start,
+                            "end": current_end
+                        }
+                        metadata.append(entry)
 
-                        if remaining_hours > 0:
-                            remaining_str = f"{remaining_hours}h {remaining_mins}m"
-                        else:
-                            remaining_str = f"{remaining_mins}m"
+                        # Append to checkpoint immediately (durable across crashes)
+                        checkpoint_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                        if (segment_idx + 1) % 50 == 0:
+                            checkpoint_file.flush()
+                            os.fsync(checkpoint_file.fileno())
 
-                        logger.info(f"  ↳ Progress: {segment_idx + 1}/{estimated_chunks} chunks | Elapsed: {time_str} | Remaining: ~{remaining_str}")
-                        log_gpu_stats(f"annotation segment {segment_idx + 1}/{estimated_chunks}")
+                        chunk_times.append(time.monotonic() - chunk_t0)
 
-                    segment_idx += 1
+                        # Dynamic ETA from rolling average
+                        if (segment_idx + 1) % 10 == 0:
+                            avg_chunk_s = sum(chunk_times) / len(chunk_times)
+                            completed_this_run = segment_idx - next_segment_idx + 1
+                            elapsed_s = time.monotonic() - annotation_start_time
+                            remaining_chunks = max(0, estimated_chunks_total - segment_idx - 1)
+                            remaining_s = remaining_chunks * avg_chunk_s
+                            logger.info(
+                                f"  ↳ Progress: {segment_idx + 1}/{estimated_chunks_total} chunks "
+                                f"| Avg: {avg_chunk_s:.1f}s/chunk "
+                                f"| Elapsed: {format_duration(elapsed_s)} "
+                                f"| ETA: {format_duration(remaining_s)}"
+                            )
+                            log_gpu_stats(f"annotation segment {segment_idx + 1}/{estimated_chunks_total}")
 
-                context.append(text)
-                if len(context) > 5:
-                    context.pop(0)
+                        segment_idx += 1
 
-                current_words = []
-                current_start = current_end
-
-    del llm
-    clear_vram()
+                    context.append(text)
+                    current_words = []
+                    current_start = current_end
+    finally:
+        checkpoint_file.close()
+        del llm
+        clear_vram()
 
     logger.info(f"✓ Annotation complete: {segment_idx} segments created")
     if metadata:
@@ -932,6 +1031,10 @@ def main():
     parser.add_argument("--skip-annotation", action="store_true")
     parser.add_argument("--chunk-size", type=float, default=10.0)
     parser.add_argument("--lang", default="en")
+    parser.add_argument("--output", default="alexandria_dataset.zip",
+                        help="Output ZIP path (default: alexandria_dataset.zip)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from existing dataset_temp/ instead of starting over")
 
     args = parser.parse_args()
 
@@ -952,6 +1055,9 @@ def main():
         logger.warning("⚠ GPU not available - running on CPU (slower)")
     logger.info(f"Arguments: audio={args.audio}, model={args.model}, chunk_size={args.chunk_size}, lang={args.lang}")
 
+    audio_24k_scratch = ".alexandria_audio_24k.wav"
+    completed_successfully = False
+
     try:
         progress.start("Validate inputs")
         validate_inputs(args)
@@ -959,12 +1065,37 @@ def main():
         progress.complete()
 
         progress.start("Load audio")
-        logger.debug(f"Loading 16kHz version from {args.audio}...")
-        audio_16k, _ = librosa.load(args.audio, sr=16000, mono=True)
-        logger.debug(f"Loading 24kHz version from {args.audio}...")
-        audio_24k, _ = librosa.load(args.audio, sr=24000, mono=True)
-        duration = len(audio_24k) / 24000
-        logger.info(f"  Audio: {duration:.1f}s @ {len(audio_24k)} samples")
+        logger.debug(f"Loading audio from {args.audio} (single read)...")
+        load_t0 = time.monotonic()
+        audio_native, native_sr = librosa.load(args.audio, sr=None, mono=True)
+        logger.debug(f"  Native sample rate: {native_sr}Hz, duration: {len(audio_native)/native_sr:.1f}s")
+
+        if native_sr == 16000:
+            audio_16k = audio_native
+        else:
+            logger.debug(f"  Resampling to 16kHz (in memory)...")
+            audio_16k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=16000)
+
+        if native_sr == 24000:
+            audio_24k = audio_native
+        else:
+            logger.debug(f"  Resampling to 24kHz (in memory)...")
+            audio_24k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=24000)
+
+        if native_sr not in (16000, 24000):
+            del audio_native
+            gc.collect()
+
+        duration_secs = len(audio_24k) / 24000
+        logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+
+        # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation
+        logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
+        sf.write(audio_24k_scratch, audio_24k, 24000)
+        del audio_24k
+        gc.collect()
+        scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)
+        logger.info(f"  ├─ Scratch audio: {audio_24k_scratch} ({scratch_size_mb:.1f} MB) - freed from RAM")
         progress.complete()
 
         progress.start("Transcribe audio")
@@ -977,7 +1108,13 @@ def main():
 
         progress.start("Annotate chunks")
         if not args.skip_annotation:
-            metadata = annotate_chunks(word_segments, args.model, args.chunk_size, audio_24k)
+            metadata = annotate_chunks(
+                word_segments,
+                args.model,
+                args.chunk_size,
+                audio_24k_scratch,
+                resume=args.resume,
+            )
             logger.info(f"  Chunks annotated: {len(metadata)}")
         else:
             logger.error("--skip-annotation not yet implemented")
@@ -985,45 +1122,56 @@ def main():
         progress.complete()
 
         progress.start("Create output dataset")
-        logger.debug("Writing metadata.jsonl...")
-        with open("dataset_temp/metadata.jsonl", "w", encoding="utf-8") as f:
-            for entry in metadata:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-        logger.debug("Creating ZIP archive...")
-        with zipfile.ZipFile("alexandria_dataset.zip", "w", zipfile.ZIP_DEFLATED) as z:
-            for file in os.listdir("dataset_temp"):
+        # metadata.jsonl is already written incrementally during annotation
+        logger.debug(f"Creating ZIP archive: {args.output}")
+        with zipfile.ZipFile(args.output, "w", zipfile.ZIP_DEFLATED) as z:
+            for file in sorted(os.listdir("dataset_temp")):
+                # Skip hidden files (e.g., any future scratch artifacts)
+                if file.startswith("."):
+                    continue
                 z.write(os.path.join("dataset_temp", file), file)
 
-        shutil.rmtree("dataset_temp")
-
         durations = [m["duration"] for m in metadata]
-        logger.info(f"  Dataset saved: alexandria_dataset.zip")
+        logger.info(f"  Dataset saved: {args.output}")
         progress.complete()
 
         logger.info("=" * 70)
         logger.info(f"Total segments: {len(metadata)}")
-        logger.info(f"Average duration: {np.mean(durations):.2f}s")
-        logger.info(f"Total audio: {sum(durations)/60:.1f} minutes")
+        if durations:
+            logger.info(f"Average duration: {np.mean(durations):.2f}s")
+            logger.info(f"Total audio: {sum(durations)/60:.1f} minutes")
         logger.info("=" * 70)
-        logger.info("✓ SUCCESS: alexandria_dataset.zip ready!")
+        logger.info(f"✓ SUCCESS: {args.output} ready!")
 
+        completed_successfully = True
         return 0
 
     except KeyboardInterrupt:
-        logger.info("Process interrupted by user")
+        logger.warning("⚠ Process interrupted by user")
+        logger.info(f"Partial results preserved in dataset_temp/ - rerun with --resume to continue")
         return 130
     except Exception as e:
         logger.critical(f"Fatal error: {e}")
         logger.debug(traceback.format_exc())
+        logger.info(f"Partial results preserved in dataset_temp/ - rerun with --resume to continue")
         return 1
     finally:
-        if os.path.exists("dataset_temp"):
+        # Always clean up the scratch audio file (not needed for resume)
+        if os.path.exists(audio_24k_scratch):
             try:
-                logger.debug("Cleaning up temporary files...")
+                os.remove(audio_24k_scratch)
+                logger.debug(f"Removed scratch audio: {audio_24k_scratch}")
+            except Exception as e:
+                logger.warning(f"Failed to remove scratch audio: {e}")
+
+        # Only remove dataset_temp on successful completion (preserves resume state on failure)
+        if completed_successfully and os.path.exists("dataset_temp"):
+            try:
                 shutil.rmtree("dataset_temp")
+                logger.debug("Cleaned up dataset_temp/")
             except Exception as e:
                 logger.warning(f"Failed to cleanup temp directory: {e}")
+
         logger.info(f"Log file saved to: {log_file}")
 
 if __name__ == "__main__":
