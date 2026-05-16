@@ -44,6 +44,33 @@ python alexandria_batch_processor.py \
 - `--model PATH` - Path to Gemma GGUF model file (required)
 - `--chunk-size SIZE` - Target duration per chunk in seconds (default: 10.0)
 - `--lang CODE` - Language code for transcription (default: en)
+- `--force` - Reprocess files even if `alexandria_dataset_<name>.zip` already exists (default: skip)
+
+## Resume Capability
+
+The batch processor **automatically skips already-processed files**. If a batch is interrupted (crash, Ctrl+C, system reboot), simply rerun the same command - it will continue from where it left off.
+
+```bash
+# First run - processes all 3 files
+python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf
+# (interrupted after book2.wav completes)
+
+# Second run - automatically skips book1 and book2, only processes book3
+python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf
+
+# Force reprocess everything
+python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf --force
+```
+
+## Real-Time Output Streaming
+
+The batch processor streams the main script's output **in real-time** so you can monitor:
+- Transcription progress (Wav2Vec2 chunks being processed)
+- GPU utilization percentage
+- Annotation progress with elapsed/remaining time estimates
+- Any warnings or errors as they happen
+
+No more waiting hours wondering if processing is stuck!
 
 ## Examples
 

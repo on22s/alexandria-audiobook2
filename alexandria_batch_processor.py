@@ -6,13 +6,14 @@ Processes one audio file at a time, creating complete datasets for each
 
 import os
 import sys
+import time
+import shutil
 import argparse
 import subprocess
 import json
 import logging
-import gc
 import torch
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Setup logging
@@ -104,32 +105,70 @@ def log_gpu_stats(label=""):
 
     label_str = f" ({label})" if label else ""
     logger.info(f"GPU Usage{label_str}:")
-    logger.info(f"  ├─ Memory: {stats['allocated_gb']:.2f}GB / {stats['total_gb']:.2f}GB ({stats['allocated_percent']:.1f}%)")
+    # Note: Parent process memory will show 0 since main script runs in subprocess
     if stats.get('utilization_percent') is not None:
-        logger.info(f"  └─ Utilization: {stats['utilization_percent']:.1f}%")
+        logger.info(f"  └─ GPU Utilization: {stats['utilization_percent']:.1f}%")
     else:
-        logger.info(f"  └─ Utilization: (rocm-smi unavailable)")
+        logger.info(f"  └─ GPU Utilization: (rocm-smi unavailable)")
+
+def format_duration(seconds):
+    """Format seconds as Xh Ym Zs or Ym Zs."""
+    hours = int(seconds // 3600)
+    mins = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"{hours}h {mins}m {secs}s"
+    elif mins > 0:
+        return f"{mins}m {secs}s"
+    else:
+        return f"{secs}s"
+
+def check_disk_space(path, required_gb_per_file, num_files):
+    """Check if disk has enough space for batch processing."""
+    try:
+        stat = shutil.disk_usage(path)
+        free_gb = stat.free / (1024 ** 3)
+        required_gb = required_gb_per_file * num_files
+
+        logger.info(f"▶ Disk space check:")
+        logger.info(f"  ├─ Available: {free_gb:.1f} GB")
+        logger.info(f"  ├─ Estimated needed: ~{required_gb:.1f} GB ({required_gb_per_file} GB/file × {num_files} files)")
+
+        if free_gb < required_gb:
+            logger.warning(f"  └─ ⚠ Low disk space - may fill up during processing")
+            return False
+        else:
+            logger.info(f"  └─ ✓ Sufficient disk space")
+            return True
+    except Exception as e:
+        logger.debug(f"Disk space check failed: {e}")
+        return True  # Don't block on check failure
 
 class BatchProcessor:
-    def __init__(self, model_path, chunk_size=10.0, language="en", skip_validation=False):
+    SUPPORTED_FORMATS = {'.wav', '.mp3', '.m4a', '.flac', '.ogg'}
+
+    def __init__(self, model_path, chunk_size=10.0, language="en", force=False):
         self.model_path = model_path
         self.chunk_size = chunk_size
         self.language = language
-        self.skip_validation = skip_validation
+        self.force = force  # If True, reprocess even if output exists
         self.results = {
             "succeeded": [],
             "failed": [],
             "skipped": []
         }
         self.total_time = 0
+        self.batch_start_time = None
 
     def validate_files(self, audio_files):
-        """Validate all audio files before processing."""
+        """Validate all audio files and skip already-processed ones."""
         logger.info("▶ Validating input files...")
         valid_files = []
 
         for audio_file in audio_files:
-            if not os.path.exists(audio_file):
+            audio_path = Path(audio_file)
+
+            if not audio_path.exists():
                 logger.error(f"  ✗ File not found: {audio_file}")
                 self.results["skipped"].append({
                     "file": audio_file,
@@ -137,7 +176,7 @@ class BatchProcessor:
                 })
                 continue
 
-            if not audio_file.lower().endswith(('.wav', '.mp3', '.m4a', '.flac', '.ogg')):
+            if audio_path.suffix.lower() not in self.SUPPORTED_FORMATS:
                 logger.warning(f"  ⚠ Unsupported format: {audio_file}")
                 self.results["skipped"].append({
                     "file": audio_file,
@@ -145,8 +184,21 @@ class BatchProcessor:
                 })
                 continue
 
-            file_size_mb = os.path.getsize(audio_file) / (1024 * 1024)
-            logger.info(f"  ✓ {Path(audio_file).name} ({file_size_mb:.1f} MB)")
+            # Check if output already exists (resume capability)
+            expected_output = f"alexandria_dataset_{audio_path.stem}.zip"
+            if os.path.exists(expected_output) and not self.force:
+                output_size_mb = os.path.getsize(expected_output) / (1024 * 1024)
+                logger.info(f"  ⊘ {audio_path.name} → already processed: {expected_output} ({output_size_mb:.1f} MB)")
+                self.results["skipped"].append({
+                    "file": audio_file,
+                    "output": expected_output,
+                    "output_size_mb": output_size_mb,
+                    "reason": "Already processed (use --force to reprocess)"
+                })
+                continue
+
+            file_size_mb = audio_path.stat().st_size / (1024 * 1024)
+            logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
             valid_files.append(audio_file)
 
         if not self.model_path or not os.path.exists(self.model_path):
@@ -155,12 +207,12 @@ class BatchProcessor:
             sys.exit(1)
 
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
-        logger.info(f"  └─ Valid files to process: {len(valid_files)}/{len(audio_files)}")
+        logger.info(f"  └─ Files to process: {len(valid_files)}/{len(audio_files)} (skipped: {len(self.results['skipped'])})")
 
         return valid_files
 
     def process_file(self, audio_file, file_index, total_files):
-        """Process a single audio file."""
+        """Process a single audio file with real-time output streaming."""
         file_name = Path(audio_file).stem
         file_size = os.path.getsize(audio_file) / (1024 * 1024)
 
@@ -168,12 +220,21 @@ class BatchProcessor:
         logger.info(f"▶ Processing [{file_index}/{total_files}] {Path(audio_file).name}")
         logger.info(f"  ├─ Size: {file_size:.1f} MB")
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
-        logger.info(f"  └─ Chunk size: {self.chunk_size}s")
+        logger.info(f"  ├─ Chunk size: {self.chunk_size}s")
+
+        # Show overall batch ETA based on completed files
+        if file_index > 1 and len(self.results["succeeded"]) > 0:
+            avg_time = self.total_time / len(self.results["succeeded"])
+            remaining_files = total_files - file_index + 1
+            eta_secs = avg_time * remaining_files
+            logger.info(f"  └─ Batch ETA: ~{format_duration(eta_secs)} ({remaining_files} files remaining)")
+        else:
+            logger.info(f"  └─ Batch ETA: calculating after first file completes...")
         logger.info("=" * 70)
 
-        # Build command to run the main script
         cmd = [
             sys.executable,
+            "-u",  # Unbuffered output for real-time streaming
             "alexandria_preparer_rocm_compatible.py",
             "--audio", audio_file,
             "--model", self.model_path,
@@ -181,41 +242,57 @@ class BatchProcessor:
             "--lang", self.language
         ]
 
-        try:
-            start_time = datetime.now()
-            logger.info(f"Starting subprocess at {start_time.strftime('%H:%M:%S')}...")
+        start_time = time.monotonic()
+        logger.info(f"Starting subprocess at {datetime.now().strftime('%H:%M:%S')}...")
+        logger.info("─" * 70 + " [subprocess output begins]")
 
-            result = subprocess.run(
+        process = None
+        last_stderr_lines = []
+        try:
+            # Use Popen for real-time output streaming
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge stderr into stdout for ordering
                 text=True,
-                timeout=3600 * 24  # 24 hour timeout per file
+                bufsize=1,  # Line-buffered
             )
 
-            elapsed_time = datetime.now() - start_time
-            elapsed_secs = elapsed_time.total_seconds()
-            elapsed_mins = int(elapsed_secs // 60)
-            elapsed_hours = elapsed_mins // 60
-            elapsed_mins = elapsed_mins % 60
+            # Stream output line by line in real-time
+            timeout_at = time.monotonic() + (3600 * 24)  # 24 hour timeout
+            for line in process.stdout:
+                line = line.rstrip()
+                if line:
+                    print(line, flush=True)  # Real-time display
+                    # Keep last 20 lines for error context
+                    last_stderr_lines.append(line)
+                    if len(last_stderr_lines) > 20:
+                        last_stderr_lines.pop(0)
 
-            if elapsed_hours > 0:
-                time_str = f"{elapsed_hours}h {elapsed_mins}m"
-            else:
-                time_str = f"{elapsed_mins}m {int(elapsed_secs % 60)}s"
+                if time.monotonic() > timeout_at:
+                    process.kill()
+                    raise subprocess.TimeoutExpired(cmd, 3600 * 24)
 
-            if result.returncode == 0:
+            process.wait()
+            returncode = process.returncode
+
+            logger.info("─" * 70 + " [subprocess output ends]")
+
+            elapsed_secs = time.monotonic() - start_time
+            time_str = format_duration(elapsed_secs)
+
+            if returncode == 0:
                 logger.info(f"✓ SUCCESS: {Path(audio_file).name} processed ({time_str})")
 
-                # Check if output file was created
                 expected_output = "alexandria_dataset.zip"
                 if os.path.exists(expected_output):
                     output_size = os.path.getsize(expected_output) / (1024 * 1024)
-                    logger.info(f"  ├─ Output: {expected_output} ({output_size:.1f} MB)")
-
-                    # Rename output to include original filename
                     output_name = f"alexandria_dataset_{file_name}.zip"
+
+                    # Atomically rename to prevent race conditions
                     os.rename(expected_output, output_name)
-                    logger.info(f"  └─ Renamed to: {output_name}")
+                    logger.info(f"  ├─ Output: {output_name} ({output_size:.1f} MB)")
+                    logger.info(f"  └─ Time: {time_str}")
 
                     self.results["succeeded"].append({
                         "file": audio_file,
@@ -233,13 +310,15 @@ class BatchProcessor:
                     })
 
             else:
-                logger.error(f"✗ FAILED: {Path(audio_file).name} (return code: {result.returncode})")
-                if result.stderr:
-                    logger.error(f"  Error: {result.stderr[-500:]}")  # Last 500 chars of error
+                logger.error(f"✗ FAILED: {Path(audio_file).name} (return code: {returncode})")
+                if last_stderr_lines:
+                    logger.error(f"  Last output lines:")
+                    for line in last_stderr_lines[-10:]:
+                        logger.error(f"    {line}")
 
                 self.results["failed"].append({
                     "file": audio_file,
-                    "return_code": result.returncode,
+                    "return_code": returncode,
                     "time": time_str
                 })
 
@@ -247,12 +326,30 @@ class BatchProcessor:
 
         except subprocess.TimeoutExpired:
             logger.error(f"✗ TIMEOUT: {Path(audio_file).name} exceeded 24 hours")
+            if process:
+                process.kill()
+                process.wait()
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": "Timeout (>24 hours)"
             })
+        except KeyboardInterrupt:
+            logger.warning(f"⚠ INTERRUPTED: User cancelled processing of {Path(audio_file).name}")
+            if process:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+            self.results["failed"].append({
+                "file": audio_file,
+                "reason": "User interrupted (KeyboardInterrupt)"
+            })
+            raise  # Re-raise to stop the batch
         except Exception as e:
             logger.error(f"✗ ERROR: {Path(audio_file).name} - {e}")
+            if process:
+                process.kill()
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": str(e)
@@ -260,26 +357,44 @@ class BatchProcessor:
 
     def run(self, audio_files):
         """Process all audio files sequentially."""
+        self.batch_start_time = time.monotonic()
         logger.info(f"\n▶ Starting batch processing: {len(audio_files)} files")
         log_gpu_stats("batch start")
 
-        # Validate all files first
+        # Validate all files first (also skips already-processed)
         valid_files = self.validate_files(audio_files)
 
         if not valid_files:
+            if self.results["skipped"]:
+                logger.info(f"All {len(self.results['skipped'])} files already processed (use --force to reprocess)")
+                self.print_summary()
+                return True
             logger.error("No valid files to process")
             return False
 
-        # Process each file
-        for idx, audio_file in enumerate(valid_files, 1):
-            self.process_file(audio_file, idx, len(valid_files))
+        # Estimate disk space needs (~250MB per audiobook for dataset)
+        check_disk_space(".", required_gb_per_file=0.5, num_files=len(valid_files))
 
-            # Small pause between files
-            if idx < len(valid_files):
-                logger.info(f"\n⏳ Waiting before next file...\n")
-                log_gpu_stats(f"between files {idx}/{len(valid_files)}")
-                import time
-                time.sleep(2)
+        # Process each file
+        try:
+            for idx, audio_file in enumerate(valid_files, 1):
+                self.process_file(audio_file, idx, len(valid_files))
+
+                # Show overall batch progress after each file
+                if len(valid_files) > 1:
+                    completed = len(self.results["succeeded"]) + len(self.results["failed"])
+                    progress_pct = (completed / len(valid_files)) * 100
+                    elapsed = time.monotonic() - self.batch_start_time
+                    logger.info(f"\n📊 Batch progress: {completed}/{len(valid_files)} files ({progress_pct:.1f}%) | Total elapsed: {format_duration(elapsed)}")
+
+                # Small pause between files
+                if idx < len(valid_files):
+                    logger.info(f"⏳ Waiting before next file...\n")
+                    log_gpu_stats(f"between files {idx}/{len(valid_files)}")
+                    time.sleep(2)
+        except KeyboardInterrupt:
+            logger.warning("\n⚠ Batch processing interrupted by user")
+            logger.info("Completed files retained - rerun batch to resume from interruption point")
 
         # Summary
         self.print_summary()
@@ -294,18 +409,16 @@ class BatchProcessor:
 
         # Overall stats
         total_files = len(self.results["succeeded"]) + len(self.results["failed"]) + len(self.results["skipped"])
+        total_time_str = format_duration(self.total_time)
 
-        total_hours = int(self.total_time // 3600)
-        total_mins = int((self.total_time % 3600) // 60)
-        total_secs = int(self.total_time % 60)
-
-        if total_hours > 0:
-            total_time_str = f"{total_hours}h {total_mins}m {total_secs}s"
-        else:
-            total_time_str = f"{total_mins}m {total_secs}s"
+        # Wall-clock time (includes pauses between files)
+        wall_time = time.monotonic() - self.batch_start_time if self.batch_start_time else self.total_time
+        wall_time_str = format_duration(wall_time)
 
         logger.info(f"Total files processed: {total_files}")
         logger.info(f"Total processing time: {total_time_str}")
+        if wall_time > self.total_time + 5:
+            logger.info(f"Total wall-clock time: {wall_time_str}")
         logger.info("")
 
         # Succeeded
@@ -379,13 +492,19 @@ def main():
         default="en",
         help="Language code (default: en)"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reprocess files even if alexandria_dataset_<name>.zip already exists"
+    )
 
     args = parser.parse_args()
 
     processor = BatchProcessor(
         model_path=args.model,
         chunk_size=args.chunk_size,
-        language=args.lang
+        language=args.lang,
+        force=args.force
     )
 
     success = processor.run(args.audio_files)
