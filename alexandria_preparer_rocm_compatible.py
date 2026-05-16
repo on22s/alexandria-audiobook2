@@ -133,6 +133,62 @@ def clear_vram():
         torch.cuda.synchronize()
         # Note: GPU cache clearing is logged silently to reduce spam
 
+def get_gpu_stats():
+    """Get current GPU memory and utilization stats."""
+    if not torch.cuda.is_available():
+        return None
+
+    stats = {}
+    try:
+        # Memory stats (works for both NVIDIA and AMD ROCm)
+        allocated = torch.cuda.memory_allocated() / 1e9  # GB
+        reserved = torch.cuda.memory_reserved() / 1e9    # GB
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+
+        stats['allocated_gb'] = allocated
+        stats['reserved_gb'] = reserved
+        stats['total_gb'] = total
+        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+
+        # Try to get utilization via rocm-smi for AMD GPUs
+        try:
+            result = subprocess.run(
+                ['rocm-smi', '--showuse', '--json'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                if data and len(data) > 0:
+                    gpu_use = data[0].get('gpu_use', 'N/A')
+                    if gpu_use != 'N/A':
+                        stats['utilization_percent'] = float(gpu_use.rstrip('%'))
+                    else:
+                        stats['utilization_percent'] = None
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+            stats['utilization_percent'] = None
+
+    except Exception as e:
+        logger.debug(f"Could not get GPU stats: {e}")
+        return None
+
+    return stats
+
+def log_gpu_stats(label=""):
+    """Log GPU memory and utilization statistics."""
+    stats = get_gpu_stats()
+    if not stats:
+        return
+
+    label_str = f" ({label})" if label else ""
+    logger.info(f"GPU Usage{label_str}:")
+    logger.info(f"  ├─ Memory: {stats['allocated_gb']:.2f}GB / {stats['total_gb']:.2f}GB ({stats['allocated_percent']:.1f}%)")
+    if stats.get('utilization_percent') is not None:
+        logger.info(f"  └─ Utilization: {stats['utilization_percent']:.1f}%")
+    else:
+        logger.info(f"  └─ Utilization: (rocm-smi unavailable)")
+
 def validate_inputs(args):
     """Validate input files."""
     logger.info("Validating input files...")
@@ -246,6 +302,7 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
         model.eval()
 
         logger.info("✓ Wav2Vec2 model loaded to GPU")
+        log_gpu_stats("after model load")
 
         # Configure context window for better understanding
         # Wav2Vec2 can handle up to ~30 seconds per chunk comfortably on modern GPUs
@@ -264,9 +321,10 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
         logger.info(f"  ├─ Overlap: {overlap_secs}s (for seamless transitions)")
         logger.info(f"  └─ Processing {num_chunks} chunks...")
         logger.debug(f"Processing {num_chunks} chunks with {overlap_secs}s overlap for context preservation...")
+        log_gpu_stats("before chunk processing")
 
         # Process chunks
-        for i in range(0, len(audio_16k) - chunk_length + 1, stride):
+        for chunk_idx, i in enumerate(range(0, len(audio_16k) - chunk_length + 1, stride)):
             chunk = audio_16k[i : i + chunk_length]
 
             with torch_module.no_grad():
@@ -276,8 +334,13 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
                 logits = model(**inputs).logits
                 all_logits.append(logits)
 
+            # Log GPU stats periodically (every 50 chunks to avoid spam)
+            if chunk_idx % 50 == 0 and chunk_idx > 0:
+                log_gpu_stats(f"chunk {chunk_idx}/{num_chunks}")
+
         # Combine logits with proper handling of overlaps
         logger.debug("Combining chunk logits with overlap handling...")
+        log_gpu_stats("during logits combination")
 
         # Process final chunk if audio length is not evenly divisible
         if len(audio_16k) > i + chunk_length:
@@ -711,6 +774,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
             max_tokens=1
         )
         logger.info(f"✓ GPU inference verified - model responding on GPU")
+        log_gpu_stats("after Gemma model load and test")
 
     except Exception as e:
         logger.error(f"Failed to load LLM model: {e}")
@@ -742,6 +806,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
 
     logger.info(f"  ├─ Estimated chunks: ~{estimated_chunks}")
     logger.info(f"  └─ Estimated time: ~{time_str} ({estimated_secs}s @ ~46s/chunk)")
+    log_gpu_stats("before annotation loop")
 
     for idx, word_data in enumerate(word_segments):
         if "start" not in word_data or "end" not in word_data:
@@ -823,6 +888,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k):
                             remaining_str = f"{remaining_mins}m"
 
                         logger.info(f"  ↳ Progress: {segment_idx + 1}/{estimated_chunks} chunks | Elapsed: {time_str} | Remaining: ~{remaining_str}")
+                        log_gpu_stats(f"annotation segment {segment_idx + 1}/{estimated_chunks}")
 
                     segment_idx += 1
 
