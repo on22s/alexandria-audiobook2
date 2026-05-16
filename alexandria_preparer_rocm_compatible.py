@@ -153,20 +153,23 @@ def get_gpu_stats():
         # Try to get utilization via rocm-smi for AMD GPUs
         try:
             result = subprocess.run(
-                ['rocm-smi', '--showuse', '--json'],
+                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             if result.returncode == 0:
-                data = json.loads(result.stdout)
-                if data and len(data) > 0:
-                    gpu_use = data[0].get('gpu_use', 'N/A')
-                    if gpu_use != 'N/A':
-                        stats['utilization_percent'] = float(gpu_use.rstrip('%'))
-                    else:
-                        stats['utilization_percent'] = None
-        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+                # Filter out warning lines and parse JSON
+                json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
+                if json_lines:
+                    data = json.loads(json_lines[0])
+                    # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+                    for card_key, card_data in data.items():
+                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                        if gpu_use_str != 'N/A':
+                            stats['utilization_percent'] = float(gpu_use_str)
+                        break  # Just get first GPU
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, ValueError, Exception):
             stats['utilization_percent'] = None
 
     except Exception as e:
