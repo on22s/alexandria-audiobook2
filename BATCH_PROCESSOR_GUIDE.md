@@ -127,23 +127,59 @@ Example:
 
 1. **Validation** - Checks all files exist and are valid audio formats
 2. **Model Check** - Verifies Gemma model is accessible
-3. **Sequential Processing** - Processes each file one by one:
+3. **GPU Monitoring** - Logs GPU memory and utilization at start
+4. **Sequential Processing** - Processes each file one by one:
    - Loads audio (16kHz + 24kHz)
-   - Transcribes with Wav2Vec2 (GPU, 30s overlapping chunks for context preservation)
-   - Falls back to Insanely Fast Whisper if needed
-   - Falls back to WhisperX-CPU if needed
-   - Annotates chunks with Gemma (GPU)
+   - **Transcribes with Wav2Vec2** (GPU primary, 30s overlapping chunks for context preservation)
+     - Falls back to Insanely Fast Whisper if needed
+     - Falls back to WhisperX-CPU if needed
+   - **Annotates chunks with Gemma** (GPU acceleration)
+     - GPU memory and utilization monitored every 10 segments
+     - Elapsed time shown in hours/minutes format
+     - Remaining time estimated with real-time updates
    - Creates audio segments with annotations
    - Packages as ZIP file
    - Renames output to avoid conflicts
-4. **Summary** - Generates processing report
+   - GPU stats logged between files
+5. **Summary** - Generates processing report with batch statistics
+
+## GPU Monitoring & Progress Tracking
+
+### Real-Time Monitoring
+- **GPU Memory**: Tracks allocated/total memory and percentage during:
+  - After Wav2Vec2 model loads
+  - Before/during Wav2Vec2 chunk processing (every 50 chunks)
+  - After Gemma model loads
+  - During annotation (every 10 segments)
+  - Between files during batch processing
+
+- **GPU Utilization**: Shows actual GPU workload percentage via rocm-smi
+  - Helps verify GPU is actually being used
+  - Detects false positives where GPU claims to be used but isn't
+  - Example: `Utilization: 45.3%`
+
+### Progress Tracking
+- **Time Format**: All time estimates shown in hours/minutes format
+  - Estimated total: `~60h 13m` instead of just seconds
+  - Elapsed time: `Elapsed: 7m 40s`
+  - Remaining time: `Remaining: ~60h 12m`
+  - Updated every 10 annotation segments
+
+### Example Progress Output
+```
+GPU Usage (chunk 50/725):
+  ├─ Memory: 4.52GB / 16.00GB (28.3%)
+  └─ Utilization: 87.5%
+
+Progress: 10/4713 chunks | Elapsed: 7m 40s | Remaining: ~60h 12m
+```
 
 ## Performance Tips
 
-- **GPU Acceleration** - All transcription and annotation uses GPU
+- **GPU Acceleration** - All transcription and annotation uses GPU with real-time monitoring
 - **Sequential Processing** - No parallel overhead, each file gets full GPU access
 - **Disk Space** - Ensure ~5-10 GB free space per audiobook
-- **Monitor Memory** - GPU cache is cleared between files
+- **Monitor Memory** - GPU cache is cleared between files, memory usage logged
 
 ## Time Estimates
 
