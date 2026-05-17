@@ -20,12 +20,22 @@ The preparer takes an audio file (audiobook) and produces a ZIP archive containi
 - 24 kHz audio spilled to disk during annotation (~1.8 GB RAM saved on long audiobooks)
 - GPU memory + utilization logging via `rocm-smi`
 
+## Recommended Models
+
+The preparer uses an LLM to annotate text chunks for TTS. Recommended for AMD 16 GB+ GPUs:
+
+| Role | Model | VRAM (Q6_K) | Why |
+|---|---|---|---|
+| **Primary** | `Qwen2.5-14B-Instruct-Q6_K.gguf` | ~12 GB | Strong instruction following, terse structured output |
+| **Fallback** | `Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf` | ~5 GB | Backup if Qwen fails to load |
+
 ## Usage
 
 ```bash
 python alexandria_preparer_rocm_compatible.py \
   --audio audiobook.wav \
-  --model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
   --chunk-size 10.0 \
   --lang en
 ```
@@ -34,9 +44,10 @@ python alexandria_preparer_rocm_compatible.py \
 
 ### Required
 - `--audio PATH` — Input audio file (.wav, .mp3, .m4a, .flac, .ogg)
-- `--model PATH` — Gemma GGUF model path (omit only with `--skip-annotation`)
+- `--model PATH` — Primary GGUF model path (omit only with `--skip-annotation`)
 
 ### Optional
+- `--fallback-model PATH` — Backup GGUF model used if `--model` fails to load
 - `--chunk-size SECONDS` — Target duration per chunk in seconds (default: `10.0`)
 - `--lang CODE` — Language code for transcription (default: `en`)
 - `--output PATH` — Output ZIP path (default: `alexandria_dataset.zip`)
@@ -45,11 +56,12 @@ python alexandria_preparer_rocm_compatible.py \
 
 ## Examples
 
-### Standard run
+### Standard run (Qwen primary, Gemma fallback)
 ```bash
 python alexandria_preparer_rocm_compatible.py \
   --audio audiobook.wav \
-  --model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
 ```
 
 ### Custom output path

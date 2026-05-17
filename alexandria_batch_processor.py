@@ -147,8 +147,9 @@ def check_disk_space(path, required_gb_per_file, num_files):
 class BatchProcessor:
     SUPPORTED_FORMATS = {'.wav', '.mp3', '.m4a', '.flac', '.ogg'}
 
-    def __init__(self, model_path, chunk_size=10.0, language="en", force=False):
+    def __init__(self, model_path, chunk_size=10.0, language="en", force=False, fallback_model=None):
         self.model_path = model_path
+        self.fallback_model = fallback_model
         self.chunk_size = chunk_size
         self.language = language
         self.force = force  # If True, reprocess even if output exists
@@ -207,6 +208,8 @@ class BatchProcessor:
             sys.exit(1)
 
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
+        if self.fallback_model:
+            logger.info(f"  ├─ Fallback model: {Path(self.fallback_model).name}")
         logger.info(f"  └─ Files to process: {len(valid_files)}/{len(audio_files)} (skipped: {len(self.results['skipped'])})")
 
         return valid_files
@@ -243,6 +246,8 @@ class BatchProcessor:
             "--lang", self.language,
             "--output", output_name,
         ]
+        if self.fallback_model:
+            cmd.extend(["--fallback-model", self.fallback_model])
         # Pass --resume unless --force was set; the preparer's source-marker check
         # ensures we won't accidentally resume into a different file's partial work.
         if not self.force:
@@ -480,7 +485,12 @@ def main():
     parser.add_argument(
         "--model",
         required=True,
-        help="Gemma GGUF model path"
+        help="Primary GGUF model path (recommended: Qwen2.5-14B-Instruct-Q6_K.gguf)"
+    )
+    parser.add_argument(
+        "--fallback-model",
+        help="Optional fallback GGUF model if --model fails to load "
+             "(e.g., Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf)"
     )
     parser.add_argument(
         "--chunk-size",
@@ -505,7 +515,8 @@ def main():
         model_path=args.model,
         chunk_size=args.chunk_size,
         language=args.lang,
-        force=args.force
+        force=args.force,
+        fallback_model=args.fallback_model,
     )
 
     success = processor.run(args.audio_files)

@@ -21,7 +21,8 @@ The batch processor allows you to queue multiple audio files for processing. Eac
 ```bash
 python alexandria_preparer_rocm_compatible.py \
   --audio audiobook.wav \
-  --model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
   --chunk-size 10.0 \
   --lang en
 ```
@@ -30,7 +31,8 @@ python alexandria_preparer_rocm_compatible.py \
 ```bash
 python alexandria_batch_processor.py \
   audiobook1.wav audiobook2.wav audiobook3.wav \
-  --model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
   --chunk-size 10.0 \
   --lang en
 ```
@@ -41,7 +43,8 @@ python alexandria_batch_processor.py \
 - `audio_files` - One or more audio files to process (required, space-separated)
 
 ### Optional Arguments
-- `--model PATH` - Path to Gemma GGUF model file (required)
+- `--model PATH` - Path to primary GGUF model file (required, recommended: `Qwen2.5-14B-Instruct-Q6_K.gguf`)
+- `--fallback-model PATH` - Optional backup GGUF model if `--model` fails to load (e.g., `Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf`)
 - `--chunk-size SIZE` - Target duration per chunk in seconds (default: 10.0)
 - `--lang CODE` - Language code for transcription (default: en)
 - `--force` - Reprocess files even if `alexandria_dataset_<name>.zip` already exists (default: skip)
@@ -87,7 +90,8 @@ No more waiting hours wondering if processing is stuck!
 ```bash
 python alexandria_batch_processor.py \
   book1.wav book2.wav book3.wav \
-  --model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
 ```
 
 ### Process with custom chunk size

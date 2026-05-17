@@ -865,12 +865,50 @@ def _write_source_marker(temp_dir, audio_source_path):
         f.write(os.path.abspath(audio_source_path))
 
 
+def _load_llm(model_path):
+    """Load a GGUF LLM via llama-cpp-python, all layers on GPU."""
+    logger.debug(f"Loading GGUF model from: {model_path}")
+    llm = Llama(
+        model_path=model_path,
+        n_gpu_layers=-1,
+        n_ctx=4096,
+        verbose=False
+    )
+    logger.info(f"✓ LLM loaded: {os.path.basename(model_path)}")
+    if hasattr(llm, 'n_gpu_layers'):
+        logger.info(f"  ├─ GPU Layers Loaded: {llm.n_gpu_layers}")
+    logger.info(f"  └─ Model device: {llm.metadata.get('device', 'cuda (via n_gpu_layers=-1)')}")
+
+    # Verify GPU usage with a tiny test inference
+    logger.debug("Verifying GPU inference capability with test prompt...")
+    llm.create_chat_completion(
+        messages=[{"role": "user", "content": "test"}],
+        max_tokens=1
+    )
+    logger.info(f"✓ GPU inference verified - model responding on GPU")
+    return llm
+
+
+# System prompt tuned for terse, structured TTS annotation output.
+# Works well with instruction-following models (Qwen, Llama Instruct, Gemma Instruct).
+TTS_ANNOTATION_SYSTEM_PROMPT = (
+    "You are a TTS annotation tool. Given a text segment from an audiobook, "
+    "output ONLY the annotated text with these markers and nothing else:\n"
+    "- Pauses: use ... for natural pauses, .... for longer pauses\n"
+    "- Emphasis: wrap stressed words in *asterisks*\n"
+    "- Tone: punctuation conveys prosody (?, !, ,, .)\n"
+    "Output the annotated text directly with no preamble, no explanation, "
+    "no alternatives, no quotation marks around the output."
+)
+
+
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
-                    resume=False, audio_source_path=None):
+                    resume=False, audio_source_path=None, fallback_model_path=None):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
     audio_source_path: the original input audio path, used to validate resume safety.
+    fallback_model_path: optional secondary GGUF to load if model_path fails.
     """
     temp_dir = "dataset_temp"
     os.makedirs(temp_dir, exist_ok=True)
@@ -907,37 +945,33 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     if audio_source_path is not None:
         _write_source_marker(temp_dir, audio_source_path)
 
-    logger.info("▶ Loading Gemma 4 LLM model for annotations...")
+    logger.info("▶ Loading LLM for annotations...")
+    logger.info(f"  ├─ Primary model: {os.path.basename(model_path)}")
+    if fallback_model_path:
+        logger.info(f"  ├─ Fallback model: {os.path.basename(fallback_model_path)}")
     logger.info("  ├─ Device: GPU (CUDA/ROCm acceleration)")
     logger.info("  ├─ GPU Layers: All (-1 = fully loaded to GPU)")
     logger.info("  └─ Periodic checkpoint: every 50 segments")
 
+    active_model_path = model_path
     try:
-        logger.debug(f"Loading GGUF model from: {model_path}")
-        llm = Llama(
-            model_path=model_path,
-            n_gpu_layers=-1,
-            n_ctx=4096,
-            verbose=False
-        )
-        logger.info("✓ Gemma 4 model loaded")
-
-        if hasattr(llm, 'n_gpu_layers'):
-            logger.info(f"  ├─ GPU Layers Loaded: {llm.n_gpu_layers}")
-        logger.info(f"  └─ Model device: {llm.metadata.get('device', 'cuda (via n_gpu_layers=-1)')}")
-
-        logger.debug("Verifying GPU inference capability with test prompt...")
-        llm.create_chat_completion(
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=1
-        )
-        logger.info(f"✓ GPU inference verified - model responding on GPU")
-        log_gpu_stats("after Gemma model load and test")
-
-    except Exception as e:
-        logger.error(f"Failed to load LLM model: {e}")
+        llm = _load_llm(model_path)
+    except Exception as primary_err:
+        logger.error(f"✗ Failed to load primary model {model_path}: {primary_err}")
         logger.debug(traceback.format_exc())
-        raise
+        if fallback_model_path and os.path.exists(fallback_model_path):
+            logger.warning(f"▶ Falling back to: {fallback_model_path}")
+            try:
+                llm = _load_llm(fallback_model_path)
+                active_model_path = fallback_model_path
+            except Exception as fallback_err:
+                logger.error(f"✗ Fallback model also failed: {fallback_err}")
+                logger.debug(traceback.format_exc())
+                raise
+        else:
+            raise
+
+    log_gpu_stats(f"after LLM load ({os.path.basename(active_model_path)})")
 
     metadata = list(existing_entries)
     segment_idx = next_segment_idx
@@ -993,22 +1027,25 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     chunk_t0 = time.monotonic()
                     text = " ".join(current_words)
 
-                    # Build prompt with context (deque-based, last 3 entries)
-                    ctx = " ".join(list(context)[-3:]) if context else ""
+                    # Build user prompt with optional preceding context for continuity
+                    ctx = " ".join(list(context)[-2:]) if context else ""
                     if ctx:
-                        prompt = f"Previous: {ctx}\n\nAnnotate for TTS:\n{text}"
+                        user_prompt = f"Previous context: {ctx}\n\nAnnotate this segment:\n{text}"
                     else:
-                        prompt = f"Annotate for TTS:\n{text}"
+                        user_prompt = f"Annotate this segment:\n{text}"
 
                     try:
                         response = llm.create_chat_completion(
-                            messages=[{"role": "user", "content": prompt}],
+                            messages=[
+                                {"role": "system", "content": TTS_ANNOTATION_SYSTEM_PROMPT},
+                                {"role": "user", "content": user_prompt},
+                            ],
                             max_tokens=512,
-                            temperature=0.7
+                            temperature=0.3,  # Lower temp for more deterministic structured output
                         )
                         annotated = response["choices"][0]["message"]["content"].strip()
                         if segment_idx == next_segment_idx:
-                            logger.info(f"✓ Gemma GPU inference confirmed - working on GPU")
+                            logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
                     except Exception as e:
                         logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
                         annotated = text
@@ -1075,7 +1112,11 @@ def main():
     )
 
     parser.add_argument("--audio", required=True, help="Input audio file")
-    parser.add_argument("--model", help="Gemma GGUF model")
+    parser.add_argument("--model",
+                        help="Primary GGUF model (recommended: Qwen2.5-14B-Instruct-Q6_K.gguf)")
+    parser.add_argument("--fallback-model",
+                        help="Optional fallback GGUF model if --model fails to load "
+                             "(e.g., Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf)")
     parser.add_argument("--skip-annotation", action="store_true")
     parser.add_argument("--chunk-size", type=float, default=10.0)
     parser.add_argument("--lang", default="en")
@@ -1101,7 +1142,7 @@ def main():
         logger.info(f"  └─ GPU Count: {torch.cuda.device_count()}")
     else:
         logger.warning("⚠ GPU not available - running on CPU (slower)")
-    logger.info(f"Arguments: audio={args.audio}, model={args.model}, chunk_size={args.chunk_size}, lang={args.lang}")
+    logger.info(f"Arguments: audio={args.audio}, model={args.model}, fallback_model={args.fallback_model}, chunk_size={args.chunk_size}, lang={args.lang}")
 
     audio_24k_scratch = ".alexandria_audio_24k.wav"
     completed_successfully = False
@@ -1163,6 +1204,7 @@ def main():
                 audio_24k_scratch,
                 resume=args.resume,
                 audio_source_path=args.audio,
+                fallback_model_path=args.fallback_model,
             )
             logger.info(f"  Chunks annotated: {len(metadata)}")
         else:
