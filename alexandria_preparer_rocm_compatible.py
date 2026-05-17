@@ -232,6 +232,12 @@ def validate_inputs(args):
     if not args.skip_annotation:
         logger.debug(f"Model file exists: {args.model}")
 
+    # Validate fallback eagerly so we fail fast on a typo'd path
+    if not args.skip_annotation and args.fallback_model and not os.path.exists(args.fallback_model):
+        logger.error(f"Fallback model file not found: {args.fallback_model}")
+        logger.error("Either fix the path or omit --fallback-model")
+        sys.exit(1)
+
     try:
         info = sf.info(args.audio)
         logger.info(f"Audio file: {info.samplerate}Hz, {info.duration:.2f}s, {info.channels}ch")
@@ -1001,8 +1007,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     annotation_start_time = time.monotonic()
     chunk_times = deque(maxlen=20)  # rolling window for dynamic ETA
 
-    # Open checkpoint file in append mode so we don't lose previous entries
-    checkpoint_file = open(checkpoint_path, "a", encoding="utf-8")
+    # Open checkpoint in line-buffered mode (buffering=1) so each entry hits
+    # the kernel buffer immediately. fsync still happens every 50 segments for
+    # full disk durability. This means a Python crash loses 0 segments.
+    checkpoint_file = open(checkpoint_path, "a", encoding="utf-8", buffering=1)
+
+    resume_point = current_start  # marker for "skip words before this"
+    started = False  # True once we've consumed the first qualifying word
 
     try:
         for idx, word_data in enumerate(word_segments):
@@ -1011,12 +1022,18 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
 
             word_start_time = word_data["start"]
             # Skip words before the resume point
-            if word_start_time < current_start:
+            if word_start_time < resume_point:
                 continue
 
             word = word_data.get("word", "").strip()
             if not word:
                 continue
+
+            # Pin chunk start to the first qualifying word so resumed runs
+            # don't include leading silence between resume_point and the first word.
+            if not started:
+                current_start = word_start_time
+                started = True
 
             current_words.append(word)
             current_end = word_data["end"]
@@ -1144,7 +1161,9 @@ def main():
         logger.warning("⚠ GPU not available - running on CPU (slower)")
     logger.info(f"Arguments: audio={args.audio}, model={args.model}, fallback_model={args.fallback_model}, chunk_size={args.chunk_size}, lang={args.lang}")
 
-    audio_24k_scratch = ".alexandria_audio_24k.wav"
+    # PID-suffixed scratch path so concurrent preparer runs in the same directory
+    # don't clobber each other's audio cache.
+    audio_24k_scratch = f".alexandria_audio_24k_{os.getpid()}.wav"
     completed_successfully = False
 
     try:
@@ -1178,9 +1197,11 @@ def main():
         duration_secs = len(audio_24k) / 24000
         logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
 
-        # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation
+        # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation.
+        # Use FLOAT subtype to preserve full float32 precision - segments will
+        # quantize to PCM_16 once at write time (default), avoiding double quantization.
         logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
-        sf.write(audio_24k_scratch, audio_24k, 24000)
+        sf.write(audio_24k_scratch, audio_24k, 24000, subtype="FLOAT")
         del audio_24k
         gc.collect()
         scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)

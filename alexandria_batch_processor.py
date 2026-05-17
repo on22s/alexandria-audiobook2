@@ -207,6 +207,12 @@ class BatchProcessor:
             logger.error("Cannot proceed without model")
             sys.exit(1)
 
+        # Validate fallback model eagerly so we don't fail mid-batch if it's typo'd
+        if self.fallback_model and not os.path.exists(self.fallback_model):
+            logger.error(f"Fallback model not found: {self.fallback_model}")
+            logger.error("Either fix the path or omit --fallback-model")
+            sys.exit(1)
+
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
         if self.fallback_model:
             logger.info(f"  ├─ Fallback model: {Path(self.fallback_model).name}")
