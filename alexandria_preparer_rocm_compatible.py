@@ -1432,16 +1432,27 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             source_state['orig_match'],
                             cursor_before,
                         )
-                        # When the narrow-window match is weak, the cursor has
-                        # probably fallen behind the audio (e.g. an audio-only
-                        # passage skipped over source content, leaving cursor
-                        # parked while audio kept moving forward). Try the
-                        # wide-window `realign` to jump cursor forward to where
-                        # the audio's prose actually picks up the source again.
-                        # Without this, one failed chunk leaves cursor stuck and
-                        # every subsequent chunk gets dropped — the bug that
-                        # the 11:50 log surfaced (97% drop rate, cursor pinned
-                        # at word 241 of 242,812 for the entire audio).
+                        # Three-tier recovery, mirroring compare's run() loop:
+                        #
+                        #   tier 0: find_best_match (already done above) —
+                        #     narrow ±200 word window around cursor.
+                        #   tier 1: realign — wide forward search up to 3000
+                        #     source words past cursor. Cheap, catches the
+                        #     common case where audio skipped a paragraph or
+                        #     two of source.
+                        #   tier 2: find_anchor_position — full-source scan.
+                        #     Expensive but rare; catches catastrophic loss
+                        #     where audio jumped chapters, or the EPUB's
+                        #     front-matter order put content far from where
+                        #     the cursor expected it.
+                        #
+                        # Each tier only fires when the previous one's result
+                        # is too weak to be confident, and each requires the
+                        # new ratio to clear a tier-specific bar that's higher
+                        # than what `--source-threshold` would otherwise require.
+                        # That keeps a chunk from being rescued by a low-
+                        # confidence wider match when the local match was
+                        # just noise.
                         if sa_ratio < 0.45 and len(chunk_match_words) >= 5:
                             r_start, r_end, r_ratio = alignment.realign(
                                 chunk_match_words,
@@ -1456,6 +1467,42 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                     f"(jumped {r_end - cursor_before} words)"
                                 )
                                 sa_start, sa_end, sa_ratio = r_start, r_end, r_ratio
+                            elif r_ratio < 0.30:
+                                # Tier 2: full-source scan. Same logic compare
+                                # uses for catastrophic alignment loss. Requires
+                                # both an absolute bar (>=0.60) AND a clear
+                                # improvement over the local ratio (+0.40) so
+                                # we don't false-positive on chunks that
+                                # genuinely have no source equivalent (audio-
+                                # only credits, narrator inserts, etc.) —
+                                # those should still be dropped.
+                                a_start, a_end, a_ratio = alignment.find_anchor_position(
+                                    chunk_match_words,
+                                    source_state['orig_match'],
+                                    min_ratio=0.6,
+                                )
+                                if a_ratio >= 0.6 and a_ratio > sa_ratio + 0.4:
+                                    # Trim the wide-anchor window down to the
+                                    # actual aligned region so the source span
+                                    # we use is tight, not the full +slop window.
+                                    t_start, t_end = alignment.trim_span_to_alignment(
+                                        chunk_match_words,
+                                        source_state['orig_match'],
+                                        a_start, a_end,
+                                    )
+                                    if t_end > t_start:
+                                        a_start, a_end = t_start, t_end
+                                        a_ratio = alignment._ratio(
+                                            chunk_match_words,
+                                            source_state['orig_match'][a_start:a_end],
+                                        )
+                                    logger.info(
+                                        f"  ↪ chunk {segment_idx}: full-source re-anchor "
+                                        f"ratio={a_ratio:.3f} cursor "
+                                        f"{cursor_before}→{a_end} (jumped "
+                                        f"{a_end - cursor_before:+d} words)"
+                                    )
+                                    sa_start, sa_end, sa_ratio = a_start, a_end, a_ratio
                         if sa_ratio >= source_threshold:
                             asr_preview = (text[:60] + '…') if len(text) > 60 else text
                             text = ' '.join(source_state['orig_display'][sa_start:sa_end])
