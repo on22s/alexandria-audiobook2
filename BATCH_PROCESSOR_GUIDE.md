@@ -15,6 +15,36 @@ The batch processor allows you to queue multiple audio files for processing. Eac
 - GPU acceleration for all files
 - Time estimates for each file
 
+## Quick Start
+
+Pick one of three input modes:
+
+**A. List files individually** (positional, space-separated)
+```bash
+python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+**B. Scan an entire folder** (use `--folder` flag — the space matters)
+```bash
+python alexandria_batch_processor.py --folder /path/to/audiobooks --model Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+**C. Mix both** (folder + extra files)
+```bash
+python alexandria_batch_processor.py extra.wav --folder /path/to/audiobooks --model Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+> **Paths with spaces must be quoted.** If your folder is `/home/you/Desktop/New folder`, the shell will split it into two arguments unless you wrap it in quotes:
+> ```bash
+> # WRONG — shell splits at the space
+> python alexandria_batch_processor.py --folder /home/you/Desktop/New folder --model model.gguf
+>
+> # RIGHT — quotes keep the path as one argument
+> python alexandria_batch_processor.py --folder "/home/you/Desktop/New folder" --model model.gguf
+> ```
+
+> **Don't forget the space after `--folder`.** Writing `--/home/...` (no space) makes argparse treat the whole path as an unknown flag name.
+
 ## Usage
 
 ### Single File (Original Script)
@@ -37,17 +67,45 @@ python alexandria_batch_processor.py \
   --lang en
 ```
 
+### Folder Scan (Batch Processor)
+```bash
+python alexandria_batch_processor.py \
+  --folder "/path/to/audiobooks" \
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --fallback-model Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf \
+  --chunk-size 10.0 \
+  --lang en
+```
+Quote the folder path if it contains spaces.
+
 ## Command Line Options
 
 ### Positional Arguments
 - `audio_files` - One or more audio files to process (required, space-separated)
 
 ### Optional Arguments
+- `--folder DIR` - Scan a folder for all supported audio files (`.wav .flac .ogg`), sorted alphabetically; can be combined with individually listed files
 - `--model PATH` - Path to primary GGUF model file (required, recommended: `Qwen2.5-14B-Instruct-Q6_K.gguf`)
 - `--fallback-model PATH` - Optional backup GGUF model if `--model` fails to load (e.g., `Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf`)
 - `--chunk-size SIZE` - Target duration per chunk in seconds (default: 10.0)
 - `--lang CODE` - Language code for transcription (default: en)
 - `--force` - Reprocess files even if `alexandria_dataset_<name>.zip` already exists (default: skip)
+
+## Pause and Resume
+
+### Pausing mid-run (e.g., to game or free up GPU)
+
+Press **Ctrl+C** at any time to stop the batch processor. The current file's checkpoint in `dataset_temp/` is preserved automatically. When you're ready to continue, just rerun the exact same command — no extra flags needed:
+
+```bash
+# Stopped mid-run with Ctrl+C — just rerun the same command to resume
+python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model.gguf
+```
+
+The batch processor will:
+- **Skip** files whose output zip already exists (completed files)
+- **Resume** the interrupted file from its last checkpoint (no repeated work)
+- **Process fresh** any files not yet started
 
 ## Resume Capability
 
@@ -55,7 +113,7 @@ The batch processor supports **two layers of resume**:
 
 **1. File-level skip** — Files whose output zip (`alexandria_dataset_<name>.zip`) already exists are skipped on subsequent runs.
 
-**2. Mid-file resume** — If a file crashed mid-annotation (e.g., 50 hours into a 60-hour run), the batch processor passes `--resume` to the preparer automatically. The preparer reads its checkpoint and continues from the last completed segment.
+**2. Mid-file resume** — If a file was interrupted mid-annotation (by Ctrl+C or a crash), the batch processor passes `--resume` to the preparer automatically. The preparer reads its checkpoint and continues from the last completed segment.
 
 The preparer's `.source` marker in `dataset_temp/` ensures we never accidentally resume into a different file's partial work — if the marker doesn't match the current audio file, `dataset_temp/` is wiped and processing starts fresh.
 
@@ -233,19 +291,30 @@ For 3 audiobooks: ~13-16 hours total
 
 ## Troubleshooting
 
+### "unrecognized arguments" or "--folder path is not a directory"
+```
+error: unrecognized arguments: --/home/you/Desktop/New
+Error: --folder path is not a directory: /home/you/Desktop/New
+```
+Almost always a shell quoting issue, not a bug:
+- **Missing space:** `--/home/...` should be `--folder /home/...` (with a space between the flag and the path)
+- **Unquoted spaces:** wrap any path containing spaces in double quotes: `--folder "/home/you/Desktop/New folder"`
+- **Trailing backslash + space:** in multi-line commands, make sure the `\` is the very last character on the line (no trailing spaces)
+
 ### File Not Found
 ```
 Error: File not found: audiobook.wav
 ```
 - Check file path is correct
 - Use absolute paths if file is in different directory
+- Quote any path containing spaces: `"/path with spaces/book.wav"`
 
 ### Unsupported Format
 ```
 Warning: Unsupported format: audiobook.aac
 ```
-- Supported formats: .wav, .mp3, .m4a, .flac, .ogg
-- Convert file using ffmpeg or other audio tool
+- Supported formats: `.wav`, `.flac`, `.ogg` (natively via soundfile/libsndfile)
+- `.mp3` and `.m4a` are not reliably supported — convert to `.wav` first: `ffmpeg -i input.mp3 output.wav`
 
 ### Model Not Found
 ```
@@ -272,9 +341,19 @@ Error: No space left on device
 
 ## Advanced Usage
 
-### Process Files from Directory
+### Process all files in a folder
 ```bash
-python alexandria_batch_processor.py $(ls /path/to/audiobooks/*.wav) \
+python alexandria_batch_processor.py \
+  --folder /path/to/audiobooks \
+  --model model.gguf
+```
+
+Files are picked up alphabetically. Supported formats: `.wav .flac .ogg` — these are natively supported by soundfile/libsndfile. Convert `.mp3` or `.m4a` files to `.wav` first (e.g., `ffmpeg -i input.mp3 output.wav`).
+
+You can also mix a folder with individually listed files:
+```bash
+python alexandria_batch_processor.py extra.wav \
+  --folder /path/to/audiobooks \
   --model model.gguf
 ```
 

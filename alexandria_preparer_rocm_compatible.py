@@ -27,6 +27,7 @@ import time
 import librosa
 import logging
 import json
+import re
 import subprocess
 import zipfile
 import shutil
@@ -789,6 +790,85 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str) -> 
     logger.critical("=" * 70)
     sys.exit(1)
 
+# ── Annotation output sanitisation ────────────────────────────────────────────
+# These run on the LLM's annotation BEFORE we write it to metadata.jsonl, so
+# downstream consumers (alexandria_compare.py and any TTS trainer that
+# tokenises on whitespace) don't have to peel the same artefacts apart.
+_EMPHASIS_PATTERN = re.compile(r'\*([^*]+)\*')
+_DOTS_PATTERN     = re.compile(r'\.{3,}')
+_WS_COLLAPSE      = re.compile(r'\s+')
+
+
+def _sanitize_annotation(text: str) -> str:
+    """Clean up common LLM annotation quirks before writing to JSONL.
+
+    1) Multi-word emphasis '*Trull Sengar*' → '*Trull* *Sengar*' so per-word
+       prosody markers survive whitespace-tokenisation downstream.
+    2) Pad '...' / '....' pause runs so they sit as their own tokens rather
+       than fusing into adjacent words ('YOU...*DERONDL*...THE' otherwise
+       collapses to one garbled token in any naive parser).
+    3) Collapse any doubled whitespace introduced by step 2.
+    """
+    text = _EMPHASIS_PATTERN.sub(
+        lambda m: ' '.join(f'*{w}*' for w in m.group(1).split()) or m.group(0),
+        text,
+    )
+    text = _DOTS_PATTERN.sub(r' \g<0> ', text)
+    text = _WS_COLLAPSE.sub(' ', text).strip()
+    return text
+
+
+# ── Chunk-boundary selection ──────────────────────────────────────────────────
+def _find_best_cut(word_starts, word_ends, words, chunk_start,
+                   min_pause: float = 0.25,
+                   lookback_frac: float = 0.30) -> int:
+    """Pick the cut point for an over-size chunk. Returns the index of the
+    last word to include (inclusive).
+
+    The chunker previously cut at the first word that crossed the target
+    duration — wherever that landed. This helper prefers natural boundaries
+    within the last `lookback_frac` of the chunk's accumulated time so the
+    emitted WAV ends on a breath/clause/sentence break instead of mid-phrase.
+
+    Preference order:
+      1. Word ending in sentence punctuation (.!?) within the lookback
+         window — best for TTS coherence, take the LATEST one.
+      2. Word followed by the longest pause ≥ `min_pause` seconds in the
+         same window — natural breath/clause break.
+      3. The final word (the pre-fix behaviour) when neither is available.
+    """
+    n = len(words)
+    if n < 4:
+        return n - 1
+    chunk_end   = word_ends[-1]
+    chunk_dur   = chunk_end - chunk_start
+    threshold_t = chunk_end - chunk_dur * lookback_frac
+
+    # 1) Sentence-end cut — walk backward from end, take the latest in window
+    for i in range(n - 1, -1, -1):
+        if word_ends[i] < threshold_t:
+            break
+        bare = words[i].rstrip(') ”"\'')
+        if bare.endswith(('.', '!', '?')):
+            return i
+
+    # 2) Pause cut — largest gap in the window
+    best_idx = None
+    best_gap = min_pause
+    for i in range(n - 1):
+        if word_ends[i] < threshold_t:
+            continue
+        gap = word_starts[i + 1] - word_ends[i]
+        if gap >= best_gap:
+            best_gap = gap
+            best_idx = i
+    if best_idx is not None:
+        return best_idx
+
+    # 3) Fall back to current behaviour
+    return n - 1
+
+
 def _read_audio_segment(audio_24k_source, start_s, end_s):
     """Read an audio segment by time range from either an in-memory array or a soundfile path."""
     start_samp = max(0, round(start_s * 24000))
@@ -982,6 +1062,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     metadata = list(existing_entries)
     segment_idx = next_segment_idx
     current_words = []
+    current_word_starts = []   # parallel to current_words — for pause-aware cuts
+    current_word_ends   = []   # parallel to current_words — for pause-aware cuts
     current_start = resume_time  # Start fresh after the resume point
     context = deque(maxlen=5)
 
@@ -1036,13 +1118,32 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 started = True
 
             current_words.append(word)
+            current_word_starts.append(word_start_time)
+            current_word_ends.append(word_data["end"])
             current_end = word_data["end"]
             duration = current_end - current_start
 
-            if duration >= chunk_size or idx == len(word_segments) - 1:
-                if current_words and duration >= 1.0:
+            is_final = (idx == len(word_segments) - 1)
+            if duration >= chunk_size or is_final:
+                # Pick a smarter cut point in the last ~30% of the chunk so
+                # we end on a sentence or natural pause instead of wherever
+                # the duration threshold happened to land. Skip the look-back
+                # at the very end of audio where we just want everything left.
+                if duration >= chunk_size and not is_final:
+                    cut_at = _find_best_cut(
+                        current_word_starts, current_word_ends,
+                        current_words, current_start,
+                    )
+                else:
+                    cut_at = len(current_words) - 1
+
+                chunk_words    = current_words[:cut_at + 1]
+                chunk_end_time = current_word_ends[cut_at]
+                chunk_duration = chunk_end_time - current_start
+
+                if chunk_words and chunk_duration >= 1.0:
                     chunk_t0 = time.monotonic()
-                    text = " ".join(current_words)
+                    text = " ".join(chunk_words)
 
                     # Build user prompt with optional preceding context for continuity
                     ctx = " ".join(list(context)[-2:]) if context else ""
@@ -1061,6 +1162,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             temperature=0.3,  # Lower temp for more deterministic structured output
                         )
                         annotated = response["choices"][0]["message"]["content"].strip()
+                        annotated = _sanitize_annotation(annotated)
                         if segment_idx == next_segment_idx:
                             logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
                     except Exception as e:
@@ -1068,7 +1170,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         annotated = text
 
                     # Read audio segment (in-memory slice or disk seek)
-                    audio_slice = _read_audio_segment(audio_24k_source, current_start, current_end)
+                    audio_slice = _read_audio_segment(audio_24k_source, current_start, chunk_end_time)
 
                     if len(audio_slice) > 0:
                         seg_name = f"sample_{segment_idx:04d}.wav"
@@ -1079,7 +1181,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             "text": annotated,
                             "duration": len(audio_slice) / 24000,
                             "start": current_start,
-                            "end": current_end
+                            "end": chunk_end_time
                         }
                         metadata.append(entry)
 
@@ -1109,8 +1211,13 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         segment_idx += 1
 
                     context.append(text)
-                    current_words = []
-                    current_start = current_end
+                # Carry the post-cut tail forward as the start of the next chunk.
+                # The chunker previously dropped everything; now any words that
+                # the look-back trimmed off become the seed of the next chunk.
+                current_words       = current_words[cut_at + 1:]
+                current_word_starts = current_word_starts[cut_at + 1:]
+                current_word_ends   = current_word_ends[cut_at + 1:]
+                current_start = current_word_starts[0] if current_word_starts else chunk_end_time
     finally:
         checkpoint_file.close()
         del llm

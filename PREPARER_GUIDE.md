@@ -72,8 +72,28 @@ python alexandria_preparer_rocm_compatible.py \
   --output datasets/book1.zip
 ```
 
+### Pause and resume (e.g., to game or free up GPU)
+
+Press **Ctrl+C** at any time to stop the script. Your progress is saved automatically:
+
+```
+⚠ Process interrupted by user
+Partial results preserved in dataset_temp/ - rerun with --resume to continue
+```
+
+When you're ready to continue, rerun with the same arguments plus `--resume`:
+
+```bash
+python alexandria_preparer_rocm_compatible.py \
+  --audio audiobook.wav \
+  --model model.gguf \
+  --resume
+```
+
+The preparer picks up exactly where it left off — no repeated work.
+
 ### Resume after crash
-If the script crashes 50 hours into a 60-hour annotation, just rerun with `--resume`:
+If the script crashes 50 hours into a 60-hour annotation, the recovery is identical — rerun with `--resume`:
 
 ```bash
 python alexandria_preparer_rocm_compatible.py \
@@ -143,7 +163,7 @@ On `--resume`:
 - New entries are appended (existing entries untouched)
 - The last 5 entries' text becomes the LLM context
 
-**On crash or Ctrl+C**: `dataset_temp/` is preserved (not deleted). Rerun with `--resume` to continue.
+**On intentional pause (Ctrl+C) or crash**: `dataset_temp/` is preserved (not deleted). Rerun with `--resume` and the same `--audio` and `--model` arguments to continue from where you stopped.
 
 **On success**: `dataset_temp/` is deleted after the zip is created.
 

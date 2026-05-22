@@ -485,8 +485,14 @@ def main():
 
     parser.add_argument(
         "audio_files",
-        nargs="+",
-        help="Audio files to process"
+        nargs="*",
+        help="Audio files to process (optional if --folder is used)"
+    )
+    parser.add_argument(
+        "--folder",
+        metavar="DIR",
+        help="Folder to scan for audio files (.wav .mp3 .m4a .flac .ogg); "
+             "combined with any individually listed files"
     )
     parser.add_argument(
         "--model",
@@ -517,6 +523,23 @@ def main():
 
     args = parser.parse_args()
 
+    audio_files = list(args.audio_files)
+
+    if args.folder:
+        folder = Path(args.folder)
+        if not folder.is_dir():
+            print(f"Error: --folder path is not a directory: {args.folder}", file=sys.stderr)
+            sys.exit(1)
+        supported = {".wav", ".flac", ".ogg"}
+        found = sorted(str(p) for p in folder.iterdir() if p.suffix.lower() in supported)
+        if not found:
+            print(f"Error: no supported audio files found in {args.folder}", file=sys.stderr)
+            sys.exit(1)
+        audio_files.extend(found)
+
+    if not audio_files:
+        parser.error("provide at least one audio file or use --folder")
+
     processor = BatchProcessor(
         model_path=args.model,
         chunk_size=args.chunk_size,
@@ -525,7 +548,7 @@ def main():
         fallback_model=args.fallback_model,
     )
 
-    success = processor.run(args.audio_files)
+    success = processor.run(audio_files)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

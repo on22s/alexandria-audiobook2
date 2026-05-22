@@ -73,3 +73,27 @@ dataset_builder/
 # Docker persistent data
 data/
 
+# Local LLM model weights (multi-GB, not source code)
+*.gguf
+models/
+
+# Vendored third-party repos
+insanely-fast-whisper-rocm/
+
+# Sample audio under test (user content, not code)
+audiobook.wav
+
+# Batch processor runtime outputs
+batch_results_*.json
+
+# Preparer scratch directory
+dataset_temp/
+
+# Compare-script output artifacts (user-content; live next to the source audio)
+metadata_corrected.jsonl
+metadata_corrected_review_log.jsonl
+.metadata_compare_progress.json
+
+# Generated dataset zip
+alexandria_dataset_*.zip
+
