@@ -29,6 +29,12 @@ import logging
 import json
 import re
 import subprocess
+
+# Shared alignment primitives (load_source, lexicon, find_best_match, ...).
+# Only used when --source is passed; preparer remains zero-dep on this module
+# for the legacy ASR-only workflow because nothing in the chunker calls into
+# it unless source_state is populated.
+import alexandria_alignment as alignment
 import zipfile
 import shutil
 import soundfile as sf
@@ -869,6 +875,137 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
     return n - 1
 
 
+def _provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
+    """Pack the first N chunks' worth of ASR words into the entry shape
+    alignment.auto_anchor / alignment.estimate_alignment_quality expect.
+
+    Auto-anchor needs to see actual chunk text to figure out where the audio
+    first lines up with the source. But the real chunker hasn't run yet (it
+    depends on the source-cursor we're trying to derive). Build provisional
+    chunks via the same duration-threshold rule the real chunker uses — no
+    pause-aware look-back, no LLM, just enough to feed the anchor.
+    """
+    entries = []
+    current_words = []
+    current_start = None
+    for word_data in word_segments:
+        if "start" not in word_data or "end" not in word_data:
+            continue
+        word = word_data.get("word", "").strip()
+        if not word:
+            continue
+        if current_start is None:
+            current_start = word_data["start"]
+        current_words.append(word)
+        current_end = word_data["end"]
+        if current_end - current_start >= chunk_size:
+            entries.append({
+                'text':  " ".join(current_words),
+                'start': current_start,
+                'end':   current_end,
+            })
+            current_words = []
+            current_start = None
+            if len(entries) >= max_entries:
+                break
+    return entries
+
+
+def _build_source_state(source_path: str,
+                        source_start: int = None,
+                        source_start_text: str = None,
+                        no_auto_anchor: bool = False,
+                        entries_for_anchor: list = None):
+    """Load + clean the source, build the proper-noun lexicon, tokenise into
+    parallel display/match word lists, and pick the initial cursor.
+
+    Returns a dict with everything the chunker needs to align ASR chunks
+    against the source:
+      {
+        'orig_display': [...],   # source words, original capitalisation
+        'orig_match'  : [...],   # source words, normalised for fuzzy matching
+        'cursor'      : N,       # current source-word index
+      }
+
+    `entries_for_anchor` should be the first few ASR chunks (already
+    available at this point) so we can use auto_anchor to find where the
+    audio's prose lines up with the source text. Audio intros (credits,
+    narrator notes) often have no source equivalent — the anchor jumps past
+    them to the prologue's first real sentence.
+    """
+    logger.info(f"▶ Loading source for guided chunking: {source_path}")
+    source_text = alignment.load_source(source_path)
+    source_text = alignment.clean_source_text(source_text)
+    logger.info(f"  ├─ Source: {len(source_text):,} characters")
+
+    # Build per-book proper-noun lexicon (character names + recurring
+    # capitalised terms). Used by alignment._step_threshold to relax the
+    # boundary acceptance bar for ASR-mangled Japanese romanisations like
+    # 'coodo'↔'kudou' that sit far below the default 0.55 fuzzy bar.
+    alignment._PROPER_NOUNS = alignment._build_proper_nouns(source_text)
+    if alignment._PROPER_NOUNS:
+        sample = ', '.join(sorted(alignment._PROPER_NOUNS)[:8])
+        more = f' +{len(alignment._PROPER_NOUNS) - 8} more' if len(alignment._PROPER_NOUNS) > 8 else ''
+        logger.info(f"  ├─ {len(alignment._PROPER_NOUNS)} recurring proper nouns ({sample}{more})")
+
+    # Hyphenated compounds split into separate tokens so "twenty-minute" doesn't
+    # become a single un-alignable word. Same logic as compare's main(); U+2500
+    # appears in some EPUB→text conversions where em-dashes should be.
+    compound_split = re.compile(r'[-‐‑‒–—―─━]')
+    tokens = compound_split.sub(' ', source_text).split()
+    orig_display, orig_match = [], []
+    for w in tokens:
+        m = alignment.normalize(w)
+        if not m:
+            continue
+        orig_display.append(w)
+        orig_match.append(m)
+    logger.info(f"  ├─ {len(orig_display):,} source words")
+
+    # Pick initial cursor
+    if source_start is not None:
+        cursor = max(0, min(source_start, len(orig_match)))
+        logger.info(f"  └─ Starting at source word {cursor} (--source-start)")
+    elif source_start_text:
+        pos = alignment.find_text_in_source(source_start_text, orig_match)
+        if pos < 0:
+            sys.exit(
+                f"--source-start-text: could not confidently locate "
+                f"{source_start_text!r} in the source. Try a longer or more "
+                f"distinctive phrase, or use --source-start N."
+            )
+        cursor = pos
+        logger.info(f"  └─ Starting at source word {cursor} (matched --source-start-text)")
+    elif no_auto_anchor:
+        cursor = 0
+        logger.info(f"  └─ Auto-anchor disabled; starting at source word 0")
+    elif entries_for_anchor:
+        # Use auto_anchor with the first ~20 chunks to find where the audio's
+        # prose lines up with the source. Anchor entries are built from the
+        # ASR word_segments accumulated so far (before chunking) — we pack
+        # them into the same shape compare's auto_anchor expects.
+        anchor_idx, anchor_pos, anchor_ratio = alignment.auto_anchor(
+            entries_for_anchor, orig_match
+        )
+        if anchor_ratio > 0:
+            logger.info(f"  └─ Auto-anchor: entry {anchor_idx} → source word {anchor_pos} "
+                        f"({anchor_ratio:.1%} match)")
+            cursor = anchor_pos
+        else:
+            logger.warning(f"  └─ Auto-anchor found no confident match in the first "
+                           f"{min(20, len(entries_for_anchor))} chunks; starting at word 0")
+            cursor = 0
+    else:
+        cursor = 0
+        logger.info(f"  └─ No anchor data; starting at source word 0")
+
+    return {
+        'orig_display': orig_display,
+        'orig_match':   orig_match,
+        'cursor':       cursor,
+    }
+
+
 def _read_audio_segment(audio_24k_source, start_s, end_s):
     """Read an audio segment by time range from either an in-memory array or a soundfile path."""
     start_samp = max(0, round(start_s * 24000))
@@ -989,12 +1126,21 @@ TTS_ANNOTATION_SYSTEM_PROMPT = (
 
 
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
-                    resume=False, audio_source_path=None, fallback_model_path=None):
+                    resume=False, audio_source_path=None, fallback_model_path=None,
+                    source_state=None, source_threshold=0.65, keep_unaligned=False):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
     audio_source_path: the original input audio path, used to validate resume safety.
     fallback_model_path: optional secondary GGUF to load if model_path fails.
+
+    source_state: when provided (from --source), each chunk is fuzzy-aligned
+    against the source text BEFORE the LLM annotates. High-confidence matches
+    (>= source_threshold) have their text replaced with the source's spelling
+    so character names and dialect spellings come out correct. Below-threshold
+    chunks are dropped (audio-only material) unless keep_unaligned=True.
+    Pass None to run the pre-source legacy ASR-only flow with no behaviour
+    change.
     """
     temp_dir = "dataset_temp"
     os.makedirs(temp_dir, exist_ok=True)
@@ -1145,6 +1291,38 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     chunk_t0 = time.monotonic()
                     text = " ".join(chunk_words)
 
+                    # ── Source-guided alignment (only when --source is set) ──
+                    # Fuzzy-match the chunk's ASR text against the source from
+                    # the rolling cursor. High-confidence matches replace text
+                    # with the source's spelling (correct names, correct dialect)
+                    # before the LLM annotates; below-threshold chunks are
+                    # dropped as audio-only material unless --keep-unaligned.
+                    drop_chunk = False
+                    if source_state is not None:
+                        chunk_match_words = alignment.to_words(text)
+                        sa_start, sa_end, sa_ratio = alignment.find_best_match(
+                            chunk_match_words,
+                            source_state['orig_match'],
+                            source_state['cursor'],
+                        )
+                        if sa_ratio >= source_threshold:
+                            text = ' '.join(source_state['orig_display'][sa_start:sa_end])
+                            source_state['cursor'] = sa_end
+                        elif keep_unaligned:
+                            logger.info(
+                                f"  ↪ chunk {segment_idx} kept (ASR text); "
+                                f"source ratio {sa_ratio:.2f} < {source_threshold}"
+                            )
+                            # Cursor stays put — don't advance through source
+                            # we couldn't confidently match.
+                        else:
+                            logger.info(
+                                f"  ↪ DROPPED chunk at {current_start:.2f}s "
+                                f"(source ratio {sa_ratio:.2f} < {source_threshold})"
+                            )
+                            drop_chunk = True
+
+                if chunk_words and chunk_duration >= 1.0 and not drop_chunk:
                     # Build user prompt with optional preceding context for continuity
                     ctx = " ".join(list(context)[-2:]) if context else ""
                     if ctx:
@@ -1249,6 +1427,33 @@ def main():
     parser.add_argument("--resume", action="store_true",
                         help="Resume from existing dataset_temp/ instead of starting over")
 
+    # ── Source-guided mode ────────────────────────────────────────────────────
+    # When --source is provided, each ASR chunk is fuzzy-aligned against the
+    # source text. Chunks whose alignment ratio meets --source-threshold get
+    # their text replaced with the source spelling before the LLM annotates,
+    # so character names and dialect spellings come out correct. Chunks below
+    # threshold are dropped (likely audio-only material — credits, narrator
+    # intros, content the source doesn't have) unless --keep-unaligned is set.
+    parser.add_argument("--source", metavar="PATH",
+                        help="Optional source EPUB or TXT. Enables source-guided "
+                             "chunking: chunk text is replaced with the source's "
+                             "spelling for high-confidence alignments, audio-only "
+                             "passages are dropped.")
+    parser.add_argument("--source-threshold", type=float, default=0.65, metavar="N",
+                        help="Minimum alignment ratio to keep a chunk in source-guided "
+                             "mode (default: 0.65). Chunks below this are dropped unless "
+                             "--keep-unaligned is set.")
+    parser.add_argument("--keep-unaligned", action="store_true",
+                        help="When --source is set, keep chunks that fall below "
+                             "--source-threshold and use their ASR text instead of "
+                             "dropping them (default: strict-drop).")
+    parser.add_argument("--source-start", type=int, metavar="N",
+                        help="Start source alignment at word N (skip auto-anchor)")
+    parser.add_argument("--source-start-text", metavar="TEXT",
+                        help="Search source for TEXT and start alignment there")
+    parser.add_argument("--no-auto-anchor", action="store_true",
+                        help="When --source is set, disable auto-anchor (start at word 0)")
+
     args = parser.parse_args()
 
     if not args.skip_annotation and not args.model:
@@ -1323,6 +1528,42 @@ def main():
         clear_vram()
         progress.complete()
 
+        # ── Optional: source-guided chunking ──────────────────────────────────
+        # When --source is provided, build the per-book lexicon and orig word
+        # lists from the source text. Chunks get fuzzy-aligned at emit time
+        # and either rewritten with source spelling (high confidence) or
+        # dropped as audio-only material (below threshold). For auto-anchor
+        # we build provisional "entries" from the first ~30 ASR chunks so
+        # alignment.auto_anchor() has something to look at.
+        source_state = None
+        if args.source:
+            entries_for_anchor = _provisional_entries_for_anchor(
+                word_segments, args.chunk_size, max_entries=30
+            )
+            source_state = _build_source_state(
+                args.source,
+                source_start=args.source_start,
+                source_start_text=args.source_start_text,
+                no_auto_anchor=args.no_auto_anchor,
+                entries_for_anchor=entries_for_anchor,
+            )
+            # Sanity pre-scan: catch wrong-source-file cases before any LLM
+            # work. Aborts here rather than letting it grind through the book.
+            avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
+                entries_for_anchor, source_state['orig_match'], source_state['cursor']
+            )
+            if n_sampled >= 10:
+                pct_low = low_ct / n_sampled
+                if avg < 0.50 or pct_low > 0.40:
+                    sys.exit(
+                        f"\n⚠ Source/audio divergence too high to proceed:\n"
+                        f"  Sampled {n_sampled} chunks — avg alignment {avg:.0%}, "
+                        f"{low_ct} ({pct_low:.0%}) below 60%.\n"
+                        f"  Usually means a wrong edition or different translation.\n"
+                        f"  Re-run without --source, or pass --keep-unaligned to "
+                        f"accept the ASR text for low-confidence chunks."
+                    )
+
         progress.start("Annotate chunks")
         if not args.skip_annotation:
             metadata = annotate_chunks(
@@ -1333,6 +1574,9 @@ def main():
                 resume=args.resume,
                 audio_source_path=args.audio,
                 fallback_model_path=args.fallback_model,
+                source_state=source_state,
+                source_threshold=args.source_threshold,
+                keep_unaligned=args.keep_unaligned,
             )
             logger.info(f"  Chunks annotated: {len(metadata)}")
         else:
