@@ -91,6 +91,39 @@ Quote the folder path if it contains spaces.
 - `--lang CODE` - Language code for transcription (default: en)
 - `--force` - Reprocess files even if `alexandria_dataset_<name>.zip` already exists (default: skip)
 
+### Source-Guided Mode (Optional)
+
+When enabled, the batch processor forwards source-guided chunking flags
+to each preparer subprocess. See `PREPARER_GUIDE.md` for what the mode
+does in detail; the batch-level summary is: characters' names come out
+correctly spelt (from the EPUB), and audio-only passages (credits,
+chapter intros) get dropped automatically.
+
+- `--source-folder DIR` - Folder of source `.epub` or `.txt` files. Each
+  audio file is matched to a source by basename: `audio/Book1.wav` looks
+  for `<source-folder>/Book1.epub` (preferred) or `<source-folder>/Book1.txt`.
+  Audio files with no matching source run in legacy ASR-only mode with a
+  warning. Mutually exclusive with `--source`.
+- `--source PATH` - A single source file applied to **every** audio file
+  in the batch. Useful when you're processing multiple recordings of
+  the same book (e.g., different narrators). Mutually exclusive with
+  `--source-folder`.
+- `--source-threshold N` - Minimum alignment ratio to keep a chunk
+  (default: 0.65). Forwarded to the preparer's `--source-threshold`.
+- `--keep-unaligned` - Don't drop low-confidence chunks; use the ASR
+  text instead. Forwarded to the preparer's `--keep-unaligned`.
+
+At the start of the batch the processor prints which files matched and
+how many didn't, so you can spot rename issues before the run grinds
+through 60 hours of audio:
+
+```
+├─ Source-guided: matching from /path/to/books/
+│   3 matched, 1 no match (legacy ASR-only for those)
+│     no match: 'Audiobook4'
+├─ Source threshold: 0.65 (strict-drop)
+```
+
 ## Pause and Resume
 
 ### Pausing mid-run (e.g., to game or free up GPU)
@@ -166,6 +199,52 @@ python alexandria_batch_processor.py \
   spanish_book.wav french_book.wav \
   --model model.gguf \
   --lang es
+```
+
+### Source-guided: batch with one EPUB per audiobook
+
+Each audio file is matched to a sibling source by basename. So
+`audio/MyHappyMarriage.wav` pairs with `books/MyHappyMarriage.epub`,
+etc. Audio files that don't have a matching source still get processed —
+just in legacy ASR-only mode (with a startup warning).
+
+```bash
+app/env/bin/python alexandria_batch_processor.py \
+  --folder /home/fakemitch/Desktop/audiobooks/ \
+  --source-folder /home/fakemitch/Desktop/books/ \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+### Source-guided: same EPUB applied to every file in batch
+
+When you have multiple recordings of the same book (different narrators,
+different versions), use `--source` instead of `--source-folder` so the
+same source file is applied to all of them:
+
+```bash
+app/env/bin/python alexandria_batch_processor.py \
+  narrator_a.wav narrator_b.wav narrator_c.wav \
+  --source "/home/fakemitch/Desktop/books/My Happy Marriage - Volume 01.epub" \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+### Source-guided with stricter threshold
+
+If the default 0.65 threshold is dropping passages you want to keep,
+loosen it (or use `--keep-unaligned` to never drop):
+
+```bash
+# Loosen threshold to 0.55 — keep more borderline chunks
+app/env/bin/python alexandria_batch_processor.py \
+  book.wav --model model.gguf \
+  --source book.epub \
+  --source-threshold 0.55
+
+# Or: keep everything (use ASR text for low-confidence chunks)
+app/env/bin/python alexandria_batch_processor.py \
+  book.wav --model model.gguf \
+  --source book.epub \
+  --keep-unaligned
 ```
 
 ## Output Files

@@ -123,6 +123,27 @@ def format_duration(seconds):
     else:
         return f"{secs}s"
 
+def _find_source_for(audio_file, source_folder):
+    """Look for a source file (.epub or .txt) in source_folder whose stem
+    matches the audio file's stem. Returns the source path or None.
+
+    Convention: audio/Book1.wav → source_folder/Book1.epub (preferred) or
+    source_folder/Book1.txt. Matching is case-sensitive and exact-stem, so
+    "Vampire Hunter D.wav" matches "Vampire Hunter D.epub" but NOT
+    "Vampire Hunter D - Volume 01.epub". Rename your source files (or
+    pre-build a JSON map and feed individual --source paths) if the
+    audiobook and EPUB filenames don't line up.
+    """
+    if not source_folder or not os.path.isdir(source_folder):
+        return None
+    stem = Path(audio_file).stem
+    for ext in ('.epub', '.txt'):
+        candidate = Path(source_folder) / (stem + ext)
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
 def check_disk_space(path, required_gb_per_file, num_files):
     """Check if disk has enough space for batch processing."""
     try:
@@ -147,12 +168,23 @@ def check_disk_space(path, required_gb_per_file, num_files):
 class BatchProcessor:
     SUPPORTED_FORMATS = {'.wav', '.mp3', '.m4a', '.flac', '.ogg'}
 
-    def __init__(self, model_path, chunk_size=10.0, language="en", force=False, fallback_model=None):
+    def __init__(self, model_path, chunk_size=10.0, language="en", force=False,
+                 fallback_model=None, source_folder=None, source_path=None,
+                 source_threshold=0.65, keep_unaligned=False):
         self.model_path = model_path
         self.fallback_model = fallback_model
         self.chunk_size = chunk_size
         self.language = language
         self.force = force  # If True, reprocess even if output exists
+        # Source-guided mode is per-file: each audio file looks up a matching
+        # source by basename in source_folder, OR uses source_path if that's
+        # set (apply same source to every audio file in the batch). None of
+        # the source args reach the preparer when source_state is None for
+        # a given file → that run stays in legacy ASR-only mode.
+        self.source_folder    = source_folder
+        self.source_path      = source_path
+        self.source_threshold = source_threshold
+        self.keep_unaligned   = keep_unaligned
         self.results = {
             "succeeded": [],
             "failed": [],
@@ -216,6 +248,27 @@ class BatchProcessor:
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
         if self.fallback_model:
             logger.info(f"  ├─ Fallback model: {Path(self.fallback_model).name}")
+        # Source-mode summary so user sees up front how files matched up
+        if self.source_path:
+            logger.info(f"  ├─ Source-guided: {Path(self.source_path).name} "
+                        f"(applied to every audio file)")
+        elif self.source_folder:
+            matches = []
+            misses  = []
+            for af in valid_files:
+                src = _find_source_for(af, self.source_folder)
+                (matches if src else misses).append(af)
+            logger.info(f"  ├─ Source-guided: matching from {self.source_folder}/")
+            logger.info(f"  │   {len(matches)} matched, {len(misses)} no match "
+                        f"(legacy ASR-only for those)")
+            if misses:
+                for af in misses[:3]:
+                    logger.info(f"  │     no match: {Path(af).stem!r}")
+                if len(misses) > 3:
+                    logger.info(f"  │     … and {len(misses) - 3} more")
+        if self.source_path or self.source_folder:
+            logger.info(f"  ├─ Source threshold: {self.source_threshold:.2f} "
+                        f"({'keep-unaligned' if self.keep_unaligned else 'strict-drop'})")
         logger.info(f"  └─ Files to process: {len(valid_files)}/{len(audio_files)} (skipped: {len(self.results['skipped'])})")
 
         return valid_files
@@ -258,6 +311,29 @@ class BatchProcessor:
         # ensures we won't accidentally resume into a different file's partial work.
         if not self.force:
             cmd.append("--resume")
+
+        # ── Source-guided mode: per-file source lookup ────────────────────────
+        # `--source` takes precedence (single source applied to every file).
+        # Otherwise `--source-folder` looks up a sibling file by basename. If
+        # neither is set, or no match found, the preparer runs in legacy mode.
+        matched_source = None
+        if self.source_path:
+            matched_source = self.source_path
+        elif self.source_folder:
+            matched_source = _find_source_for(audio_file, self.source_folder)
+            if matched_source is None:
+                logger.warning(
+                    f"  ⚠ No source match in {self.source_folder} for "
+                    f"{Path(audio_file).stem!r} — running in legacy ASR-only mode"
+                )
+        if matched_source:
+            cmd.extend(["--source", matched_source,
+                        "--source-threshold", str(self.source_threshold)])
+            if self.keep_unaligned:
+                cmd.append("--keep-unaligned")
+            logger.info(f"  ├─ Source-guided: {Path(matched_source).name} "
+                        f"(threshold {self.source_threshold:.2f}, "
+                        f"{'keep-unaligned' if self.keep_unaligned else 'strict-drop'})")
 
         start_time = time.monotonic()
         logger.info(f"Starting subprocess at {datetime.now().strftime('%H:%M:%S')}...")
@@ -521,7 +597,44 @@ def main():
         help="Reprocess files even if alexandria_dataset_<name>.zip already exists"
     )
 
+    # ── Source-guided chunking (forwarded to preparer) ────────────────────────
+    # When --source-folder is set, the batch processor looks for a matching
+    # source file (basename + .epub or .txt) for each audio file and passes
+    # it to the preparer via --source. Audio files without a matching source
+    # are processed in legacy ASR-only mode with a warning. Per-file matching
+    # is by stem (e.g. audio/Book1.wav → sources/Book1.epub).
+    parser.add_argument(
+        "--source-folder",
+        metavar="DIR",
+        help="Folder containing source .epub or .txt files (matched by audio "
+             "basename). Each audio file gets --source <matched-file> passed "
+             "to the preparer. Files with no match run in legacy ASR-only mode."
+    )
+    parser.add_argument(
+        "--source",
+        metavar="PATH",
+        help="Single source file applied to EVERY audio file in this batch. "
+             "Mutually exclusive with --source-folder."
+    )
+    parser.add_argument(
+        "--source-threshold",
+        type=float,
+        default=0.65,
+        metavar="N",
+        help="Minimum alignment ratio to keep a chunk when using --source / "
+             "--source-folder (default: 0.65). Forwarded to the preparer."
+    )
+    parser.add_argument(
+        "--keep-unaligned",
+        action="store_true",
+        help="When using --source / --source-folder, keep low-confidence "
+             "chunks (use ASR text) instead of dropping them. Forwarded."
+    )
+
     args = parser.parse_args()
+
+    if args.source and args.source_folder:
+        parser.error("--source and --source-folder are mutually exclusive")
 
     audio_files = list(args.audio_files)
 
@@ -540,12 +653,22 @@ def main():
     if not audio_files:
         parser.error("provide at least one audio file or use --folder")
 
+    # Sanity-check source flags before doing anything expensive.
+    if args.source and not os.path.exists(args.source):
+        parser.error(f"--source: file does not exist: {args.source}")
+    if args.source_folder and not os.path.isdir(args.source_folder):
+        parser.error(f"--source-folder: directory does not exist: {args.source_folder}")
+
     processor = BatchProcessor(
         model_path=args.model,
         chunk_size=args.chunk_size,
         language=args.lang,
         force=args.force,
         fallback_model=args.fallback_model,
+        source_folder=args.source_folder,
+        source_path=args.source,
+        source_threshold=args.source_threshold,
+        keep_unaligned=args.keep_unaligned,
     )
 
     success = processor.run(audio_files)
