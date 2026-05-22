@@ -972,3 +972,196 @@ def find_text_in_source(text: str, orig_match: list) -> int:
             best_start = i
 
     return best_start if best_ratio >= 0.5 else -1
+
+
+# ── LLM annotation parsing + merge ────────────────────────────────────────────
+# Moved here from alexandria_compare.py so the preparer can call them too
+# (post-LLM-call, to GUARANTEE the saved text uses source-words even when the
+# LLM's annotation drifted from the input it was given). In compare these
+# back the [m]erge option in the interactive review. Same logic, same code.
+
+def parse_annotated_tokens(text: str) -> list:
+    """
+    Parse a TTS-annotated string into tokens carrying their prosody markers.
+    Each token = {'word', 'leading_pause', 'trailing_pause', 'emphasized'}.
+    Used by merge_annotations_with_source to preserve markers while replacing
+    the actual words with the cleaner source text.
+    """
+    tokens = []
+    pending_leading = ''
+    # Expand multi-word emphasis spans ("*Trull Sengar*") into per-word
+    # emphasis ("*Trull* *Sengar*") so the whitespace tokenizer below sees
+    # each emphasized word as a self-contained *word* token. Without this,
+    # *Trull splits off (starts with * but doesn't end with one) and so
+    # does Sengar*, and the emphasis is lost on both.
+    text = re.sub(
+        r'\*([^*]+)\*',
+        lambda m: ' '.join(f'*{w}*' for w in m.group(1).split()) or m.group(0),
+        text,
+    )
+    # LLM/ASR output sometimes joins words with `...` instead of spaces
+    # ("YOU...*DERONDL*...THE..."). Split those dot-runs out so the
+    # whitespace tokenizer below sees each word and each pause separately —
+    # otherwise the whole chain collapses into one garbled token and every
+    # *emphasis* marker in it is silently dropped from the merge.
+    text = re.sub(r'\.{3,}', r' \g<0> ', text)
+    for raw in text.split():
+        # Pure pause token (e.g. "..." or "....") — attach to NEXT word
+        if re.fullmatch(r'\.{3,}', raw):
+            if len(raw) > len(pending_leading):
+                pending_leading = raw
+            continue
+
+        leading = pending_leading
+        pending_leading = ''
+
+        # Leading dots fused to the start of this token
+        m = re.match(r'^(\.{3,})', raw)
+        if m:
+            d = m.group(1)
+            leading = d if len(d) > len(leading) else leading
+            raw = raw[len(d):]
+
+        # Trailing dots fused to the end
+        trailing = ''
+        m = re.search(r'(\.{3,})$', raw)
+        if m:
+            trailing = m.group(1)
+            raw = raw[:-len(m.group(1))]
+
+        # LLM sometimes attaches sentence punctuation directly to the closing
+        # emphasis marker ("*HULLO*!", "*PLEASANT*,", "*DURONDYL*?"). That
+        # hides the closing * inside the token, so the endswith('*') check
+        # below misses the emphasis. Peel any trailing non-word junk off a
+        # clean *…* group; source punctuation comes back naturally through
+        # the source spelling during merge.
+        m = re.match(r'^(\*[^*\s]+\*)([\W_]+)$', raw)
+        if m:
+            raw = m.group(1)
+
+        # Emphasis (*word*)
+        emphasized = False
+        if raw.startswith('*') and raw.endswith('*') and len(raw) >= 3:
+            emphasized = True
+            raw = raw[1:-1]
+
+        # Strip surrounding non-word punctuation for matching
+        word_for_match = re.sub(r"[^\w']", '', raw.translate(_SMART_QUOTES).lower())
+        if not word_for_match:
+            if trailing:
+                pending_leading = trailing
+            continue
+
+        tokens.append({
+            'word':           word_for_match,
+            'leading_pause':  leading,
+            'trailing_pause': trailing,
+            'emphasized':     emphasized,
+        })
+    # Trailing `...` after the final word has nowhere to attach as
+    # leading_pause — flush it onto the last token's trailing_pause so
+    # terminal pauses aren't lost.
+    if pending_leading and tokens:
+        if len(pending_leading) > len(tokens[-1]['trailing_pause']):
+            tokens[-1]['trailing_pause'] = pending_leading
+    return tokens
+
+
+def merge_annotations_with_source(annotated_text: str, source_words: list) -> str:
+    """
+    Return a new string using `source_words` (correct content/spelling/punct)
+    while preserving the LLM's prosody markers (...., *word*) from
+    `annotated_text` wherever words align.
+
+    In compare this is the heart of the [m]erge option — it lets users fix
+    ASR errors without throwing away the prosody hints that keep TTS output
+    expressive. In the preparer it's called post-LLM-annotation to guarantee
+    the saved text uses source-words even when the LLM's annotation drifted
+    from the cleaned source input it was given.
+    """
+    if not source_words:
+        return ''
+
+    annotated = parse_annotated_tokens(annotated_text)
+    annot_words = [t['word'] for t in annotated]
+
+    src_match = [
+        re.sub(r"[^\w']", '', w.translate(_SMART_QUOTES).lower())
+        for w in source_words
+    ]
+
+    # Word-level alignment between annotated and source.
+    #
+    # 'equal' opcodes are the easy case — chunk and source agree exactly.
+    # 'replace' opcodes are where ASR mistranscribes a word (chunk "amander"
+    # vs source "Amanda") or compounds get split differently (chunk "first"
+    # "hand" vs source "firsthand"). Without same-position fuzzy mapping
+    # inside 'replace' blocks, those chunk words' prosody markers (*emphasis*
+    # and pauses) get dropped on the floor and the merge silently produces
+    # plain source text, indistinguishable from [a]ccept original.
+    sm = difflib.SequenceMatcher(None, annot_words, src_match, autojunk=False)
+    src_to_tok = {}
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'equal':
+            for k in range(i2 - i1):
+                src_to_tok[j1 + k] = annotated[i1 + k]
+        elif tag == 'replace':
+            for k in range(min(i2 - i1, j2 - j1)):
+                sim = difflib.SequenceMatcher(
+                    None, annot_words[i1 + k], src_match[j1 + k], autojunk=False
+                ).ratio()
+                if sim >= _FUZZY_KEEP_THRESHOLD:
+                    src_to_tok[j1 + k] = annotated[i1 + k]
+            # Imbalanced replace: ASR may mash a multi-word name into one
+            # token ("Tralesengar" vs "Trull Sengar") or split one into many
+            # ("nine hundred forty third" vs "943rd"). The 1↔1 pass above
+            # only checks paired positions, so the unpaired side gets no
+            # emphasis. Try a concatenation match on whichever side is
+            # longer and, if it clears the fuzzy bar, broadcast the chunk
+            # emphasis across the matched source positions.
+            chunk_n, src_n = i2 - i1, j2 - j1
+            if chunk_n == 1 and src_n > 1 and j1 not in src_to_tok:
+                cat = ''.join(src_match[j1:j2])
+                sim = difflib.SequenceMatcher(
+                    None, annot_words[i1], cat, autojunk=False
+                ).ratio()
+                if sim >= _FUZZY_KEEP_THRESHOLD:
+                    for k in range(src_n):
+                        src_to_tok[j1 + k] = annotated[i1]
+            elif src_n == 1 and chunk_n > 1 and j1 not in src_to_tok:
+                cat = ''.join(annot_words[i1:i2])
+                sim = difflib.SequenceMatcher(
+                    None, cat, src_match[j1], autojunk=False
+                ).ratio()
+                if sim >= _FUZZY_KEEP_THRESHOLD:
+                    # Prefer the first emphasized chunk token so the
+                    # emphasis carries onto the single source word.
+                    chosen = next(
+                        (annotated[i1 + k] for k in range(chunk_n)
+                         if annotated[i1 + k]['emphasized']),
+                        annotated[i1],
+                    )
+                    src_to_tok[j1] = chosen
+
+    parts = []
+    for i, src_word in enumerate(source_words):
+        tok = src_to_tok.get(i)
+        if tok:
+            if tok['leading_pause']:
+                parts.append(tok['leading_pause'])
+            if tok['emphasized']:
+                # Wrap the word's *letters* in asterisks, leaving any
+                # surrounding punctuation outside: "library." -> "*library*."
+                m = re.match(r"^(\W*)(.*?)(\W*)$", src_word)
+                if m and m.group(2):
+                    parts.append(f"{m.group(1)}*{m.group(2)}*{m.group(3)}")
+                else:
+                    parts.append(f"*{src_word}*")
+            else:
+                parts.append(src_word)
+            if tok['trailing_pause']:
+                parts.append(tok['trailing_pause'])
+        else:
+            parts.append(src_word)
+
+    return ' '.join(parts)

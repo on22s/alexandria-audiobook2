@@ -1424,6 +1424,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     # before the LLM annotates; below-threshold chunks are
                     # dropped as audio-only material unless --keep-unaligned.
                     drop_chunk = False
+                    source_words_for_merge = None
                     if source_state is not None:
                         chunk_match_words = alignment.to_words(text)
                         cursor_before = source_state['cursor']
@@ -1505,7 +1506,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                     sa_start, sa_end, sa_ratio = a_start, a_end, a_ratio
                         if sa_ratio >= source_threshold:
                             asr_preview = (text[:60] + '…') if len(text) > 60 else text
-                            text = ' '.join(source_state['orig_display'][sa_start:sa_end])
+                            source_words_for_merge = source_state['orig_display'][sa_start:sa_end]
+                            text = ' '.join(source_words_for_merge)
                             source_state['cursor'] = sa_end
                             stats['source_action']['replace'] += 1
                             src_preview = (text[:60] + '…') if len(text) > 60 else text
@@ -1552,7 +1554,19 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             temperature=0.3,  # Lower temp for more deterministic structured output
                         )
                         annotated_raw = response["choices"][0]["message"]["content"].strip()
-                        annotated = _sanitize_annotation(annotated_raw)
+                        # If we have source words for this chunk, run the LLM's
+                        # output through compare's merge logic to GUARANTEE the
+                        # saved text uses source-words + LLM-markers — even when
+                        # the LLM paraphrased, added, or dropped words while
+                        # adding prosody. Without --source we keep the legacy
+                        # sanitiser path (multi-word emph + dot-pad + fused-
+                        # punct strip, no source-word enforcement).
+                        if source_words_for_merge is not None:
+                            annotated = alignment.merge_annotations_with_source(
+                                annotated_raw, source_words_for_merge
+                            )
+                        else:
+                            annotated = _sanitize_annotation(annotated_raw)
                         if annotated != annotated_raw:
                             stats['sanitize_changed'] += 1
                             logger.debug(
