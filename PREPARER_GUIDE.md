@@ -9,6 +9,118 @@ The preparer takes an audio file (audiobook) and produces a ZIP archive containi
 - `metadata.jsonl` with text annotations, durations, and time ranges
 - Ready for use as a TTS training dataset
 
+## What This Tool Does (Really Simple Version)
+
+Imagine you have a long audiobook — someone reading a whole novel out loud,
+maybe 60 minutes or 6 hours long. To teach a computer how to talk like that
+narrator, you need lots and lots of **short little clips** of them speaking,
+each one labelled with **the exact words they said**. This tool makes those
+clips for you, automatically.
+
+Think of it like this:
+
+1. **You give it the audiobook** (one big audio file).
+2. **The tool listens** and figures out where every word starts and stops.
+3. **It chops the audiobook into snack-sized clips** of about 10 seconds each,
+   trying to cut at natural pauses (like at the end of a sentence) so each
+   clip doesn't end mid-word.
+4. **For each clip, it writes down the words** that were spoken in it.
+5. **A small AI assistant adds little hints** to the words — like marking the
+   *important* ones, or where the narrator took a long pause `...`
+6. **You get back a zip file** full of clips + a list of what each clip says.
+
+That zip is what you feed to a TTS-training program later, so the computer can
+learn to copy that narrator's voice.
+
+### The big new trick: using the book
+
+You can also give the tool **the actual book** (the EPUB or text file).
+
+Why? Because the listener-AI (the part that turns audio into words) makes
+mistakes — especially with character names. It might write "**Yudy**" when the
+narrator said "**Yurie**", or "**Kudou**" might come out as "**Coodo**".
+
+When you give it the book, the tool can **look up the right spelling** for
+every clip. Like having the answer key next to your homework: the listener-AI
+hears the audio, then the tool checks the book and goes "ah, that bit says
+'Miyo Saimori', let me use that spelling instead of whatever I guessed."
+
+It can also **throw away clips that aren't in the book** — like when the
+narrator says "Audible presents…" or reads the chapter announcement out loud,
+or any other bits that don't match the actual story.
+
+## Simplest possible example (copy/paste)
+
+### Just turn an audiobook into clips (no book file)
+
+```bash
+app/env/bin/python alexandria_preparer_rocm_compatible.py \
+  --audio "/home/fakemitch/Desktop/audiobook.wav" \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf
+```
+
+What this does, in plain English:
+- Reads the audiobook at `/home/fakemitch/Desktop/audiobook.wav`.
+- Uses the AI helper at `models/Qwen2.5-14B-Instruct-Q6_K.gguf` to label the clips.
+- Saves the result as `alexandria_dataset.zip` in the current folder.
+
+### Now do the same thing but use the book too (recommended)
+
+```bash
+app/env/bin/python alexandria_preparer_rocm_compatible.py \
+  --audio "/home/fakemitch/Desktop/audiobook.wav" \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --source "/home/fakemitch/Desktop/books/My Happy Marriage - Volume 01.epub"
+```
+
+The only difference: that last line tells the tool where the book is. Names
+will come out spelt right, and audio-only stuff (credits, intros) will get
+thrown away.
+
+### "I want to give you the book but please don't throw anything away"
+
+```bash
+app/env/bin/python alexandria_preparer_rocm_compatible.py \
+  --audio "/home/fakemitch/Desktop/audiobook.wav" \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --source "/home/fakemitch/Desktop/books/book.epub" \
+  --keep-unaligned
+```
+
+The `--keep-unaligned` flag means "if a clip doesn't match the book, that's
+okay — just use the listener-AI's best guess and keep the clip anyway."
+
+### "I lost track of where it was — start over"
+
+Just don't use `--resume`. Every run starts fresh by default. If the previous
+attempt left junk behind, it gets cleaned up automatically.
+
+### "It crashed three hours in — please pick up where you stopped"
+
+```bash
+app/env/bin/python alexandria_preparer_rocm_compatible.py \
+  --audio "/home/fakemitch/Desktop/audiobook.wav" \
+  --model models/Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --resume
+```
+
+Same command, just add `--resume` at the end. It'll skip clips it already
+made and continue from where it left off. (If you used `--source` originally,
+add it here too — must match the original run.)
+
+## How long does it take?
+
+Rough rule of thumb on an AMD Radeon RX 9070 XT:
+
+- **Listening to the audio** (turning sounds into words): ~1 minute per hour
+  of audiobook.
+- **Labelling the clips** (the slow part): about 10 hours per 1 hour of
+  audiobook. So a typical 6-hour audiobook takes around 60 hours of
+  computer time. You can leave it running overnight; if you need the GPU
+  back, press **Ctrl+C** to stop and use `--resume` later.
+
+
+
 **Key Features:**
 - **Wav2Vec2 ASR (primary)** with true CTC-aligned word timestamps
 - Insanely Fast Whisper / WhisperX-CPU fallbacks
