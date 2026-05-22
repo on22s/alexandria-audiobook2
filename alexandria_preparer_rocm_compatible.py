@@ -827,9 +827,12 @@ def _sanitize_annotation(text: str) -> str:
 # ── Chunk-boundary selection ──────────────────────────────────────────────────
 def _find_best_cut(word_starts, word_ends, words, chunk_start,
                    min_pause: float = 0.25,
-                   lookback_frac: float = 0.30) -> int:
-    """Pick the cut point for an over-size chunk. Returns the index of the
-    last word to include (inclusive).
+                   lookback_frac: float = 0.30) -> tuple:
+    """Pick the cut point for an over-size chunk. Returns
+    `(last_word_idx_inclusive, strategy)` where strategy is one of
+    'sentence_end', 'pause', 'too_few_words', or 'fallback' — the strategy
+    is used by the caller for histogram logging so we can see which
+    branch dominates and tune the parameters.
 
     The chunker previously cut at the first word that crossed the target
     duration — wherever that landed. This helper prefers natural boundaries
@@ -845,7 +848,7 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
     """
     n = len(words)
     if n < 4:
-        return n - 1
+        return n - 1, 'too_few_words'
     chunk_end   = word_ends[-1]
     chunk_dur   = chunk_end - chunk_start
     threshold_t = chunk_end - chunk_dur * lookback_frac
@@ -856,7 +859,7 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
             break
         bare = words[i].rstrip(') ”"\'')
         if bare.endswith(('.', '!', '?')):
-            return i
+            return i, 'sentence_end'
 
     # 2) Pause cut — largest gap in the window
     best_idx = None
@@ -869,10 +872,10 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
             best_gap = gap
             best_idx = i
     if best_idx is not None:
-        return best_idx
+        return best_idx, 'pause'
 
     # 3) Fall back to current behaviour
-    return n - 1
+    return n - 1, 'fallback'
 
 
 def _provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
@@ -909,6 +912,69 @@ def _provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
             if len(entries) >= max_entries:
                 break
     return entries
+
+
+def _log_word_segment_stats(word_segments, label="ASR word segments"):
+    """Summarise the ASR word_segments at INFO so the user has a feel for
+    the audio's word density / pause structure before chunking starts.
+
+    Pause percentiles especially matter: if the corpus has lots of >0.5s
+    gaps, the pause-aware chunker will produce clean sentence-ending
+    chunks; if it's all sub-0.2s gaps (rapid-fire dialogue), most cuts
+    will land in the sentence-end or fallback branch.
+    """
+    if not word_segments:
+        logger.info(f"  {label}: empty")
+        return
+
+    # Filter to entries that have valid start/end + non-empty word text
+    valid = [
+        w for w in word_segments
+        if 'start' in w and 'end' in w and w.get('word', '').strip()
+    ]
+    if not valid:
+        logger.info(f"  {label}: {len(word_segments)} entries, 0 valid")
+        return
+
+    first_t = valid[0]['start']
+    last_t  = valid[-1]['end']
+    total_t = last_t - first_t
+
+    durations = [w['end'] - w['start'] for w in valid]
+    gaps = [
+        valid[i + 1]['start'] - valid[i]['end']
+        for i in range(len(valid) - 1)
+    ]
+    gaps = [g for g in gaps if g >= 0]   # filter rare ASR overlaps
+
+    def _pct(xs, p):
+        if not xs:
+            return 0.0
+        xs = sorted(xs)
+        k = max(0, min(len(xs) - 1, int(round(p / 100.0 * (len(xs) - 1)))))
+        return xs[k]
+
+    logger.info(f"  {label}: {len(valid):,} words over {total_t:.1f}s "
+                f"(rate {len(valid)/max(total_t,1e-9):.1f} words/s)")
+    logger.info(f"    ├─ word duration  : median {_pct(durations, 50):.3f}s, "
+                f"p95 {_pct(durations, 95):.3f}s, max {max(durations):.3f}s")
+    if gaps:
+        logger.info(f"    ├─ inter-word gap : median {_pct(gaps, 50):.3f}s, "
+                    f"p95 {_pct(gaps, 95):.3f}s, max {max(gaps):.3f}s")
+        long_gaps = sum(1 for g in gaps if g >= 0.5)
+        logger.info(f"    └─ pauses ≥ 0.5s  : {long_gaps:,} "
+                    f"({100*long_gaps/len(gaps):.1f}% of gaps)")
+    else:
+        logger.info(f"    └─ inter-word gap : n/a (single word)")
+
+
+def _percentile(xs, p):
+    """Tiny percentile helper used by the end-of-chunker summary."""
+    if not xs:
+        return 0.0
+    xs = sorted(xs)
+    k = max(0, min(len(xs) - 1, int(round(p / 100.0 * (len(xs) - 1)))))
+    return xs[k]
 
 
 def _build_source_state(source_path: str,
@@ -1205,6 +1271,30 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
 
     log_gpu_stats(f"after LLM load ({os.path.basename(active_model_path)})")
 
+    # ── Pre-chunk diagnostic: word density, gap distribution ─────────────────
+    # Lets the user see what kind of audio they're working with before the
+    # 60+ hour annotation starts. If gaps are uniformly tiny, expect the
+    # pause-cut branch to be useless and most chunks to fall back. If gaps
+    # span a wide range, expect sentence-end and pause cuts to dominate.
+    _log_word_segment_stats(word_segments, label="ASR word segments")
+    logger.info(f"  ├─ Source mode    : {'enabled' if source_state else 'disabled (ASR-only)'}")
+    if source_state:
+        logger.info(f"  ├─ Threshold      : {source_threshold:.2f} "
+                    f"({'keep-unaligned' if keep_unaligned else 'strict-drop'})")
+        logger.info(f"  └─ Initial cursor : source word {source_state['cursor']}")
+
+    # ── Per-run summary metrics (logged at the end of annotate_chunks) ───────
+    from collections import Counter
+    stats = {
+        'cut_strategy':    Counter(),   # which look-back path picked the cut
+        'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped'
+        'llm_success':     0,
+        'llm_fail':        0,
+        'sanitize_changed':0,           # times _sanitize_annotation altered text
+        'chunk_durations': [],          # for end-of-run distribution stats
+        'audio_short':     0,           # times audio slice was shorter than expected
+    }
+
     metadata = list(existing_entries)
     segment_idx = next_segment_idx
     current_words = []
@@ -1276,16 +1366,25 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 # the duration threshold happened to land. Skip the look-back
                 # at the very end of audio where we just want everything left.
                 if duration >= chunk_size and not is_final:
-                    cut_at = _find_best_cut(
+                    cut_at, cut_strategy = _find_best_cut(
                         current_word_starts, current_word_ends,
                         current_words, current_start,
                     )
                 else:
                     cut_at = len(current_words) - 1
+                    cut_strategy = 'is_final' if is_final else 'undersized'
+                stats['cut_strategy'][cut_strategy] += 1
 
                 chunk_words    = current_words[:cut_at + 1]
                 chunk_end_time = current_word_ends[cut_at]
                 chunk_duration = chunk_end_time - current_start
+                trimmed_tail   = len(current_words) - 1 - cut_at  # words carried forward
+                logger.debug(
+                    f"chunk-emit idx={segment_idx} "
+                    f"t={current_start:.2f}-{chunk_end_time:.2f}s "
+                    f"dur={chunk_duration:.2f}s words={len(chunk_words)} "
+                    f"cut={cut_strategy} carry_tail={trimmed_tail}"
+                )
 
                 if chunk_words and chunk_duration >= 1.0:
                     chunk_t0 = time.monotonic()
@@ -1300,26 +1399,41 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     drop_chunk = False
                     if source_state is not None:
                         chunk_match_words = alignment.to_words(text)
+                        cursor_before = source_state['cursor']
                         sa_start, sa_end, sa_ratio = alignment.find_best_match(
                             chunk_match_words,
                             source_state['orig_match'],
-                            source_state['cursor'],
+                            cursor_before,
                         )
                         if sa_ratio >= source_threshold:
+                            asr_preview = (text[:60] + '…') if len(text) > 60 else text
                             text = ' '.join(source_state['orig_display'][sa_start:sa_end])
                             source_state['cursor'] = sa_end
+                            stats['source_action']['replace'] += 1
+                            src_preview = (text[:60] + '…') if len(text) > 60 else text
+                            logger.debug(
+                                f"source-replace idx={segment_idx} ratio={sa_ratio:.3f} "
+                                f"cursor {cursor_before}→{sa_end} (+{sa_end - cursor_before}) "
+                                f"asr={asr_preview!r} src={src_preview!r}"
+                            )
                         elif keep_unaligned:
+                            stats['source_action']['keep_asr'] += 1
                             logger.info(
                                 f"  ↪ chunk {segment_idx} kept (ASR text); "
-                                f"source ratio {sa_ratio:.2f} < {source_threshold}"
+                                f"source ratio {sa_ratio:.2f} < {source_threshold} "
+                                f"(cursor stays at {cursor_before})"
                             )
                             # Cursor stays put — don't advance through source
                             # we couldn't confidently match.
                         else:
+                            stats['source_action']['dropped'] += 1
                             logger.info(
                                 f"  ↪ DROPPED chunk at {current_start:.2f}s "
-                                f"(source ratio {sa_ratio:.2f} < {source_threshold})"
+                                f"(source ratio {sa_ratio:.2f} < {source_threshold}, "
+                                f"cursor stays at {cursor_before})"
                             )
+                            asr_preview = (text[:80] + '…') if len(text) > 80 else text
+                            logger.debug(f"dropped chunk asr={asr_preview!r}")
                             drop_chunk = True
 
                 if chunk_words and chunk_duration >= 1.0 and not drop_chunk:
@@ -1339,18 +1453,44 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             max_tokens=512,
                             temperature=0.3,  # Lower temp for more deterministic structured output
                         )
-                        annotated = response["choices"][0]["message"]["content"].strip()
-                        annotated = _sanitize_annotation(annotated)
+                        annotated_raw = response["choices"][0]["message"]["content"].strip()
+                        annotated = _sanitize_annotation(annotated_raw)
+                        if annotated != annotated_raw:
+                            stats['sanitize_changed'] += 1
+                            logger.debug(
+                                f"sanitize idx={segment_idx} "
+                                f"raw_len={len(annotated_raw)} clean_len={len(annotated)} "
+                                f"raw={annotated_raw[:120]!r}"
+                            )
+                        stats['llm_success'] += 1
+                        logger.debug(
+                            f"llm-ok idx={segment_idx} "
+                            f"prompt_chars={len(user_prompt)} response_chars={len(annotated_raw)}"
+                        )
                         if segment_idx == next_segment_idx:
                             logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
                     except Exception as e:
+                        stats['llm_fail'] += 1
                         logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
+                        logger.debug(f"llm-fail idx={segment_idx}: {traceback.format_exc()}")
                         annotated = text
 
                     # Read audio segment (in-memory slice or disk seek)
                     audio_slice = _read_audio_segment(audio_24k_source, current_start, chunk_end_time)
+                    actual_duration = len(audio_slice) / 24000.0
+                    expected_duration = chunk_end_time - current_start
+                    if abs(actual_duration - expected_duration) > 0.1:
+                        # 0.1s mismatch is normally just rounding; bigger means
+                        # we hit end-of-file or _read_audio_segment ran short.
+                        stats['audio_short'] += 1
+                        logger.warning(
+                            f"audio slice mismatch idx={segment_idx} "
+                            f"expected {expected_duration:.3f}s got {actual_duration:.3f}s "
+                            f"(req {current_start:.3f}-{chunk_end_time:.3f}s)"
+                        )
 
                     if len(audio_slice) > 0:
+                        stats['chunk_durations'].append(actual_duration)
                         seg_name = f"sample_{segment_idx:04d}.wav"
                         sf.write(os.path.join(temp_dir, seg_name), audio_slice, 24000)
 
@@ -1401,11 +1541,70 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         del llm
         clear_vram()
 
-    logger.info(f"✓ Annotation complete: {segment_idx} segments created")
+    # ── Comprehensive end-of-chunker summary ──────────────────────────────────
+    # Most of what's useful for iterating on the chunker / source mode is in
+    # the histograms below. Compare run-to-run to see which cut strategy is
+    # firing, how many chunks the source mode dropped vs. replaced, whether
+    # the LLM is failing repeatedly, etc.
+    chunks_emitted_this_run = segment_idx - next_segment_idx
+    logger.info(f"✓ Annotation complete: {segment_idx} total segments "
+                f"({chunks_emitted_this_run} new this run)")
+
+    # Cut-strategy histogram (per chunk-emit decision, includes dropped chunks)
+    if stats['cut_strategy']:
+        total_cuts = sum(stats['cut_strategy'].values())
+        logger.info(f"  Cut strategy distribution ({total_cuts} chunks):")
+        for strategy in ('sentence_end', 'pause', 'fallback', 'is_final',
+                         'too_few_words', 'undersized'):
+            count = stats['cut_strategy'].get(strategy, 0)
+            if count:
+                pct = 100 * count / total_cuts
+                logger.info(f"    {strategy:<14} : {count:>6} ({pct:5.1f}%)")
+
+    # Source-mode histogram (only when --source was used)
+    if source_state is not None:
+        sa_replace = stats['source_action']['replace']
+        sa_keep    = stats['source_action']['keep_asr']
+        sa_drop    = stats['source_action']['dropped']
+        sa_total   = sa_replace + sa_keep + sa_drop
+        if sa_total:
+            logger.info(f"  Source-guided actions ({sa_total} chunks aligned):")
+            logger.info(f"    replace        : {sa_replace:>6} ({100*sa_replace/sa_total:5.1f}%)")
+            logger.info(f"    keep_asr       : {sa_keep:>6} ({100*sa_keep/sa_total:5.1f}%)")
+            logger.info(f"    dropped        : {sa_drop:>6} ({100*sa_drop/sa_total:5.1f}%)")
+        logger.info(f"  Source cursor finished at word "
+                    f"{source_state['cursor']:,} / {len(source_state['orig_match']):,}")
+
+    # LLM + sanitisation
+    llm_total = stats['llm_success'] + stats['llm_fail']
+    if llm_total:
+        logger.info(f"  LLM annotations: {stats['llm_success']} ok, "
+                    f"{stats['llm_fail']} failed "
+                    f"({stats['sanitize_changed']} cleaned by sanitiser)")
+
+    # Duration distribution of emitted chunks (audio-side, not source-side)
+    durs = stats['chunk_durations']
+    if durs:
+        logger.info(f"  Emitted chunk durations (n={len(durs)}):")
+        logger.info(f"    min  {min(durs):.2f}s   p50 {_percentile(durs, 50):.2f}s   "
+                    f"p95 {_percentile(durs, 95):.2f}s   max {max(durs):.2f}s")
+        # Useful flag: if many chunks are way under chunk_size, the cut
+        # logic is picking earlier breaks than the user expects.
+        short_count = sum(1 for d in durs if d < chunk_size * 0.5)
+        if short_count:
+            logger.info(f"    chunks < 50% target ({chunk_size * 0.5:.1f}s): "
+                        f"{short_count} ({100*short_count/len(durs):.1f}%)")
+
+    if stats['audio_short']:
+        logger.warning(f"  ⚠ Audio-slice mismatches: {stats['audio_short']} chunk(s) "
+                       f"shorter than expected — likely end-of-file or read truncation")
+
     if metadata:
         total_duration = sum(m["duration"] for m in metadata)
-        logger.info(f"  ├─ Total audio in dataset: {total_duration:.1f}s")
-        logger.info(f"  └─ Average segment duration: {total_duration/len(metadata):.2f}s")
+        logger.info(f"  Total audio in dataset    : {total_duration:.1f}s "
+                    f"({total_duration/60:.1f} min)")
+        logger.info(f"  Average segment duration  : {total_duration/len(metadata):.2f}s")
+
     return metadata
 
 def main():
