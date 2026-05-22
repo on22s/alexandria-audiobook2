@@ -1432,6 +1432,30 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             source_state['orig_match'],
                             cursor_before,
                         )
+                        # When the narrow-window match is weak, the cursor has
+                        # probably fallen behind the audio (e.g. an audio-only
+                        # passage skipped over source content, leaving cursor
+                        # parked while audio kept moving forward). Try the
+                        # wide-window `realign` to jump cursor forward to where
+                        # the audio's prose actually picks up the source again.
+                        # Without this, one failed chunk leaves cursor stuck and
+                        # every subsequent chunk gets dropped — the bug that
+                        # the 11:50 log surfaced (97% drop rate, cursor pinned
+                        # at word 241 of 242,812 for the entire audio).
+                        if sa_ratio < 0.45 and len(chunk_match_words) >= 5:
+                            r_start, r_end, r_ratio = alignment.realign(
+                                chunk_match_words,
+                                source_state['orig_match'],
+                                cursor_before,
+                            )
+                            if r_ratio >= 0.55 and r_ratio > sa_ratio + 0.15:
+                                logger.debug(
+                                    f"source-realign idx={segment_idx} "
+                                    f"local {sa_ratio:.3f} → wide {r_ratio:.3f} "
+                                    f"cursor {cursor_before}→{r_end} "
+                                    f"(jumped {r_end - cursor_before} words)"
+                                )
+                                sa_start, sa_end, sa_ratio = r_start, r_end, r_ratio
                         if sa_ratio >= source_threshold:
                             asr_preview = (text[:60] + '…') if len(text) > 60 else text
                             text = ' '.join(source_state['orig_display'][sa_start:sa_end])
