@@ -228,22 +228,49 @@ def validate_inputs(args):
     """Validate input files."""
     logger.info("Validating input files...")
 
+    def _missing_path_hint(flag, path):
+        """When a path isn't found, log an absolute resolved path + CWD so
+        the user can see whether they hit a relative-path-vs-CWD problem.
+        Reads as: 'we looked here, and our working dir is X, so try…'.
+        """
+        resolved = os.path.abspath(path)
+        cwd = os.getcwd()
+        logger.error(f"{flag}: file not found")
+        logger.error(f"  requested        : {path}")
+        if resolved != path:
+            logger.error(f"  resolved to      : {resolved}")
+        logger.error(f"  current dir      : {cwd}")
+        if not os.path.isabs(path):
+            logger.error(f"  hint: pass an absolute path, or 'cd' into the project "
+                         f"directory before running this script "
+                         f"(model/source paths are resolved relative to the "
+                         f"working dir, not the script's location).")
+
     if not os.path.exists(args.audio):
-        logger.error(f"Audio file not found: {args.audio}")
+        _missing_path_hint("--audio", args.audio)
         sys.exit(1)
     logger.debug(f"Audio file exists: {args.audio}")
 
     if not args.skip_annotation and not os.path.exists(args.model):
-        logger.error(f"Model file not found: {args.model}")
+        _missing_path_hint("--model", args.model)
         sys.exit(1)
     if not args.skip_annotation:
         logger.debug(f"Model file exists: {args.model}")
 
     # Validate fallback eagerly so we fail fast on a typo'd path
     if not args.skip_annotation and args.fallback_model and not os.path.exists(args.fallback_model):
-        logger.error(f"Fallback model file not found: {args.fallback_model}")
+        _missing_path_hint("--fallback-model", args.fallback_model)
         logger.error("Either fix the path or omit --fallback-model")
         sys.exit(1)
+
+    # Validate --source eagerly too, otherwise a typo only surfaces after
+    # ASR transcription (potentially hours into the run).
+    source_path = getattr(args, 'source', None)
+    if source_path and not os.path.exists(source_path):
+        _missing_path_hint("--source", source_path)
+        sys.exit(1)
+    if source_path:
+        logger.debug(f"Source file exists: {source_path}")
 
     try:
         info = sf.info(args.audio)
@@ -1670,7 +1697,19 @@ def main():
         logger.info(f"  └─ GPU Count: {torch.cuda.device_count()}")
     else:
         logger.warning("⚠ GPU not available - running on CPU (slower)")
-    logger.info(f"Arguments: audio={args.audio}, model={args.model}, fallback_model={args.fallback_model}, chunk_size={args.chunk_size}, lang={args.lang}")
+    # Log the full effective args. Helps diagnose missing-backslash shell
+    # issues (where flags after the broken line don't reach the script and
+    # silently inherit defaults). If you see a default value here that you
+    # remember passing on the command line, suspect a stray `\` or quote.
+    logger.info(
+        f"Arguments: audio={args.audio} | model={args.model} | "
+        f"fallback_model={args.fallback_model} | "
+        f"output={args.output} | "
+        f"source={args.source} | source_threshold={args.source_threshold} | "
+        f"keep_unaligned={args.keep_unaligned} | "
+        f"chunk_size={args.chunk_size} | lang={args.lang} | "
+        f"resume={args.resume}"
+    )
 
     # PID-suffixed scratch path so concurrent preparer runs in the same directory
     # don't clobber each other's audio cache.
