@@ -21,6 +21,24 @@ uv pip install ebooklib beautifulsoup4
 pip install ebooklib beautifulsoup4
 ```
 
+The compare script also imports `alexandria_alignment.py` (a sibling module
+in the same directory) for source loading, fuzzy alignment, and the
+proper-noun lexicon. Both files must stay next to each other.
+
+## Did you use `--source` in the preparer?
+
+If you produced this JSONL with `alexandria_preparer_rocm_compatible.py
+--source ...`, character-name ASR mistranscriptions and dialect spellings
+have already been corrected at preparation time — the chunk text is the
+source's spelling, not what the ASR transcribed. The compare-review step
+in that case is mostly a prosody sanity check: skim for `*emphasis*` and
+`...` pause markers that look off, fix a few outliers with `[e]dit`, done.
+
+If you produced the JSONL without `--source`, every chunk's text is the
+raw ASR output and you'll be using compare-review to fix names, dialect,
+and any audio-only material the preparer didn't know to drop. That's the
+classic workflow this script was originally designed for.
+
 ## Important: Run in a Real Terminal
 
 This script is **interactive** — it waits for your keyboard input at each entry.

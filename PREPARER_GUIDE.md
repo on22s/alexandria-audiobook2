@@ -13,6 +13,8 @@ The preparer takes an audio file (audiobook) and produces a ZIP archive containi
 - **Wav2Vec2 ASR (primary)** with true CTC-aligned word timestamps
 - Insanely Fast Whisper / WhisperX-CPU fallbacks
 - Gemma 4 LLM annotations on GPU
+- **Source-guided chunking** (`--source`): align ASR against an EPUB/TXT, use source spelling for chunk text, drop audio-only material
+- **Pause-aware chunk boundaries**: chunks end at sentence punctuation or natural narrator pauses in the last 30% of each chunk, not wherever the duration threshold landed
 - Resume capability — never lose work from a crash
 - Periodic checkpointing every 50 segments
 - Dynamic ETA based on actual measured throughput
@@ -53,6 +55,17 @@ python alexandria_preparer_rocm_compatible.py \
 - `--output PATH` — Output ZIP path (default: `alexandria_dataset.zip`)
 - `--resume` — Resume from existing `dataset_temp/` instead of starting over
 - `--skip-annotation` — Stop after transcription (not fully implemented)
+
+### Source-guided chunking (optional)
+Pass an EPUB or text file matching the audiobook to fix ASR mistranscriptions
+at source and drop audio-only material before the LLM step.
+- `--source PATH` — EPUB or TXT of the same book the audio narrates
+- `--source-threshold N` — Minimum alignment ratio to keep a chunk (default: `0.65`)
+- `--keep-unaligned` — When a chunk falls below `--source-threshold`, write the
+  ASR text instead of dropping (default: drop)
+- `--source-start N` — Start source alignment at word N (skip auto-anchor)
+- `--source-start-text TEXT` — Fuzzy-search source for TEXT and start there
+- `--no-auto-anchor` — Disable automatic source-anchor detection (start at word 0)
 
 ## Examples
 
@@ -123,6 +136,114 @@ python alexandria_preparer_rocm_compatible.py \
   --model model.gguf \
   --chunk-size 15.0
 ```
+
+## Source-Guided Chunking
+
+When you pass `--source <epub-or-txt>`, the preparer fuzzy-aligns each ASR
+chunk against the source text and either:
+
+- **Replaces** the chunk's ASR text with the source's spelling when the
+  alignment ratio meets `--source-threshold` (default 0.65). The LLM then
+  annotates already-correct text. Character names, dialect spellings, and
+  punctuation come out exactly as the EPUB has them.
+- **Drops** the chunk entirely when the alignment is below threshold. No
+  WAV file, no JSONL entry. This is what strips audio-only material:
+  narrator intros, "this audiobook is a work of fiction" credits, chapter
+  announcements that aren't in the text, etc.
+
+If you'd rather keep low-confidence chunks (using their ASR text), pass
+`--keep-unaligned`. Cursor doesn't advance on those, so the next chunk
+still tries to align from where the prose was last known to match.
+
+### Example
+
+```bash
+app/env/bin/python alexandria_preparer_rocm_compatible.py \
+  --audio audiobook.wav \
+  --model Qwen2.5-14B-Instruct-Q6_K.gguf \
+  --source "/home/fakemitch/Desktop/books/My Happy Marriage - Volume 01.epub"
+```
+
+### What you'll see in the logs
+
+At startup, the preparer reports source loading + lexicon build:
+```
+▶ Loading source for guided chunking: /path/to/book.epub
+  ├─ Source: 284,125 characters
+  ├─ 29 recurring proper nouns (gifted, godou, grotesqueries, hana, kanoko, kaya +23 more)
+  ├─ 49,686 source words
+  └─ Auto-anchor: entry 3 → source word 287 (62.1% match)
+```
+
+Per dropped chunk during annotation:
+```
+↪ DROPPED chunk at 421.36s (source ratio 0.42 < 0.65)
+```
+
+Per low-confidence kept chunk (only with `--keep-unaligned`):
+```
+↪ chunk 42 kept (ASR text); source ratio 0.51 < 0.65
+```
+
+### Wrong-source-file detection
+
+Before LLM annotation starts, the preparer pre-scans the first ~30 ASR
+chunks against the source. If the average alignment is below 50% or more
+than 40% of chunks fall below 60%, the preparer **aborts with an error**
+rather than waste hours of LLM time on a mismatched source:
+
+```
+⚠ Source/audio divergence too high to proceed:
+  Sampled 30 chunks — avg alignment 38%, 21 (70%) below 60%.
+  Usually means a wrong edition or different translation.
+  Re-run without --source, or pass --keep-unaligned to accept the ASR
+  text for low-confidence chunks.
+```
+
+This typically means you've supplied the wrong EPUB (different
+translation, abridged edition, or a different book entirely). Re-anchor
+manually with `--source-start N` / `--source-start-text "..."`, swap to
+the right source, or run without `--source` to fall back to the legacy
+ASR-only flow.
+
+### When to use vs. skip
+
+**Use `--source` when:** you have the matching EPUB/TXT for the
+audiobook AND you want clean character names + dialect spellings in the
+training dataset AND you're okay dropping chunks that don't appear in
+the source (chapter intros, narrator notes, paratext).
+
+**Skip `--source` when:** you don't have the source text, or you're
+processing audio that's known to be loosely based on the source
+(adaptations, rewrites, abridgments) where strict dropping would lose
+content you want to keep.
+
+### Effect on compare-review downstream
+
+Source-guided mode dramatically reduces what you'll see when reviewing
+the resulting JSONL with `alexandria_compare.py`. Most of the edits
+users typically make (character-name ASR fixes, dialect spelling fixes)
+have already been applied at preparation time. Compare-review becomes a
+prosody sanity check — usually a few minutes per book instead of an
+hour.
+
+## Pause-Aware Chunk Boundaries
+
+The chunker emits a chunk when the accumulated duration reaches
+`--chunk-size`, but it doesn't cut at exactly that word. It looks back
+across the last 30% of the chunk's duration and prefers to cut at:
+
+1. A word ending in sentence punctuation (`.`, `!`, `?`) — best for TTS
+   coherence; picks the LATEST one in the window.
+2. The longest natural pause (gap ≥ 0.25s between ASR word end + next
+   word start) in the same window.
+3. The final word (current word at the threshold) — only when neither
+   of the above is available.
+
+Words trimmed off by the look-back become the seed of the next chunk;
+no audio is lost. Net effect: chunks end on breath/clause/sentence
+breaks instead of mid-phrase. Combined with `--source` mode, the
+resulting WAVs are usable for TTS training with minimal hand-editing.
 
 ## Processing Flow
 
