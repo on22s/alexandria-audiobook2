@@ -8,6 +8,9 @@ app/env/
 !.github/
 !.gitignore
 !.dockerignore
+!.claude/
+.claude/*
+!.claude/skills/
 ~*
 /logs/
 /cache/
