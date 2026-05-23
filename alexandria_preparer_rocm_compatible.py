@@ -1223,12 +1223,19 @@ def _load_existing_checkpoint(temp_dir):
     the first bad line. Anything after a bad line is suspect — the file may be
     fsync-ordered with later writes that landed after a gap — so we discard
     the tail rather than trying to recover it.
+
+    Critically: if a bad line is found, the checkpoint file is immediately
+    rewritten with only the good prefix. Without this, every subsequent resume
+    would hit the same bad line, truncate at the same point, and sweep the
+    newly-appended WAVs — making recovery impossible after repeated crashes.
     """
     checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
     entries = []
     if not os.path.exists(checkpoint_path):
         return entries, 0.0, 0
 
+    good_lines = []
+    truncated = False
     try:
         with open(checkpoint_path, "r", encoding="utf-8") as f:
             for line_no, raw in enumerate(f, start=1):
@@ -1237,21 +1244,40 @@ def _load_existing_checkpoint(temp_dir):
                     continue
                 try:
                     entries.append(json.loads(line))
+                    good_lines.append(raw if raw.endswith("\n") else raw + "\n")
                 except json.JSONDecodeError as e:
                     logger.warning(
                         f"Checkpoint line {line_no} unparseable ({e}); "
                         f"keeping {len(entries)} good entries and stopping."
                     )
+                    truncated = True
                     break
     except Exception as e:
         logger.warning(f"Could not read checkpoint {checkpoint_path}: {e}")
         return [], 0.0, 0
 
+    if truncated:
+        try:
+            with open(checkpoint_path, "w", encoding="utf-8") as f:
+                f.writelines(good_lines)
+            logger.info(f"  Checkpoint rewritten to {len(entries)} good entries (corrupt tail removed)")
+        except Exception as e:
+            logger.warning(f"Could not rewrite checkpoint after truncation ({e}); "
+                           f"future resumes may re-truncate at the same line")
+
     if not entries:
         return [], 0.0, 0
 
-    resume_time = max(e.get("end", 0.0) for e in entries)
-    next_idx = max(int(e["audio_filepath"].split("_")[1].split(".")[0]) for e in entries) + 1
+    try:
+        resume_time = max(e.get("end", 0.0) for e in entries)
+        next_idx = max(
+            int(os.path.splitext(e["audio_filepath"])[0].split("_")[-1])
+            for e in entries
+        ) + 1
+    except Exception as e:
+        logger.warning(f"Could not compute resume state from checkpoint ({e}); forcing fresh start")
+        return [], 0.0, 0
+
     return entries, resume_time, next_idx
 
 
@@ -1280,7 +1306,11 @@ def _sweep_orphan_wavs(temp_dir, next_segment_idx):
             except Exception as e:
                 logger.warning(f"Failed to remove orphan {name}: {e}")
     if removed:
-        logger.info(f"  ├─ Swept {removed} orphan WAV(s) at idx ≥ {next_segment_idx}")
+        msg = f"  ├─ Swept {removed} orphan WAV(s) at idx ≥ {next_segment_idx}"
+        if removed > 1:
+            logger.warning(msg + " — unexpectedly large; verify next_segment_idx is correct")
+        else:
+            logger.info(msg)
     return removed
 
 
@@ -1394,6 +1424,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             logger.info(f"  └─ Resume state clean")
         else:
             logger.info("▶ --resume specified but no checkpoint found, starting fresh")
+            _sweep_orphan_wavs(temp_dir, 0)  # wipe any stale WAVs from a prior run
             existing_entries, resume_time, next_segment_idx = [], 0.0, 0
     else:
         if resume and not marker_matches:
@@ -1751,7 +1782,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         # references it — otherwise power loss can leave a
                         # truncated WAV with a metadata line claiming the full
                         # duration.
-                        wav_fd = os.open(wav_path, os.O_RDONLY)
+                        wav_fd = os.open(wav_path, os.O_RDWR)
                         try:
                             os.fsync(wav_fd)
                         finally:
