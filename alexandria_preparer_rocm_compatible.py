@@ -1216,7 +1216,14 @@ def _read_audio_segment(audio_24k_source, start_s, end_s):
 
 
 def _load_existing_checkpoint(temp_dir):
-    """Read existing metadata.jsonl checkpoint and return (entries, resume_time, next_segment_idx)."""
+    """Read existing metadata.jsonl checkpoint and return (entries, resume_time, next_segment_idx).
+
+    Tolerates a truncated/corrupt trailing line (common after power loss while
+    line-buffered append was in flight): keeps the good prefix and stops at
+    the first bad line. Anything after a bad line is suspect — the file may be
+    fsync-ordered with later writes that landed after a gap — so we discard
+    the tail rather than trying to recover it.
+    """
     checkpoint_path = os.path.join(temp_dir, "metadata.jsonl")
     entries = []
     if not os.path.exists(checkpoint_path):
@@ -1224,13 +1231,20 @@ def _load_existing_checkpoint(temp_dir):
 
     try:
         with open(checkpoint_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
+            for line_no, raw in enumerate(f, start=1):
+                line = raw.strip()
                 if not line:
                     continue
-                entries.append(json.loads(line))
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Checkpoint line {line_no} unparseable ({e}); "
+                        f"keeping {len(entries)} good entries and stopping."
+                    )
+                    break
     except Exception as e:
-        logger.warning(f"Could not parse checkpoint {checkpoint_path}: {e}")
+        logger.warning(f"Could not read checkpoint {checkpoint_path}: {e}")
         return [], 0.0, 0
 
     if not entries:
@@ -1239,6 +1253,35 @@ def _load_existing_checkpoint(temp_dir):
     resume_time = max(e.get("end", 0.0) for e in entries)
     next_idx = max(int(e["audio_filepath"].split("_")[1].split(".")[0]) for e in entries) + 1
     return entries, resume_time, next_idx
+
+
+def _sweep_orphan_wavs(temp_dir, next_segment_idx):
+    """Delete sample_NNNN.wav files at or above next_segment_idx.
+
+    These are WAVs written before the matching metadata entry was committed
+    (or before its kernel buffer flushed). Without this sweep, a multi-resume
+    sequence can leave high-index orphan WAVs in dataset_temp/ that get
+    packaged into the final ZIP with no metadata pointing at them.
+    """
+    if not os.path.isdir(temp_dir):
+        return 0
+    removed = 0
+    for name in os.listdir(temp_dir):
+        if not (name.startswith("sample_") and name.endswith(".wav")):
+            continue
+        try:
+            idx = int(name[len("sample_"):-len(".wav")])
+        except ValueError:
+            continue
+        if idx >= next_segment_idx:
+            try:
+                os.remove(os.path.join(temp_dir, name))
+                removed += 1
+            except Exception as e:
+                logger.warning(f"Failed to remove orphan {name}: {e}")
+    if removed:
+        logger.info(f"  ├─ Swept {removed} orphan WAV(s) at idx ≥ {next_segment_idx}")
+    return removed
 
 
 def _wipe_temp_dir(temp_dir):
@@ -1346,7 +1389,9 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             logger.info(f"▶ Resuming from checkpoint: {len(existing_entries)} segments already processed")
             logger.info(f"  ├─ Source verified: {audio_source_path}")
             logger.info(f"  ├─ Resume time: {resume_time:.2f}s")
-            logger.info(f"  └─ Next segment index: {next_segment_idx}")
+            logger.info(f"  ├─ Next segment index: {next_segment_idx}")
+            _sweep_orphan_wavs(temp_dir, next_segment_idx)
+            logger.info(f"  └─ Resume state clean")
         else:
             logger.info("▶ --resume specified but no checkpoint found, starting fresh")
             existing_entries, resume_time, next_segment_idx = [], 0.0, 0
@@ -1448,8 +1493,9 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     chunk_times = deque(maxlen=20)  # rolling window for dynamic ETA
 
     # Open checkpoint in line-buffered mode (buffering=1) so each entry hits
-    # the kernel buffer immediately. fsync still happens every 50 segments for
-    # full disk durability. This means a Python crash loses 0 segments.
+    # the kernel buffer immediately, then fsync per chunk so power loss can't
+    # lose work the code thinks was persisted. fsync is ~10-50ms on SSD vs
+    # ~12s per chunk, so the overhead is <0.5%.
     checkpoint_file = open(checkpoint_path, "a", encoding="utf-8", buffering=1)
 
     resume_point = current_start  # marker for "skip words before this"
@@ -1699,7 +1745,17 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     if len(audio_slice) > 0:
                         stats['chunk_durations'].append(actual_duration)
                         seg_name = f"sample_{segment_idx:04d}.wav"
-                        sf.write(os.path.join(temp_dir, seg_name), audio_slice, 24000)
+                        wav_path = os.path.join(temp_dir, seg_name)
+                        sf.write(wav_path, audio_slice, 24000)
+                        # Force the WAV to disk before recording metadata that
+                        # references it — otherwise power loss can leave a
+                        # truncated WAV with a metadata line claiming the full
+                        # duration.
+                        wav_fd = os.open(wav_path, os.O_RDONLY)
+                        try:
+                            os.fsync(wav_fd)
+                        finally:
+                            os.close(wav_fd)
 
                         entry = {
                             "audio_filepath": seg_name,
@@ -1710,11 +1766,11 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         }
                         metadata.append(entry)
 
-                        # Append to checkpoint immediately (durable across crashes)
+                        # Append to checkpoint and fsync immediately so power
+                        # loss can lose at most the in-progress chunk.
                         checkpoint_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                        if (segment_idx + 1) % 50 == 0:
-                            checkpoint_file.flush()
-                            os.fsync(checkpoint_file.fileno())
+                        checkpoint_file.flush()
+                        os.fsync(checkpoint_file.fileno())
 
                         chunk_times.append(time.monotonic() - chunk_t0)
 
