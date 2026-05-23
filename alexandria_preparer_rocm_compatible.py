@@ -224,6 +224,87 @@ def format_duration(seconds):
     else:
         return f"{secs}s"
 
+# ── Oversized-WAV handling (>4 GiB data-chunk header wrap) ───────────────────
+# Standard WAV uses a 32-bit unsigned chunk-size field, so any WAV whose audio
+# `data` chunk exceeds 4 GiB wraps that field and reports a bogus header
+# duration (only the bytes after the modulus). `soundfile`/`librosa.load`
+# honor the wrapped header and silently truncate. Audiobook WAVs at this
+# project's rates (44.1 kHz stereo PCM_16) hit the wrap at ~6.8 hours — every
+# full-length audiobook in the test corpus is affected.
+#
+# We detect the wrap by comparing on-disk file size against header-implied
+# data size. When detected, we route the load through ffmpeg with
+# `-ignore_length 1`, which makes the WAV demuxer ignore the chunk-size field
+# and decode until EOF, giving us the full audio. Streaming via subprocess
+# also avoids materialising the entire native-rate float32 array in RAM
+# (a 27-hour 44.1 kHz mono float32 buffer is ~16 GB; the user has files
+# that long).
+
+def _wav_overflow_info(path):
+    """Return (is_oversized, true_duration_s, header_duration_s) for a WAV
+    file. `is_oversized` is True when the on-disk size implies more audio
+    than the header reports (the >4 GiB data-chunk-size wrap). For non-WAV
+    files the function returns (False, header_dur, header_dur).
+    """
+    try:
+        info = sf.info(path)
+    except Exception:
+        return False, 0.0, 0.0
+    header_dur = info.duration
+    if info.format != 'WAV':
+        return False, header_dur, header_dur
+    # Bytes per sample frame. soundfile exposes subtypes like PCM_16/PCM_24/PCM_32/FLOAT.
+    subtype_bytes = {'PCM_16': 2, 'PCM_24': 3, 'PCM_32': 4, 'FLOAT': 4, 'DOUBLE': 8}
+    bps = subtype_bytes.get(info.subtype, 2)
+    file_size = os.path.getsize(path)
+    # Subtract a generous 1 MB for header/junk chunks — true audio bytes
+    # is essentially file_size minus a kilobyte or two of metadata.
+    audio_bytes_estimate = max(0, file_size - 1024 * 1024)
+    true_dur = audio_bytes_estimate / (info.samplerate * info.channels * bps)
+    is_oversized = file_size > 2**32 and true_dur > header_dur * 1.5
+    return is_oversized, true_dur if is_oversized else header_dur, header_dur
+
+
+def _ffmpeg_decode_to_wav(src_path, dst_wav_path, target_sr, mono=True):
+    """Decode an audio file to a 16-bit PCM WAV via ffmpeg, ignoring any
+    bogus WAV chunk-size header. Returns the resulting file's on-disk size.
+    Raises subprocess.CalledProcessError on ffmpeg failure.
+    """
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-ignore_length", "1",
+        "-i", src_path,
+        "-ac", "1" if mono else "2",
+        "-ar", str(target_sr),
+        "-c:a", "pcm_s16le",
+        dst_wav_path,
+    ]
+    logger.debug(f"  ffmpeg decode → {dst_wav_path} ({target_sr}Hz, {'mono' if mono else 'stereo'})")
+    subprocess.run(cmd, check=True)
+    return os.path.getsize(dst_wav_path)
+
+
+def _ffmpeg_decode_to_numpy(src_path, target_sr, mono=True):
+    """Decode an audio file to a float32 numpy array via ffmpeg piped to
+    s16le PCM. Bypasses soundfile entirely, so it works on >4 GiB WAVs
+    whose data-chunk header has overflowed. Returns a 1-D float32 array
+    normalised to [-1.0, 1.0].
+    """
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error",
+        "-ignore_length", "1",
+        "-i", src_path,
+        "-ac", "1" if mono else "2",
+        "-ar", str(target_sr),
+        "-f", "s16le",
+        "-",
+    ]
+    logger.debug(f"  ffmpeg decode → numpy ({target_sr}Hz, {'mono' if mono else 'stereo'})")
+    proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
+    pcm = np.frombuffer(proc.stdout, dtype=np.int16)
+    return (pcm.astype(np.float32) / 32768.0)
+
+
 def validate_inputs(args):
     """Validate input files."""
     logger.info("Validating input files...")
@@ -274,6 +355,20 @@ def validate_inputs(args):
 
     try:
         info = sf.info(args.audio)
+        is_oversized, true_dur, header_dur = _wav_overflow_info(args.audio)
+        if is_oversized:
+            logger.warning(
+                f"⚠ Oversized WAV detected: header says {header_dur:.1f}s "
+                f"({header_dur/60:.1f} min) but file size implies "
+                f"{true_dur:.1f}s ({true_dur/3600:.2f} hr). "
+                f"WAV data-chunk-size field is 32-bit and has wrapped — "
+                f"ffmpeg `-ignore_length 1` will be used to read the full audio."
+            )
+            logger.info(
+                f"Audio file: {info.samplerate}Hz, {true_dur:.2f}s "
+                f"(header reported {header_dur:.2f}s — wrapped), {info.channels}ch"
+            )
+            return true_dur
         logger.info(f"Audio file: {info.samplerate}Hz, {info.duration:.2f}s, {info.channels}ch")
         return info.duration
     except Exception as e:
@@ -1810,35 +1905,50 @@ def main():
         progress.start("Load audio")
         logger.debug(f"Loading audio from {args.audio} (single read)...")
         load_t0 = time.monotonic()
-        audio_native, native_sr = librosa.load(args.audio, sr=None, mono=True)
-        logger.debug(f"  Native sample rate: {native_sr}Hz, duration: {len(audio_native)/native_sr:.1f}s")
+        is_oversized, _, _ = _wav_overflow_info(args.audio)
 
-        if native_sr == 16000:
-            audio_16k = audio_native
+        if is_oversized:
+            # Streamed ffmpeg path: decode 24 kHz mono directly to the
+            # scratch WAV (no native-rate float32 ever materialised), then
+            # decode again at 16 kHz into a numpy array for ASR. Decoding
+            # twice is far cheaper than holding a 16 GB native buffer.
+            logger.info("  Using ffmpeg loader (oversized WAV)")
+            _ffmpeg_decode_to_wav(args.audio, audio_24k_scratch, 24000, mono=True)
+            sf_info_24k = sf.info(audio_24k_scratch)
+            duration_secs = sf_info_24k.duration
+            logger.info(f"  Audio: {duration_secs:.1f}s @ {sf_info_24k.frames} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+            logger.debug(f"  Decoding 16 kHz stream for ASR via ffmpeg...")
+            audio_16k = _ffmpeg_decode_to_numpy(args.audio, 16000, mono=True)
         else:
-            logger.debug(f"  Resampling to 16kHz (in memory)...")
-            audio_16k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=16000)
+            audio_native, native_sr = librosa.load(args.audio, sr=None, mono=True)
+            logger.debug(f"  Native sample rate: {native_sr}Hz, duration: {len(audio_native)/native_sr:.1f}s")
 
-        if native_sr == 24000:
-            audio_24k = audio_native
-        else:
-            logger.debug(f"  Resampling to 24kHz (in memory)...")
-            audio_24k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=24000)
+            if native_sr == 16000:
+                audio_16k = audio_native
+            else:
+                logger.debug(f"  Resampling to 16kHz (in memory)...")
+                audio_16k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=16000)
 
-        if native_sr not in (16000, 24000):
-            del audio_native
+            if native_sr == 24000:
+                audio_24k = audio_native
+            else:
+                logger.debug(f"  Resampling to 24kHz (in memory)...")
+                audio_24k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=24000)
+
+            if native_sr not in (16000, 24000):
+                del audio_native
+                gc.collect()
+
+            duration_secs = len(audio_24k) / 24000
+            logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+
+            # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation.
+            # Use FLOAT subtype to preserve full float32 precision - segments will
+            # quantize to PCM_16 once at write time (default), avoiding double quantization.
+            logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
+            sf.write(audio_24k_scratch, audio_24k, 24000, subtype="FLOAT")
+            del audio_24k
             gc.collect()
-
-        duration_secs = len(audio_24k) / 24000
-        logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
-
-        # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation.
-        # Use FLOAT subtype to preserve full float32 precision - segments will
-        # quantize to PCM_16 once at write time (default), avoiding double quantization.
-        logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
-        sf.write(audio_24k_scratch, audio_24k, 24000, subtype="FLOAT")
-        del audio_24k
-        gc.collect()
         scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)
         logger.info(f"  ├─ Scratch audio: {audio_24k_scratch} ({scratch_size_mb:.1f} MB) - freed from RAM")
         progress.complete()
