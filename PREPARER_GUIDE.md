@@ -498,6 +498,38 @@ Error: Model file not found: ...
 - Check `du -sh dataset_temp/ .alexandria_audio_24k.wav`.
 - Free up space, then rerun with `--resume`.
 
+### Oversized WAV (>4 GiB) — header reports a tiny duration
+Symptom: a multi-GB audiobook WAV reports a duration of a few minutes instead
+of hours. Example startup log:
+```
+[WARNING] ⚠ Oversized WAV detected: header says 135.3s (2.3 min) but file size
+implies 24477.2s (6.80 hr). WAV data-chunk-size field is 32-bit and has
+wrapped — ffmpeg `-ignore_length 1` will be used to read the full audio.
+```
+
+Why it happens: standard WAV uses a 32-bit unsigned field for the `data`
+chunk size, which overflows at 4 GiB. At 44.1 kHz stereo PCM_16 that hits at
+~6.8 hours, so any full-length audiobook WAV produced by a tool that didn't
+switch to RF64/WAV64 has a wrapped header. `soundfile` and `librosa.load`
+honor the bogus header and silently truncate to `filesize mod 4 GiB` of
+audio — every "complete" run on an oversized file is actually just the
+first slice (e.g. 2 min of a 6.8 hr file, 22 min of a 27 hr file).
+
+What the preparer does about it: `validate_inputs` compares file size
+against header-implied bytes, prints the warning above when they
+disagree, and routes the load through ffmpeg (`-ignore_length 1`). The
+24 kHz scratch is streamed straight to disk and the 16 kHz ASR buffer
+is piped into a float32 numpy array. No native-rate intermediate is
+materialised, so peak RAM stays bounded regardless of the audio length.
+
+What you should do: nothing, normally — the fix is automatic when the
+preparer detects the wrap. If you'd rather re-encode the WAV once to
+fix it permanently (and avoid the duplicate ffmpeg decode), convert to
+FLAC or RF64-WAV, e.g.:
+```
+ffmpeg -ignore_length 1 -i input.wav -c:a flac output.flac
+```
+
 ## API (programmatic invocation)
 
 ### Python (subprocess)

@@ -418,6 +418,15 @@ Error: No space left on device
 - Free up disk space (need ~10GB per file)
 - Check `du -sh alexandria_dataset*.zip` for old files
 
+### Datasets look complete but cover only a tiny fraction of each audiobook
+If your `.wav` files are larger than ~4 GiB each and you see preparer
+summaries like "Total audio in dataset: 1.5 min" on what should be a
+multi-hour book, you've hit the >4 GiB WAV header-wrap bug — the WAV
+data-chunk-size field is 32-bit and silently truncates everything past
+the wrap. The preparer detects this automatically now and routes the
+load through ffmpeg, but you should re-run any datasets that were built
+with the old loader. See PREPARER_GUIDE.md → "Oversized WAV" for details.
+
 ## Advanced Usage
 
 ### Process all files in a folder
