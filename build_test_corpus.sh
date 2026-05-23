@@ -44,8 +44,9 @@ shopt -s -o pipefail
 
 AUDIO_DIR=${AUDIO_DIR:-"/home/fakemitch/Desktop/New folder/"}
 SOURCE_DIR=${SOURCE_DIR:-"/home/fakemitch/Desktop/books/"}
-MODEL=${MODEL:-"models/Qwen2.5-14B-Instruct-Q6_K.gguf"}
-FALLBACK=${FALLBACK:-"models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"}
+# Project-root model paths (where the GGUF files actually live, not models/).
+MODEL=${MODEL:-"Qwen2.5-14B-Instruct-Q6_K.gguf"}
+FALLBACK=${FALLBACK:-"Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"}
 OUT_DIR=${OUT_DIR:-"./test_corpus_output/"}
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
@@ -313,7 +314,8 @@ if not rows:
 out = []
 out.append('# Aggregated preparer-run report')
 out.append('')
-out.append(f'_Generated: $(date \"+%Y-%m-%d %H:%M:%S\")_')
+from datetime import datetime
+out.append(f'_Generated: {datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")}_')
 out.append('')
 out.append(f'Parsed {len(rows)} run(s) from preparer logs in \`logs/\`.')
 out.append('')
