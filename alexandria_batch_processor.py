@@ -123,24 +123,107 @@ def format_duration(seconds):
     else:
         return f"{secs}s"
 
-def _find_source_for(audio_file, source_folder):
-    """Look for a source file (.epub or .txt) in source_folder whose stem
-    matches the audio file's stem. Returns the source path or None.
+# Filename noise tokens common in audiobook/EPUB filenames but carrying
+# no information about WHICH book it is. Dropped before fuzzy scoring so
+# "Hero of Ages-converted" and "Hero of Ages.epub" line up by their title
+# tokens alone.
+_FILENAME_NOISE_TOKENS = frozenset({
+    # Audiobook pipeline / format markers
+    'converted', 'audiobook', 'audio', 'unabridged', 'abridged',
+    'final', 'edited', 'corrected', 'release', 'mp3', 'wav', 'm4b', 'flac',
+    # Edition / publisher markers seen in real EPUB filenames
+    'kobo', 'darkhorse', 'yenpress', 'audible', 'tor', 'edition',
+    'volume', 'vol', 'book', 'chapter', 'part',
+    # z-library decorators
+    'library', 'lib', 'sk', 'org',
+})
 
-    Convention: audio/Book1.wav → source_folder/Book1.epub (preferred) or
-    source_folder/Book1.txt. Matching is case-sensitive and exact-stem, so
-    "Vampire Hunter D.wav" matches "Vampire Hunter D.epub" but NOT
-    "Vampire Hunter D - Volume 01.epub". Rename your source files (or
-    pre-build a JSON map and feed individual --source paths) if the
-    audiobook and EPUB filenames don't line up.
+
+def _normalize_filename_tokens(stem):
+    """Lowercase the stem, split on non-alphanumeric, drop noise + pure
+    numbers. Returns a list of meaningful title tokens.
+
+    Pure-digit tokens (volume numbers, series indices, year stamps) drop
+    out separately so 'Book 01' and 'Book 1' tokenise to the same set.
+    """
+    tokens = re.findall(r'[a-z0-9]+', stem.lower())
+    return [t for t in tokens if t not in _FILENAME_NOISE_TOKENS and not t.isdigit()]
+
+
+def _fuzzy_score(audio_tokens, book_tokens):
+    """F1-style score between two token sets — symmetric and discourages
+    BOTH spurious matches (high precision needs most book words in audio)
+    AND over-broad book names (high recall needs most audio words in book).
+
+    Returns 0.0 if either side is empty. F1 = 2PR / (P + R).
+    """
+    if not audio_tokens or not book_tokens:
+        return 0.0
+    a, b = set(audio_tokens), set(book_tokens)
+    common = a & b
+    if not common:
+        return 0.0
+    precision = len(common) / len(b)
+    recall    = len(common) / len(a)
+    return 2 * precision * recall / (precision + recall)
+
+
+def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50):
+    """Find the best-matching source file in `source_folder` for an audio
+    file. Two-stage match:
+
+      1. Exact-stem match — audio/Book1.wav looks for
+         source_folder/Book1.epub (preferred) or .txt. Cheap and
+         unambiguous when filenames happen to align.
+
+      2. Fuzzy fallback — tokenise both filenames (lowercase, split on
+         non-alphanumeric, drop noise tokens like 'converted',
+         'audiobook', 'volume', publisher decorators, z-library cruft,
+         and pure-digit tokens). Score every .epub/.txt in the folder by
+         F1 token overlap. Return the highest-scoring candidate above
+         `fuzzy_threshold` (default 0.55).
+
+    So 'Michael Kramer The Hero of Ages-converted.wav' matches
+    'Hero of Ages .epub' (shared title tokens: hero, of, ages) and beats
+    'Mistborn The Hero of Ages (... z-library ...).epub' (which has
+    extra series-name tokens that aren't in the audio).
+
+    Returns the source path, or None if nothing scores high enough.
+    Existing exact-stem behaviour is preserved — fuzzy only fires when
+    no exact match exists, so previous --source-folder users see no
+    behavioural change.
     """
     if not source_folder or not os.path.isdir(source_folder):
         return None
-    stem = Path(audio_file).stem
+    audio_path = Path(audio_file)
+    stem = audio_path.stem
+
+    # Stage 1: exact-stem match wins immediately when present.
     for ext in ('.epub', '.txt'):
         candidate = Path(source_folder) / (stem + ext)
         if candidate.exists():
             return str(candidate)
+
+    # Stage 2: fuzzy token-overlap fallback.
+    audio_tokens = _normalize_filename_tokens(stem)
+    if not audio_tokens:
+        return None
+
+    best_score = 0.0
+    best_path  = None
+    for entry in os.scandir(source_folder):
+        if not entry.is_file():
+            continue
+        if not entry.name.lower().endswith(('.epub', '.txt')):
+            continue
+        book_tokens = _normalize_filename_tokens(Path(entry.name).stem)
+        score = _fuzzy_score(audio_tokens, book_tokens)
+        if score > best_score:
+            best_score = score
+            best_path = entry.path
+
+    if best_path is not None and best_score >= fuzzy_threshold:
+        return best_path
     return None
 
 
