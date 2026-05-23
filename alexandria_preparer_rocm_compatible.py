@@ -1416,7 +1416,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         logger.info(f"  ├─ Fallback model: {os.path.basename(fallback_model_path)}")
     logger.info("  ├─ Device: GPU (CUDA/ROCm acceleration)")
     logger.info("  ├─ GPU Layers: All (-1 = fully loaded to GPU)")
-    logger.info("  └─ Periodic checkpoint: every 50 segments")
+    logger.info("  └─ Checkpoint: fsync per chunk (durable across power loss)")
 
     active_model_path = model_path
     try:
