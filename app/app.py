@@ -195,11 +195,11 @@ class PreparerConfig(BaseModel):
     fallback_model: Optional[str] = None
     source_threshold: float = 0.65
     keep_unaligned: bool = False
-    chunk_size: int = 20
-    lang: str = "auto"
+    chunk_size: float = 10.0
+    lang: str = "en"
     resume: bool = False
     skip_annotation: bool = False
-    source_start: Optional[float] = None
+    source_start: Optional[int] = None
     source_start_text: Optional[str] = None
     no_auto_anchor: bool = False
 
@@ -279,7 +279,7 @@ process_state = {
 CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
 ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
 
-def run_process(command: List[str], task_name: str):
+def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and capture logs."""
     process_state[task_name]["running"] = True
     process_state[task_name]["logs"] = []
@@ -293,7 +293,7 @@ def run_process(command: List[str], task_name: str):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=BASE_DIR,
+            cwd=cwd or BASE_DIR,
             bufsize=1,
             universal_newlines=True,
             env=env,
@@ -323,12 +323,11 @@ def run_process(command: List[str], task_name: str):
 
 
 PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
-PREPARER_VENV_PATH = os.path.join(ROOT_DIR, "app", "env") # Assuming venv is in app/env or create one
 
 
 def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file_path: Optional[str] = None):
     """Internal function to run the preparer script in a subprocess."""
-    preparer_cmd = [sys.executable, PREPARER_SCRIPT_PATH] # Use sys.executable to ensure correct Python
+    preparer_cmd = [sys.executable, PREPARER_SCRIPT_PATH]
     preparer_cmd.extend(["--audio", audio_file_path])
     preparer_cmd.extend(["--output", os.path.join(ROOT_DIR, config.output_filename)])
 
@@ -342,7 +341,7 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
         if config.source_start_text:
             preparer_cmd.extend(["--source-start-text", config.source_start_text])
         if config.no_auto_anchor:
-            preparer_cmd.append("--no-auto_anchor") # Corrected to match CLI argument
+            preparer_cmd.append("--no-auto-anchor")
 
     if config.model:
         preparer_cmd.extend(["--model", config.model])
@@ -356,7 +355,8 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
     if config.skip_annotation:
         preparer_cmd.append("--skip-annotation")
 
-    run_process(preparer_cmd, "preparer")
+    # Run from ROOT_DIR so dataset_temp/ and scratch WAVs land in the project root
+    run_process(preparer_cmd, "preparer", cwd=ROOT_DIR)
 
 
 @app.post("/api/preparer/start")
@@ -487,7 +487,8 @@ async def get_config():
             except RuntimeError:
                 pass  # review_prompts.txt missing or malformed — leave fields empty
 
-    # Include current input file info if available
+    # Always include current_file (null when no state or file missing)
+    config["current_file"] = None
     state_path = os.path.join(ROOT_DIR, "state.json")
     if os.path.exists(state_path):
         try:
