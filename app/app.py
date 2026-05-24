@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 
 # Import ProjectManager
 from project import ProjectManager
-from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT, load_default_prompts
+from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 
@@ -281,7 +281,6 @@ ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
 
 def run_process(command: List[str], task_name: str):
     """Run a subprocess and capture logs."""
-    global process_state
     process_state[task_name]["running"] = True
     process_state[task_name]["logs"] = []
 
@@ -375,7 +374,6 @@ async def start_preparer(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid config JSON: {e}")
 
-    global process_state
     if process_state["preparer"]["running"]:
         raise HTTPException(status_code=400, detail="Preparer process is already running.")
 
