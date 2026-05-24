@@ -104,3 +104,6 @@ alexandria_dataset_*.zip
 test_corpus_output/
 test_corpus_output_pre_*/
 
+
+.gemini/
+gha-creds-*.json

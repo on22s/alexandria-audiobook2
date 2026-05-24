@@ -187,6 +187,22 @@ class VoiceDesignSaveRequest(BaseModel):
     sample_text: str
     preview_file: str
 
+class PreparerConfig(BaseModel):
+    audio_filename: str
+    source_filename: Optional[str] = None
+    output_filename: str = "alexandria_dataset.zip"
+    model: Optional[str] = None
+    fallback_model: Optional[str] = None
+    source_threshold: float = 0.65
+    keep_unaligned: bool = False
+    chunk_size: int = 20
+    lang: str = "auto"
+    resume: bool = False
+    skip_annotation: bool = False
+    source_start: Optional[float] = None
+    source_start_text: Optional[str] = None
+    no_auto_anchor: bool = False
+
 class LoraTrainingRequest(BaseModel):
     name: str
     dataset_id: str
@@ -255,8 +271,13 @@ process_state = {
     "review": {"running": False, "logs": []},
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
-    "dataset_builder": {"running": False, "logs": [], "cancel": False}
+    "dataset_builder": {"running": False, "logs": [], "cancel": False},
+    "preparer": {"running": False, "logs": []}
 }
+
+# Clone voices directory for user-uploaded reference audio
+CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
+ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
 
 def run_process(command: List[str], task_name: str):
     """Run a subprocess and capture logs."""
@@ -301,7 +322,91 @@ def run_process(command: List[str], task_name: str):
     finally:
         process_state[task_name]["running"] = False
 
-# Endpoints
+
+PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
+PREPARER_VENV_PATH = os.path.join(ROOT_DIR, "app", "env") # Assuming venv is in app/env or create one
+
+
+def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file_path: Optional[str] = None):
+    """Internal function to run the preparer script in a subprocess."""
+    preparer_cmd = [sys.executable, PREPARER_SCRIPT_PATH] # Use sys.executable to ensure correct Python
+    preparer_cmd.extend(["--audio", audio_file_path])
+    preparer_cmd.extend(["--output", os.path.join(ROOT_DIR, config.output_filename)])
+
+    if config.source_filename and source_file_path:
+        preparer_cmd.extend(["--source", source_file_path])
+        preparer_cmd.extend(["--source-threshold", str(config.source_threshold)])
+        if config.keep_unaligned:
+            preparer_cmd.append("--keep-unaligned")
+        if config.source_start is not None:
+            preparer_cmd.extend(["--source-start", str(config.source_start)])
+        if config.source_start_text:
+            preparer_cmd.extend(["--source-start-text", config.source_start_text])
+        if config.no_auto_anchor:
+            preparer_cmd.append("--no-auto_anchor") # Corrected to match CLI argument
+
+    if config.model:
+        preparer_cmd.extend(["--model", config.model])
+    if config.fallback_model:
+        preparer_cmd.extend(["--fallback-model", config.fallback_model])
+
+    preparer_cmd.extend(["--chunk-size", str(config.chunk_size)])
+    preparer_cmd.extend(["--lang", config.lang])
+    if config.resume:
+        preparer_cmd.append("--resume")
+    if config.skip_annotation:
+        preparer_cmd.append("--skip-annotation")
+
+    run_process(preparer_cmd, "preparer")
+
+
+@app.post("/api/preparer/start")
+async def start_preparer(
+    config: PreparerConfig,
+    background_tasks: BackgroundTasks,
+    audio_file: UploadFile = File(...),
+    source_file: Optional[UploadFile] = File(None)
+):
+    """
+    Start the Alexandria Preparer process to generate a TTS dataset from an audiobook.
+    """
+    global process_state
+    if process_state["preparer"]["running"]:
+        raise HTTPException(status_code=400, detail="Preparer process is already running.")
+
+    # Save uploaded audio file
+    audio_upload_path = os.path.join(UPLOADS_DIR, config.audio_filename)
+    async with aiofiles.open(audio_upload_path, "wb") as f:
+        while contents := await audio_file.read(1024 * 1024):
+            await f.write(contents)
+
+    source_upload_path = None
+    if source_file:
+        # Use original filename for source if config.source_filename is not provided
+        actual_source_filename = config.source_filename or source_file.filename
+        source_upload_path = os.path.join(UPLOADS_DIR, actual_source_filename)
+        async with aiofiles.open(source_upload_path, "wb") as f:
+            while contents := await source_file.read(1024 * 1024):
+                await f.write(contents)
+
+    background_tasks.add_task(_run_preparer_task, config, audio_upload_path, source_upload_path)
+    return {"status": "Preparer started", "config": config.dict()}
+
+
+@app.get("/api/preparer/status")
+async def get_preparer_status():
+    """Get the current status and logs of the Alexandria Preparer process."""
+    return process_state["preparer"]
+
+
+@app.get("/api/preparer/download/{filename}")
+async def download_preparer_output(filename: str):
+    """Download the generated dataset ZIP file."""
+    file_path = os.path.join(ROOT_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found or preparer not finished.")
+    return FileResponse(file_path, media_type="application/zip", filename=filename)
+
 
 @app.get("/")
 async def read_index():
