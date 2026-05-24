@@ -1438,7 +1438,7 @@ TTS_ANNOTATION_SYSTEM_PROMPT = (
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     resume=False, audio_source_path=None, fallback_model_path=None,
                     source_state=None, source_threshold=0.65, keep_unaligned=False,
-                    min_chunk_duration=2.0):
+                    min_chunk_duration=2.0, book_title=None, character=None, narrator_style=None):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
@@ -1864,6 +1864,26 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         finally:
                             os.close(wav_fd)
 
+                        # ── Metadata Tagging ──
+                        try:
+                            import mutagen.wave
+                            import mutagen.id3
+                            audio_tags = mutagen.wave.WAVE(wav_path)
+                            if audio_tags.tags is None:
+                                audio_tags.add_tags()
+                            if book_title:
+                                audio_tags.tags.add(mutagen.id3.TALB(encoding=3, text=book_title))
+                            if character:
+                                audio_tags.tags.add(mutagen.id3.TPE1(encoding=3, text=character))
+                            if narrator_style:
+                                audio_tags.tags.add(mutagen.id3.COMM(encoding=3, text=narrator_style, lang="eng", desc=""))
+                            audio_tags.tags.add(mutagen.id3.TIT2(encoding=3, text=seg_name))
+                            audio_tags.save()
+                        except ImportError:
+                            logger.debug("mutagen not installed, skipping metadata tagging")
+                        except Exception as tag_e:
+                            logger.warning(f"Failed to write metadata tags to {seg_name}: {tag_e}")
+
                         entry = {
                             "audio_filepath": seg_name,
                             "text": annotated,
@@ -2065,7 +2085,7 @@ def generate_zip_filename(source_path: Optional[str],
     return "alexandria_dataset.zip"
 
 
-def maybe_autoname_output(output: str, source_path: Optional[str]) -> str:
+def maybe_autoname_output(output: str, source_path: Optional[str], title: Optional[str] = None, author: Optional[str] = None) -> str:
     """Replace a generic --output value with a derived name, preserving the
     user-supplied directory if one was given. Returns the original `output`
     unchanged when the caller pinned a non-generic name (anything outside
@@ -2073,7 +2093,6 @@ def maybe_autoname_output(output: str, source_path: Optional[str]) -> str:
     basename = os.path.basename(output) if output else ""
     if basename not in _NAME_GENERIC_OUTPUTS:
         return output
-    title, author = extract_metadata_for_naming(source_path) if source_path else (None, None)
     derived = generate_zip_filename(source_path, title, author)
     parent = os.path.dirname(output) if output else ""
     return os.path.join(parent, derived) if parent else derived
@@ -2153,6 +2172,11 @@ def main():
                         help="Search source for TEXT and start alignment there")
     parser.add_argument("--no-auto-anchor", action="store_true",
                         help="When --source is set, disable auto-anchor (start at word 0)")
+    
+    # ── Metadata Tagging ──────────────────────────────────────────────────────
+    parser.add_argument("--book-title", help="Book title for metadata tagging (overrides ePub title)")
+    parser.add_argument("--character", help="Character name for metadata tagging")
+    parser.add_argument("--narrator-style", help="Narrator style for metadata tagging")
 
     args = parser.parse_args()
 
@@ -2161,7 +2185,9 @@ def main():
 
     # Auto-derive --output filename from --source metadata when the caller left
     # the default (or another generic placeholder). Pinned names pass through.
-    derived_output = maybe_autoname_output(args.output, args.source)
+    epub_title, epub_author = extract_metadata_for_naming(args.source) if args.source else (None, None)
+    book_title = args.book_title or epub_title
+    derived_output = maybe_autoname_output(args.output, args.source, epub_title, epub_author)
     if derived_output != args.output:
         logger.info(f"Auto-derived output filename: {derived_output} "
                     f"(was: {args.output})")
@@ -2357,6 +2383,9 @@ def main():
                     source_threshold=args.source_threshold,
                     keep_unaligned=args.keep_unaligned,
                     min_chunk_duration=args.min_chunk_duration,
+                    book_title=book_title,
+                    character=args.character,
+                    narrator_style=args.narrator_style,
                 )
                 logger.info(f"  Chunks annotated: {len(metadata)}")
             else:
