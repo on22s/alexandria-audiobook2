@@ -1437,7 +1437,8 @@ TTS_ANNOTATION_SYSTEM_PROMPT = (
 
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     resume=False, audio_source_path=None, fallback_model_path=None,
-                    source_state=None, source_threshold=0.65, keep_unaligned=False):
+                    source_state=None, source_threshold=0.65, keep_unaligned=False,
+                    min_chunk_duration=2.0):
     """Create and annotate chunks with periodic checkpointing and resume support.
 
     audio_24k_source: either a numpy array (in-memory) or a path to a 24kHz WAV file.
@@ -1534,7 +1535,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     from collections import Counter
     stats = {
         'cut_strategy':    Counter(),   # which look-back path picked the cut
-        'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped'
+        'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped' / 'dropped_short'
         'llm_success':     0,
         'llm_fail':        0,
         'sanitize_changed':0,           # times _sanitize_annotation altered text
@@ -1639,15 +1640,19 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     chunk_t0 = time.monotonic()
                     text = " ".join(chunk_words)
 
-                    # ── Source-guided alignment (only when --source is set) ──
-                    # Fuzzy-match the chunk's ASR text against the source from
-                    # the rolling cursor. High-confidence matches replace text
-                    # with the source's spelling (correct names, correct dialect)
-                    # before the LLM annotates; below-threshold chunks are
-                    # dropped as audio-only material unless --keep-unaligned.
                     drop_chunk = False
+                    reason_rejected = None
+
+                    # 1. Quality Filtering: Check duration
+                    if chunk_duration < min_chunk_duration:
+                        drop_chunk = True
+                        reason_rejected = f"too_short ({chunk_duration:.2f}s < {min_chunk_duration}s)"
+                        stats['source_action']['dropped_short'] += 1
+                        logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s (too short: {chunk_duration:.2f}s)")
+
+                    # ── Source-guided alignment (only when --source is set) ──
                     source_words_for_merge = None
-                    if source_state is not None:
+                    if not drop_chunk and source_state is not None:
                         chunk_match_words = alignment.to_words(text)
                         cursor_before = source_state['cursor']
                         sa_start, sa_end, sa_ratio = alignment.find_best_match(
@@ -1764,6 +1769,20 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             asr_preview = (text[:80] + '…') if len(text) > 80 else text
                             logger.debug(f"dropped chunk asr={asr_preview!r}")
                             drop_chunk = True
+                            reason_rejected = f"low_source_ratio ({sa_ratio:.2f} < {source_threshold})"
+
+                if drop_chunk and reason_rejected:
+                    # Log rejected chunk separately for review
+                    with open(os.path.join(temp_dir, "rejected_chunks.jsonl"), "a", encoding="utf-8") as rf:
+                        json.dump({
+                            "segment_idx": segment_idx,
+                            "reason": reason_rejected,
+                            "text": text,
+                            "start": current_start,
+                            "end": chunk_end_time,
+                            "duration": chunk_duration
+                        }, rf)
+                        rf.write("\n")
 
                 if chunk_words and chunk_duration >= 1.0 and not drop_chunk:
                     # Build user prompt with optional preceding context for continuity
@@ -2094,6 +2113,7 @@ def main():
                              "(e.g., Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf)")
     parser.add_argument("--skip-annotation", action="store_true")
     parser.add_argument("--chunk-size", type=float, default=10.0)
+    parser.add_argument("--min-chunk-duration", type=float, default=2.0, help="Minimum duration for an audio chunk to be kept (default: 2.0s)")
     parser.add_argument("--lang", default="en")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of chunks to process")
     parser.add_argument("--phase", choices=["asr", "annotate"], help="Run only a specific phase (internal use for ROCm isolation)")
@@ -2336,6 +2356,7 @@ def main():
                     source_state=source_state,
                     source_threshold=args.source_threshold,
                     keep_unaligned=args.keep_unaligned,
+                    min_chunk_duration=args.min_chunk_duration,
                 )
                 logger.info(f"  Chunks annotated: {len(metadata)}")
             else:
