@@ -2140,27 +2140,72 @@ def maybe_autoname_output(output: str, source_path: Optional[str], title: Option
     return os.path.join(parent, derived) if parent else derived
 
 
-def _create_zip_dataset(metadata: List[Dict], output_path: str):
-    """Bundle annotated chunks and metadata into a ZIP file."""
+def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float = 0.10):
+    """Bundle annotated chunks and metadata into a ZIP file with a validation split."""
     temp_dir = "dataset_temp"
-    logger.info(f"▶ Creating ZIP archive: {output_path}")
-    
+    logger.info(f"▶ Creating ZIP archive: {output_path} (val_split={val_split:.0%})")
+
+    import random
+    # Deterministic split based on segment indices
+    indices = list(range(len(metadata)))
+    random.seed(42)
+    random.shuffle(indices)
+
+    val_count = int(len(metadata) * val_split)
+    val_indices = set(indices[:val_count])
+
+    train_meta = []
+    val_meta = []
+
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for file in sorted(os.listdir(temp_dir)):
-            # Skip hidden files and intermediate ASR artifacts
-            if file.startswith(".") or file == "asr_segments.json":
+        for i, entry in enumerate(metadata):
+            wav_name = entry["audio_filepath"]
+            src_path = os.path.join(temp_dir, wav_name)
+
+            if not os.path.exists(src_path):
+                logger.warning(f"  ⚠ Audio file not found for ZIP: {wav_name}")
                 continue
-            z.write(os.path.join(temp_dir, file), file)
+
+            is_val = (i in val_indices)
+            folder = "val" if is_val else "train"
+            # Path inside ZIP
+            zip_wav_path = f"{folder}/{wav_name}"
+
+            # Create a copy for the ZIP metadata with updated internal path
+            zip_entry = entry.copy()
+            zip_entry["audio_filepath"] = zip_wav_path
+
+            if is_val:
+                val_meta.append(zip_entry)
+            else:
+                train_meta.append(zip_entry)
+
+            z.write(src_path, zip_wav_path)
+
+        # Write partitioned metadata.jsonl files into their respective folders
+        if train_meta:
+            train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
+            z.writestr("train/metadata.jsonl", train_jsonl)
+        if val_meta:
+            val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
+            z.writestr("val/metadata.jsonl", val_jsonl)
+
+        # Also provide a master metadata.jsonl at the root for convenience
+        master_meta = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
+        if master_meta:
+            master_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in master_meta]) + "\n"
+            z.writestr("metadata.jsonl", master_jsonl)
 
     durations = [m["duration"] for m in metadata]
     logger.info("=" * 70)
     logger.info(f"Total segments: {len(metadata)}")
     if durations:
-        logger.info(f"Average duration: {np.mean(durations):.2f}s")
-        logger.info(f"Total audio: {sum(durations)/60:.1f} minutes")
+        logger.info(f"  ├─ Train: {len(train_meta)} segments")
+        logger.info(f"  ├─ Val  : {len(val_meta)} segments")
+        logger.info(f"  ├─ Average duration: {np.mean(durations):.2f}s")
+        logger.info(f"  └─ Total audio: {sum(durations)/60:.1f} minutes")
     logger.info("=" * 70)
     logger.info(f"✓ SUCCESS: {output_path} ready!")
-
 def main():
     parser = argparse.ArgumentParser(
         description="Alexandria Master Preparer - ROCm Compatible"
@@ -2187,6 +2232,8 @@ def main():
                              "Any other value is used verbatim.")
     parser.add_argument("--resume", action="store_true",
                         help="Resume from existing dataset_temp/ instead of starting over")
+    parser.add_argument("--val-split", type=float, default=0.10,
+                        help="Ratio of segments to carve out for validation (default: 0.10)")
 
     # ── Source-guided mode ────────────────────────────────────────────────────
     # When --source is provided, each ASR chunk is fuzzy-aligned against the
@@ -2436,7 +2483,7 @@ def main():
             progress.complete()
 
             progress.start("Create output dataset")
-            _create_zip_dataset(metadata, args.output)
+            _create_zip_dataset(metadata, args.output, val_split=args.val_split)
             progress.complete()
 
             logger.info("✓ Annotation Phase completed successfully.")
