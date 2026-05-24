@@ -1058,8 +1058,43 @@ def test_preparer_status():
     r = get("/api/preparer/status")
     assert_status(r, 200)
     data = r.json()
-    assert_key(data, "running")
+    for key in ("running", "logs", "status", "return_code", "pid", "output_file", "log_total"):
+        assert_key(data, key)
+
+def test_preparer_status_log_offset():
+    r = get("/api/preparer/status?log_offset=0")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "log_total")
     assert_key(data, "logs")
+    total = data["log_total"]
+    # offset beyond end should return empty logs list
+    r2 = get(f"/api/preparer/status?log_offset={total + 100}")
+    assert_status(r2, 200)
+    if r2.json()["logs"]:
+        raise TestFailure("Expected empty logs when offset > log_total")
+
+def test_preparer_cancel_not_running():
+    # Skip if preparer is still running from test_preparer_start
+    status_r = get("/api/preparer/status")
+    if status_r.json().get("running"):
+        raise TestFailure("SKIP: preparer still running from prior test")
+    r = post("/api/preparer/cancel", json={})
+    if r.status_code != 400:
+        raise TestFailure(f"Expected 400 when preparer not running, got {r.status_code}")
+
+def test_preparer_list():
+    r = get("/api/preparer/list")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "files")
+    if not isinstance(data["files"], list):
+        raise TestFailure(f"Expected files to be a list, got {type(data['files'])}")
+
+def test_preparer_download_path_traversal():
+    r = get("/api/preparer/download/../app/config.json")
+    if r.status_code not in (400, 404):
+        raise TestFailure(f"Path traversal not blocked: got {r.status_code}")
 
 def test_preparer_download_404():
     # Should 404 since we haven't actually run a full preparation
@@ -1154,6 +1189,10 @@ def run_all_tests():
     section("Preparer")
     run_test("preparer_start", test_preparer_start)
     run_test("preparer_status", test_preparer_status)
+    run_test("preparer_status_log_offset", test_preparer_status_log_offset)
+    run_test("preparer_cancel_not_running", test_preparer_cancel_not_running)
+    run_test("preparer_list", test_preparer_list)
+    run_test("preparer_download_path_traversal", test_preparer_download_path_traversal)
     run_test("preparer_download_404", test_preparer_download_404)
 
     section("Merge / Export")

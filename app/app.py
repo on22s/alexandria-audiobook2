@@ -3,8 +3,9 @@ import sys
 import gc
 import json
 import shutil
+import signal
 import logging
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -272,7 +273,15 @@ process_state = {
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
-    "preparer": {"running": False, "logs": []}
+    "preparer": {
+        "running": False,
+        "logs": [],
+        "status": "idle",       # "idle" | "running" | "done" | "failed" | "cancelled"
+        "return_code": None,
+        "pid": None,
+        "output_file": None,
+        "cancel": False,
+    }
 }
 
 # Clone voices directory for user-uploaded reference audio
@@ -281,11 +290,17 @@ ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and capture logs."""
-    process_state[task_name]["running"] = True
-    process_state[task_name]["logs"] = []
+    state = process_state[task_name]
+    state["running"] = True
+    state["logs"] = []
+    if "status"      in state: state["status"]      = "running"
+    if "return_code" in state: state["return_code"] = None
+    if "pid"         in state: state["pid"]         = None
+    if "cancel"      in state: state["cancel"]      = False
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
+    return_code = None
     try:
         env = os.environ.copy()
         process = subprocess.Popen(
@@ -299,27 +314,38 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             env=env,
         )
 
+        if "pid" in state:
+            state["pid"] = process.pid
+
         for line in process.stdout:
             log_line = line.strip()
             if log_line:
-                process_state[task_name]["logs"].append(log_line)
-                # Keep log size manageable
-                if len(process_state[task_name]["logs"]) > 1000:
-                    process_state[task_name]["logs"].pop(0)
+                state["logs"].append(log_line)
+                if len(state["logs"]) > 2000:
+                    state["logs"].pop(0)
 
         process.wait()
         return_code = process.returncode
 
         if return_code == 0:
-            process_state[task_name]["logs"].append(f"Task {task_name} completed successfully.")
+            state["logs"].append(f"Task {task_name} completed successfully.")
+            if "status" in state: state["status"] = "done"
+        elif return_code < 0:
+            # Killed by signal (e.g. SIGTERM from cancel)
+            state["logs"].append(f"Task {task_name} was cancelled (signal {-return_code}).")
+            if "status" in state: state["status"] = "cancelled"
         else:
-            process_state[task_name]["logs"].append(f"Task {task_name} failed with return code {return_code}.")
+            state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
+            if "status" in state: state["status"] = "failed"
 
     except Exception as e:
         logger.error(f"Error running {task_name}: {e}")
-        process_state[task_name]["logs"].append(f"Error: {str(e)}")
+        state["logs"].append(f"Error: {str(e)}")
+        if "status" in state: state["status"] = "failed"
     finally:
-        process_state[task_name]["running"] = False
+        state["running"] = False
+        if "return_code" in state: state["return_code"] = return_code
+        if "pid"         in state: state["pid"]         = None
 
 
 PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
@@ -355,8 +381,14 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
     if config.skip_annotation:
         preparer_cmd.append("--skip-annotation")
 
+    output_path = os.path.join(ROOT_DIR, config.output_filename)
+    process_state["preparer"]["output_file"] = None
+
     # Run from ROOT_DIR so dataset_temp/ and scratch WAVs land in the project root
     run_process(preparer_cmd, "preparer", cwd=ROOT_DIR)
+
+    if process_state["preparer"]["status"] == "done" and os.path.exists(output_path):
+        process_state["preparer"]["output_file"] = config.output_filename
 
 
 @app.post("/api/preparer/start")
@@ -397,18 +429,73 @@ async def start_preparer(
 
 
 @app.get("/api/preparer/status")
-async def get_preparer_status():
-    """Get the current status and logs of the Alexandria Preparer process."""
-    return process_state["preparer"]
+async def get_preparer_status(log_offset: int = Query(0)):
+    """Get the current status and logs of the Alexandria Preparer process.
+
+    Pass log_offset to receive only new lines since the last poll, avoiding
+    resending the full buffer on every request.
+    """
+    state = process_state["preparer"]
+    all_logs = state["logs"]
+    return {
+        "running":     state["running"],
+        "status":      state["status"],
+        "return_code": state["return_code"],
+        "pid":         state["pid"],
+        "output_file": state["output_file"],
+        "log_total":   len(all_logs),
+        "logs":        all_logs[log_offset:],
+    }
 
 
-@app.get("/api/preparer/download/{filename}")
+@app.post("/api/preparer/cancel")
+async def cancel_preparer():
+    """Send SIGTERM to the running preparer subprocess."""
+    state = process_state["preparer"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No preparer is currently running.")
+    pid = state.get("pid")
+    if not pid:
+        raise HTTPException(status_code=400, detail="Preparer PID not available yet.")
+    try:
+        os.kill(pid, signal.SIGTERM)
+        state["cancel"] = True
+    except ProcessLookupError:
+        raise HTTPException(status_code=400, detail="Preparer process already exited.")
+    return {"status": "cancel signal sent", "pid": pid}
+
+
+@app.get("/api/preparer/list")
+async def list_preparer_outputs():
+    """List completed dataset ZIP files available for download."""
+    files = []
+    for directory in [ROOT_DIR, os.path.join(ROOT_DIR, "test_corpus_output")]:
+        if not os.path.isdir(directory):
+            continue
+        for fname in sorted(os.listdir(directory)):
+            if not fname.endswith(".zip"):
+                continue
+            fpath = os.path.join(directory, fname)
+            files.append({
+                "filename": fname,
+                "path":     os.path.relpath(fpath, ROOT_DIR),
+                "size_mb":  round(os.path.getsize(fpath) / (1024 * 1024), 1),
+                "modified": os.path.getmtime(fpath),
+            })
+    return {"files": files}
+
+
+@app.get("/api/preparer/download/{filename:path}")
 async def download_preparer_output(filename: str):
-    """Download the generated dataset ZIP file."""
-    file_path = os.path.join(ROOT_DIR, filename)
+    """Download a generated dataset ZIP file."""
+    # Resolve and guard against path traversal
+    root = os.path.realpath(ROOT_DIR)
+    file_path = os.path.realpath(os.path.join(ROOT_DIR, filename))
+    if not file_path.startswith(root + os.sep) and file_path != root:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found or preparer not finished.")
-    return FileResponse(file_path, media_type="application/zip", filename=filename)
+    return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
 
 
 @app.get("/")
