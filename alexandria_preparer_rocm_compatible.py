@@ -1361,17 +1361,20 @@ def _write_source_marker(temp_dir, audio_source_path):
 def _load_llm(model_path):
     """Load a GGUF LLM via llama-cpp-python, all layers on GPU.
 
-    Before loading, force-release any leftover GPU allocations (e.g. Wav2Vec2
-    from the ASR phase still pinning ~1.3 GB) and synchronize. Without this,
-    llama-cpp's startup-time VRAM probe sees fragmented free memory on ROCm
-    and silently offloads only some layers — observed VRAM topped out around
-    30% instead of the ~70% a Q6_K 14B should occupy, and per-chunk latency
-    stayed in the 8–12s range (vs ~1s when offload is complete).
     `verbose=True` surfaces llama-cpp's own offload count
-    (e.g. `offloaded 65/65 layers to GPU`) into our log so we can verify.
+    (e.g. `offloaded 65/65 layers to GPU`) into stderr so we can verify
+    whether the model actually landed on GPU or silently fell back.
+
+    NOTE: do NOT call torch.cuda.empty_cache() / synchronize() before this.
+    On ROCm those calls leave the device in a state where llama-cpp's
+    ggml_cuda_init() reports "no ROCm-capable device is detected" and
+    falls back to pure CPU — observed regressing per-chunk from ~11s
+    (partial GPU) to ~13s (no GPU). Just delete the GC-eligible Python
+    refs to Wav2Vec2 (already done in the caller) and let HIP keep the
+    device context warm.
     """
     logger.debug(f"Loading GGUF model from: {model_path}")
-    clear_vram()  # free Wav2Vec2 tensors before llama-cpp probes free VRAM
+    gc.collect()  # let dead Wav2Vec2 tensor refs drop without touching torch.cuda
     llm = Llama(
         model_path=model_path,
         n_gpu_layers=99,   # explicit count > total; -1 was misinterpreted on some HIP builds
