@@ -34,6 +34,7 @@ import logging
 import json
 import re
 import subprocess
+import difflib
 
 # Shared alignment primitives (load_source, lexicon, find_best_match, ...).
 # Only used when --source is passed; preparer remains zero-dep on this module
@@ -1535,7 +1536,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     from collections import Counter
     stats = {
         'cut_strategy':    Counter(),   # which look-back path picked the cut
-        'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped' / 'dropped_short'
+        'source_action':   Counter(),   # 'replace' / 'keep_asr' / 'dropped' / 'dropped_short' / 'deduplicated'
         'llm_success':     0,
         'llm_fail':        0,
         'sanitize_changed':0,           # times _sanitize_annotation altered text
@@ -1555,6 +1556,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
     # Pre-populate context from last 5 resumed entries for continuity
     for prior in metadata[-5:]:
         context.append(prior.get("text", ""))
+
+    prev_raw_text = context[-1] if context else ""
 
     total_words = len(word_segments)
     logger.info(f"▶ Creating and annotating chunks (target: {chunk_size}s per chunk)...")
@@ -1669,6 +1672,18 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         reason_rejected = f"too_short ({chunk_duration:.2f}s < {min_chunk_duration}s)"
                         stats['source_action']['dropped_short'] += 1
                         logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s (too short: {chunk_duration:.2f}s)")
+
+                    # 2. Deduplication: Check for narrator retakes
+                    if not drop_chunk and prev_raw_text:
+                        # Use SequenceMatcher for a fuzzy text similarity check.
+                        # Narrator retakes often vary slightly in wording or ASR noise.
+                        sm = difflib.SequenceMatcher(None, prev_raw_text.lower(), text.lower())
+                        similarity = sm.ratio()
+                        if similarity > 0.85:
+                            drop_chunk = True
+                            reason_rejected = f"duplicate (similarity {similarity:.2f} > 0.85)"
+                            stats['source_action']['deduplicated'] += 1
+                            logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s (duplicate/retake detected)")
 
                     # ── Source-guided alignment (only when --source is set) ──
                     source_words_for_merge = None
@@ -1937,6 +1952,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             log_gpu_stats(f"annotation segment {segment_idx + 1}/{estimated_chunks_total}")
 
                         segment_idx += 1
+                        prev_raw_text = text  # Record for next chunk deduplication check
 
                     context.append(text)
                 # Carry the post-cut tail forward as the start of the next chunk.
@@ -1976,12 +1992,18 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         sa_replace = stats['source_action']['replace']
         sa_keep    = stats['source_action']['keep_asr']
         sa_drop    = stats['source_action']['dropped']
-        sa_total   = sa_replace + sa_keep + sa_drop
+        sa_short   = stats['source_action']['dropped_short']
+        sa_dedup   = stats['source_action']['deduplicated']
+        sa_total   = sa_replace + sa_keep + sa_drop + sa_short + sa_dedup
         if sa_total:
             logger.info(f"  Source-guided actions ({sa_total} chunks aligned):")
             logger.info(f"    replace        : {sa_replace:>6} ({100*sa_replace/sa_total:5.1f}%)")
             logger.info(f"    keep_asr       : {sa_keep:>6} ({100*sa_keep/sa_total:5.1f}%)")
             logger.info(f"    dropped        : {sa_drop:>6} ({100*sa_drop/sa_total:5.1f}%)")
+            if sa_short:
+                logger.info(f"    dropped_short  : {sa_short:>6} ({100*sa_short/sa_total:5.1f}%)")
+            if sa_dedup:
+                logger.info(f"    deduplicated   : {sa_dedup:>6} ({100*sa_dedup/sa_total:5.1f}%)")
         _src_cursor = source_state['cursor']
         _src_total  = len(source_state['orig_match'])
         _src_pct    = 100 * _src_cursor / _src_total if _src_total else 0
