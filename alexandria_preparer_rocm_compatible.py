@@ -28,10 +28,8 @@ os.environ["HSA_ENABLE_SDMA"] = "0"
 os.environ["GPU_MAX_HW_QUEUES"] = "2"
 
 import argparse
-import torch
 import gc
 import time
-import librosa
 import logging
 import json
 import re
@@ -50,6 +48,24 @@ import traceback
 from collections import deque
 from typing import List, Dict, Optional
 from datetime import datetime
+
+# Deferred imports to avoid HIP/CUDA context contamination between phases
+torch = None
+librosa = None
+
+def _lazy_import_torch():
+    global torch
+    if torch is None:
+        import torch as t
+        torch = t
+    return torch
+
+def _lazy_import_librosa():
+    global librosa
+    if librosa is None:
+        import librosa as l
+        librosa = l
+    return librosa
 
 # Setup logging
 log_dir = "logs"
@@ -101,7 +117,10 @@ progress.add_step("Create output dataset")
 logger.info(f"=== Alexandria Master Preparer Started ===")
 logger.info(f"Log file: {log_file}")
 logger.info(f"Python version: {sys.version}")
-logger.info(f"PyTorch version: {torch.__version__}")
+
+def log_torch_info():
+    t = _lazy_import_torch()
+    logger.info(f"PyTorch version: {t.__version__}")
 
 # Check available ASR options
 INSANELY_FAST_WHISPER_AVAILABLE = False
@@ -143,22 +162,24 @@ logging.getLogger("whisperx").setLevel(logging.ERROR)
 def clear_vram():
     """Clear GPU memory and sync."""
     gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    t = _lazy_import_torch()
+    if t.cuda.is_available():
+        t.cuda.empty_cache()
+        t.cuda.synchronize()
         # Note: GPU cache clearing is logged silently to reduce spam
 
 def get_gpu_stats():
     """Get current GPU memory and utilization stats."""
-    if not torch.cuda.is_available():
+    t = _lazy_import_torch()
+    if not t.cuda.is_available():
         return None
 
     stats = {}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = torch.cuda.memory_reserved() / 1e9    # GB
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+        allocated = t.cuda.memory_allocated() / 1e9  # GB
+        reserved = t.cuda.memory_reserved() / 1e9    # GB
+        total = t.cuda.get_device_properties(0).total_memory / 1e9  # GB
 
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
@@ -1160,6 +1181,7 @@ def _build_source_state(source_path: str,
     logger.info(f"  ├─ {len(orig_display):,} source words")
 
     # Pick initial cursor
+    anchor_entry_idx = 0
     if source_start is not None:
         cursor = max(0, min(source_start, len(orig_match)))
         logger.info(f"  └─ Starting at source word {cursor} (--source-start)")
@@ -1188,6 +1210,7 @@ def _build_source_state(source_path: str,
             logger.info(f"  └─ Auto-anchor: entry {anchor_idx} → source word {anchor_pos} "
                         f"({anchor_ratio:.1%} match)")
             cursor = anchor_pos
+            anchor_entry_idx = anchor_idx
         else:
             logger.warning(f"  └─ Auto-anchor found no confident match in the first "
                            f"{min(20, len(entries_for_anchor))} chunks; starting at word 0")
@@ -1200,6 +1223,7 @@ def _build_source_state(source_path: str,
         'orig_display': orig_display,
         'orig_match':   orig_match,
         'cursor':       cursor,
+        'anchor_entry_idx': anchor_entry_idx,
     }
 
 
@@ -1328,6 +1352,8 @@ def _wipe_temp_dir(temp_dir):
     if not os.path.exists(temp_dir):
         return
     for name in os.listdir(temp_dir):
+        if name in ("asr_segments.json", "audio_24k_scratch.wav"):
+            continue
         full_path = os.path.join(temp_dir, name)
         try:
             if os.path.isfile(full_path) or os.path.islink(full_path):
@@ -2034,6 +2060,27 @@ def maybe_autoname_output(output: str, source_path: Optional[str]) -> str:
     return os.path.join(parent, derived) if parent else derived
 
 
+def _create_zip_dataset(metadata: List[Dict], output_path: str):
+    """Bundle annotated chunks and metadata into a ZIP file."""
+    temp_dir = "dataset_temp"
+    logger.info(f"▶ Creating ZIP archive: {output_path}")
+    
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for file in sorted(os.listdir(temp_dir)):
+            # Skip hidden files and intermediate ASR artifacts
+            if file.startswith(".") or file == "asr_segments.json":
+                continue
+            z.write(os.path.join(temp_dir, file), file)
+
+    durations = [m["duration"] for m in metadata]
+    logger.info("=" * 70)
+    logger.info(f"Total segments: {len(metadata)}")
+    if durations:
+        logger.info(f"Average duration: {np.mean(durations):.2f}s")
+        logger.info(f"Total audio: {sum(durations)/60:.1f} minutes")
+    logger.info("=" * 70)
+    logger.info(f"✓ SUCCESS: {output_path} ready!")
+
 def main():
     parser = argparse.ArgumentParser(
         description="Alexandria Master Preparer - ROCm Compatible"
@@ -2049,6 +2096,9 @@ def main():
     parser.add_argument("--chunk-size", type=float, default=10.0)
     parser.add_argument("--lang", default="en")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of chunks to process")
+    parser.add_argument("--phase", choices=["asr", "annotate"], help="Run only a specific phase (internal use for ROCm isolation)")
+    parser.add_argument("--asr-output", help="Path to save/load ASR word segments (default: dataset_temp/asr_segments.json)")
+    parser.add_argument("--scratch-audio", help="Path to 24k scratch WAV (default: dataset_temp/audio_24k.wav)")
     parser.add_argument("--output", default="alexandria_dataset.zip",
                         help="Output ZIP path. If left at the default — or set to "
                              "'dataset.zip' / 'output.zip' — a name is auto-derived "
@@ -2097,182 +2147,209 @@ def main():
                     f"(was: {args.output})")
         args.output = derived_output
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # ── Phase Orchestration ──────────────────────────────────────────────────
+    # ROCm HIP contexts from PyTorch (Wav2Vec2) and llama-cpp often conflict
+    # if initialized in the same process. We split them into separate phases.
+    if args.phase is None:
+        logger.info("=" * 70)
+        logger.info("Alexandria Master Preparer - Phase Orchestrator (ROCm Isolation)")
+        logger.info("=" * 70)
+        
+        # 1. Run ASR Phase (if not already completed and resuming)
+        asr_output_path = args.asr_output or os.path.join("dataset_temp", "asr_segments.json")
+        should_run_asr = True
+        if args.resume and os.path.exists(asr_output_path):
+            logger.info(f"▶ ASR output found at {asr_output_path}, skipping ASR phase due to --resume")
+            should_run_asr = False
+            
+        if should_run_asr:
+            asr_cmd = [sys.executable, __file__, "--phase", "asr"]
+            # Pass all original arguments except potentially conflicting ones
+            for arg in sys.argv[1:]:
+                if arg not in ["--phase", "asr", "annotate"]:
+                    asr_cmd.append(arg)
+            
+            logger.info("▶ Launching ASR Phase...")
+            res = subprocess.run(asr_cmd)
+            if res.returncode != 0:
+                logger.error(f"ASR Phase failed with exit code {res.returncode}")
+                sys.exit(res.returncode)
+                
+        # 2. Run Annotation Phase
+        ann_cmd = [sys.executable, __file__, "--phase", "annotate"]
+        for arg in sys.argv[1:]:
+            if arg not in ["--phase", "asr", "annotate"]:
+                ann_cmd.append(arg)
+                
+        logger.info("▶ Launching Annotation Phase...")
+        res = subprocess.run(ann_cmd)
+        if res.returncode == 0:
+            completed_successfully = True
+        sys.exit(res.returncode)
 
-    logger.info("=" * 70)
-    logger.info("Alexandria Master Preparer - ROCm Compatible Edition")
-    logger.info("=" * 70)
-    logger.info(f"Device: {device}")
-    if device == "cuda":
-        logger.info(f"  ├─ GPU: {torch.cuda.get_device_name(0)}")
-        logger.info(f"  ├─ CUDA Available: {torch.cuda.is_available()}")
-        logger.info(f"  └─ GPU Count: {torch.cuda.device_count()}")
-    else:
-        logger.warning("⚠ GPU not available - running on CPU (slower)")
-    # Log the full effective args. Helps diagnose missing-backslash shell
-    # issues (where flags after the broken line don't reach the script and
-    # silently inherit defaults). If you see a default value here that you
-    # remember passing on the command line, suspect a stray `\` or quote.
-    logger.info(
-        f"Arguments: audio={args.audio} | model={args.model} | "
-        f"fallback_model={args.fallback_model} | "
-        f"output={args.output} | "
-        f"source={args.source} | source_threshold={args.source_threshold} | "
-        f"keep_unaligned={args.keep_unaligned} | "
-        f"chunk_size={args.chunk_size} | lang={args.lang} | "
-        f"resume={args.resume}"
-    )
+    # ── Individual Phase Execution ───────────────────────────────────────────
+    
+    # Standard paths for intermediate files
+    temp_dir = "dataset_temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    asr_output_path = args.asr_output or os.path.join(temp_dir, "asr_segments.json")
+    audio_24k_path = args.scratch_audio or os.path.join(temp_dir, "audio_24k_scratch.wav")
 
-    # PID-suffixed scratch path so concurrent preparer runs in the same directory
-    # don't clobber each other's audio cache.
-    audio_24k_scratch = f".alexandria_audio_24k_{os.getpid()}.wav"
     completed_successfully = False
+    audio_24k_scratch = audio_24k_path # for the finally block cleanup and use in phases
 
     try:
-        progress.start("Validate inputs")
-        validate_inputs(args)
-        os.makedirs("dataset_temp", exist_ok=True)
-        progress.complete()
+        if args.phase == "asr":
+            t = _lazy_import_torch()
+            device = "cuda" if t.cuda.is_available() else "cpu"
 
-        progress.start("Load audio")
-        logger.debug(f"Loading audio from {args.audio} (single read)...")
-        load_t0 = time.monotonic()
-        is_oversized, _, _ = _wav_overflow_info(args.audio)
+            logger.info("-" * 70)
+            logger.info(f"PHASE: ASR (Device: {device})")
+            logger.info("-" * 70)
+            log_torch_info()
 
-        if is_oversized:
-            # Streamed ffmpeg path: decode 24 kHz mono directly to the
-            # scratch WAV (no native-rate float32 ever materialised), then
-            # decode again at 16 kHz into a numpy array for ASR. Decoding
-            # twice is far cheaper than holding a 16 GB native buffer.
-            logger.info("  Using ffmpeg loader (oversized WAV)")
-            _ffmpeg_decode_to_wav(args.audio, audio_24k_scratch, 24000, mono=True)
-            sf_info_24k = sf.info(audio_24k_scratch)
-            duration_secs = sf_info_24k.duration
-            logger.info(f"  Audio: {duration_secs:.1f}s @ {sf_info_24k.frames} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
-            logger.debug(f"  Decoding 16 kHz stream for ASR via ffmpeg...")
-            audio_16k = _ffmpeg_decode_to_numpy(args.audio, 16000, mono=True)
-        else:
-            audio_native, native_sr = librosa.load(args.audio, sr=None, mono=True)
-            logger.debug(f"  Native sample rate: {native_sr}Hz, duration: {len(audio_native)/native_sr:.1f}s")
+            progress.start("Validate inputs")
+            validate_inputs(args)
+            progress.complete()
 
-            if native_sr == 16000:
-                audio_16k = audio_native
+            progress.start("Load audio")
+            logger.debug(f"Loading audio from {args.audio} (single read)...")
+            load_t0 = time.monotonic()
+            is_oversized, _, _ = _wav_overflow_info(args.audio)
+
+            if is_oversized:
+                logger.info("  Using ffmpeg loader (oversized WAV)")
+                _ffmpeg_decode_to_wav(args.audio, audio_24k_path, 24000, mono=True)
+                sf_info_24k = sf.info(audio_24k_path)
+                duration_secs = sf_info_24k.duration
+                logger.info(f"  Audio: {duration_secs:.1f}s @ {sf_info_24k.frames} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+                logger.debug(f"  Decoding 16 kHz stream for ASR via ffmpeg...")
+                audio_16k = _ffmpeg_decode_to_numpy(args.audio, 16000, mono=True)
             else:
-                logger.debug(f"  Resampling to 16kHz (in memory)...")
-                audio_16k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=16000)
+                l = _lazy_import_librosa()
+                audio_native, native_sr = l.load(args.audio, sr=None, mono=True)
+                logger.debug(f"  Native sample rate: {native_sr}Hz, duration: {len(audio_native)/native_sr:.1f}s")
 
-            if native_sr == 24000:
-                audio_24k = audio_native
-            else:
-                logger.debug(f"  Resampling to 24kHz (in memory)...")
-                audio_24k = librosa.resample(audio_native, orig_sr=native_sr, target_sr=24000)
+                if native_sr == 16000:
+                    audio_16k = audio_native
+                else:
+                    logger.debug(f"  Resampling to 16kHz (in memory)...")
+                    audio_16k = l.resample(audio_native, orig_sr=native_sr, target_sr=16000)
 
-            if native_sr not in (16000, 24000):
-                del audio_native
+                if native_sr == 24000:
+                    audio_24k = audio_native
+                else:
+                    logger.debug(f"  Resampling to 24kHz (in memory)...")
+                    audio_24k = l.resample(audio_native, orig_sr=native_sr, target_sr=24000)
+
+                if native_sr not in (16000, 24000):
+                    del audio_native
+                    gc.collect()
+
+                duration_secs = len(audio_24k) / 24000
+                logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+
+                logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
+                sf.write(audio_24k_scratch, audio_24k, 24000, subtype="FLOAT")
+                del audio_24k
                 gc.collect()
 
-            duration_secs = len(audio_24k) / 24000
-            logger.info(f"  Audio: {duration_secs:.1f}s @ {len(audio_24k)} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
+                scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)
+                logger.info(f"  ├─ Scratch audio: {audio_24k_scratch} ({scratch_size_mb:.1f} MB) - freed from RAM")
 
-            # Spill 24kHz audio to disk so RAM is free during the 60+ hour annotation.
-            # Use FLOAT subtype to preserve full float32 precision - segments will
-            # quantize to PCM_16 once at write time (default), avoiding double quantization.
-            logger.debug(f"  Spilling 24kHz audio to scratch file: {audio_24k_scratch}")
-            sf.write(audio_24k_scratch, audio_24k, 24000, subtype="FLOAT")
-            del audio_24k
-            gc.collect()
-        scratch_size_mb = os.path.getsize(audio_24k_scratch) / (1024 * 1024)
-        logger.info(f"  ├─ Scratch audio: {audio_24k_scratch} ({scratch_size_mb:.1f} MB) - freed from RAM")
-        progress.complete()
+            progress.complete()
 
-        progress.start("Transcribe audio")
-        word_segments, detected_lang = choose_and_transcribe(audio_16k, device, args.lang, limit=args.limit)
-        logger.info(f"  Detected language: {detected_lang}")
-        logger.info(f"  Segments extracted: {len(word_segments)}")
-        del audio_16k
-        clear_vram()
-        progress.complete()
+            progress.start("Transcribe audio")
+            word_segments, detected_lang = choose_and_transcribe(audio_16k, device, args.lang, limit=args.limit)
+            logger.info(f"  Detected language: {detected_lang}")
+            logger.info(f"  Segments extracted: {len(word_segments)}")
 
-        # ── Optional: source-guided chunking ──────────────────────────────────
-        # When --source is provided, build the per-book lexicon and orig word
-        # lists from the source text. Chunks get fuzzy-aligned at emit time
-        # and either rewritten with source spelling (high confidence) or
-        # dropped as audio-only material (below threshold). For auto-anchor
-        # we build provisional "entries" from the first ~30 ASR chunks so
-        # alignment.auto_anchor() has something to look at.
-        source_state = None
-        if args.source:
-            entries_for_anchor = _provisional_entries_for_anchor(
-                word_segments, args.chunk_size, max_entries=30
-            )
-            source_state = _build_source_state(
-                args.source,
-                source_start=args.source_start,
-                source_start_text=args.source_start_text,
-                no_auto_anchor=args.no_auto_anchor,
-                entries_for_anchor=entries_for_anchor,
-            )
-            # Sanity pre-scan: catch wrong-source-file cases before any LLM
-            # work. Aborts here rather than letting it grind through the book.
-            avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
-                entries_for_anchor, source_state['orig_match'], source_state['cursor']
-            )
-            if n_sampled >= 10:
-                pct_low = low_ct / n_sampled
-                if avg < 0.50 or pct_low > 0.40:
-                    sys.exit(
-                        f"\n⚠ Source/audio divergence too high to proceed:\n"
-                        f"  Sampled {n_sampled} chunks — avg alignment {avg:.0%}, "
-                        f"{low_ct} ({pct_low:.0%}) below 60%.\n"
-                        f"  Usually means a wrong edition or different translation.\n"
-                        f"  Re-run without --source, or pass --keep-unaligned to "
-                        f"accept the ASR text for low-confidence chunks."
-                    )
+            # Save ASR results for next phase
+            logger.info(f"▶ Saving ASR segments to {asr_output_path}...")
+            with open(asr_output_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "detected_lang": detected_lang,
+                    "word_segments": word_segments,
+                    "audio_duration": duration_secs
+                }, f)
 
-        progress.start("Annotate chunks")
-        if not args.skip_annotation:
-            metadata = annotate_chunks(
-                word_segments,
-                args.model,
-                args.chunk_size,
-                audio_24k_scratch,
-                resume=args.resume,
-                audio_source_path=args.audio,
-                fallback_model_path=args.fallback_model,
-                source_state=source_state,
-                source_threshold=args.source_threshold,
-                keep_unaligned=args.keep_unaligned,
-            )
-            logger.info(f"  Chunks annotated: {len(metadata)}")
-        else:
-            logger.error("--skip-annotation not yet implemented")
-            sys.exit(1)
-        progress.complete()
+            del audio_16k
+            clear_vram()
+            progress.complete()
+            logger.info("✓ ASR Phase completed successfully.")
+            return 0
 
-        progress.start("Create output dataset")
-        # metadata.jsonl is already written incrementally during annotation
-        logger.debug(f"Creating ZIP archive: {args.output}")
-        with zipfile.ZipFile(args.output, "w", zipfile.ZIP_DEFLATED) as z:
-            for file in sorted(os.listdir("dataset_temp")):
-                # Skip hidden files (e.g., any future scratch artifacts)
-                if file.startswith("."):
-                    continue
-                z.write(os.path.join("dataset_temp", file), file)
+        elif args.phase == "annotate":
+            logger.info("-" * 70)
+            logger.info(f"PHASE: Annotation")
+            logger.info("-" * 70)
 
-        durations = [m["duration"] for m in metadata]
-        logger.info(f"  Dataset saved: {args.output}")
-        progress.complete()
+            if not os.path.exists(asr_output_path):
+                logger.error(f"ASR results not found at {asr_output_path}. Run ASR phase first.")
+                sys.exit(1)
 
-        logger.info("=" * 70)
-        logger.info(f"Total segments: {len(metadata)}")
-        if durations:
-            logger.info(f"Average duration: {np.mean(durations):.2f}s")
-            logger.info(f"Total audio: {sum(durations)/60:.1f} minutes")
-        logger.info("=" * 70)
-        logger.info(f"✓ SUCCESS: {args.output} ready!")
+            logger.info(f"▶ Loading ASR results from {asr_output_path}...")
+            with open(asr_output_path, "r", encoding="utf-8") as f:
+                asr_data = json.load(f)
+                word_segments = asr_data["word_segments"]
+                detected_lang = asr_data["detected_lang"]
 
-        completed_successfully = True
-        return 0
+            # ── Optional: source-guided chunking ──────────────────────────────────
+            source_state = None
+            if args.source:
+                entries_for_anchor = _provisional_entries_for_anchor(
+                    word_segments, args.chunk_size, max_entries=30
+                )
+                source_state = _build_source_state(
+                    args.source,
+                    source_start=args.source_start,
+                    source_start_text=args.source_start_text,
+                    no_auto_anchor=args.no_auto_anchor,
+                    entries_for_anchor=entries_for_anchor,
+                )
+                avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
+                    entries_for_anchor, source_state['orig_match'], source_state['cursor'],
+                    start_entry_idx=source_state['anchor_entry_idx']
+                )
+                if n_sampled >= 10:
+                    pct_low = low_ct / n_sampled
+                    if avg < 0.50 or pct_low > 0.40:
+                        sys.exit(
+                            f"\n⚠ Source/audio divergence too high to proceed:\n"
+                            f"  Sampled {n_sampled} chunks — avg alignment {avg:.0%}, "
+                            f"{low_ct} ({pct_low:.0%}) below 60%.\n"
+                            f"  Usually means a wrong edition or different translation.\n"
+                            f"  Re-run without --source, or pass --keep-unaligned to "
+                            f"accept the ASR text for low-confidence chunks."
+                        )
+
+            progress.start("Annotate chunks")
+            if not args.skip_annotation:
+                metadata = annotate_chunks(
+                    word_segments,
+                    args.model,
+                    args.chunk_size,
+                    audio_24k_scratch,
+                    resume=args.resume,
+                    audio_source_path=args.audio,
+                    fallback_model_path=args.fallback_model,
+                    source_state=source_state,
+                    source_threshold=args.source_threshold,
+                    keep_unaligned=args.keep_unaligned,
+                )
+                logger.info(f"  Chunks annotated: {len(metadata)}")
+            else:
+                logger.error("--skip-annotation not yet implemented")
+                sys.exit(1)
+            progress.complete()
+
+            progress.start("Create output dataset")
+            _create_zip_dataset(metadata, args.output)
+            progress.complete()
+
+            logger.info("✓ Annotation Phase completed successfully.")
+            completed_successfully = True
+            return 0
 
     except KeyboardInterrupt:
         logger.warning("⚠ Process interrupted by user")
@@ -2284,16 +2361,19 @@ def main():
         logger.info(f"Partial results preserved in dataset_temp/ - rerun with --resume to continue")
         return 1
     finally:
-        # Always clean up the scratch audio file (not needed for resume)
-        if os.path.exists(audio_24k_scratch):
+        # Only clean up the scratch audio file after the final phase (annotation)
+        # or if we are not using the phase orchestration.
+        # Preserve it during the 'asr' phase so 'annotate' can use it.
+        if args.phase != "asr" and os.path.exists(audio_24k_scratch):
             try:
                 os.remove(audio_24k_scratch)
                 logger.debug(f"Removed scratch audio: {audio_24k_scratch}")
             except Exception as e:
                 logger.warning(f"Failed to remove scratch audio: {e}")
 
-        # Only remove dataset_temp on successful completion (preserves resume state on failure)
-        if completed_successfully and os.path.exists("dataset_temp"):
+        # Only remove dataset_temp on successful completion of the ORCHESTRATOR 
+        # (preserves resume state on failure, and handoff between phases)
+        if args.phase is None and completed_successfully and os.path.exists("dataset_temp"):
             try:
                 shutil.rmtree("dataset_temp")
                 logger.debug("Cleaned up dataset_temp/")

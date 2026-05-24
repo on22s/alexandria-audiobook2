@@ -686,8 +686,8 @@ def find_best_match(
     chunk_words: list,
     orig_words: list,
     cursor: int,
-    window: int = 200,
-    backtrack: int = 40,
+    window: int = 1000,
+    backtrack: int = 200,
 ) -> tuple:
     """
     Slide a fixed-width window (len == chunk) over orig_words near cursor,
@@ -898,6 +898,7 @@ def estimate_alignment_quality(
     orig_match: list,
     initial_cursor: int,
     max_samples: int = 30,
+    start_entry_idx: int = 0,
 ) -> tuple:
     """Pre-scan the first ~max_samples entries to estimate how well the audio
     aligns with the chosen source. Returns (avg_ratio, n_sampled, n_below_60).
@@ -914,7 +915,7 @@ def estimate_alignment_quality(
     """
     cursor = initial_cursor
     ratios = []
-    for idx in range(min(max_samples, len(entries))):
+    for idx in range(start_entry_idx, min(start_entry_idx + max_samples, len(entries))):
         chunk_words = to_words(entries[idx].get('text', ''))
         if len(chunk_words) < 5:
             continue
@@ -937,7 +938,8 @@ def estimate_alignment_quality(
                     else:
                         start, end, ratio = a_start, a_end, a_ratio
         ratios.append(ratio)
-        cursor = end
+        if ratio >= 0.45:
+            cursor = end
     if not ratios:
         return 0.0, 0, 0, 0
     avg = sum(ratios) / len(ratios)
