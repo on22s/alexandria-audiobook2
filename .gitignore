@@ -107,3 +107,9 @@ test_corpus_output_pre_*/
 
 .gemini/
 gha-creds-*.json
+
+# Pip/CMake rebuild artifacts (e.g. llama-cpp-python ROCm rebuilds)
+build_logs/
+
+# Web wrapper's own log directory
+app/logs/

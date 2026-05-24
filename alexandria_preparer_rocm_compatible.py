@@ -8,6 +8,13 @@ import os
 import sys
 import tempfile
 
+# Force llama_cpp to load first to ensure system ROCm libs are prioritized over torch's bundled ones
+try:
+    from llama_cpp import Llama
+    LLAMA_CPP_AVAILABLE = True
+except ImportError:
+    LLAMA_CPP_AVAILABLE = False
+
 # Add insanely-fast-whisper-rocm to path if available
 script_dir = os.path.dirname(os.path.abspath(__file__))
 ifw_path = os.path.join(script_dir, "insanely-fast-whisper-rocm")
@@ -124,10 +131,9 @@ try:
 except ImportError as e:
     logger.debug(f"Transformers not available: {e}")
 
-try:
-    from llama_cpp import Llama
+if LLAMA_CPP_AVAILABLE:
     logger.info("✓ llama-cpp-python available")
-except ImportError:
+else:
     logger.critical("llama-cpp-python required. Install with: pip install llama-cpp-python")
     sys.exit(1)
 
@@ -441,7 +447,7 @@ def transcribe_with_whisperx_cpu(audio_16k: np.ndarray, language: str = "en") ->
         logger.debug(traceback.format_exc())
         raise
 
-def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tuple:
+def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit: int = None) -> tuple:
     """Use Wav2Vec2 for continuous context-aware transcription with CTC word alignment."""
     if not TRANSFORMERS_WHISPER_AVAILABLE:
         raise ImportError("Transformers not available")
@@ -498,6 +504,9 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en") -> tup
         chunk_times = deque(maxlen=10)  # rolling avg for ETA
 
         for chunk_idx, sample_start in enumerate(chunk_starts):
+            if limit and chunk_idx >= limit:
+                logger.info(f"Limit of {limit} chunks reached for transcription.")
+                break
             chunk_t0 = time.monotonic()
             chunk_end = min(sample_start + chunk_length, len(audio_16k))
             chunk = audio_16k[sample_start:chunk_end]
@@ -851,7 +860,7 @@ def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str =
             except Exception as e:
                 logger.warning(f"Failed to clean up temp directory: {e}")
 
-def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str) -> tuple:
+def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, limit: int = None) -> tuple:
     """Transcribe using Wav2Vec2 (continuous context-aware) as primary with fallbacks."""
 
     logger.info("=" * 70)
@@ -870,7 +879,7 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str) -> 
         logger.info("▶ Method 1: Wav2Vec2 (Continuous context-aware) [GPU accelerated, 30s chunks with overlap]")
         logger.info("-" * 70)
         try:
-            word_segments, detected_lang = transcribe_with_wav2vec2(audio_16k, language)
+            word_segments, detected_lang = transcribe_with_wav2vec2(audio_16k, language, limit=limit)
             logger.info(f"✓ SUCCESS with Wav2Vec2")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  ├─ Context preservation: Full audio (30s overlapping chunks)")
@@ -1928,6 +1937,89 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
 
     return metadata
 
+# ── Output zip naming from source metadata ────────────────────────────────────
+# When --output is left at the default (or another well-known placeholder), try
+# to derive a self-describing zip name from the source ePub's title/author, or
+# fall back to the source file's stem. Keeps generated dataset names useful
+# without forcing the caller to compute one.
+_NAME_GENERIC_OUTPUTS = {"alexandria_dataset.zip", "dataset.zip", "output.zip"}
+_NAME_MAX_PART_LEN = 80  # per-token cap; long ebook titles can run 100+ chars
+_NAME_DASH_TRANSLATE = str.maketrans({"—": "-", "–": "-", "−": "-"})
+_NAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9_-]")
+_NAME_COLLAPSE_RE = re.compile(r"([_-])[_-]+")  # _-_ → -, ___ → _
+
+
+def _sanitize_name_part(text) -> str:
+    """Make a single naming token filesystem-safe: normalize unicode dashes,
+    spaces→_, strip everything else, collapse runs of _ and -.
+
+    Coerce to str() because pathological ePubs can yield BeautifulSoup tags or
+    tuples from Dublin Core fields, and we'd rather degrade to a sanitized
+    repr than crash the pipeline before processing starts.
+    """
+    text = str(text).strip().translate(_NAME_DASH_TRANSLATE).replace(" ", "_")
+    text = _NAME_SANITIZE_RE.sub("", text)
+    text = _NAME_COLLAPSE_RE.sub(r"\1", text)
+    return text[:_NAME_MAX_PART_LEN].strip("_-")
+
+
+def extract_metadata_for_naming(source_path: str) -> tuple[Optional[str], Optional[str]]:
+    """Return (title, author) from an ePub, or (None, None) on any failure.
+
+    Non-epub sources and missing/parse-failing ePubs return (None, None) so the
+    caller can fall through to the filename-stem branch without special-casing.
+    """
+    if not source_path or not os.path.exists(source_path):
+        return None, None
+    if not source_path.lower().endswith(".epub"):
+        return None, None
+    if not getattr(alignment, "EPUB_AVAILABLE", False):
+        return None, None
+    try:
+        book = alignment.epub.read_epub(source_path, options={"ignore_ncx": True})
+        title_md = book.get_metadata("DC", "title")
+        author_md = book.get_metadata("DC", "creator")
+        title = title_md[0][0] if title_md else None
+        author = author_md[0][0] if author_md else None
+        return title, author
+    except Exception as e:
+        logger.warning(f"Could not read ePub metadata from {source_path}: {e}")
+        return None, None
+
+
+def generate_zip_filename(source_path: Optional[str],
+                          title: Optional[str],
+                          author: Optional[str]) -> str:
+    """Derive a zip filename from ePub metadata, source stem, or fall back to
+    'alexandria_dataset.zip'. Sanitization keeps only [A-Za-z0-9_-]."""
+    safe_title = _sanitize_name_part(title) if title else ""
+    safe_author = _sanitize_name_part(author) if author else ""
+    if safe_title and safe_author:
+        return f"{safe_title}_{safe_author}.zip"
+    if safe_title:
+        return f"{safe_title}.zip"
+    if source_path:
+        stem = os.path.splitext(os.path.basename(source_path))[0]
+        safe_stem = _sanitize_name_part(stem)
+        if safe_stem:
+            return f"{safe_stem}.zip"
+    return "alexandria_dataset.zip"
+
+
+def maybe_autoname_output(output: str, source_path: Optional[str]) -> str:
+    """Replace a generic --output value with a derived name, preserving the
+    user-supplied directory if one was given. Returns the original `output`
+    unchanged when the caller pinned a non-generic name (anything outside
+    _NAME_GENERIC_OUTPUTS) so an explicit choice is always respected."""
+    basename = os.path.basename(output) if output else ""
+    if basename not in _NAME_GENERIC_OUTPUTS:
+        return output
+    title, author = extract_metadata_for_naming(source_path) if source_path else (None, None)
+    derived = generate_zip_filename(source_path, title, author)
+    parent = os.path.dirname(output) if output else ""
+    return os.path.join(parent, derived) if parent else derived
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Alexandria Master Preparer - ROCm Compatible"
@@ -1942,8 +2034,12 @@ def main():
     parser.add_argument("--skip-annotation", action="store_true")
     parser.add_argument("--chunk-size", type=float, default=10.0)
     parser.add_argument("--lang", default="en")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of chunks to process")
     parser.add_argument("--output", default="alexandria_dataset.zip",
-                        help="Output ZIP path (default: alexandria_dataset.zip)")
+                        help="Output ZIP path. If left at the default — or set to "
+                             "'dataset.zip' / 'output.zip' — a name is auto-derived "
+                             "from --source (ePub title+author, or filename stem). "
+                             "Any other value is used verbatim.")
     parser.add_argument("--resume", action="store_true",
                         help="Resume from existing dataset_temp/ instead of starting over")
 
@@ -1978,6 +2074,14 @@ def main():
 
     if not args.skip_annotation and not args.model:
         parser.error("--model required unless --skip-annotation")
+
+    # Auto-derive --output filename from --source metadata when the caller left
+    # the default (or another generic placeholder). Pinned names pass through.
+    derived_output = maybe_autoname_output(args.output, args.source)
+    if derived_output != args.output:
+        logger.info(f"Auto-derived output filename: {derived_output} "
+                    f"(was: {args.output})")
+        args.output = derived_output
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -2068,7 +2172,7 @@ def main():
         progress.complete()
 
         progress.start("Transcribe audio")
-        word_segments, detected_lang = choose_and_transcribe(audio_16k, device, args.lang)
+        word_segments, detected_lang = choose_and_transcribe(audio_16k, device, args.lang, limit=args.limit)
         logger.info(f"  Detected language: {detected_lang}")
         logger.info(f"  Segments extracted: {len(word_segments)}")
         del audio_16k

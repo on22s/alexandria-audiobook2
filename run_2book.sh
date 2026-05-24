@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# run_smoke.sh — single-book smoke test for preparer iteration.
-# Runs Full Metal Panic (~6.5 hr audio, ~19 hr wall) so the durability
-# fixes from c6529e7 (orphan WAV sweep, per-chunk fsync, tolerant
-# checkpoint loader) get exercised on a real book without committing
-# to the 6-day subset.
+# run_2book.sh — 2-book corpus run: Spice & Wolf Vol.10 + Mushoku Tensei Vol.01
+# Subset of run_subset.sh; reproducible with hardcoded pairs.
 
 set -u
+
+# Enable Triton-based Flash Attention on ROCm so Wav2Vec2 / Whisper attention
+# kernels stop falling back to the slower SDPA math path. Safe no-op on
+# non-ROCm builds; the variable is only read when AOTriton is compiled in.
+export TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 OUT_DIR="$SCRIPT_DIR/test_corpus_output"
@@ -13,17 +15,15 @@ MODEL="Qwen2.5-14B-Instruct-Q6_K.gguf"
 FALLBACK="Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
 mkdir -p "$OUT_DIR"
 
+# audio | source pairs (separator is `|`)
 PAIRS=(
-    "/home/fakemitch/Desktop/New folder/Luci Christian Full Metal Panic-converted.wav|/home/fakemitch/Desktop/books/Full Metal Panic.epub"
-    "/home/fakemitch/Desktop/New folder/Cherami Leigh Cyberpunk 2077-converted.wav|/home/fakemitch/Desktop/books/Cyberpunk 2077.epub"
-    "/home/fakemitch/Desktop/New folder/Brittney Karbowski Reincarnated Slime-converted.wav|/home/fakemitch/Desktop/books/Ascendance of a Bookworm Part 1 volume 1.epub"
-    "/home/fakemitch/Desktop/New folder/Cliff Kurt Mushoku Tensei-converted.wav|/home/fakemitch/Desktop/books/86--Eighty-Six V11 - Dies Passionis.epub"
-    "/home/fakemitch/Desktop/New folder/Cristina Vee Nekomonogatari-converted.wav|/home/fakemitch/Desktop/books/A Natural History of Dragons.epub"
+    "/home/fakemitch/Desktop/New folder/J Michael Tatum Spice and Wolf, Vol. 10-converted.wav|/home/fakemitch/Desktop/books/Spice and Wolf - Volume 10 [Yen Press][Kobo].epub"
+    "/home/fakemitch/Desktop/New folder/Cliff Kurt Mushoku Tensei-converted.wav|/home/fakemitch/Desktop/books/Mushoku Tensei - Volume 01.epub"
 )
 
 notify() {
     local title="$1"; local body="$2"
-    notify-send --app-name "Alexandria smoke" -u normal "$title" "$body" 2>/dev/null || true
+    notify-send --app-name "Alexandria 2-book" -u normal "$title" "$body" 2>/dev/null || true
     printf '\a' >&2
 }
 
@@ -54,15 +54,14 @@ for pair in "${PAIRS[@]}"; do
         --source "$source" \
         --output "$output" \
         --chunk-size 10.0 \
-        --limit 5 \
         --lang en
 
     rc=$?
     if (( rc == 130 )); then
         echo ""
-        echo "Wrapper exited 130 (user aborted). Stopping smoke run."
+        echo "Wrapper exited 130 (user aborted). Stopping run."
         echo "Stopped after $i/${#PAIRS[@]}" > "$OUT_DIR/ABORTED.flag"
-        notify "Alexandria smoke aborted" "Stopped after $i/${#PAIRS[@]} books. See $OUT_DIR/"
+        notify "Alexandria 2-book aborted" "Stopped after $i/${#PAIRS[@]} books. See $OUT_DIR/"
         exit 130
     fi
 done
@@ -71,7 +70,7 @@ elapsed=$(( $(date +%s) - start_epoch ))
 hrs=$(( elapsed / 3600 ))
 mins=$(( (elapsed % 3600) / 60 ))
 echo ""
-echo "Smoke run complete in ${hrs}h ${mins}m."
+echo "All ${#PAIRS[@]} runs complete in ${hrs}h ${mins}m."
 
 {
     echo "Completed: $(date -Iseconds)"
@@ -81,4 +80,4 @@ echo "Smoke run complete in ${hrs}h ${mins}m."
     ls -lh "$OUT_DIR"/*.zip 2>/dev/null | awk '{print "  " $NF, "(" $5 ")"}'
 } > "$OUT_DIR/DONE.flag"
 
-notify "Alexandria smoke complete" "${#PAIRS[@]} book(s) done in ${hrs}h ${mins}m. See $OUT_DIR/"
+notify "Alexandria 2-book complete" "${#PAIRS[@]} books done in ${hrs}h ${mins}m. See $OUT_DIR/"
