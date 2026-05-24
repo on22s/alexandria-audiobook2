@@ -134,9 +134,30 @@ while true; do
         echo ""
         echo "[$(date '+%H:%M:%S')] Preparer was interrupted (exit 130). Restarting in $BACKOFF_SECONDS s..."
         echo "                 Press Ctrl-C again now to abort the wrapper."
-    else
-        echo ""
-        echo "[$(date '+%H:%M:%S')] ✗ Preparer exited $rc. Restarting in $BACKOFF_SECONDS s..."
+        sleep "$BACKOFF_SECONDS"
+        continue
     fi
+
+    # Distinguish clean Python failures from signal-induced crashes:
+    #   < 128  → preparer called sys.exit(N) deliberately. Retrying won't help.
+    #            Examples: wrong audio/source pair, missing model, divergence
+    #            sanity check, schema error. The first run already wrote a log
+    #            with the actionable error message; retrying 20× just buries it.
+    #   >= 128 → killed by signal (137=OOM-kill, 139=segfault, 143=SIGTERM,…).
+    #            These are sometimes transient (driver hiccup, brief OOM), so
+    #            retry with --resume is the right move.
+    if (( rc < 128 )); then
+        echo ""
+        echo "[$(date '+%H:%M:%S')] ✗ Preparer exited $rc (clean Python exit — not retrying)."
+        echo "                 The latest preparer log has the actionable error message."
+        latest_log=$(ls -t "$SCRIPT_DIR/logs/alexandria_preparer_"*.log 2>/dev/null | head -1)
+        if [[ -n "$latest_log" ]]; then
+            echo "                 ${latest_log}"
+        fi
+        exit "$rc"
+    fi
+
+    echo ""
+    echo "[$(date '+%H:%M:%S')] ✗ Preparer killed by signal (exit $rc). Restarting in $BACKOFF_SECONDS s..."
     sleep "$BACKOFF_SECONDS"
 done
