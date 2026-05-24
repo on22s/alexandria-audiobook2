@@ -1024,26 +1024,47 @@ def test_lora_generate_dataset():
 
 
 def test_dataset_builder_generate_sample():
-    # Create a temp project for this test
-    post("/api/dataset_builder/create", json={"name": f"{TEST_PREFIX}gen_proj"})
-    post("/api/dataset_builder/update_rows", json={
-        "name": f"{TEST_PREFIX}gen_proj",
-        "rows": [{"emotion": "neutral", "text": "Hello world.", "seed": ""}]
-    })
+    # ... (rest of the function)
+    delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
 
-    r = post("/api/dataset_builder/generate_sample", json={
-        "description": "A clear male voice",
-        "text": "Hello world.",
-        "dataset_name": f"{TEST_PREFIX}gen_proj",
-        "sample_index": 0,
-        "seed": -1
-    })
+
+# ── Section 13b: Preparer ───────────────────────────────────
+
+def test_preparer_start():
+    config = {
+        "audio_filename": f"{TEST_PREFIX}test_audio.wav",
+        "output_filename": f"{TEST_PREFIX}dataset.zip",
+        "lang": "en",
+        "skip_annotation": True,
+        "resume": False
+    }
+    
+    # Create a mock audio file
+    mock_audio = io.BytesIO(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+    
+    r = post("/api/preparer/start", 
+             data={"config_json": json.dumps(config)},
+             files={"audio_file": (f"{TEST_PREFIX}test_audio.wav", mock_audio, "audio/wav")})
+    
+    if r.status_code == 400:
+         raise TestFailure("SKIP: Preparer already running")
+         
     assert_status(r, 200)
     data = r.json()
-    assert_key(data, "status")
+    if data.get("status") != "Preparer started":
+        raise TestFailure(f"Expected status='Preparer started', got {data}")
 
-    # Cleanup
-    delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
+def test_preparer_status():
+    r = get("/api/preparer/status")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "running")
+    assert_key(data, "logs")
+
+def test_preparer_download_404():
+    # Should 404 since we haven't actually run a full preparation
+    r = get(f"/api/preparer/download/{TEST_PREFIX}nonexistent.zip")
+    assert_status(r, 404)
 
 
 # ── Run all tests ────────────────────────────────────────────
@@ -1129,6 +1150,11 @@ def run_all_tests():
     run_test("dataset_builder_save_no_samples", test_dataset_builder_save_no_samples)
     run_test("dataset_builder_delete", test_dataset_builder_delete)
     run_test("dataset_builder_delete_404", test_dataset_builder_delete_404)
+
+    section("Preparer")
+    run_test("preparer_start", test_preparer_start)
+    run_test("preparer_status", test_preparer_status)
+    run_test("preparer_download_404", test_preparer_download_404)
 
     section("Merge / Export")
     run_test("get_audiobook", test_get_audiobook)

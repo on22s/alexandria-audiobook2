@@ -4,7 +4,7 @@ import gc
 import json
 import shutil
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -362,14 +362,19 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
 
 @app.post("/api/preparer/start")
 async def start_preparer(
-    config: PreparerConfig,
     background_tasks: BackgroundTasks,
+    config_json: str = Form(...),
     audio_file: UploadFile = File(...),
     source_file: Optional[UploadFile] = File(None)
 ):
     """
     Start the Alexandria Preparer process to generate a TTS dataset from an audiobook.
     """
+    try:
+        config = PreparerConfig(**json.loads(config_json))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid config JSON: {e}")
+
     global process_state
     if process_state["preparer"]["running"]:
         raise HTTPException(status_code=400, detail="Preparer process is already running.")
