@@ -1355,7 +1355,7 @@ def _load_llm(model_path):
     llm = Llama(
         model_path=model_path,
         n_gpu_layers=-1,
-        n_ctx=4096,
+        n_ctx=8192,
         verbose=False
     )
     logger.info(f"✓ LLM loaded: {os.path.basename(model_path)}")
@@ -1491,6 +1491,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
         'sanitize_changed':0,           # times _sanitize_annotation altered text
         'chunk_durations': [],          # for end-of-run distribution stats
         'audio_short':     0,           # times audio slice was shorter than expected
+        'reanchor_backward': 0,         # large backward re-anchor jumps (source/audio mismatch signal)
     }
 
     metadata = list(existing_entries)
@@ -1669,12 +1670,19 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                             chunk_match_words,
                                             source_state['orig_match'][a_start:a_end],
                                         )
+                                    _jump = a_end - cursor_before
                                     logger.info(
                                         f"  ↪ chunk {segment_idx}: full-source re-anchor "
                                         f"ratio={a_ratio:.3f} cursor "
                                         f"{cursor_before}→{a_end} (jumped "
-                                        f"{a_end - cursor_before:+d} words)"
+                                        f"{_jump:+d} words)"
                                     )
+                                    if _jump < -5000:
+                                        stats['reanchor_backward'] += 1
+                                        logger.warning(
+                                            f"  ⚠ Large backward re-anchor ({_jump:+d} words) — "
+                                            f"source structure may not match this audio file"
+                                        )
                                     sa_start, sa_end, sa_ratio = a_start, a_end, a_ratio
                         if sa_ratio >= source_threshold:
                             asr_preview = (text[:60] + '…') if len(text) > 60 else text
@@ -1866,15 +1874,34 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             logger.info(f"    replace        : {sa_replace:>6} ({100*sa_replace/sa_total:5.1f}%)")
             logger.info(f"    keep_asr       : {sa_keep:>6} ({100*sa_keep/sa_total:5.1f}%)")
             logger.info(f"    dropped        : {sa_drop:>6} ({100*sa_drop/sa_total:5.1f}%)")
+        _src_cursor = source_state['cursor']
+        _src_total  = len(source_state['orig_match'])
+        _src_pct    = 100 * _src_cursor / _src_total if _src_total else 0
         logger.info(f"  Source cursor finished at word "
-                    f"{source_state['cursor']:,} / {len(source_state['orig_match']):,}")
+                    f"{_src_cursor:,} / {_src_total:,} ({_src_pct:.0f}% coverage)")
+        if _src_pct < 60:
+            logger.warning(
+                f"  ⚠ Low source coverage ({_src_pct:.0f}%): the EPUB likely contains "
+                f"more content than this audio file (e.g. multiple volumes)."
+            )
+        if stats['reanchor_backward'] >= 2:
+            logger.warning(
+                f"  ⚠ {stats['reanchor_backward']} large backward re-anchors detected — "
+                f"source text structure does not align well with this audio."
+            )
 
     # LLM + sanitisation
     llm_total = stats['llm_success'] + stats['llm_fail']
     if llm_total:
+        _san_pct = 100 * stats['sanitize_changed'] / llm_total if llm_total else 0
         logger.info(f"  LLM annotations: {stats['llm_success']} ok, "
                     f"{stats['llm_fail']} failed "
-                    f"({stats['sanitize_changed']} cleaned by sanitiser)")
+                    f"({stats['sanitize_changed']} cleaned by sanitiser, {_san_pct:.0f}%)")
+        if _san_pct > 80:
+            logger.warning(
+                f"  ⚠ High sanitiser rate ({_san_pct:.0f}%): LLM output is consistently "
+                f"reformatted — review prompt template or model output format."
+            )
 
     # Duration distribution of emitted chunks (audio-side, not source-side)
     durs = stats['chunk_durations']
