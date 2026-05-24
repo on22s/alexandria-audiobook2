@@ -1610,19 +1610,39 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             duration = current_end - current_start
 
             is_final = (idx == len(word_segments) - 1)
-            if duration >= chunk_size or is_final:
-                # Pick a smarter cut point in the last ~30% of the chunk so
-                # we end on a sentence or natural pause instead of wherever
-                # the duration threshold happened to land. Skip the look-back
-                # at the very end of audio where we just want everything left.
-                if duration >= chunk_size and not is_final:
+            
+            # ── Smart Clip Length ───────────────────────────────────────────────
+            # Dynamically split on natural speech boundaries instead of rigid caps.
+            # Start evaluating boundaries at 70% of target chunk size. If we don't
+            # find a natural break by 150%, force a cut using the lookback heuristic.
+            target_dur = chunk_size * 0.70
+            max_dur = chunk_size * 1.50
+            
+            is_good_break = False
+            cut_strategy = None
+            
+            if duration >= target_dur and not is_final:
+                bare_word = word.rstrip(') ”"\'')
+                if bare_word.endswith(('.', '!', '?')):
+                    is_good_break = True
+                    cut_strategy = 'sentence_end'
+                elif idx < len(word_segments) - 1:
+                    next_start = word_segments[idx + 1].get("start", current_end)
+                    if next_start - current_end >= 0.4:
+                        is_good_break = True
+                        cut_strategy = 'pause'
+
+            if is_final or is_good_break or duration >= max_dur:
+                if is_final:
+                    cut_at = len(current_words) - 1
+                    cut_strategy = 'is_final'
+                elif is_good_break:
+                    cut_at = len(current_words) - 1
+                else:
                     cut_at, cut_strategy = _find_best_cut(
                         current_word_starts, current_word_ends,
                         current_words, current_start,
                     )
-                else:
-                    cut_at = len(current_words) - 1
-                    cut_strategy = 'is_final' if is_final else 'undersized'
                 stats['cut_strategy'][cut_strategy] += 1
 
                 chunk_words    = current_words[:cut_at + 1]
