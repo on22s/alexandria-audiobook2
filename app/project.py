@@ -364,7 +364,7 @@ class ProjectManager:
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
                 # Try to convert to mp3, fallback to wav if ffmpeg missing
-                    filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker_to_use)}"
+                filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker_to_use)}"
                 audio_path = None
 
                 try:

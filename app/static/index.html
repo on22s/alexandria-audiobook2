@@ -1320,19 +1320,15 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-<<<<<<< HEAD
-                                <h5 class="card-title">${voice.name} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${config.alias_of}">${config.alias_of}</span>` : ''}</h5>
+                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}</h5>
                                 <div class="form-text small text-muted mt-1">Alias of:</div>
                                 <select class="form-select form-select-sm alias-select mt-1">
                                     <option value="">-- None --</option>
                                     ${(() => {
                                         const names = (window._voicesNames || []).filter(n => n !== voice.name);
-                                        return names.map(n => `<option value="${n}" ${config.alias_of === n ? 'selected' : ''}>${n}</option>`).join('');
+                                        return names.map(n => `<option value="${escapeHtml(n)}" ${config.alias_of === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
                                     })()}
                                 </select>
-=======
-                                <h5 class="card-title">${escapeHtml(voice.name)}</h5>
->>>>>>> 8f797884754b8570d034d5e48e703598e04c1350
                             </div>
                             <div class="col-md-9">
                                 <div class="mb-2">
@@ -1451,6 +1447,11 @@
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
                                     <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${config.description || ''}">
                                     <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openVoiceDesignEditor(this)">
+                                            <i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2502,14 +2503,9 @@
                                     <td><strong>${escapeHtml(v.name)}</strong></td>
                                     <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.description)}</td>
                                     <td>
-<<<<<<< HEAD
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice('${v.filename}')" title="Play"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit('${v.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice('${v.id}')" title="Delete"><i class="fas fa-trash"></i></button>
-=======
                                         <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice(${JSON.stringify(v.filename)})" title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit(${JSON.stringify(v.id)})" title="Edit"><i class="fas fa-edit"></i></button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice(${JSON.stringify(v.id)})" title="Delete"><i class="fas fa-trash"></i></button>
->>>>>>> 8f797884754b8570d034d5e48e703598e04c1350
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2531,7 +2527,9 @@
 
             const btn = document.getElementById('btn-design-preview');
             btn.disabled = true;
-            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating preview (this may take a moment on first run)...';
+            statusEl.innerHTML = window._editingDesignedVoiceId
+                ? '<i class="fas fa-spinner fa-spin me-1"></i>Re-designing preview (this may take a moment)...'
+                : '<i class="fas fa-spinner fa-spin me-1"></i>Generating preview (this may take a moment on first run)...';
             previewContainer.style.display = 'none';
 
             try {
@@ -2543,7 +2541,9 @@
                 const audio = document.getElementById('design-preview-audio');
                 audio.src = result.audio_url + '?t=' + Date.now();
                 previewContainer.style.display = 'block';
-                statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Preview ready</span>';
+                statusEl.innerHTML = window._editingDesignedVoiceId
+                    ? '<span class="text-success"><i class="fas fa-check me-1"></i>Voice re-designed</span>'
+                    : '<span class="text-success"><i class="fas fa-check me-1"></i>Preview ready</span>';
 
                 // Extract filename from URL for save
                 window._currentPreviewFile = result.audio_url.split('/').pop().split('?')[0];
@@ -2648,7 +2648,17 @@
                 const audio = document.getElementById('design-preview-audio');
                 audio.src = `/designed_voices/${voice.filename}?t=${Date.now()}`;
                 window._currentPreviewFile = voice.filename;
+                window._editingDesignedVoiceId = voice.id;
                 document.getElementById('design-preview-container').style.display = 'block';
+
+                const previewButton = document.getElementById('btn-design-preview');
+                const regenerateButton = document.getElementById('btn-regenerate-preview');
+                if (previewButton) {
+                    previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+                }
+                if (regenerateButton) {
+                    regenerateButton.style.display = '';
+                }
 
                 // Focus description for quick edits
                 document.getElementById('design-description').focus();
@@ -2656,6 +2666,26 @@
             } catch (e) {
                 showToast('Failed to load voice for edit: ' + e.message, 'error');
             }
+        };
+
+        window.openVoiceDesignEditor = (button) => {
+            const card = button.closest('.card-body');
+            const cardRoot = button.closest('.voice-card');
+            const voiceName = cardRoot ? cardRoot.dataset.voice : '';
+            const description = card ? (card.querySelector('.design-description')?.value || '') : '';
+
+            document.querySelector('[data-tab="designer"]').click();
+            document.getElementById('design-voice-name').value = voiceName;
+            document.getElementById('design-source-name').value = voiceName;
+            document.getElementById('design-description').value = description;
+            window._editingDesignedVoiceId = voiceName || null;
+
+            const previewButton = document.getElementById('btn-design-preview');
+            if (previewButton) {
+                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+            }
+
+            generateDesignPreview();
         };
 
         window.onDesignedVoiceSelect = (select) => {
