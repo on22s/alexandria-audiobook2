@@ -159,6 +159,31 @@ class ProjectManager:
 
         return []
 
+    def _resolve_alias(self, speaker, voice_config):
+        """Resolve speaker aliases by following `alias_of` chain in voice_config.
+
+        Prevent infinite loops by limiting chain length.
+        Returns the canonical speaker name (string).
+        """
+        if not speaker:
+            return speaker
+        name = speaker
+        seen = set()
+        for _ in range(8):
+            if name in seen:
+                break
+            seen.add(name)
+            entry = voice_config.get(name, {})
+            alias = entry.get('alias_of') or entry.get('alias')
+            if not alias:
+                break
+            # If alias is empty or same, stop
+            if not isinstance(alias, str) or alias.strip() == '' or alias == name:
+                break
+            # Continue resolution
+            name = alias
+        return name
+
     def _atomic_json_write(self, data, target_path, max_retries=5):
         """Atomically write JSON data with retry logic for Windows file locking."""
         tmp_path = target_path + ".tmp"
@@ -314,6 +339,11 @@ class ProjectManager:
                     voice_config = json.load(f)
 
             speaker = chunk["speaker"]
+            # Resolve aliases to canonical speaker used for TTS
+            canonical_speaker = self._resolve_alias(speaker, voice_config)
+            if canonical_speaker != speaker:
+                print(f"Resolving alias: '{speaker}' -> '{canonical_speaker}'")
+            speaker_to_use = canonical_speaker
             text = chunk["text"]
             instruct = chunk.get("instruct", "")
 
@@ -322,7 +352,8 @@ class ProjectManager:
             # Generate to temp file (unique per chunk for parallel processing)
             temp_path = os.path.join(self.root_dir, f"temp_chunk_{index}.wav")
 
-            success = engine.generate_voice(text, instruct, speaker, voice_config, temp_path)
+            # Pass canonical speaker to the TTS engine so it uses the aliased config
+            success = engine.generate_voice(text, instruct, speaker_to_use, voice_config, temp_path)
 
             if success:
                 # Check file size
@@ -333,7 +364,7 @@ class ProjectManager:
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
                 # Try to convert to mp3, fallback to wav if ffmpeg missing
-                filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker)}"
+                    filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker_to_use)}"
                 audio_path = None
 
                 try:
@@ -789,13 +820,14 @@ class ProjectManager:
             if not (0 <= idx < len(chunks)):
                 groups.setdefault("custom", []).append(idx)
                 continue
-
             speaker = chunks[idx].get("speaker", "")
-            voice_data = voice_config.get(speaker, {})
+            # Resolve alias before grouping so alias groups collate with their canonical speaker
+            canonical = self._resolve_alias(speaker, voice_config)
+            voice_data = voice_config.get(canonical, {})
             voice_type = voice_data.get("type", "custom")
 
             if voice_type == "clone":
-                key = f"clone:{speaker}"
+                key = f"clone:{canonical}"
             elif voice_type in ("lora", "builtin_lora"):
                 adapter_id = voice_data.get("adapter_id", "")
                 key = f"lora:{adapter_id}"
@@ -887,11 +919,14 @@ class ProjectManager:
             for idx in batch_indices:
                 if 0 <= idx < len(chunks):
                     chunk = chunks[idx]
+                    # Resolve aliases so batch uses canonical speaker config
+                    speaker = chunk.get("speaker", "")
+                    canonical = self._resolve_alias(speaker, voice_config)
                     batch_chunks.append({
                         "index": idx,
                         "text": chunk.get("text", ""),
                         "instruct": chunk.get("instruct", ""),
-                        "speaker": chunk.get("speaker", "")
+                        "speaker": canonical
                     })
 
             # Call batch TTS with single seed

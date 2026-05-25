@@ -249,6 +249,7 @@ class DatasetBuilderUpdateRowsRequest(BaseModel):
 process_state = {
     "script": {"running": False, "logs": []},
     "voices": {"running": False, "logs": []},
+    "persona": {"running": False, "logs": []},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
@@ -639,6 +640,23 @@ async def parse_voices(background_tasks: BackgroundTasks):
          raise HTTPException(status_code=400, detail="Voice parsing already running")
 
     background_tasks.add_task(run_process, [sys.executable, "-u", "parse_voices.py"], "voices")
+    return {"status": "started"}
+
+
+@app.post("/api/generate_personas")
+async def generate_personas(background_tasks: BackgroundTasks):
+    """Generate LLM-derived voice persona descriptions and VoiceDesign previews.
+
+    This runs `app/generate_personas.py` which:
+    - reads `annotated_script.json`,
+    - asks the configured LLM to produce a short `description` and `ref_text` for each character,
+    - uses the VoiceDesign model to synthesize a preview and saves it,
+    - updates `voice_config.json` with a clone-style reference for each character.
+    """
+    if process_state["persona"]["running"]:
+        raise HTTPException(status_code=400, detail="Persona generation already running")
+
+    background_tasks.add_task(run_process, [sys.executable, "-u", "generate_personas.py"], "persona")
     return {"status": "started"}
 
 @app.post("/api/save_voice_config")

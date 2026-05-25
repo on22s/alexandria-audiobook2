@@ -359,6 +359,10 @@
                 </div>
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Auto-generate Personas</button>
+                        <span id="persona-status" class="text-muted small"></span>
+                    </div>
                     <div id="voices-list"></div>
                 </div>
             </div>
@@ -397,6 +401,9 @@
                         <button class="btn btn-primary" id="btn-design-preview" onclick="generateDesignPreview()">
                             <i class="fas fa-magic me-1"></i>Generate Preview
                         </button>
+                        <button class="btn btn-outline-secondary" id="btn-regenerate-preview" onclick="generateDesignPreview()">
+                            <i class="fas fa-redo me-1"></i>Regenerate Preview
+                        </button>
                         <span id="design-status" class="text-muted"></span>
                     </div>
 
@@ -412,6 +419,11 @@
                             <div class="col-md-4">
                                 <label class="form-label">Voice Name</label>
                                 <input type="text" class="form-control" id="design-voice-name" placeholder="e.g. Lady Narrator">
+                                <input type="hidden" id="design-source-name" value="">
+                                <label class="form-label small mt-2">Alias of</label>
+                                <select id="design-alias-select" class="form-select form-select-sm">
+                                    <option value="">-- None --</option>
+                                </select>
                             </div>
                             <div class="col-md-2">
                                 <button class="btn btn-success w-100" onclick="saveDesignedVoice()">
@@ -1244,6 +1256,48 @@
             }
         });
 
+        // --- Persona Generation (Auto) ---
+        async function generatePersonas() {
+            const statusSpan = document.getElementById('persona-status');
+            try {
+                statusSpan.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Starting...';
+                await API.post('/api/generate_personas', {});
+                pollPersonaStatus();
+            } catch (e) {
+                showToast('Failed to start persona generation: ' + e.message, 'error');
+                statusSpan.innerText = '';
+            }
+        }
+
+        async function pollPersonaStatus() {
+            const logEl = document.getElementById('voices-logs');
+            const statusSpan = document.getElementById('persona-status');
+            const interval = setInterval(async () => {
+                try {
+                    const status = await API.get('/api/status/persona');
+                    statusSpan.innerText = status.running ? 'Running...' : 'Finished';
+                    if (logEl) {
+                        logEl.innerText = (status.logs || []).join('\n');
+                        logEl.scrollTop = logEl.scrollHeight;
+                    }
+
+                    if (!status.running) {
+                        clearInterval(interval);
+                        // Refresh voices and caches
+                        try { await loadVoices(); } catch (e) { /* ignore */ }
+                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { }
+                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { }
+                        showToast('Persona generation finished', 'success');
+                        statusSpan.innerText = '';
+                    }
+                } catch (e) {
+                    clearInterval(interval);
+                    showToast('Persona status poll failed: ' + e.message, 'error');
+                    statusSpan.innerText = '';
+                }
+            }, 1500);
+        }
+
         // --- Voices Tab ---
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
@@ -1256,7 +1310,15 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${voice.name}</h5>
+                                <h5 class="card-title">${voice.name} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${config.alias_of}">${config.alias_of}</span>` : ''}</h5>
+                                <div class="form-text small text-muted mt-1">Alias of:</div>
+                                <select class="form-select form-select-sm alias-select mt-1">
+                                    <option value="">-- None --</option>
+                                    ${(() => {
+                                        const names = (window._voicesNames || []).filter(n => n !== voice.name);
+                                        return names.map(n => `<option value="${n}" ${config.alias_of === n ? 'selected' : ''}>${n}</option>`).join('');
+                                    })()}
+                                </select>
                             </div>
                             <div class="col-md-9">
                                 <div class="mb-2">
@@ -1406,6 +1468,8 @@
             } catch (e) { /* ignore if no adapters */ }
 
             const voices = await API.get('/api/voices');
+            // Cache simple names for alias dropdowns
+            window._voicesNames = voices.map(v => v.name);
             const container = document.getElementById('voices-list');
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
@@ -1425,6 +1489,7 @@
 
             cards.forEach(card => {
                 const name = card.dataset.voice;
+                const alias = card.querySelector('.alias-select') ? card.querySelector('.alias-select').value : '';
                 const type = card.querySelector('.voice-type:checked').value;
 
                 if (type === 'custom') {
@@ -1467,6 +1532,10 @@
                         description: card.querySelector('.design-description').value,
                         seed: "-1"
                     };
+                }
+                // Include alias_of if set
+                if (alias) {
+                    config[name].alias_of = alias;
                 }
             });
             return config;
@@ -2420,6 +2489,7 @@
                                     <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.description}</td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice('${v.filename}')" title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit('${v.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice('${v.id}')" title="Delete"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
@@ -2479,6 +2549,20 @@
                 });
                 document.getElementById('design-voice-name').value = '';
                 loadDesignedVoices();
+                // If we're editing a generated persona, propagate alias choice to voice card and trigger save
+                const source = document.getElementById('design-source-name').value;
+                const selectedAlias = document.getElementById('design-alias-select').value;
+                if (source) {
+                    const card = document.querySelector(`.voice-card[data-voice="${source}"]`);
+                    if (card) {
+                        const aliasSel = card.querySelector('.alias-select');
+                        if (aliasSel) {
+                            aliasSel.value = selectedAlias || '';
+                            // Trigger save via existing auto-save debounce
+                            debouncedSaveVoices();
+                        }
+                    }
+                }
             } catch (e) {
                 showToast('Error saving voice: ' + e.message, 'error');
             }
@@ -2497,6 +2581,61 @@
                 loadDesignedVoices();
             } catch (e) {
                 showToast('Error deleting voice: ' + e.message, 'error');
+            }
+        };
+
+        window.openDesignedVoiceForEdit = async (voiceId) => {
+            try {
+                const voice = (window._designedVoicesCache || []).find(v => v.id === voiceId);
+                if (!voice) {
+                    showToast('Designed voice not found', 'error');
+                    return;
+                }
+
+                // Switch to Designer tab
+                document.querySelector('[data-tab="designer"]').click();
+
+                // Populate fields
+                document.getElementById('design-voice-name').value = voice.name || '';
+                document.getElementById('design-source-name').value = voice.name || '';
+                document.getElementById('design-description').value = voice.description || '';
+                document.getElementById('design-sample-text').value = voice.sample_text || '';
+
+                // Populate alias dropdown
+                const aliasSelect = document.getElementById('design-alias-select');
+                aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                const names = (window._voicesNames || []).filter(n => n !== voice.name);
+                names.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n;
+                    opt.text = n;
+                    aliasSelect.appendChild(opt);
+                });
+
+                // Try to read existing alias from voices config
+                try {
+                    const voices = await API.get('/api/voices');
+                    const entry = voices.find(v => v.name === voice.name);
+                    if (entry && entry.config && entry.config.alias_of) {
+                        aliasSelect.value = entry.config.alias_of;
+                    } else {
+                        aliasSelect.value = '';
+                    }
+                } catch (e) {
+                    aliasSelect.value = '';
+                }
+
+                // Update preview audio and current preview file
+                const audio = document.getElementById('design-preview-audio');
+                audio.src = `/designed_voices/${voice.filename}?t=${Date.now()}`;
+                window._currentPreviewFile = voice.filename;
+                document.getElementById('design-preview-container').style.display = 'block';
+
+                // Focus description for quick edits
+                document.getElementById('design-description').focus();
+                showToast('Loaded designed voice for editing', 'info');
+            } catch (e) {
+                showToast('Failed to load voice for edit: ' + e.message, 'error');
             }
         };
 
