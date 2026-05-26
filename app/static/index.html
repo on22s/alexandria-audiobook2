@@ -45,7 +45,7 @@
             font-size: 0.85em;
             transition: transform 0.2s ease;
         }
-        .chunk-row.expanded .chunk-expand-btn {
+        .chunk-row.expanded .chunk-toggle-btn {
             transform: rotate(180deg);
         }
         /* Core pipeline tabs - green */
@@ -766,7 +766,7 @@
                                      <th width="3%"></th>
                                      <th width="9%">Speaker</th>
                                      <th width="40%">Text</th>
-                                     <th width="14%">Instruct</th>
+                                     <th width="14%">Emotion / Style</th>
                                      <th width="7%">Status</th>
                                      <th width="27%">Audio / Actions</th>
                                  </tr>
@@ -1588,6 +1588,18 @@
         let isRenderingAll = false;
         let cachedChunks = []; // Cache to track changes
 
+        function buildSpeakerSelect(chunk) {
+            const current = (chunk.speaker || '').trim();
+            const names = Array.isArray(window._voicesNames) ? window._voicesNames : [];
+            const normalized = [...new Set(names.map(n => (n || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+            const options = normalized.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+            const unknownOption = current && !normalized.includes(current)
+                ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)} (custom)</option>`
+                : '';
+
+            return `<select class="form-select form-select-sm" onchange="updateChunk(${chunk.id}, 'speaker', this.value)">${unknownOption}${options}</select>`;
+        }
+
         // Check if any audio is currently playing
         function isAudioPlaying() {
             const audios = document.querySelectorAll('audio');
@@ -1732,9 +1744,9 @@
                         return `
                             <tr data-id="${chunk.id}" class="chunk-row">
                                 <td class="text-center align-middle" style="white-space:nowrap;">
-                                    <button class="chunk-expand-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-expand-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-expand-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button>
+                                    <button class="chunk-expand-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-expand-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-expand-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button>
                                 </td>
-                                <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(chunk.speaker)}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)"></td>
+                                <td>${buildSpeakerSelect(chunk)}</td>
                                 <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
                                 <td>
                                     <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Short TTS direction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
