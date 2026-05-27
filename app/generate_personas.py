@@ -4,6 +4,8 @@ import json
 import time
 import re
 import argparse
+import shutil
+import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
@@ -81,6 +83,20 @@ def parse_alias_decision(text):
         "ref_text": str(parsed.get("ref_text", "") or "").strip(),
         "reason": str(parsed.get("reason", "") or "").strip()
     }
+
+def _atomic_json_write(data, target_path):
+    directory = os.path.dirname(target_path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, target_path)
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 def main():
@@ -272,10 +288,10 @@ def main():
                 dest_dir = os.path.join(root, "designed_voices")
                 os.makedirs(dest_dir, exist_ok=True)
                 safe = sanitize_filename(speaker)
-                dest_path = os.path.join(dest_dir, f"{safe}_preview.wav")
+                voice_id = f"{safe}_{int(time.time_ns())}"
+                dest_filename = f"{voice_id}_preview.wav"
+                dest_path = os.path.join(dest_dir, dest_filename)
                 try:
-                    # Prefer atomic copy
-                    import shutil
                     shutil.copy2(wav_path, dest_path)
                 except Exception as e:
                     print(f"Warning: Could not copy preview for {speaker}: {e}")
@@ -293,9 +309,8 @@ def main():
                 voice_config[speaker] = voice_entry
 
                 # Save metadata for this designed voice
-                meta_path = os.path.join(dest_dir, f"{safe}_meta.json")
-                with open(meta_path, "w", encoding="utf-8") as mf:
-                    json.dump({"description": description, "ref_text": ref_text, "preview": os.path.relpath(dest_path, root)}, mf, indent=2, ensure_ascii=False)
+                meta_path = os.path.join(dest_dir, f"{voice_id}_meta.json")
+                _atomic_json_write({"description": description, "ref_text": ref_text, "preview": os.path.relpath(dest_path, root)}, meta_path)
 
                 # Register in designed_voices/manifest.json so UI can list it for review
                 try:
@@ -308,7 +323,26 @@ def main():
                         except Exception:
                             manifest = []
 
-                    voice_id = f"{safe}_{int(time.time())}"
+                    stale_entries = [entry for entry in manifest if entry.get("name") == speaker]
+                    manifest = [entry for entry in manifest if entry.get("name") != speaker]
+                    for stale in stale_entries:
+                        stale_filename = stale.get("filename") or ""
+                        if stale_filename:
+                            stale_path = os.path.join(dest_dir, stale_filename)
+                            if os.path.exists(stale_path) and os.path.abspath(stale_path) != os.path.abspath(dest_path):
+                                try:
+                                    os.remove(stale_path)
+                                except OSError:
+                                    pass
+                        stale_meta = stale.get("id")
+                        if stale_meta:
+                            stale_meta_path = os.path.join(dest_dir, f"{stale_meta}_meta.json")
+                            if os.path.exists(stale_meta_path):
+                                try:
+                                    os.remove(stale_meta_path)
+                                except OSError:
+                                    pass
+
                     manifest.append({
                         "id": voice_id,
                         "name": speaker,
@@ -316,8 +350,7 @@ def main():
                         "sample_text": ref_text,
                         "filename": os.path.basename(dest_path)
                     })
-                    with open(manifest_path, 'w', encoding='utf-8') as mf:
-                        json.dump(manifest, mf, indent=2, ensure_ascii=False)
+                    _atomic_json_write(manifest, manifest_path)
                 except Exception as e:
                     print(f"Warning: could not update manifest for {speaker}: {e}")
 
@@ -338,8 +371,7 @@ def main():
 
     # Persist voice_config
     try:
-        with open(voice_config_path, "w", encoding="utf-8") as vf:
-            json.dump(voice_config, vf, indent=2, ensure_ascii=False)
+        _atomic_json_write(voice_config, voice_config_path)
         print(f"Updated voice_config saved to {voice_config_path}")
     except Exception as e:
         print(f"Failed to save voice_config.json: {e}")

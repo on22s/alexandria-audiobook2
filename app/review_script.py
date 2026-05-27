@@ -221,7 +221,8 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95):
     # (a dropped sentence means fewer total words)
     ratio = len(corr_words) / len(orig_words) if orig_words else 1.0
 
-    passed = ratio >= threshold
+    upper_bound = 1.0 + (1.0 - threshold)
+    passed = threshold <= ratio <= upper_bound
     return passed, orig_joined, corr_joined, ratio
 
 
@@ -330,33 +331,33 @@ def main():
 
     if args.context_window and args.context_window > 0:
         window = max(1, args.context_window)
-        total_batches = len(entries)
-        print(f"Contextual review mode enabled: reviewing each entry with +/-{window} neighbors")
+        total_batches = max(1, (len(entries) + batch_size - 1) // batch_size)
+        print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
 
-        for i, entry in enumerate(entries, 1):
-            idx = i - 1
-            print(f"\nReviewing entry {i}/{total_batches}...")
+        previous_tail = None
+        for batch_index, start in enumerate(range(0, len(entries), batch_size), 1):
+            end = min(len(entries), start + batch_size)
+            batch = entries[start:end]
+            before = entries[max(0, start - window):start]
+            after = entries[end:min(len(entries), end + window)]
 
-            before = entries[max(0, idx - window):idx]
-            after = entries[idx + 1:min(len(entries), idx + 1 + window)]
+            print(f"\nReviewing batch {batch_index}/{total_batches} ({len(batch)} entries)...")
 
             contextual_lines = [
-                f"Contextual per-entry review mode. Use nearby lines to decide segmentation and speaker correctness.",
-                f"TARGET ENTRY INDEX: {idx}",
-                "You may split the target entry into multiple entries if needed, but preserve all original text and punctuation.",
+                "Contextual batch review mode.",
+                "The 'SCRIPT ENTRIES TO REVIEW' below is your TARGET BATCH.",
+                "Use the following PREVIOUS and NEXT entries for context, but DO NOT include them in your output. Only return the corrected TARGET BATCH.",
             ]
             if before:
-                contextual_lines.append("\nPREVIOUS ENTRIES:")
+                contextual_lines.append("\n--- PREVIOUS ENTRIES (Context Only) ---")
                 contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in before)
-            contextual_lines.append("\nTARGET ENTRY:")
-            contextual_lines.append(json.dumps(entry, ensure_ascii=False))
             if after:
-                contextual_lines.append("\nNEXT ENTRIES:")
+                contextual_lines.append("\n--- NEXT ENTRIES (Context Only) ---")
                 contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
 
             corrected = review_batch(
-                client, model_name, [entry], i, total_batches,
-                previous_tail=None,
+                client, model_name, batch, batch_index, total_batches,
+                previous_tail=previous_tail,
                 source_context="\n".join(contextual_lines),
                 system_prompt=review_sys,
                 user_prompt_template=review_usr,
@@ -370,23 +371,24 @@ def main():
             )
 
             if corrected is None:
-                print(f"  FAILED — keeping original entry {idx}")
-                all_corrected.append(entry)
+                print(f"  FAILED — keeping original entries for batch {batch_index}")
+                all_corrected.extend(batch)
                 total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 continue
 
-            # Slightly more permissive for per-entry splits/joins while still guarding loss
-            passed, orig_text, corr_text, ratio = check_text_loss([entry], corrected, threshold=0.80)
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95)
             if not passed:
-                print(f"  WARNING: Text loss detected! Word ratio: {ratio:.2f} (threshold: 0.80)")
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
                 print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
-                print(f"  Keeping original entry {idx} to prevent data loss.")
-                all_corrected.append(entry)
+                print(f"  Keeping original entries for batch {batch_index} to prevent data corruption.")
+                all_corrected.extend(batch)
                 total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 continue
 
-            stats = diff_entries([entry], corrected)
-            entry_diff = len(corrected) - 1
+            stats = diff_entries(batch, corrected)
+            entry_diff = len(corrected) - len(batch)
 
             if entry_diff > 0:
                 total_stats["entries_added"] += entry_diff
@@ -410,6 +412,7 @@ def main():
                 print("  No changes")
 
             all_corrected.extend(corrected)
+            previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
     else:
         # Split entries into batches
         batches = []
@@ -449,9 +452,9 @@ def main():
             # Text-loss safety check
             passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected)
             if not passed:
-                print(f"  WARNING: Text loss detected! Word ratio: {ratio:.2f} (threshold: 0.95)")
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
                 print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
-                print(f"  Keeping original entries for batch {i} to prevent data loss.")
+                print(f"  Keeping original entries for batch {i} to prevent data corruption.")
                 all_corrected.extend(batch)
                 total_stats["batches_failed"] += 1
                 previous_tail = batch[-2:] if len(batch) >= 2 else batch
