@@ -20,6 +20,8 @@
 - **本地与云端 LLM 支持** — 兼容任何 OpenAI 兼容 API（LM Studio、Ollama、OpenAI 等）
 - **自动脚本标注** — LLM 将文本解析为包含说话人、对话和 TTS 指令的 JSON 格式
 - **LLM 脚本审校** — 可选的二次 LLM 校验，修复常见标注错误
+- **角色生成** — LLM 分析脚本为每个角色创建声音描述，通过 VoiceDesign 生成参考音频并自动分配克隆声音 — 一键完成从脚本到全角色配音
+- **说话人别名** — 将多个说话人名映射到同一声音（例如"年轻的艾琳娜" → "艾琳娜"），共享声音配置
 - **智能分块** — 按说话人连续分组（最多 500 字符），保持自然语流
 - **上下文保持** — 在分块间传递角色名单和最后 3 条脚本条目，确保角色和风格连贯
 
@@ -70,7 +72,7 @@
 |-----|---------|------|---------|------|
 | **NVIDIA** | Windows | 完全支持 | 驱动 550+（CUDA 12.8） | 包含 Flash Attention 加速编码 |
 | **NVIDIA** | Linux | 完全支持 | 驱动 550+（CUDA 12.8） | 包含 Flash Attention + Triton |
-| **AMD** | Linux | 完全支持 | ROCm 6.3 | 自动应用 ROCm 优化 |
+| **AMD** | Linux | 完全支持 | ROCm 6.3+ | 自动应用 ROCm 优化 |
 | **AMD** | Windows | 仅 CPU | 不适用 | 不支持 GPU 加速 — 如需 AMD GPU 加速请使用 Linux |
 | **Apple Silicon** | macOS | 仅 CPU | 不适用 | 暂不支持 MPS 加速，可运行但速度较慢 |
 
@@ -182,6 +184,8 @@ Web UI 显示的是高层状态，**详细日志在 Pinokio 终端中**：
 脚本中检测到的每个角色都会有一张声音卡片。为每个说话人：
 - 选择声音类型：Custom Voice（最简单）、Clone Voice、LoRA Voice 或 Voice Design
 - 使用 Custom Voice 时，从 9 个预设中选择（Ryan、Serena、Aiden 等），可选设置角色风格（例如"沉稳的旁白语调"）
+- **生成角色** — 点击后 LLM 分析脚本，为每个角色创建声音描述、生成参考音频并自动分配克隆声音。切换"Advanced"可控制批量大小。这是为所有角色分配独特声音的最快方式
+- **说话人别名** — 使用声音卡片上的"Alias of"下拉菜单将一个说话人映射到另一个角色的声音（例如将"年轻的艾琳娜"设为"艾琳娜"的别名）
 - 更改自动保存 — 各类型详细说明参见 [Voice Types](https://github.com/Finrandojin/alexandria-audiobook/wiki/Voice-Types)
 
 **第 4 步 — 编辑器**
