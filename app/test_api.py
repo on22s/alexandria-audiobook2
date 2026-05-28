@@ -601,7 +601,8 @@ def test_restore_chunk():
 def test_status_known_tasks():
     task_names = [
         "script", "voices", "audio", "audacity_export",
-        "review", "lora_training", "dataset_gen", "dataset_builder"
+        "review", "lora_training", "dataset_gen", "dataset_builder",
+        "preparer", "batch_preparer",
     ]
     for name in task_names:
         r = get(f"/api/status/{name}")
@@ -616,6 +617,59 @@ def test_status_known_tasks():
 def test_status_unknown_task():
     r = get(f"/api/status/{TEST_PREFIX}fake_task")
     assert_status(r, 404)
+
+
+# ── Section: Preparer ─────────────────────────────────────────
+
+def test_preparer_status():
+    r = get("/api/status/preparer")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "running")
+    assert_key(data, "logs")
+    assert_key(data, "status")
+
+
+def test_batch_preparer_status():
+    r = get("/api/status/batch_preparer")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "running")
+    assert_key(data, "logs")
+    assert_key(data, "tasks")
+
+
+def test_preparer_cancel_when_idle():
+    r = post("/api/preparer/cancel", json={})
+    assert_status(r, 400)
+
+
+def test_preparer_list_outputs():
+    r = get("/api/preparer/list")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "files")
+
+
+def test_preparer_download_404():
+    r = get("/api/preparer/download/nonexistent_xyz.zip")
+    assert_status(r, 404)
+
+
+def test_batch_preparer_start_schema():
+    r = post("/api/preparer/batch/start", json={"tasks": [
+        {"audio_filename": "test.wav", "output_filename": "test.zip"}
+    ]})
+    # 200 = started (script present), 400 = already running, 503 = script absent
+    if r.status_code not in (200, 400, 503):
+        raise TestFailure(f"Unexpected status {r.status_code}: {r.text[:200]}")
+
+
+def test_batch_preparer_cancel():
+    r = post("/api/preparer/batch/cancel", json={})
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "status")
 
 
 # ── Section 9: Voice Design ─────────────────────────────────
@@ -1149,6 +1203,15 @@ def run_all_tests():
     section("Status Polling")
     run_test("status_known_tasks", test_status_known_tasks)
     run_test("status_unknown_task", test_status_unknown_task)
+
+    section("Preparer")
+    run_test("preparer_status", test_preparer_status)
+    run_test("batch_preparer_status", test_batch_preparer_status)
+    run_test("preparer_cancel_when_idle", test_preparer_cancel_when_idle)
+    run_test("preparer_list_outputs", test_preparer_list_outputs)
+    run_test("preparer_download_404", test_preparer_download_404)
+    run_test("batch_preparer_start_schema", test_batch_preparer_start_schema)
+    run_test("batch_preparer_cancel", test_batch_preparer_cancel)
 
     section("Voice Design")
     run_test("voice_design_list", test_voice_design_list)

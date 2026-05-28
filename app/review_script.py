@@ -91,9 +91,9 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches,
         for entry in previous_tail:
             context_parts.append(json.dumps(entry, ensure_ascii=False))
 
-    # Mode 2 future: inject source text
+    # Optional extra context (e.g. source snippet or surrounding entries)
     if source_context:
-        context_parts.append(f"\nORIGINAL SOURCE TEXT (for reference):\n{source_context}")
+        context_parts.append(f"\nADDITIONAL REVIEW CONTEXT:\n{source_context}")
 
     context = "\n".join(context_parts)
     batch_json = json.dumps(batch_entries, indent=2, ensure_ascii=False)
@@ -192,11 +192,13 @@ def normalize_text(text):
     return text
 
 
-def check_text_loss(original_entries, corrected_entries, threshold=0.95):
-    """Check if corrected entries lost significant text from the original.
+def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_bound=None):
+    """Check if corrected entries lost or gained significant text.
 
     Returns (passed, original_text, corrected_text, ratio).
-    passed is True if the corrected text covers at least `threshold` of the original words.
+    passed is True if the corrected word count ratio falls within
+    [threshold, upper_bound]. If upper_bound is None, it defaults to
+    1.0 + (1.0 - threshold), i.e. symmetric around 1.0.
     """
     orig_words = []
     for e in original_entries:
@@ -209,19 +211,14 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95):
     if not orig_words:
         return True, "", "", 1.0
 
-    # Check what fraction of original words appear in corrected text
     orig_joined = " ".join(orig_words)
     corr_joined = " ".join(corr_words)
 
-    # Simple word-level coverage: count original words that appear in corrected
-    orig_word_set = set(orig_words)
-    corr_word_set = set(corr_words)
-
-    # For a more robust check, compare total word counts
-    # (a dropped sentence means fewer total words)
     ratio = len(corr_words) / len(orig_words) if orig_words else 1.0
 
-    passed = ratio >= threshold
+    if upper_bound is None:
+        upper_bound = 1.0 + (1.0 - threshold)
+    passed = threshold <= ratio <= upper_bound
     return passed, orig_joined, corr_joined, ratio
 
 
@@ -253,6 +250,8 @@ def diff_entries(original, corrected):
 def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--source", help="Path to original source text for comparison (mode 2, not yet implemented)")
+    parser.add_argument("--context-window", type=int, default=0,
+                        help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
     args = parser.parse_args()
 
     # Locate annotated_script.json
@@ -316,14 +315,6 @@ def main():
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
-    # Split entries into batches
-    batches = []
-    for i in range(0, len(entries), batch_size):
-        batches.append(entries[i:i + batch_size])
-
-    total_batches = len(batches)
-    print(f"Split into {total_batches} batches of ~{batch_size} entries")
-
     all_corrected = []
     total_stats = {
         "text_changed": 0,
@@ -334,71 +325,164 @@ def main():
         "batches_failed": 0,
     }
 
-    previous_tail = None
+    if args.context_window and args.context_window > 0:
+        window = max(1, args.context_window)
+        total_batches = max(1, (len(entries) + batch_size - 1) // batch_size)
+        print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
 
-    for i, batch in enumerate(batches, 1):
-        print(f"\nReviewing batch {i}/{total_batches} ({len(batch)} entries)...")
+        previous_tail = None
+        for batch_index, start in enumerate(range(0, len(entries), batch_size), 1):
+            end = min(len(entries), start + batch_size)
+            batch = entries[start:end]
+            before = entries[max(0, start - window):start]
+            after = entries[end:min(len(entries), end + window)]
 
-        corrected = review_batch(
-            client, model_name, batch, i, total_batches,
-            previous_tail=previous_tail,
-            source_context=None,  # Mode 2: would pass source text chunk here
-            system_prompt=review_sys,
-            user_prompt_template=review_usr,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            min_p=min_p,
-            presence_penalty=presence_penalty,
-            banned_tokens=banned_tokens
-        )
+            print(f"\nReviewing batch {batch_index}/{total_batches} ({len(batch)} entries)...")
 
-        if corrected is None:
-            print(f"  FAILED — keeping original entries for batch {i}")
-            all_corrected.extend(batch)
-            total_stats["batches_failed"] += 1
-            previous_tail = batch[-2:] if len(batch) >= 2 else batch
-            continue
+            contextual_lines = [
+                "Contextual batch review mode.",
+                "The 'SCRIPT ENTRIES TO REVIEW' below is your TARGET BATCH.",
+                "Use the following PREVIOUS and NEXT entries for context, but DO NOT include them in your output. Only return the corrected TARGET BATCH.",
+            ]
+            if before:
+                contextual_lines.append("\n--- PREVIOUS ENTRIES (Context Only) ---")
+                contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in before)
+            if after:
+                contextual_lines.append("\n--- NEXT ENTRIES (Context Only) ---")
+                contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
 
-        # Text-loss safety check
-        passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected)
-        if not passed:
-            print(f"  WARNING: Text loss detected! Word ratio: {ratio:.2f} (threshold: 0.95)")
-            print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
-            print(f"  Keeping original entries for batch {i} to prevent data loss.")
-            all_corrected.extend(batch)
-            total_stats["batches_failed"] += 1
-            previous_tail = batch[-2:] if len(batch) >= 2 else batch
-            continue
+            corrected = review_batch(
+                client, model_name, batch, batch_index, total_batches,
+                previous_tail=None,  # contextual mode uses explicit before/after window instead
+                source_context="\n".join(contextual_lines),
+                system_prompt=review_sys,
+                user_prompt_template=review_usr,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                min_p=min_p,
+                presence_penalty=presence_penalty,
+                banned_tokens=banned_tokens
+            )
 
-        # Diff stats
-        stats = diff_entries(batch, corrected)
-        entry_diff = len(corrected) - len(batch)
+            if corrected is None:
+                print(f"  FAILED — keeping original entries for batch {batch_index}")
+                all_corrected.extend(batch)
+                total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                continue
 
-        if entry_diff > 0:
-            total_stats["entries_added"] += entry_diff
-        elif entry_diff < 0:
-            total_stats["entries_removed"] += abs(entry_diff)
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.15)
+            if not passed:
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.15)")
+                print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
+                print(f"  Keeping original entries for batch {batch_index} to prevent data corruption.")
+                all_corrected.extend(batch)
+                total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                continue
 
-        total_stats["text_changed"] += stats["text_changed"]
-        total_stats["speaker_changed"] += stats["speaker_changed"]
-        total_stats["instruct_changed"] += stats["instruct_changed"]
+            stats = diff_entries(batch, corrected)
+            entry_diff = len(corrected) - len(batch)
 
-        changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
-        if changes > 0 or entry_diff != 0:
-            print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
             if entry_diff > 0:
-                print(f", +{entry_diff} entries (splits)")
+                total_stats["entries_added"] += entry_diff
             elif entry_diff < 0:
-                print(f", {entry_diff} entries (merges)")
-            else:
-                print()
-        else:
-            print(f"  No changes")
+                total_stats["entries_removed"] += abs(entry_diff)
 
-        all_corrected.extend(corrected)
-        previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+            total_stats["text_changed"] += stats["text_changed"]
+            total_stats["speaker_changed"] += stats["speaker_changed"]
+            total_stats["instruct_changed"] += stats["instruct_changed"]
+
+            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+            if changes > 0 or entry_diff != 0:
+                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                if entry_diff > 0:
+                    print(f", +{entry_diff} entries (split)")
+                elif entry_diff < 0:
+                    print(f", {entry_diff} entries (merge)")
+                else:
+                    print()
+            else:
+                print("  No changes")
+
+            all_corrected.extend(corrected)
+            previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+    else:
+        # Split entries into batches
+        batches = []
+        for i in range(0, len(entries), batch_size):
+            batches.append(entries[i:i + batch_size])
+
+        total_batches = len(batches)
+        print(f"Split into {total_batches} batches of ~{batch_size} entries")
+
+        previous_tail = None
+
+        for i, batch in enumerate(batches, 1):
+            print(f"\nReviewing batch {i}/{total_batches} ({len(batch)} entries)...")
+
+            corrected = review_batch(
+                client, model_name, batch, i, total_batches,
+                previous_tail=previous_tail,
+                source_context=None,  # Mode 2: would pass source text chunk here
+                system_prompt=review_sys,
+                user_prompt_template=review_usr,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                min_p=min_p,
+                presence_penalty=presence_penalty,
+                banned_tokens=banned_tokens
+            )
+
+            if corrected is None:
+                print(f"  FAILED — keeping original entries for batch {i}")
+                all_corrected.extend(batch)
+                total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                continue
+
+            # Text-loss safety check
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected)
+            if not passed:
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
+                print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
+                print(f"  Keeping original entries for batch {i} to prevent data corruption.")
+                all_corrected.extend(batch)
+                total_stats["batches_failed"] += 1
+                previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                continue
+
+            # Diff stats
+            stats = diff_entries(batch, corrected)
+            entry_diff = len(corrected) - len(batch)
+
+            if entry_diff > 0:
+                total_stats["entries_added"] += entry_diff
+            elif entry_diff < 0:
+                total_stats["entries_removed"] += abs(entry_diff)
+
+            total_stats["text_changed"] += stats["text_changed"]
+            total_stats["speaker_changed"] += stats["speaker_changed"]
+            total_stats["instruct_changed"] += stats["instruct_changed"]
+
+            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+            if changes > 0 or entry_diff != 0:
+                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                if entry_diff > 0:
+                    print(f", +{entry_diff} entries (splits)")
+                elif entry_diff < 0:
+                    print(f", {entry_diff} entries (merges)")
+                else:
+                    print()
+            else:
+                print(f"  No changes")
+
+            all_corrected.extend(corrected)
+            previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
 
     # Post-processing: merge consecutive NARRATOR entries with same instruct
     merge_narrators_enabled = generation_config.get("merge_narrators", False)

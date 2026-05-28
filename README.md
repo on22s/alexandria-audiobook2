@@ -21,6 +21,8 @@ Transform any book or novel into a fully-voiced audiobook using AI-powered scrip
 - **Local & Cloud LLM Support** - Use any OpenAI-compatible API (LM Studio, Ollama, OpenAI, etc.)
 - **Automatic Script Annotation** - LLM parses text into JSON with speakers, dialogue, and TTS instruct directions
 - **LLM Script Review** - Optional second LLM pass that fixes common annotation errors: strips attribution tags from dialogue, splits misattributed narration/dialogue, merges over-split narrator entries, and validates instruct fields
+- **Persona Generation** - LLM analyzes the script to create voice descriptions for each character, then generates reference audio via VoiceDesign and assigns clone voices automatically — one click to go from script to fully-voiced cast
+- **Speaker Aliases** - Map multiple speaker names to the same voice (e.g. "YOUNG ELENA" → "ELENA") so variants share a single voice configuration
 - **Smart Chunking** - Groups consecutive lines by speaker (up to 500 chars) for natural flow
 - **Context Preservation** - Passes character roster and last 3 script entries between chunks for name and style continuity
 
@@ -74,7 +76,7 @@ Transform any book or novel into a fully-voiced audiobook using AI-powered scrip
 |-----|-----|--------|-------------------|-------|
 | **NVIDIA** | Windows | Full support | Driver 550+ (CUDA 12.8) | Flash attention included for faster encoding |
 | **NVIDIA** | Linux | Full support | Driver 550+ (CUDA 12.8) | Flash attention + triton included |
-| **AMD** | Linux | Full support | ROCm 6.3 | ROCm optimizations applied automatically |
+| **AMD** | Linux | Full support | ROCm 6.3+ | ROCm optimizations applied automatically |
 | **AMD** | Windows | CPU only | N/A | GPU acceleration is not supported — the app runs in CPU mode. For GPU acceleration with AMD, use Linux |
 | **Apple Silicon** | macOS | CPU only | N/A | MPS acceleration is not currently supported. Functional but slow |
 | **Intel** | macOS | CPU only | N/A | |
@@ -275,6 +277,8 @@ Configure your LLM connection and TTS engine. At minimum you need:
 Each character detected in the script gets a voice card. For each speaker:
 - Choose a voice type: Custom Voice (easiest), Clone Voice, LoRA Voice, or Voice Design
 - For Custom Voice, pick from 9 presets (Ryan, Serena, Aiden, etc.) and optionally set a character style (e.g., "Heavy Scottish accent")
+- **Generate Personas** — Click to have the LLM analyze the script, create voice descriptions for each character, generate reference audio, and assign clone voices automatically. Toggle "Advanced" for batch size control. This is the fastest way to assign unique voices to all characters
+- **Speaker Aliases** — Use the "Alias of" dropdown on any voice card to map a speaker to another character's voice (e.g., set "YOUNG ELENA" as alias of "ELENA"). Aliased speakers use the target's voice config during generation
 - Changes save automatically — see [Voice Types](https://github.com/Finrandojin/alexandria-audiobook/wiki/Voice-Types) for guidance on each type
 
 **Step 4 — Editor**
@@ -336,6 +340,20 @@ Review prompts are customizable in `review_prompts.txt` (same format as `default
 
 ### Voices Tab
 After script generation, voices are automatically loaded from the annotated script. For each speaker:
+
+**Persona Generation:**
+Click **Generate Personas** to automatically assign voices to all characters. The LLM analyzes dialogue in the script and produces a voice description and sample text for each speaker. These are fed to the VoiceDesign model to generate reference audio, which is saved and assigned as a clone voice. The result is a fully-voiced cast with no manual configuration.
+
+- **Standard mode** — Processes all speakers at once
+- **Advanced mode** — Toggle "Advanced" to control batch size (default 40) for large casts. In advanced mode, speakers are processed in discovery batches, with the LLM receiving dialogue samples to infer voice characteristics
+
+**Speaker Aliases:**
+Each voice card has an "Alias of" dropdown. Setting a speaker as an alias of another speaker means it will use the target's voice configuration during audio generation. Useful for:
+- Character name variants (e.g., "DR. SMITH" → "SMITH")
+- Age variants (e.g., "YOUNG ELENA" → "ELENA")
+- Reducing the number of voices to configure
+
+Aliases resolve transitively (A → B → C uses C's config) with cycle detection.
 
 **Custom Voice Mode:**
 - Select from 9 pre-trained voices: Aiden, Dylan, Eric, Ono_anna, Ryan, Serena, Sohee, Uncle_fu, Vivian
@@ -447,7 +465,7 @@ Download your completed audiobook as MP3, export as **M4B** with chapter markers
 
 ### Benchmarks
 
-Tested on AMD RX 7900 XTX (24 GB VRAM, ROCm 6.3):
+Tested on AMD RX 7900 XTX (24 GB VRAM, ROCm 6.3/7.2):
 
 | Configuration | Throughput |
 |--------------|------------|
@@ -459,7 +477,7 @@ A 273-chunk audiobook (~54 minutes of audio) generates in approximately 16 minut
 
 ### ROCm (AMD GPU) Notes
 
-> **Linux only.** AMD GPU acceleration requires ROCm 6.3 on Linux. AMD GPUs on Windows run in CPU mode — see [GPU Compatibility](#gpu-compatibility).
+> **Linux only.** AMD GPU acceleration requires ROCm 6.3+ on Linux. AMD GPUs on Windows run in CPU mode — see [GPU Compatibility](#gpu-compatibility).
 
 Alexandria automatically applies ROCm-specific optimizations when running on AMD GPUs:
 - **MIOpen fast-find mode** - Prevents workspace allocation failures that cause slow GEMM fallback
@@ -634,6 +652,23 @@ curl -X POST http://127.0.0.1:4200/api/scripts/save \
 curl -X POST http://127.0.0.1:4200/api/scripts/load \
   -H "Content-Type: application/json" \
   -d '{"name": "my-novel"}'
+```
+
+### Persona Generation
+```bash
+# Generate personas (LLM + VoiceDesign, assigns clone voices automatically)
+curl -X POST http://127.0.0.1:4200/api/generate_personas
+
+# Generate personas in advanced mode with custom batch size
+curl -X POST http://127.0.0.1:4200/api/generate_personas \
+  -H "Content-Type: application/json" \
+  -d '{"advanced": true, "batch_size": 40}'
+
+# Check persona generation status
+curl http://127.0.0.1:4200/api/status/persona
+
+# Cancel persona generation
+curl -X POST http://127.0.0.1:4200/api/cancel_persona
 ```
 
 ### Voice Designer
@@ -940,7 +975,9 @@ Alexandria/
 │   ├── tts.py                 # TTS engine (local + external backends)
 │   ├── train_lora.py          # LoRA training subprocess script
 │   ├── generate_script.py     # LLM script annotation
+│   ├── generate_personas.py   # LLM persona generation + VoiceDesign voice assignment
 │   ├── review_script.py       # LLM script review (second pass)
+│   ├── utils.py               # Shared utilities (atomic JSON writes)
 │   ├── default_prompts.py     # Generation prompt loader (reads default_prompts.txt)
 │   ├── review_prompts.py      # Review prompt loader (reads review_prompts.txt)
 │   ├── project.py             # Chunk management & batch generation
@@ -962,6 +999,10 @@ Alexandria/
 ├── pinokio.json               # Pinokio metadata
 └── README.md
 ```
+
+## Acknowledgements
+
+- [Ayush Naphade](https://github.com/aayushnaphade) — Persona generation, speaker alias resolution, and contextual script review ([PR #42](https://github.com/Finrandojin/alexandria-audiobook/pull/42)). Check out his project [Lily](https://lily.rayoneai.in/) — looking forward to seeing where it goes!
 
 ## License
 

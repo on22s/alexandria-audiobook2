@@ -36,7 +36,7 @@
         .step-active { background-color: #0d6efd; color: white; }
         .voice-card { border-left: 4px solid #0d6efd; }
         /* Editor row expand/collapse */
-        .chunk-expand-btn {
+        .chunk-action-btn {
             border: none;
             background: none;
             padding: 2px 4px;
@@ -45,7 +45,7 @@
             font-size: 0.85em;
             transition: transform 0.2s ease;
         }
-        .chunk-row.expanded .chunk-expand-btn {
+        .chunk-row.expanded .chunk-toggle-btn {
             transform: rotate(180deg);
         }
         /* Core pipeline tabs - green */
@@ -73,6 +73,7 @@
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Dataset Builder</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
                 </ul>
@@ -323,6 +324,15 @@
                             <i class="fas fa-check-double me-2"></i>Review Script (Optional)
                         </button>
                         <small class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
+                        <div class="input-group mt-1">
+                            <span class="input-group-text">Context Window</span>
+                            <input type="number" class="form-control" id="review-context-window" value="4" min="1" max="12">
+                            <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
+                                <i class="fas fa-crosshairs me-2"></i>Contextual Review (+/- N)
+                            </button>
+                        </div>
+                        <small class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
+                        <small class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
                     </div>
                 </div>
             </div>
@@ -359,6 +369,19 @@
                 </div>
                 <div class="card-body">
                     <p>Voices are detected from the generated script. Changes are saved automatically.</p>
+                    <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                        <button class="btn btn-outline-primary" id="btn-gen-personas" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">
+                            <label class="form-check-label" for="advanced-persona-toggle">Advanced</label>
+                        </div>
+                        <div class="input-group input-group-sm" id="advanced-persona-options" style="width: 135px; display:none;">
+                            <span class="input-group-text">Batch</span>
+                            <input class="form-control" id="persona-batch-size" type="number" min="1" max="200" value="40">
+                        </div>
+                        <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                        <span id="persona-status" class="text-muted small"></span>
+                    </div>
                     <div id="voices-list"></div>
                 </div>
             </div>
@@ -412,6 +435,11 @@
                             <div class="col-md-4">
                                 <label class="form-label">Voice Name</label>
                                 <input type="text" class="form-control" id="design-voice-name" placeholder="e.g. Lady Narrator">
+                                <input type="hidden" id="design-source-name" value="">
+                                <label class="form-label small mt-2">Alias of</label>
+                                <select id="design-alias-select" class="form-select form-select-sm">
+                                    <option value="">-- None --</option>
+                                </select>
                             </div>
                             <div class="col-md-2">
                                 <button class="btn btn-success w-100" onclick="saveDesignedVoice()">
@@ -431,6 +459,99 @@
                 <div class="card-body">
                     <div id="designed-voices-list">
                         <p class="text-muted mb-0">No designed voices yet. Generate and save a preview above.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preparer Tab -->
+        <div id="preparer-tab" class="tab-content" style="display:none;">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h4><span class="step-indicator step-active">D</span>Voice Training Dataset Builder</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="mb-0">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into <code>metadata.jsonl</code> + WAV chunks ready for training.</p>
+                        <div class="form-check form-switch ms-3 flex-shrink-0">
+                            <input class="form-check-input" type="checkbox" id="prep-batch-mode" onchange="togglePrepBatchMode()">
+                            <label class="form-check-label" for="prep-batch-mode">Batch Mode</label>
+                        </div>
+                    </div>
+
+                    <!-- Single Mode -->
+                    <div id="prep-single-area">
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Select Audio File (WAV/MP3)</label>
+                                <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Batch Mode -->
+                    <div id="prep-batch-area" style="display:none;">
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
+                            Select multiple audio files you have the rights to process. Each will be transcribed and packaged into a separate training dataset ZIP.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Audio Files (WAV/MP3)</label>
+                            <input type="file" class="form-control" id="prep-batch-files" accept=".wav,.mp3" multiple onchange="onPrepBatchFilesChange()">
+                        </div>
+                        <div id="prep-batch-queue-container" class="mb-4" style="display:none;">
+                            <h6>Processing Queue</h6>
+                            <div class="table-responsive border rounded bg-white">
+                                <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
+                                    <thead class="table-light">
+                                        <tr><th>Audio File</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody id="prep-batch-queue-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">Configuration</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Output Filename</label>
+                            <input type="text" class="form-control" id="prep-output" value="my_dataset.zip">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Language</label>
+                            <select class="form-select" id="prep-lang">
+                                <option value="en">English</option>
+                                <option value="zh">Chinese</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="ja">Japanese</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Confidence</label>
+                            <input type="number" class="form-control" id="prep-confidence" value="0.85" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Min SNR</label>
+                            <input type="number" class="form-control" id="prep-snr" value="25" min="0">
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex mb-2">
+                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-prep-start" onclick="startPreparer()">
+                            <i class="fas fa-cogs me-2"></i>Start Preparation
+                        </button>
+                        <button class="btn btn-outline-danger" id="btn-prep-cancel" style="display:none;" onclick="cancelPreparer()">
+                            <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                    </div>
+                    <div id="prep-status-msg" class="text-center text-muted small"></div>
+
+                    <div id="preparer-progress-section" class="mt-4" style="display:none;">
+                        <hr>
+                        <h5 class="mb-2">Execution Logs</h5>
+                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:#1e1e1e;color:#ddd;padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
                 </div>
             </div>
@@ -754,7 +875,7 @@
                                      <th width="3%"></th>
                                      <th width="9%">Speaker</th>
                                      <th width="40%">Text</th>
-                                     <th width="14%">Instruct</th>
+                                     <th width="14%">Emotion / Style</th>
                                      <th width="7%">Status</th>
                                      <th width="27%">Audio / Actions</th>
                                  </tr>
@@ -880,7 +1001,7 @@
             const html = `
                 <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
                     <div class="d-flex">
-                        <div class="toast-body">${message}</div>
+                        <div class="toast-body">${escapeHtml(message)}</div>
                         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
                     </div>
                 </div>`;
@@ -914,6 +1035,16 @@
                 document.getElementById('confirmModal').addEventListener('hidden.bs.modal', onHidden);
                 modal.show();
             });
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         // --- Navigation ---
@@ -1204,9 +1335,9 @@
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
                 const res = await API.upload(fileInput.files[0]);
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${res.filename}</span>`;
+                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${escapeHtml(res.filename)}</span>`;
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed to load file: ${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed to load file: ${escapeHtml(e.message)}</span>`;
             }
         });
 
@@ -1230,7 +1361,7 @@
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
                 } else {
-                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${detail}</span>`;
+                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(detail)}</span>`;
                 }
             }
         });
@@ -1244,6 +1375,107 @@
             }
         });
 
+        document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
+            try {
+                const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
+                const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize });
+                const estimateEl = document.getElementById('review-context-estimate');
+                if (estimateEl) {
+                    estimateEl.innerText = result.estimated_calls
+                        ? `Estimated LLM calls: ~${result.estimated_calls} for ${result.total_entries} entries with batches of ${result.batch_size}.`
+                        : 'Contextual review started.';
+                }
+                pollLogs('review', 'script-logs');
+            } catch (e) {
+                showToast("Failed to start contextual review: " + e.message, 'error');
+            }
+        });
+
+        // --- Persona Generation ---
+        function toggleAdvancedPersonaOptions() {
+            const advanced = document.getElementById('advanced-persona-toggle');
+            const options = document.getElementById('advanced-persona-options');
+            if (advanced && options) {
+                options.style.display = advanced.checked ? 'flex' : 'none';
+            }
+        }
+
+        async function generatePersonas() {
+            const statusSpan = document.getElementById('persona-status');
+            const cancelButton = document.getElementById('btn-cancel-personas');
+            const advancedToggle = document.getElementById('advanced-persona-toggle');
+            const batchInput = document.getElementById('persona-batch-size');
+            const advanced = !!(advancedToggle && advancedToggle.checked);
+            const batchSize = Math.max(1, Math.min(parseInt(batchInput?.value || '40', 10) || 40, 200));
+            try {
+                statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${advanced ? 'Starting advanced...' : 'Starting...'}`;
+                if (cancelButton) {
+                    cancelButton.style.display = '';
+                }
+                await API.post('/api/generate_personas', { advanced, batch_size: batchSize });
+                pollPersonaStatus();
+            } catch (e) {
+                showToast('Failed to start persona generation: ' + e.message, 'error');
+                statusSpan.innerText = '';
+                if (cancelButton) {
+                    cancelButton.style.display = 'none';
+                }
+            }
+        }
+
+        async function cancelPersonas() {
+            try {
+                await API.post('/api/cancel_persona', {});
+                const statusSpan = document.getElementById('persona-status');
+                if (statusSpan) {
+                    statusSpan.innerText = 'Cancelling...';
+                }
+            } catch (e) {
+                showToast('Failed to cancel persona generation: ' + e.message, 'error');
+            }
+        }
+
+        async function pollPersonaStatus() {
+            const logEl = document.getElementById('voices-logs');
+            const statusSpan = document.getElementById('persona-status');
+            const cancelButton = document.getElementById('btn-cancel-personas');
+            const interval = setInterval(async () => {
+                try {
+                    const status = await API.get('/api/status/persona');
+                    const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
+                    statusSpan.innerText = status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
+                    if (cancelButton) {
+                        cancelButton.style.display = status.running ? '' : 'none';
+                    }
+                    if (logEl) {
+                        logEl.innerText = (status.logs || []).join('\n');
+                        logEl.scrollTop = logEl.scrollHeight;
+                    }
+
+                    if (!status.running) {
+                        clearInterval(interval);
+                        // Refresh voices and caches
+                        try { await loadVoices(); } catch (e) { /* ignore */ }
+                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { }
+                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { }
+                        showToast('Persona generation finished', 'success');
+                        statusSpan.innerText = '';
+                        if (cancelButton) {
+                            cancelButton.style.display = 'none';
+                        }
+                    }
+                } catch (e) {
+                    clearInterval(interval);
+                    showToast('Persona status poll failed: ' + e.message, 'error');
+                    statusSpan.innerText = '';
+                    if (cancelButton) {
+                        cancelButton.style.display = 'none';
+                    }
+                }
+            }, 1500);
+        }
+
         // --- Voices Tab ---
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
@@ -1252,11 +1484,19 @@
             const voiceType = config.type || 'custom';
 
             return `
-                <div class="card voice-card mb-3" data-voice="${voice.name}">
+                <div class="card voice-card mb-3" data-voice="${escapeHtml(voice.name)}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${voice.name}</h5>
+                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}</h5>
+                                <div class="form-text small text-muted mt-1">Alias of:</div>
+                                <select class="form-select form-select-sm alias-select mt-1">
+                                    <option value="">-- None --</option>
+                                    ${(() => {
+                                        const names = (window._voicesNames || []).filter(n => n !== voice.name);
+                                        return names.map(n => `<option value="${escapeHtml(n)}" ${config.alias_of === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+                                    })()}
+                                </select>
                             </div>
                             <div class="col-md-9">
                                 <div class="mb-2">
@@ -1291,7 +1531,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${config.character_style || config.default_style || ''}">
+                                            <input type="text" class="form-control character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
                                         </div>
                                     </div>
                                 </div>
@@ -1309,12 +1549,12 @@
                                                     let html = '';
                                                     if (males.length) {
                                                         html += '<optgroup label="Male">';
-                                                        html += males.map(m => `<option value="${m.id}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.name}${m.downloaded === false ? ' (not downloaded)' : ''} — ${m.description || ''}</option>`).join('');
+                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     if (females.length) {
                                                         html += '<optgroup label="Female">';
-                                                        html += females.map(m => `<option value="${m.id}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.name}${m.downloaded === false ? ' (not downloaded)' : ''} — ${m.description || ''}</option>`).join('');
+                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     return html;
@@ -1322,7 +1562,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control builtin-lora-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${voiceType === 'builtin_lora' ? (config.character_style || '') : ''}">
+                                            <input type="text" class="form-control builtin-lora-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                     <small class="text-muted mt-1 d-block">Grayed-out voices need to be downloaded first. Go to the <strong>Training</strong> tab to download them.</small>
@@ -1375,6 +1615,11 @@
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
                                     <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${config.description || ''}">
                                     <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openVoiceDesignEditor(this)">
+                                            <i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1406,6 +1651,8 @@
             } catch (e) { /* ignore if no adapters */ }
 
             const voices = await API.get('/api/voices');
+            // Cache simple names for alias dropdowns
+            window._voicesNames = voices.map(v => v.name);
             const container = document.getElementById('voices-list');
             if (voices.length === 0) {
                 container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
@@ -1425,6 +1672,7 @@
 
             cards.forEach(card => {
                 const name = card.dataset.voice;
+                const alias = card.querySelector('.alias-select') ? card.querySelector('.alias-select').value : '';
                 const type = card.querySelector('.voice-type:checked').value;
 
                 if (type === 'custom') {
@@ -1468,6 +1716,10 @@
                         seed: "-1"
                     };
                 }
+                // Include alias_of if set
+                if (alias) {
+                    config[name].alias_of = alias;
+                }
             });
             return config;
         }
@@ -1503,6 +1755,18 @@
         let isPlayingSequence = false;
         let isRenderingAll = false;
         let cachedChunks = []; // Cache to track changes
+
+        function buildSpeakerSelect(chunk) {
+            const current = (chunk.speaker || '').trim();
+            const names = Array.isArray(window._voicesNames) ? window._voicesNames : [];
+            const normalized = [...new Set(names.map(n => (n || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+            const options = normalized.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+            const unknownOption = current && !normalized.includes(current)
+                ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)} (custom)</option>`
+                : '';
+
+            return `<select class="form-select form-select-sm" onchange="updateChunk(${chunk.id}, 'speaker', this.value)">${unknownOption}${options}</select>`;
+        }
 
         // Check if any audio is currently playing
         function isAudioPlaying() {
@@ -1648,18 +1912,18 @@
                         return `
                             <tr data-id="${chunk.id}" class="chunk-row">
                                 <td class="text-center align-middle" style="white-space:nowrap;">
-                                    <button class="chunk-expand-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-expand-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-expand-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button>
+                                    <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button>
                                 </td>
-                                <td><input type="text" class="form-control form-control-sm" value="${chunk.speaker}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)"></td>
-                                <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${chunk.text}</textarea></td>
+                                <td>${buildSpeakerSelect(chunk)}</td>
+                                <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
                                 <td>
-                                    <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Short TTS direction (3-8 words)">${chunk.instruct || ''}</textarea>
+                                    <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Short TTS direction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
                                     <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
                                         <small class="text-muted text-nowrap">Pause after (ms):</small>
                                         <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0" step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
                                     </div>
                                 </td>
-                                <td><span class="badge bg-${statusColor}">${chunk.status}</span></td>
+                                <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span></td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         ${actionArea}
@@ -2185,16 +2449,16 @@
                                 setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
                             } else {
                                 const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
-                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${lastLog}</span>`;
+                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
                             }
                         }
                     } catch (e) {
                         clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${e.message}</span>`;
+                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
                     }
                 }, 1000);
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
             }
         };
 
@@ -2247,16 +2511,16 @@
                                 setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
                             } else {
                                 const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
-                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${lastLog}</span>`;
+                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
                             }
                         }
                     } catch (e) {
                         clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${e.message}</span>`;
+                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
                     }
                 }, 1000);
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
             }
         };
 
@@ -2319,12 +2583,12 @@
                     return `
                         <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
                             <div>
-                                <strong>${s.name}</strong>${voiceBadge}
+                                <strong>${escapeHtml(s.name)}</strong>${voiceBadge}
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick="loadScript('${s.name}')"><i class="fas fa-upload me-1"></i>Load</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteScript('${s.name}')"><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick="loadScript(${JSON.stringify(s.name)})"><i class="fas fa-upload me-1"></i>Load</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteScript(${JSON.stringify(s.name)})"><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
@@ -2374,6 +2638,8 @@
                 loadSavedScripts();
                 loadChunks();
                 loadVoices();
+                resetDesignerForm();
+                loadDesignedVoices();
             } catch (e) {
                 showToast('Error loading script: ' + e.message, 'error');
             }
@@ -2416,11 +2682,12 @@
                         <tbody>
                             ${voices.map(v => `
                                 <tr>
-                                    <td><strong>${v.name}</strong></td>
-                                    <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.description}</td>
+                                    <td><strong>${escapeHtml(v.name)}</strong></td>
+                                    <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.description)}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice('${v.filename}')" title="Play"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice('${v.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice(${JSON.stringify(v.filename)})" title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit(${JSON.stringify(v.id)})" title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice(${JSON.stringify(v.id)})" title="Delete"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2428,6 +2695,22 @@
                     </table>`;
             } catch (e) {
                 console.error('Failed to load designed voices:', e);
+            }
+        }
+
+        function resetDesignerForm() {
+            document.getElementById('design-voice-name').value = '';
+            document.getElementById('design-source-name').value = '';
+            document.getElementById('design-description').value = '';
+            document.getElementById('design-sample-text').value = '';
+            document.getElementById('design-alias-select').innerHTML = '<option value="">-- None --</option>';
+            document.getElementById('design-preview-container').style.display = 'none';
+            document.getElementById('design-status').innerHTML = '';
+            window._editingDesignedVoiceId = null;
+            window._currentPreviewFile = null;
+            const previewButton = document.getElementById('btn-design-preview');
+            if (previewButton) {
+                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Generate Preview';
             }
         }
 
@@ -2442,7 +2725,9 @@
 
             const btn = document.getElementById('btn-design-preview');
             btn.disabled = true;
-            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating preview (this may take a moment on first run)...';
+            statusEl.innerHTML = window._editingDesignedVoiceId
+                ? '<i class="fas fa-spinner fa-spin me-1"></i>Re-designing preview (this may take a moment)...'
+                : '<i class="fas fa-spinner fa-spin me-1"></i>Generating preview (this may take a moment on first run)...';
             previewContainer.style.display = 'none';
 
             try {
@@ -2454,12 +2739,14 @@
                 const audio = document.getElementById('design-preview-audio');
                 audio.src = result.audio_url + '?t=' + Date.now();
                 previewContainer.style.display = 'block';
-                statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Preview ready</span>';
+                statusEl.innerHTML = window._editingDesignedVoiceId
+                    ? '<span class="text-success"><i class="fas fa-check me-1"></i>Voice re-designed</span>'
+                    : '<span class="text-success"><i class="fas fa-check me-1"></i>Preview ready</span>';
 
                 // Extract filename from URL for save
                 window._currentPreviewFile = result.audio_url.split('/').pop().split('?')[0];
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed: ${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed: ${escapeHtml(e.message)}</span>`;
             } finally {
                 btn.disabled = false;
             }
@@ -2478,7 +2765,22 @@
                     preview_file: window._currentPreviewFile
                 });
                 document.getElementById('design-voice-name').value = '';
+                window._editingDesignedVoiceId = null;
                 loadDesignedVoices();
+                // If we're editing a generated persona, propagate alias choice to voice card and trigger save
+                const source = document.getElementById('design-source-name').value;
+                const selectedAlias = document.getElementById('design-alias-select').value;
+                if (source) {
+                    const card = document.querySelector(`.voice-card[data-voice="${source}"]`);
+                    if (card) {
+                        const aliasSel = card.querySelector('.alias-select');
+                        if (aliasSel) {
+                            aliasSel.value = selectedAlias || '';
+                            // Trigger save via existing auto-save debounce
+                            debouncedSaveVoices();
+                        }
+                    }
+                }
             } catch (e) {
                 showToast('Error saving voice: ' + e.message, 'error');
             }
@@ -2497,6 +2799,92 @@
                 loadDesignedVoices();
             } catch (e) {
                 showToast('Error deleting voice: ' + e.message, 'error');
+            }
+        };
+
+        window.openDesignedVoiceForEdit = async (voiceId) => {
+            try {
+                const voice = (window._designedVoicesCache || []).find(v => v.id === voiceId);
+                if (!voice) {
+                    showToast('Designed voice not found', 'error');
+                    return;
+                }
+
+                // Switch to Designer tab
+                document.querySelector('[data-tab="designer"]').click();
+
+                // Populate fields
+                document.getElementById('design-voice-name').value = voice.name || '';
+                document.getElementById('design-source-name').value = voice.name || '';
+                document.getElementById('design-description').value = voice.description || '';
+                document.getElementById('design-sample-text').value = voice.sample_text || '';
+
+                // Populate alias dropdown
+                const aliasSelect = document.getElementById('design-alias-select');
+                aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                const names = (window._voicesNames || []).filter(n => n !== voice.name);
+                names.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n;
+                    opt.text = n;
+                    aliasSelect.appendChild(opt);
+                });
+
+                // Try to read existing alias from voices config
+                try {
+                    const voices = await API.get('/api/voices');
+                    const entry = voices.find(v => v.name === voice.name);
+                    if (entry && entry.config && entry.config.alias_of) {
+                        aliasSelect.value = entry.config.alias_of;
+                    } else {
+                        aliasSelect.value = '';
+                    }
+                } catch (e) {
+                    aliasSelect.value = '';
+                }
+
+                // Update preview audio and current preview file
+                const audio = document.getElementById('design-preview-audio');
+                audio.src = `/designed_voices/${voice.filename}?t=${Date.now()}`;
+                window._currentPreviewFile = voice.filename;
+                window._editingDesignedVoiceId = voice.id;
+                document.getElementById('design-preview-container').style.display = 'block';
+
+                const previewButton = document.getElementById('btn-design-preview');
+                if (previewButton) {
+                    previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+                }
+
+                // Focus description for quick edits
+                document.getElementById('design-description').focus();
+                showToast('Loaded designed voice for editing', 'info');
+            } catch (e) {
+                showToast('Failed to load voice for edit: ' + e.message, 'error');
+            }
+        };
+
+        window.openVoiceDesignEditor = (button) => {
+            const card = button.closest('.card-body');
+            const cardRoot = button.closest('.voice-card');
+            const voiceName = cardRoot ? cardRoot.dataset.voice : '';
+            const description = card ? (card.querySelector('.design-description')?.value || '') : '';
+
+            document.querySelector('[data-tab="designer"]').click();
+            document.getElementById('design-voice-name').value = voiceName;
+            document.getElementById('design-source-name').value = voiceName;
+            document.getElementById('design-description').value = description;
+            window._editingDesignedVoiceId = voiceName || null;
+            window._currentPreviewFile = null;
+            document.getElementById('design-preview-container').style.display = 'none';
+
+            const previewButton = document.getElementById('btn-design-preview');
+            if (previewButton) {
+                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+            }
+
+            const statusEl = document.getElementById('design-status');
+            if (statusEl) {
+                statusEl.innerHTML = '<span class="text-muted"><i class="fas fa-info me-1"></i>Edit the description, then generate a preview.</span>';
             }
         };
 
@@ -2625,7 +3013,7 @@
                 // Update dropdown
                 const currentVal = selectEl.value;
                 selectEl.innerHTML = '<option value="">-- Select dataset --</option>' +
-                    datasets.map(d => `<option value="${d.dataset_id}">${d.dataset_id} (${d.sample_count} samples)</option>`).join('');
+                    datasets.map(d => `<option value="${escapeHtml(d.dataset_id)}">${escapeHtml(d.dataset_id)} (${d.sample_count} samples)</option>`).join('');
                 if (currentVal) selectEl.value = currentVal;
 
                 // Update list
@@ -2635,8 +3023,8 @@
                 }
                 listEl.innerHTML = datasets.map(d => `
                     <div class="d-flex justify-content-between align-items-center py-1">
-                        <span><strong>${d.dataset_id}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteLoraDataset('${d.dataset_id}')"><i class="fas fa-trash"></i></button>
+                        <span><strong>${escapeHtml(d.dataset_id)}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteLoraDataset(${JSON.stringify(d.dataset_id)})"><i class="fas fa-trash"></i></button>
                     </div>
                 `).join('');
             } catch (e) {
@@ -2806,18 +3194,18 @@
                         <tbody>
                             ${models.map(m => `
                                 <tr${m.builtin ? ' class="table-light"' : ''}>
-                                    <td><strong>${m.name}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
-                                    <td>${m.dataset_id || (m.builtin ? '--' : '--')}</td>
+                                    <td><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
+                                    <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
-                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${m.id}" onclick="downloadBuiltinAdapter('${m.id}')" title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
+                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick="downloadBuiltinAdapter(${JSON.stringify(m.id)})" title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
                                         ` : `
-                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${m.id}" onclick="playLoraPreview('${m.id}')" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
-                                            <button class="btn btn-sm btn-outline-primary me-1" onclick="testLoraModel('${m.id}')" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
-                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick="deleteLoraModel('${m.id}')" title="Delete"><i class="fas fa-trash"></i></button>`}
+                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick="playLoraPreview(${JSON.stringify(m.id)})" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary me-1" onclick="testLoraModel(${JSON.stringify(m.id)})" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
+                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick="deleteLoraModel(${JSON.stringify(m.id)})" title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
                                 </tr>
@@ -2829,7 +3217,7 @@
                 const dropdown = document.getElementById('lora-test-adapter');
                 const prevVal = dropdown.value;
                 dropdown.innerHTML = models.filter(m => m.downloaded !== false).map(m =>
-                    `<option value="${m.id}">${m.name}</option>`
+                    `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
                 ).join('');
                 if (prevVal && models.some(m => m.id === prevVal)) dropdown.value = prevVal;
                 testForm.style.display = '';
@@ -3407,7 +3795,7 @@
                 });
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Saved! ${result.sample_count} samples.</span>`;
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Save failed: ${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger">Save failed: ${escapeHtml(e.message)}</span>`;
             }
         };
 
@@ -3421,6 +3809,151 @@
         loadSavedScripts();
         loadDesignedVoices();
         dsbLoadProjects();
+
+        // ── Preparer ──────────────────────────────────────────────
+        let prepBatchQueue = [];
+        let prepPoller = null;
+
+        window.togglePrepBatchMode = () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            document.getElementById('prep-single-area').style.display = isBatch ? 'none' : 'block';
+            document.getElementById('prep-batch-area').style.display  = isBatch ? 'block' : 'none';
+        };
+
+        window.onPrepBatchFilesChange = () => {
+            const files = document.getElementById('prep-batch-files').files;
+            const tbody = document.getElementById('prep-batch-queue-body');
+            tbody.innerHTML = '';
+            prepBatchQueue = [];
+
+            if (!files.length) {
+                document.getElementById('prep-batch-queue-container').style.display = 'none';
+                return;
+            }
+            document.getElementById('prep-batch-queue-container').style.display = 'block';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-truncate" style="max-width:350px;">${file.name}</td>
+                    <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                `;
+                tbody.appendChild(row);
+                prepBatchQueue.push({ audio: file.name });
+            }
+        };
+
+        window.startPreparer = async () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            if (isBatch) { return _startBatchPreparer(); }
+
+            const audioFile = document.getElementById('prep-audio-file').files[0];
+            if (!audioFile) { showToast('Audio file required', 'error'); return; }
+
+            const btn = document.getElementById('btn-prep-start');
+            btn.disabled = true;
+            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
+            document.getElementById('preparer-progress-section').style.display = 'block';
+            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
+
+            const config = {
+                audio_filename: audioFile.name,
+                output_filename: document.getElementById('prep-output').value,
+                lang:            document.getElementById('prep-lang').value,
+                min_confidence:  parseFloat(document.getElementById('prep-confidence').value),
+                min_snr:         parseInt(document.getElementById('prep-snr').value),
+            };
+
+            const fd = new FormData();
+            fd.append('config_json', JSON.stringify(config));
+            fd.append('audio_file', audioFile);
+
+            try {
+                const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
+                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                _pollPreparerLogs('preparer');
+            } catch (e) {
+                showToast('Failed to start: ' + e.message, 'error');
+                btn.disabled = false;
+                document.getElementById('btn-prep-cancel').style.display = 'none';
+            }
+        };
+
+        window.cancelPreparer = async () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            const url = isBatch ? '/api/preparer/batch/cancel' : '/api/preparer/cancel';
+            try { await API.post(url, {}); } catch (e) { /* ignore */ }
+        };
+
+        async function _startBatchPreparer() {
+            if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
+
+            const btn = document.getElementById('btn-prep-start');
+            btn.disabled = true;
+            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
+            document.getElementById('preparer-progress-section').style.display = 'block';
+            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting batch…</span>';
+
+            const tasks = prepBatchQueue.map(t => ({
+                audio_filename:  t.audio,
+                output_filename: `voice_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
+            }));
+            const body = {
+                tasks,
+                lang:           document.getElementById('prep-lang').value,
+                min_confidence: parseFloat(document.getElementById('prep-confidence').value),
+                min_snr:        parseInt(document.getElementById('prep-snr').value),
+            };
+
+            try {
+                await API.post('/api/preparer/batch/start', body);
+                _pollPreparerLogs('batch_preparer');
+            } catch (e) {
+                showToast('Failed to start batch: ' + e.message, 'error');
+                btn.disabled = false;
+                document.getElementById('btn-prep-cancel').style.display = 'none';
+            }
+        }
+
+        function _pollPreparerLogs(taskName) {
+            if (prepPoller) clearInterval(prepPoller);
+            const logEl = document.getElementById('preparer-logs');
+            let offset = 0;
+
+            prepPoller = setInterval(async () => {
+                try {
+                    const state = await API.get(`/api/status/${taskName}`);
+                    const newLines = state.logs.slice(offset);
+                    offset = state.logs.length;
+                    newLines.forEach(line => {
+                        const div = document.createElement('div');
+                        div.textContent = line;
+                        logEl.appendChild(div);
+                    });
+                    logEl.scrollTop = logEl.scrollHeight;
+
+                    // Update batch queue status badges
+                    if (taskName === 'batch_preparer' && state.tasks) {
+                        state.tasks.forEach((t, i) => {
+                            const el = document.getElementById(`prep-batch-status-${i}`);
+                            if (!el) return;
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                        });
+                    }
+
+                    if (!state.running) {
+                        clearInterval(prepPoller);
+                        prepPoller = null;
+                        document.getElementById('btn-prep-start').disabled = false;
+                        document.getElementById('btn-prep-cancel').style.display = 'none';
+                        const msg = taskName === 'preparer' ? state.status : 'Batch finished';
+                        document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
+                    }
+                } catch (e) { /* network hiccup — keep polling */ }
+            }, 1000);
+        }
     </script>
 </body>
 </html>

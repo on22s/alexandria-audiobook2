@@ -58,6 +58,9 @@ app/uploads/
 # Designed voices (user-generated)
 designed_voices/
 
+# Advanced persona references (generated from scripts)
+persona_refs/
+
 # Clone voices (user-uploaded reference audio)
 clone_voices/
 
