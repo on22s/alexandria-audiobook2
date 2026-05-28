@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 import re
 import time
+import queue
 import threading
 import zipfile
 import subprocess
@@ -388,7 +389,12 @@ CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
 ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
-    """Run a subprocess and capture logs."""
+    """Run a subprocess and stream its output into process_state logs.
+
+    Stdout and stderr are merged and read on a dedicated thread so the
+    main loop stays non-blocking on all platforms (avoids select.select(),
+    which does not work on Windows pipes).
+    """
     state = process_state[task_name]
     state["running"] = True
     state["logs"] = []
@@ -401,39 +407,56 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
     return_code = None
     try:
-        env = os.environ.copy()
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=cwd or BASE_DIR,
-            bufsize=1,
-            universal_newlines=True,
-            env=env,
+            env=os.environ.copy(),
         )
         process_state[task_name]["process"] = process
 
         if "pid" in state:
             state["pid"] = process.pid
 
-        for line in process.stdout:
+        log_queue: queue.Queue = queue.Queue()
+
+        def _reader(stream, q):
+            try:
+                for line in stream:
+                    q.put(line)
+            finally:
+                q.put(None)  # sentinel: stream exhausted
+
+        reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
+        reader.start()
+
+        while True:
+            try:
+                line = log_queue.get(timeout=0.05)
+            except queue.Empty:
+                if state.get("cancel"):
+                    process.terminate()
+                continue
+            if line is None:
+                break
             log_line = line.strip()
             if log_line:
                 state["logs"].append(log_line)
                 if len(state["logs"]) > 2000:
                     state["logs"].pop(0)
 
+        reader.join()
         process.wait()
         return_code = process.returncode
 
-        if return_code == 0:
+        if state.get("cancel"):
+            state["logs"].append(f"Task {task_name} cancelled.")
+            if "status" in state: state["status"] = "cancelled"
+        elif return_code == 0:
             state["logs"].append(f"Task {task_name} completed successfully.")
             if "status" in state: state["status"] = "done"
-        elif return_code < 0:
-            # Killed by signal (e.g. SIGTERM from cancel)
-            state["logs"].append(f"Task {task_name} was cancelled (signal {-return_code}).")
-            if "status" in state: state["status"] = "cancelled"
         else:
             state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
             if "status" in state: state["status"] = "failed"
