@@ -73,7 +73,7 @@
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Dataset Builder</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
                 </ul>
@@ -468,12 +468,12 @@
         <div id="preparer-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h4><span class="step-indicator step-active">P</span>Dataset Preparer</h4>
+                    <h4><span class="step-indicator step-active">D</span>Voice Training Dataset Builder</h4>
                 </div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <p class="mb-0">Prepare LoRA training datasets from existing audiobooks. Align audio with text and split into clean samples.</p>
-                        <div class="form-check form-switch">
+                        <p class="mb-0">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into <code>metadata.jsonl</code> + WAV chunks ready for training.</p>
+                        <div class="form-check form-switch ms-3 flex-shrink-0">
                             <input class="form-check-input" type="checkbox" id="prep-batch-mode" onchange="togglePrepBatchMode()">
                             <label class="form-check-label" for="prep-batch-mode">Batch Mode</label>
                         </div>
@@ -483,18 +483,8 @@
                     <div id="prep-single-area">
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label">1. Select Audiobook (WAV/MP3)</label>
+                                <label class="form-label">Select Audio File (WAV/MP3)</label>
                                 <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">2. Select Source Text (EPUB/TXT)</label>
-                                <div class="input-group">
-                                    <input type="file" class="form-control" id="prep-source-file" accept=".epub,.txt">
-                                    <button class="btn btn-outline-primary" type="button" onclick="suggestPrepSource()" title="Auto-match from uploads/">
-                                        <i class="fas fa-search me-1"></i>Match
-                                    </button>
-                                </div>
-                                <div id="prep-match-status" class="form-text">Optional — needed for aligned datasets.</div>
                             </div>
                         </div>
                     </div>
@@ -503,10 +493,10 @@
                     <div id="prep-batch-area" style="display:none;">
                         <div class="alert alert-info py-2 small mb-3">
                             <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
-                            Select multiple audio files. The app will automatically try to match EPUBs already in <code>uploads/</code>.
+                            Select multiple audio files you have the rights to process. Each will be transcribed and packaged into a separate training dataset ZIP.
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Select Multiple Audiobooks</label>
+                            <label class="form-label">Select Audio Files (WAV/MP3)</label>
                             <input type="file" class="form-control" id="prep-batch-files" accept=".wav,.mp3" multiple onchange="onPrepBatchFilesChange()">
                         </div>
                         <div id="prep-batch-queue-container" class="mb-4" style="display:none;">
@@ -514,7 +504,7 @@
                             <div class="table-responsive border rounded bg-white">
                                 <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
                                     <thead class="table-light">
-                                        <tr><th>Audio File</th><th>Matched Source</th><th>Status</th></tr>
+                                        <tr><th>Audio File</th><th>Status</th></tr>
                                     </thead>
                                     <tbody id="prep-batch-queue-body"></tbody>
                                 </table>
@@ -545,12 +535,6 @@
                         <div class="col-md-2">
                             <label class="form-label">Min SNR</label>
                             <input type="number" class="form-control" id="prep-snr" value="25" min="0">
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="prep-keep-unaligned">
-                                <label class="form-check-label">Keep Unaligned</label>
-                            </div>
                         </div>
                     </div>
 
@@ -3836,7 +3820,7 @@
             document.getElementById('prep-batch-area').style.display  = isBatch ? 'block' : 'none';
         };
 
-        window.onPrepBatchFilesChange = async () => {
+        window.onPrepBatchFilesChange = () => {
             const files = document.getElementById('prep-batch-files').files;
             const tbody = document.getElementById('prep-batch-queue-body');
             tbody.innerHTML = '';
@@ -3852,46 +3836,11 @@
                 const file = files[i];
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:250px;">${file.name}</td>
-                    <td id="prep-batch-match-${i}"><span class="text-muted small"><i class="fas fa-spinner fa-spin"></i></span></td>
+                    <td class="text-truncate" style="max-width:350px;">${file.name}</td>
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
-
-                try {
-                    const res = await API.get(`/api/preparer/suggest_source?audio_filename=${encodeURIComponent(file.name)}`);
-                    const matchEl = document.getElementById(`prep-batch-match-${i}`);
-                    if (res.suggested) {
-                        matchEl.innerHTML = `<span class="text-success small"><i class="fas fa-check me-1"></i>${res.suggested}</span>`;
-                        prepBatchQueue.push({ audio: file.name, source: res.suggested });
-                    } else {
-                        matchEl.innerHTML = `<span class="text-warning small">No match found</span>`;
-                        prepBatchQueue.push({ audio: file.name, source: null });
-                    }
-                } catch (e) {
-                    document.getElementById(`prep-batch-match-${i}`).innerHTML = `<span class="text-danger small">Error</span>`;
-                    prepBatchQueue.push({ audio: file.name, source: null });
-                }
-            }
-        };
-
-        window.suggestPrepSource = async () => {
-            const audioInput = document.getElementById('prep-audio-file');
-            const statusEl = document.getElementById('prep-match-status');
-            if (!audioInput.files.length) {
-                statusEl.innerHTML = '<span class="text-danger">Select an audio file first.</span>';
-                return;
-            }
-            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Searching...</span>';
-            try {
-                const res = await API.get(`/api/preparer/suggest_source?audio_filename=${encodeURIComponent(audioInput.files[0].name)}`);
-                if (res.suggested) {
-                    statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Suggested: <strong>${res.suggested}</strong> (${res.match_type})</span>`;
-                } else {
-                    statusEl.innerHTML = '<span class="text-warning">No match found in uploads/. Select manually.</span>';
-                }
-            } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Search failed: ${e.message}</span>`;
+                prepBatchQueue.push({ audio: file.name });
             }
         };
 
@@ -3899,8 +3848,7 @@
             const isBatch = document.getElementById('prep-batch-mode').checked;
             if (isBatch) { return _startBatchPreparer(); }
 
-            const audioFile  = document.getElementById('prep-audio-file').files[0];
-            const sourceFile = document.getElementById('prep-source-file').files[0];
+            const audioFile = document.getElementById('prep-audio-file').files[0];
             if (!audioFile) { showToast('Audio file required', 'error'); return; }
 
             const btn = document.getElementById('btn-prep-start');
@@ -3910,19 +3858,16 @@
             document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
 
             const config = {
-                audio_filename:   audioFile.name,
-                source_filename:  sourceFile ? sourceFile.name : null,
-                output_filename:  document.getElementById('prep-output').value,
-                lang:             document.getElementById('prep-lang').value,
-                min_confidence:   parseFloat(document.getElementById('prep-confidence').value),
-                min_snr:          parseInt(document.getElementById('prep-snr').value),
-                keep_unaligned:   document.getElementById('prep-keep-unaligned').checked,
+                audio_filename: audioFile.name,
+                output_filename: document.getElementById('prep-output').value,
+                lang:            document.getElementById('prep-lang').value,
+                min_confidence:  parseFloat(document.getElementById('prep-confidence').value),
+                min_snr:         parseInt(document.getElementById('prep-snr').value),
             };
 
             const fd = new FormData();
             fd.append('config_json', JSON.stringify(config));
             fd.append('audio_file', audioFile);
-            if (sourceFile) fd.append('source_file', sourceFile);
 
             try {
                 const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
@@ -3952,15 +3897,13 @@
 
             const tasks = prepBatchQueue.map(t => ({
                 audio_filename:  t.audio,
-                source_filename: t.source,
-                output_filename: `alexandria_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
+                output_filename: `voice_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
             }));
             const body = {
                 tasks,
                 lang:           document.getElementById('prep-lang').value,
                 min_confidence: parseFloat(document.getElementById('prep-confidence').value),
                 min_snr:        parseInt(document.getElementById('prep-snr').value),
-                keep_unaligned: document.getElementById('prep-keep-unaligned').checked,
             };
 
             try {

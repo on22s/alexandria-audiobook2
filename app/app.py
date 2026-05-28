@@ -260,16 +260,13 @@ class GeneratePersonasRequest(BaseModel):
 
 class PreparerConfig(BaseModel):
     audio_filename: str
-    source_filename: Optional[str] = None
     output_filename: str = "alexandria_dataset.zip"
     lang: str = "en"
     min_confidence: float = 0.85
     min_snr: int = 25
-    keep_unaligned: bool = False
 
 class BatchPreparerTask(BaseModel):
     audio_filename: str
-    source_filename: Optional[str] = None
     output_filename: str
 
 class BatchPreparerRequest(BaseModel):
@@ -277,7 +274,6 @@ class BatchPreparerRequest(BaseModel):
     lang: str = "en"
     min_confidence: float = 0.85
     min_snr: int = 25
-    keep_unaligned: bool = False
 
 # Global state for process tracking
 process_state = {
@@ -2294,39 +2290,13 @@ async def dataset_builder_delete(name: str):
 
 # ── Preparer ─────────────────────────────────────────────────────────────────
 
-@app.get("/api/preparer/suggest_source")
-async def preparer_suggest_source(audio_filename: str):
-    """Return the best-matching EPUB/TXT from uploads/ for the given audio filename."""
-    if not os.path.exists(UPLOADS_DIR):
-        return {"suggested": None}
-
-    audio_stem = os.path.splitext(audio_filename)[0]
-    audio_tokens = _normalize_filename_tokens(audio_stem)
-    best_match, best_score = None, 0.0
-
-    for f in os.listdir(UPLOADS_DIR):
-        if not f.lower().endswith(('.epub', '.txt')):
-            continue
-        f_stem = os.path.splitext(f)[0]
-        if f_stem == audio_stem:
-            return {"suggested": f, "score": 1.0, "match_type": "exact"}
-        score = _fuzzy_score(audio_tokens, _normalize_filename_tokens(f_stem))
-        if score > best_score:
-            best_score, best_match = score, f
-
-    if best_match and best_score > 0.4:
-        return {"suggested": best_match, "score": round(best_score, 2), "match_type": "fuzzy"}
-    return {"suggested": None}
-
-
 @app.post("/api/preparer/start")
 async def preparer_start(
     background_tasks: BackgroundTasks,
     config_json: str = Form(...),
     audio_file: UploadFile = File(...),
-    source_file: Optional[UploadFile] = File(None),
 ):
-    """Upload an audiobook and optional source text, then run the preparer script."""
+    """Upload audio and run the preparer to generate a voice training dataset."""
     if not os.path.exists(PREPARER_SCRIPT_PATH):
         raise HTTPException(
             status_code=503,
@@ -2349,14 +2319,6 @@ async def preparer_start(
         while chunk := await audio_file.read(1024 * 1024):
             await f.write(chunk)
 
-    source_path = None
-    if source_file:
-        source_name = config.source_filename or source_file.filename
-        source_path = os.path.join(UPLOADS_DIR, source_name)
-        async with aiofiles.open(source_path, "wb") as f:
-            while chunk := await source_file.read(1024 * 1024):
-                await f.write(chunk)
-
     def _run():
         state = process_state["preparer"]
         state["running"] = True
@@ -2372,10 +2334,6 @@ async def preparer_start(
                "--lang", config.lang,
                "--min-confidence", str(config.min_confidence),
                "--min-snr", str(config.min_snr)]
-        if source_path:
-            cmd += ["--source", source_path]
-        if config.keep_unaligned:
-            cmd.append("--keep-unaligned")
 
         rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
 
@@ -2442,7 +2400,7 @@ async def preparer_download(filename: str):
 
 @app.post("/api/preparer/batch/start")
 async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
-    """Process multiple audiobooks sequentially through the preparer script."""
+    """Process multiple audio files sequentially through the preparer script."""
     if not os.path.exists(PREPARER_SCRIPT_PATH):
         raise HTTPException(
             status_code=503,
@@ -2485,12 +2443,6 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]
-
-            source_path = os.path.join(UPLOADS_DIR, task.source_filename) if task.source_filename else None
-            if source_path and os.path.exists(source_path):
-                cmd += ["--source", source_path]
-            if request.keep_unaligned:
-                cmd.append("--keep-unaligned")
 
             rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
 
