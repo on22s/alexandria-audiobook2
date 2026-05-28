@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 import re
 import time
+import queue
 import threading
 import zipfile
 import subprocess
@@ -270,7 +271,12 @@ process_state = {
 }
 
 def run_process(command: List[str], task_name: str):
-    """Run a subprocess and capture logs."""
+    """Run a subprocess and stream its output into process_state logs.
+
+    Stdout and stderr are merged and read on a dedicated thread so the
+    main loop stays non-blocking on all platforms (avoids select.select(),
+    which does not work on Windows pipes).
+    """
     global process_state
     process_state[task_name]["running"] = True
     process_state[task_name]["logs"] = []
@@ -278,31 +284,51 @@ def run_process(command: List[str], task_name: str):
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
     try:
-        env = os.environ.copy()
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=BASE_DIR,
-            bufsize=1,
-            universal_newlines=True,
-            env=env,
+            env=os.environ.copy(),
         )
         process_state[task_name]["process"] = process
 
-        for line in process.stdout:
+        log_queue: queue.Queue = queue.Queue()
+
+        def _reader(stream, q):
+            try:
+                for line in stream:
+                    q.put(line)
+            finally:
+                q.put(None)  # sentinel: stream exhausted
+
+        reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
+        reader.start()
+
+        while True:
+            try:
+                line = log_queue.get(timeout=0.05)
+            except queue.Empty:
+                if process_state[task_name].get("cancel"):
+                    process.terminate()
+                continue
+            if line is None:
+                break
             log_line = line.strip()
             if log_line:
-                process_state[task_name]["logs"].append(log_line)
-                # Keep log size manageable
-                if len(process_state[task_name]["logs"]) > 1000:
-                    process_state[task_name]["logs"].pop(0)
+                logs = process_state[task_name]["logs"]
+                logs.append(log_line)
+                if len(logs) > 1000:
+                    logs.pop(0)
 
+        reader.join()
         process.wait()
         return_code = process.returncode
 
-        if return_code == 0:
+        if process_state[task_name].get("cancel"):
+            process_state[task_name]["logs"].append(f"Task {task_name} cancelled.")
+        elif return_code == 0:
             process_state[task_name]["logs"].append(f"Task {task_name} completed successfully.")
         else:
             process_state[task_name]["logs"].append(f"Task {task_name} failed with return code {return_code}.")
