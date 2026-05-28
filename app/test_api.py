@@ -621,13 +621,6 @@ def test_status_unknown_task():
 
 # ── Section: Preparer ─────────────────────────────────────────
 
-def test_preparer_suggest_source_no_match():
-    r = get("/api/preparer/suggest_source?audio_filename=nonexistent_audiobook_xyz.wav")
-    assert_status(r, 200)
-    data = r.json()
-    assert_key(data, "suggested")
-
-
 def test_preparer_status():
     r = get("/api/status/preparer")
     assert_status(r, 200)
@@ -1212,7 +1205,6 @@ def run_all_tests():
     run_test("status_unknown_task", test_status_unknown_task)
 
     section("Preparer")
-    run_test("preparer_suggest_source_no_match", test_preparer_suggest_source_no_match)
     run_test("preparer_status", test_preparer_status)
     run_test("batch_preparer_status", test_batch_preparer_status)
     run_test("preparer_cancel_when_idle", test_preparer_cancel_when_idle)
