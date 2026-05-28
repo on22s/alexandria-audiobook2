@@ -12,3 +12,4 @@ transformers==4.57.3
 peft==0.18.1
 python-multipart==0.0.26
 aiofiles==24.1.0
+mutagen
