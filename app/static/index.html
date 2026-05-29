@@ -296,6 +296,23 @@
                                 <textarea class="form-control font-monospace" id="review-user-prompt" rows="4" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for each review batch. Use <code>{context}</code> for batch context and <code>{batch}</code> for the script entries.</div>
                             </div>
+                            <hr>
+                            <h6 class="mb-3">Persona Prompt Customization</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Persona System Prompt</label>
+                                <textarea class="form-control font-monospace" id="persona-system-prompt" rows="4" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">System instruction for the LLM during persona generation. Shared by basic and advanced modes.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Persona User Prompt Template</label>
+                                <textarea class="form-control font-monospace" id="persona-user-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Template for basic per-speaker persona generation. Use <code>{speaker}</code> for character name, <code>{narrator_context}</code> for surrounding narration, <code>{sample_lines}</code> for dialogue samples.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Persona Advanced Compilation Prompt</label>
+                                <textarea class="form-control font-monospace" id="persona-advanced-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Template for advanced mode final compilation. Use <code>{character_ref}</code> for the accumulated character reference data.</div>
+                            </div>
                             <button type="button" class="btn btn-outline-secondary btn-sm mb-3" onclick="resetPrompts()">
                                 <i class="fas fa-undo me-1"></i>Reset to Defaults
                             </button>
@@ -1087,10 +1104,20 @@
                     if (config.prompts.review_user_prompt) {
                         document.getElementById('review-user-prompt').value = config.prompts.review_user_prompt;
                     }
+                    if (config.prompts.persona_system_prompt) {
+                        document.getElementById('persona-system-prompt').value = config.prompts.persona_system_prompt;
+                    }
+                    if (config.prompts.persona_user_prompt) {
+                        document.getElementById('persona-user-prompt').value = config.prompts.persona_user_prompt;
+                    }
+                    if (config.prompts.persona_advanced_prompt) {
+                        document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
+                    }
                 }
 
-                // If review prompts are still empty, fetch defaults
-                if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value) {
+                // If review/persona prompts are still empty, fetch defaults
+                if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
+                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value) {
                     try {
                         const defaults = await API.get('/api/default_prompts');
                         if (!document.getElementById('review-system-prompt').value && defaults.review_system_prompt) {
@@ -1099,8 +1126,17 @@
                         if (!document.getElementById('review-user-prompt').value && defaults.review_user_prompt) {
                             document.getElementById('review-user-prompt').value = defaults.review_user_prompt;
                         }
+                        if (!document.getElementById('persona-system-prompt').value && defaults.persona_system_prompt) {
+                            document.getElementById('persona-system-prompt').value = defaults.persona_system_prompt;
+                        }
+                        if (!document.getElementById('persona-user-prompt').value && defaults.persona_user_prompt) {
+                            document.getElementById('persona-user-prompt').value = defaults.persona_user_prompt;
+                        }
+                        if (!document.getElementById('persona-advanced-prompt').value && defaults.persona_advanced_prompt) {
+                            document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
+                        }
                     } catch (e) {
-                        console.warn("Could not fetch default review prompts", e);
+                        console.warn("Could not fetch default prompts", e);
                     }
                 }
 
@@ -1154,6 +1190,15 @@
                 }
                 if (defaults.review_user_prompt) {
                     document.getElementById('review-user-prompt').value = defaults.review_user_prompt;
+                }
+                if (defaults.persona_system_prompt) {
+                    document.getElementById('persona-system-prompt').value = defaults.persona_system_prompt;
+                }
+                if (defaults.persona_user_prompt) {
+                    document.getElementById('persona-user-prompt').value = defaults.persona_user_prompt;
+                }
+                if (defaults.persona_advanced_prompt) {
+                    document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                 }
             } catch (e) {
                 console.error("Failed to fetch default prompts", e);
@@ -1214,7 +1259,10 @@
                     system_prompt: document.getElementById('system-prompt').value,
                     user_prompt: document.getElementById('user-prompt').value,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
-                    review_user_prompt: document.getElementById('review-user-prompt').value
+                    review_user_prompt: document.getElementById('review-user-prompt').value,
+                    persona_system_prompt: document.getElementById('persona-system-prompt').value,
+                    persona_user_prompt: document.getElementById('persona-user-prompt').value,
+                    persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value
                 },
                 generation: {
                     chunk_size: chunkSize,

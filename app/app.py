@@ -26,6 +26,7 @@ from math import ceil
 from project import ProjectManager
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT, load_default_prompts
 from review_prompts import load_review_prompts
+from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 
 # Setup logging
@@ -227,6 +228,9 @@ class PromptConfig(BaseModel):
     user_prompt: Optional[str] = None
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
+    persona_system_prompt: Optional[str] = None
+    persona_user_prompt: Optional[str] = None
+    persona_advanced_prompt: Optional[str] = None
 
 class AppConfig(BaseModel):
     llm: LLMConfig
@@ -440,6 +444,13 @@ async def get_config():
             default_config["prompts"]["review_user_prompt"] = rev_usr
         except RuntimeError:
             pass
+        try:
+            per_sys, per_usr, per_adv = load_persona_prompts()
+            default_config["prompts"]["persona_system_prompt"] = per_sys
+            default_config["prompts"]["persona_user_prompt"] = per_usr
+            default_config["prompts"]["persona_advanced_prompt"] = per_adv
+        except RuntimeError:
+            pass
         config = default_config
     else:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -453,6 +464,13 @@ async def get_config():
             rev_sys, rev_usr = load_review_prompts()
             prompts["review_system_prompt"] = rev_sys
             prompts["review_user_prompt"] = rev_usr
+        except RuntimeError:
+            pass
+        try:
+            per_sys, per_usr, per_adv = load_persona_prompts()
+            prompts["persona_system_prompt"] = per_sys
+            prompts["persona_user_prompt"] = per_usr
+            prompts["persona_advanced_prompt"] = per_adv
         except RuntimeError:
             pass
         config["prompts"] = prompts
@@ -472,6 +490,17 @@ async def get_config():
                     config["prompts"]["review_user_prompt"] = rev_usr
             except RuntimeError:
                 pass  # review_prompts.txt missing or malformed — leave fields empty
+        if not config["prompts"].get("persona_system_prompt") or not config["prompts"].get("persona_user_prompt") or not config["prompts"].get("persona_advanced_prompt"):
+            try:
+                per_sys, per_usr, per_adv = load_persona_prompts()
+                if not config["prompts"].get("persona_system_prompt"):
+                    config["prompts"]["persona_system_prompt"] = per_sys
+                if not config["prompts"].get("persona_user_prompt"):
+                    config["prompts"]["persona_user_prompt"] = per_usr
+                if not config["prompts"].get("persona_advanced_prompt"):
+                    config["prompts"]["persona_advanced_prompt"] = per_adv
+            except RuntimeError:
+                pass
 
     # Include current input file info if available
     state_path = os.path.join(ROOT_DIR, "state.json")
@@ -498,6 +527,13 @@ async def get_default_prompts():
         review_sys, review_usr = load_review_prompts()
         result["review_system_prompt"] = review_sys
         result["review_user_prompt"] = review_usr
+    except RuntimeError:
+        pass
+    try:
+        persona_sys, persona_usr, persona_adv = load_persona_prompts()
+        result["persona_system_prompt"] = persona_sys
+        result["persona_user_prompt"] = persona_usr
+        result["persona_advanced_prompt"] = persona_adv
     except RuntimeError:
         pass
     return result
