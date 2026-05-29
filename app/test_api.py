@@ -160,6 +160,11 @@ def test_save_config_roundtrip():
         if not readback_prompts.get("review_system_prompt"):
             raise TestFailure("Config round-trip failed: review_system_prompt dropped")
 
+    # Verify persona prompts persist through config save
+    if original.get("prompts", {}).get("persona_system_prompt"):
+        if not readback_prompts.get("persona_system_prompt"):
+            raise TestFailure("Config round-trip failed: persona_system_prompt dropped")
+
     # Restore original
     restore = {
         "llm": original["llm"],
@@ -271,6 +276,49 @@ def test_save_review_prompts_roundtrip():
     post("/api/config", json=restore)
 
 
+def test_save_persona_prompts_roundtrip():
+    # Read current config
+    r = get("/api/config")
+    assert_status(r, 200)
+    original = r.json()
+
+    # Save config with custom persona prompts
+    test_config = {
+        "llm": original["llm"],
+        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
+        "prompts": {
+            **(original.get("prompts") or {}),
+            "persona_system_prompt": f"{TEST_PREFIX}persona_sys",
+            "persona_user_prompt": f"{TEST_PREFIX}persona_usr",
+            "persona_advanced_prompt": f"{TEST_PREFIX}persona_adv",
+        },
+        "generation": original.get("generation"),
+    }
+    r = post("/api/config", json=test_config)
+    assert_status(r, 200)
+
+    # Read back and verify
+    r = get("/api/config")
+    assert_status(r, 200)
+    readback = r.json()
+    prompts = readback.get("prompts", {})
+    if prompts.get("persona_system_prompt") != f"{TEST_PREFIX}persona_sys":
+        raise TestFailure(f"persona_system_prompt not persisted: {prompts.get('persona_system_prompt')}")
+    if prompts.get("persona_user_prompt") != f"{TEST_PREFIX}persona_usr":
+        raise TestFailure(f"persona_user_prompt not persisted: {prompts.get('persona_user_prompt')}")
+    if prompts.get("persona_advanced_prompt") != f"{TEST_PREFIX}persona_adv":
+        raise TestFailure(f"persona_advanced_prompt not persisted: {prompts.get('persona_advanced_prompt')}")
+
+    # Restore original
+    restore = {
+        "llm": original["llm"],
+        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
+        "prompts": original.get("prompts"),
+        "generation": original.get("generation"),
+    }
+    post("/api/config", json=restore)
+
+
 def test_get_default_prompts():
     r = get("/api/default_prompts")
     assert_status(r, 200)
@@ -285,6 +333,32 @@ def test_get_default_prompts():
         raise TestFailure("review_system_prompt is empty")
     if not data["review_user_prompt"]:
         raise TestFailure("review_user_prompt is empty")
+    assert_key(data, "persona_system_prompt")
+    assert_key(data, "persona_user_prompt")
+    assert_key(data, "persona_advanced_prompt")
+    if not data["persona_system_prompt"]:
+        raise TestFailure("persona_system_prompt is empty")
+    if not data["persona_user_prompt"]:
+        raise TestFailure("persona_user_prompt is empty")
+    if not data["persona_advanced_prompt"]:
+        raise TestFailure("persona_advanced_prompt is empty")
+
+
+# ── Section 2b: System Stats ───────────────────────────────
+
+def test_system_stats():
+    r = get("/api/system/stats")
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "gpu")
+    assert_key(data, "disk")
+    disk = data["disk"]
+    assert_key(disk, "free_gb")
+    assert_key(disk, "low_space")
+    if not isinstance(disk["free_gb"], (int, float)):
+        raise TestFailure(f"disk.free_gb should be numeric, got {type(disk['free_gb']).__name__}")
+    if not isinstance(disk["low_space"], bool):
+        raise TestFailure(f"disk.low_space should be bool, got {type(disk['low_space']).__name__}")
 
 
 # ── Section 3: Upload ───────────────────────────────────────
@@ -601,7 +675,8 @@ def test_restore_chunk():
 def test_status_known_tasks():
     task_names = [
         "script", "voices", "audio", "audacity_export",
-        "review", "lora_training", "dataset_gen", "dataset_builder"
+        "review", "lora_training", "dataset_gen", "dataset_builder",
+        "persona"
     ]
     for name in task_names:
         r = get(f"/api/status/{name}")
@@ -885,12 +960,30 @@ def test_dataset_builder_delete_404():
     assert_status(r, 404)
 
 
-# ── Section 13: Merge / Export ──────────────────────────────
+# ── Section 13: Persona Generation ──────────────────────────
+
+def test_cancel_persona_not_running():
+    """Cancel endpoint returns idle when not running."""
+    r = post("/api/cancel_persona", json={})
+    assert_status(r, 200)
+    data = r.json()
+    if data.get("status") not in ("idle", "cancelling"):
+        raise TestFailure(f"Expected status idle or cancelling, got {data}")
+
+
+# ── Section 14: Merge / Export ──────────────────────────────
 
 def test_get_audiobook():
     r = get("/api/audiobook")
     if r.status_code == 404:
         return  # acceptable — no audiobook generated yet
+    assert_status(r, 200)
+
+
+def test_get_audiobook_m4b():
+    r = get("/api/audiobook_m4b")
+    if r.status_code == 404:
+        return  # acceptable — no M4B generated yet
     assert_status(r, 200)
 
 
@@ -1058,7 +1151,11 @@ def run_all_tests():
     run_test("save_pause_config_roundtrip", test_save_pause_config_roundtrip)
     run_test("pause_config_defaults", test_pause_config_defaults)
     run_test("save_review_prompts_roundtrip", test_save_review_prompts_roundtrip)
+    run_test("save_persona_prompts_roundtrip", test_save_persona_prompts_roundtrip)
     run_test("get_default_prompts", test_get_default_prompts)
+
+    section("System Stats")
+    run_test("system_stats", test_system_stats)
 
     section("Upload")
     run_test("upload_file", test_upload_file)
@@ -1130,8 +1227,12 @@ def run_all_tests():
     run_test("dataset_builder_delete", test_dataset_builder_delete)
     run_test("dataset_builder_delete_404", test_dataset_builder_delete_404)
 
+    section("Persona Generation")
+    run_test("cancel_persona_not_running", test_cancel_persona_not_running)
+
     section("Merge / Export")
     run_test("get_audiobook", test_get_audiobook)
+    run_test("get_audiobook_m4b", test_get_audiobook_m4b)
     run_test("get_audacity_export", test_get_audacity_export)
 
     section("Generation (TTS/LLM)")
