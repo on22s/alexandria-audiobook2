@@ -1003,7 +1003,7 @@ Alexandria/
 ## Acknowledgements
 
 - [Ayush Naphade](https://github.com/aayushnaphade) — Persona generation, speaker alias resolution, and contextual script review ([PR #42](https://github.com/Finrandojin/alexandria-audiobook/pull/42)). Check out his project [Lily](https://lily.rayoneai.in/) — looking forward to seeing where it goes!
-- [Michii](https://github.com/on22s) — System Health Dashboard with real-time GPU/disk monitoring ([PR #45](https://github.com/Finrandojin/alexandria-audiobook/pull/45))
+- [Michii](https://github.com/on22s) — System Health Dashboard with real-time GPU/disk monitoring ([PR #45](https://github.com/Finrandojin/alexandria-audiobook/pull/45)), cross-platform subprocess runner ([PR #46](https://github.com/Finrandojin/alexandria-audiobook/pull/46)), Voice Training Dataset Preparer tab ([PR #47](https://github.com/Finrandojin/alexandria-audiobook/pull/47))
 
 ## License
 
