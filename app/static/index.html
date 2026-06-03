@@ -73,6 +73,7 @@
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
                 </ul>
@@ -481,6 +482,99 @@
                 <div class="card-body">
                     <div id="designed-voices-list">
                         <p class="text-muted mb-0">No designed voices yet. Generate and save a preview above.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preparer Tab -->
+        <div id="preparer-tab" class="tab-content" style="display:none;">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h4><span class="step-indicator step-active">D</span>Voice Training Dataset Builder</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="mb-0">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into <code>metadata.jsonl</code> + WAV chunks ready for training.</p>
+                        <div class="form-check form-switch ms-3 flex-shrink-0">
+                            <input class="form-check-input" type="checkbox" id="prep-batch-mode" onchange="togglePrepBatchMode()">
+                            <label class="form-check-label" for="prep-batch-mode">Batch Mode</label>
+                        </div>
+                    </div>
+
+                    <!-- Single Mode -->
+                    <div id="prep-single-area">
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Select Audio File (WAV/MP3)</label>
+                                <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Batch Mode -->
+                    <div id="prep-batch-area" style="display:none;">
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
+                            Select multiple audio files you have the rights to process. Each will be transcribed and packaged into a separate training dataset ZIP.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Audio Files (WAV/MP3)</label>
+                            <input type="file" class="form-control" id="prep-batch-files" accept=".wav,.mp3" multiple onchange="onPrepBatchFilesChange()">
+                        </div>
+                        <div id="prep-batch-queue-container" class="mb-4" style="display:none;">
+                            <h6>Processing Queue</h6>
+                            <div class="table-responsive border rounded bg-white">
+                                <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
+                                    <thead class="table-light">
+                                        <tr><th>Audio File</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody id="prep-batch-queue-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">Configuration</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Output Filename</label>
+                            <input type="text" class="form-control" id="prep-output" value="my_dataset.zip">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Language</label>
+                            <select class="form-select" id="prep-lang">
+                                <option value="en">English</option>
+                                <option value="zh">Chinese</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="ja">Japanese</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Confidence</label>
+                            <input type="number" class="form-control" id="prep-confidence" value="0.85" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Min SNR</label>
+                            <input type="number" class="form-control" id="prep-snr" value="25" min="0">
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex mb-2">
+                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-prep-start" onclick="startPreparer()">
+                            <i class="fas fa-cogs me-2"></i>Start Preparation
+                        </button>
+                        <button class="btn btn-outline-danger" id="btn-prep-cancel" style="display:none;" onclick="cancelPreparer()">
+                            <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                    </div>
+                    <div id="prep-status-msg" class="text-center text-muted small"></div>
+
+                    <div id="preparer-progress-section" class="mt-4" style="display:none;">
+                        <hr>
+                        <h5 class="mb-2">Execution Logs</h5>
+                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:#1e1e1e;color:#ddd;padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
                 </div>
             </div>
@@ -3806,6 +3900,151 @@
         dsbLoadProjects();
         updateSystemStats();
         setInterval(updateSystemStats, 10000); // Update every 10s
+
+        // ── Preparer ──────────────────────────────────────────────
+        let prepBatchQueue = [];
+        let prepPoller = null;
+
+        window.togglePrepBatchMode = () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            document.getElementById('prep-single-area').style.display = isBatch ? 'none' : 'block';
+            document.getElementById('prep-batch-area').style.display  = isBatch ? 'block' : 'none';
+        };
+
+        window.onPrepBatchFilesChange = () => {
+            const files = document.getElementById('prep-batch-files').files;
+            const tbody = document.getElementById('prep-batch-queue-body');
+            tbody.innerHTML = '';
+            prepBatchQueue = [];
+
+            if (!files.length) {
+                document.getElementById('prep-batch-queue-container').style.display = 'none';
+                return;
+            }
+            document.getElementById('prep-batch-queue-container').style.display = 'block';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-truncate" style="max-width:350px;">${file.name}</td>
+                    <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                `;
+                tbody.appendChild(row);
+                prepBatchQueue.push({ audio: file.name });
+            }
+        };
+
+        window.startPreparer = async () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            if (isBatch) { return _startBatchPreparer(); }
+
+            const audioFile = document.getElementById('prep-audio-file').files[0];
+            if (!audioFile) { showToast('Audio file required', 'error'); return; }
+
+            const btn = document.getElementById('btn-prep-start');
+            btn.disabled = true;
+            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
+            document.getElementById('preparer-progress-section').style.display = 'block';
+            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
+
+            const config = {
+                audio_filename: audioFile.name,
+                output_filename: document.getElementById('prep-output').value,
+                lang:            document.getElementById('prep-lang').value,
+                min_confidence:  parseFloat(document.getElementById('prep-confidence').value),
+                min_snr:         parseInt(document.getElementById('prep-snr').value),
+            };
+
+            const fd = new FormData();
+            fd.append('config_json', JSON.stringify(config));
+            fd.append('audio_file', audioFile);
+
+            try {
+                const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
+                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                _pollPreparerLogs('preparer');
+            } catch (e) {
+                showToast('Failed to start: ' + e.message, 'error');
+                btn.disabled = false;
+                document.getElementById('btn-prep-cancel').style.display = 'none';
+            }
+        };
+
+        window.cancelPreparer = async () => {
+            const isBatch = document.getElementById('prep-batch-mode').checked;
+            const url = isBatch ? '/api/preparer/batch/cancel' : '/api/preparer/cancel';
+            try { await API.post(url, {}); } catch (e) { /* ignore */ }
+        };
+
+        async function _startBatchPreparer() {
+            if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
+
+            const btn = document.getElementById('btn-prep-start');
+            btn.disabled = true;
+            document.getElementById('btn-prep-cancel').style.display = 'inline-block';
+            document.getElementById('preparer-progress-section').style.display = 'block';
+            document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting batch…</span>';
+
+            const tasks = prepBatchQueue.map(t => ({
+                audio_filename:  t.audio,
+                output_filename: `voice_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
+            }));
+            const body = {
+                tasks,
+                lang:           document.getElementById('prep-lang').value,
+                min_confidence: parseFloat(document.getElementById('prep-confidence').value),
+                min_snr:        parseInt(document.getElementById('prep-snr').value),
+            };
+
+            try {
+                await API.post('/api/preparer/batch/start', body);
+                _pollPreparerLogs('batch_preparer');
+            } catch (e) {
+                showToast('Failed to start batch: ' + e.message, 'error');
+                btn.disabled = false;
+                document.getElementById('btn-prep-cancel').style.display = 'none';
+            }
+        }
+
+        function _pollPreparerLogs(taskName) {
+            if (prepPoller) clearInterval(prepPoller);
+            const logEl = document.getElementById('preparer-logs');
+            let offset = 0;
+
+            prepPoller = setInterval(async () => {
+                try {
+                    const state = await API.get(`/api/status/${taskName}`);
+                    const newLines = state.logs.slice(offset);
+                    offset = state.logs.length;
+                    newLines.forEach(line => {
+                        const div = document.createElement('div');
+                        div.textContent = line;
+                        logEl.appendChild(div);
+                    });
+                    logEl.scrollTop = logEl.scrollHeight;
+
+                    // Update batch queue status badges
+                    if (taskName === 'batch_preparer' && state.tasks) {
+                        state.tasks.forEach((t, i) => {
+                            const el = document.getElementById(`prep-batch-status-${i}`);
+                            if (!el) return;
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                        });
+                    }
+
+                    if (!state.running) {
+                        clearInterval(prepPoller);
+                        prepPoller = null;
+                        document.getElementById('btn-prep-start').disabled = false;
+                        document.getElementById('btn-prep-cancel').style.display = 'none';
+                        const msg = taskName === 'preparer' ? state.status : 'Batch finished';
+                        document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
+                    }
+                } catch (e) { /* network hiccup — keep polling */ }
+            }, 1000);
+        }
     </script>
 </body>
 </html>

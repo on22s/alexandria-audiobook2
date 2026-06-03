@@ -4,7 +4,7 @@ import gc
 import json
 import shutil
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,6 +52,8 @@ LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
+PREPARER_SCRIPT_PATH = os.path.join(BASE_DIR, "alexandria_preparer.py")
+PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -60,6 +62,7 @@ os.makedirs(CLONE_VOICES_DIR, exist_ok=True)
 os.makedirs(LORA_MODELS_DIR, exist_ok=True)
 os.makedirs(LORA_DATASETS_DIR, exist_ok=True)
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
+os.makedirs(PREPARER_OUTPUT_DIR, exist_ok=True)
 
 # Mount static files with absolute path
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -333,6 +336,23 @@ class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
     batch_size: int = 40
 
+class PreparerConfig(BaseModel):
+    audio_filename: str
+    output_filename: str = "alexandria_dataset.zip"
+    lang: str = "en"
+    min_confidence: float = 0.85
+    min_snr: int = 25
+
+class BatchPreparerTask(BaseModel):
+    audio_filename: str
+    output_filename: str
+
+class BatchPreparerRequest(BaseModel):
+    tasks: List[BatchPreparerTask]
+    lang: str = "en"
+    min_confidence: float = 0.85
+    min_snr: int = 25
+
 # Global state for process tracking
 process_state = {
     "script": {"running": False, "logs": []},
@@ -343,78 +363,90 @@ process_state = {
     "review": {"running": False, "logs": []},
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
-    "dataset_builder": {"running": False, "logs": [], "cancel": False}
+    "dataset_builder": {"running": False, "logs": [], "cancel": False},
+    "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
+    "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
 }
 
 def run_process(command: List[str], task_name: str):
-    """Run a subprocess and stream its output into process_state logs.
-
-    Stdout and stderr are merged and read on a dedicated thread so the
-    main loop stays non-blocking on all platforms (avoids select.select(),
-    which does not work on Windows pipes).
-    """
-    global process_state
-    process_state[task_name]["running"] = True
-    process_state[task_name]["logs"] = []
+    """Run a subprocess and stream its output into process_state logs."""
+    state = process_state[task_name]
+    state["running"] = True
+    state["logs"] = []
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
     try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=BASE_DIR,
-            env=os.environ.copy(),
-        )
-        process_state[task_name]["process"] = process
+        return_code = _stream_subprocess_to_logs(command, BASE_DIR, state)
 
-        log_queue: queue.Queue = queue.Queue()
-
-        def _reader(stream, q):
-            try:
-                for line in stream:
-                    q.put(line)
-            finally:
-                q.put(None)  # sentinel: stream exhausted
-
-        reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
-        reader.start()
-
-        while True:
-            try:
-                line = log_queue.get(timeout=0.05)
-            except queue.Empty:
-                if process_state[task_name].get("cancel"):
-                    process.terminate()
-                continue
-            if line is None:
-                break
-            log_line = line.strip()
-            if log_line:
-                logs = process_state[task_name]["logs"]
-                logs.append(log_line)
-                if len(logs) > 1000:
-                    logs.pop(0)
-
-        reader.join()
-        process.wait()
-        return_code = process.returncode
-
-        if process_state[task_name].get("cancel"):
-            process_state[task_name]["logs"].append(f"Task {task_name} cancelled.")
+        if state.get("cancel"):
+            state["logs"].append(f"Task {task_name} cancelled.")
         elif return_code == 0:
-            process_state[task_name]["logs"].append(f"Task {task_name} completed successfully.")
+            state["logs"].append(f"Task {task_name} completed successfully.")
         else:
-            process_state[task_name]["logs"].append(f"Task {task_name} failed with return code {return_code}.")
+            state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
 
     except Exception as e:
         logger.error(f"Error running {task_name}: {e}")
-        process_state[task_name]["logs"].append(f"Error: {str(e)}")
+        state["logs"].append(f"Error: {str(e)}")
     finally:
-        process_state[task_name]["process"] = None
-        process_state[task_name]["running"] = False
+        state["process"] = None
+        state["running"] = False
+
+
+
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
+    """Run a subprocess, appending its merged stdout/stderr into state['logs'].
+
+    Uses a reader thread + Queue so the drain loop can check state['cancel']
+    between reads without any platform-specific I/O multiplexing (e.g. no
+    select.select(), which does not work on Windows pipes).
+
+    Returns the process exit code.
+    """
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        cwd=cwd,
+        env=os.environ.copy(),
+    )
+
+    if "process" in state:
+        state["process"] = process
+
+    log_queue: queue.Queue = queue.Queue()
+
+    def _reader(stream, q):
+        try:
+            for line in stream:
+                q.put(line)
+        finally:
+            q.put(None)
+
+    reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
+    reader.start()
+
+    while True:
+        try:
+            line = log_queue.get(timeout=0.05)
+        except queue.Empty:
+            if state.get("cancel"):
+                process.terminate()
+            continue
+        if line is None:
+            break
+        log_line = line.strip()
+        if log_line:
+            entry = f"{log_prefix}{log_line}" if log_prefix else log_line
+            state["logs"].append(entry)
+            if len(state["logs"]) > max_logs:
+                state["logs"].pop(0)
+
+    reader.join()
+    process.wait()
+    return process.returncode
 
 
 # Endpoints
@@ -2306,6 +2338,189 @@ async def dataset_builder_delete(name: str):
     shutil.rmtree(work_dir, ignore_errors=True)
     logger.info(f"Dataset builder project discarded: {name}")
     return {"status": "deleted", "name": name}
+
+# ── Preparer ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/preparer/start")
+async def preparer_start(
+    background_tasks: BackgroundTasks,
+    config_json: str = Form(...),
+    audio_file: UploadFile = File(...),
+):
+    """Upload audio and run the preparer to generate a voice training dataset."""
+    if not os.path.exists(PREPARER_SCRIPT_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
+        )
+    if process_state["preparer"]["running"]:
+        raise HTTPException(status_code=400, detail="Preparer is already running.")
+
+    try:
+        config = PreparerConfig(**json.loads(config_json))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid config: {e}")
+
+    has_space, free_gb = check_disk_space(ROOT_DIR, 2.0)
+    if not has_space:
+        raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 2 GB required).")
+
+    audio_path = os.path.join(UPLOADS_DIR, config.audio_filename)
+    async with aiofiles.open(audio_path, "wb") as f:
+        while chunk := await audio_file.read(1024 * 1024):
+            await f.write(chunk)
+
+    def _run():
+        state = process_state["preparer"]
+        state["running"] = True
+        state["logs"] = []
+        state["cancel"] = False
+        state["status"] = "running"
+        state["output_file"] = None
+        state["process"] = None
+
+        cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+               "--audio", audio_path,
+               "--output", os.path.join(PREPARER_OUTPUT_DIR, config.output_filename),
+               "--lang", config.lang,
+               "--min-confidence", str(config.min_confidence),
+               "--min-snr", str(config.min_snr)]
+
+        rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
+
+        if state.get("cancel"):
+            state["status"] = "cancelled"
+            state["logs"].append("Preparer cancelled.")
+        elif rc == 0:
+            state["status"] = "done"
+            state["output_file"] = config.output_filename
+            state["logs"].append("Preparer completed successfully.")
+        else:
+            state["status"] = "failed"
+            state["logs"].append(f"Preparer failed (exit code {rc}).")
+
+        state["running"] = False
+        state["process"] = None
+
+    background_tasks.add_task(_run)
+    return {"status": "started"}
+
+
+@app.post("/api/preparer/cancel")
+async def preparer_cancel():
+    state = process_state["preparer"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No preparer is currently running.")
+    proc = state.get("process")
+    if proc:
+        try:
+            proc.terminate()
+        except OSError:
+            pass
+    state["cancel"] = True
+    return {"status": "cancel_requested"}
+
+
+@app.get("/api/preparer/list")
+async def preparer_list_outputs():
+    """List completed dataset ZIP files available for download."""
+    files = []
+    if not os.path.exists(PREPARER_OUTPUT_DIR):
+        return {"files": files}
+    for fname in sorted(os.listdir(PREPARER_OUTPUT_DIR)):
+        if not fname.endswith(".zip"):
+            continue
+        fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
+        files.append({
+            "filename": fname,
+            "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
+            "modified": os.path.getmtime(fpath),
+        })
+    return {"files": files}
+
+
+@app.get("/api/preparer/download/{filename:path}")
+async def preparer_download(filename: str):
+    """Download a generated dataset ZIP."""
+    root = os.path.realpath(PREPARER_OUTPUT_DIR)
+    file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
+    if not file_path.startswith(root + os.sep) and file_path != root:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+    return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
+
+
+@app.post("/api/preparer/batch/start")
+async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
+    """Process multiple audio files sequentially through the preparer script."""
+    if not os.path.exists(PREPARER_SCRIPT_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
+        )
+    if process_state["batch_preparer"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch preparer is already running.")
+
+    has_space, free_gb = check_disk_space(ROOT_DIR, 5.0)
+    if not has_space:
+        raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 5 GB recommended).")
+
+    def _run():
+        state = process_state["batch_preparer"]
+        state["running"] = True
+        state["cancel"] = False
+        state["logs"] = [f"Starting batch of {len(request.tasks)} tasks..."]
+        state["tasks"] = [{"audio": t.audio_filename, "status": "pending"} for t in request.tasks]
+        state["current_task_idx"] = -1
+
+        for i, task in enumerate(request.tasks):
+            if state["cancel"]:
+                state["logs"].append("Batch cancelled.")
+                break
+
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+
+            audio_path = os.path.join(UPLOADS_DIR, task.audio_filename)
+            if not os.path.exists(audio_path):
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — audio not found: {task.audio_filename}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+
+            state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.audio_filename} ---")
+
+            cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+                   "--audio", audio_path,
+                   "--output", os.path.join(PREPARER_OUTPUT_DIR, task.output_filename),
+                   "--lang", request.lang,
+                   "--min-confidence", str(request.min_confidence),
+                   "--min-snr", str(request.min_snr)]
+
+            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            elif rc == 0:
+                state["tasks"][i]["status"] = "done"
+                state["logs"].append(f"[{i+1}] Done: {task.audio_filename}")
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{i+1}] Failed (exit {rc}): {task.audio_filename}")
+
+        state["running"] = False
+        state["logs"].append("Batch processing finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "task_count": len(request.tasks)}
+
+
+@app.post("/api/preparer/batch/cancel")
+async def preparer_batch_cancel():
+    process_state["batch_preparer"]["cancel"] = True
+    return {"status": "cancel_requested"}
+
 
 if __name__ == "__main__":
     import uvicorn
