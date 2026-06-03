@@ -15,7 +15,6 @@ import time
 import threading
 import zipfile
 import subprocess
-import tempfile
 import aiofiles
 from utils import atomic_json_write
 from html.parser import HTMLParser
@@ -24,7 +23,7 @@ from math import ceil
 
 # Import ProjectManager
 from project import ProjectManager
-from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT, load_default_prompts
+from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
@@ -39,7 +38,6 @@ app = FastAPI(title="Alexandria Audiobook")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-VOICES_PATH = os.path.join(ROOT_DIR, "voices.json")
 VOICE_CONFIG_PATH = os.path.join(ROOT_DIR, "voice_config.json")
 SCRIPT_PATH = os.path.join(ROOT_DIR, "annotated_script.json")
 AUDIOBOOK_PATH = os.path.join(ROOT_DIR, "cloned_audiobook.mp3")
@@ -52,7 +50,6 @@ CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
-BUILTIN_LORA_MANIFEST = os.path.join(BUILTIN_LORA_DIR, "manifest.json")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -338,7 +335,6 @@ class GeneratePersonasRequest(BaseModel):
 # Global state for process tracking
 process_state = {
     "script": {"running": False, "logs": []},
-    "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
@@ -394,10 +390,6 @@ def run_process(command: List[str], task_name: str):
         process_state[task_name]["process"] = None
         process_state[task_name]["running"] = False
 
-
-def _atomic_json_write(data, target_path):
-    """Write JSON atomically. Delegates to shared utility."""
-    atomic_json_write(data, target_path)
 
 # Endpoints
 
@@ -808,14 +800,6 @@ async def get_voices():
         })
     return result
 
-@app.post("/api/parse_voices")
-async def parse_voices(background_tasks: BackgroundTasks):
-    if process_state["voices"]["running"]:
-         raise HTTPException(status_code=400, detail="Voice parsing already running")
-
-    background_tasks.add_task(run_process, [sys.executable, "-u", "parse_voices.py"], "voices")
-    return {"status": "started"}
-
 
 @app.post("/api/generate_personas")
 async def generate_personas(background_tasks: BackgroundTasks, request: GeneratePersonasRequest = GeneratePersonasRequest()):
@@ -881,7 +865,7 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
         # Convert Pydantic model to dict
         current_config[voice_name] = config.model_dump()
 
-    _atomic_json_write(current_config, VOICE_CONFIG_PATH)
+    atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
     return {"status": "saved"}
 
@@ -1314,7 +1298,7 @@ def _load_manifest(path):
 
 def _save_manifest(path, manifest):
     """Write a JSON manifest file."""
-    _atomic_json_write(manifest, path)
+    atomic_json_write(manifest, path)
 
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):

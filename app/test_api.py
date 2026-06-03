@@ -674,7 +674,7 @@ def test_restore_chunk():
 
 def test_status_known_tasks():
     task_names = [
-        "script", "voices", "audio", "audacity_export",
+        "script", "audio", "audacity_export",
         "review", "lora_training", "dataset_gen", "dataset_builder",
         "persona"
     ]
@@ -1018,15 +1018,6 @@ def test_review_script():
         raise TestFailure(f"Expected status=started, got {data}")
 
 
-def test_parse_voices():
-    r = post("/api/parse_voices")
-    if r.status_code == 400:
-        raise TestFailure("SKIP: already running")
-    assert_status(r, 200)
-    data = r.json()
-    if data.get("status") != "started":
-        raise TestFailure(f"Expected status=started, got {data}")
-
 
 def test_generate_chunk():
     if not shared.get("has_chunks"):
@@ -1238,7 +1229,6 @@ def run_all_tests():
     section("Generation (TTS/LLM)")
     run_test("generate_script", test_generate_script, requires_full=True)
     run_test("review_script", test_review_script, requires_full=True)
-    run_test("parse_voices", test_parse_voices, requires_full=True)
     run_test("generate_chunk", test_generate_chunk, requires_full=True)
     run_test("generate_batch", test_generate_batch, requires_full=True)
     run_test("generate_batch_fast", test_generate_batch_fast, requires_full=True)
