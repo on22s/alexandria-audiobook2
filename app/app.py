@@ -4,7 +4,7 @@ import gc
 import json
 import shutil
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,11 +13,9 @@ from typing import List, Optional, Dict
 import re
 import time
 import queue
-import signal
 import threading
 import zipfile
 import subprocess
-import tempfile
 import aiofiles
 from utils import atomic_json_write
 from html.parser import HTMLParser
@@ -26,7 +24,7 @@ from math import ceil
 
 # Import ProjectManager
 from project import ProjectManager
-from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT, load_default_prompts
+from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 
@@ -40,7 +38,6 @@ app = FastAPI(title="Alexandria Audiobook")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-VOICES_PATH = os.path.join(ROOT_DIR, "voices.json")
 VOICE_CONFIG_PATH = os.path.join(ROOT_DIR, "voice_config.json")
 SCRIPT_PATH = os.path.join(ROOT_DIR, "annotated_script.json")
 AUDIOBOOK_PATH = os.path.join(ROOT_DIR, "cloned_audiobook.mp3")
@@ -53,9 +50,9 @@ CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
-BUILTIN_LORA_MANIFEST = os.path.join(BUILTIN_LORA_DIR, "manifest.json")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
 PREPARER_SCRIPT_PATH = os.path.join(BASE_DIR, "alexandria_preparer.py")
+PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -64,6 +61,7 @@ os.makedirs(CLONE_VOICES_DIR, exist_ok=True)
 os.makedirs(LORA_MODELS_DIR, exist_ok=True)
 os.makedirs(LORA_DATASETS_DIR, exist_ok=True)
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
+os.makedirs(PREPARER_OUTPUT_DIR, exist_ok=True)
 
 # Mount static files with absolute path
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -354,7 +352,6 @@ class BatchPreparerRequest(BaseModel):
 # Global state for process tracking
 process_state = {
     "script": {"running": False, "logs": []},
-    "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
@@ -363,113 +360,38 @@ process_state = {
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
-    "preparer": {"running": False, "logs": [], "cancel": False, "pid": None, "status": "idle", "output_file": None},
+    "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
 }
 
 def run_process(command: List[str], task_name: str):
-    """Run a subprocess and stream its output into process_state logs.
-
-    Stdout and stderr are merged and read on a dedicated thread so the
-    main loop stays non-blocking on all platforms (avoids select.select(),
-    which does not work on Windows pipes).
-    """
-    global process_state
-    process_state[task_name]["running"] = True
-    process_state[task_name]["logs"] = []
+    """Run a subprocess and stream its output into process_state logs."""
+    state = process_state[task_name]
+    state["running"] = True
+    state["logs"] = []
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
     try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=BASE_DIR,
-            env=os.environ.copy(),
-        )
-        process_state[task_name]["process"] = process
+        return_code = _stream_subprocess_to_logs(command, BASE_DIR, state)
 
-        log_queue: queue.Queue = queue.Queue()
-
-        def _reader(stream, q):
-            try:
-                for line in stream:
-                    q.put(line)
-            finally:
-                q.put(None)  # sentinel: stream exhausted
-
-        reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
-        reader.start()
-
-        while True:
-            try:
-                line = log_queue.get(timeout=0.05)
-            except queue.Empty:
-                if process_state[task_name].get("cancel"):
-                    process.terminate()
-                continue
-            if line is None:
-                break
-            log_line = line.strip()
-            if log_line:
-                logs = process_state[task_name]["logs"]
-                logs.append(log_line)
-                if len(logs) > 1000:
-                    logs.pop(0)
-
-        reader.join()
-        process.wait()
-        return_code = process.returncode
-
-        if process_state[task_name].get("cancel"):
-            process_state[task_name]["logs"].append(f"Task {task_name} cancelled.")
+        if state.get("cancel"):
+            state["logs"].append(f"Task {task_name} cancelled.")
         elif return_code == 0:
-            process_state[task_name]["logs"].append(f"Task {task_name} completed successfully.")
+            state["logs"].append(f"Task {task_name} completed successfully.")
         else:
-            process_state[task_name]["logs"].append(f"Task {task_name} failed with return code {return_code}.")
+            state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
 
     except Exception as e:
         logger.error(f"Error running {task_name}: {e}")
-        process_state[task_name]["logs"].append(f"Error: {str(e)}")
+        state["logs"].append(f"Error: {str(e)}")
     finally:
-        process_state[task_name]["process"] = None
-        process_state[task_name]["running"] = False
+        state["process"] = None
+        state["running"] = False
 
 
-def _atomic_json_write(data, target_path):
-    """Write JSON atomically. Delegates to shared utility."""
-    atomic_json_write(data, target_path)
 
-
-def check_disk_space(path: str, required_gb: float):
-    """Returns (has_space, free_gb). Falls back to (True, 0) if the check fails."""
-    try:
-        stat = shutil.disk_usage(path)
-        free_gb = stat.free / (1024 ** 3)
-        return free_gb >= required_gb, round(free_gb, 1)
-    except Exception:
-        return True, 0.0
-
-
-def _normalize_filename_tokens(stem: str) -> list:
-    return re.findall(r'[a-z0-9]+', stem.lower())
-
-
-def _fuzzy_score(audio_tokens: list, book_tokens: list) -> float:
-    if not audio_tokens or not book_tokens:
-        return 0.0
-    a, b = set(audio_tokens), set(book_tokens)
-    common = a & b
-    if not common:
-        return 0.0
-    precision = len(common) / len(b)
-    recall = len(common) / len(a)
-    return 2 * precision * recall / (precision + recall)
-
-
-def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "") -> int:
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
     Uses a reader thread + Queue so the drain loop can check state['cancel']
@@ -487,8 +409,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         env=os.environ.copy(),
     )
 
-    if "pid" in state:
-        state["pid"] = process.pid
+    if "process" in state:
+        state["process"] = process
 
     log_queue: queue.Queue = queue.Queue()
 
@@ -515,7 +437,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         if log_line:
             entry = f"{log_prefix}{log_line}" if log_prefix else log_line
             state["logs"].append(entry)
-            if len(state["logs"]) > 5000:
+            if len(state["logs"]) > max_logs:
                 state["logs"].pop(0)
 
     reader.join()
@@ -900,14 +822,6 @@ async def get_voices():
         })
     return result
 
-@app.post("/api/parse_voices")
-async def parse_voices(background_tasks: BackgroundTasks):
-    if process_state["voices"]["running"]:
-         raise HTTPException(status_code=400, detail="Voice parsing already running")
-
-    background_tasks.add_task(run_process, [sys.executable, "-u", "parse_voices.py"], "voices")
-    return {"status": "started"}
-
 
 @app.post("/api/generate_personas")
 async def generate_personas(background_tasks: BackgroundTasks, request: GeneratePersonasRequest = GeneratePersonasRequest()):
@@ -973,7 +887,7 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
         # Convert Pydantic model to dict
         current_config[voice_name] = config.model_dump()
 
-    _atomic_json_write(current_config, VOICE_CONFIG_PATH)
+    atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
     return {"status": "saved"}
 
@@ -1406,7 +1320,7 @@ def _load_manifest(path):
 
 def _save_manifest(path, manifest):
     """Write a JSON manifest file."""
-    _atomic_json_write(manifest, path)
+    atomic_json_write(manifest, path)
 
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):
@@ -2427,11 +2341,11 @@ async def preparer_start(
         state["cancel"] = False
         state["status"] = "running"
         state["output_file"] = None
-        state["pid"] = None
+        state["process"] = None
 
         cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
                "--audio", audio_path,
-               "--output", os.path.join(ROOT_DIR, config.output_filename),
+               "--output", os.path.join(PREPARER_OUTPUT_DIR, config.output_filename),
                "--lang", config.lang,
                "--min-confidence", str(config.min_confidence),
                "--min-snr", str(config.min_snr)]
@@ -2450,7 +2364,7 @@ async def preparer_start(
             state["logs"].append(f"Preparer failed (exit code {rc}).")
 
         state["running"] = False
-        state["pid"] = None
+        state["process"] = None
 
     background_tasks.add_task(_run)
     return {"status": "started"}
@@ -2461,11 +2375,11 @@ async def preparer_cancel():
     state = process_state["preparer"]
     if not state["running"]:
         raise HTTPException(status_code=400, detail="No preparer is currently running.")
-    pid = state.get("pid")
-    if pid:
+    proc = state.get("process")
+    if proc:
         try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
+            proc.terminate()
+        except OSError:
             pass
     state["cancel"] = True
     return {"status": "cancel_requested"}
@@ -2475,10 +2389,12 @@ async def preparer_cancel():
 async def preparer_list_outputs():
     """List completed dataset ZIP files available for download."""
     files = []
-    for fname in sorted(os.listdir(ROOT_DIR)):
+    if not os.path.exists(PREPARER_OUTPUT_DIR):
+        return {"files": files}
+    for fname in sorted(os.listdir(PREPARER_OUTPUT_DIR)):
         if not fname.endswith(".zip"):
             continue
-        fpath = os.path.join(ROOT_DIR, fname)
+        fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
         files.append({
             "filename": fname,
             "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
@@ -2490,8 +2406,8 @@ async def preparer_list_outputs():
 @app.get("/api/preparer/download/{filename:path}")
 async def preparer_download(filename: str):
     """Download a generated dataset ZIP."""
-    root = os.path.realpath(ROOT_DIR)
-    file_path = os.path.realpath(os.path.join(ROOT_DIR, filename))
+    root = os.path.realpath(PREPARER_OUTPUT_DIR)
+    file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
     if not file_path.startswith(root + os.sep) and file_path != root:
         raise HTTPException(status_code=400, detail="Invalid filename.")
     if not os.path.exists(file_path):
@@ -2540,7 +2456,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
 
             cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
                    "--audio", audio_path,
-                   "--output", os.path.join(ROOT_DIR, task.output_filename),
+                   "--output", os.path.join(PREPARER_OUTPUT_DIR, task.output_filename),
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]

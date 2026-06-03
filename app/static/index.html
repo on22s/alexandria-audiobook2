@@ -73,7 +73,7 @@
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Dataset Builder</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
                 </ul>
@@ -2593,8 +2593,8 @@
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick="loadScript(${JSON.stringify(s.name)})"><i class="fas fa-upload me-1"></i>Load</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteScript(${JSON.stringify(s.name)})"><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${JSON.stringify(s.name)})'><i class="fas fa-upload me-1"></i>Load</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick='deleteScript(${JSON.stringify(s.name)})'><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
@@ -2641,9 +2641,10 @@
                     showToast(err.detail || 'Failed to load script.', 'error');
                     return;
                 }
+                showToast(`Script "${name}" loaded.`, 'success');
+                await loadChunks(true);
+                await loadVoices();
                 loadSavedScripts();
-                loadChunks();
-                loadVoices();
                 resetDesignerForm();
                 loadDesignedVoices();
             } catch (e) {
@@ -2691,9 +2692,9 @@
                                     <td><strong>${escapeHtml(v.name)}</strong></td>
                                     <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.description)}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice(${JSON.stringify(v.filename)})" title="Play"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit(${JSON.stringify(v.id)})" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice(${JSON.stringify(v.id)})" title="Delete"><i class="fas fa-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${JSON.stringify(v.filename)})' title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${JSON.stringify(v.id)})' title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${JSON.stringify(v.id)})' title="Delete"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -3030,7 +3031,7 @@
                 listEl.innerHTML = datasets.map(d => `
                     <div class="d-flex justify-content-between align-items-center py-1">
                         <span><strong>${escapeHtml(d.dataset_id)}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteLoraDataset(${JSON.stringify(d.dataset_id)})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick='deleteLoraDataset(${JSON.stringify(d.dataset_id)})'><i class="fas fa-trash"></i></button>
                     </div>
                 `).join('');
             } catch (e) {
@@ -3207,11 +3208,11 @@
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
-                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick="downloadBuiltinAdapter(${JSON.stringify(m.id)})" title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
+                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick='downloadBuiltinAdapter(${JSON.stringify(m.id)})' title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
                                         ` : `
-                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick="playLoraPreview(${JSON.stringify(m.id)})" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
-                                            <button class="btn btn-sm btn-outline-primary me-1" onclick="testLoraModel(${JSON.stringify(m.id)})" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
-                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick="deleteLoraModel(${JSON.stringify(m.id)})" title="Delete"><i class="fas fa-trash"></i></button>`}
+                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick='playLoraPreview(${JSON.stringify(m.id)})' title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary me-1" onclick='testLoraModel(${JSON.stringify(m.id)})' title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
+                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick='deleteLoraModel(${JSON.stringify(m.id)})' title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
                                 </tr>
