@@ -114,7 +114,7 @@ class ProjectManager:
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError, OSError):
+            except Exception:
                 pass
 
         try:
@@ -190,13 +190,9 @@ class ProjectManager:
             name = alias
         return name
 
-    def _atomic_json_write(self, data, target_path, max_retries=5):
-        """Atomically write JSON data. Delegates to shared utility."""
-        atomic_json_write(data, target_path, max_retries=max_retries)
-
     def save_chunks(self, chunks):
         with self._chunks_lock:
-            self._atomic_json_write(chunks, self.chunks_path)
+            atomic_json_write(chunks, self.chunks_path)
 
     def _update_chunk_fields(self, index, **fields):
         """Atomically update fields on a single chunk (thread-safe read-modify-write).
@@ -213,7 +209,7 @@ class ProjectManager:
             if not (0 <= index < len(chunks)):
                 return None
             chunks[index].update(fields)
-            self._atomic_json_write(chunks, self.chunks_path)
+            atomic_json_write(chunks, self.chunks_path)
             return chunks[index]
 
     def insert_chunk(self, after_index):
@@ -242,7 +238,7 @@ class ProjectManager:
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
-            self._atomic_json_write(chunks, self.chunks_path)
+            atomic_json_write(chunks, self.chunks_path)
             return chunks
 
     def delete_chunk(self, index):
@@ -263,7 +259,7 @@ class ProjectManager:
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
-            self._atomic_json_write(chunks, self.chunks_path)
+            atomic_json_write(chunks, self.chunks_path)
             return deleted, chunks
 
     def restore_chunk(self, at_index, chunk_data):
@@ -281,7 +277,7 @@ class ProjectManager:
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
-            self._atomic_json_write(chunks, self.chunks_path)
+            atomic_json_write(chunks, self.chunks_path)
             return chunks
 
     def update_chunk(self, index, data):
@@ -304,7 +300,6 @@ class ProjectManager:
             if "text" in data or "instruct" in data or "speaker" in data:
                 chunk["status"] = "pending"
 
-            print(f"update_chunk({index}): instruct='{chunk.get('instruct', '')}', speaker='{chunk.get('speaker', '')}'")
             self.save_chunks(chunks)
             return chunk
         return None
