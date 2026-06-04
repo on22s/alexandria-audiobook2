@@ -333,7 +333,7 @@ class GeneratePersonasRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": []},
+    "script": {"running": False, "logs": [], "cancel": False, "process": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
@@ -367,6 +367,13 @@ def run_process(command: List[str], task_name: str):
         )
         process_state[task_name]["process"] = process
 
+        # Handle cancel queued before Popen completed
+        if process_state[task_name].get("cancel"):
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
         for line in process.stdout:
             log_line = line.strip()
             if log_line:
@@ -389,6 +396,25 @@ def run_process(command: List[str], task_name: str):
     finally:
         process_state[task_name]["process"] = None
         process_state[task_name]["running"] = False
+        if "cancel" in process_state[task_name]:
+            process_state[task_name]["cancel"] = False
+
+
+def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
+    """Terminate a running subprocess task, or queue cancel if Popen hasn't fired yet."""
+    state = process_state[state_key]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail=not_running_msg)
+    proc = state.get("process")
+    if proc is None:
+        # Pre-Popen race: run_process will check the flag immediately after Popen
+        state["cancel"] = True
+        return {"status": "cancel queued"}
+    try:
+        proc.terminate()
+    except OSError:
+        raise HTTPException(status_code=400, detail=exited_msg)
+    return {"status": "cancel signal sent"}
 
 
 def _atomic_json_write(data, target_path):
@@ -473,7 +499,8 @@ async def get_config():
             except RuntimeError:
                 pass  # review_prompts.txt missing or malformed — leave fields empty
 
-    # Include current input file info if available
+    # Include current input file info (always present; null if no file loaded)
+    config["current_file"] = None
     state_path = os.path.join(ROOT_DIR, "state.json")
     if os.path.exists(state_path):
         try:
@@ -663,6 +690,15 @@ async def generate_script(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
     return {"status": "started"}
+
+
+@app.post("/api/generate_script/cancel")
+async def generate_script_cancel():
+    return _cancel_task(
+        "script",
+        "No script generation is currently running.",
+        "Script generation process already exited.",
+    )
 
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):

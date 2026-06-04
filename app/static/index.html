@@ -324,6 +324,9 @@
                         <button class="btn btn-success btn-lg" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
                         </button>
+                        <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
+                            <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
                         <small class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
                         <button class="btn btn-outline-secondary btn-lg" id="btn-review-script">
                             <i class="fas fa-check-double me-2"></i>Review Script (Optional)
@@ -1265,9 +1268,16 @@
                 return;
             }
 
+            const genBtn = document.getElementById('btn-gen-script');
+            const cancelBtn = document.getElementById('btn-cancel-script');
             try {
                 await API.post('/api/generate_script', {});
-                pollLogs('script', 'script-logs');
+                genBtn.disabled = true;
+                cancelBtn.style.display = 'inline-block';
+                pollLogs('script', 'script-logs', () => {
+                    genBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                });
             } catch (e) {
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
@@ -1277,6 +1287,14 @@
                 }
             }
         });
+
+        window.cancelScript = async () => {
+            try {
+                await API.post('/api/generate_script/cancel', {});
+            } catch (e) {
+                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
             try {
@@ -2437,7 +2455,7 @@
         };
 
         // --- Polling Logic ---
-        async function pollLogs(taskName, elementId) {
+        async function pollLogs(taskName, elementId, onDone) {
             const el = document.getElementById(elementId);
             const interval = setInterval(async () => {
                 try {
@@ -2447,6 +2465,7 @@
 
                     if (!status.running) {
                         clearInterval(interval);
+                        if (onDone) onDone(status);
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
                             // Load audio player
                             const audio = document.getElementById('main-audio');
