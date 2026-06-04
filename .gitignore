@@ -8,6 +8,9 @@ app/env/
 !.github/
 !.gitignore
 !.dockerignore
+!.claude/
+.claude/*
+!.claude/skills/
 ~*
 /logs/
 /cache/
@@ -76,3 +79,54 @@ dataset_builder/
 # Docker persistent data
 data/
 
+# Local LLM model weights (multi-GB, not source code)
+*.gguf
+models/
+
+# Vendored third-party repos
+insanely-fast-whisper-rocm/
+
+# Sample audio under test (user content, not code)
+audiobook.wav
+
+# Batch processor runtime outputs
+batch_results_*.json
+
+# Preparer scratch directory
+dataset_temp/
+
+# Compare-script output artifacts (user-content; live next to the source audio)
+metadata_corrected.jsonl
+metadata_corrected_review_log.jsonl
+.metadata_compare_progress.json
+
+# Generated dataset zip
+alexandria_dataset_*.zip
+
+# Test-corpus run outputs (multi-GB zips, per-run sentinels, watchdog logs)
+test_corpus_output/
+test_corpus_output_pre_*/
+
+
+.gemini/
+gha-creds-*.json
+
+# Pip/CMake rebuild artifacts (e.g. llama-cpp-python ROCm rebuilds)
+build_logs/
+
+# Web wrapper's own log directory
+app/logs/
+
+# Session handoff artifacts
+HANDOFF.md
+
+# Random corpus test outputs (user-generated runtime data)
+random_test_output/
+sample_*.wav
+epub_files.txt
+wav_files.txt
+selected_pairs.txt
+kizu_test_output*.zip
+opt_test.zip
+batch_test*.zip
+batch_test*.zip
