@@ -1,7 +1,9 @@
+import argparse
 import os
 import sys
 import json
 import re
+import time
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 
@@ -346,12 +348,11 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_e
     return []
 
 def main():
-    if len(sys.argv) < 2:
-        print("Error: No input file path provided.")
-        print("Usage: python generate_script.py <input_file_path>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
+    parser.add_argument("input_file", help="Path to the input text/epub file")
+    args = parser.parse_args()
 
-    input_file_path = sys.argv[1]
+    input_file_path = args.input_file
     print(f"Processing book from: {input_file_path}")
 
     if not os.path.exists(input_file_path):
@@ -418,9 +419,13 @@ def main():
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
 
     all_entries = []
+    chunk_times = []
+    start_time = time.monotonic()
+
     for i, chunk in enumerate(chunks, 1):
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
+        chunk_start = time.monotonic()
         previous = all_entries if len(all_entries) > 0 else None
         entries = process_chunk(
             client, model_name, chunk, i, total_chunks,
@@ -435,20 +440,36 @@ def main():
             presence_penalty=presence_penalty,
             banned_tokens=banned_tokens
         )
+        chunk_elapsed = time.monotonic() - chunk_start
+        chunk_times.append(chunk_elapsed)
+
         all_entries.extend(entries)
-        print(f"  Got {len(entries)} entries")
+        print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
+
+        remaining = total_chunks - i
+        if remaining > 0:
+            avg = sum(chunk_times) / len(chunk_times)
+            eta_sec = avg * remaining
+            if eta_sec < 60:
+                eta_str = f"{eta_sec:.0f}s"
+            elif eta_sec < 3600:
+                eta_str = f"{int(eta_sec // 60)}m {int(eta_sec % 60)}s"
+            else:
+                eta_str = f"{int(eta_sec // 3600)}h {int((eta_sec % 3600) // 60)}m"
+            elapsed_total = time.monotonic() - start_time
+            print(f"  ETA: ~{eta_str} remaining ({remaining} chunk(s) left, avg {avg:.0f}s/chunk, {elapsed_total:.0f}s elapsed)")
 
     if not all_entries:
         print("Error: No script entries generated")
         sys.exit(1)
 
     # Save as JSON
-    output_path = os.path.join("..", "annotated_script.json")
+    output_path = os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(all_entries, f, indent=2, ensure_ascii=False)
 
     # Delete old chunks.json so editor regenerates from new script
-    chunks_path = os.path.join("..", "chunks.json")
+    chunks_path = os.path.join(os.path.dirname(__file__), "..", "chunks.json")
     if os.path.exists(chunks_path):
         os.remove(chunks_path)
         print("Cleared old chunks.json")
