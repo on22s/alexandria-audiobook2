@@ -11,6 +11,7 @@ module.exports = {
     let running = {
       install: info.running("install.js"),
       start: info.running("start.js"),
+      start_llm: info.running("start_llm.js"),
       reset: info.running("reset.js"),
       update: info.running("update.js")
     }
@@ -30,25 +31,48 @@ module.exports = {
 
     if (running.start) {
       let local = info.local("start.js")
+      let items = []
       if (local && local.url) {
-        return [{
+        items.push({
           default: true,
           icon: "fa-solid fa-rocket",
           text: "Open Web UI",
           href: local.url,
-        }, {
+        })
+        items.push({
           icon: "fa-solid fa-terminal",
           text: "Terminal",
           href: "start.js",
-        }]
+        })
       } else {
-        return [{
+        items.push({
           default: true,
           icon: "fa-solid fa-terminal",
           text: "Starting",
           href: "start.js",
-        }]
+        })
       }
+      if (running.start_llm) {
+        items.push({
+          icon: "fa-solid fa-brain",
+          text: "LLM Server",
+          href: "start_llm.js",
+        })
+      }
+      return items
+    }
+
+    if (running.start_llm && !running.start) {
+      return [{
+        default: true,
+        icon: "fa-solid fa-brain",
+        text: "LLM Server",
+        href: "start_llm.js",
+      }, {
+        icon: "fa-solid fa-power-off",
+        text: "Start App",
+        href: "start.js",
+      }]
     }
 
     if (running.reset) {
@@ -85,6 +109,20 @@ module.exports = {
       icon: "fa-solid fa-power-off",
       text: "Start",
       href: "start.js"
+    }, {
+      icon: "fa-solid fa-brain",
+      text: "Start LLM: Gemma 4",
+      href: "start_llm.js",
+      params: {
+        model: "Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
+      }
+    }, {
+      icon: "fa-solid fa-brain",
+      text: "Start LLM: Qwen 2.5 14B",
+      href: "start_llm.js",
+      params: {
+        model: "Qwen2.5-14B-Instruct-Q6_K.gguf"
+      }
     }, {
       icon: "fa-solid fa-folder-open",
       text: "Open Voicelines",
