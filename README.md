@@ -408,7 +408,19 @@ Alexandria automatically applies ROCm-specific optimizations when running on AMD
 
 These are applied transparently and require no configuration.
 
-> **ROCm 7.2+ batch workaround:** PyTorch's flash and memory-efficient SDPA kernels on ROCm 7.2+ have a regression that causes batch generation to hang when processing left-padded sequences (used by clone and LoRA voice batching). Alexandria automatically disables these SDPA backends during batch clone/LoRA generation on AMD GPUs, falling back to the math SDPA kernel. Single-item generation and custom voice batching are unaffected. NVIDIA users are not impacted — this applies only to AMD/ROCm.
+> **ROCm 7.x GPU downclocking fix:** ROCm 7.x has a regression where the GPU's DPM controller aggressively downclocks the shader engine between autoregressive generation steps, causing batch generation to slow to a crawl or appear to hang. The fix is to set the GPU power profile to COMPUTE, which enforces a minimum clock frequency floor:
+>
+> ```bash
+> echo 5 | sudo tee /sys/class/drm/card1/device/pp_power_profile_mode
+> ```
+>
+> This needs to be run once per boot (it does not persist across reboots). You can add it to your system startup or run it manually before launching Alexandria. To verify it's active, check for `COMPUTE*` in the output of:
+>
+> ```bash
+> cat /sys/class/drm/card1/device/pp_power_profile_mode
+> ```
+>
+> ROCm 6.x users and NVIDIA users are not affected.
 
 ## Script Format
 
