@@ -138,6 +138,23 @@ class TTSEngine:
         return wav
 
     @staticmethod
+    def _vram_snapshot(label=""):
+        """Log and return current VRAM state in GB (allocated/reserved/free/total)."""
+        import torch
+        if not torch.cuda.is_available():
+            return {}
+        alloc = torch.cuda.memory_allocated() / 1e9
+        reserved = torch.cuda.memory_reserved() / 1e9
+        free, total = torch.cuda.mem_get_info()
+        free /= 1e9
+        total /= 1e9
+        snap = {"allocated_gb": round(alloc, 2), "reserved_gb": round(reserved, 2),
+                "free_gb": round(free, 2), "total_gb": round(total, 1)}
+        tag = f"[{label}] " if label else ""
+        print(f"VRAM {tag}{alloc:.2f} alloc / {reserved:.2f} reserved / {free:.2f} free / {total:.1f} total GB")
+        return snap
+
+    @staticmethod
     def _clear_gpu_cache():
         """Free GPU memory: garbage-collect Python objects, then clear CUDA cache."""
         import gc
@@ -435,15 +452,20 @@ class TTSEngine:
         handles varying batch sizes gracefully (unlike reduce-overhead
         which uses CUDA graphs that break on shape changes).
         """
-        import torch
+        import torch, time
+        vram_before = self._vram_snapshot("pre-compile_codec")
+        t0 = time.time()
         try:
             codec = model.model.speech_tokenizer.model
             model.model.speech_tokenizer.model = torch.compile(
                 codec, mode="max-autotune", dynamic=True,
             )
-            print("Codec compiled with torch.compile (dynamic=True).")
+            compile_time = time.time() - t0
+            vram_after = self._vram_snapshot("post-compile_codec")
+            delta = vram_after.get("allocated_gb", 0) - vram_before.get("allocated_gb", 0)
+            print(f"Codec compiled OK in {compile_time:.1f}s (VRAM delta: {delta:+.2f} GB).")
         except Exception as e:
-            print(f"Codec compilation skipped (non-fatal): {e}")
+            print(f"Codec compilation FAILED after {time.time()-t0:.1f}s: {type(e).__name__}: {e}")
 
     @staticmethod
     def _resolve_local_model_path(model_id):
@@ -502,15 +524,18 @@ class TTSEngine:
             dtype = torch.bfloat16 if "cuda" in device else torch.float32
 
             print(f"Loading Qwen3-TTS CustomVoice model on {device} ({dtype})...")
+            vram_before = self._vram_snapshot("pre-load")
             load_kwargs = {"dtype": dtype}
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_custom_model = self._load_model(
                 Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", load_kwargs,
             )
+            vram_after = self._vram_snapshot("post-load")
+            model_gb = vram_after.get("allocated_gb", 0) - vram_before.get("allocated_gb", 0)
+            print(f"CustomVoice model loaded: {model_gb:.2f} GB VRAM footprint")
             if self._compile_codec_enabled:
                 self._compile_codec(self._local_custom_model)
-            print("CustomVoice model loaded.")
             return self._local_custom_model
 
     def _init_local_clone(self):
@@ -1238,6 +1263,7 @@ class TTSEngine:
                 if batch_seed >= 0:
                     torch.manual_seed(batch_seed)
 
+                torch.cuda.reset_peak_memory_stats()
                 t_start = time.time()
                 wavs_list, sr = model.generate_custom_voice(
                     text=sb_texts,
@@ -1248,6 +1274,8 @@ class TTSEngine:
                     max_new_tokens=2048,
                 )
                 gen_time = time.time() - t_start
+                peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                 if wavs_list is None:
                     for idx in sb_indices:
