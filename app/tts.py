@@ -1225,6 +1225,17 @@ class TTSEngine:
 
         self._clear_gpu_cache()
 
+        # ROCm workaround: flash/mem-efficient SDPA kernels in ROCm 7.2+
+        # hang during batched attention with left-padded sequences.
+        # Fall back to the math SDPA kernel for batch generation.
+        # NVIDIA users are unaffected (different kernel implementations).
+        _rocm_sdpa_workaround = hasattr(torch.version, "hip") and torch.version.hip
+        if _rocm_sdpa_workaround:
+            _flash_was_enabled = torch.backends.cuda.flash_sdp_enabled()
+            _mem_was_enabled = torch.backends.cuda.mem_efficient_sdp_enabled()
+            torch.backends.cuda.enable_flash_sdp(False)
+            torch.backends.cuda.enable_mem_efficient_sdp(False)
+
         t_total_start = time.time()
         total_audio_duration = 0.0
 
@@ -1306,6 +1317,10 @@ class TTSEngine:
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [clone] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
 
+        if _rocm_sdpa_workaround:
+            torch.backends.cuda.enable_flash_sdp(_flash_was_enabled)
+            torch.backends.cuda.enable_mem_efficient_sdp(_mem_was_enabled)
+
         return results
 
     def _local_batch_lora(self, chunks, voice_config, output_dir):
@@ -1347,6 +1362,14 @@ class TTSEngine:
             print("Running batch warmup generation...")
             self._warmup_model(warmup_model)
             self._warmup_needed = False
+
+        # ROCm workaround: same flash/mem-efficient SDPA batch hang as clone
+        _rocm_sdpa_workaround = hasattr(torch.version, "hip") and torch.version.hip
+        if _rocm_sdpa_workaround:
+            _flash_was_enabled = torch.backends.cuda.flash_sdp_enabled()
+            _mem_was_enabled = torch.backends.cuda.mem_efficient_sdp_enabled()
+            torch.backends.cuda.enable_flash_sdp(False)
+            torch.backends.cuda.enable_mem_efficient_sdp(False)
 
         t_total_start = time.time()
         total_audio_duration = 0.0
@@ -1483,6 +1506,10 @@ class TTSEngine:
         total_time = time.time() - t_total_start
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [lora] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
+
+        if _rocm_sdpa_workaround:
+            torch.backends.cuda.enable_flash_sdp(_flash_was_enabled)
+            torch.backends.cuda.enable_mem_efficient_sdp(_mem_was_enabled)
 
         return results
 
