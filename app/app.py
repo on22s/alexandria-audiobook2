@@ -306,7 +306,7 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": []},
+    "script": {"running": False, "logs": [], "cancel": False, "pid": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
@@ -363,6 +363,12 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         if "pid" in state:
             state["pid"] = process.pid
 
+        if state.get("cancel"):
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
         for line in process.stdout:
             log_line = line.strip()
             if log_line:
@@ -392,6 +398,27 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         state["running"] = False
         if "return_code" in state: state["return_code"] = return_code
         if "pid"         in state: state["pid"]         = None
+
+
+def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
+    """Terminate a running subprocess task, or queue cancel if Popen hasn't run yet."""
+    state = process_state[state_key]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail=not_running_msg)
+    pid = state.get("pid")
+    if not pid:
+        # Pre-Popen race window: flag is checked by run_process immediately after Popen
+        state["cancel"] = True
+        return {"status": "cancel queued"}
+    proc = state.get("process")
+    try:
+        if proc is not None:
+            proc.terminate()
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        raise HTTPException(status_code=400, detail=exited_msg)
+    return {"status": "cancel signal sent", "pid": pid}
 
 
 def _atomic_json_write(data, target_path):
@@ -588,15 +615,39 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
 
 @app.get("/api/system/stats")
 async def get_system_stats():
-    """Return GPU memory and disk statistics."""
+    """Return GPU memory, disk, and basic hardware statistics."""
     gpu = get_gpu_stats()
     has_space, free_gb = check_disk_space(ROOT_DIR, 1.0)
+
+    cpu_count = os.cpu_count()
+
+    ram_gb = None
+    try:
+        with open("/proc/meminfo") as _mf:
+            for _line in _mf:
+                if _line.startswith("MemTotal:"):
+                    ram_gb = round(int(_line.split()[1]) / 1_048_576, 1)
+                    break
+    except Exception:
+        pass
+
+    gpu_name = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+
     return {
         "gpu": gpu,
+        "gpu_name": gpu_name,
         "disk": {
             "free_gb": round(free_gb, 2),
             "low_space": not has_space
-        }
+        },
+        "cpu_count": cpu_count,
+        "ram_gb": ram_gb,
     }
 
 
@@ -651,19 +702,7 @@ async def get_preparer_status(log_offset: int = Query(0)):
 
 @app.post("/api/preparer/cancel")
 async def cancel_preparer():
-    """Send SIGTERM to the running preparer subprocess."""
-    state = process_state["preparer"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No preparer is currently running.")
-    pid = state.get("pid")
-    if not pid:
-        raise HTTPException(status_code=400, detail="Preparer PID not available yet.")
-    try:
-        os.kill(pid, signal.SIGTERM)
-        state["cancel"] = True
-    except ProcessLookupError:
-        raise HTTPException(status_code=400, detail="Preparer process already exited.")
-    return {"status": "cancel signal sent", "pid": pid}
+    return _cancel_task("preparer", "No preparer is currently running.", "Preparer process already exited.")
 
 
 @app.get("/api/preparer/list")
@@ -972,6 +1011,10 @@ async def generate_script(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
     return {"status": "started"}
+
+@app.post("/api/generate_script/cancel")
+async def generate_script_cancel():
+    return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):
