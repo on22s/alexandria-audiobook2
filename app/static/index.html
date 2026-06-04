@@ -73,9 +73,15 @@
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="editor">4. Editor</a></li>
                     <li class="nav-item"><a class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-item ms-3 border-start border-secondary ps-3"><a class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Dataset Builder</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
+                </ul>
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item small d-flex align-items-center" title="System Status">
+                        <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span id="sys-gpu-val" style="font-family: monospace;">N/A</span></span>
+                        <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span id="sys-disk-val" style="font-family: monospace;">N/A</span></span>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -86,10 +92,17 @@
         <!-- Setup Tab -->
         <div id="setup-tab" class="tab-content">
             <div class="card">
-                <div class="card-header">
-                    <h4><span class="step-indicator step-active">1</span>Configuration</h4>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0"><span class="step-indicator step-active">1</span>Configuration</h4>
+                    <button type="button" class="btn btn-sm btn-outline-info" id="btn-auto-configure" onclick="autoConfigureSettings()">
+                        <i class="fas fa-magic me-1"></i>Auto-Configure
+                    </button>
                 </div>
                 <div class="card-body">
+                    <div id="auto-config-banner" class="alert alert-info alert-dismissible py-2 small mb-3" style="display:none;">
+                        <span id="auto-config-msg"></span>
+                        <button type="button" class="btn-close btn-sm" onclick="document.getElementById('auto-config-banner').style.display='none'"></button>
+                    </div>
                     <form id="config-form">
                         <h5 class="mb-3">LLM Settings (Script Generation)</h5>
                         <div class="mb-3">
@@ -291,6 +304,23 @@
                                 <textarea class="form-control font-monospace" id="review-user-prompt" rows="4" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for each review batch. Use <code>{context}</code> for batch context and <code>{batch}</code> for the script entries.</div>
                             </div>
+                            <hr>
+                            <h6 class="mb-3">Persona Prompt Customization</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Persona System Prompt</label>
+                                <textarea class="form-control font-monospace" id="persona-system-prompt" rows="4" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">System instruction for the LLM during persona generation. Shared by basic and advanced modes.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Persona User Prompt Template</label>
+                                <textarea class="form-control font-monospace" id="persona-user-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Template for basic per-speaker persona generation. Use <code>{speaker}</code> for character name, <code>{narrator_context}</code> for surrounding narration, <code>{sample_lines}</code> for dialogue samples.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Persona Advanced Compilation Prompt</label>
+                                <textarea class="form-control font-monospace" id="persona-advanced-prompt" rows="8" style="font-size: 0.85em;"></textarea>
+                                <div class="form-text">Template for advanced mode final compilation. Use <code>{character_ref}</code> for the accumulated character reference data.</div>
+                            </div>
                             <button type="button" class="btn btn-outline-secondary btn-sm mb-3" onclick="resetPrompts()">
                                 <i class="fas fa-undo me-1"></i>Reset to Defaults
                             </button>
@@ -305,20 +335,60 @@
         <!-- Script Tab -->
         <div id="script-tab" class="tab-content" style="display:none;">
             <div class="card">
-                <div class="card-header">
-                    <h4><span class="step-indicator step-active">2</span>Generate Script</h4>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0"><span class="step-indicator step-active">2</span>Generate Script</h4>
+                    <div class="form-check form-switch ms-3 flex-shrink-0">
+                        <input class="form-check-input" type="checkbox" id="script-batch-mode" onchange="toggleScriptBatchMode()">
+                        <label class="form-check-label" for="script-batch-mode">Batch Mode</label>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="mb-4">
-                        <label class="form-label">Select Book/Novel (Text, Markdown, or EPUB)</label>
-                        <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub">
-                        <div id="upload-status" class="mt-2"></div>
+                    <!-- Single Mode -->
+                    <div id="script-single-area">
+                        <div class="mb-4">
+                            <label class="form-label">Select Book/Novel (Text, Markdown, or EPUB)</label>
+                            <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub">
+                            <div id="upload-status" class="mt-2"></div>
+                        </div>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success btn-lg" id="btn-gen-script">
+                    <!-- Batch Mode -->
+                    <div id="script-batch-area" style="display:none;">
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
+                            Select multiple book files. Each is processed with your configured LLM and saved directly to the Scripts library below.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Files (TXT, MD, EPUB)</label>
+                            <input type="file" class="form-control" id="script-batch-files" accept=".txt,.md,.epub" multiple onchange="onScriptBatchFilesChange()">
+                        </div>
+                        <div id="script-batch-queue-container" class="mb-4" style="display:none;">
+                            <h6>Processing Queue</h6>
+                            <div class="table-responsive border rounded">
+                                <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
+                                    <thead class="table-light">
+                                        <tr><th>File</th><th style="width:110px;">Status</th></tr>
+                                    </thead>
+                                    <tbody id="script-batch-queue-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex mb-2">
+                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
                         </button>
+                        <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
+                            <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                        <button class="btn btn-outline-danger" id="btn-cancel-batch-script" style="display:none;" onclick="cancelBatchScript()">
+                            <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                    </div>
+                    <div id="script-batch-status-msg" class="text-center text-muted small mb-2" style="display:none;"></div>
+
+                    <div class="d-grid gap-2">
                         <small class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
                         <button class="btn btn-outline-secondary btn-lg" id="btn-review-script">
                             <i class="fas fa-check-double me-2"></i>Review Script (Optional)
@@ -1124,6 +1194,98 @@
             document.getElementById('tts-local-options').style.display = mode === 'local' ? '' : 'none';
         }
 
+        async function autoConfigureSettings() {
+            const btn = document.getElementById('btn-auto-configure');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
+
+            try {
+                const stats = await API.get('/api/system/stats');
+                const { settings, summary } = _computeAutoSettings(stats);
+                _applyAutoSettings(settings);
+
+                const banner = document.getElementById('auto-config-banner');
+                document.getElementById('auto-config-msg').innerHTML =
+                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
+                banner.style.display = '';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                showToast('Hardware detection failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
+            }
+        }
+
+        function _computeAutoSettings(stats) {
+            const vram = stats.gpu ? stats.gpu.total_gb : 0;
+            const gpuName = stats.gpu_name || null;
+            const ramGb = stats.ram_gb || null;
+
+            let tier, settings;
+
+            // Tier boundaries and maxItems calibrated from tts_vram_benchmark.py on RX 9070 XT (17.1 GB):
+            // Model footprint: 4.18 GB. Peak VRAM per batch: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
+            // RTF: 4→2.3x, 8→3.5x (sweet spot), 12→2.8x, 16→2.9x, 24→2.7x (length-ratio caps at ~13 anyway).
+            if (!stats.gpu || vram < 5) {
+                // Model alone needs ~4.2 GB; under 5 GB it may not load reliably
+                tier = 'No GPU / insufficient VRAM';
+                settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 8) {
+                // 5–8 GB: model fits (~4.2 GB) but headroom is tight; long chunks peak ~7.3 GB total
+                tier = `Low VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 12) {
+                // 8–12 GB: ~4–8 GB headroom; 6-item batches peak ~8 GB total (safe)
+                tier = `Mid VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 6 };
+            } else if (vram < 20) {
+                // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x)
+                tier = `High VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 8 };
+            } else if (vram < 30) {
+                // 20–30 GB: 16-item batches peak ~11.8 GB total — comfortable headroom
+                tier = `Large VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 16 };
+            } else {
+                // 30+ GB: length-ratio splitter will cap practical batch size anyway
+                tier = `Enthusiast VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 24 };
+            }
+
+            const parts = [tier];
+            if (gpuName) parts.push(gpuName);
+            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
+            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
+            const summary = parts.join(' · ');
+
+            return { settings, summary };
+        }
+
+        function _applyAutoSettings(s) {
+            document.getElementById('tts-mode').value = s.ttsMode;
+            toggleTTSMode();
+            document.getElementById('parallel-workers').value = s.parallelWorkers;
+            document.getElementById('compile-codec').checked = s.compileCodec;
+            document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
+            document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
+            document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
+            document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
+            document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
+        }
+
         async function loadConfig() {
             document.getElementById('chunk-size').value = 3000;
             document.getElementById('max-tokens').value = 4096;
@@ -1175,10 +1337,20 @@
                     if (config.prompts.review_user_prompt) {
                         document.getElementById('review-user-prompt').value = config.prompts.review_user_prompt;
                     }
+                    if (config.prompts.persona_system_prompt) {
+                        document.getElementById('persona-system-prompt').value = config.prompts.persona_system_prompt;
+                    }
+                    if (config.prompts.persona_user_prompt) {
+                        document.getElementById('persona-user-prompt').value = config.prompts.persona_user_prompt;
+                    }
+                    if (config.prompts.persona_advanced_prompt) {
+                        document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
+                    }
                 }
 
-                // If review prompts are still empty, fetch defaults
-                if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value) {
+                // If review/persona prompts are still empty, fetch defaults
+                if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
+                    || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value) {
                     try {
                         const defaults = await API.get('/api/default_prompts');
                         if (!document.getElementById('review-system-prompt').value && defaults.review_system_prompt) {
@@ -1187,8 +1359,17 @@
                         if (!document.getElementById('review-user-prompt').value && defaults.review_user_prompt) {
                             document.getElementById('review-user-prompt').value = defaults.review_user_prompt;
                         }
+                        if (!document.getElementById('persona-system-prompt').value && defaults.persona_system_prompt) {
+                            document.getElementById('persona-system-prompt').value = defaults.persona_system_prompt;
+                        }
+                        if (!document.getElementById('persona-user-prompt').value && defaults.persona_user_prompt) {
+                            document.getElementById('persona-user-prompt').value = defaults.persona_user_prompt;
+                        }
+                        if (!document.getElementById('persona-advanced-prompt').value && defaults.persona_advanced_prompt) {
+                            document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
+                        }
                     } catch (e) {
-                        console.warn("Could not fetch default review prompts", e);
+                        console.warn("Could not fetch default prompts", e);
                     }
                 }
 
@@ -1242,6 +1423,15 @@
                 }
                 if (defaults.review_user_prompt) {
                     document.getElementById('review-user-prompt').value = defaults.review_user_prompt;
+                }
+                if (defaults.persona_system_prompt) {
+                    document.getElementById('persona-system-prompt').value = defaults.persona_system_prompt;
+                }
+                if (defaults.persona_user_prompt) {
+                    document.getElementById('persona-user-prompt').value = defaults.persona_user_prompt;
+                }
+                if (defaults.persona_advanced_prompt) {
+                    document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                 }
             } catch (e) {
                 console.error("Failed to fetch default prompts", e);
@@ -1302,7 +1492,10 @@
                     system_prompt: document.getElementById('system-prompt').value,
                     user_prompt: document.getElementById('user-prompt').value,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
-                    review_user_prompt: document.getElementById('review-user-prompt').value
+                    review_user_prompt: document.getElementById('review-user-prompt').value,
+                    persona_system_prompt: document.getElementById('persona-system-prompt').value,
+                    persona_user_prompt: document.getElementById('persona-user-prompt').value,
+                    persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value
                 },
                 generation: {
                     chunk_size: chunkSize,
@@ -1342,21 +1535,33 @@
         });
 
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
+            if (document.getElementById('script-batch-mode').checked) {
+                return _startBatchScript();
+            }
+
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
 
-            // Check if a file has been loaded (status shows success) or if one was previously uploaded
             const hasLoadedFile = statusEl.innerHTML.includes('text-success');
-
             if (!hasLoadedFile && fileInput.files.length === 0) {
                 statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Please select a text file first using the file picker above.</span>';
                 return;
             }
 
+            const genBtn = document.getElementById('btn-gen-script');
+            const cancelBtn = document.getElementById('btn-cancel-script');
+            genBtn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
+
             try {
                 await API.post('/api/generate_script', {});
-                pollLogs('script', 'script-logs');
+                pollLogs('script', 'script-logs', () => {
+                    if (!scriptBatchPoller) genBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                });
             } catch (e) {
+                genBtn.disabled = false;
+                cancelBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
@@ -1365,6 +1570,123 @@
                 }
             }
         });
+
+        window.cancelScript = async () => {
+            try {
+                await API.post('/api/generate_script/cancel', {});
+            } catch (e) {
+                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
+
+        // --- Script Batch Mode ---
+        let scriptBatchQueue = [];
+        let scriptBatchPoller = null;
+
+        window.toggleScriptBatchMode = () => {
+            const isBatch = document.getElementById('script-batch-mode').checked;
+            document.getElementById('script-single-area').style.display = isBatch ? 'none' : 'block';
+            document.getElementById('script-batch-area').style.display  = isBatch ? 'block' : 'none';
+            document.getElementById('script-batch-status-msg').style.display = isBatch ? '' : 'none';
+        };
+
+        window.onScriptBatchFilesChange = () => {
+            const files = document.getElementById('script-batch-files').files;
+            const tbody = document.getElementById('script-batch-queue-body');
+            tbody.innerHTML = '';
+            scriptBatchQueue = [];
+
+            if (!files.length) {
+                document.getElementById('script-batch-queue-container').style.display = 'none';
+                return;
+            }
+            document.getElementById('script-batch-queue-container').style.display = 'block';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
+                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                `;
+                tbody.appendChild(row);
+                scriptBatchQueue.push({ file });
+            }
+        };
+
+        window.cancelBatchScript = async () => {
+            try { await API.post('/api/generate_script/batch/cancel', {}); } catch (e) { /* ignore */ }
+        };
+
+        async function _startBatchScript() {
+            if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
+
+            const btn = document.getElementById('btn-gen-script');
+            const statusMsg = document.getElementById('script-batch-status-msg');
+            btn.disabled = true;
+            document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
+            statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
+            statusMsg.style.display = '';
+
+            const logEl = document.getElementById('script-logs');
+            logEl.innerHTML = '';
+
+            try {
+                const tasks = [];
+                for (const item of scriptBatchQueue) {
+                    const res = await API.upload(item.file);
+                    // Use stored_filename if provided (handles epub→txt), otherwise fall back
+                    tasks.push({ filename: res.stored_filename || res.filename });
+                }
+
+                statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
+                await API.post('/api/generate_script/batch/start', { tasks });
+                _pollScriptBatchLogs();
+            } catch (e) {
+                showToast('Failed to start batch: ' + e.message, 'error');
+                btn.disabled = false;
+                document.getElementById('btn-cancel-batch-script').style.display = 'none';
+            }
+        }
+
+        function _pollScriptBatchLogs() {
+            if (scriptBatchPoller) clearInterval(scriptBatchPoller);
+            const logEl = document.getElementById('script-logs');
+            let offset = 0;
+
+            scriptBatchPoller = setInterval(async () => {
+                try {
+                    const state = await API.get('/api/status/batch_script');
+                    const newLines = state.logs.slice(offset);
+                    offset = state.logs.length;
+                    newLines.forEach(line => {
+                        const div = document.createElement('div');
+                        div.textContent = line;
+                        logEl.appendChild(div);
+                    });
+                    logEl.scrollTop = logEl.scrollHeight;
+
+                    if (state.tasks) {
+                        state.tasks.forEach((t, i) => {
+                            const el = document.getElementById(`script-batch-status-${i}`);
+                            if (!el) return;
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                        });
+                    }
+
+                    if (!state.running) {
+                        clearInterval(scriptBatchPoller);
+                        scriptBatchPoller = null;
+                        document.getElementById('btn-gen-script').disabled = false;
+                        document.getElementById('btn-cancel-batch-script').style.display = 'none';
+                        document.getElementById('script-batch-status-msg').innerHTML =
+                            '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
+                        loadSavedScripts();
+                    }
+                } catch (e) { /* network hiccup — keep polling */ }
+            }, 1000);
+        }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
             try {
@@ -2525,7 +2847,7 @@
         };
 
         // --- Polling Logic ---
-        async function pollLogs(taskName, elementId) {
+        async function pollLogs(taskName, elementId, onDone) {
             const el = document.getElementById(elementId);
             const interval = setInterval(async () => {
                 try {
@@ -2535,6 +2857,7 @@
 
                     if (!status.running) {
                         clearInterval(interval);
+                        if (onDone) onDone(status);
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
                             // Load audio player
                             const audio = document.getElementById('main-audio');
@@ -2587,8 +2910,8 @@
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick="loadScript(${JSON.stringify(s.name)})"><i class="fas fa-upload me-1"></i>Load</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteScript(${JSON.stringify(s.name)})"><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${JSON.stringify(s.name)})'><i class="fas fa-upload me-1"></i>Load</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick='deleteScript(${JSON.stringify(s.name)})'><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
@@ -2635,9 +2958,10 @@
                     showToast(err.detail || 'Failed to load script.', 'error');
                     return;
                 }
+                showToast(`Script "${name}" loaded.`, 'success');
+                await loadChunks(true);
+                await loadVoices();
                 loadSavedScripts();
-                loadChunks();
-                loadVoices();
                 resetDesignerForm();
                 loadDesignedVoices();
             } catch (e) {
@@ -2685,9 +3009,9 @@
                                     <td><strong>${escapeHtml(v.name)}</strong></td>
                                     <td class="text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.description)}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="playDesignedVoice(${JSON.stringify(v.filename)})" title="Play"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openDesignedVoiceForEdit(${JSON.stringify(v.id)})" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDesignedVoice(${JSON.stringify(v.id)})" title="Delete"><i class="fas fa-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${JSON.stringify(v.filename)})' title="Play"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${JSON.stringify(v.id)})' title="Edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${JSON.stringify(v.id)})' title="Delete"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -3024,7 +3348,7 @@
                 listEl.innerHTML = datasets.map(d => `
                     <div class="d-flex justify-content-between align-items-center py-1">
                         <span><strong>${escapeHtml(d.dataset_id)}</strong> <small class="text-muted">(${d.sample_count} samples)</small></span>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteLoraDataset(${JSON.stringify(d.dataset_id)})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick='deleteLoraDataset(${JSON.stringify(d.dataset_id)})'><i class="fas fa-trash"></i></button>
                     </div>
                 `).join('');
             } catch (e) {
@@ -3201,11 +3525,11 @@
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
-                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick="downloadBuiltinAdapter(${JSON.stringify(m.id)})" title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
+                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick='downloadBuiltinAdapter(${JSON.stringify(m.id)})' title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
                                         ` : `
-                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick="playLoraPreview(${JSON.stringify(m.id)})" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
-                                            <button class="btn btn-sm btn-outline-primary me-1" onclick="testLoraModel(${JSON.stringify(m.id)})" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
-                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick="deleteLoraModel(${JSON.stringify(m.id)})" title="Delete"><i class="fas fa-trash"></i></button>`}
+                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick='playLoraPreview(${JSON.stringify(m.id)})' title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary me-1" onclick='testLoraModel(${JSON.stringify(m.id)})' title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
+                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick='deleteLoraModel(${JSON.stringify(m.id)})' title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
                                 </tr>
@@ -3803,12 +4127,48 @@
         document.getElementById('dsb-description')?.addEventListener('input', dsbSaveForm);
         document.getElementById('dsb-global-seed')?.addEventListener('input', dsbSaveForm);
 
+        async function updateSystemStats() {
+            try {
+                const stats = await API.get('/api/system/stats');
+                const gpuEl = document.getElementById('sys-gpu-val');
+                const gpuWrap = document.getElementById('sys-gpu');
+                const diskEl = document.getElementById('sys-disk-val');
+                const diskWrap = document.getElementById('sys-disk');
+
+                if (stats.gpu) {
+                    const used = stats.gpu.reserved_gb.toFixed(1);
+                    const total = stats.gpu.total_gb.toFixed(1);
+                    gpuEl.textContent = `${used}/${total} GB`;
+                    if (stats.gpu.allocated_percent > 90) {
+                        gpuWrap.classList.add('text-danger');
+                        gpuWrap.classList.remove('text-light');
+                    } else {
+                        gpuWrap.classList.remove('text-danger');
+                        gpuWrap.classList.add('text-light');
+                    }
+                } else {
+                    gpuEl.textContent = 'N/A';
+                }
+
+                diskEl.textContent = `${stats.disk.free_gb} GB`;
+                if (stats.disk.low_space) {
+                    diskWrap.classList.add('text-danger');
+                    diskWrap.classList.remove('text-light');
+                } else {
+                    diskWrap.classList.remove('text-danger');
+                    diskWrap.classList.add('text-light');
+                }
+            } catch (e) { console.error('Failed to update system stats', e); }
+        }
+
         // Init
         loadConfig();
         loadVoices();
         loadSavedScripts();
         loadDesignedVoices();
         dsbLoadProjects();
+        updateSystemStats();
+        setInterval(updateSystemStats, 10000);
 
         // ── Preparer ──────────────────────────────────────────────
         let prepBatchQueue = [];

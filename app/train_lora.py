@@ -47,6 +47,10 @@ def parse_args():
                         help="Language for codec prefix token (english, chinese, korean, japanese, etc.)")
     parser.add_argument("--max_audio_seconds", type=float, default=30.0,
                         help="Maximum audio duration in seconds (longer clips are skipped)")
+    parser.add_argument("--target_loss", type=float, default=None,
+                        help="Early-stop when epoch avg_loss first drops at or below this value. "
+                             "Best checkpoint with loss >= 4.1 is always preserved. "
+                             "Recommended: 4.15 for auto sweet-spot detection.")
     return parser.parse_args()
 
 
@@ -141,7 +145,8 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     print(f"[DATA] Speaker embedding extracted from reference audio", flush=True)
 
     samples = []
-    skipped = 0
+    skipped_missing = 0
+    skipped_too_long = 0
 
     for i, entry in enumerate(entries):
         audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
@@ -150,7 +155,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
         if not os.path.exists(audio_path):
             print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} (file not found)", flush=True)
-            skipped += 1
+            skipped_missing += 1
             continue
 
         print(f"[DATA] Tokenizing {i+1}/{len(entries)}: {os.path.basename(audio_path)}", flush=True)
@@ -160,7 +165,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
         duration = len(audio) / sr
         if duration > max_audio_seconds:
             print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} ({duration:.1f}s > {max_audio_seconds}s)", flush=True)
-            skipped += 1
+            skipped_too_long += 1
             continue
 
         # Encode audio to codec IDs via speech tokenizer
@@ -185,10 +190,18 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
             "duration": duration,
         })
 
-    print(f"[DATA] Prepared {len(samples)} samples ({skipped} skipped)", flush=True)
+    skipped = skipped_missing + skipped_too_long
+    print(f"[DATA] Prepared {len(samples)} samples ({skipped} skipped: "
+          f"{skipped_missing} missing, {skipped_too_long} too long)", flush=True)
     if not samples:
         print("[ERROR] No valid training samples", flush=True)
         sys.exit(1)
+
+    # Duration stats
+    durations = [s["duration"] for s in samples]
+    total_dur = sum(durations)
+    print(f"[DATA] Duration stats: min={min(durations):.1f}s  max={max(durations):.1f}s  "
+          f"mean={total_dur/len(durations):.1f}s  total={total_dur/60:.1f}min", flush=True)
 
     return samples, ref_audio_path
 
@@ -379,6 +392,33 @@ def train(args):
     # ── Load data ──
     samples, ref_audio_path = load_dataset(args.data_dir, hf_model, processor, device, dtype, args.max_audio_seconds)
 
+    # ── Pre-training settings summary ──
+    total_forward_passes = len(samples) * args.epochs
+    effective_batch = args.batch_size * args.gradient_accumulation_steps
+    alpha_r_ratio = args.lora_alpha / args.lora_r
+    if total_forward_passes < 150:
+        passes_verdict = "LOW — likely undertrained"
+    elif total_forward_passes <= 400:
+        passes_verdict = "good range"
+    elif total_forward_passes <= 600:
+        passes_verdict = "high — watch for overfit"
+    else:
+        passes_verdict = "VERY HIGH — strong overfit risk"
+    print(f"[TRAIN] === Pre-training settings ===", flush=True)
+    print(f"[TRAIN]   samples         : {len(samples)}", flush=True)
+    print(f"[TRAIN]   epochs          : {args.epochs}  →  total forward passes: {total_forward_passes} ({passes_verdict})", flush=True)
+    print(f"[TRAIN]   learning rate   : {args.lr:.2e}", flush=True)
+    print(f"[TRAIN]   lora_r          : {args.lora_r}", flush=True)
+    print(f"[TRAIN]   lora_alpha      : {args.lora_alpha}  (effective scale: {alpha_r_ratio:.1f}×)", flush=True)
+    print(f"[TRAIN]   grad_accum      : {args.gradient_accumulation_steps}  (effective batch: {effective_batch})", flush=True)
+    print(f"[TRAIN]   max_audio_secs  : {args.max_audio_seconds}", flush=True)
+    print(f"[TRAIN]   language        : {args.language}", flush=True)
+    if args.target_loss:
+        print(f"[TRAIN]   early stop at  : {args.target_loss}  (saves best checkpoint >= 4.1)", flush=True)
+    else:
+        print(f"[TRAIN]   loss target     : 4.1–4.2  (stop ~4.15; below 4.1 = garble risk)", flush=True)
+    print(f"[TRAIN] ============================", flush=True)
+
     # ── Apply LoRA ──
     print("[TRAIN] Applying LoRA to talker...", flush=True)
     try:
@@ -421,6 +461,10 @@ def train(args):
 
     total_steps_per_epoch = len(samples)
     best_loss = float("inf")
+    # Safe checkpoint: best loss that's still >= GARBLE_FLOOR
+    # This protects against overshooting when early stopping is enabled.
+    GARBLE_FLOOR = 4.1
+    safe_best_loss = float("inf")
     training_start = time.time()
 
     # Access underlying model structure (stable references)
@@ -528,13 +572,38 @@ def train(args):
 
         # Epoch summary
         avg_loss = epoch_loss / max(epoch_steps, 1)
-        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}", flush=True)
 
-        # Save best adapter
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            peft_talker.save_pretrained(args.output_dir)
-            print(f"[TRAIN] Best adapter saved (loss={best_loss:.4f})", flush=True)
+        # Safe checkpoint: save whenever loss improves and is still above garble floor.
+        # This ensures we always have the best non-garbling checkpoint on disk,
+        # even if later epochs overshoot.
+        if args.target_loss is not None:
+            if avg_loss >= GARBLE_FLOOR and avg_loss < safe_best_loss:
+                safe_best_loss = avg_loss
+                best_loss = avg_loss
+                peft_talker.save_pretrained(args.output_dir)
+                print(f"[TRAIN] Safe checkpoint saved (loss={avg_loss:.4f})", flush=True)
+        else:
+            # Original behaviour: save unconditionally when loss improves
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+                peft_talker.save_pretrained(args.output_dir)
+                print(f"[TRAIN] Best adapter saved (loss={best_loss:.4f})", flush=True)
+
+        zone = ""
+        if avg_loss < GARBLE_FLOOR:
+            zone = " [BELOW FLOOR — garble risk]"
+        elif args.target_loss and avg_loss <= args.target_loss:
+            zone = " [TARGET REACHED]"
+        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}", flush=True)
+
+        # Early stopping: first epoch where loss crosses at or below the target
+        if args.target_loss is not None and avg_loss <= args.target_loss:
+            if avg_loss < GARBLE_FLOOR:
+                print(f"[TRAIN] Early stop: loss {avg_loss:.4f} overshot floor ({GARBLE_FLOOR}). "
+                      f"Best safe checkpoint: {safe_best_loss:.4f}", flush=True)
+            else:
+                print(f"[TRAIN] Early stop: loss {avg_loss:.4f} reached target {args.target_loss}", flush=True)
+            break
 
     # ── Final save ──
     training_time = time.time() - training_start

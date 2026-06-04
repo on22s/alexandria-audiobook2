@@ -14,11 +14,9 @@ from typing import List, Optional, Dict
 import re
 import time
 import queue
-import signal
 import threading
 import zipfile
 import subprocess
-import tempfile
 import aiofiles
 from utils import atomic_json_write
 from html.parser import HTMLParser
@@ -29,6 +27,7 @@ from math import ceil
 from project import ProjectManager
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
+from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 
 # Setup logging
@@ -41,7 +40,6 @@ app = FastAPI(title="Alexandria Audiobook")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-VOICES_PATH = os.path.join(ROOT_DIR, "voices.json")
 VOICE_CONFIG_PATH = os.path.join(ROOT_DIR, "voice_config.json")
 SCRIPT_PATH = os.path.join(ROOT_DIR, "annotated_script.json")
 AUDIOBOOK_PATH = os.path.join(ROOT_DIR, "cloned_audiobook.mp3")
@@ -54,9 +52,9 @@ CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
-BUILTIN_LORA_MANIFEST = os.path.join(BUILTIN_LORA_DIR, "manifest.json")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
 PREPARER_SCRIPT_PATH = os.path.join(BASE_DIR, "alexandria_preparer.py")
+PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -65,6 +63,7 @@ os.makedirs(CLONE_VOICES_DIR, exist_ok=True)
 os.makedirs(LORA_MODELS_DIR, exist_ok=True)
 os.makedirs(LORA_DATASETS_DIR, exist_ok=True)
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
+os.makedirs(PREPARER_OUTPUT_DIR, exist_ok=True)
 
 # Mount static files with absolute path
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -117,6 +116,82 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- System Helpers ---
+
+def get_gpu_stats():
+    """Get current GPU memory and utilization stats."""
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if not torch.cuda.is_available():
+        return None
+
+    stats = {}
+    try:
+        # Memory stats (works for both NVIDIA and AMD ROCm)
+        allocated = torch.cuda.memory_allocated() / 1e9  # GB
+        reserved = torch.cuda.memory_reserved() / 1e9    # GB
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+
+        stats['allocated_gb'] = allocated
+        stats['reserved_gb'] = reserved
+        stats['total_gb'] = total
+        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+
+        # Try to get utilization via rocm-smi for AMD GPUs
+        try:
+            result = subprocess.run(
+                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                for card_key, card_data in data.items():
+                    if not isinstance(card_data, dict):
+                        continue
+                    for key in ('GPU use (%)', 'GPU Use (%)', 'GPU Activity'):
+                        gpu_use_str = card_data.get(key)
+                        if gpu_use_str is not None and gpu_use_str != 'N/A':
+                            stats['utilization_percent'] = float(gpu_use_str)
+                            break
+                    break
+        except Exception:
+            stats['utilization_percent'] = None
+
+    except Exception as e:
+        logger.debug(f"Could not get GPU stats: {e}")
+        return None
+
+    return stats
+
+def check_disk_space(path, required_gb):
+    """Check if disk has enough space. Returns (has_space, free_gb)."""
+    try:
+        stat = shutil.disk_usage(path)
+        free_gb = stat.free / (1024 ** 3)
+        return free_gb >= required_gb, free_gb
+    except Exception:
+        return True, 0
+
+@app.get("/api/system/stats")
+async def get_system_stats():
+    """Return GPU and Disk statistics."""
+    gpu = get_gpu_stats()
+    # Check root dir for disk space
+    has_space, free_gb = check_disk_space(ROOT_DIR, 1.0) # 1GB threshold for generic warning
+    
+    return {
+        "gpu": gpu,
+        "disk": {
+            "free_gb": round(free_gb, 2),
+            "low_space": not has_space
+        }
+    }
+
 # Data Models
 class LLMConfig(BaseModel):
     base_url: str
@@ -155,6 +230,9 @@ class PromptConfig(BaseModel):
     user_prompt: Optional[str] = None
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
+    persona_system_prompt: Optional[str] = None
+    persona_user_prompt: Optional[str] = None
+    persona_advanced_prompt: Optional[str] = None
 
 class AppConfig(BaseModel):
     llm: LLMConfig
@@ -306,7 +384,7 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": []},
+    "script": {"running": False, "logs": [], "cancel": False, "process": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
@@ -316,69 +394,33 @@ process_state = {
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
-    "preparer": {
-        "running": False,
-        "logs": [],
-        "status": "idle",       # "idle" | "running" | "done" | "failed" | "cancelled"
-        "return_code": None,
-        "pid": None,
-        "output_file": None,
-        "cancel": False,
-    },
+    "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
 }
 
-# Clone voices directory for user-uploaded reference audio
-CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
-ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".txt", ".epub"}
-
 def run_process(command: List[str], task_name: str, cwd: str = None):
-    """Run a subprocess and capture logs."""
+    """Run a subprocess and stream its output into process_state logs."""
     state = process_state[task_name]
     state["running"] = True
     state["logs"] = []
     if "status"      in state: state["status"]      = "running"
     if "return_code" in state: state["return_code"] = None
-    if "pid"         in state: state["pid"]         = None
+    if "process"     in state: state["process"]     = None
     if "cancel"      in state: state["cancel"]      = False
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
     return_code = None
     try:
-        env = os.environ.copy()
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=cwd or BASE_DIR,
-            bufsize=1,
-            universal_newlines=True,
-            env=env,
-        )
-        process_state[task_name]["process"] = process
+        return_code = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state)
 
-        if "pid" in state:
-            state["pid"] = process.pid
-
-        for line in process.stdout:
-            log_line = line.strip()
-            if log_line:
-                state["logs"].append(log_line)
-                if len(state["logs"]) > 2000:
-                    state["logs"].pop(0)
-
-        process.wait()
-        return_code = process.returncode
-
-        if return_code == 0:
+        if state.get("cancel"):
+            state["logs"].append(f"Task {task_name} cancelled.")
+            if "status" in state: state["status"] = "cancelled"
+        elif return_code == 0:
             state["logs"].append(f"Task {task_name} completed successfully.")
             if "status" in state: state["status"] = "done"
-        elif return_code < 0:
-            # Killed by signal (e.g. SIGTERM from cancel)
-            state["logs"].append(f"Task {task_name} was cancelled (signal {-return_code}).")
-            if "status" in state: state["status"] = "cancelled"
         else:
             state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
             if "status" in state: state["status"] = "failed"
@@ -388,14 +430,28 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         state["logs"].append(f"Error: {str(e)}")
         if "status" in state: state["status"] = "failed"
     finally:
+        if "process"     in state: state["process"]     = None
         state["running"] = False
         if "return_code" in state: state["return_code"] = return_code
-        if "pid"         in state: state["pid"]         = None
 
 
-def _atomic_json_write(data, target_path):
-    """Write JSON atomically. Delegates to shared utility."""
-    atomic_json_write(data, target_path)
+def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
+    """Terminate a running subprocess task, or queue cancel if process not yet started."""
+    state = process_state[state_key]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail=not_running_msg)
+    proc = state.get("process")
+    if proc is None:
+        # Process not started yet — _stream_subprocess_to_logs will pick up the flag
+        state["cancel"] = True
+        return {"status": "cancel queued"}
+    try:
+        proc.terminate()
+    except OSError:
+        raise HTTPException(status_code=400, detail=exited_msg)
+    return {"status": "cancel signal sent"}
+
+
 
 
 def check_disk_space(path: str, required_gb: float):
@@ -406,6 +462,51 @@ def check_disk_space(path: str, required_gb: float):
         return free_gb >= required_gb, round(free_gb, 1)
     except Exception:
         return True, 0.0
+
+
+def get_gpu_stats():
+    """Get current GPU memory and utilization stats."""
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if not torch.cuda.is_available():
+        return None
+
+    stats = {}
+    try:
+        allocated = torch.cuda.memory_allocated() / 1e9
+        reserved = torch.cuda.memory_reserved() / 1e9
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9
+
+        stats['allocated_gb'] = allocated
+        stats['reserved_gb'] = reserved
+        stats['total_gb'] = total
+        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+
+        try:
+            result = subprocess.run(
+                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                json_lines = [l for l in result.stdout.split('\n') if l.strip().startswith('{')]
+                if json_lines:
+                    data = json.loads(json_lines[0])
+                    for card_data in data.values():
+                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                        if gpu_use_str != 'N/A':
+                            stats['utilization_percent'] = float(gpu_use_str)
+                        break
+        except Exception:
+            stats['utilization_percent'] = None
+
+    except Exception as e:
+        logger.debug(f"Could not get GPU stats: {e}")
+        return None
+
+    return stats
 
 
 def _normalize_filename_tokens(stem: str) -> list:
@@ -424,7 +525,7 @@ def _fuzzy_score(audio_tokens: list, book_tokens: list) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "") -> int:
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
     Uses a reader thread + Queue so the drain loop can check state['cancel']
@@ -442,8 +543,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         env=os.environ.copy(),
     )
 
-    if "pid" in state:
-        state["pid"] = process.pid
+    if "process" in state:
+        state["process"] = process
 
     log_queue: queue.Queue = queue.Queue()
 
@@ -470,7 +571,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         if log_line:
             entry = f"{log_prefix}{log_line}" if log_prefix else log_line
             state["logs"].append(entry)
-            if len(state["logs"]) > 5000:
+            if len(state["logs"]) > max_logs:
                 state["logs"].pop(0)
 
     reader.join()
@@ -540,6 +641,44 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
         process_state["preparer"]["output_file"] = config.output_filename
 
 
+@app.get("/api/system/stats")
+async def get_system_stats():
+    """Return GPU memory, disk, and basic hardware statistics."""
+    gpu = get_gpu_stats()
+    has_space, free_gb = check_disk_space(ROOT_DIR, 1.0)
+
+    cpu_count = os.cpu_count()
+
+    ram_gb = None
+    try:
+        with open("/proc/meminfo") as _mf:
+            for _line in _mf:
+                if _line.startswith("MemTotal:"):
+                    ram_gb = round(int(_line.split()[1]) / 1_048_576, 1)
+                    break
+    except Exception:
+        pass
+
+    gpu_name = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+
+    return {
+        "gpu": gpu,
+        "gpu_name": gpu_name,
+        "disk": {
+            "free_gb": round(free_gb, 2),
+            "low_space": not has_space
+        },
+        "cpu_count": cpu_count,
+        "ram_gb": ram_gb,
+    }
+
+
 @app.post("/api/preparer/start")
 async def start_preparer(
     background_tasks: BackgroundTasks,
@@ -582,7 +721,6 @@ async def get_preparer_status(log_offset: int = Query(0)):
         "running":     state["running"],
         "status":      state["status"],
         "return_code": state["return_code"],
-        "pid":         state["pid"],
         "output_file": state["output_file"],
         "log_total":   len(all_logs),
         "logs":        all_logs[log_offset:],
@@ -591,19 +729,7 @@ async def get_preparer_status(log_offset: int = Query(0)):
 
 @app.post("/api/preparer/cancel")
 async def cancel_preparer():
-    """Send SIGTERM to the running preparer subprocess."""
-    state = process_state["preparer"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No preparer is currently running.")
-    pid = state.get("pid")
-    if not pid:
-        raise HTTPException(status_code=400, detail="Preparer PID not available yet.")
-    try:
-        os.kill(pid, signal.SIGTERM)
-        state["cancel"] = True
-    except ProcessLookupError:
-        raise HTTPException(status_code=400, detail="Preparer process already exited.")
-    return {"status": "cancel signal sent", "pid": pid}
+    return _cancel_task("preparer", "No preparer is currently running.", "Preparer process already exited.")
 
 
 @app.get("/api/preparer/list")
@@ -683,6 +809,13 @@ async def get_config():
             default_config["prompts"]["review_user_prompt"] = rev_usr
         except RuntimeError:
             pass
+        try:
+            per_sys, per_usr, per_adv = load_persona_prompts()
+            default_config["prompts"]["persona_system_prompt"] = per_sys
+            default_config["prompts"]["persona_user_prompt"] = per_usr
+            default_config["prompts"]["persona_advanced_prompt"] = per_adv
+        except RuntimeError:
+            pass
         config = default_config
     else:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -696,6 +829,13 @@ async def get_config():
             rev_sys, rev_usr = load_review_prompts()
             prompts["review_system_prompt"] = rev_sys
             prompts["review_user_prompt"] = rev_usr
+        except RuntimeError:
+            pass
+        try:
+            per_sys, per_usr, per_adv = load_persona_prompts()
+            prompts["persona_system_prompt"] = per_sys
+            prompts["persona_user_prompt"] = per_usr
+            prompts["persona_advanced_prompt"] = per_adv
         except RuntimeError:
             pass
         config["prompts"] = prompts
@@ -715,6 +855,17 @@ async def get_config():
                     config["prompts"]["review_user_prompt"] = rev_usr
             except RuntimeError:
                 pass  # review_prompts.txt missing or malformed — leave fields empty
+        if not config["prompts"].get("persona_system_prompt") or not config["prompts"].get("persona_user_prompt") or not config["prompts"].get("persona_advanced_prompt"):
+            try:
+                per_sys, per_usr, per_adv = load_persona_prompts()
+                if not config["prompts"].get("persona_system_prompt"):
+                    config["prompts"]["persona_system_prompt"] = per_sys
+                if not config["prompts"].get("persona_user_prompt"):
+                    config["prompts"]["persona_user_prompt"] = per_usr
+                if not config["prompts"].get("persona_advanced_prompt"):
+                    config["prompts"]["persona_advanced_prompt"] = per_adv
+            except RuntimeError:
+                pass
 
     # Always include current_file (null when no state or file missing)
     config["current_file"] = None
@@ -744,10 +895,22 @@ async def get_default_prompts():
         result["review_user_prompt"] = review_usr
     except RuntimeError:
         pass
+    try:
+        persona_sys, persona_usr, persona_adv = load_persona_prompts()
+        result["persona_system_prompt"] = persona_sys
+        result["persona_user_prompt"] = persona_usr
+        result["persona_advanced_prompt"] = persona_adv
+    except RuntimeError:
+        pass
     return result
 
 @app.post("/api/config")
 async def save_config(config: AppConfig):
+    # Ensure base_url ends with /v1 so the OpenAI client targets the correct path
+    url = config.llm.base_url.rstrip("/")
+    if not url.endswith("/v1"):
+        url += "/v1"
+    config.llm.base_url = url
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config.model_dump(), f, indent=2, ensure_ascii=False)
     # Reset engine so it picks up new TTS settings on next use
@@ -886,7 +1049,7 @@ async def upload_file(file: UploadFile = File(...)):
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
-    return {"filename": file.filename, "path": file_path}
+    return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
 
 @app.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks):
@@ -907,6 +1070,10 @@ async def generate_script(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
     return {"status": "started"}
+
+@app.post("/api/generate_script/cancel")
+async def generate_script_cancel():
+    return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):
@@ -958,6 +1125,90 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         "total_entries": total_entries,
         "estimated_calls": estimated_calls,
     }
+
+
+class BatchScriptTask(BaseModel):
+    filename: str  # filename inside uploads/
+
+class BatchScriptRequest(BaseModel):
+    tasks: List[BatchScriptTask]
+
+@app.post("/api/generate_script/batch/start")
+async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
+    """Process multiple text/EPUB files sequentially through generate_script.py."""
+    if process_state["batch_script"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch script generation already running.")
+    if process_state["script"]["running"]:
+        raise HTTPException(status_code=400, detail="Single script generation already running.")
+    if not request.tasks:
+        raise HTTPException(status_code=400, detail="No files provided.")
+
+    def _run():
+        state = process_state["batch_script"]
+        state["running"] = True
+        state["cancel"] = False
+        state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
+        state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
+        state["current_task_idx"] = -1
+
+        for i, task in enumerate(request.tasks):
+            if state["cancel"]:
+                state["logs"].append("Batch cancelled.")
+                break
+
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+
+            # Resolve upload path — handle epub→txt conversion
+            input_path = os.path.join(UPLOADS_DIR, task.filename)
+            if not os.path.exists(input_path):
+                stem, ext = os.path.splitext(task.filename)
+                if ext.lower() == ".epub":
+                    txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
+                    if os.path.exists(txt_path):
+                        input_path = txt_path
+            if not os.path.exists(input_path):
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — file not found: {task.filename}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+
+            stem = os.path.splitext(os.path.basename(input_path))[0]
+            safe_stem = _sanitize_name(stem) or f"batch_{i+1}"
+            output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
+
+            state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
+
+            cmd = [
+                sys.executable, "-u",
+                os.path.join(BASE_DIR, "generate_script.py"),
+                input_path,
+                "--output", output_path,
+            ]
+            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            elif rc == 0:
+                state["tasks"][i]["status"] = "done"
+                state["tasks"][i]["saved_as"] = safe_stem
+                state["logs"].append(f"[{i+1}] Saved as '{safe_stem}' in Scripts library.")
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{i+1}] Failed (exit {rc}): {task.filename}")
+
+        state["running"] = False
+        state["logs"].append("Batch script generation finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "task_count": len(request.tasks)}
+
+
+@app.post("/api/generate_script/batch/cancel")
+async def generate_script_batch_cancel():
+    process_state["batch_script"]["cancel"] = True
+    return {"status": "cancel_requested"}
+
 
 @app.get("/api/annotated_script")
 async def get_annotated_script():
@@ -1015,14 +1266,6 @@ async def get_voices():
             "persona_pending": voice_name in missing_speakers
         })
     return result
-
-@app.post("/api/parse_voices")
-async def parse_voices(background_tasks: BackgroundTasks):
-    if process_state["voices"]["running"]:
-         raise HTTPException(status_code=400, detail="Voice parsing already running")
-
-    background_tasks.add_task(run_process, [sys.executable, "-u", "parse_voices.py"], "voices")
-    return {"status": "started"}
 
 
 @app.post("/api/generate_personas")
@@ -1089,7 +1332,7 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
         # Convert Pydantic model to dict
         current_config[voice_name] = config.model_dump()
 
-    _atomic_json_write(current_config, VOICE_CONFIG_PATH)
+    atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
     return {"status": "saved"}
 
@@ -1522,7 +1765,7 @@ def _load_manifest(path):
 
 def _save_manifest(path, manifest):
     """Write a JSON manifest file."""
-    _atomic_json_write(manifest, path)
+    atomic_json_write(manifest, path)
 
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):
@@ -1727,15 +1970,41 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
             shutil.rmtree(dataset_dir)
             raise HTTPException(status_code=400, detail="ZIP must contain metadata.jsonl")
 
-        # Count samples
+        # Count samples and validate audio file presence
         sample_count = 0
+        missing_audio = []
         with open(metadata_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line:
-                    sample_count += 1
+                if not line:
+                    continue
+                sample_count += 1
+                try:
+                    entry = json.loads(line)
+                    audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
+                    if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
+                        missing_audio.append(audio_rel)
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
-        logger.info(f"LoRA dataset uploaded: '{dataset_name}' ({sample_count} samples)")
+        wav_count = sum(1 for f in os.listdir(dataset_dir) if f.lower().endswith(".wav"))
+        ref_wav = os.path.exists(os.path.join(dataset_dir, "ref.wav"))
+        ref_text = os.path.exists(os.path.join(dataset_dir, "ref_text.txt"))
+
+        logger.info(
+            f"LoRA dataset '{dataset_name}': {sample_count} metadata entries, "
+            f"{wav_count} WAV files, ref.wav={'yes' if ref_wav else 'MISSING'}, "
+            f"ref_text.txt={'yes' if ref_text else 'missing'}"
+        )
+        if missing_audio:
+            logger.warning(
+                f"LoRA dataset '{dataset_name}': {len(missing_audio)} audio file(s) in "
+                f"metadata.jsonl not found in ZIP: {missing_audio[:5]}"
+                f"{'  (+more)' if len(missing_audio) > 5 else ''}"
+            )
+        else:
+            logger.info(f"LoRA dataset '{dataset_name}': all {sample_count} audio files present in ZIP")
+
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
 
     finally:
@@ -1902,6 +2171,22 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
 
     adapter_id = f"{safe_name}_{int(time.time())}"
     output_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
+
+    # Log dataset details and effective settings before training
+    try:
+        meta_path = os.path.join(dataset_dir, "metadata.jsonl")
+        dataset_sample_count = sum(1 for l in open(meta_path, encoding="utf-8") if l.strip())
+        total_passes = dataset_sample_count * request.epochs
+        alpha_r = request.lora_alpha / request.lora_r
+        logger.info(
+            f"LoRA training '{request.name}': dataset='{request.dataset_id}' "
+            f"samples={dataset_sample_count}, epochs={request.epochs}, "
+            f"total_passes={total_passes}, lr={request.lr:.2e}, "
+            f"r={request.lora_r}, alpha={request.lora_alpha} (scale={alpha_r:.1f}x), "
+            f"grad_accum={request.gradient_accumulation_steps}, language={request.language}"
+        )
+    except Exception:
+        pass
 
     # Unload TTS engine to free GPU
     if project_manager.engine is not None:
@@ -2543,11 +2828,11 @@ async def preparer_start(
         state["cancel"] = False
         state["status"] = "running"
         state["output_file"] = None
-        state["pid"] = None
+        state["process"] = None
 
         cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
                "--audio", audio_path,
-               "--output", os.path.join(ROOT_DIR, config.output_filename),
+               "--output", os.path.join(PREPARER_OUTPUT_DIR, config.output_filename),
                "--lang", config.lang,
                "--min-confidence", str(config.min_confidence),
                "--min-snr", str(config.min_snr)]
@@ -2566,7 +2851,7 @@ async def preparer_start(
             state["logs"].append(f"Preparer failed (exit code {rc}).")
 
         state["running"] = False
-        state["pid"] = None
+        state["process"] = None
 
     background_tasks.add_task(_run)
     return {"status": "started"}
@@ -2577,11 +2862,11 @@ async def preparer_cancel():
     state = process_state["preparer"]
     if not state["running"]:
         raise HTTPException(status_code=400, detail="No preparer is currently running.")
-    pid = state.get("pid")
-    if pid:
+    proc = state.get("process")
+    if proc:
         try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
+            proc.terminate()
+        except OSError:
             pass
     state["cancel"] = True
     return {"status": "cancel_requested"}
@@ -2591,10 +2876,12 @@ async def preparer_cancel():
 async def preparer_list_outputs():
     """List completed dataset ZIP files available for download."""
     files = []
-    for fname in sorted(os.listdir(ROOT_DIR)):
+    if not os.path.exists(PREPARER_OUTPUT_DIR):
+        return {"files": files}
+    for fname in sorted(os.listdir(PREPARER_OUTPUT_DIR)):
         if not fname.endswith(".zip"):
             continue
-        fpath = os.path.join(ROOT_DIR, fname)
+        fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
         files.append({
             "filename": fname,
             "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
@@ -2606,8 +2893,8 @@ async def preparer_list_outputs():
 @app.get("/api/preparer/download/{filename:path}")
 async def preparer_download(filename: str):
     """Download a generated dataset ZIP."""
-    root = os.path.realpath(ROOT_DIR)
-    file_path = os.path.realpath(os.path.join(ROOT_DIR, filename))
+    root = os.path.realpath(PREPARER_OUTPUT_DIR)
+    file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
     if not file_path.startswith(root + os.sep) and file_path != root:
         raise HTTPException(status_code=400, detail="Invalid filename.")
     if not os.path.exists(file_path):
@@ -2656,7 +2943,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
 
             cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
                    "--audio", audio_path,
-                   "--output", os.path.join(ROOT_DIR, task.output_filename),
+                   "--output", os.path.join(PREPARER_OUTPUT_DIR, task.output_filename),
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]

@@ -138,6 +138,23 @@ class TTSEngine:
         return wav
 
     @staticmethod
+    def _vram_snapshot(label=""):
+        """Log and return current VRAM state in GB (allocated/reserved/free/total)."""
+        import torch
+        if not torch.cuda.is_available():
+            return {}
+        alloc = torch.cuda.memory_allocated() / 1e9
+        reserved = torch.cuda.memory_reserved() / 1e9
+        free, total = torch.cuda.mem_get_info()
+        free /= 1e9
+        total /= 1e9
+        snap = {"allocated_gb": round(alloc, 2), "reserved_gb": round(reserved, 2),
+                "free_gb": round(free, 2), "total_gb": round(total, 1)}
+        tag = f"[{label}] " if label else ""
+        print(f"VRAM {tag}{alloc:.2f} alloc / {reserved:.2f} reserved / {free:.2f} free / {total:.1f} total GB")
+        return snap
+
+    @staticmethod
     def _clear_gpu_cache():
         """Free GPU memory: garbage-collect Python objects, then clear CUDA cache."""
         import gc
@@ -297,6 +314,7 @@ class TTSEngine:
             pass
         return "cpu"
 
+
     def _enable_rocm_optimizations(self):
         """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU.
 
@@ -333,6 +351,93 @@ class TTSEngine:
         except ImportError:
             pass
 
+        # Correct under-reported GPU properties on consumer RDNA2/3.
+        # ROCm reports half the CU count and warp size 32 instead of 64,
+        # causing PyTorch to under-schedule work on RX 6000/7000 GPUs.
+        self._patch_rdna_device_properties(torch)
+
+
+    @staticmethod
+    def _patch_rdna_device_properties(torch):
+        """Monkey-patch torch.cuda.get_device_properties to report correct
+        CU count and wavefront size for consumer RDNA2/3 GPUs.
+
+        ROCm exposes these GPUs with half CU count and warp_size=32
+        (matching the CDNA/MI convention). The actual hardware has the
+        full CU count and native wavefront64. Under-reporting causes
+        PyTorch to generate smaller kernel launches.
+
+        Based on AMD-GPU-BOOST (github.com/Painter3000/AMD-GPU-BOOST).
+        """
+        if hasattr(torch.cuda, '_rdna_props_patched'):
+            return
+
+        # Known RDNA GPU corrections: {name_substring: (true_CUs, true_warp)}
+        _rdna_corrections = {
+            "7900 XTX": (96, 64),
+            "7900 XT":  (84, 64),
+            "7900 GRE": (80, 64),
+            "7800 XT":  (60, 64),
+            "7700 XT":  (54, 64),
+            "7600":     (32, 64),
+            "6950 XT":  (80, 64),
+            "6900 XT":  (80, 64),
+            "6800 XT":  (72, 64),
+            "6800":     (60, 64),
+            "6750 XT":  (40, 64),
+            "6700 XT":  (40, 64),
+            "6700":     (36, 64),
+            "6650 XT":  (32, 64),
+            "6600 XT":  (32, 64),
+            "6600":     (28, 64),
+        }
+
+        original_fn = torch.cuda.get_device_properties
+        _cache = {}
+
+        def _patched_get_device_properties(device=None):
+            if device is None:
+                device = torch.cuda.current_device()
+            key = int(device) if not isinstance(device, int) else device
+
+            if key in _cache:
+                return _cache[key]
+
+            props = original_fn(device)
+
+            # Find matching correction
+            correction = None
+            for substr, vals in _rdna_corrections.items():
+                if substr in props.name:
+                    correction = vals
+                    break
+
+            if correction:
+                from types import SimpleNamespace
+                true_cus, true_warp = correction
+                patched = SimpleNamespace()
+                for attr in dir(props):
+                    if not attr.startswith('_'):
+                        try:
+                            setattr(patched, attr, getattr(props, attr))
+                        except (AttributeError, RuntimeError):
+                            pass
+                patched.multi_processor_count = true_cus
+                patched.warp_size = true_warp
+                old_threads = props.multi_processor_count * props.warp_size
+                new_threads = true_cus * true_warp
+                print(f"  [RDNA fix] {props.name}: CUs {props.multi_processor_count}->{true_cus}, "
+                      f"warp {props.warp_size}->{true_warp}, "
+                      f"threads {old_threads}->{new_threads}")
+                _cache[key] = patched
+                return patched
+
+            _cache[key] = props
+            return props
+
+        torch.cuda.get_device_properties = _patched_get_device_properties
+        torch.cuda._rdna_props_patched = True
+
     def _compile_codec(self, model):
         """Apply torch.compile to the audio codec for faster decoding.
 
@@ -347,15 +452,20 @@ class TTSEngine:
         handles varying batch sizes gracefully (unlike reduce-overhead
         which uses CUDA graphs that break on shape changes).
         """
-        import torch
+        import torch, time
+        vram_before = self._vram_snapshot("pre-compile_codec")
+        t0 = time.time()
         try:
             codec = model.model.speech_tokenizer.model
             model.model.speech_tokenizer.model = torch.compile(
                 codec, mode="max-autotune", dynamic=True,
             )
-            print("Codec compiled with torch.compile (dynamic=True).")
+            compile_time = time.time() - t0
+            vram_after = self._vram_snapshot("post-compile_codec")
+            delta = vram_after.get("allocated_gb", 0) - vram_before.get("allocated_gb", 0)
+            print(f"Codec compiled OK in {compile_time:.1f}s (VRAM delta: {delta:+.2f} GB).")
         except Exception as e:
-            print(f"Codec compilation skipped (non-fatal): {e}")
+            print(f"Codec compilation FAILED after {time.time()-t0:.1f}s: {type(e).__name__}: {e}")
 
     @staticmethod
     def _resolve_local_model_path(model_id):
@@ -414,15 +524,18 @@ class TTSEngine:
             dtype = torch.bfloat16 if "cuda" in device else torch.float32
 
             print(f"Loading Qwen3-TTS CustomVoice model on {device} ({dtype})...")
+            vram_before = self._vram_snapshot("pre-load")
             load_kwargs = {"dtype": dtype}
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_custom_model = self._load_model(
                 Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", load_kwargs,
             )
+            vram_after = self._vram_snapshot("post-load")
+            model_gb = vram_after.get("allocated_gb", 0) - vram_before.get("allocated_gb", 0)
+            print(f"CustomVoice model loaded: {model_gb:.2f} GB VRAM footprint")
             if self._compile_codec_enabled:
                 self._compile_codec(self._local_custom_model)
-            print("CustomVoice model loaded.")
             return self._local_custom_model
 
     def _init_local_clone(self):
@@ -1124,6 +1237,7 @@ class TTSEngine:
         # fragmented VRAM blocking large batch allocations (ROCm especially).
         self._clear_gpu_cache()
 
+
         max_items = self._estimate_max_batch_size(
             model, max_text_chars=len(texts[-1]),
         )
@@ -1149,6 +1263,7 @@ class TTSEngine:
                 if batch_seed >= 0:
                     torch.manual_seed(batch_seed)
 
+                torch.cuda.reset_peak_memory_stats()
                 t_start = time.time()
                 wavs_list, sr = model.generate_custom_voice(
                     text=sb_texts,
@@ -1159,6 +1274,8 @@ class TTSEngine:
                     max_new_tokens=2048,
                 )
                 gen_time = time.time() - t_start
+                peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                 if wavs_list is None:
                     for idx in sb_indices:
@@ -1195,6 +1312,8 @@ class TTSEngine:
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
 
+
+
         return results
 
     def _local_batch_clone(self, chunks, voice_config, output_dir):
@@ -1218,12 +1337,16 @@ class TTSEngine:
         model = self._init_local_clone()
 
         # Warmup on first batch to pre-tune MIOpen/GPU solvers
+        # Uses CustomVoice model (not Base) since warmup just needs to
+        # exercise MIOpen/GPU solvers and wake the GPU from deep sleep.
         if self._warmup_needed:
+            warmup_model = self._init_local_custom()
             print("Running batch warmup generation...")
-            self._warmup_model(model)
+            self._warmup_model(warmup_model)
             self._warmup_needed = False
 
         self._clear_gpu_cache()
+
 
         t_total_start = time.time()
         total_audio_duration = 0.0
@@ -1306,6 +1429,8 @@ class TTSEngine:
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [clone] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
 
+
+
         return results
 
     def _local_batch_lora(self, chunks, voice_config, output_dir):
@@ -1341,9 +1466,12 @@ class TTSEngine:
 
         self._clear_gpu_cache()
 
+
         # Warmup on first batch to pre-tune MIOpen/GPU solvers
+        # Uses CustomVoice model (not Base) since warmup just needs to
+        # exercise MIOpen/GPU solvers and wake the GPU from deep sleep.
         if self._warmup_needed:
-            warmup_model = self._init_local_clone()
+            warmup_model = self._init_local_custom()
             print("Running batch warmup generation...")
             self._warmup_model(warmup_model)
             self._warmup_needed = False
@@ -1483,6 +1611,8 @@ class TTSEngine:
         total_time = time.time() - t_total_start
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [lora] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
+
+
 
         return results
 
