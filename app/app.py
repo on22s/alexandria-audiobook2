@@ -326,6 +326,7 @@ process_state = {
         "cancel": False,
     },
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
 }
 
 # Clone voices directory for user-uploaded reference audio
@@ -406,6 +407,51 @@ def check_disk_space(path: str, required_gb: float):
         return free_gb >= required_gb, round(free_gb, 1)
     except Exception:
         return True, 0.0
+
+
+def get_gpu_stats():
+    """Get current GPU memory and utilization stats."""
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if not torch.cuda.is_available():
+        return None
+
+    stats = {}
+    try:
+        allocated = torch.cuda.memory_allocated() / 1e9
+        reserved = torch.cuda.memory_reserved() / 1e9
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9
+
+        stats['allocated_gb'] = allocated
+        stats['reserved_gb'] = reserved
+        stats['total_gb'] = total
+        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+
+        try:
+            result = subprocess.run(
+                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                json_lines = [l for l in result.stdout.split('\n') if l.strip().startswith('{')]
+                if json_lines:
+                    data = json.loads(json_lines[0])
+                    for card_data in data.values():
+                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                        if gpu_use_str != 'N/A':
+                            stats['utilization_percent'] = float(gpu_use_str)
+                        break
+        except Exception:
+            stats['utilization_percent'] = None
+
+    except Exception as e:
+        logger.debug(f"Could not get GPU stats: {e}")
+        return None
+
+    return stats
 
 
 def _normalize_filename_tokens(stem: str) -> list:
@@ -538,6 +584,20 @@ def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file
 
     if process_state["preparer"]["status"] == "done" and os.path.exists(output_path):
         process_state["preparer"]["output_file"] = config.output_filename
+
+
+@app.get("/api/system/stats")
+async def get_system_stats():
+    """Return GPU memory and disk statistics."""
+    gpu = get_gpu_stats()
+    has_space, free_gb = check_disk_space(ROOT_DIR, 1.0)
+    return {
+        "gpu": gpu,
+        "disk": {
+            "free_gb": round(free_gb, 2),
+            "low_space": not has_space
+        }
+    }
 
 
 @app.post("/api/preparer/start")
@@ -748,6 +808,11 @@ async def get_default_prompts():
 
 @app.post("/api/config")
 async def save_config(config: AppConfig):
+    # Ensure base_url ends with /v1 so the OpenAI client targets the correct path
+    url = config.llm.base_url.rstrip("/")
+    if not url.endswith("/v1"):
+        url += "/v1"
+    config.llm.base_url = url
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config.model_dump(), f, indent=2, ensure_ascii=False)
     # Reset engine so it picks up new TTS settings on next use
@@ -886,7 +951,7 @@ async def upload_file(file: UploadFile = File(...)):
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
-    return {"filename": file.filename, "path": file_path}
+    return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
 
 @app.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks):
@@ -958,6 +1023,90 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         "total_entries": total_entries,
         "estimated_calls": estimated_calls,
     }
+
+
+class BatchScriptTask(BaseModel):
+    filename: str  # filename inside uploads/
+
+class BatchScriptRequest(BaseModel):
+    tasks: List[BatchScriptTask]
+
+@app.post("/api/generate_script/batch/start")
+async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
+    """Process multiple text/EPUB files sequentially through generate_script.py."""
+    if process_state["batch_script"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch script generation already running.")
+    if process_state["script"]["running"]:
+        raise HTTPException(status_code=400, detail="Single script generation already running.")
+    if not request.tasks:
+        raise HTTPException(status_code=400, detail="No files provided.")
+
+    def _run():
+        state = process_state["batch_script"]
+        state["running"] = True
+        state["cancel"] = False
+        state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
+        state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
+        state["current_task_idx"] = -1
+
+        for i, task in enumerate(request.tasks):
+            if state["cancel"]:
+                state["logs"].append("Batch cancelled.")
+                break
+
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+
+            # Resolve upload path — handle epub→txt conversion
+            input_path = os.path.join(UPLOADS_DIR, task.filename)
+            if not os.path.exists(input_path):
+                stem, ext = os.path.splitext(task.filename)
+                if ext.lower() == ".epub":
+                    txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
+                    if os.path.exists(txt_path):
+                        input_path = txt_path
+            if not os.path.exists(input_path):
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — file not found: {task.filename}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+
+            stem = os.path.splitext(os.path.basename(input_path))[0]
+            safe_stem = _sanitize_name(stem) or f"batch_{i+1}"
+            output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
+
+            state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
+
+            cmd = [
+                sys.executable, "-u",
+                os.path.join(BASE_DIR, "generate_script.py"),
+                input_path,
+                "--output", output_path,
+            ]
+            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            elif rc == 0:
+                state["tasks"][i]["status"] = "done"
+                state["tasks"][i]["saved_as"] = safe_stem
+                state["logs"].append(f"[{i+1}] Saved as '{safe_stem}' in Scripts library.")
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{i+1}] Failed (exit {rc}): {task.filename}")
+
+        state["running"] = False
+        state["logs"].append("Batch script generation finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "task_count": len(request.tasks)}
+
+
+@app.post("/api/generate_script/batch/cancel")
+async def generate_script_batch_cancel():
+    process_state["batch_script"]["cancel"] = True
+    return {"status": "cancel_requested"}
+
 
 @app.get("/api/annotated_script")
 async def get_annotated_script():
@@ -1727,15 +1876,41 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
             shutil.rmtree(dataset_dir)
             raise HTTPException(status_code=400, detail="ZIP must contain metadata.jsonl")
 
-        # Count samples
+        # Count samples and validate audio file presence
         sample_count = 0
+        missing_audio = []
         with open(metadata_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line:
-                    sample_count += 1
+                if not line:
+                    continue
+                sample_count += 1
+                try:
+                    entry = json.loads(line)
+                    audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
+                    if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
+                        missing_audio.append(audio_rel)
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
-        logger.info(f"LoRA dataset uploaded: '{dataset_name}' ({sample_count} samples)")
+        wav_count = sum(1 for f in os.listdir(dataset_dir) if f.lower().endswith(".wav"))
+        ref_wav = os.path.exists(os.path.join(dataset_dir, "ref.wav"))
+        ref_text = os.path.exists(os.path.join(dataset_dir, "ref_text.txt"))
+
+        logger.info(
+            f"LoRA dataset '{dataset_name}': {sample_count} metadata entries, "
+            f"{wav_count} WAV files, ref.wav={'yes' if ref_wav else 'MISSING'}, "
+            f"ref_text.txt={'yes' if ref_text else 'missing'}"
+        )
+        if missing_audio:
+            logger.warning(
+                f"LoRA dataset '{dataset_name}': {len(missing_audio)} audio file(s) in "
+                f"metadata.jsonl not found in ZIP: {missing_audio[:5]}"
+                f"{'  (+more)' if len(missing_audio) > 5 else ''}"
+            )
+        else:
+            logger.info(f"LoRA dataset '{dataset_name}': all {sample_count} audio files present in ZIP")
+
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
 
     finally:
@@ -1902,6 +2077,22 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
 
     adapter_id = f"{safe_name}_{int(time.time())}"
     output_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
+
+    # Log dataset details and effective settings before training
+    try:
+        meta_path = os.path.join(dataset_dir, "metadata.jsonl")
+        dataset_sample_count = sum(1 for l in open(meta_path, encoding="utf-8") if l.strip())
+        total_passes = dataset_sample_count * request.epochs
+        alpha_r = request.lora_alpha / request.lora_r
+        logger.info(
+            f"LoRA training '{request.name}': dataset='{request.dataset_id}' "
+            f"samples={dataset_sample_count}, epochs={request.epochs}, "
+            f"total_passes={total_passes}, lr={request.lr:.2e}, "
+            f"r={request.lora_r}, alpha={request.lora_alpha} (scale={alpha_r:.1f}x), "
+            f"grad_accum={request.gradient_accumulation_steps}, language={request.language}"
+        )
+    except Exception:
+        pass
 
     # Unload TTS engine to free GPU
     if project_manager.engine is not None:
