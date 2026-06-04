@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import datetime
 import os
 import re
 import pickle
@@ -166,7 +167,8 @@ def run_dedup(model, device, zips2_root, output_dir):
         print(f"FOLDER: {folder_name}")
         print(f"{'='*60}")
 
-        zips = [z for z in sorted(ndir.glob("*.zip")) if z.name not in EXCLUDE_ZIPS]
+        zips = [z for z in sorted(ndir.iterdir())
+                if z.is_file() and z.name not in EXCLUDE_ZIPS and zipfile.is_zipfile(z)]
         if not zips:
             print("  No zips found.")
             continue
@@ -529,6 +531,102 @@ def run_analyze(model, device, deduped_root, output_dir):
     print("\nDone!")
 
 
+# ─── Pipeline summary ────────────────────────────────────────────────────────
+
+def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
+    """
+    Write a snapshot of pipeline state to dedup_dir/pipeline_summary.log.
+
+    Categories:
+      DONE           – dedup PNG exists AND group key is in analyze cache
+      PENDING ANALYZE – dedup PNG exists but not yet in analyze cache
+      PENDING DEDUP  – narrator folder exists in zips2 but no dedup PNG yet
+      NO ZIPS        – narrator folder has no valid zip files (failed/empty)
+    """
+    deduped_narrators = {
+        p.stem[len("dedup_"):]
+        for p in dedup_dir.glob("dedup_*.png")
+    }
+
+    analyze_cache_file = analyze_dir / "embeddings_cache.pkl"
+    analyzed_groups = set()
+    if analyze_cache_file.exists():
+        analyzed_groups = set(pickle.load(open(analyze_cache_file, "rb")).keys())
+
+    narrator_dirs = sorted(
+        d for d in zips2_root.iterdir()
+        if d.is_dir() and not d.name.startswith("_")
+    )
+
+    done, pending_analyze, pending_dedup, no_zips = [], [], [], []
+
+    for ndir in narrator_dirs:
+        name = ndir.name
+        zips = [z for z in sorted(ndir.iterdir())
+                if z.is_file() and z.name not in EXCLUDE_ZIPS and zipfile.is_zipfile(z)]
+
+        if not zips:
+            no_zips.append(name)
+            continue
+
+        has_dedup = name in deduped_narrators
+        norm = re.sub(r"[^a-z0-9]+", "_",
+                      name.replace("-converted", "").strip().lower()).strip("_")
+        is_analyzed = norm in analyzed_groups
+
+        if has_dedup and is_analyzed:
+            done.append((name, len(zips)))
+        elif has_dedup:
+            pending_analyze.append((name, len(zips)))
+        else:
+            pending_dedup.append((name, len(zips)))
+
+    lines = [
+        f"# Alexandria Pipeline Summary — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"# zips2: {zips2_root}",
+        f"",
+        f"=== DONE: deduped + analyzed ({len(done)}) ===",
+    ]
+    for name, n in done:
+        lines.append(f"  [DONE]    {name}  ({n} vols)")
+
+    lines += [
+        f"",
+        f"=== PENDING ANALYZE — deduped but not yet analyzed ({len(pending_analyze)}) ===",
+    ]
+    for name, n in pending_analyze:
+        lines.append(f"  [ANALYZE] {name}  ({n} vols)")
+
+    lines += [
+        f"",
+        f"=== PENDING DEDUP — not yet deduped ({len(pending_dedup)}) ===",
+    ]
+    for name, n in pending_dedup:
+        lines.append(f"  [DEDUP]   {name}  ({n} vols)")
+
+    lines += [
+        f"",
+        f"=== NO ZIPS FOUND — failed or still building ({len(no_zips)}) ===",
+    ]
+    for name in no_zips:
+        lines.append(f"  [EMPTY]   {name}")
+
+    total = len(done) + len(pending_analyze) + len(pending_dedup) + len(no_zips)
+    lines += [
+        f"",
+        f"# {total} narrator folders total: "
+        f"{len(done)} done | {len(pending_analyze)} pending analyze | "
+        f"{len(pending_dedup)} pending dedup | {len(no_zips)} empty/failed",
+        f"#",
+        f"# To process all pending in one pass:",
+        f"#   python voice_analysis.py --device cpu --phase dedup --then-analyze --zips2 {zips2_root}",
+    ]
+
+    log_path = dedup_dir / "pipeline_summary.log"
+    log_path.write_text("\n".join(lines) + "\n")
+    print(f"\nPipeline summary written → {log_path}")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 def main():
@@ -552,9 +650,20 @@ def main():
         "--analyze-out", type=Path, default=PROJECT_ROOT / "tone_analysis_output",
         help="Output folder for the analyze phase",
     )
+    parser.add_argument(
+        "--device", choices=["cuda", "cpu"], default=None,
+        help="Force a specific device (default: auto-detect)",
+    )
+    parser.add_argument(
+        "--then-analyze", action="store_true", dest="then_analyze",
+        help="After --phase dedup completes, automatically chain into analyze phase",
+    )
     args = parser.parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args.device:
+        device = args.device
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")
 
     model_savedir = args.dedup_out / "models" / "ecapa"
@@ -567,11 +676,15 @@ def main():
         print(f"{'#'*60}")
         run_dedup(model, device, args.zips2, args.dedup_out)
 
-    if args.phase in ("analyze", "both"):
+    run_analyze_phase = args.phase in ("analyze", "both") or (
+        args.phase == "dedup" and args.then_analyze
+    )
+    if run_analyze_phase:
         print(f"\n{'#'*60}")
         print("## PHASE 2: CROSS-GROUP ANALYSIS")
         print(f"{'#'*60}")
         run_analyze(model, device, deduped_root, args.analyze_out)
+        write_pipeline_summary(args.zips2, args.dedup_out, args.analyze_out)
 
 
 if __name__ == "__main__":

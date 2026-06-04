@@ -19,6 +19,17 @@ import tempfile
 # Do NOT defer this import — llama_cpp's ggml_cuda_init() must bind to the system HIP libs before
 # torch's bundled copies get loaded, otherwise ROCm detection fails at runtime.
 try:
+    import llama_cpp as _llama_cpp_mod
+    _llama_lib_dir = os.path.join(os.path.dirname(_llama_cpp_mod.__file__), "lib")
+    _hip_so = os.path.join(_llama_lib_dir, "libggml-hip.so")
+    if not os.path.exists(_hip_so):
+        import warnings
+        warnings.warn(
+            "\n\n*** llama-cpp-python is a CPU-only build — GPU acceleration disabled! ***\n"
+            "Rebuild with: bash /home/fakemitch/Desktop/llama_build/build_llama_rocm.sh\n"
+            "Annotation will run ~9x slower than expected.\n",
+            RuntimeWarning, stacklevel=2
+        )
     from llama_cpp import Llama
     LLAMA_CPP_AVAILABLE = True
 except ImportError:

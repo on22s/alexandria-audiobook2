@@ -70,7 +70,8 @@ def load_wav(zip_path, wav_name, sr_target=16000):
 folders = sorted([d for d in ROOT.iterdir() if d.is_dir() and not d.name.startswith("_")])
 
 for folder in folders:
-    zips = sorted(folder.glob("*.zip"))
+    zips = sorted([f for f in folder.iterdir()
+                   if f.is_file() and (f.suffix == ".zip" or "_vol" in f.name)])
     if len(zips) < 2:
         if zips:
             # Single zip — copy as-is
@@ -89,12 +90,14 @@ for folder in folders:
     # Extract embeddings
     embs_dict = {}
     short_labels = []
+    label_to_path = {}  # label → actual file path (handles extensionless files)
 
     for zp in zips:
         label = zp.stem
         cache_key = f"{folder.name}/{label}"
         cache_path = CACHE_DIR / f"{cache_key.replace('/', '_')}.pkl"
 
+        label_to_path[label] = zp
         if cache_path.exists():
             with open(cache_path, "rb") as f:
                 embs_dict[label] = pickle.load(f)
@@ -193,7 +196,7 @@ for folder in folders:
 
         for v in chosen:
             vol_counter[ci] += 1
-            src = folder / f"{v}.zip"
+            src = label_to_path[v]
             new_name = f"narrator_{narrator_prefix}_char{ci+1}_vol{vol_counter[ci]:02d}.zip"
             dst = OUTPUT / new_name
             shutil.copy2(str(src), str(dst))
