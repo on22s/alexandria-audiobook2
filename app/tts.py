@@ -381,7 +381,14 @@ class TTSEngine:
         def _patched_get_device_properties(device=None):
             if device is None:
                 device = torch.cuda.current_device()
-            key = int(device) if not isinstance(device, int) else device
+            if isinstance(device, int):
+                key = device
+            else:
+                try:
+                    dev = torch.device(device) if isinstance(device, str) else device
+                    key = dev.index if dev.index is not None else torch.cuda.current_device()
+                except Exception:
+                    key = 0
 
             if key in _cache:
                 return _cache[key]
@@ -396,17 +403,26 @@ class TTSEngine:
                     break
 
             if correction:
-                from types import SimpleNamespace
                 true_cus, true_warp = correction
-                patched = SimpleNamespace()
-                for attr in dir(props):
-                    if not attr.startswith('_'):
-                        try:
-                            setattr(patched, attr, getattr(props, attr))
-                        except (AttributeError, RuntimeError):
-                            pass
-                patched.multi_processor_count = true_cus
-                patched.warp_size = true_warp
+                _ov = {"multi_processor_count": true_cus, "warp_size": true_warp}
+
+                class _RDNADeviceProps:
+                    __slots__ = ("_orig", "_ov")
+
+                    def __init__(self, orig, ov):
+                        object.__setattr__(self, "_orig", orig)
+                        object.__setattr__(self, "_ov", ov)
+
+                    def __getattr__(self, name):
+                        ov = object.__getattribute__(self, "_ov")
+                        if name in ov:
+                            return ov[name]
+                        return getattr(object.__getattribute__(self, "_orig"), name)
+
+                    def __repr__(self):
+                        return repr(object.__getattribute__(self, "_orig"))
+
+                patched = _RDNADeviceProps(props, _ov)
                 old_threads = props.multi_processor_count * props.warp_size
                 new_threads = true_cus * true_warp
                 print(f"  [RDNA fix] {props.name}: CUs {props.multi_processor_count}->{true_cus}, "
@@ -1308,13 +1324,12 @@ class TTSEngine:
 
         model = self._init_local_clone()
 
-        # Warmup on first batch to pre-tune MIOpen/GPU solvers
-        # Uses CustomVoice model (not Base) since warmup just needs to
-        # exercise MIOpen/GPU solvers and wake the GPU from deep sleep.
+        # Warmup on first batch to pre-tune MIOpen/GPU solvers.
+        # Use the already-loaded clone model to avoid loading a second model
+        # into VRAM simultaneously (OOM risk on 12–16 GB cards).
         if self._warmup_needed:
-            warmup_model = self._init_local_custom()
             print("Running batch warmup generation...")
-            self._warmup_model(warmup_model)
+            self._warmup_model(model)
             self._warmup_needed = False
 
         self._clear_gpu_cache()
@@ -1438,16 +1453,6 @@ class TTSEngine:
 
         self._clear_gpu_cache()
 
-
-        # Warmup on first batch to pre-tune MIOpen/GPU solvers
-        # Uses CustomVoice model (not Base) since warmup just needs to
-        # exercise MIOpen/GPU solvers and wake the GPU from deep sleep.
-        if self._warmup_needed:
-            warmup_model = self._init_local_custom()
-            print("Running batch warmup generation...")
-            self._warmup_model(warmup_model)
-            self._warmup_needed = False
-
         t_total_start = time.time()
         total_audio_duration = 0.0
 
@@ -1472,6 +1477,14 @@ class TTSEngine:
                     raise ValueError("ref_sample_text missing from training_meta.json")
 
                 model = self._init_local_lora(adapter_path)
+
+                # Warmup on first batch to pre-tune MIOpen/GPU solvers.
+                # Done here (inside the loop) so the LoRA model is already
+                # loaded — avoids loading a second model into VRAM (OOM risk).
+                if self._warmup_needed:
+                    print("Running batch warmup generation...")
+                    self._warmup_model(model)
+                    self._warmup_needed = False
 
                 if adapter_path not in self._lora_prompt_cache:
                     audio_array, sample_rate = sf.read(ref_wav_path)
