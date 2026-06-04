@@ -379,10 +379,17 @@
         <!-- Setup Tab -->
         <div id="setup-tab" class="tab-content">
             <div class="card">
-                <div class="card-header">
-                    <h4><span class="step-indicator step-active">1</span>Configuration</h4>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0"><span class="step-indicator step-active">1</span>Configuration</h4>
+                    <button type="button" class="btn btn-sm btn-outline-info" id="btn-auto-configure" onclick="autoConfigureSettings()">
+                        <i class="fas fa-magic me-1"></i>Auto-Configure
+                    </button>
                 </div>
                 <div class="card-body">
+                    <div id="auto-config-banner" class="alert alert-info alert-dismissible py-2 small mb-3" style="display:none;">
+                        <span id="auto-config-msg"></span>
+                        <button type="button" class="btn-close btn-sm" onclick="document.getElementById('auto-config-banner').style.display='none'"></button>
+                    </div>
                     <form id="config-form">
                         <h5 class="mb-3">LLM Settings (Script Generation)</h5>
                         <div class="mb-3">
@@ -658,6 +665,9 @@
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
+                        </button>
+                        <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
+                            <i class="fas fa-stop me-1"></i>Cancel
                         </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-batch-script" style="display:none;" onclick="cancelBatchScript()">
                             <i class="fas fa-stop me-1"></i>Cancel
@@ -1504,6 +1514,98 @@
             document.getElementById('tts-local-options').style.display = mode === 'local' ? '' : 'none';
         }
 
+        async function autoConfigureSettings() {
+            const btn = document.getElementById('btn-auto-configure');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
+
+            try {
+                const stats = await API.get('/api/system/stats');
+                const { settings, summary } = _computeAutoSettings(stats);
+                _applyAutoSettings(settings);
+
+                const banner = document.getElementById('auto-config-banner');
+                document.getElementById('auto-config-msg').innerHTML =
+                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
+                banner.style.display = '';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                showToast('Hardware detection failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
+            }
+        }
+
+        function _computeAutoSettings(stats) {
+            const vram = stats.gpu ? stats.gpu.total_gb : 0;
+            const gpuName = stats.gpu_name || null;
+            const ramGb = stats.ram_gb || null;
+
+            let tier, settings;
+
+            // Tier boundaries and maxItems calibrated from tts_vram_benchmark.py on RX 9070 XT (17.1 GB):
+            // Model footprint: 4.18 GB. Peak VRAM per batch: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
+            // RTF: 4→2.3x, 8→3.5x (sweet spot), 12→2.8x, 16→2.9x, 24→2.7x (length-ratio caps at ~13 anyway).
+            if (!stats.gpu || vram < 5) {
+                // Model alone needs ~4.2 GB; under 5 GB it may not load reliably
+                tier = 'No GPU / insufficient VRAM';
+                settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 8) {
+                // 5–8 GB: model fits (~4.2 GB) but headroom is tight; long chunks peak ~7.3 GB total
+                tier = `Low VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 12) {
+                // 8–12 GB: ~4–8 GB headroom; 6-item batches peak ~8 GB total (safe)
+                tier = `Mid VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 6 };
+            } else if (vram < 20) {
+                // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x)
+                tier = `High VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 8 };
+            } else if (vram < 30) {
+                // 20–30 GB: 16-item batches peak ~11.8 GB total — comfortable headroom
+                tier = `Large VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 16 };
+            } else {
+                // 30+ GB: length-ratio splitter will cap practical batch size anyway
+                tier = `Enthusiast VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 24 };
+            }
+
+            const parts = [tier];
+            if (gpuName) parts.push(gpuName);
+            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
+            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
+            const summary = parts.join(' · ');
+
+            return { settings, summary };
+        }
+
+        function _applyAutoSettings(s) {
+            document.getElementById('tts-mode').value = s.ttsMode;
+            toggleTTSMode();
+            document.getElementById('parallel-workers').value = s.parallelWorkers;
+            document.getElementById('compile-codec').checked = s.compileCodec;
+            document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
+            document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
+            document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
+            document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
+            document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
+        }
+
         async function loadConfig() {
             document.getElementById('chunk-size').value = 3000;
             document.getElementById('max-tokens').value = 4096;
@@ -1766,10 +1868,20 @@
                 return;
             }
 
+            const genBtn = document.getElementById('btn-gen-script');
+            const cancelBtn = document.getElementById('btn-cancel-script');
+            genBtn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
+
             try {
                 await API.post('/api/generate_script', {});
-                pollLogs('script', 'script-logs');
+                pollLogs('script', 'script-logs', () => {
+                    if (!scriptBatchPoller) genBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                });
             } catch (e) {
+                genBtn.disabled = false;
+                cancelBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
@@ -1778,6 +1890,14 @@
                 }
             }
         });
+
+        window.cancelScript = async () => {
+            try {
+                await API.post('/api/generate_script/cancel', {});
+            } catch (e) {
+                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
@@ -3047,7 +3167,7 @@
         };
 
         // --- Polling Logic ---
-        async function pollLogs(taskName, elementId) {
+        async function pollLogs(taskName, elementId, onDone) {
             const el = document.getElementById(elementId);
             const interval = setInterval(async () => {
                 try {
@@ -3057,6 +3177,7 @@
 
                     if (!status.running) {
                         clearInterval(interval);
+                        if (onDone) onDone(status);
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
                             // Load audio player
                             const audio = document.getElementById('main-audio');

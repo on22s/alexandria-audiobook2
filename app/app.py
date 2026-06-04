@@ -384,7 +384,7 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": []},
+    "script": {"running": False, "logs": [], "cancel": False, "pid": None},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
@@ -425,6 +425,27 @@ def run_process(command: List[str], task_name: str):
         state["process"] = None
         state["running"] = False
 
+
+
+def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
+    """Terminate a running subprocess task, or queue cancel if Popen hasn't run yet."""
+    state = process_state[state_key]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail=not_running_msg)
+    pid = state.get("pid")
+    if not pid:
+        # Pre-Popen race window: flag is checked by run_process immediately after Popen
+        state["cancel"] = True
+        return {"status": "cancel queued"}
+    proc = state.get("process")
+    try:
+        if proc is not None:
+            proc.terminate()
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        raise HTTPException(status_code=400, detail=exited_msg)
+    return {"status": "cancel signal sent", "pid": pid}
 
 
 
@@ -485,15 +506,39 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
 
 @app.get("/api/system/stats")
 async def get_system_stats():
-    """Return GPU memory and disk statistics."""
+    """Return GPU memory, disk, and basic hardware statistics."""
     gpu = get_gpu_stats()
     has_space, free_gb = check_disk_space(ROOT_DIR, 1.0)
+
+    cpu_count = os.cpu_count()
+
+    ram_gb = None
+    try:
+        with open("/proc/meminfo") as _mf:
+            for _line in _mf:
+                if _line.startswith("MemTotal:"):
+                    ram_gb = round(int(_line.split()[1]) / 1_048_576, 1)
+                    break
+    except Exception:
+        pass
+
+    gpu_name = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+
     return {
         "gpu": gpu,
+        "gpu_name": gpu_name,
         "disk": {
             "free_gb": round(free_gb, 2),
             "low_space": not has_space
-        }
+        },
+        "cpu_count": cpu_count,
+        "ram_gb": ram_gb,
     }
 
 
@@ -804,6 +849,10 @@ async def generate_script(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
     return {"status": "started"}
+
+@app.post("/api/generate_script/cancel")
+async def generate_script_cancel():
+    return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):
