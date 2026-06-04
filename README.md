@@ -408,6 +408,8 @@ Alexandria automatically applies ROCm-specific optimizations when running on AMD
 
 These are applied transparently and require no configuration.
 
+> **ROCm 7.2+ batch workaround:** PyTorch's flash and memory-efficient SDPA kernels on ROCm 7.2+ have a regression that causes batch generation to hang when processing left-padded sequences (used by clone and LoRA voice batching). Alexandria automatically disables these SDPA backends during batch clone/LoRA generation on AMD GPUs, falling back to the math SDPA kernel. Single-item generation and custom voice batching are unaffected. NVIDIA users are not impacted — this applies only to AMD/ROCm.
+
 ## Script Format
 
 The generated script is a JSON array with `speaker`, `text`, and `instruct` fields:
