@@ -1505,6 +1505,98 @@
             }
         };
 
+        async function autoConfigureSettings() {
+            const btn = document.getElementById('btn-auto-configure');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
+
+            try {
+                const stats = await API.get('/api/system/stats');
+                const { settings, summary } = _computeAutoSettings(stats);
+                _applyAutoSettings(settings);
+
+                const banner = document.getElementById('auto-config-banner');
+                document.getElementById('auto-config-msg').innerHTML =
+                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
+                banner.style.display = '';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                showToast('Hardware detection failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
+            }
+        }
+
+        function _computeAutoSettings(stats) {
+            const vram = stats.gpu ? stats.gpu.total_gb : 0;
+            const gpuName = stats.gpu_name || null;
+            const ramGb = stats.ram_gb || null;
+
+            let tier, settings;
+
+            // Tier boundaries calibrated from benchmark on Qwen3-TTS-1.7B (4.18 GB footprint):
+            // Peak VRAM: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
+            // Best RTF at 8 items (3.5x); beyond 16 items the length-ratio splitter caps batch size.
+            if (!stats.gpu || vram < 5) {
+                // Model needs ~4.2 GB; under 5 GB it may not load reliably
+                tier = 'No GPU / insufficient VRAM';
+                settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 8) {
+                // 5–8 GB: model fits but headroom is tight; long chunks peak ~7.3 GB total
+                tier = `Low VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 4 };
+            } else if (vram < 12) {
+                // 8–12 GB: 6-item batches peak ~8 GB total (safe)
+                tier = `Mid VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 6 };
+            } else if (vram < 20) {
+                // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x real-time)
+                tier = `High VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 8 };
+            } else if (vram < 30) {
+                // 20–30 GB: 16-item batches peak ~11.8 GB total
+                tier = `Large VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 16 };
+            } else {
+                // 30+ GB: length-ratio splitter caps practical batch size
+                tier = `Enthusiast VRAM (${vram.toFixed(1)} GB)`;
+                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
+                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
+                    subBatchRatio: 5, subBatchMaxItems: 24 };
+            }
+
+            const parts = [tier];
+            if (gpuName) parts.push(gpuName);
+            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
+            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
+            const summary = parts.join(' · ');
+
+            return { settings, summary };
+        }
+
+        function _applyAutoSettings(s) {
+            document.getElementById('tts-mode').value = s.ttsMode;
+            toggleTTSMode();
+            document.getElementById('parallel-workers').value = s.parallelWorkers;
+            document.getElementById('compile-codec').checked = s.compileCodec;
+            document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
+            document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
+            document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
+            document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
+            document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
+        }
+
         // --- Setup Tab ---
 
         function toggleTTSMode() {
