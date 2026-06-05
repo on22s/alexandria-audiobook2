@@ -5,7 +5,7 @@ import json
 import shutil
 import signal
 import logging
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +18,10 @@ import threading
 import zipfile
 import subprocess
 import aiofiles
+try:
+    import torch as _torch
+except ImportError:
+    _torch = None
 from utils import atomic_json_write
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
@@ -120,20 +124,15 @@ app.add_middleware(
 
 def get_gpu_stats():
     """Get current GPU memory and utilization stats."""
-    try:
-        import torch
-    except ImportError:
-        return None
-
-    if not torch.cuda.is_available():
+    if _torch is None or not _torch.cuda.is_available():
         return None
 
     stats = {}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = torch.cuda.memory_reserved() / 1e9    # GB
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+        allocated = _torch.cuda.memory_allocated() / 1e9  # GB
+        reserved = _torch.cuda.memory_reserved() / 1e9    # GB
+        total = _torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
 
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
@@ -176,21 +175,6 @@ def check_disk_space(path, required_gb):
         return free_gb >= required_gb, free_gb
     except Exception:
         return True, 0
-
-@app.get("/api/system/stats")
-async def get_system_stats():
-    """Return GPU and Disk statistics."""
-    gpu = get_gpu_stats()
-    # Check root dir for disk space
-    has_space, free_gb = check_disk_space(ROOT_DIR, 1.0) # 1GB threshold for generic warning
-    
-    return {
-        "gpu": gpu,
-        "disk": {
-            "free_gb": round(free_gb, 2),
-            "low_space": not has_space
-        }
-    }
 
 # Data Models
 class LLMConfig(BaseModel):
@@ -384,7 +368,7 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": [], "cancel": False, "process": None},
+    "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
@@ -396,7 +380,7 @@ process_state = {
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
-    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "paused": False},
 }
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
@@ -404,6 +388,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     state = process_state[task_name]
     state["running"] = True
     state["logs"] = []
+    if "paused"      in state: state["paused"]      = False
     if "status"      in state: state["status"]      = "running"
     if "return_code" in state: state["return_code"] = None
     if "process"     in state: state["process"]     = None
@@ -435,94 +420,31 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         if "return_code" in state: state["return_code"] = return_code
 
 
+
+
+
+
+
 def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
-    """Terminate a running subprocess task, or queue cancel if process not yet started."""
+    """Terminate a running subprocess task, or queue cancel if Popen hasn't run yet."""
     state = process_state[state_key]
     if not state["running"]:
         raise HTTPException(status_code=400, detail=not_running_msg)
-    proc = state.get("process")
-    if proc is None:
-        # Process not started yet — _stream_subprocess_to_logs will pick up the flag
+    pid = state.get("pid")
+    if not pid:
+        # Pre-Popen race window: flag is checked by run_process immediately after Popen
         state["cancel"] = True
         return {"status": "cancel queued"}
+    proc = state.get("process")
     try:
-        proc.terminate()
-    except OSError:
+        if proc is not None:
+            proc.terminate()
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, OSError):
         raise HTTPException(status_code=400, detail=exited_msg)
-    return {"status": "cancel signal sent"}
+    return {"status": "cancel signal sent", "pid": pid}
 
-
-
-
-def check_disk_space(path: str, required_gb: float):
-    """Returns (has_space, free_gb). Falls back to (True, 0) if the check fails."""
-    try:
-        stat = shutil.disk_usage(path)
-        free_gb = stat.free / (1024 ** 3)
-        return free_gb >= required_gb, round(free_gb, 1)
-    except Exception:
-        return True, 0.0
-
-
-def get_gpu_stats():
-    """Get current GPU memory and utilization stats."""
-    try:
-        import torch
-    except ImportError:
-        return None
-
-    if not torch.cuda.is_available():
-        return None
-
-    stats = {}
-    try:
-        allocated = torch.cuda.memory_allocated() / 1e9
-        reserved = torch.cuda.memory_reserved() / 1e9
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9
-
-        stats['allocated_gb'] = allocated
-        stats['reserved_gb'] = reserved
-        stats['total_gb'] = total
-        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
-
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode == 0:
-                json_lines = [l for l in result.stdout.split('\n') if l.strip().startswith('{')]
-                if json_lines:
-                    data = json.loads(json_lines[0])
-                    for card_data in data.values():
-                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                        if gpu_use_str != 'N/A':
-                            stats['utilization_percent'] = float(gpu_use_str)
-                        break
-        except Exception:
-            stats['utilization_percent'] = None
-
-    except Exception as e:
-        logger.debug(f"Could not get GPU stats: {e}")
-        return None
-
-    return stats
-
-
-def _normalize_filename_tokens(stem: str) -> list:
-    return re.findall(r'[a-z0-9]+', stem.lower())
-
-
-def _fuzzy_score(audio_tokens: list, book_tokens: list) -> float:
-    if not audio_tokens or not book_tokens:
-        return 0.0
-    a, b = set(audio_tokens), set(book_tokens)
-    common = a & b
-    if not common:
-        return 0.0
-    precision = len(common) / len(b)
-    recall = len(common) / len(a)
-    return 2 * precision * recall / (precision + recall)
 
 
 def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
@@ -579,67 +501,6 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     return process.returncode
 
 
-PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
-
-
-def _run_preparer_task(config: PreparerConfig, audio_file_path: str, source_file_path: Optional[str] = None):
-    """Internal function to run the preparer script in a subprocess."""
-    preparer_cmd = [sys.executable, PREPARER_SCRIPT_PATH]
-    preparer_cmd.extend(["--audio", audio_file_path])
-    preparer_cmd.extend(["--output", os.path.join(ROOT_DIR, config.output_filename)])
-
-    if config.source_filename and source_file_path:
-        preparer_cmd.extend(["--source", source_file_path])
-        preparer_cmd.extend(["--source-threshold", str(config.source_threshold)])
-        if config.keep_unaligned:
-            preparer_cmd.append("--keep-unaligned")
-        if config.source_start is not None:
-            preparer_cmd.extend(["--source-start", str(config.source_start)])
-        if config.source_start_text:
-            preparer_cmd.extend(["--source-start-text", config.source_start_text])
-        if config.no_auto_anchor:
-            preparer_cmd.append("--no-auto-anchor")
-
-    if config.model:
-        preparer_cmd.extend(["--model", config.model])
-    if config.fallback_model:
-        preparer_cmd.extend(["--fallback-model", config.fallback_model])
-
-    preparer_cmd.extend(["--chunk-size", str(config.chunk_size)])
-    preparer_cmd.extend(["--lang", config.lang])
-    if config.resume:
-        preparer_cmd.append("--resume")
-    if config.skip_annotation:
-        preparer_cmd.append("--skip-annotation")
-
-    if config.batch_size > 1:
-        preparer_cmd.extend(["--batch-size", str(config.batch_size)])
-
-    if config.enrich_with_llm and config.llm_model_path:
-        preparer_cmd.append("--enrich-with-llm")
-        preparer_cmd.extend(["--llm-model-path", config.llm_model_path])
-        if config.enrich_speaker_attribution:
-            preparer_cmd.append("--enrich-speaker-attribution")
-        if config.enrich_narration_style:
-            preparer_cmd.append("--enrich-narration-style")
-        if config.enrich_emotional_tone:
-            preparer_cmd.append("--enrich-emotional-tone")
-
-    if config.min_chunk_duration != 2.0:
-        preparer_cmd.extend(["--min-chunk-duration", str(config.min_chunk_duration)])
-    if config.min_confidence != 0.85:
-        preparer_cmd.extend(["--min-confidence", str(config.min_confidence)])
-    if config.min_snr != 25:
-        preparer_cmd.extend(["--min-snr", str(config.min_snr)])
-
-    output_path = os.path.join(ROOT_DIR, config.output_filename)
-    process_state["preparer"]["output_file"] = None
-
-    run_process(preparer_cmd, "preparer", cwd=ROOT_DIR)
-
-    if process_state["preparer"]["status"] == "done" and os.path.exists(output_path):
-        process_state["preparer"]["output_file"] = config.output_filename
-
 
 @app.get("/api/system/stats")
 async def get_system_stats():
@@ -661,9 +522,8 @@ async def get_system_stats():
 
     gpu_name = None
     try:
-        import torch
-        if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
+        if _torch is not None and _torch.cuda.is_available():
+            gpu_name = _torch.cuda.get_device_name(0)
     except Exception:
         pass
 
@@ -677,92 +537,6 @@ async def get_system_stats():
         "cpu_count": cpu_count,
         "ram_gb": ram_gb,
     }
-
-
-@app.post("/api/preparer/start")
-async def start_preparer(
-    background_tasks: BackgroundTasks,
-    config_json: str = Form(...),
-    audio_file: UploadFile = File(...),
-    source_file: Optional[UploadFile] = File(None)
-):
-    """Start the Alexandria Preparer process to generate a TTS dataset from an audiobook."""
-    try:
-        config = PreparerConfig(**json.loads(config_json))
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid config JSON: {e}")
-
-    if process_state["preparer"]["running"]:
-        raise HTTPException(status_code=400, detail="Preparer process is already running.")
-
-    audio_upload_path = os.path.join(UPLOADS_DIR, config.audio_filename)
-    async with aiofiles.open(audio_upload_path, "wb") as f:
-        while contents := await audio_file.read(1024 * 1024):
-            await f.write(contents)
-
-    source_upload_path = None
-    if source_file:
-        actual_source_filename = config.source_filename or source_file.filename
-        source_upload_path = os.path.join(UPLOADS_DIR, actual_source_filename)
-        async with aiofiles.open(source_upload_path, "wb") as f:
-            while contents := await source_file.read(1024 * 1024):
-                await f.write(contents)
-
-    background_tasks.add_task(_run_preparer_task, config, audio_upload_path, source_upload_path)
-    return {"status": "Preparer started", "config": config.dict()}
-
-
-@app.get("/api/preparer/status")
-async def get_preparer_status(log_offset: int = Query(0)):
-    """Get the current status and logs of the Alexandria Preparer process."""
-    state = process_state["preparer"]
-    all_logs = state["logs"]
-    return {
-        "running":     state["running"],
-        "status":      state["status"],
-        "return_code": state["return_code"],
-        "output_file": state["output_file"],
-        "log_total":   len(all_logs),
-        "logs":        all_logs[log_offset:],
-    }
-
-
-@app.post("/api/preparer/cancel")
-async def cancel_preparer():
-    return _cancel_task("preparer", "No preparer is currently running.", "Preparer process already exited.")
-
-
-@app.get("/api/preparer/list")
-async def list_preparer_outputs():
-    """List completed dataset ZIP files available for download."""
-    files = []
-    for directory in [ROOT_DIR, os.path.join(ROOT_DIR, "test_corpus_output")]:
-        if not os.path.isdir(directory):
-            continue
-        for fname in sorted(os.listdir(directory)):
-            if not fname.endswith(".zip"):
-                continue
-            fpath = os.path.join(directory, fname)
-            files.append({
-                "filename": fname,
-                "path":     os.path.relpath(fpath, ROOT_DIR),
-                "size_mb":  round(os.path.getsize(fpath) / (1024 * 1024), 1),
-                "modified": os.path.getmtime(fpath),
-            })
-    return {"files": files}
-
-
-@app.get("/api/preparer/download/{filename:path}")
-async def download_preparer_output(filename: str):
-    """Download a generated dataset ZIP file."""
-    root = os.path.realpath(ROOT_DIR)
-    file_path = os.path.realpath(os.path.join(ROOT_DIR, filename))
-    if not file_path.startswith(root + os.sep) and file_path != root:
-        raise HTTPException(status_code=400, detail="Invalid filename.")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found or preparer not finished.")
-    return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
-
 
 # Endpoints
 
@@ -1075,6 +849,42 @@ async def generate_script(background_tasks: BackgroundTasks):
 async def generate_script_cancel():
     return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
+def _posix_signal(proc, sig):
+    """Send a POSIX signal. Raises 501 on Windows where SIGSTOP/SIGCONT are unavailable."""
+    if sys.platform == "win32":
+        raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
+    try:
+        proc.send_signal(sig)
+    except (ProcessLookupError, OSError) as e:
+        raise HTTPException(status_code=400, detail=f"Signal failed: {e}")
+
+@app.post("/api/generate_script/pause")
+async def generate_script_pause():
+    state = process_state["script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Script generation is starting up, retry in a moment.")
+    _posix_signal(proc, signal.SIGSTOP)
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Script generation paused.")
+    return {"status": "paused"}
+
+@app.post("/api/generate_script/resume")
+async def generate_script_resume():
+    state = process_state["script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, signal.SIGCONT)
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Script generation resumed.")
+    return {"status": "resumed"}
+
+
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):
     if not os.path.exists(SCRIPT_PATH):
@@ -1206,8 +1016,44 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
 
 @app.post("/api/generate_script/batch/cancel")
 async def generate_script_batch_cancel():
-    process_state["batch_script"]["cancel"] = True
+    state = process_state["batch_script"]
+    state["cancel"] = True
+    proc = state.get("process")
+    if proc and state.get("paused") and sys.platform != "win32":
+        try:
+            proc.send_signal(signal.SIGCONT)
+        except (ProcessLookupError, OSError):
+            pass
+        state["paused"] = False
     return {"status": "cancel_requested"}
+
+
+@app.post("/api/generate_script/batch/pause")
+async def generate_script_batch_pause():
+    state = process_state["batch_script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Batch script generation is starting up, retry in a moment.")
+    _posix_signal(proc, signal.SIGSTOP)
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Batch script generation paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/generate_script/batch/resume")
+async def generate_script_batch_resume():
+    state = process_state["batch_script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, signal.SIGCONT)
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Batch script generation resumed.")
+    return {"status": "resumed"}
 
 
 @app.get("/api/annotated_script")

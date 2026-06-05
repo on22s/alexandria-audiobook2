@@ -117,6 +117,9 @@ gha-creds-*.json
 # Pip/CMake rebuild artifacts (e.g. llama-cpp-python ROCm rebuilds)
 build_logs/
 
+# Local benchmark results (machine-specific data)
+app/benchmark_results.json
+
 # Web wrapper's own log directory
 app/logs/
 
@@ -133,3 +136,10 @@ kizu_test_output*.zip
 opt_test.zip
 batch_test*.zip
 batch_test*.zip
+
+# Session scratch files
+commit_msg.txt
+pr_body.txt
+pr_body2.txt
+dedup_analysis/
+tone_analysis_output/

@@ -676,8 +676,7 @@ def test_status_known_tasks():
     task_names = [
         "script", "audio", "audacity_export",
         "review", "lora_training", "dataset_gen", "dataset_builder",
-        "persona",
-        "preparer", "batch_preparer"
+        "preparer", "batch_preparer", "persona",
     ]
     for name in task_names:
         r = get(f"/api/status/{name}")
@@ -1280,6 +1279,9 @@ def run_all_tests():
     run_test("dataset_builder_save_no_samples", test_dataset_builder_save_no_samples)
     run_test("dataset_builder_delete", test_dataset_builder_delete)
     run_test("dataset_builder_delete_404", test_dataset_builder_delete_404)
+
+    section("Persona Generation")
+    run_test("cancel_persona_not_running", test_cancel_persona_not_running)
 
     section("Persona Generation")
     run_test("cancel_persona_not_running", test_cancel_persona_not_running)

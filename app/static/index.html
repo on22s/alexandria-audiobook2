@@ -7,26 +7,172 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
+        /* ── Theme tokens ──────────────────────────────────────────────── */
+        :root {
+            --bg-page:        #f8f9fa;
+            --bg-card:        #ffffff;
+            --bg-card-header: #f8f9fa;
+            --bg-input:       #ffffff;
+            --bg-navbar:      #212529;
+            --bg-modal:       #ffffff;
+            --text-primary:   #212529;
+            --text-muted:     #6c757d;
+            --text-heading:   #212529;
+            --border-color:   rgba(0,0,0,0.125);
+            --border-input:   #dee2e6;
+            --shadow:         rgba(0,0,0,0.1);
+            --step-bg:        #e9ecef;
+            --step-color:     #6c757d;
+            --hr-color:       rgba(0,0,0,0.1);
+            --badge-muted-bg: #6c757d;
+            --log-bg:         #1e1e1e;
+            --log-color:      #00ff00;
+            --theme-transition: background-color 0.25s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* ── Night mode ────────────────────────────────────────────────── */
+        html[data-theme="night"] {
+            --bg-page:        #1a1d24;
+            --bg-card:        #252a35;
+            --bg-card-header: #2c3040;
+            --bg-input:       #2c3040;
+            --bg-navbar:      #111419;
+            --bg-modal:       #252a35;
+            --text-primary:   #dde3ed;
+            --text-muted:     #8896a8;
+            --text-heading:   #e8edf5;
+            --border-color:   rgba(255,255,255,0.08);
+            --border-input:   #3d4558;
+            --shadow:         rgba(0,0,0,0.35);
+            --step-bg:        #363d50;
+            --step-color:     #8896a8;
+            --hr-color:       rgba(255,255,255,0.08);
+            --badge-muted-bg: #4a5568;
+            --log-bg:         #111419;
+            --log-color:      #4ade80;
+        }
+
+        /* ── Super Night mode ─────────────────────────────────────────── */
+        html[data-theme="super-night"] {
+            --bg-page:        #000000;
+            --bg-card:        #111111;
+            --bg-card-header: #181818;
+            --bg-input:       #0f0f0f;
+            --bg-navbar:      #000000;
+            --bg-modal:       #111111;
+            --text-primary:   #999999;
+            --text-muted:     #606060;
+            --text-heading:   #bbbbbb;
+            --border-color:   rgba(255,255,255,0.09);
+            --border-input:   #2a2a2a;
+            --shadow:         rgba(0,0,0,0.7);
+            --step-bg:        #1e1e1e;
+            --step-color:     #5a5a5a;
+            --hr-color:       rgba(255,255,255,0.08);
+            --badge-muted-bg: #2a2a2a;
+            --log-bg:         #000000;
+            --log-color:      #4a8a4a;
+        }
+
+        /* ── Base styles using tokens ──────────────────────────────────── */
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            transition: var(--theme-transition);
+        }
         .container-wide { max-width: 85%; margin-left: auto; margin-right: auto; padding-left: 12px; padding-right: 12px; }
         .nav-link { cursor: pointer; }
+
+        /* Cards */
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px var(--shadow);
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            transition: var(--theme-transition);
+        }
+        .card-header {
+            background-color: var(--bg-card-header);
+            border-bottom-color: var(--border-color);
+            color: var(--text-heading);
+        }
+        .card-body { color: var(--text-primary); }
+
+        /* Inputs */
+        .form-control, .form-select {
+            background-color: var(--bg-input);
+            border-color: var(--border-input);
+            color: var(--text-primary);
+            transition: var(--theme-transition);
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: var(--bg-input);
+            color: var(--text-primary);
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.2);
+        }
+        .form-control::placeholder { color: var(--text-muted); opacity: 0.7; }
+        .form-control[readonly] { background-color: var(--bg-card-header); }
+        .form-text, label.form-label { color: var(--text-muted); }
+        .input-group-text {
+            background-color: var(--bg-card-header);
+            border-color: var(--border-input);
+            color: var(--text-muted);
+        }
+
+        /* Tables */
+        .table {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        .table th, .table td { border-color: var(--border-color); }
+        .table thead th { background-color: var(--bg-card-header); color: var(--text-heading); }
+        .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(0,0,0,0.03); }
+        html[data-theme="night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.03); }
+        html[data-theme="super-night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.02); }
+
+        /* Modals */
+        .modal-content {
+            background-color: var(--bg-modal);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        .modal-header, .modal-footer { border-color: var(--border-color); }
+
+        /* Misc */
+        hr { border-color: var(--hr-color); opacity: 1; }
+        .text-muted { color: var(--text-muted) !important; }
+        h1,h2,h3,h4,h5,h6 { color: var(--text-heading); }
+        .list-group-item {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        .collapse-header, [data-bs-toggle="collapse"] { color: var(--text-primary); }
+
+        /* Navbar */
+        .navbar { background-color: var(--bg-navbar) !important; transition: background-color 0.25s ease; }
+
+        /* Log window */
         .log-window {
-            background-color: #1e1e1e;
-            color: #00ff00;
+            background-color: var(--log-bg);
+            color: var(--log-color);
             font-family: 'Courier New', Courier, monospace;
             height: 300px;
             overflow-y: auto;
             padding: 10px;
             border-radius: 5px;
             font-size: 0.9em;
+            transition: background-color 0.25s ease, color 0.2s ease;
         }
-        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        /* Step indicator */
         .step-indicator {
             display: inline-block;
             width: 25px;
             height: 25px;
-            background-color: #e9ecef;
-            color: #6c757d;
+            background-color: var(--step-bg);
+            color: var(--step-color);
             border-radius: 50%;
             text-align: center;
             line-height: 25px;
@@ -35,19 +181,19 @@
         }
         .step-active { background-color: #0d6efd; color: white; }
         .voice-card { border-left: 4px solid #0d6efd; }
+
         /* Editor row expand/collapse */
         .chunk-action-btn {
             border: none;
             background: none;
             padding: 2px 4px;
             cursor: pointer;
-            color: #6c757d;
+            color: var(--text-muted);
             font-size: 0.85em;
             transition: transform 0.2s ease;
         }
-        .chunk-row.expanded .chunk-toggle-btn {
-            transform: rotate(180deg);
-        }
+        .chunk-row.expanded .chunk-toggle-btn { transform: rotate(180deg); }
+
         /* Core pipeline tabs - green */
         .nav-link.nav-pipeline { color: rgba(125, 227, 161, 0.7); }
         .nav-link.nav-pipeline:hover { color: #7de3a1; }
@@ -56,7 +202,160 @@
         .nav-link.nav-advanced { color: rgba(130, 177, 255, 0.7); }
         .nav-link.nav-advanced:hover { color: #82b1ff; }
         .nav-link.nav-advanced.active { color: #fff; background-color: #0d6efd; border-radius: 4px; }
+
+        /* ── Theme toggle button ───────────────────────────────────────── */
+        #theme-toggle {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 20px;
+            color: rgba(255,255,255,0.75);
+            padding: 3px 11px;
+            font-size: 0.82em;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.2s, color 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #theme-toggle:hover {
+            border-color: rgba(255,255,255,0.6);
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+        html[data-theme="night"] #theme-toggle {
+            border-color: rgba(100,160,255,0.4);
+            color: rgba(150,190,255,0.9);
+        }
+        html[data-theme="super-night"] #theme-toggle {
+            border-color: rgba(80,80,80,0.6);
+            color: rgba(120,120,120,0.9);
+        }
+
+        /* Tinted card headers in night modes */
+        html[data-theme="night"] .bg-success.bg-opacity-10,
+        html[data-theme="super-night"] .bg-success.bg-opacity-10 { background-color: rgba(25,135,84,0.12) !important; }
+        html[data-theme="night"] .bg-info.bg-opacity-10,
+        html[data-theme="super-night"] .bg-info.bg-opacity-10 { background-color: rgba(13,202,240,0.08) !important; }
+        html[data-theme="night"] .bg-warning.bg-opacity-10,
+        html[data-theme="super-night"] .bg-warning.bg-opacity-10 { background-color: rgba(255,193,7,0.08) !important; }
+        html[data-theme="night"] .bg-primary.bg-opacity-10,
+        html[data-theme="super-night"] .bg-primary.bg-opacity-10 { background-color: rgba(13,110,253,0.1) !important; }
+
+        /* Select option backgrounds (browser-rendered, needs explicit override) */
+        html[data-theme="night"] select option,
+        html[data-theme="super-night"] select option {
+            background-color: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        /* ── Bootstrap CSS variable overrides for dark themes ─────────── */
+        html[data-theme="night"],
+        html[data-theme="super-night"] {
+            --bs-body-bg: var(--bg-page);
+            --bs-body-color: var(--text-primary);
+            --bs-border-color: var(--border-color);
+            --bs-card-bg: var(--bg-card);
+            --bs-card-cap-bg: var(--bg-card-header);
+            --bs-modal-bg: var(--bg-modal);
+        }
+
+        /* ── Bootstrap contextual table class overrides ────────────────── */
+        html[data-theme="night"] .table-light,
+        html[data-theme="super-night"] .table-light {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: var(--bg-card-header);
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .table-primary,
+        html[data-theme="super-night"] .table-primary {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: rgba(13,110,253,0.18);
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .table-info,
+        html[data-theme="super-night"] .table-info {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: rgba(13,202,240,0.12);
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .table-warning,
+        html[data-theme="super-night"] .table-warning {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: rgba(255,193,7,0.14);
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .table-secondary,
+        html[data-theme="super-night"] .table-secondary {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: var(--bg-card-header);
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        /* ── Bootstrap bg utility overrides ────────────────────────────── */
+        html[data-theme="night"] .bg-white,
+        html[data-theme="super-night"] .bg-white { background-color: var(--bg-card) !important; }
+        html[data-theme="night"] .bg-light,
+        html[data-theme="super-night"] .bg-light { background-color: var(--bg-card-header) !important; }
+        html[data-theme="night"] .bg-body,
+        html[data-theme="super-night"] .bg-body { background-color: var(--bg-page) !important; }
+
+        /* ── Bootstrap alert overrides ─────────────────────────────────── */
+        html[data-theme="night"] .alert-info,
+        html[data-theme="super-night"] .alert-info {
+            background-color: rgba(13,202,240,0.1);
+            border-color: rgba(13,202,240,0.25);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .alert-warning,
+        html[data-theme="super-night"] .alert-warning {
+            background-color: rgba(255,193,7,0.1);
+            border-color: rgba(255,193,7,0.25);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .alert-success,
+        html[data-theme="super-night"] .alert-success {
+            background-color: rgba(25,135,84,0.1);
+            border-color: rgba(25,135,84,0.25);
+            color: var(--text-primary);
+        }
+        html[data-theme="night"] .alert-danger,
+        html[data-theme="super-night"] .alert-danger {
+            background-color: rgba(220,53,69,0.1);
+            border-color: rgba(220,53,69,0.25);
+            color: var(--text-primary);
+        }
+
+        /* ── btn-outline-secondary in dark modes ───────────────────────── */
+        html[data-theme="night"] .btn-outline-secondary,
+        html[data-theme="super-night"] .btn-outline-secondary {
+            --bs-btn-color:         var(--text-primary);
+            --bs-btn-border-color:  rgba(255,255,255,0.28);
+            --bs-btn-hover-color:   var(--text-heading);
+            --bs-btn-hover-bg:      rgba(255,255,255,0.08);
+            --bs-btn-hover-border-color: rgba(255,255,255,0.45);
+            --bs-btn-active-color:  var(--text-heading);
+            --bs-btn-active-bg:     rgba(255,255,255,0.12);
+            --bs-btn-active-border-color: rgba(255,255,255,0.45);
+        }
+
+        /* ── Voice card left accent ────────────────────────────────────── */
+        html[data-theme="super-night"] .voice-card {
+            border-left-color: #4a90d9;
+        }
     </style>
+    <script>
+        /* Anti-flash: apply saved theme before first paint */
+        (function() {
+            const t = localStorage.getItem('alex-theme');
+            if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -77,7 +376,13 @@
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
                 </ul>
-                <ul class="navbar-nav ms-auto align-items-center">
+                <ul class="navbar-nav ms-auto align-items-center gap-2">
+                    <li class="nav-item">
+                        <button id="theme-toggle" onclick="cycleTheme()" title="Toggle theme">
+                            <i id="theme-icon" class="fas fa-sun"></i>
+                            <span id="theme-label">Light</span>
+                        </button>
+                    </li>
                     <li class="nav-item small d-flex align-items-center" title="System Status">
                         <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span id="sys-gpu-val" style="font-family: monospace;">N/A</span></span>
                         <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span id="sys-disk-val" style="font-family: monospace;">N/A</span></span>
@@ -379,8 +684,14 @@
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
                         </button>
+                        <button class="btn btn-outline-warning" id="btn-pause-script" style="display:none;" onclick="pauseResumeScript()">
+                            <i class="fas fa-pause me-1"></i>Pause
+                        </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
                             <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                        <button class="btn btn-outline-warning" id="btn-pause-batch-script" style="display:none;" onclick="pauseResumeBatchScript()">
+                            <i class="fas fa-pause me-1"></i>Pause
                         </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-batch-script" style="display:none;" onclick="cancelBatchScript()">
                             <i class="fas fa-stop me-1"></i>Cancel
@@ -621,7 +932,7 @@
                     <div id="preparer-progress-section" class="mt-4" style="display:none;">
                         <hr>
                         <h5 class="mb-2">Execution Logs</h5>
-                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:#1e1e1e;color:#ddd;padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
+                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
                 </div>
             </div>
@@ -984,7 +1295,7 @@
                                 <i class="fas fa-book-reader me-1"></i>M4B Export Options <i class="fas fa-chevron-down fa-xs ms-1"></i>
                             </a>
                             <div class="collapse mt-2" id="m4b-options">
-                                <div class="border rounded p-3" style="background: var(--bs-light, #f8f9fa);">
+                                <div class="border rounded p-3" style="background: var(--bg-card-header);">
                                     <div class="row g-2">
                                         <div class="col-md-6">
                                             <label class="form-label small mb-1">Title</label>
@@ -1147,6 +1458,39 @@
             });
         });
 
+        // --- Theme ---
+        const THEMES = [
+            { key: 'light',       icon: 'fa-sun',      label: 'Light'      },
+            { key: 'night',       icon: 'fa-moon',     label: 'Night'      },
+            { key: 'super-night', icon: 'fa-circle',   label: 'Super Night'},
+        ];
+
+        function applyTheme(key) {
+            const html = document.documentElement;
+            if (key === 'light') {
+                html.removeAttribute('data-theme');
+            } else {
+                html.setAttribute('data-theme', key);
+            }
+            const t = THEMES.find(t => t.key === key) || THEMES[0];
+            document.getElementById('theme-icon').className = `fas ${t.icon}`;
+            document.getElementById('theme-label').textContent = t.label;
+            localStorage.setItem('alex-theme', key);
+        }
+
+        function cycleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'light';
+            const idx = THEMES.findIndex(t => t.key === current);
+            const next = THEMES[(idx + 1) % THEMES.length];
+            applyTheme(next.key);
+        }
+
+        // Sync button label/icon with whatever the anti-flash snippet already applied
+        (function() {
+            const saved = localStorage.getItem('alex-theme') || 'light';
+            applyTheme(saved);
+        })();
+
         // --- API Helpers ---
         const API = {
             _handleError: async (res) => {
@@ -1184,98 +1528,6 @@
                 return res.json();
             }
         };
-
-        async function autoConfigureSettings() {
-            const btn = document.getElementById('btn-auto-configure');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
-
-            try {
-                const stats = await API.get('/api/system/stats');
-                const { settings, summary } = _computeAutoSettings(stats);
-                _applyAutoSettings(settings);
-
-                const banner = document.getElementById('auto-config-banner');
-                document.getElementById('auto-config-msg').innerHTML =
-                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
-                banner.style.display = '';
-                banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (e) {
-                showToast('Hardware detection failed: ' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
-            }
-        }
-
-        function _computeAutoSettings(stats) {
-            const vram = stats.gpu ? stats.gpu.total_gb : 0;
-            const gpuName = stats.gpu_name || null;
-            const ramGb = stats.ram_gb || null;
-
-            let tier, settings;
-
-            // Tier boundaries calibrated from benchmark on Qwen3-TTS-1.7B (4.18 GB footprint):
-            // Peak VRAM: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
-            // Best RTF at 8 items (3.5x); beyond 16 items the length-ratio splitter caps batch size.
-            if (!stats.gpu || vram < 5) {
-                // Model needs ~4.2 GB; under 5 GB it may not load reliably
-                tier = 'No GPU / insufficient VRAM';
-                settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 4 };
-            } else if (vram < 8) {
-                // 5–8 GB: model fits but headroom is tight; long chunks peak ~7.3 GB total
-                tier = `Low VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 4 };
-            } else if (vram < 12) {
-                // 8–12 GB: 6-item batches peak ~8 GB total (safe)
-                tier = `Mid VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 6 };
-            } else if (vram < 20) {
-                // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x real-time)
-                tier = `High VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 8 };
-            } else if (vram < 30) {
-                // 20–30 GB: 16-item batches peak ~11.8 GB total
-                tier = `Large VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 16 };
-            } else {
-                // 30+ GB: length-ratio splitter caps practical batch size
-                tier = `Enthusiast VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 24 };
-            }
-
-            const parts = [tier];
-            if (gpuName) parts.push(gpuName);
-            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
-            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
-            const summary = parts.join(' · ');
-
-            return { settings, summary };
-        }
-
-        function _applyAutoSettings(s) {
-            document.getElementById('tts-mode').value = s.ttsMode;
-            toggleTTSMode();
-            document.getElementById('parallel-workers').value = s.parallelWorkers;
-            document.getElementById('compile-codec').checked = s.compileCodec;
-            document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
-            document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
-            document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
-            document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
-            document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
-        }
 
         // --- Setup Tab ---
 
@@ -1642,18 +1894,27 @@
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
+            const pauseBtn = document.getElementById('btn-pause-script');
             genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
+            pauseBtn.style.display = 'inline-block';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.classList.remove('btn-outline-success');
+            pauseBtn.classList.add('btn-outline-warning');
+            _scriptPR.reset();
 
             try {
                 await API.post('/api/generate_script', {});
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) genBtn.disabled = false;
                     cancelBtn.style.display = 'none';
+                    pauseBtn.style.display = 'none';
+                    _scriptPR.reset();
                 });
             } catch (e) {
                 genBtn.disabled = false;
                 cancelBtn.style.display = 'none';
+                pauseBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
@@ -1663,13 +1924,47 @@
             }
         });
 
+        function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
+            let _paused = false;
+            return {
+                handler: async () => {
+                    const btn = document.getElementById(btnId);
+                    try {
+                        if (!_paused) {
+                            await API.post(pauseUrl, {});
+                            _paused = true;
+                            btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                            btn.classList.remove('btn-outline-warning');
+                            btn.classList.add('btn-outline-success');
+                        } else {
+                            await API.post(resumeUrl, {});
+                            _paused = false;
+                            btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                            btn.classList.remove('btn-outline-success');
+                            btn.classList.add('btn-outline-warning');
+                        }
+                    } catch (e) {
+                        showToast((_paused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+                    }
+                },
+                reset: () => { _paused = false; }
+            };
+        }
+
+        const _scriptPR = _makePauseResumeHandler(
+            '/api/generate_script/pause', '/api/generate_script/resume', 'btn-pause-script');
+        const _batchPR  = _makePauseResumeHandler(
+            '/api/generate_script/batch/pause', '/api/generate_script/batch/resume', 'btn-pause-batch-script');
+
         window.cancelScript = async () => {
+            _scriptPR.reset();
             try {
                 await API.post('/api/generate_script/cancel', {});
             } catch (e) {
                 showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
             }
         };
+        window.pauseResumeScript      = _scriptPR.handler;
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
@@ -1707,15 +2002,25 @@
         };
 
         window.cancelBatchScript = async () => {
+            _batchPR.reset();
             try { await API.post('/api/generate_script/batch/cancel', {}); } catch (e) { /* ignore */ }
         };
+
+        window.pauseResumeBatchScript = _batchPR.handler;
+
 
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
             const btn = document.getElementById('btn-gen-script');
+            const pauseBtn = document.getElementById('btn-pause-batch-script');
             const statusMsg = document.getElementById('script-batch-status-msg');
             btn.disabled = true;
+            _batchPR.reset();
+            pauseBtn.style.display = 'inline-block';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.classList.remove('btn-outline-success');
+            pauseBtn.classList.add('btn-outline-warning');
             document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
             statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
             statusMsg.style.display = '';
@@ -1737,6 +2042,7 @@
             } catch (e) {
                 showToast('Failed to start batch: ' + e.message, 'error');
                 btn.disabled = false;
+                pauseBtn.style.display = 'none';
                 document.getElementById('btn-cancel-batch-script').style.display = 'none';
             }
         }
@@ -1770,7 +2076,9 @@
                     if (!state.running) {
                         clearInterval(scriptBatchPoller);
                         scriptBatchPoller = null;
+                        _batchPR.reset();
                         document.getElementById('btn-gen-script').disabled = false;
+                        document.getElementById('btn-pause-batch-script').style.display = 'none';
                         document.getElementById('btn-cancel-batch-script').style.display = 'none';
                         document.getElementById('script-batch-status-msg').innerHTML =
                             '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
@@ -4260,7 +4568,7 @@
         loadDesignedVoices();
         dsbLoadProjects();
         updateSystemStats();
-        setInterval(updateSystemStats, 10000);
+        setInterval(updateSystemStats, 10000); // Update every 10s
 
         // ── Preparer ──────────────────────────────────────────────
         let prepBatchQueue = [];
