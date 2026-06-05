@@ -177,21 +177,6 @@ def check_disk_space(path, required_gb):
     except Exception:
         return True, 0
 
-@app.get("/api/system/stats")
-async def get_system_stats():
-    """Return GPU and Disk statistics."""
-    gpu = get_gpu_stats()
-    # Check root dir for disk space
-    has_space, free_gb = check_disk_space(ROOT_DIR, 1.0) # 1GB threshold for generic warning
-    
-    return {
-        "gpu": gpu,
-        "disk": {
-            "free_gb": round(free_gb, 2),
-            "low_space": not has_space
-        }
-    }
-
 # Data Models
 class LLMConfig(BaseModel):
     base_url: str
@@ -385,6 +370,7 @@ class BatchPreparerRequest(BaseModel):
 # Global state for process tracking
 process_state = {
     "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
+    "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
@@ -398,24 +384,29 @@ process_state = {
     "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "paused": False},
 }
 
-def run_process(command: List[str], task_name: str):
+def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and stream its output into process_state logs."""
     state = process_state[task_name]
     state["running"] = True
     state["logs"] = []
-    if "paused" in state:
-        state["paused"] = False
+    if "paused"      in state: state["paused"]      = False
+    if "status"      in state: state["status"]      = "running"
+    if "return_code" in state: state["return_code"] = None
+    if "process"     in state: state["process"]     = None
+    if "cancel"      in state: state["cancel"]      = False
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
     return_code = None
     try:
-        return_code = _stream_subprocess_to_logs(command, BASE_DIR, state)
+        return_code = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state)
 
         if state.get("cancel"):
             state["logs"].append(f"Task {task_name} cancelled.")
+            if "status" in state: state["status"] = "cancelled"
         elif return_code == 0:
             state["logs"].append(f"Task {task_name} completed successfully.")
+            if "status" in state: state["status"] = "done"
         else:
             state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
 
@@ -424,8 +415,13 @@ def run_process(command: List[str], task_name: str):
         logger.error(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
     finally:
-        state["process"] = None
+        if "process"     in state: state["process"]     = None
         state["running"] = False
+        if "return_code" in state: state["return_code"] = return_code
+
+
+
+
 
 
 
@@ -542,8 +538,6 @@ async def get_system_stats():
         "cpu_count": cpu_count,
         "ram_gb": ram_gb,
     }
-
-
 
 # Endpoints
 
@@ -890,6 +884,7 @@ async def generate_script_resume():
     state["paused"] = False
     state["logs"].append("[RESUMED] Script generation resumed.")
     return {"status": "resumed"}
+
 
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):

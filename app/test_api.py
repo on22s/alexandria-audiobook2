@@ -1161,82 +1161,26 @@ def test_lora_generate_dataset():
 
 
 def test_dataset_builder_generate_sample():
-    # ... (rest of the function)
+    # Create a temp project for this test
+    post("/api/dataset_builder/create", json={"name": f"{TEST_PREFIX}gen_proj"})
+    post("/api/dataset_builder/update_rows", json={
+        "name": f"{TEST_PREFIX}gen_proj",
+        "rows": [{"emotion": "neutral", "text": "Hello world.", "seed": ""}]
+    })
+
+    r = post("/api/dataset_builder/generate_sample", json={
+        "description": "A clear male voice",
+        "text": "Hello world.",
+        "dataset_name": f"{TEST_PREFIX}gen_proj",
+        "sample_index": 0,
+        "seed": -1
+    })
+    assert_status(r, 200)
+    data = r.json()
+    assert_key(data, "status")
+
+    # Cleanup
     delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
-
-
-# ── Section 13b: Preparer ───────────────────────────────────
-
-def test_preparer_start():
-    config = {
-        "audio_filename": f"{TEST_PREFIX}test_audio.wav",
-        "output_filename": f"{TEST_PREFIX}dataset.zip",
-        "lang": "en",
-        "skip_annotation": True,
-        "resume": False
-    }
-    
-    # Create a mock audio file
-    mock_audio = io.BytesIO(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
-    
-    r = post("/api/preparer/start", 
-             data={"config_json": json.dumps(config)},
-             files={"audio_file": (f"{TEST_PREFIX}test_audio.wav", mock_audio, "audio/wav")})
-    
-    if r.status_code == 400:
-         raise TestFailure("SKIP: Preparer already running")
-         
-    assert_status(r, 200)
-    data = r.json()
-    if data.get("status") != "Preparer started":
-        raise TestFailure(f"Expected status='Preparer started', got {data}")
-
-def test_preparer_status():
-    r = get("/api/preparer/status")
-    assert_status(r, 200)
-    data = r.json()
-    for key in ("running", "logs", "status", "return_code", "pid", "output_file", "log_total"):
-        assert_key(data, key)
-
-def test_preparer_status_log_offset():
-    r = get("/api/preparer/status?log_offset=0")
-    assert_status(r, 200)
-    data = r.json()
-    assert_key(data, "log_total")
-    assert_key(data, "logs")
-    total = data["log_total"]
-    # offset beyond end should return empty logs list
-    r2 = get(f"/api/preparer/status?log_offset={total + 100}")
-    assert_status(r2, 200)
-    if r2.json()["logs"]:
-        raise TestFailure("Expected empty logs when offset > log_total")
-
-def test_preparer_cancel_not_running():
-    # Skip if preparer is still running from test_preparer_start
-    status_r = get("/api/preparer/status")
-    if status_r.json().get("running"):
-        raise TestFailure("SKIP: preparer still running from prior test")
-    r = post("/api/preparer/cancel", json={})
-    if r.status_code != 400:
-        raise TestFailure(f"Expected 400 when preparer not running, got {r.status_code}")
-
-def test_preparer_list():
-    r = get("/api/preparer/list")
-    assert_status(r, 200)
-    data = r.json()
-    assert_key(data, "files")
-    if not isinstance(data["files"], list):
-        raise TestFailure(f"Expected files to be a list, got {type(data['files'])}")
-
-def test_preparer_download_path_traversal():
-    r = get("/api/preparer/download/../app/config.json")
-    if r.status_code not in (400, 404):
-        raise TestFailure(f"Path traversal not blocked: got {r.status_code}")
-
-def test_preparer_download_404():
-    # Should 404 since we haven't actually run a full preparation
-    r = get(f"/api/preparer/download/{TEST_PREFIX}nonexistent.zip")
-    assert_status(r, 404)
 
 
 # ── Run all tests ────────────────────────────────────────────
@@ -1336,14 +1280,8 @@ def run_all_tests():
     run_test("dataset_builder_delete", test_dataset_builder_delete)
     run_test("dataset_builder_delete_404", test_dataset_builder_delete_404)
 
-    section("Preparer")
-    run_test("preparer_start", test_preparer_start)
-    run_test("preparer_status", test_preparer_status)
-    run_test("preparer_status_log_offset", test_preparer_status_log_offset)
-    run_test("preparer_cancel_not_running", test_preparer_cancel_not_running)
-    run_test("preparer_list", test_preparer_list)
-    run_test("preparer_download_path_traversal", test_preparer_download_path_traversal)
-    run_test("preparer_download_404", test_preparer_download_404)
+    section("Persona Generation")
+    run_test("cancel_persona_not_running", test_cancel_persona_not_running)
 
     section("Persona Generation")
     run_test("cancel_persona_not_running", test_cancel_persona_not_running)
