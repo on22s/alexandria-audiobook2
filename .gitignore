@@ -117,6 +117,9 @@ gha-creds-*.json
 # Pip/CMake rebuild artifacts (e.g. llama-cpp-python ROCm rebuilds)
 build_logs/
 
+# Local benchmark results (machine-specific data)
+app/benchmark_results.json
+
 # Web wrapper's own log directory
 app/logs/
 
