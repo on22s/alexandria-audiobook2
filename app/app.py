@@ -18,6 +18,10 @@ import threading
 import zipfile
 import subprocess
 import aiofiles
+try:
+    import torch as _torch
+except ImportError:
+    _torch = None
 from utils import atomic_json_write
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
@@ -120,20 +124,15 @@ app.add_middleware(
 
 def get_gpu_stats():
     """Get current GPU memory and utilization stats."""
-    try:
-        import torch
-    except ImportError:
-        return None
-
-    if not torch.cuda.is_available():
+    if _torch is None or not _torch.cuda.is_available():
         return None
 
     stats = {}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = torch.cuda.memory_reserved() / 1e9    # GB
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+        allocated = _torch.cuda.memory_allocated() / 1e9  # GB
+        reserved = _torch.cuda.memory_reserved() / 1e9    # GB
+        total = _torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
 
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
@@ -409,11 +408,12 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             if "status" in state: state["status"] = "done"
         else:
             state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
-
+            if "status" in state: state["status"] = "failed"
 
     except Exception as e:
         logger.error(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
+        if "status" in state: state["status"] = "failed"
     finally:
         if "process"     in state: state["process"]     = None
         state["running"] = False
@@ -522,9 +522,8 @@ async def get_system_stats():
 
     gpu_name = None
     try:
-        import torch
-        if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
+        if _torch is not None and _torch.cuda.is_available():
+            gpu_name = _torch.cuda.get_device_name(0)
     except Exception:
         pass
 
@@ -866,7 +865,7 @@ async def generate_script_pause():
         raise HTTPException(status_code=400, detail="No script generation is currently running.")
     proc = state.get("process")
     if proc is None:
-        raise HTTPException(status_code=400, detail="Process not yet started.")
+        raise HTTPException(status_code=503, detail="Script generation is starting up, retry in a moment.")
     _posix_signal(proc, signal.SIGSTOP)
     state["paused"] = True
     state["logs"].append("[PAUSED] Script generation paused.")
@@ -1036,7 +1035,7 @@ async def generate_script_batch_pause():
         raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
     proc = state.get("process")
     if proc is None:
-        raise HTTPException(status_code=400, detail="Process not yet started.")
+        raise HTTPException(status_code=503, detail="Batch script generation is starting up, retry in a moment.")
     _posix_signal(proc, signal.SIGSTOP)
     state["paused"] = True
     state["logs"].append("[PAUSED] Batch script generation paused.")

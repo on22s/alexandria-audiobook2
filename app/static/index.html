@@ -932,7 +932,7 @@
                     <div id="preparer-progress-section" class="mt-4" style="display:none;">
                         <hr>
                         <h5 class="mb-2">Execution Logs</h5>
-                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:#1e1e1e;color:#ddd;padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
+                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
                 </div>
             </div>
@@ -1529,98 +1529,6 @@
             }
         };
 
-        async function autoConfigureSettings() {
-            const btn = document.getElementById('btn-auto-configure');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
-
-            try {
-                const stats = await API.get('/api/system/stats');
-                const { settings, summary } = _computeAutoSettings(stats);
-                _applyAutoSettings(settings);
-
-                const banner = document.getElementById('auto-config-banner');
-                document.getElementById('auto-config-msg').innerHTML =
-                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ${escapeHtml(summary)} — review the TTS settings below, then click Save.`;
-                banner.style.display = '';
-                banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (e) {
-                showToast('Hardware detection failed: ' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
-            }
-        }
-
-        function _computeAutoSettings(stats) {
-            const vram = stats.gpu ? stats.gpu.total_gb : 0;
-            const gpuName = stats.gpu_name || null;
-            const ramGb = stats.ram_gb || null;
-
-            let tier, settings;
-
-            // Tier boundaries calibrated from benchmark on Qwen3-TTS-1.7B (4.18 GB footprint):
-            // Peak VRAM: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
-            // Best RTF at 8 items (3.5x); beyond 16 items the length-ratio splitter caps batch size.
-            if (!stats.gpu || vram < 5) {
-                // Model needs ~4.2 GB; under 5 GB it may not load reliably
-                tier = 'No GPU / insufficient VRAM';
-                settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 4 };
-            } else if (vram < 8) {
-                // 5–8 GB: model fits but headroom is tight; long chunks peak ~7.3 GB total
-                tier = `Low VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 4 };
-            } else if (vram < 12) {
-                // 8–12 GB: 6-item batches peak ~8 GB total (safe)
-                tier = `Mid VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 1, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 6 };
-            } else if (vram < 20) {
-                // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x real-time)
-                tier = `High VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 8 };
-            } else if (vram < 30) {
-                // 20–30 GB: 16-item batches peak ~11.8 GB total
-                tier = `Large VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 16 };
-            } else {
-                // 30+ GB: length-ratio splitter caps practical batch size
-                tier = `Enthusiast VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
-                    batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
-                    subBatchRatio: 5, subBatchMaxItems: 24 };
-            }
-
-            const parts = [tier];
-            if (gpuName) parts.push(gpuName);
-            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
-            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
-            const summary = parts.join(' · ');
-
-            return { settings, summary };
-        }
-
-        function _applyAutoSettings(s) {
-            document.getElementById('tts-mode').value = s.ttsMode;
-            toggleTTSMode();
-            document.getElementById('parallel-workers').value = s.parallelWorkers;
-            document.getElementById('compile-codec').checked = s.compileCodec;
-            document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
-            document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
-            document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
-            document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
-            document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
-        }
-
         // --- Setup Tab ---
 
         function toggleTTSMode() {
@@ -1993,6 +1901,7 @@
             pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             pauseBtn.classList.remove('btn-outline-success');
             pauseBtn.classList.add('btn-outline-warning');
+            _scriptPR.reset();
 
             try {
                 await API.post('/api/generate_script', {});
@@ -2000,6 +1909,7 @@
                     if (!scriptBatchPoller) genBtn.disabled = false;
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
+                    _scriptPR.reset();
                 });
             } catch (e) {
                 genBtn.disabled = false;
@@ -2014,36 +1924,47 @@
             }
         });
 
-        let _scriptPaused = false;
+        function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
+            let _paused = false;
+            return {
+                handler: async () => {
+                    const btn = document.getElementById(btnId);
+                    try {
+                        if (!_paused) {
+                            await API.post(pauseUrl, {});
+                            _paused = true;
+                            btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                            btn.classList.remove('btn-outline-warning');
+                            btn.classList.add('btn-outline-success');
+                        } else {
+                            await API.post(resumeUrl, {});
+                            _paused = false;
+                            btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                            btn.classList.remove('btn-outline-success');
+                            btn.classList.add('btn-outline-warning');
+                        }
+                    } catch (e) {
+                        showToast((_paused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+                    }
+                },
+                reset: () => { _paused = false; }
+            };
+        }
+
+        const _scriptPR = _makePauseResumeHandler(
+            '/api/generate_script/pause', '/api/generate_script/resume', 'btn-pause-script');
+        const _batchPR  = _makePauseResumeHandler(
+            '/api/generate_script/batch/pause', '/api/generate_script/batch/resume', 'btn-pause-batch-script');
 
         window.cancelScript = async () => {
-            _scriptPaused = false;
+            _scriptPR.reset();
             try {
                 await API.post('/api/generate_script/cancel', {});
             } catch (e) {
                 showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
             }
         };
-        window.pauseResumeScript = async () => {
-            const pauseBtn = document.getElementById('btn-pause-script');
-            try {
-                if (!_scriptPaused) {
-                    await API.post('/api/generate_script/pause', {});
-                    _scriptPaused = true;
-                    pauseBtn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
-                    pauseBtn.classList.remove('btn-outline-warning');
-                    pauseBtn.classList.add('btn-outline-success');
-                } else {
-                    await API.post('/api/generate_script/resume', {});
-                    _scriptPaused = false;
-                    pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-                    pauseBtn.classList.remove('btn-outline-success');
-                    pauseBtn.classList.add('btn-outline-warning');
-                }
-            } catch (e) {
-                showToast((_scriptPaused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
-            }
-        };
+        window.pauseResumeScript      = _scriptPR.handler;
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
@@ -2081,31 +2002,11 @@
         };
 
         window.cancelBatchScript = async () => {
+            _batchPR.reset();
             try { await API.post('/api/generate_script/batch/cancel', {}); } catch (e) { /* ignore */ }
         };
 
-        let _batchScriptPaused = false;
-
-        window.pauseResumeBatchScript = async () => {
-            const pauseBtn = document.getElementById('btn-pause-batch-script');
-            try {
-                if (!_batchScriptPaused) {
-                    await API.post('/api/generate_script/batch/pause', {});
-                    _batchScriptPaused = true;
-                    pauseBtn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
-                    pauseBtn.classList.remove('btn-outline-warning');
-                    pauseBtn.classList.add('btn-outline-success');
-                } else {
-                    await API.post('/api/generate_script/batch/resume', {});
-                    _batchScriptPaused = false;
-                    pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-                    pauseBtn.classList.remove('btn-outline-success');
-                    pauseBtn.classList.add('btn-outline-warning');
-                }
-            } catch (e) {
-                showToast((_batchScriptPaused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
-            }
-        };
+        window.pauseResumeBatchScript = _batchPR.handler;
 
 
         async function _startBatchScript() {
@@ -2115,7 +2016,7 @@
             const pauseBtn = document.getElementById('btn-pause-batch-script');
             const statusMsg = document.getElementById('script-batch-status-msg');
             btn.disabled = true;
-            _batchScriptPaused = false;
+            _batchPR.reset();
             pauseBtn.style.display = 'inline-block';
             pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             pauseBtn.classList.remove('btn-outline-success');
@@ -2175,7 +2076,7 @@
                     if (!state.running) {
                         clearInterval(scriptBatchPoller);
                         scriptBatchPoller = null;
-                        _batchScriptPaused = false;
+                        _batchPR.reset();
                         document.getElementById('btn-gen-script').disabled = false;
                         document.getElementById('btn-pause-batch-script').style.display = 'none';
                         document.getElementById('btn-cancel-batch-script').style.display = 'none';
