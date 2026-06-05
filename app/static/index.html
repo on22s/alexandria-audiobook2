@@ -55,23 +55,23 @@
         /* ── Super Night mode ─────────────────────────────────────────── */
         html[data-theme="super-night"] {
             --bg-page:        #000000;
-            --bg-card:        #0c0c0c;
-            --bg-card-header: #111111;
+            --bg-card:        #111111;
+            --bg-card-header: #181818;
             --bg-input:       #0f0f0f;
             --bg-navbar:      #000000;
-            --bg-modal:       #0c0c0c;
+            --bg-modal:       #111111;
             --text-primary:   #999999;
-            --text-muted:     #555555;
+            --text-muted:     #606060;
             --text-heading:   #bbbbbb;
-            --border-color:   rgba(255,255,255,0.05);
-            --border-input:   #222222;
+            --border-color:   rgba(255,255,255,0.09);
+            --border-input:   #2a2a2a;
             --shadow:         rgba(0,0,0,0.7);
-            --step-bg:        #1a1a1a;
-            --step-color:     #555555;
-            --hr-color:       rgba(255,255,255,0.05);
+            --step-bg:        #1e1e1e;
+            --step-color:     #5a5a5a;
+            --hr-color:       rgba(255,255,255,0.08);
             --badge-muted-bg: #2a2a2a;
             --log-bg:         #000000;
-            --log-color:      #336633;
+            --log-color:      #4a8a4a;
         }
 
         /* ── Base styles using tokens ──────────────────────────────────── */
@@ -329,6 +329,24 @@
             background-color: rgba(220,53,69,0.1);
             border-color: rgba(220,53,69,0.25);
             color: var(--text-primary);
+        }
+
+        /* ── btn-outline-secondary in dark modes ───────────────────────── */
+        html[data-theme="night"] .btn-outline-secondary,
+        html[data-theme="super-night"] .btn-outline-secondary {
+            --bs-btn-color:         var(--text-primary);
+            --bs-btn-border-color:  rgba(255,255,255,0.28);
+            --bs-btn-hover-color:   var(--text-heading);
+            --bs-btn-hover-bg:      rgba(255,255,255,0.08);
+            --bs-btn-hover-border-color: rgba(255,255,255,0.45);
+            --bs-btn-active-color:  var(--text-heading);
+            --bs-btn-active-bg:     rgba(255,255,255,0.12);
+            --bs-btn-active-border-color: rgba(255,255,255,0.45);
+        }
+
+        /* ── Voice card left accent ────────────────────────────────────── */
+        html[data-theme="super-night"] .voice-card {
+            border-left-color: #4a90d9;
         }
     </style>
     <script>
@@ -666,8 +684,14 @@
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
                             <i class="fas fa-magic me-2"></i>Generate Annotated Script
                         </button>
+                        <button class="btn btn-outline-warning" id="btn-pause-script" style="display:none;" onclick="pauseResumeScript()">
+                            <i class="fas fa-pause me-1"></i>Pause
+                        </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
                             <i class="fas fa-stop me-1"></i>Cancel
+                        </button>
+                        <button class="btn btn-outline-warning" id="btn-pause-batch-script" style="display:none;" onclick="pauseResumeBatchScript()">
+                            <i class="fas fa-pause me-1"></i>Pause
                         </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-batch-script" style="display:none;" onclick="cancelBatchScript()">
                             <i class="fas fa-stop me-1"></i>Cancel
@@ -1962,18 +1986,25 @@
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
+            const pauseBtn = document.getElementById('btn-pause-script');
             genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
+            pauseBtn.style.display = 'inline-block';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.classList.remove('btn-outline-success');
+            pauseBtn.classList.add('btn-outline-warning');
 
             try {
                 await API.post('/api/generate_script', {});
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) genBtn.disabled = false;
                     cancelBtn.style.display = 'none';
+                    pauseBtn.style.display = 'none';
                 });
             } catch (e) {
                 genBtn.disabled = false;
                 cancelBtn.style.display = 'none';
+                pauseBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
                     statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
@@ -1983,11 +2014,34 @@
             }
         });
 
+        let _scriptPaused = false;
+
         window.cancelScript = async () => {
+            _scriptPaused = false;
             try {
                 await API.post('/api/generate_script/cancel', {});
             } catch (e) {
                 showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
+        window.pauseResumeScript = async () => {
+            const pauseBtn = document.getElementById('btn-pause-script');
+            try {
+                if (!_scriptPaused) {
+                    await API.post('/api/generate_script/pause', {});
+                    _scriptPaused = true;
+                    pauseBtn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                    pauseBtn.classList.remove('btn-outline-warning');
+                    pauseBtn.classList.add('btn-outline-success');
+                } else {
+                    await API.post('/api/generate_script/resume', {});
+                    _scriptPaused = false;
+                    pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                    pauseBtn.classList.remove('btn-outline-success');
+                    pauseBtn.classList.add('btn-outline-warning');
+                }
+            } catch (e) {
+                showToast((_scriptPaused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
             }
         };
 
@@ -2030,12 +2084,41 @@
             try { await API.post('/api/generate_script/batch/cancel', {}); } catch (e) { /* ignore */ }
         };
 
+        let _batchScriptPaused = false;
+
+        window.pauseResumeBatchScript = async () => {
+            const pauseBtn = document.getElementById('btn-pause-batch-script');
+            try {
+                if (!_batchScriptPaused) {
+                    await API.post('/api/generate_script/batch/pause', {});
+                    _batchScriptPaused = true;
+                    pauseBtn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                    pauseBtn.classList.remove('btn-outline-warning');
+                    pauseBtn.classList.add('btn-outline-success');
+                } else {
+                    await API.post('/api/generate_script/batch/resume', {});
+                    _batchScriptPaused = false;
+                    pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                    pauseBtn.classList.remove('btn-outline-success');
+                    pauseBtn.classList.add('btn-outline-warning');
+                }
+            } catch (e) {
+                showToast((_batchScriptPaused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+            }
+        };
+
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
             const btn = document.getElementById('btn-gen-script');
+            const pauseBtn = document.getElementById('btn-pause-batch-script');
             const statusMsg = document.getElementById('script-batch-status-msg');
             btn.disabled = true;
+            _batchScriptPaused = false;
+            pauseBtn.style.display = 'inline-block';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.classList.remove('btn-outline-success');
+            pauseBtn.classList.add('btn-outline-warning');
             document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
             statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
             statusMsg.style.display = '';
@@ -2057,6 +2140,7 @@
             } catch (e) {
                 showToast('Failed to start batch: ' + e.message, 'error');
                 btn.disabled = false;
+                pauseBtn.style.display = 'none';
                 document.getElementById('btn-cancel-batch-script').style.display = 'none';
             }
         }
@@ -2090,7 +2174,9 @@
                     if (!state.running) {
                         clearInterval(scriptBatchPoller);
                         scriptBatchPoller = null;
+                        _batchScriptPaused = false;
                         document.getElementById('btn-gen-script').disabled = false;
+                        document.getElementById('btn-pause-batch-script').style.display = 'none';
                         document.getElementById('btn-cancel-batch-script').style.display = 'none';
                         document.getElementById('script-batch-status-msg').innerHTML =
                             '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';

@@ -384,7 +384,7 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": [], "cancel": False, "pid": None},
+    "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
@@ -395,7 +395,7 @@ process_state = {
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
-    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "paused": False},
 }
 
 def run_process(command: List[str], task_name: str):
@@ -403,6 +403,8 @@ def run_process(command: List[str], task_name: str):
     state = process_state[task_name]
     state["running"] = True
     state["logs"] = []
+    if "paused" in state:
+        state["paused"] = False
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
@@ -854,6 +856,41 @@ async def generate_script(background_tasks: BackgroundTasks):
 async def generate_script_cancel():
     return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
+def _posix_signal(proc, sig):
+    """Send a POSIX signal. Raises 501 on Windows where SIGSTOP/SIGCONT are unavailable."""
+    if sys.platform == "win32":
+        raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
+    try:
+        proc.send_signal(sig)
+    except (ProcessLookupError, OSError) as e:
+        raise HTTPException(status_code=400, detail=f"Signal failed: {e}")
+
+@app.post("/api/generate_script/pause")
+async def generate_script_pause():
+    state = process_state["script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not yet started.")
+    _posix_signal(proc, signal.SIGSTOP)
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Script generation paused.")
+    return {"status": "paused"}
+
+@app.post("/api/generate_script/resume")
+async def generate_script_resume():
+    state = process_state["script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, signal.SIGCONT)
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Script generation resumed.")
+    return {"status": "resumed"}
+
 @app.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks):
     if not os.path.exists(SCRIPT_PATH):
@@ -985,8 +1022,44 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
 
 @app.post("/api/generate_script/batch/cancel")
 async def generate_script_batch_cancel():
-    process_state["batch_script"]["cancel"] = True
+    state = process_state["batch_script"]
+    state["cancel"] = True
+    proc = state.get("process")
+    if proc and state.get("paused") and sys.platform != "win32":
+        try:
+            proc.send_signal(signal.SIGCONT)
+        except (ProcessLookupError, OSError):
+            pass
+        state["paused"] = False
     return {"status": "cancel_requested"}
+
+
+@app.post("/api/generate_script/batch/pause")
+async def generate_script_batch_pause():
+    state = process_state["batch_script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not yet started.")
+    _posix_signal(proc, signal.SIGSTOP)
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Batch script generation paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/generate_script/batch/resume")
+async def generate_script_batch_resume():
+    state = process_state["batch_script"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, signal.SIGCONT)
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Batch script generation resumed.")
+    return {"status": "resumed"}
 
 
 @app.get("/api/annotated_script")
