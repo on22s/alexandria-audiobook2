@@ -1283,9 +1283,6 @@ def run_all_tests():
     section("Persona Generation")
     run_test("cancel_persona_not_running", test_cancel_persona_not_running)
 
-    section("Persona Generation")
-    run_test("cancel_persona_not_running", test_cancel_persona_not_running)
-
     section("Merge / Export")
     run_test("get_audiobook", test_get_audiobook)
     run_test("get_audiobook_m4b", test_get_audiobook_m4b)
