@@ -1495,13 +1495,14 @@
         const API = {
             _handleError: async (res) => {
                 if (res.ok) return;
+                let detail = res.statusText;
                 try {
                     const body = await res.json();
-                    throw new Error(body.detail || res.statusText);
-                } catch (e) {
-                    if (e.message) throw e;
-                    throw new Error(res.statusText);
-                }
+                    if (body && body.detail) detail = body.detail;
+                } catch (e) { /* non-JSON error body; fall back to statusText */ }
+                const err = new Error(detail);
+                err.status = res.status;
+                throw err;
             },
             get: async (url) => {
                 const res = await fetch(url);
@@ -1898,10 +1899,7 @@
             genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
-            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-            pauseBtn.classList.remove('btn-outline-success');
-            pauseBtn.classList.add('btn-outline-warning');
-            _scriptPR.reset();
+            _resetPauseBtn('btn-pause-script');
 
             try {
                 await API.post('/api/generate_script', {});
@@ -1909,7 +1907,6 @@
                     if (!scriptBatchPoller) genBtn.disabled = false;
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
-                    _scriptPR.reset();
                 });
             } catch (e) {
                 genBtn.disabled = false;
@@ -1924,47 +1921,79 @@
             }
         });
 
+        // Restores a pause/resume button to its "Pause"/btn-outline-warning
+        // appearance. _makePauseResumeHandler derives paused/running state from
+        // this button's own class, so every action that can leave a process
+        // un-paused (cancel, fresh start) must call this to keep the DOM in
+        // sync — otherwise the next click reads stale "Resume" styling and
+        // calls the wrong endpoint.
+        function _resetPauseBtn(btnId) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-outline-warning');
+        }
+
         function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
-            let _paused = false;
-            return {
-                handler: async () => {
-                    const btn = document.getElementById(btnId);
+            // Retry once or twice on 503 ("starting up, retry in a moment") instead of
+            // making the user notice the toast and click again themselves.
+            const postWithRetry = async (url) => {
+                for (let attempt = 0; ; attempt++) {
                     try {
-                        if (!_paused) {
-                            await API.post(pauseUrl, {});
-                            _paused = true;
-                            btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
-                            btn.classList.remove('btn-outline-warning');
-                            btn.classList.add('btn-outline-success');
-                        } else {
-                            await API.post(resumeUrl, {});
-                            _paused = false;
-                            btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-                            btn.classList.remove('btn-outline-success');
-                            btn.classList.add('btn-outline-warning');
-                        }
+                        return await API.post(url, {});
                     } catch (e) {
-                        showToast((_paused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+                        if (e.status === 503 && attempt < 2) {
+                            await new Promise(r => setTimeout(r, 700));
+                            continue;
+                        }
+                        throw e;
                     }
-                },
-                reset: () => { _paused = false; }
+                }
+            };
+            // Paused/running is derived from the button's own class each time —
+            // the button is the single source of truth, so there's nothing to
+            // reset when a new run starts (every start path already restores the
+            // button to its "Pause"/btn-outline-warning appearance).
+            return async () => {
+                const btn = document.getElementById(btnId);
+                if (btn.disabled) return;
+                const paused = btn.classList.contains('btn-outline-success');
+                btn.disabled = true;
+                try {
+                    if (!paused) {
+                        await postWithRetry(pauseUrl);
+                        btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                        btn.classList.remove('btn-outline-warning');
+                        btn.classList.add('btn-outline-success');
+                    } else {
+                        await postWithRetry(resumeUrl);
+                        btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                        btn.classList.remove('btn-outline-success');
+                        btn.classList.add('btn-outline-warning');
+                    }
+                } catch (e) {
+                    showToast((paused ? 'Resume' : 'Pause') + ' failed: ' + (e.message || 'unknown error'), 'warning');
+                } finally {
+                    btn.disabled = false;
+                }
             };
         }
 
-        const _scriptPR = _makePauseResumeHandler(
+        const _scriptPauseResume = _makePauseResumeHandler(
             '/api/generate_script/pause', '/api/generate_script/resume', 'btn-pause-script');
-        const _batchPR  = _makePauseResumeHandler(
+        const _batchPauseResume  = _makePauseResumeHandler(
             '/api/generate_script/batch/pause', '/api/generate_script/batch/resume', 'btn-pause-batch-script');
 
         window.cancelScript = async () => {
-            _scriptPR.reset();
             try {
                 await API.post('/api/generate_script/cancel', {});
+                _resetPauseBtn('btn-pause-script');
             } catch (e) {
                 showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
             }
         };
-        window.pauseResumeScript      = _scriptPR.handler;
+        window.pauseResumeScript      = _scriptPauseResume;
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
@@ -2002,11 +2031,13 @@
         };
 
         window.cancelBatchScript = async () => {
-            _batchPR.reset();
-            try { await API.post('/api/generate_script/batch/cancel', {}); } catch (e) { /* ignore */ }
+            try {
+                await API.post('/api/generate_script/batch/cancel', {});
+                _resetPauseBtn('btn-pause-batch-script');
+            } catch (e) { /* ignore */ }
         };
 
-        window.pauseResumeBatchScript = _batchPR.handler;
+        window.pauseResumeBatchScript = _batchPauseResume;
 
 
         async function _startBatchScript() {
@@ -2016,11 +2047,8 @@
             const pauseBtn = document.getElementById('btn-pause-batch-script');
             const statusMsg = document.getElementById('script-batch-status-msg');
             btn.disabled = true;
-            _batchPR.reset();
             pauseBtn.style.display = 'inline-block';
-            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-            pauseBtn.classList.remove('btn-outline-success');
-            pauseBtn.classList.add('btn-outline-warning');
+            _resetPauseBtn('btn-pause-batch-script');
             document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
             statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
             statusMsg.style.display = '';
@@ -2076,7 +2104,6 @@
                     if (!state.running) {
                         clearInterval(scriptBatchPoller);
                         scriptBatchPoller = null;
-                        _batchPR.reset();
                         document.getElementById('btn-gen-script').disabled = false;
                         document.getElementById('btn-pause-batch-script').style.display = 'none';
                         document.getElementById('btn-cancel-batch-script').style.display = 'none';

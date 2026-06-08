@@ -18,10 +18,6 @@ import threading
 import zipfile
 import subprocess
 import aiofiles
-try:
-    import torch as _torch
-except ImportError:
-    _torch = None
 from utils import atomic_json_write
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
@@ -122,17 +118,27 @@ app.add_middleware(
 
 # --- System Helpers ---
 
+def _get_torch():
+    """Lazily import torch, returning None if it isn't installed."""
+    try:
+        import torch
+        return torch
+    except ImportError:
+        return None
+
+
 def get_gpu_stats():
     """Get current GPU memory and utilization stats."""
-    if _torch is None or not _torch.cuda.is_available():
+    torch = _get_torch()
+    if torch is None or not torch.cuda.is_available():
         return None
 
     stats = {}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = _torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = _torch.cuda.memory_reserved() / 1e9    # GB
-        total = _torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+        allocated = torch.cuda.memory_allocated() / 1e9  # GB
+        reserved = torch.cuda.memory_reserved() / 1e9    # GB
+        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
 
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
@@ -380,7 +386,7 @@ process_state = {
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
-    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "paused": False},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False},
 }
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
@@ -392,6 +398,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     if "status"      in state: state["status"]      = "running"
     if "return_code" in state: state["return_code"] = None
     if "process"     in state: state["process"]     = None
+    if "pid"         in state: state["pid"]         = None
     if "cancel"      in state: state["cancel"]      = False
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
@@ -413,9 +420,11 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     except Exception as e:
         logger.error(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
-        if "status" in state: state["status"] = "failed"
+        if "status" in state:
+            state["status"] = "cancelled" if state.get("cancel") else "failed"
     finally:
         if "process"     in state: state["process"]     = None
+        if "pid"         in state: state["pid"]         = None
         state["running"] = False
         if "return_code" in state: state["return_code"] = return_code
 
@@ -425,17 +434,35 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
 
 
+def _resume_if_paused(state: dict, proc):
+    """Wake a SIGSTOP'd process so a subsequent SIGTERM/cancel actually takes effect.
+
+    A stopped process ignores SIGTERM until resumed, so any cancel path that
+    might be cancelling a paused task must SIGCONT it first. Shared by
+    _cancel_task and generate_script_batch_cancel so the two stay in sync.
+    """
+    if proc is not None and state.get("paused") and sys.platform != "win32":
+        try:
+            proc.send_signal(signal.SIGCONT)
+        except (ProcessLookupError, OSError):
+            pass
+        state["paused"] = False
+
+
 def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
     """Terminate a running subprocess task, or queue cancel if Popen hasn't run yet."""
     state = process_state[state_key]
     if not state["running"]:
         raise HTTPException(status_code=400, detail=not_running_msg)
+
+    proc = state.get("process")
+    _resume_if_paused(state, proc)
+
     pid = state.get("pid")
     if not pid:
         # Pre-Popen race window: flag is checked by run_process immediately after Popen
         state["cancel"] = True
         return {"status": "cancel queued"}
-    proc = state.get("process")
     try:
         if proc is not None:
             proc.terminate()
@@ -467,6 +494,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
 
     if "process" in state:
         state["process"] = process
+    if "pid" in state:
+        state["pid"] = process.pid
 
     log_queue: queue.Queue = queue.Queue()
 
@@ -485,7 +514,14 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             line = log_queue.get(timeout=0.05)
         except queue.Empty:
             if state.get("cancel"):
-                process.terminate()
+                try:
+                    process.terminate()
+                except (ProcessLookupError, OSError):
+                    # Process already exited — let the reader thread drain
+                    # the rest of the output instead of raising here, where
+                    # run_process's except block can't tell a cancel-induced
+                    # terminate() failure apart from a genuine crash.
+                    pass
             continue
         if line is None:
             break
@@ -522,8 +558,9 @@ async def get_system_stats():
 
     gpu_name = None
     try:
-        if _torch is not None and _torch.cuda.is_available():
-            gpu_name = _torch.cuda.get_device_name(0)
+        torch = _get_torch()
+        if torch is not None and torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
     except Exception:
         pass
 
@@ -849,12 +886,15 @@ async def generate_script(background_tasks: BackgroundTasks):
 async def generate_script_cancel():
     return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
-def _posix_signal(proc, sig):
-    """Send a POSIX signal. Raises 501 on Windows where SIGSTOP/SIGCONT are unavailable."""
+def _posix_signal(proc, signame):
+    """Send a POSIX signal by name (e.g. "SIGSTOP"). Raises 501 on Windows,
+    where SIGSTOP/SIGCONT don't exist on the signal module — the name is
+    resolved here, after the platform check, so callers never reference the
+    constant directly and crash with AttributeError on Windows."""
     if sys.platform == "win32":
         raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
     try:
-        proc.send_signal(sig)
+        proc.send_signal(getattr(signal, signame))
     except (ProcessLookupError, OSError) as e:
         raise HTTPException(status_code=400, detail=f"Signal failed: {e}")
 
@@ -866,7 +906,7 @@ async def generate_script_pause():
     proc = state.get("process")
     if proc is None:
         raise HTTPException(status_code=503, detail="Script generation is starting up, retry in a moment.")
-    _posix_signal(proc, signal.SIGSTOP)
+    _posix_signal(proc, "SIGSTOP")
     state["paused"] = True
     state["logs"].append("[PAUSED] Script generation paused.")
     return {"status": "paused"}
@@ -879,7 +919,7 @@ async def generate_script_resume():
     proc = state.get("process")
     if proc is None:
         raise HTTPException(status_code=400, detail="Process not available.")
-    _posix_signal(proc, signal.SIGCONT)
+    _posix_signal(proc, "SIGCONT")
     state["paused"] = False
     state["logs"].append("[RESUMED] Script generation resumed.")
     return {"status": "resumed"}
@@ -957,6 +997,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state = process_state["batch_script"]
         state["running"] = True
         state["cancel"] = False
+        state["paused"] = False
         state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
         state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
         state["current_task_idx"] = -1
@@ -1018,13 +1059,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
 async def generate_script_batch_cancel():
     state = process_state["batch_script"]
     state["cancel"] = True
-    proc = state.get("process")
-    if proc and state.get("paused") and sys.platform != "win32":
-        try:
-            proc.send_signal(signal.SIGCONT)
-        except (ProcessLookupError, OSError):
-            pass
-        state["paused"] = False
+    _resume_if_paused(state, state.get("process"))
     return {"status": "cancel_requested"}
 
 
@@ -1036,7 +1071,7 @@ async def generate_script_batch_pause():
     proc = state.get("process")
     if proc is None:
         raise HTTPException(status_code=503, detail="Batch script generation is starting up, retry in a moment.")
-    _posix_signal(proc, signal.SIGSTOP)
+    _posix_signal(proc, "SIGSTOP")
     state["paused"] = True
     state["logs"].append("[PAUSED] Batch script generation paused.")
     return {"status": "paused"}
@@ -1050,7 +1085,7 @@ async def generate_script_batch_resume():
     proc = state.get("process")
     if proc is None:
         raise HTTPException(status_code=400, detail="Process not available.")
-    _posix_signal(proc, signal.SIGCONT)
+    _posix_signal(proc, "SIGCONT")
     state["paused"] = False
     state["logs"].append("[RESUMED] Batch script generation resumed.")
     return {"status": "resumed"}
