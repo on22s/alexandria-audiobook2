@@ -305,6 +305,10 @@
         html[data-theme="night"] .bg-body,
         html[data-theme="super-night"] .bg-body { background-color: var(--bg-page) !important; }
 
+        /* Progress track (Bootstrap default is light gray and shows white when empty/0%) */
+        html[data-theme="night"] .progress,
+        html[data-theme="super-night"] .progress { background-color: var(--bg-input); }
+
         /* ── Bootstrap alert overrides ─────────────────────────────────── */
         html[data-theme="night"] .alert-info,
         html[data-theme="super-night"] .alert-info {
@@ -344,6 +348,31 @@
             --bs-btn-active-border-color: rgba(255,255,255,0.45);
         }
 
+        /* ── Outline buttons: Bootstrap colors their resting text with the base
+           theme color, several of which are too dark to read on a near-black
+           background. Brighten the resting text/border in dark modes; hover
+           behavior (filled bg) keeps Bootstrap's defaults. ─────────────────── */
+        html[data-theme="night"] .btn-outline-primary,
+        html[data-theme="super-night"] .btn-outline-primary {
+            --bs-btn-color: #6ea8fe; --bs-btn-border-color: #6ea8fe;
+        }
+        html[data-theme="night"] .btn-outline-success,
+        html[data-theme="super-night"] .btn-outline-success {
+            --bs-btn-color: #75b798; --bs-btn-border-color: #75b798;
+        }
+        html[data-theme="night"] .btn-outline-danger,
+        html[data-theme="super-night"] .btn-outline-danger {
+            --bs-btn-color: #ea868f; --bs-btn-border-color: #ea868f;
+        }
+        html[data-theme="night"] .btn-outline-warning,
+        html[data-theme="super-night"] .btn-outline-warning {
+            --bs-btn-color: #ffda6a; --bs-btn-border-color: #ffda6a;
+        }
+        html[data-theme="night"] .btn-outline-info,
+        html[data-theme="super-night"] .btn-outline-info {
+            --bs-btn-color: #6edff6; --bs-btn-border-color: #6edff6;
+        }
+
         /* ── Voice card left accent ────────────────────────────────────── */
         html[data-theme="super-night"] .voice-card {
             border-left-color: #4a90d9;
@@ -375,6 +404,7 @@
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a class="nav-link nav-advanced" data-tab="training">Training</a></li>
+                    <li class="nav-item"><a class="nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
                 </ul>
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
                     <li class="nav-item">
@@ -700,20 +730,82 @@
                     <div id="script-batch-status-msg" class="text-center text-muted small mb-2" style="display:none;"></div>
 
                     <div class="d-grid gap-2">
-                        <small class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
-                        <button class="btn btn-outline-secondary btn-lg" id="btn-review-script">
-                            <i class="fas fa-check-double me-2"></i>Review Script (Optional)
-                        </button>
-                        <small class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
-                        <div class="input-group mt-1">
-                            <span class="input-group-text">Context Window</span>
-                            <input type="number" class="form-control" id="review-context-window" value="4" min="1" max="12">
-                            <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
-                                <i class="fas fa-crosshairs me-2"></i>Contextual Review (+/- N)
-                            </button>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
+                            <div class="form-check form-switch ms-3 flex-shrink-0">
+                                <input class="form-check-input" type="checkbox" id="review-batch-mode" onchange="toggleReviewBatchMode()">
+                                <label class="form-check-label" for="review-batch-mode">Batch Mode</label>
+                            </div>
                         </div>
-                        <small class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
-                        <small class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="review-dedupe-speakers" checked>
+                            <label class="form-check-label small" for="review-dedupe-speakers">
+                                Merge duplicate character names &mdash; unify aliases of the same character (e.g. <em>"Kenji" / "Kenji Sato" / "the boy"</em> &rarr; one voice). In Batch Mode names stay consistent across the whole series.
+                            </label>
+                        </div>
+
+                        <!-- Single review -->
+                        <div id="review-single-area">
+                            <button class="btn btn-outline-secondary btn-lg w-100" id="btn-review-script">
+                                <i class="fas fa-check-double me-2"></i>Review Script (Optional)
+                            </button>
+                            <small class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
+                            <div class="input-group mt-1">
+                                <span class="input-group-text">Context Window</span>
+                                <input type="number" class="form-control" id="review-context-window" value="4" min="1" max="12">
+                                <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
+                                    <i class="fas fa-crosshairs me-2"></i>Contextual Review (+/- N)
+                                </button>
+                            </div>
+                            <small class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
+                            <small class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
+
+                            <hr class="my-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-outline-info btn-sm" id="btn-find-nicknames" onclick="findNicknames()"><i class="fas fa-id-badge me-1"></i>Find Nicknames</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="loadCharacterAliases(true)"><i class="fas fa-pen me-1"></i>Edit aliases</button>
+                                <button class="btn btn-outline-warning btn-sm" id="btn-pause-nick" style="display:none;" onclick="pauseResumeNicknames()"><i class="fas fa-pause me-1"></i>Pause</button>
+                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-nick" style="display:none;" onclick="cancelNicknames()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                                <small class="text-muted">Scans context for nickname/alias pairs (e.g. <em>"Betty" &rarr; "BEATRICE"</em>). Review then applies them. You can edit the list before running Review.</small>
+                            </div>
+                            <div id="nickname-aliases-panel" class="mt-2" style="display:none;"></div>
+                        </div>
+
+                        <!-- Batch review -->
+                        <div id="review-batch-area" style="display:none;">
+                            <div class="alert alert-info py-2 small mb-2">
+                                <i class="fas fa-info-circle me-1"></i><strong>Batch Review:</strong> Select saved scripts to review in sequence. Each is reviewed and saved back in place. With character-name merging on, canonical names are kept consistent across every selected book.
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="review-batch-find-nicknames" checked>
+                                <label class="form-check-label small" for="review-batch-find-nicknames">Discover nicknames first (per book, shared across the series) before merging</label>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <div class="input-group input-group-sm" style="width:auto;">
+                                    <span class="input-group-text">Context Window</span>
+                                    <input type="number" class="form-control" id="review-batch-context-window" value="0" min="0" max="12" style="width:70px;" title="0 = standard review, greater than 0 = contextual (+/- N neighbors)">
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(true)">Select all</button>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(false)">Clear</button>
+                                <button class="btn btn-sm btn-outline-primary" type="button" onclick="loadReviewBatchScripts()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            </div>
+                            <div id="review-batch-list" class="border rounded p-2 mb-2" style="max-height:220px;overflow-y:auto;">
+                                <span class="text-muted small">No saved scripts found. Generate or save scripts first.</span>
+                            </div>
+                        </div>
+
+                        <!-- Shared run controls -->
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success flex-grow-1" id="btn-review-batch-start" style="display:none;" onclick="startBatchReview()">
+                                <i class="fas fa-check-double me-2"></i>Start Batch Review
+                            </button>
+                            <button class="btn btn-outline-warning" id="btn-pause-review" style="display:none;" onclick="pauseResumeReview()"><i class="fas fa-pause me-1"></i>Pause</button>
+                            <button class="btn btn-outline-danger" id="btn-cancel-review" style="display:none;" onclick="cancelReview()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            <button class="btn btn-outline-warning" id="btn-pause-batch-review" style="display:none;" onclick="pauseResumeBatchReview()"><i class="fas fa-pause me-1"></i>Pause</button>
+                            <button class="btn btn-outline-danger" id="btn-cancel-batch-review" style="display:none;" onclick="cancelBatchReview()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                        </div>
+                        <div id="review-batch-status-msg" class="text-center text-muted small" style="display:none;"></div>
                     </div>
                 </div>
             </div>
@@ -734,7 +826,18 @@
             </div>
 
             <div class="card">
-                <div class="card-header">Generation Logs</div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Generation Logs</span>
+                    <span class="small">
+                        <span class="text-muted me-2">live view shows recent lines; full history saved to file</span>
+                        <a href="/api/logs/script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete generate-script log">
+                            <i class="fas fa-download me-1"></i>Full log
+                        </a>
+                        <a href="/api/logs/batch_script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete batch log">
+                            <i class="fas fa-download me-1"></i>Batch log
+                        </a>
+                    </span>
+                </div>
                 <div class="card-body p-0">
                     <div id="script-logs" class="log-window"></div>
                 </div>
@@ -763,7 +866,34 @@
                         <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
                         <span id="persona-status" class="text-muted small"></span>
                     </div>
+                    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                        <button class="btn btn-outline-success" id="btn-suggest-voices" onclick="suggestVoices()" title="Use the configured LLM to match each character to the best-fitting downloaded LoRA voice"><i class="fas fa-wand-magic-sparkles me-1"></i>Suggest LoRA Voices</button>
+                        <button class="btn btn-success" id="btn-apply-all-suggestions" onclick="applyAllVoiceSuggestions()" style="display:none;"><i class="fas fa-check-double me-1"></i>Apply all</button>
+                        <button class="btn btn-outline-secondary" id="btn-clear-suggestions" onclick="clearVoiceSuggestions()" style="display:none;"><i class="fas fa-xmark me-1"></i>Dismiss</button>
+                        <span id="suggest-status" class="text-muted small"></span>
+                    </div>
                     <div id="voices-list"></div>
+                </div>
+            </div>
+
+            <!-- Series Cast: reuse character voices across books -->
+            <div class="card mb-3" id="series-cast-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="m-0"><i class="fas fa-users me-2"></i>Series Cast</h5>
+                    <span id="cast-status" class="text-muted small"></span>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">Save character voices to a named cast and reuse them across books in a series, so recurring characters sound the same. The <strong>narrator is shared across the whole series</strong> unless a cast saves its own.</p>
+                    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                        <label class="small text-muted m-0">Cast:</label>
+                        <select id="cast-select" class="form-select form-select-sm" style="width:auto;min-width:160px;" onchange="onCastChange()"></select>
+                        <button class="btn btn-sm btn-outline-primary" onclick="createCast()"><i class="fas fa-plus me-1"></i>New</button>
+                        <button class="btn btn-sm btn-outline-danger" id="btn-cast-delete" onclick="deleteCast()" title="Delete selected cast"><i class="fas fa-trash"></i></button>
+                        <span class="vr mx-1"></span>
+                        <button class="btn btn-sm btn-outline-success" id="btn-cast-save" onclick="openCastSave()"><i class="fas fa-floppy-disk me-1"></i>Save to cast</button>
+                        <button class="btn btn-sm btn-success" id="btn-cast-apply" onclick="openCastApply()"><i class="fas fa-wand-magic-sparkles me-1"></i>Apply cast</button>
+                    </div>
+                    <div id="cast-panel"></div>
                 </div>
             </div>
 
@@ -934,6 +1064,133 @@
                         <h5 class="mb-2">Execution Logs</h5>
                         <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
+
+                    <div class="mt-4">
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="m-0"><i class="fas fa-box-archive me-2"></i>Completed Datasets</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadPreparerOutputs()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                        </div>
+                        <small class="text-muted d-block mb-2">Dataset ZIPs produced by finished preparer runs. Click to download.</small>
+                        <div id="preparer-outputs" class="list-group small">
+                            <div class="text-muted small">No datasets yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Voice Lab Tab: audiobook narrator datasets → named LoRA voices -->
+        <div id="voicelab-tab" class="tab-content" style="display:none;">
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0"><i class="fas fa-flask me-2"></i>Voice Lab</h4>
+                    <span id="voicelab-status" class="text-muted small"></span>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, descriptively-named LoRA voices. Runs <strong>Dedup → Train → Profile → Name</strong> in sequence. Heavy stages (dedup/train/profile) run on the ROCm ML environment configured below.</p>
+
+                    <!-- Pipeline settings (paths) -->
+                    <div class="accordion mb-3" id="voicelab-settings-acc">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#voicelab-settings">
+                                    <i class="fas fa-gears me-2"></i>Pipeline settings &amp; environment&nbsp;<span id="voicelab-readiness" class="ms-2"></span>
+                                </button>
+                            </h2>
+                            <div id="voicelab-settings" class="accordion-collapse collapse" data-bs-parent="#voicelab-settings-acc">
+                                <div class="accordion-body">
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-0">ROCm Python <span id="chk-rocm_python" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-rocm_python" placeholder="/path/to/ml-env/bin/python">
+                                            <div class="form-text small">Interpreter with torch/librosa/speechbrain (not the web app's env).</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-0">Pipeline repo <span id="chk-pipeline_repo" class="vl-chk"></span> <span id="chk-batch_train_lora" class="vl-chk"></span> <span id="chk-voice_profiler" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-pipeline_repo" placeholder="/path/to/repo with batch_train_lora.py">
+                                            <div class="form-text small">Holds <code>batch_train_lora.py</code> + <code>voice_profiler.py</code>.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-0">Profiler model (GGUF, optional) <span id="chk-profiler_model" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-profiler_model" placeholder="(use voice_profiler.py default)">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-0">Default input folder <span id="chk-zips_dir" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-zips_dir_cfg" placeholder="/path/to/zips2">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" type="button" onclick="saveVoicelabConfig()"><i class="fas fa-save me-1"></i>Save settings</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input folder + inspect -->
+                    <div class="d-flex align-items-end gap-2 mb-2 flex-wrap">
+                        <div class="flex-grow-1">
+                            <label class="form-label small mb-0">Input folder (narrator subfolders)</label>
+                            <input type="text" class="form-control" id="vl-zips_dir" placeholder="/path/to/zips2">
+                        </div>
+                        <button class="btn btn-outline-secondary" type="button" onclick="voicelabInspect()"><i class="fas fa-magnifying-glass me-1"></i>Inspect</button>
+                    </div>
+                    <div id="vl-inspect" class="small text-muted mb-3"></div>
+
+                    <!-- Stages + parameters -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-5">
+                            <div class="fw-bold small mb-1">Stages to run</div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-dedup" value="dedup" checked><label class="form-check-label small" for="vl-stage-dedup"><strong>Dedup</strong> — cluster &amp; de-duplicate voices within each narrator</label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-train" value="train" checked><label class="form-check-label small" for="vl-stage-train"><strong>Train</strong> — train a LoRA per deduped voice</label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-profile" value="profile" checked><label class="form-check-label small" for="vl-stage-profile"><strong>Profile</strong> — acoustic + LLM voice descriptions</label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-name" value="name" checked><label class="form-check-label small" for="vl-stage-name"><strong>Name</strong> — descriptive slug + rename adapters</label></div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="fw-bold small mb-1">Parameters</div>
+                            <div class="row g-2">
+                                <div class="col-6 col-lg-3">
+                                    <label class="form-label small mb-0">Device</label>
+                                    <select class="form-select form-select-sm" id="vl-device">
+                                        <option value="">auto</option><option value="cuda">cuda</option><option value="cpu">cpu</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <label class="form-label small mb-0" title="Early-stop target loss">Target loss</label>
+                                    <input type="number" step="0.01" class="form-control form-control-sm" id="vl-target-loss" value="4.15">
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <label class="form-label small mb-0">Max epochs</label>
+                                    <input type="number" class="form-control form-control-sm" id="vl-max-epochs" value="6" min="1">
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <label class="form-label small mb-0">LoRA rank</label>
+                                    <input type="number" class="form-control form-control-sm" id="vl-lora-r" value="64" min="1">
+                                </div>
+                            </div>
+                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="vl-name-apply" checked><label class="form-check-label small" for="vl-name-apply">Name stage: actually rename (uncheck for a dry-run preview)</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="vl-name-overwrite"><label class="form-check-label small" for="vl-name-overwrite">Re-name adapters that already have a descriptive name</label></div>
+                        </div>
+                    </div>
+
+                    <!-- Run controls -->
+                    <div class="d-flex gap-2 mb-2">
+                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-vl-start" onclick="startVoicelab()"><i class="fas fa-play me-2"></i>Run Pipeline</button>
+                        <button class="btn btn-outline-warning" id="btn-vl-pause" style="display:none;" onclick="pauseResumeVoicelab()"><i class="fas fa-pause me-1"></i>Pause</button>
+                        <button class="btn btn-outline-danger" id="btn-vl-cancel" style="display:none;" onclick="cancelVoicelab()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                    </div>
+
+                    <!-- Stage progress -->
+                    <div id="vl-stage-progress" class="d-flex gap-2 flex-wrap mb-2" style="display:none;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Voice Lab Logs</span>
+                    <a href="/api/logs/voicelab?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete Voice Lab log"><i class="fas fa-download me-1"></i>Full log</a>
+                </div>
+                <div class="card-body p-0">
+                    <div id="voicelab-logs" class="log-window"></div>
                 </div>
             </div>
         </div>
@@ -1454,6 +1711,11 @@
                     loadLoraModels();
                 } else if (e.target.dataset.tab === 'dataset-builder') {
                     dsbLoadProjects(dsbCurrentProject);
+                } else if (e.target.dataset.tab === 'preparer') {
+                    loadPreparerOutputs();
+                } else if (e.target.dataset.tab === 'voicelab') {
+                    loadVoicelabConfig();
+                    voicelabInspect();
                 }
             });
         });
@@ -1515,6 +1777,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
+                await API._handleError(res);
+                return res.json();
+            },
+            del: async (url) => {
+                const res = await fetch(url, { method: 'DELETE' });
                 await API._handleError(res);
                 return res.json();
             },
@@ -2115,11 +2382,33 @@
             }, 1000);
         }
 
+        // --- Single review (with pause/cancel + character-name merging) ---
+        function _reviewDedupe() {
+            const cb = document.getElementById('review-dedupe-speakers');
+            return cb ? cb.checked : true;
+        }
+        function _showReviewControls(show) {
+            document.getElementById('btn-pause-review').style.display = show ? 'inline-block' : 'none';
+            document.getElementById('btn-cancel-review').style.display = show ? 'inline-block' : 'none';
+            if (show) _resetPauseBtn('btn-pause-review');
+        }
+        function _disableReviewButtons(disabled) {
+            document.getElementById('btn-review-script').disabled = disabled;
+            document.getElementById('btn-review-script-contextual').disabled = disabled;
+        }
+        function _onReviewDone() {
+            _showReviewControls(false);
+            _disableReviewButtons(false);
+        }
+
         document.getElementById('btn-review-script').addEventListener('click', async () => {
             try {
-                await API.post('/api/review_script', {});
-                pollLogs('review', 'script-logs');
+                _disableReviewButtons(true);
+                _showReviewControls(true);
+                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe() });
+                pollLogs('review', 'script-logs', _onReviewDone);
             } catch (e) {
+                _onReviewDone();
                 showToast("Failed to start review: " + e.message, 'error');
             }
         });
@@ -2128,18 +2417,225 @@
             try {
                 const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
                 const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize });
+                _disableReviewButtons(true);
+                _showReviewControls(true);
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe() });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
                         ? `Estimated LLM calls: ~${result.estimated_calls} for ${result.total_entries} entries with batches of ${result.batch_size}.`
                         : 'Contextual review started.';
                 }
-                pollLogs('review', 'script-logs');
+                pollLogs('review', 'script-logs', _onReviewDone);
             } catch (e) {
+                _onReviewDone();
                 showToast("Failed to start contextual review: " + e.message, 'error');
             }
         });
+
+        const _reviewPauseResume = _makePauseResumeHandler(
+            '/api/review_script/pause', '/api/review_script/resume', 'btn-pause-review');
+        const _batchReviewPauseResume = _makePauseResumeHandler(
+            '/api/review_script/batch/pause', '/api/review_script/batch/resume', 'btn-pause-batch-review');
+        window.pauseResumeReview = _reviewPauseResume;
+        window.pauseResumeBatchReview = _batchReviewPauseResume;
+        window.cancelReview = async () => {
+            try {
+                await API.post('/api/review_script/cancel', {});
+                _resetPauseBtn('btn-pause-review');
+            } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning'); }
+        };
+        window.cancelBatchReview = async () => {
+            try {
+                await API.post('/api/review_script/batch/cancel', {});
+                _resetPauseBtn('btn-pause-batch-review');
+            } catch (e) { /* ignore */ }
+        };
+
+        // --- Batch review ---
+        let reviewBatchPoller = null;
+        let reviewBatchSelected = [];
+
+        window.toggleReviewBatchMode = () => {
+            const isBatch = document.getElementById('review-batch-mode').checked;
+            document.getElementById('review-single-area').style.display = isBatch ? 'none' : 'block';
+            document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
+            document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
+            if (isBatch) loadReviewBatchScripts();
+        };
+
+        async function loadReviewBatchScripts() {
+            const container = document.getElementById('review-batch-list');
+            try {
+                const scripts = await API.get('/api/scripts');
+                if (!scripts.length) {
+                    container.innerHTML = '<span class="text-muted small">No saved scripts found. Generate or save scripts first.</span>';
+                    return;
+                }
+                container.innerHTML = scripts.map((s, i) => `
+                    <div class="form-check d-flex align-items-center justify-content-between">
+                        <div>
+                            <input class="form-check-input review-batch-check" type="checkbox" id="rb-check-${i}" data-name="${escapeHtml(s.name)}">
+                            <label class="form-check-label small" for="rb-check-${i}">${escapeHtml(s.name)} ${s.has_voice_config ? '<span class="badge bg-info ms-1">voices</span>' : ''}</label>
+                        </div>
+                        <span class="small" id="rb-status-${i}"></span>
+                    </div>`).join('');
+            } catch (e) {
+                container.innerHTML = `<span class="text-danger small">${escapeHtml(e.message || String(e))}</span>`;
+            }
+        }
+
+        window.reviewBatchSelectAll = (on) => {
+            document.querySelectorAll('.review-batch-check').forEach(cb => { cb.checked = on; });
+        };
+
+        async function startBatchReview() {
+            const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
+            if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
+            reviewBatchSelected = names;
+            const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
+            const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
+
+            const startBtn = document.getElementById('btn-review-batch-start');
+            const pauseBtn = document.getElementById('btn-pause-batch-review');
+            const cancelBtn = document.getElementById('btn-cancel-batch-review');
+            const statusMsg = document.getElementById('review-batch-status-msg');
+            startBtn.disabled = true;
+            pauseBtn.style.display = 'inline-block';
+            cancelBtn.style.display = 'inline-block';
+            _resetPauseBtn('btn-pause-batch-review');
+            statusMsg.style.display = '';
+            statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting batch review…</span>';
+
+            try {
+                await API.post('/api/review_script/batch/start', {
+                    script_names: names,
+                    context_window: contextWindow,
+                    dedupe_speakers: _reviewDedupe(),
+                    find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
+                });
+                pollReviewBatch();
+            } catch (e) {
+                startBtn.disabled = false;
+                pauseBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+            }
+        }
+
+        // --- Nickname discovery + alias editor ---
+        const _nickPauseResume = _makePauseResumeHandler(
+            '/api/find_nicknames/pause', '/api/find_nicknames/resume', 'btn-pause-nick');
+        window.pauseResumeNicknames = _nickPauseResume;
+        window.cancelNicknames = async () => {
+            try { await API.post('/api/find_nicknames/cancel', {}); _resetPauseBtn('btn-pause-nick'); }
+            catch (e) { showToast('Cancel failed: ' + (e.message || ''), 'warning'); }
+        };
+
+        async function findNicknames() {
+            const btn = document.getElementById('btn-find-nicknames');
+            btn.disabled = true;
+            document.getElementById('btn-pause-nick').style.display = 'inline-block';
+            document.getElementById('btn-cancel-nick').style.display = 'inline-block';
+            _resetPauseBtn('btn-pause-nick');
+            try {
+                await API.post('/api/find_nicknames', {});
+                pollLogs('nicknames', 'script-logs', async () => {
+                    btn.disabled = false;
+                    document.getElementById('btn-pause-nick').style.display = 'none';
+                    document.getElementById('btn-cancel-nick').style.display = 'none';
+                    await loadCharacterAliases(true);  // show what was found for review/edit
+                });
+            } catch (e) {
+                btn.disabled = false;
+                document.getElementById('btn-pause-nick').style.display = 'none';
+                document.getElementById('btn-cancel-nick').style.display = 'none';
+                showToast('Failed to start nickname discovery: ' + e.message, 'error');
+            }
+        }
+
+        async function loadCharacterAliases(show) {
+            const panel = document.getElementById('nickname-aliases-panel');
+            let aliases = {};
+            try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }
+            const entries = Object.entries(aliases || {});
+            if (show) panel.style.display = 'block';
+            const rowHtml = (a, c) => `
+                <div class="input-group input-group-sm mb-1 nick-alias-row">
+                    <input type="text" class="form-control nick-alias" placeholder="alias / nickname" value="${escapeHtml(a)}">
+                    <span class="input-group-text">&rarr;</span>
+                    <input type="text" class="form-control nick-canonical" placeholder="canonical name" value="${escapeHtml(c)}">
+                    <button class="btn btn-outline-danger" type="button" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>
+                </div>`;
+            panel.innerHTML = `
+                <div class="border rounded p-2">
+                    <div class="small fw-bold mb-1">Character aliases <span class="text-muted">(applied automatically when you run Review)</span></div>
+                    <div id="nick-alias-rows">
+                        ${entries.length ? entries.map(([a, c]) => rowHtml(a, c)).join('') : '<div class="text-muted small mb-1">No aliases yet. Run "Find Nicknames" or add rows manually.</div>'}
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addAliasRow()"><i class="fas fa-plus me-1"></i>Add</button>
+                        <button class="btn btn-sm btn-success" type="button" onclick="saveCharacterAliases()"><i class="fas fa-save me-1"></i>Save aliases</button>
+                    </div>
+                </div>`;
+        }
+
+        window.addAliasRow = () => {
+            const rows = document.getElementById('nick-alias-rows');
+            const placeholder = rows.querySelector('.text-muted');
+            if (placeholder) placeholder.remove();
+            const div = document.createElement('div');
+            div.className = 'input-group input-group-sm mb-1 nick-alias-row';
+            div.innerHTML = `
+                <input type="text" class="form-control nick-alias" placeholder="alias / nickname">
+                <span class="input-group-text">&rarr;</span>
+                <input type="text" class="form-control nick-canonical" placeholder="canonical name">
+                <button class="btn btn-outline-danger" type="button" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>`;
+            rows.appendChild(div);
+        };
+
+        async function saveCharacterAliases() {
+            const map = {};
+            document.querySelectorAll('#nick-alias-rows .nick-alias-row').forEach(row => {
+                const a = row.querySelector('.nick-alias').value.trim();
+                const c = row.querySelector('.nick-canonical').value.trim();
+                if (a && c) map[a] = c;
+            });
+            try {
+                const res = await API.post('/api/character_aliases', map);
+                showToast(`Saved ${res.count} alias${res.count !== 1 ? 'es' : ''}. Run Review to apply.`, 'success');
+            } catch (e) {
+                showToast('Save failed: ' + (e.message || ''), 'error');
+            }
+        }
+
+        function pollReviewBatch() {
+            const logEl = document.getElementById('script-logs');
+            if (reviewBatchPoller) clearInterval(reviewBatchPoller);
+            reviewBatchPoller = setInterval(async () => {
+                try {
+                    const state = await API.get('/api/status/batch_review');
+                    if (logEl) { logEl.innerText = (state.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+                    const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                    (state.tasks || []).forEach(t => {
+                        // Map by name (the list shows all scripts; only selected ones are tasks)
+                        const cb = document.querySelector(`.review-batch-check[data-name="${CSS.escape(t.name)}"]`);
+                        if (!cb) return;
+                        const el = document.getElementById(cb.id.replace('rb-check-', 'rb-status-'));
+                        if (el) el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                    });
+                    if (!state.running) {
+                        clearInterval(reviewBatchPoller);
+                        reviewBatchPoller = null;
+                        document.getElementById('btn-review-batch-start').disabled = false;
+                        document.getElementById('btn-pause-batch-review').style.display = 'none';
+                        document.getElementById('btn-cancel-batch-review').style.display = 'none';
+                        document.getElementById('review-batch-status-msg').innerHTML =
+                            '<span class="text-muted">Batch review complete.</span>';
+                    }
+                } catch (e) { /* keep polling through hiccups */ }
+            }, 1000);
+        }
 
         // --- Persona Generation ---
         function toggleAdvancedPersonaOptions() {
@@ -2237,7 +2733,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}</h5>
+                                <h5 class="card-title">${escapeHtml(voice.name)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}</h5>
                                 <div class="form-text small text-muted mt-1">Alias of:</div>
                                 <select class="form-select form-select-sm alias-select mt-1">
                                     <option value="">-- None --</option>
@@ -2399,6 +2895,11 @@
                 window._loraModelsCache = await API.get('/api/lora/models');
             } catch (e) { /* ignore if no adapters */ }
 
+            // Load the series cast library (also gives us per-character line counts for badges)
+            try {
+                await loadCastLibrary();
+            } catch (e) { /* ignore if library unavailable */ }
+
             const voices = await API.get('/api/voices');
             // Cache simple names for alias dropdowns
             window._voicesNames = voices.map(v => v.name);
@@ -2413,6 +2914,366 @@
             if (voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
                 debouncedSaveVoices();
             }
+
+            // Restore any pending voice suggestions onto the freshly rendered cards
+            if (window._voiceSuggestions && Object.keys(window._voiceSuggestions).length) {
+                renderVoiceSuggestions();
+            }
+        }
+
+        // --- Auto-suggest best LoRA voice per character ---
+        window._voiceSuggestions = {};
+
+        async function suggestVoices() {
+            const btn = document.getElementById('btn-suggest-voices');
+            const status = document.getElementById('suggest-status');
+            btn.disabled = true;
+            status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing characters and matching voices...';
+            try {
+                // Make sure lora caches are fresh so we can resolve suggested adapters in the dropdowns
+                try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { /* ignore */ }
+                const res = await API.post('/api/suggest_voices', { only_unset: false });
+                window._voiceSuggestions = res.suggestions || {};
+                const n = Object.keys(window._voiceSuggestions).length;
+                if (n === 0) {
+                    status.textContent = res.message || 'No suggestions available.';
+                    document.getElementById('btn-apply-all-suggestions').style.display = 'none';
+                    document.getElementById('btn-clear-suggestions').style.display = 'none';
+                } else {
+                    const methodLabel = res.method === 'llm' ? 'LLM' : 'heuristic';
+                    status.innerHTML = `<i class="fas fa-check text-success me-1"></i>Suggested ${n} voice${n > 1 ? 's' : ''} (${methodLabel}). Review and apply below.`;
+                    document.getElementById('btn-apply-all-suggestions').style.display = 'inline-block';
+                    document.getElementById('btn-clear-suggestions').style.display = 'inline-block';
+                }
+                renderVoiceSuggestions();
+            } catch (e) {
+                status.innerHTML = `<i class="fas fa-times text-danger me-1"></i>${escapeHtml(e.message || String(e))}`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function renderVoiceSuggestions() {
+            document.querySelectorAll('.voice-card').forEach(card => {
+                const name = card.dataset.voice;
+                const body = card.querySelector('.card-body');
+                let banner = card.querySelector('.voice-suggestion');
+                const sugg = window._voiceSuggestions[name];
+                if (!sugg) {
+                    if (banner) banner.remove();
+                    return;
+                }
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.className = 'voice-suggestion alert alert-success d-flex align-items-center justify-content-between py-2 px-3 mt-2 mb-0';
+                    body.appendChild(banner);
+                }
+                const typeLabel = sugg.type === 'builtin_lora' ? 'Built-in' : 'LoRA';
+                banner.innerHTML = `
+                    <div class="me-2 small">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i>
+                        <strong>Suggested ${typeLabel} voice:</strong> ${escapeHtml(sugg.adapter_name)}
+                        ${sugg.reason ? `<span class="text-muted d-block">${escapeHtml(sugg.reason)}</span>` : ''}
+                    </div>
+                    <button class="btn btn-sm btn-success flex-shrink-0" data-voice="${escapeHtml(name)}" onclick="applyVoiceSuggestion(this.dataset.voice)"><i class="fas fa-check me-1"></i>Apply</button>
+                `;
+            });
+        }
+
+        function applyVoiceSuggestion(name) {
+            const sugg = window._voiceSuggestions[name];
+            if (!sugg) return;
+            const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
+            if (!card) return;
+            const body = card.querySelector('.card-body');
+
+            // Select the correct voice type radio and reveal its options
+            const radio = body.querySelector(`.voice-type[value="${sugg.type}"]`);
+            if (radio) {
+                radio.checked = true;
+                toggleVoiceType(radio);
+            }
+
+            // Set the suggested adapter in the matching dropdown
+            const selectClass = sugg.type === 'builtin_lora' ? '.builtin-lora-select' : '.lora-adapter-select';
+            const select = body.querySelector(selectClass);
+            if (select) {
+                select.value = sugg.adapter_id;
+                // If the option isn't present (cache mismatch), add it so the value sticks
+                if (select.value !== sugg.adapter_id) {
+                    const opt = new Option(sugg.adapter_name, sugg.adapter_id, true, true);
+                    select.add(opt);
+                    select.value = sugg.adapter_id;
+                }
+            }
+
+            // Remove the banner and clear from pending suggestions
+            const banner = card.querySelector('.voice-suggestion');
+            if (banner) banner.remove();
+            delete window._voiceSuggestions[name];
+            updateSuggestionToolbar();
+            debouncedSaveVoices();
+        }
+
+        function applyAllVoiceSuggestions() {
+            Object.keys(window._voiceSuggestions).forEach(name => applyVoiceSuggestion(name));
+        }
+
+        function clearVoiceSuggestions() {
+            window._voiceSuggestions = {};
+            document.querySelectorAll('.voice-suggestion').forEach(b => b.remove());
+            updateSuggestionToolbar();
+            document.getElementById('suggest-status').textContent = '';
+        }
+
+        function updateSuggestionToolbar() {
+            const remaining = Object.keys(window._voiceSuggestions).length;
+            const show = remaining > 0 ? 'inline-block' : 'none';
+            document.getElementById('btn-apply-all-suggestions').style.display = show;
+            document.getElementById('btn-clear-suggestions').style.display = show;
+            if (remaining === 0) {
+                document.getElementById('suggest-status').innerHTML = '<i class="fas fa-check text-success me-1"></i>All suggestions applied.';
+            }
+        }
+
+        // --- Series Cast: reuse character voices across books ---
+        window._voiceLibrary = { casts: [], shared: [], current_characters: [] };
+        window._lineCounts = {};
+        window._selectedCast = window._selectedCast || '';
+
+        function castStatus(html, isError) {
+            const el = document.getElementById('cast-status');
+            if (el) el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html;
+        }
+
+        async function loadCastLibrary() {
+            const lib = await API.get('/api/voice_library');
+            window._voiceLibrary = lib;
+            window._lineCounts = {};
+            (lib.current_characters || []).forEach(c => { window._lineCounts[c.name] = c.line_count; });
+
+            // Populate the cast selector, preserving the current selection if still valid
+            const sel = document.getElementById('cast-select');
+            const castNames = (lib.casts || []).map(c => c.name);
+            if (!castNames.includes(window._selectedCast)) {
+                window._selectedCast = castNames[0] || '';
+            }
+            sel.innerHTML = castNames.length
+                ? castNames.map(n => `<option value="${escapeHtml(n)}" ${n === window._selectedCast ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')
+                : '<option value="">(no casts yet)</option>';
+
+            const hasCast = !!window._selectedCast;
+            document.getElementById('btn-cast-save').disabled = !hasCast;
+            document.getElementById('btn-cast-apply').disabled = !hasCast;
+            document.getElementById('btn-cast-delete').disabled = !hasCast;
+            renderCastMembers();
+        }
+
+        function getSelectedCastObj() {
+            return (window._voiceLibrary.casts || []).find(c => c.name === window._selectedCast) || null;
+        }
+
+        function onCastChange() {
+            window._selectedCast = document.getElementById('cast-select').value;
+            renderCastMembers();
+        }
+
+        function renderCastMembers() {
+            const panel = document.getElementById('cast-panel');
+            const cast = getSelectedCastObj();
+            const shared = window._voiceLibrary.shared || [];
+            if (!window._selectedCast) {
+                panel.innerHTML = '<div class="alert alert-light border small mb-0">No casts yet. Click <strong>New</strong> to create one for this series, then save your configured character voices to it.</div>';
+                return;
+            }
+            const memberRow = (m, castName) => `
+                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2">
+                    <span class="small">${escapeHtml(m.name)} <span class="text-muted">(${escapeHtml(m.type || 'custom')}${m.line_count ? ', ' + m.line_count + ' lines' : ''})</span></span>
+                    <button class="btn btn-sm btn-link text-danger p-0" title="Remove from library" data-cast="${escapeHtml(castName)}" data-key="${escapeHtml(m.key)}" onclick="deleteCastMember(this.dataset.cast, this.dataset.key)"><i class="fas fa-times"></i></button>
+                </li>`;
+            const members = (cast && cast.members) || [];
+            panel.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="small fw-bold mb-1">Cast members <span class="text-muted">(${members.length})</span></div>
+                        <ul class="list-group list-group-flush border rounded">${members.length ? members.map(m => memberRow(m, window._selectedCast)).join('') : '<li class="list-group-item small text-muted py-2 px-2">None yet — use "Save to cast".</li>'}</ul>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold mb-1">Shared across series <span class="text-muted">(${shared.length})</span></div>
+                        <ul class="list-group list-group-flush border rounded">${shared.length ? shared.map(m => memberRow(m, '__shared__')).join('') : '<li class="list-group-item small text-muted py-2 px-2">None yet — the narrator lands here automatically.</li>'}</ul>
+                    </div>
+                </div>`;
+        }
+
+        async function createCast() {
+            const name = (prompt('Name this cast (e.g. the series title):') || '').trim();
+            if (!name) return;
+            try {
+                await API.post('/api/voice_library/casts', { name });
+                window._selectedCast = name;
+                await loadCastLibrary();
+                castStatus(`<i class="fas fa-check text-success me-1"></i>Created cast "${escapeHtml(name)}"`);
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+        }
+
+        async function deleteCast() {
+            if (!window._selectedCast) return;
+            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) return;
+            try {
+                await API.del(`/api/voice_library/casts/${encodeURIComponent(window._selectedCast)}`);
+                window._selectedCast = '';
+                await loadCastLibrary();
+                castStatus('<i class="fas fa-check text-success me-1"></i>Cast deleted');
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+        }
+
+        async function deleteCastMember(cast, key) {
+            try {
+                await API.del(`/api/voice_library/casts/${encodeURIComponent(cast)}/members/${encodeURIComponent(key)}`);
+                await loadCastLibrary();
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+        }
+
+        // Save current-book characters into the selected cast
+        function openCastSave() {
+            if (!window._selectedCast) return;
+            const panel = document.getElementById('cast-panel');
+            const chars = window._voiceLibrary.current_characters || [];
+            if (!chars.length) {
+                panel.innerHTML = '<div class="alert alert-warning small mb-0">No characters in the current book. Generate a script first.</div>';
+                return;
+            }
+            const defaultThreshold = 25;
+            const row = c => {
+                const isNarrator = c.name.trim().toLowerCase() === 'narrator';
+                const checked = isNarrator || c.line_count >= defaultThreshold ? 'checked' : '';
+                const scopeCell = isNarrator
+                    ? `<select class="form-select form-select-sm cast-save-scope" data-name="${escapeHtml(c.name)}" style="width:auto;">
+                           <option value="shared" selected>shared (whole series)</option>
+                           <option value="cast">this cast only (different narrator)</option>
+                       </select>`
+                    : '';
+                return `<tr>
+                    <td><input type="checkbox" class="cast-save-check" data-name="${escapeHtml(c.name)}" ${checked}></td>
+                    <td class="small">${escapeHtml(c.name)}</td>
+                    <td class="small text-muted">${c.line_count}</td>
+                    <td>${scopeCell}</td>
+                </tr>`;
+            };
+            panel.innerHTML = `
+                <div class="border rounded p-2">
+                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                        <span class="small fw-bold">Save to "${escapeHtml(window._selectedCast)}"</span>
+                        <span class="small text-muted">Pre-select characters with ≥</span>
+                        <input type="number" id="cast-save-threshold" class="form-control form-control-sm" style="width:70px;" value="${defaultThreshold}" min="0" onchange="reapplyCastSaveThreshold()">
+                        <span class="small text-muted">lines</span>
+                    </div>
+                    <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>Only characters you've already configured will be saved. The narrator is stored as a shared voice for the whole series.</div>
+                    <div class="table-responsive" style="max-height:260px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light"><tr><th style="width:30px;"></th><th>Character</th><th>Lines</th><th>Narrator scope</th></tr></thead>
+                            <tbody>${chars.map(row).join('')}</tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-success" onclick="submitCastSave()"><i class="fas fa-floppy-disk me-1"></i>Save selected</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Cancel</button>
+                    </div>
+                </div>`;
+        }
+
+        function reapplyCastSaveThreshold() {
+            const t = parseInt(document.getElementById('cast-save-threshold').value, 10) || 0;
+            document.querySelectorAll('.cast-save-check').forEach(cb => {
+                const name = cb.dataset.name;
+                const isNarrator = name.trim().toLowerCase() === 'narrator';
+                const count = window._lineCounts[name] || 0;
+                cb.checked = isNarrator || count >= t;
+            });
+        }
+
+        async function submitCastSave() {
+            const checks = Array.from(document.querySelectorAll('.cast-save-check:checked'));
+            const characters = checks.map(cb => cb.dataset.name);
+            if (!characters.length) { castStatus('Select at least one character.', true); return; }
+            // Narrators marked "this cast only" are saved as a series-specific (different) narrator
+            const cast_specific = Array.from(document.querySelectorAll('.cast-save-scope'))
+                .filter(s => s.value === 'cast' && characters.includes(s.dataset.name))
+                .map(s => s.dataset.name);
+            try {
+                const res = await API.post('/api/voice_library/save', { cast: window._selectedCast, characters, cast_specific });
+                await loadCastLibrary();
+                const nc = res.saved.cast.length, ns = res.saved.shared.length;
+                const skipped = characters.length - nc - ns;
+                let msg = `Saved ${nc} to cast`;
+                if (ns) msg += `, ${ns} shared`;
+                if (skipped > 0) msg += ` (${skipped} skipped — not configured)`;
+                castStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+        }
+
+        // Apply a cast to the current book (fuzzy match + confirm)
+        async function openCastApply() {
+            if (!window._selectedCast) return;
+            const panel = document.getElementById('cast-panel');
+            panel.innerHTML = '<div class="small text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Matching characters...</div>';
+            let res;
+            try {
+                res = await API.post('/api/voice_library/match', { name: window._selectedCast });
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
+
+            // Build the pool of candidate members for the override dropdown
+            const cast = getSelectedCastObj();
+            const pool = [...(window._voiceLibrary.shared || []).map(m => ({ ...m, source: 'shared' })),
+                         ...((cast && cast.members) || []).map(m => ({ ...m, source: 'cast' }))];
+            const poolByKey = {}; pool.forEach(m => { poolByKey[m.key] = m; });
+            const optionsFor = (selKey) => '<option value="">— skip —</option>' + pool.map(m =>
+                `<option value="${escapeHtml(m.key)}" ${m.key === selKey ? 'selected' : ''}>${escapeHtml(m.name)} (${m.source})</option>`).join('');
+
+            const anyMatch = res.proposals.some(p => p.match);
+            const rows = res.proposals.map((p, i) => {
+                const m = p.match;
+                const fuzzy = m && !m.exact;
+                const badge = m ? (m.exact ? '<span class="badge bg-success">exact</span>' : `<span class="badge bg-warning text-dark" title="Fuzzy match — please confirm">~${m.score}</span>`) : '<span class="badge bg-light text-muted border">no match</span>';
+                return `<tr class="${fuzzy ? 'table-warning' : ''}">
+                    <td><input type="checkbox" class="cast-apply-check" data-char="${escapeHtml(p.character)}" ${m ? 'checked' : ''}></td>
+                    <td class="small">${escapeHtml(p.character)} <span class="text-muted">(${p.line_count})</span></td>
+                    <td>${badge}</td>
+                    <td><select class="form-select form-select-sm cast-apply-target" data-char="${escapeHtml(p.character)}">${optionsFor(m ? m.key : '')}</select></td>
+                </tr>`;
+            }).join('');
+
+            panel.innerHTML = `
+                <div class="border rounded p-2">
+                    <div class="small fw-bold mb-1">Apply "${escapeHtml(window._selectedCast)}" to this book</div>
+                    <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>Review matches before applying. <span class="badge bg-warning text-dark">~score</span> rows are fuzzy guesses — confirm or change the target. Applying overwrites those characters' current voices.</div>
+                    ${anyMatch ? '' : '<div class="alert alert-warning small py-1 px-2">No matches found for this cast.</div>'}
+                    <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light"><tr><th style="width:30px;"></th><th>Character (lines)</th><th>Match</th><th>Use voice</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-success" onclick="submitCastApply()"><i class="fas fa-check me-1"></i>Apply selected</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Cancel</button>
+                    </div>
+                </div>`;
+        }
+
+        async function submitCastApply() {
+            const mapping = {};
+            document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
+                const char = cb.dataset.char;
+                const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
+                if (sel && sel.value) mapping[char] = sel.value;
+            });
+            if (!Object.keys(mapping).length) { castStatus('Nothing selected to apply.', true); return; }
+            try {
+                const res = await API.post('/api/voice_library/apply', { cast: window._selectedCast, mapping });
+                castStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}`);
+                await loadVoices();  // re-render cards with the applied configs
+            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         function collectVoiceConfig() {
@@ -4737,8 +5598,173 @@
                         document.getElementById('btn-prep-cancel').style.display = 'none';
                         const msg = taskName === 'preparer' ? state.status : 'Batch finished';
                         document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
+                        loadPreparerOutputs();  // refresh the download list with any new ZIPs
                     }
                 } catch (e) { /* network hiccup — keep polling */ }
+            }, 1000);
+        }
+
+        // List/download the dataset ZIPs produced by completed preparer runs.
+        async function loadPreparerOutputs() {
+            const el = document.getElementById('preparer-outputs');
+            if (!el) return;
+            try {
+                const res = await API.get('/api/preparer/list');
+                const files = res.files || [];
+                if (!files.length) {
+                    el.innerHTML = '<div class="text-muted small">No datasets yet. Completed preparer runs will appear here.</div>';
+                    return;
+                }
+                el.innerHTML = files.map(f => {
+                    const when = f.modified ? new Date(f.modified * 1000).toLocaleString() : '';
+                    return `<div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-truncate me-2">
+                            <i class="fas fa-file-zipper me-2"></i>${escapeHtml(f.filename)}
+                            <span class="text-muted ms-1">${f.size_mb} MB${when ? ' · ' + escapeHtml(when) : ''}</span>
+                        </span>
+                        <a class="btn btn-sm btn-outline-success flex-shrink-0" href="/api/preparer/download/${encodeURIComponent(f.filename)}" download>
+                            <i class="fas fa-download me-1"></i>Download
+                        </a>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                el.innerHTML = `<div class="text-danger small">${escapeHtml(e.message || String(e))}</div>`;
+            }
+        }
+
+        // ── Voice Lab: audiobook → named LoRA pipeline ───────────────────────
+        let voicelabPoller = null;
+        const _voicelabPauseResume = _makePauseResumeHandler(
+            '/api/voicelab/pause', '/api/voicelab/resume', 'btn-vl-pause');
+        window.pauseResumeVoicelab = _voicelabPauseResume;
+
+        function _vlChk(id, ok) {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = ok
+                ? '<i class="fas fa-check-circle text-success"></i>'
+                : '<i class="fas fa-times-circle text-danger"></i>';
+        }
+
+        async function loadVoicelabConfig() {
+            try {
+                const res = await API.get('/api/voicelab/config');
+                const c = res.config || {};
+                document.getElementById('vl-rocm_python').value = c.rocm_python || '';
+                document.getElementById('vl-pipeline_repo').value = c.pipeline_repo || '';
+                document.getElementById('vl-profiler_model').value = c.profiler_model || '';
+                document.getElementById('vl-zips_dir_cfg').value = c.zips_dir || '';
+                const input = document.getElementById('vl-zips_dir');
+                if (!input.value) input.value = c.zips_dir || '';
+
+                const ck = res.checks || {};
+                ['rocm_python','pipeline_repo','batch_train_lora','voice_profiler','profiler_model','zips_dir']
+                    .forEach(k => _vlChk('chk-' + k, !!ck[k]));
+                const issues = Object.values(ck).filter(v => v === false).length;
+                document.getElementById('voicelab-readiness').innerHTML = issues
+                    ? `<span class="badge bg-warning text-dark">${issues} issue${issues>1?'s':''}</span>`
+                    : '<span class="badge bg-success">ready</span>';
+            } catch (e) { /* leave fields as-is */ }
+        }
+
+        window.saveVoicelabConfig = async () => {
+            const body = {
+                rocm_python: document.getElementById('vl-rocm_python').value.trim(),
+                pipeline_repo: document.getElementById('vl-pipeline_repo').value.trim(),
+                profiler_model: document.getElementById('vl-profiler_model').value.trim(),
+                zips_dir: document.getElementById('vl-zips_dir_cfg').value.trim(),
+            };
+            try {
+                await API.post('/api/voicelab/config', body);
+                showToast('Voice Lab settings saved.', 'success');
+                await loadVoicelabConfig();
+            } catch (e) { showToast('Save failed: ' + (e.message || 'unknown'), 'error'); }
+        };
+
+        window.voicelabInspect = async () => {
+            const el = document.getElementById('vl-inspect');
+            const dir = document.getElementById('vl-zips_dir').value.trim();
+            el.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Inspecting…';
+            try {
+                const r = await API.get('/api/voicelab/inspect' + (dir ? `?zips_dir=${encodeURIComponent(dir)}` : ''));
+                const m = r.manifest || {};
+                el.innerHTML =
+                    `<span class="badge bg-secondary me-1">${r.narrator_count} narrator folder${r.narrator_count!==1?'s':''}</span>`
+                    + (r.deduped_exists
+                        ? `<span class="badge bg-info me-1">${r.deduped_count} deduped zip${r.deduped_count!==1?'s':''}</span>`
+                        : '<span class="badge bg-light text-muted border me-1">no _deduped yet</span>')
+                    + `<span class="badge bg-success me-1">${m.trained||0} trained</span>`
+                    + `<span class="badge bg-primary me-1">${m.profiled||0} profiled</span>`
+                    + `<span class="badge bg-warning text-dark me-1">${m.unnamed||0} unnamed</span>`;
+            } catch (e) {
+                el.innerHTML = `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+            }
+        };
+
+        function _vlSetRunning(running) {
+            document.getElementById('btn-vl-start').disabled = running;
+            document.getElementById('btn-vl-pause').style.display = running ? 'inline-block' : 'none';
+            document.getElementById('btn-vl-cancel').style.display = running ? 'inline-block' : 'none';
+            if (running) _resetPauseBtn('btn-vl-pause');
+        }
+
+        window.startVoicelab = async () => {
+            const stages = Array.from(document.querySelectorAll('.vl-stage:checked')).map(c => c.value);
+            if (!stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
+            if (stages.includes('name') && document.getElementById('vl-name-apply').checked
+                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) return;
+
+            const body = {
+                zips_dir: document.getElementById('vl-zips_dir').value.trim() || undefined,
+                stages,
+                device: document.getElementById('vl-device').value || undefined,
+                target_loss: parseFloat(document.getElementById('vl-target-loss').value) || 4.15,
+                max_epochs: parseInt(document.getElementById('vl-max-epochs').value, 10) || 6,
+                lora_r: parseInt(document.getElementById('vl-lora-r').value, 10) || 64,
+                name_apply: document.getElementById('vl-name-apply').checked,
+                name_overwrite: document.getElementById('vl-name-overwrite').checked,
+            };
+            _vlSetRunning(true);
+            document.getElementById('voicelab-status').innerHTML =
+                '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting…</span>';
+            try {
+                await API.post('/api/voicelab/start', body);
+                pollVoicelab();
+            } catch (e) {
+                _vlSetRunning(false);
+                document.getElementById('voicelab-status').innerHTML =
+                    `<span class="text-danger">${escapeHtml(e.message || String(e))}</span>`;
+            }
+        };
+
+        window.cancelVoicelab = async () => {
+            try { await API.post('/api/voicelab/cancel', {}); _resetPauseBtn('btn-vl-pause'); }
+            catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown'), 'warning'); }
+        };
+
+        function pollVoicelab() {
+            const logEl = document.getElementById('voicelab-logs');
+            const progEl = document.getElementById('vl-stage-progress');
+            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+            if (voicelabPoller) clearInterval(voicelabPoller);
+            voicelabPoller = setInterval(async () => {
+                try {
+                    const s = await API.get('/api/status/voicelab');
+                    if (logEl) { logEl.innerText = (s.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+                    if (s.tasks && s.tasks.length) {
+                        progEl.style.display = 'flex';
+                        progEl.innerHTML = s.tasks.map(t =>
+                            `<span class="badge bg-${colours[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
+                    }
+                    if (!s.running) {
+                        clearInterval(voicelabPoller); voicelabPoller = null;
+                        _vlSetRunning(false);
+                        const cls = s.status === 'done' ? 'text-success'
+                                  : s.status === 'cancelled' ? 'text-warning' : 'text-danger';
+                        document.getElementById('voicelab-status').innerHTML =
+                            `<span class="${cls}">Pipeline ${escapeHtml(s.status || 'finished')}.</span>`;
+                        voicelabInspect();  // refresh manifest counts
+                    }
+                } catch (e) { /* keep polling through hiccups */ }
             }, 1000);
         }
     </script>

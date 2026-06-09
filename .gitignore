@@ -16,6 +16,9 @@ app/env/
 /cache/
 state.json
 voice_config.json
+voice_library.json
+character_aliases.json
+voicelab_config.json
 voices.json
 annotated_script.json
 annotated_script.txt

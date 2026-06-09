@@ -14,6 +14,7 @@ from typing import List, Optional, Dict
 import re
 import time
 import queue
+import difflib
 import threading
 import zipfile
 import subprocess
@@ -47,6 +48,17 @@ M4B_PATH = os.path.join(ROOT_DIR, "audiobook.m4b")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
 CHUNKS_PATH = os.path.join(ROOT_DIR, "chunks.json")
+VOICE_LIBRARY_PATH = os.path.join(ROOT_DIR, "voice_library.json")
+CHARACTER_ALIASES_PATH = os.path.join(ROOT_DIR, "character_aliases.json")
+API_LOG_DIR = os.path.join(ROOT_DIR, "logs", "api")
+os.makedirs(API_LOG_DIR, exist_ok=True)
+
+
+def _task_log_path(task_name: str) -> str:
+    """Full on-disk log for a task. The in-memory state['logs'] is a capped live tail;
+    this file keeps the complete history so nothing is lost on long/batch runs."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", task_name)
+    return os.path.join(API_LOG_DIR, f"{safe}-latest.log")
 DESIGNED_VOICES_DIR = os.path.join(ROOT_DIR, "designed_voices")
 CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
@@ -242,6 +254,23 @@ class VoiceConfigItem(BaseModel):
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
 
+class SuggestVoicesRequest(BaseModel):
+    only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
+    max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
+
+class CastCreateRequest(BaseModel):
+    name: str
+
+class LibrarySaveRequest(BaseModel):
+    cast: str
+    characters: List[str]                     # current-book character names to save into the cast
+    shared: Optional[List[str]] = None        # subset to force into the shared (cross-series) pool
+    cast_specific: Optional[List[str]] = None # subset to force into the cast even if normally shared (e.g. a different narrator)
+
+class LibraryApplyRequest(BaseModel):
+    cast: str
+    mapping: Dict[str, str]                   # current character name -> library member key to apply
+
 class ChunkUpdate(BaseModel):
     text: Optional[str] = None
     instruct: Optional[str] = None
@@ -348,8 +377,18 @@ class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
     rows: List[dict]  # [{emotion, text, seed}]
 
+class ReviewRequest(BaseModel):
+    dedupe_speakers: bool = True
+
 class ContextualReviewRequest(BaseModel):
     window_size: int = 4
+    dedupe_speakers: bool = True
+
+class BatchReviewRequest(BaseModel):
+    script_names: List[str]            # names from the Scripts library (without .json)
+    context_window: int = 0            # >0 enables contextual review
+    dedupe_speakers: bool = True       # merge same-character aliases, consistent across the batch
+    find_nicknames: bool = True        # run nickname discovery per book first, into the shared series alias file
 
 class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
@@ -380,13 +419,16 @@ process_state = {
     "audio": {"running": False, "logs": [], "cancel": False},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
-    "review": {"running": False, "logs": []},
+    "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
+    "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False},
+    "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
     "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False},
+    "voicelab":       {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "status": "idle"},
 }
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
@@ -403,9 +445,17 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
+    # Start a fresh on-disk log for this run (full history; in-memory list is a capped tail)
+    log_path = _task_log_path(task_name)
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(f"# {task_name} log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n# {' '.join(command)}\n")
+    except OSError:
+        pass
+
     return_code = None
     try:
-        return_code = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state)
+        return_code = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state, log_file=log_path)
 
         if state.get("cancel"):
             state["logs"].append(f"Task {task_name} cancelled.")
@@ -474,15 +524,25 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
 
 
 
-def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None) -> int:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
     Uses a reader thread + Queue so the drain loop can check state['cancel']
     between reads without any platform-specific I/O multiplexing (e.g. no
     select.select(), which does not work on Windows pipes).
 
+    state['logs'] is a capped in-memory tail (last `max_logs` lines) for the live
+    UI; when `log_file` is given the *complete* output is also appended there so
+    long single runs and multi-book batches never lose earlier lines.
+
     Returns the process exit code.
     """
+    log_fh = None
+    if log_file:
+        try:
+            log_fh = open(log_file, "a", encoding="utf-8")
+        except OSError:
+            log_fh = None
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -531,9 +591,20 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             state["logs"].append(entry)
             if len(state["logs"]) > max_logs:
                 state["logs"].pop(0)
+            if log_fh:
+                try:
+                    log_fh.write(entry + "\n")
+                    log_fh.flush()
+                except OSError:
+                    pass
 
     reader.join()
     process.wait()
+    if log_fh:
+        try:
+            log_fh.close()
+        except OSError:
+            pass
     return process.returncode
 
 
@@ -926,15 +997,21 @@ async def generate_script_resume():
 
 
 @app.post("/api/review_script")
-async def review_script(background_tasks: BackgroundTasks):
+async def review_script(background_tasks: BackgroundTasks, request: ReviewRequest = ReviewRequest()):
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
     if process_state["review"]["running"]:
         raise HTTPException(status_code=400, detail="Script review already running")
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running")
 
-    background_tasks.add_task(run_process, [sys.executable, "-u", "review_script.py"], "review")
-    return {"status": "started"}
+    cmd = [sys.executable, "-u", "review_script.py"]
+    if request.dedupe_speakers:
+        cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
+                "--alias-registry", CHARACTER_ALIASES_PATH]
+    background_tasks.add_task(run_process, cmd, "review")
+    return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 @app.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
@@ -943,6 +1020,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
 
     if process_state["review"]["running"]:
         raise HTTPException(status_code=400, detail="Script review already running")
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running")
 
     window_size = max(1, min(int(request.window_size or 4), 12))
     total_entries = 0
@@ -962,9 +1041,13 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
             review_batch_size = 25
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
+    cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
+    if request.dedupe_speakers:
+        cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
+                "--alias-registry", CHARACTER_ALIASES_PATH]
     background_tasks.add_task(
         run_process,
-        [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)],
+        cmd,
         "review"
     )
     return {
@@ -974,7 +1057,247 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         "batch_size": review_batch_size,
         "total_entries": total_entries,
         "estimated_calls": estimated_calls,
+        "dedupe_speakers": request.dedupe_speakers,
     }
+
+
+@app.post("/api/review_script/cancel")
+async def review_script_cancel():
+    return _cancel_task("review", "No script review is currently running.", "Script review process already exited.")
+
+
+@app.post("/api/review_script/pause")
+async def review_script_pause():
+    state = process_state["review"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script review is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Script review is starting up, retry in a moment.")
+    _posix_signal(proc, "SIGSTOP")
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Script review paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/review_script/resume")
+async def review_script_resume():
+    state = process_state["review"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No script review is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, "SIGCONT")
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Script review resumed.")
+    return {"status": "resumed"}
+
+
+@app.post("/api/find_nicknames")
+async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
+    """Scan the working script for character nicknames/aliases and write character_aliases.json."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
+    if process_state["nicknames"]["running"]:
+        raise HTTPException(status_code=400, detail="Nickname discovery already running")
+    cmd = [sys.executable, "-u", "find_nicknames.py",
+           "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
+    background_tasks.add_task(run_process, cmd, "nicknames")
+    return {"status": "started"}
+
+
+@app.post("/api/find_nicknames/cancel")
+async def find_nicknames_cancel():
+    return _cancel_task("nicknames", "No nickname discovery is currently running.", "Nickname discovery already exited.")
+
+
+@app.post("/api/find_nicknames/pause")
+async def find_nicknames_pause():
+    state = process_state["nicknames"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No nickname discovery is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Nickname discovery is starting up, retry in a moment.")
+    _posix_signal(proc, "SIGSTOP")
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Nickname discovery paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/find_nicknames/resume")
+async def find_nicknames_resume():
+    state = process_state["nicknames"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No nickname discovery is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, "SIGCONT")
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Nickname discovery resumed.")
+    return {"status": "resumed"}
+
+
+@app.get("/api/character_aliases")
+async def get_character_aliases():
+    """Return the current alias map { alias: canonical }."""
+    if not os.path.exists(CHARACTER_ALIASES_PATH):
+        return {}
+    try:
+        with open(CHARACTER_ALIASES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    # Hide identity rows (NAME -> NAME) — they're inert and only clutter the editor.
+    # Exact-match only, so a legitimate case-fix alias (kenji -> KENJI) stays visible.
+    return {k: v for k, v in data.items()
+            if isinstance(k, str) and isinstance(v, str) and k.strip() != v.strip()}
+
+
+@app.post("/api/character_aliases")
+async def save_character_aliases(aliases: Dict[str, str]):
+    """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
+    cleaned = {k.strip(): v.strip() for k, v in aliases.items() if k.strip() and v.strip()}
+    atomic_json_write(cleaned, CHARACTER_ALIASES_PATH)
+    return {"status": "saved", "count": len(cleaned)}
+
+
+@app.post("/api/review_script/batch/start")
+async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
+    """Review multiple saved scripts from the Scripts library, in place.
+    A shared alias registry keeps merged character names consistent across the batch."""
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running.")
+    if process_state["review"]["running"]:
+        raise HTTPException(status_code=400, detail="Single script review already running.")
+    if not request.script_names:
+        raise HTTPException(status_code=400, detail="No scripts selected.")
+
+    window = max(0, min(int(request.context_window or 0), 12))
+    dedupe = bool(request.dedupe_speakers)
+    discover = bool(request.find_nicknames) and dedupe
+
+    def _run():
+        state = process_state["batch_review"]
+        state["running"] = True
+        state["cancel"] = False
+        state["paused"] = False
+        state["logs"] = [f"Starting batch review of {len(request.script_names)} script(s)..."]
+        state["tasks"] = [{"name": n, "status": "pending"} for n in request.script_names]
+        state["current_task_idx"] = -1
+
+        # One full on-disk log for the whole batch (in-memory list is a capped tail)
+        log_path = _task_log_path("batch_review")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(f"# batch_review log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        except OSError:
+            pass
+
+        # One shared registry for the whole batch so canonical names align across books
+        registry_path = os.path.join(SCRIPTS_DIR, ".series_aliases.json") if dedupe else None
+
+        for i, name in enumerate(request.script_names):
+            if state["cancel"]:
+                state["logs"].append("Batch review cancelled.")
+                break
+
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+
+            script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+            if not os.path.exists(script_path):
+                state["logs"].append(f"[{i+1}/{len(request.script_names)}] Skipping — not found: {name}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+
+            state["logs"].append(f"--- [{i+1}/{len(request.script_names)}] Reviewing '{name}' ---")
+
+            # Optional nickname discovery first, accumulating into the shared series registry
+            if discover and registry_path:
+                state["logs"].append(f"[{i+1}] Discovering nicknames...")
+                nick_cmd = [
+                    sys.executable, "-u",
+                    os.path.join(BASE_DIR, "find_nicknames.py"),
+                    "--input", script_path,
+                    "--aliases-file", registry_path,
+                    "--append",
+                ]
+                _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+                if state.get("cancel"):
+                    state["tasks"][i]["status"] = "cancelled"
+                    break
+
+            cmd = [
+                sys.executable, "-u",
+                os.path.join(BASE_DIR, "review_script.py"),
+                "--input", script_path,
+                "--output", script_path,
+            ]
+            if window > 0:
+                cmd += ["--context-window", str(window)]
+            if dedupe:
+                cmd += ["--dedupe-speakers", "--alias-registry", registry_path]
+                companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+                if os.path.exists(companion):
+                    cmd += ["--remap-voice-config", companion]
+
+            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            elif rc == 0:
+                state["tasks"][i]["status"] = "done"
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{i+1}] Failed (exit {rc}): {name}")
+
+        state["running"] = False
+        state["logs"].append("Batch review finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "task_count": len(request.script_names)}
+
+
+@app.post("/api/review_script/batch/cancel")
+async def review_script_batch_cancel():
+    state = process_state["batch_review"]
+    state["cancel"] = True
+    _resume_if_paused(state, state.get("process"))
+    return {"status": "cancel_requested"}
+
+
+@app.post("/api/review_script/batch/pause")
+async def review_script_batch_pause():
+    state = process_state["batch_review"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch review is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Batch review is starting up, retry in a moment.")
+    _posix_signal(proc, "SIGSTOP")
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Batch review paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/review_script/batch/resume")
+async def review_script_batch_resume():
+    state = process_state["batch_review"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No batch review is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, "SIGCONT")
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Batch review resumed.")
+    return {"status": "resumed"}
 
 
 class BatchScriptTask(BaseModel):
@@ -1001,6 +1324,14 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
         state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
         state["current_task_idx"] = -1
+
+        # One full on-disk log for the whole batch (in-memory list is a capped tail)
+        log_path = _task_log_path("batch_script")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(f"# batch_script log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        except OSError:
+            pass
 
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
@@ -1035,7 +1366,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 input_path,
                 "--output", output_path,
             ]
-            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"
@@ -1106,6 +1437,23 @@ async def get_status(task_name: str):
     state = dict(process_state[task_name])
     state.pop("process", None)
     return state
+
+
+@app.get("/api/logs/{task_name}")
+async def get_task_log(task_name: str, download: bool = False):
+    """Serve the complete on-disk log for a task (the in-memory status only keeps a
+    capped tail). Use ?download=true to download the file."""
+    if task_name not in process_state:
+        raise HTTPException(status_code=404, detail="Task not found")
+    log_path = _task_log_path(task_name)
+    if not os.path.exists(log_path):
+        raise HTTPException(status_code=404, detail="No log file for this task yet.")
+    filename = f"{task_name}.log"
+    return FileResponse(
+        log_path,
+        media_type="text/plain",
+        filename=filename if download else None,
+    )
 
 @app.get("/api/voices")
 async def get_voices():
@@ -1216,6 +1564,241 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
     atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
     return {"status": "saved"}
+
+
+# --- Auto-suggest best LoRA voice per character -------------------------------
+
+def _infer_lora_gender(model):
+    """Best-effort gender for a LoRA candidate: explicit field, then name suffix,
+    then description keywords, then mean f0 from voice_features."""
+    g = (model.get("gender") or "").strip().lower()
+    if g in ("male", "female"):
+        return g
+    name_id = f"{model.get('name', '')} {model.get('id', '')}".lower()
+    if re.search(r"(_|\b)f(\b|_|\d|emale)", name_id):
+        return "female"
+    if re.search(r"(_|\b)m(\b|_|\d|ale)", name_id):
+        return "male"
+    desc = (model.get("description") or model.get("voice_profile") or "").lower()
+    if any(w in desc for w in ("alto", "soprano", "mezzo", "feminine", "woman", "girl")):
+        return "female"
+    if any(w in desc for w in ("baritone", "tenor", "bass", "masculine", "man", "boy")):
+        return "male"
+    f0 = (model.get("voice_features") or {}).get("mean_f0")
+    if isinstance(f0, (int, float)) and f0 > 0:
+        return "female" if f0 >= 165 else "male"
+    return "unknown"
+
+
+def _infer_character_gender(text):
+    """Rough gender guess for a character from persona/style/sample text via pronoun counts."""
+    t = (text or "").lower()
+    male = len(re.findall(r"\b(he|him|his|himself|man|men|boy|male|sir|mr|lord|king|father)\b", t))
+    female = len(re.findall(r"\b(she|her|hers|herself|woman|women|girl|female|lady|mrs|ms|miss|queen|mother)\b", t))
+    if male > female and male > 0:
+        return "male"
+    if female > male and female > 0:
+        return "female"
+    return "unknown"
+
+
+def _build_lora_candidates():
+    """Downloaded built-in + user-trained adapters with normalized fields for matching."""
+    candidates = []
+    for m in _load_builtin_lora_manifest():
+        if not m.get("downloaded", False):
+            continue
+        candidates.append({
+            "adapter_id": m["id"],
+            "name": m.get("name") or m["id"],
+            "type": "builtin_lora",
+            "gender": _infer_lora_gender(m),
+            "description": m.get("description") or m.get("voice_profile") or "",
+        })
+    for m in _load_manifest(LORA_MODELS_MANIFEST):
+        candidates.append({
+            "adapter_id": m["id"],
+            "name": m.get("name") or m["id"],
+            "type": "lora",
+            "gender": _infer_lora_gender(m),
+            "description": m.get("description") or m.get("voice_profile") or "",
+        })
+    return candidates
+
+
+def _heuristic_match(char_profile, candidates, preferred_gender=None):
+    """Gender-filter then keyword-overlap rank. Returns (candidate, reason) or (None, reason).
+    `preferred_gender` (e.g. inferred from an explicit gender word in the character name)
+    overrides the pronoun-count guess when provided."""
+    if not candidates:
+        return None, "No downloaded LoRA voices available"
+    cgender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(char_profile)
+    pool = candidates
+    if cgender != "unknown":
+        gender_match = [c for c in candidates if c["gender"] == cgender]
+        if gender_match:
+            pool = gender_match
+    words = set(re.findall(r"[a-z]{4,}", char_profile.lower()))
+    best, best_score = None, -1
+    for c in pool:
+        cwords = set(re.findall(r"[a-z]{4,}", c["description"].lower()))
+        score = len(words & cwords)
+        if score > best_score:
+            best, best_score = c, score
+    if best is None:
+        return None, "No candidate after filtering"
+    reason = f"Heuristic match ({cgender or 'unknown'} gender)"
+    if best_score > 0:
+        reason += f", {best_score} description keyword(s) in common"
+    return best, reason
+
+
+@app.post("/api/suggest_voices")
+def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
+    # Sync (not async) on purpose: this makes a blocking LLM call and file I/O.
+    # FastAPI runs sync endpoints in a threadpool, so the event loop (status
+    # polling, log streaming, every other request) stays responsive while a
+    # slow local model is thinking. Do not convert back to `async def`.
+    """Suggest the best-matching downloaded LoRA voice for each character based on
+    the character's dialogue + persona, ranked by the configured LLM (heuristic fallback)."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=400, detail="No script found. Generate a script first.")
+
+    try:
+        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+            script = json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Script is not valid JSON.")
+
+    # Collect per-character sample dialogue lines (in order, deduped)
+    samples = {}
+    for entry in script:
+        speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+        text = (entry.get("text") or "").strip()
+        if not speaker or not text:
+            continue
+        lines = samples.setdefault(speaker, [])
+        if text not in lines and len(lines) < max(1, min(int(request.max_lines or 8), 30)):
+            lines.append(text)
+    if not samples:
+        return {"method": "none", "suggestions": {}, "message": "No characters found in script."}
+
+    # Existing config (for persona descriptions/styles + only_unset filtering)
+    voice_config = {}
+    if os.path.exists(VOICE_CONFIG_PATH):
+        try:
+            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                voice_config = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            voice_config = {}
+
+    candidates = _build_lora_candidates()
+    if not candidates:
+        raise HTTPException(status_code=400, detail="No downloaded LoRA voices available. Download a built-in voice or train an adapter first.")
+
+    # Build per-character profile text (persona description/style + sample lines)
+    characters = {}
+    for speaker, lines in samples.items():
+        if request.only_unset:
+            existing = voice_config.get(speaker, {})
+            if existing.get("type") in ("lora", "builtin_lora") and existing.get("adapter_id"):
+                continue
+        cfg = voice_config.get(speaker, {})
+        persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
+        profile = " ".join(b for b in persona_bits if b)
+        characters[speaker] = {"profile": profile, "lines": lines}
+
+    if not characters:
+        return {"method": "none", "suggestions": {}, "message": "No characters to suggest (all already set)."}
+
+    cand_by_id = {c["adapter_id"]: c for c in candidates}
+    suggestions = {}
+    method = "heuristic"
+
+    # --- Try LLM ranking first ---
+    llm_ok = False
+    try:
+        from openai import OpenAI
+        cfg = {}
+        app_config_path = os.path.join(BASE_DIR, "config.json")
+        if os.path.exists(app_config_path):
+            with open(app_config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        llm_cfg = cfg.get("llm", {})
+        client = OpenAI(
+            base_url=llm_cfg.get("base_url", "http://localhost:11434/v1"),
+            api_key=llm_cfg.get("api_key", "local"),
+            timeout=120,  # don't let a stuck model hang the worker thread forever
+        )
+        model_name = llm_cfg.get("model_name", "")
+
+        voice_catalog = "\n".join(
+            f'- id="{c["adapter_id"]}" | name="{c["name"]}" | gender={c["gender"]} | description: {c["description"] or "(none)"}'
+            for c in candidates
+        )
+        char_block = "\n\n".join(
+            f'CHARACTER: {name}\nPersona/style: {info["profile"] or "(none)"}\nSample lines:\n'
+            + "\n".join(f'  - "{ln}"' for ln in info["lines"][:8])
+            for name, info in characters.items()
+        )
+        system_prompt = (
+            "You are a casting director matching narrated audiobook characters to available LoRA TTS voices. "
+            "For each character, pick the single best-fitting voice id from the catalog, considering gender, "
+            "age, timbre, and personality implied by the character's dialogue and persona. "
+            "Only choose from the provided voice ids. Respond with ONLY a JSON object mapping each character "
+            'name to {"adapter_id": "<id>", "reason": "<short reason>"}. No prose, no markdown.'
+        )
+        user_prompt = f"AVAILABLE VOICES:\n{voice_catalog}\n\nCHARACTERS:\n{char_block}\n\nReturn the JSON object now."
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+        )
+        raw = response.choices[0].message.content or ""
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        parsed = json.loads(m.group(0)) if m else {}
+
+        for name in characters:
+            pick = parsed.get(name) if isinstance(parsed, dict) else None
+            if isinstance(pick, dict) and pick.get("adapter_id") in cand_by_id:
+                c = cand_by_id[pick["adapter_id"]]
+                suggestions[name] = {
+                    "adapter_id": c["adapter_id"],
+                    "adapter_name": c["name"],
+                    "type": c["type"],
+                    "reason": (pick.get("reason") or "").strip()[:240] or "LLM recommendation",
+                }
+        if suggestions:
+            llm_ok = True
+            method = "llm"
+    except Exception as e:
+        logger.warning(f"LLM voice suggestion failed, falling back to heuristic: {e}")
+
+    # --- Heuristic fallback for any character the LLM didn't cover ---
+    for name, info in characters.items():
+        if name in suggestions:
+            continue
+        profile_text = " ".join([name, info["profile"]] + info["lines"][:5])
+        # An explicit gender word in the character's name/label is authoritative
+        name_gender = _infer_character_gender(name)
+        best, reason = _heuristic_match(profile_text, candidates, preferred_gender=name_gender)
+        if best:
+            suggestions[name] = {
+                "adapter_id": best["adapter_id"],
+                "adapter_name": best["name"],
+                "type": best["type"],
+                "reason": reason,
+            }
+
+    if not llm_ok and suggestions:
+        method = "heuristic"
+
+    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates)}
+
 
 @app.get("/api/audiobook")
 async def get_audiobook():
@@ -1629,6 +2212,270 @@ async def delete_script(name: str):
 
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}
+
+## ── Series Voice Library (cross-book cast) ──────────────────────
+
+# Character names that belong to the shared cross-series pool by default
+# (a series usually keeps the same narrator unless it explicitly uses a different one).
+SHARED_DEFAULT_NAMES = {"narrator"}
+
+
+def _norm_name(name: str) -> str:
+    """Normalize a character name for matching: lowercase, trimmed, collapsed spaces."""
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def _name_similarity(a: str, b: str) -> float:
+    """Similarity in [0,1] combining sequence ratio and token overlap on normalized names."""
+    na, nb = _norm_name(a), _norm_name(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    ratio = difflib.SequenceMatcher(None, na, nb).ratio()
+    ta, tb = set(na.split()), set(nb.split())
+    jaccard = len(ta & tb) / len(ta | tb) if (ta and tb) else 0.0
+    # Containment bonus: "kenji" vs "kenji sato"
+    contain = 1.0 if (ta and tb and (ta <= tb or tb <= ta)) else 0.0
+    return max(ratio, jaccard, contain * 0.9)
+
+
+def _load_voice_library() -> dict:
+    lib = {"shared": {}, "casts": {}}
+    if os.path.exists(VOICE_LIBRARY_PATH):
+        try:
+            with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                lib["shared"] = data.get("shared", {}) or {}
+                lib["casts"] = data.get("casts", {}) or {}
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return lib
+
+
+def _save_voice_library(lib: dict):
+    atomic_json_write(lib, VOICE_LIBRARY_PATH)
+
+
+def _script_line_counts() -> dict:
+    """Per-speaker line counts from the current annotated script."""
+    counts = {}
+    if os.path.exists(SCRIPT_PATH):
+        try:
+            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+                script = json.load(f)
+            for entry in script:
+                speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+                if speaker and (entry.get("text") or "").strip():
+                    counts[speaker] = counts.get(speaker, 0) + 1
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return counts
+
+
+def _make_library_entry(display_name: str, config: dict, line_count: int) -> dict:
+    cfg = dict(config or {})
+    cfg.pop("alias_of", None)  # aliases are book-specific; don't carry across books
+    return {
+        "name": display_name,
+        "config": cfg,
+        "line_count": line_count,
+        "saved_at": time.time(),
+    }
+
+
+@app.get("/api/voice_library")
+async def voice_library_get():
+    """Return the full library plus the current book's characters with line counts."""
+    lib = _load_voice_library()
+    counts = _script_line_counts()
+
+    casts = []
+    for cast_name, cast in sorted(lib["casts"].items()):
+        members = cast.get("members", {})
+        casts.append({
+            "name": cast_name,
+            "member_count": len(members),
+            "members": [
+                {"key": k, "name": m.get("name", k), "type": (m.get("config") or {}).get("type"),
+                 "line_count": m.get("line_count", 0)}
+                for k, m in sorted(members.items())
+            ],
+        })
+
+    shared = [
+        {"key": k, "name": m.get("name", k), "type": (m.get("config") or {}).get("type"),
+         "line_count": m.get("line_count", 0)}
+        for k, m in sorted(lib["shared"].items())
+    ]
+
+    current_characters = [
+        {"name": name, "line_count": counts[name]}
+        for name in sorted(counts, key=lambda n: counts[n], reverse=True)
+    ]
+
+    return {"casts": casts, "shared": shared, "current_characters": current_characters}
+
+
+@app.post("/api/voice_library/casts")
+async def voice_library_create_cast(request: CastCreateRequest):
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Cast name is required.")
+    lib = _load_voice_library()
+    if name in lib["casts"]:
+        raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
+    lib["casts"][name] = {"members": {}}
+    _save_voice_library(lib)
+    return {"status": "created", "name": name}
+
+
+@app.delete("/api/voice_library/casts/{cast}")
+async def voice_library_delete_cast(cast: str):
+    lib = _load_voice_library()
+    if cast not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+    del lib["casts"][cast]
+    _save_voice_library(lib)
+    return {"status": "deleted", "name": cast}
+
+
+@app.delete("/api/voice_library/casts/{cast}/members/{key}")
+async def voice_library_delete_member(cast: str, key: str):
+    lib = _load_voice_library()
+    if cast == "__shared__":
+        pool = lib["shared"]
+    else:
+        if cast not in lib["casts"]:
+            raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+        pool = lib["casts"][cast].setdefault("members", {})
+    if key not in pool:
+        raise HTTPException(status_code=404, detail=f"Member '{key}' not found.")
+    del pool[key]
+    _save_voice_library(lib)
+    return {"status": "deleted", "cast": cast, "key": key}
+
+
+@app.post("/api/voice_library/save")
+async def voice_library_save(request: LibrarySaveRequest):
+    """Save selected current-book characters into a cast (NARRATOR -> shared by default)."""
+    cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found. Create it first.")
+
+    voice_config = {}
+    if os.path.exists(VOICE_CONFIG_PATH):
+        try:
+            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                voice_config = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            voice_config = {}
+
+    counts = _script_line_counts()
+    shared_override = {_norm_name(n) for n in (request.shared or [])}
+    cast_specific = {_norm_name(n) for n in (request.cast_specific or [])}
+
+    saved = {"cast": [], "shared": []}
+    for char in request.characters:
+        config = voice_config.get(char)
+        if not config:
+            continue  # nothing configured for this character; skip
+        key = _norm_name(char)
+        entry = _make_library_entry(char, config, counts.get(char, 0))
+        # Narrator (or explicitly flagged) goes to the shared cross-series pool,
+        # unless this book uses a different narrator (forced cast-specific).
+        is_shared = (key in SHARED_DEFAULT_NAMES or key in shared_override) and key not in cast_specific
+        if is_shared:
+            lib["shared"][key] = entry
+            saved["shared"].append(char)
+        else:
+            lib["casts"][cast_name].setdefault("members", {})[key] = entry
+            saved["cast"].append(char)
+
+    _save_voice_library(lib)
+    return {"status": "saved", "cast": cast_name, "saved": saved}
+
+
+@app.post("/api/voice_library/match")
+async def voice_library_match(request: CastCreateRequest):
+    """Fuzzy-match the current book's characters against a cast (+shared pool).
+    Returns proposals for the user to confirm before applying. `name` = cast name."""
+    cast_name = request.name.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    # Build candidate pool: shared first, cast members override on key collision
+    # (a cast-specific narrator beats the shared narrator = "different narrator").
+    pool = {}
+    for k, m in lib["shared"].items():
+        pool[k] = {"key": k, "name": m.get("name", k), "source": "shared",
+                   "type": (m.get("config") or {}).get("type")}
+    for k, m in lib["casts"][cast_name].get("members", {}).items():
+        pool[k] = {"key": k, "name": m.get("name", k), "source": "cast",
+                   "type": (m.get("config") or {}).get("type")}
+
+    counts = _script_line_counts()
+    if not counts:
+        raise HTTPException(status_code=400, detail="No characters in the current book. Generate a script first.")
+
+    proposals = []
+    for char in sorted(counts, key=lambda n: counts[n], reverse=True):
+        best, best_score = None, 0.0
+        for cand in pool.values():
+            score = _name_similarity(char, cand["name"])
+            if score > best_score:
+                best, best_score = cand, score
+        match = None
+        if best and best_score >= 0.6:
+            match = {
+                "key": best["key"], "name": best["name"], "source": best["source"],
+                "type": best["type"], "score": round(best_score, 3),
+                "exact": best_score >= 0.999,
+            }
+        proposals.append({"character": char, "line_count": counts[char], "match": match})
+
+    return {"cast": cast_name, "proposals": proposals}
+
+
+@app.post("/api/voice_library/apply")
+async def voice_library_apply(request: LibraryApplyRequest):
+    """Apply confirmed cast members onto the current voice_config by the given mapping."""
+    cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    def resolve_entry(key):
+        # cast members win over shared on collision
+        return lib["casts"][cast_name].get("members", {}).get(key) or lib["shared"].get(key)
+
+    current_config = {}
+    if os.path.exists(VOICE_CONFIG_PATH):
+        try:
+            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                current_config = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            current_config = {}
+
+    applied = []
+    for char, key in request.mapping.items():
+        entry = resolve_entry(key)
+        if not entry:
+            continue
+        cfg = dict(entry.get("config") or {})
+        cfg.pop("alias_of", None)
+        # Preserve an existing alias_of on the current character (book-specific)
+        if isinstance(current_config.get(char), dict) and current_config[char].get("alias_of"):
+            cfg["alias_of"] = current_config[char]["alias_of"]
+        current_config[char] = cfg
+        applied.append(char)
+
+    atomic_json_write(current_config, VOICE_CONFIG_PATH)
+    return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied)}
+
 
 ## ── Voice Designer ──────────────────────────────────────────────
 
@@ -2852,6 +3699,318 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
 async def preparer_batch_cancel():
     process_state["batch_preparer"]["cancel"] = True
     return {"status": "cancel_requested"}
+
+
+## ── Voice Lab: end-to-end audiobook → named LoRA pipeline ─────────────────────
+#
+# Orchestrates the four post-preparer stages as a single sequential job:
+#   dedup   → voice_analysis.py --phase dedup   (this repo, ROCm env)
+#   train   → batch_train_lora.py               (sibling repo, ROCm env)
+#   profile → voice_profiler.py                 (sibling repo, ROCm env)
+#   name    → name_voices.py                    (this repo, pure stdlib)
+#
+# Stages 1-3 need the ROCm ML env (torch/librosa/speechbrain), which the web app's
+# own venv does NOT have — so they run under a configurable interpreter. The paths
+# are machine-specific (the user's established setup) and live in a small editable
+# config file rather than being hardcoded, so another machine can point them
+# elsewhere without code changes.
+
+VOICELAB_CONFIG_PATH = os.path.join(ROOT_DIR, "voicelab_config.json")
+
+VOICELAB_DEFAULTS = {
+    # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
+    "rocm_python": "/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python",
+    # Repo holding batch_train_lora.py + voice_profiler.py
+    "pipeline_repo": "/home/fakemitch/pinokio/api/alexandria-audiobook.git",
+    # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
+    "profiler_model": "",
+    # Default zips2 root (folder of narrator subfolders) the dedup stage reads
+    "zips_dir": "/home/fakemitch/Desktop/zips2",
+}
+
+VOICELAB_STAGES = ("dedup", "train", "profile", "name")
+
+
+def _load_voicelab_config() -> dict:
+    cfg = dict(VOICELAB_DEFAULTS)
+    if os.path.exists(VOICELAB_CONFIG_PATH):
+        try:
+            with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
+        except (json.JSONDecodeError, ValueError, OSError):
+            pass
+    return cfg
+
+
+class VoiceLabConfig(BaseModel):
+    rocm_python: Optional[str] = None
+    pipeline_repo: Optional[str] = None
+    profiler_model: Optional[str] = None
+    zips_dir: Optional[str] = None
+
+
+class VoiceLabRequest(BaseModel):
+    zips_dir: Optional[str] = None                 # narrator-subfolder root; default from config
+    stages: List[str] = list(VOICELAB_STAGES)      # which stages to run, in pipeline order
+    device: Optional[str] = None                   # cuda/cpu for the dedup stage (auto if unset)
+    target_loss: float = 4.15                      # batch-train early-stop target
+    max_epochs: int = 6
+    lora_r: int = 64
+    profiler_model: Optional[str] = None           # override GGUF for the profile stage
+    name_apply: bool = True                        # name stage: actually rename (else dry-run)
+    name_overwrite: bool = False                   # also re-name already-named adapters
+
+
+@app.get("/api/voicelab/config")
+async def voicelab_get_config():
+    """Return the pipeline paths plus whether each resolves on this machine."""
+    cfg = _load_voicelab_config()
+    return {
+        "config": cfg,
+        "checks": {
+            "rocm_python": os.path.isfile(cfg["rocm_python"]),
+            "pipeline_repo": os.path.isdir(cfg["pipeline_repo"]),
+            "batch_train_lora": os.path.isfile(os.path.join(cfg["pipeline_repo"], "batch_train_lora.py")),
+            "voice_profiler": os.path.isfile(os.path.join(cfg["pipeline_repo"], "voice_profiler.py")),
+            "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
+            "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
+            "profiler_model": (not cfg["profiler_model"]) or os.path.isfile(cfg["profiler_model"]),
+            "zips_dir": os.path.isdir(cfg["zips_dir"]),
+        },
+        "defaults": VOICELAB_DEFAULTS,
+    }
+
+
+@app.post("/api/voicelab/config")
+async def voicelab_save_config(request: VoiceLabConfig):
+    cfg = _load_voicelab_config()
+    for k, v in request.model_dump(exclude_none=True).items():
+        cfg[k] = v.strip() if isinstance(v, str) else v
+    atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
+    return {"status": "saved", "config": cfg}
+
+
+@app.get("/api/voicelab/inspect")
+async def voicelab_inspect(zips_dir: Optional[str] = None):
+    """Preview what a dedup input folder contains so the UI can show readiness."""
+    cfg = _load_voicelab_config()
+    root = (zips_dir or cfg["zips_dir"]).strip()
+    if not root or not os.path.isdir(root):
+        raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
+
+    narrators = []
+    for name in sorted(os.listdir(root)):
+        sub = os.path.join(root, name)
+        if name.startswith("_") or not os.path.isdir(sub):
+            continue
+        zips = [f for f in os.listdir(sub) if f.lower().endswith(".zip")]
+        narrators.append({"name": name, "zip_count": len(zips)})
+
+    deduped_dir = os.path.join(root, "_deduped")
+    deduped_zips = (
+        [f for f in os.listdir(deduped_dir) if f.lower().endswith(".zip")]
+        if os.path.isdir(deduped_dir) else []
+    )
+
+    trained = 0
+    manifest = _load_manifest(LORA_MODELS_MANIFEST)
+    trained = sum(1 for e in manifest if e.get("zip_source"))
+    unnamed = sum(1 for e in manifest
+                  if e.get("zip_source") and e.get("dataset_id") and e.get("id") == e.get("dataset_id"))
+    profiled = sum(1 for e in manifest if e.get("voice_profile"))
+
+    return {
+        "zips_dir": root,
+        "narrator_count": len(narrators),
+        "narrators": narrators,
+        "deduped_exists": os.path.isdir(deduped_dir),
+        "deduped_count": len(deduped_zips),
+        "manifest": {"trained": trained, "profiled": profiled, "unnamed": unnamed},
+    }
+
+
+def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
+    """Build the (stage_name, command, cwd) tuples for the requested stages."""
+    rocm = cfg["rocm_python"]
+    repo = cfg["pipeline_repo"]
+    deduped_dir = os.path.join(zips_dir, "_deduped")
+    profiler_model = (req.profiler_model or cfg["profiler_model"]).strip()
+
+    steps = []
+    if "dedup" in req.stages:
+        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_analysis.py"),
+               "--phase", "dedup", "--zips2", zips_dir]
+        if req.device:
+            cmd += ["--device", req.device]
+        steps.append(("dedup", cmd, ROOT_DIR))
+    if "train" in req.stages:
+        cmd = [rocm, "-u", os.path.join(repo, "batch_train_lora.py"),
+               "--zips_dir", deduped_dir,
+               "--models_dir", LORA_MODELS_DIR,
+               "--manifest", LORA_MODELS_MANIFEST,
+               "--target_loss", str(req.target_loss),
+               "--max_epochs", str(req.max_epochs),
+               "--lora_r", str(req.lora_r)]
+        steps.append(("train", cmd, repo))
+    if "profile" in req.stages:
+        cmd = [rocm, "-u", os.path.join(repo, "voice_profiler.py"),
+               "--manifest", LORA_MODELS_MANIFEST]
+        if profiler_model:
+            cmd += ["--model", profiler_model]
+        steps.append(("profile", cmd, repo))
+    if "name" in req.stages:
+        # Pure stdlib — safe to run under the web app's own interpreter
+        cmd = [sys.executable, "-u", os.path.join(ROOT_DIR, "name_voices.py"),
+               "--manifest", LORA_MODELS_MANIFEST, "--models-dir", LORA_MODELS_DIR]
+        if req.name_apply:
+            cmd.append("--apply")
+        if req.name_overwrite:
+            cmd.append("--overwrite")
+        steps.append(("name", cmd, ROOT_DIR))
+    return steps
+
+
+@app.post("/api/voicelab/start")
+async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
+    """Run the selected pipeline stages in sequence as one cancel/pausable job."""
+    if process_state["voicelab"]["running"]:
+        raise HTTPException(status_code=400, detail="Voice Lab pipeline already running.")
+
+    bad = [s for s in request.stages if s not in VOICELAB_STAGES]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"Unknown stage(s): {', '.join(bad)}")
+    # Keep canonical pipeline order regardless of how the request listed them
+    request.stages = [s for s in VOICELAB_STAGES if s in request.stages]
+    if not request.stages:
+        raise HTTPException(status_code=400, detail="No stages selected.")
+
+    cfg = _load_voicelab_config()
+    zips_dir = (request.zips_dir or cfg["zips_dir"]).strip()
+
+    # Validate prerequisites up front with actionable errors
+    needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
+    if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
+        raise HTTPException(status_code=400,
+                            detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    if "dedup" in request.stages and not os.path.isdir(zips_dir):
+        raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
+    if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
+        raise HTTPException(status_code=400,
+                            detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
+    for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
+                           ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
+        if s in request.stages and not os.path.isfile(os.path.join(base, fname)):
+            raise HTTPException(status_code=400,
+                                detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
+
+    steps = _voicelab_build_commands(request, cfg, zips_dir)
+
+    def _run():
+        state = process_state["voicelab"]
+        state["running"] = True
+        state["cancel"] = False
+        state["paused"] = False
+        state["status"] = "running"
+        state["process"] = None
+        state["pid"] = None
+        state["logs"] = [f"Voice Lab: {len(steps)} stage(s) — {', '.join(s[0] for s in steps)}"]
+        state["tasks"] = [{"name": s[0], "status": "pending"} for s in steps]
+        state["current_task_idx"] = -1
+
+        log_path = _task_log_path("voicelab")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(f"# voicelab log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n# zips_dir={zips_dir}\n")
+        except OSError:
+            pass
+
+        failed = False
+        for i, (stage, cmd, cwd) in enumerate(steps):
+            if state["cancel"]:
+                state["logs"].append("Pipeline cancelled.")
+                break
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+            state["logs"].append(f"--- [{i+1}/{len(steps)}] {stage} ---")
+
+            try:
+                rc = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path)
+            except Exception as e:
+                state["logs"].append(f"[{stage}] error launching: {e}")
+                state["tasks"][i]["status"] = "failed"
+                failed = True
+                break
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            if rc == 0:
+                state["tasks"][i]["status"] = "done"
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{stage}] failed (exit {rc}) — stopping pipeline.")
+                failed = True
+                break  # later stages depend on earlier ones; don't continue on failure
+
+        state["process"] = None
+        state["pid"] = None
+        state["running"] = False
+        if state.get("cancel"):
+            state["status"] = "cancelled"
+        elif failed:
+            state["status"] = "failed"
+        else:
+            state["status"] = "done"
+            state["logs"].append("Voice Lab pipeline finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "stages": request.stages, "zips_dir": zips_dir}
+
+
+@app.post("/api/voicelab/cancel")
+async def voicelab_cancel():
+    state = process_state["voicelab"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No Voice Lab pipeline is currently running.")
+    state["cancel"] = True
+    _resume_if_paused(state, state.get("process"))
+    proc = state.get("process")
+    if proc is not None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, OSError):
+            pass
+    return {"status": "cancel_requested"}
+
+
+@app.post("/api/voicelab/pause")
+async def voicelab_pause():
+    state = process_state["voicelab"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No Voice Lab pipeline is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=503, detail="Voice Lab is between stages, retry in a moment.")
+    _posix_signal(proc, "SIGSTOP")
+    state["paused"] = True
+    state["logs"].append("[PAUSED] Voice Lab paused.")
+    return {"status": "paused"}
+
+
+@app.post("/api/voicelab/resume")
+async def voicelab_resume():
+    state = process_state["voicelab"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No Voice Lab pipeline is currently running.")
+    proc = state.get("process")
+    if proc is None:
+        raise HTTPException(status_code=400, detail="Process not available.")
+    _posix_signal(proc, "SIGCONT")
+    state["paused"] = False
+    state["logs"].append("[RESUMED] Voice Lab resumed.")
+    return {"status": "resumed"}
 
 
 if __name__ == "__main__":
