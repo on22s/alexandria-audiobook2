@@ -1,24 +1,26 @@
 import os
 import sys
 import gc
+import asyncio
 import json
 import shutil
 import signal
 import logging
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import re
 import time
 import queue
+import difflib
 import threading
 import zipfile
 import subprocess
 import aiofiles
-from utils import atomic_json_write
+from utils import atomic_json_write, file_lock
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -29,6 +31,8 @@ from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
+from lmstudio_settings import get_lmstudio_status, apply_lmstudio_settings
+from review_script import clear_checkpoint
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +51,30 @@ M4B_PATH = os.path.join(ROOT_DIR, "audiobook.m4b")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
 CHUNKS_PATH = os.path.join(ROOT_DIR, "chunks.json")
+VOICE_LIBRARY_PATH = os.path.join(ROOT_DIR, "voice_library.json")
+CHARACTER_ALIASES_PATH = os.path.join(ROOT_DIR, "character_aliases.json")
+REPORTS_DIR = os.path.join(ROOT_DIR, "reports")
+API_LOG_DIR = os.path.join(ROOT_DIR, "logs", "api")
+os.makedirs(API_LOG_DIR, exist_ok=True)
+
+
+def _task_log_path(task_name: str) -> str:
+    """Full on-disk log for a task. The in-memory state['logs'] is a capped live tail;
+    this file keeps the complete history so nothing is lost on long/batch runs."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", task_name)
+    return os.path.join(API_LOG_DIR, f"{safe}-latest.log")
+
+
+def _init_task_log(task_name: str, extra_header: str = "") -> str:
+    """Start a fresh on-disk log for a task run with a header banner, swallowing
+    any OSError (e.g. read-only filesystem). Returns the log path regardless."""
+    log_path = _task_log_path(task_name)
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(f"# {task_name} log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n{extra_header}")
+    except OSError:
+        pass
+    return log_path
 DESIGNED_VOICES_DIR = os.path.join(ROOT_DIR, "designed_voices")
 CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
@@ -242,6 +270,32 @@ class VoiceConfigItem(BaseModel):
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
 
+class SuggestVoicesRequest(BaseModel):
+    only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
+    max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
+
+class CastCreateRequest(BaseModel):
+    name: str
+
+class LibrarySaveRequest(BaseModel):
+    cast: str
+    characters: List[str]                     # current-book character names to save into the cast
+    shared: Optional[List[str]] = None        # subset to force into the shared (cross-series) pool
+    cast_specific: Optional[List[str]] = None # subset to force into the cast even if normally shared (e.g. a different narrator)
+
+class LibraryApplyRequest(BaseModel):
+    cast: str
+    mapping: Dict[str, str]                   # current character name -> library member key to apply
+
+class CastMatchBulkRequest(BaseModel):
+    name: str                                 # cast name
+    script_names: List[str]                   # saved scripts to union-match against the cast
+
+class LibraryApplyBulkRequest(BaseModel):
+    cast: str
+    mapping: Dict[str, str]                   # character name -> library member key
+    script_names: List[str]                   # saved scripts to apply the mapping to
+
 class ChunkUpdate(BaseModel):
     text: Optional[str] = None
     instruct: Optional[str] = None
@@ -348,8 +402,20 @@ class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
     rows: List[dict]  # [{emotion, text, seed}]
 
+class ReviewRequest(BaseModel):
+    dedupe_speakers: bool = True
+
 class ContextualReviewRequest(BaseModel):
     window_size: int = 4
+    dedupe_speakers: bool = True
+
+class BatchReviewRequest(BaseModel):
+    script_names: List[str]            # names from the Scripts library (without .json)
+    context_window: int = 0            # >0 enables contextual review
+    dedupe_speakers: bool = True       # merge same-character aliases, consistent across the batch
+    find_nicknames: bool = True        # run nickname discovery per book first, into the shared series alias file
+    bidirectional: bool = False        # after the forward pass, re-scan in reverse so early books get
+                                       # discovery seeded with full-series hindsight (requires find_nicknames)
 
 class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
@@ -374,20 +440,111 @@ class BatchPreparerRequest(BaseModel):
 
 # Global state for process tracking
 process_state = {
-    "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False},
+    "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
-    "audio": {"running": False, "logs": [], "cancel": False},
+    "audio": {"running": False, "logs": [], "cancel": False, "start_time": None},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
-    "review": {"running": False, "logs": []},
+    "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
+    "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
+                     "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
+                     "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
+                     "aliases_fwd": [], "aliases_bwd": []},
+    "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "lora_training": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
-    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False},
+    "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None},
+    "voicelab":       {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "status": "idle", "start_time": None},
 }
+
+_PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
+
+# Tasks worth surfacing a progress/ETA estimate for, most-relevant first.
+ETA_TASKS = [
+    ("batch_review", "Batch review"),
+    ("batch_script", "Batch script generation"),
+    ("voicelab", "Voice Lab"),
+    ("script", "Script generation"),
+    ("review", "Script review"),
+    ("nicknames", "Nickname discovery"),
+    ("audio", "Audio generation"),
+]
+
+
+def _compute_eta(state: dict) -> dict:
+    """Best-effort progress fraction + ETA for a running task.
+
+    Combines wall-clock elapsed time since the task started with the most
+    recent "current/total" marker found in its logs (e.g. "Reviewing batch
+    71/104", "Progress: 12/40"). For batch tasks (tasks + current_task_idx),
+    the per-item log progress is folded in as a fraction of the current item,
+    so a 58-book batch reports overall progress rather than just the current
+    book's.
+    """
+    start = state.get("start_time")
+    if not start:
+        return {"elapsed_seconds": None, "eta_seconds": None, "progress": None, "fraction": None}
+    elapsed = time.time() - start
+
+    sub_fraction = 0.0
+    sub_progress = None
+    for line in reversed(state.get("logs", [])[-30:]):
+        if "VRAM" in line:
+            # The VRAM watchdog prints lines like "(10.5/12.0 GB)" which can
+            # otherwise be mistaken for a "current/total" progress marker.
+            continue
+        stripped = line.strip()
+        if stripped.startswith("---") or stripped.startswith(">>>") or stripped.startswith("==="):
+            # Per-book banner/summary lines (e.g. "--- [4/10] Reviewing
+            # '...' ---" or ">>> [4/10] '...' done: ... <<<") also match
+            # N/M but describe book-level progress, not the current item's
+            # sub-batch progress.
+            continue
+        m = _PROGRESS_RE.search(line)
+        if m:
+            cur, tot = int(m.group(1)), int(m.group(2))
+            if 0 < cur <= tot:
+                sub_fraction = cur / tot
+                sub_progress = f"{cur}/{tot}"
+                break
+            # Not a valid "current/total" marker (e.g. cur == 0 or cur > tot) -
+            # keep scanning earlier lines for one that is.
+
+    tasks = state.get("tasks")
+    idx = state.get("current_task_idx")
+    if tasks and idx is not None and idx >= 0:
+        num_items = len(tasks)
+        if state.get("bidirectional"):
+            # A bidirectional batch processes every book twice (forward, then
+            # backward). current_task_idx counts down during the backward
+            # pass, so map it onto the second half of the overall range to
+            # keep progress/ETA monotonically increasing.
+            total_items = num_items * 2
+            if state.get("current_pass") == "bwd":
+                position = total_items - 1 - idx
+                pass_label = " (pass 2/2)"
+            else:
+                position = idx
+                pass_label = " (pass 1/2)"
+            progress = f"item {idx + 1}/{num_items}{pass_label}"
+        else:
+            total_items = num_items
+            position = idx
+            progress = f"item {idx + 1}/{total_items}"
+        fraction = (position + sub_fraction) / total_items
+        fraction = min(1.0, max(0.0, fraction))
+        if sub_progress:
+            progress += f" ({sub_progress})"
+    else:
+        fraction = sub_fraction or None
+        progress = sub_progress
+
+    eta_seconds = elapsed * (1 - fraction) / fraction if fraction else None
+    return {"elapsed_seconds": elapsed, "eta_seconds": eta_seconds, "progress": progress, "fraction": fraction}
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and stream its output into process_state logs."""
@@ -400,19 +557,38 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     if "process"     in state: state["process"]     = None
     if "pid"         in state: state["pid"]         = None
     if "cancel"      in state: state["cancel"]      = False
+    if "start_time"  in state: state["start_time"]  = time.time()
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
+    # Start a fresh on-disk log for this run (full history; in-memory list is a capped tail)
+    log_path = _init_task_log(task_name, extra_header=f"# {' '.join(command)}\n")
+
     return_code = None
     try:
-        return_code = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state)
+        return_code, _ = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state, log_file=log_path)
 
         if state.get("cancel"):
             state["logs"].append(f"Task {task_name} cancelled.")
             if "status" in state: state["status"] = "cancelled"
         elif return_code == 0:
-            state["logs"].append(f"Task {task_name} completed successfully.")
             if "status" in state: state["status"] = "done"
+            completion_note = f"Task {task_name} completed successfully."
+            report_path = None
+            if task_name == "review":
+                stats = _extract_review_stats(state["logs"])
+                if stats:
+                    if stats.get("batches_skipped_vram"):
+                        completion_note = (
+                            f"Task {task_name} completed, but {stats['batches_skipped_vram']} "
+                            f"section(s) were skipped because the GPU ran low on memory. "
+                            f"Re-run the review to finish the rest."
+                        )
+                    highlights = _extract_diff_highlights(state["logs"])
+                    report_path = _write_single_review_report(stats, highlights)
+            state["logs"].append(completion_note)
+            if report_path:
+                state["logs"].append(f"Wrote review report: {os.path.relpath(report_path, ROOT_DIR)}")
         else:
             state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
             if "status" in state: state["status"] = "failed"
@@ -474,15 +650,29 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
 
 
 
-def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 5000) -> int:
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None) -> Tuple[int, List[str]]:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
     Uses a reader thread + Queue so the drain loop can check state['cancel']
     between reads without any platform-specific I/O multiplexing (e.g. no
     select.select(), which does not work on Windows pipes).
 
-    Returns the process exit code.
+    state['logs'] is a capped in-memory tail (last `max_logs` lines) for the live
+    UI; when `log_file` is given the *complete* output is also appended there so
+    long single runs and multi-book batches never lose earlier lines.
+
+    Returns (exit code, lines this call appended). The returned lines are this
+    call's own output regardless of any cap-driven truncation of state['logs'],
+    so callers can safely scan them for per-run markers (stats, diffs, aliases).
     """
+    log_fh = None
+    log_lines_since_flush = 0
+    last_flush_time = time.time()
+    if log_file:
+        try:
+            log_fh = open(log_file, "a", encoding="utf-8")
+        except OSError:
+            log_fh = None
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -509,6 +699,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
     reader.start()
 
+    own_lines: List[str] = []
+
     while True:
         try:
             line = log_queue.get(timeout=0.05)
@@ -528,14 +720,534 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         log_line = line.strip()
         if log_line:
             entry = f"{log_prefix}{log_line}" if log_prefix else log_line
+            own_lines.append(entry)
             state["logs"].append(entry)
             if len(state["logs"]) > max_logs:
                 state["logs"].pop(0)
+            if log_fh:
+                try:
+                    log_fh.write(entry + "\n")
+                    log_lines_since_flush += 1
+                    now = time.time()
+                    # Flush on whichever comes first: a burst of 50 lines, or ~1s
+                    # since the last flush — so /api/logs/{task_name} (served
+                    # directly from this file) doesn't lag the live in-memory
+                    # log by much during slow-running tasks.
+                    if log_lines_since_flush >= 50 or now - last_flush_time >= 1:
+                        log_fh.flush()
+                        log_lines_since_flush = 0
+                        last_flush_time = now
+                except OSError:
+                    pass
 
     reader.join()
     process.wait()
-    return process.returncode
+    if log_fh:
+        try:
+            log_fh.close()  # flushes any remaining buffered lines
+        except OSError:
+            pass
+    return process.returncode, own_lines
 
+
+_REVIEW_ENTRIES_RE = re.compile(r'Review complete:\s*(\d+)\s*->\s*(\d+)\s*entries')
+_REVIEW_SUMMARY_PATTERNS = {
+    "text_changed": re.compile(r'Text changed:\s*(\d+)'),
+    "speaker_changed": re.compile(r'Speaker changed:\s*(\d+)'),
+    "instruct_changed": re.compile(r'Instruct changed:\s*(\d+)'),
+    "entries_added": re.compile(r'Entries added:\s*(\d+)'),
+    "entries_removed": re.compile(r'Entries removed:\s*(\d+)'),
+    "narrators_merged": re.compile(r'Narrators merged:\s*(\d+)'),
+    "speakers_merged": re.compile(r'Speakers merged:\s*(\d+)'),
+    "batches_failed": re.compile(r'Batches failed:\s*(\d+)'),
+    "batches_skipped_vram": re.compile(r'Batches skipped \(low GPU VRAM\):\s*(\d+)'),
+    "total_changes": re.compile(r'Total changes:\s*(\d+)'),
+}
+_ALIAS_HEADER_RE = re.compile(r'Found \d+ nickname/alias mapping')
+_ALIAS_LINE_RE = re.compile(r"'(.+?)'\s*->\s*'(.+?)'(?:\s*\((.*)\))?\s*$")
+_DIFF_PREVIEW_RE = re.compile(r'DIFF_PREVIEW_JSON:\s*(\{.*\})\s*$')
+
+
+def _new_review_totals() -> dict:
+    """Zeroed accumulator matching the keys _extract_review_stats() may set."""
+    totals = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
+    totals["books_done"] = 0
+    return totals
+
+
+def _extract_review_stats(lines: List[str]) -> Optional[dict]:
+    """Parse the 'Review complete: X -> Y entries ... Total changes: N' block that
+    review_script.py prints at the end of each book's review. Returns None if the
+    block isn't present (e.g. the subprocess crashed before finishing)."""
+    entries_match = next((m for l in lines if (m := _REVIEW_ENTRIES_RE.search(l))), None)
+    if not entries_match:
+        return None
+    stats = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
+    stats["entries_before"] = int(entries_match.group(1))
+    stats["entries_after"] = int(entries_match.group(2))
+    for line in lines:
+        for key, pattern in _REVIEW_SUMMARY_PATTERNS.items():
+            m = pattern.search(line)
+            if m:
+                stats[key] = int(m.group(1))
+    return stats
+
+
+def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
+    """Sum per-pass review stats (e.g. forward + backward) into one dict, for
+    displays — like a per-book badge tooltip — that should reflect a book's
+    combined totals rather than only whichever pass ran last."""
+    combined = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
+    for stats in stat_dicts:
+        if not stats:
+            continue
+        for key in combined:
+            combined[key] += stats.get(key, 0)
+    return combined
+
+
+def _combine_pass_totals(state: dict) -> dict:
+    """Sum the forward and backward run-wide totals into one "Overall" dict, for
+    the combined summary of a bidirectional batch review's two passes.
+
+    books_done is special-cased: both passes process the same set of books, so
+    summing would double-count; take the max so "Overall" reports how many
+    distinct books completed at least one pass."""
+    combined = _combine_pass_stats(state["totals_fwd"], state["totals_bwd"])
+    combined["books_done"] = max(state["totals_fwd"]["books_done"], state["totals_bwd"]["books_done"])
+    return combined
+
+
+def _extract_new_aliases(lines: List[str]) -> List[dict]:
+    """Parse the "Found N nickname/alias mapping(s): 'X' -> 'Y' (evidence)" block that
+    find_nicknames.py prints when it discovers new aliases for a book."""
+    aliases = []
+    capturing = False
+    for line in lines:
+        if _ALIAS_HEADER_RE.search(line):
+            capturing = True
+            continue
+        if capturing:
+            m = _ALIAS_LINE_RE.search(line)
+            if m:
+                aliases.append({"variant": m.group(1), "canonical": m.group(2), "evidence": m.group(3) or ""})
+            else:
+                capturing = False
+    return aliases
+
+
+def _extract_diff_highlights(lines: List[str]) -> dict:
+    """Parse the 'DIFF_PREVIEW_JSON: {...}' line that review_script.py prints after
+    its final summary, containing the highest-impact before/after examples for the
+    "diff preview" report section. Returns empty lists if not present or unparseable."""
+    for line in reversed(lines):
+        m = _DIFF_PREVIEW_RE.search(line)
+        if m:
+            try:
+                data = json.loads(m.group(1))
+                return {
+                    "text_rewrites": data.get("text_rewrites", []),
+                    "speaker_changes": data.get("speaker_changes", []),
+                }
+            except (json.JSONDecodeError, AttributeError):
+                break
+    return {"text_rewrites": [], "speaker_changes": []}
+
+
+def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -> str:
+    """One-line, easy-to-spot summary of a single book's review changes for the live log."""
+    bits = [f"{stats['total_changes']} changes",
+            f"{stats['text_changed']} text", f"{stats['speaker_changed']} speaker",
+            f"{stats['instruct_changed']} instruct",
+            f"+{stats['entries_added']}/-{stats['entries_removed']} entries"]
+    if stats["narrators_merged"]:
+        bits.append(f"{stats['narrators_merged']} narrators merged")
+    if stats["speakers_merged"]:
+        bits.append(f"{stats['speakers_merged']} speakers merged")
+    if stats["batches_failed"]:
+        bits.append(f"{stats['batches_failed']} batch(es) failed")
+    if stats["batches_skipped_vram"]:
+        bits.append(f"{stats['batches_skipped_vram']} batch(es) skipped (VRAM)")
+    return f">>> [{i+1}/{total}]{tag} '{name}' done: {', '.join(bits)} <<<"
+
+
+def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_aliases: bool) -> str:
+    """Roll-up summary line(s) for a finished pass (or the whole run) over the live log."""
+    lines = [f"=== {label}: {totals['books_done']} book(s), {totals['total_changes']} total change(s) ===",
+             f"  Text: {totals['text_changed']}, Speaker: {totals['speaker_changed']}, "
+             f"Instruct: {totals['instruct_changed']}, Entries: +{totals['entries_added']}/-{totals['entries_removed']}"]
+    if totals["narrators_merged"] or totals["speakers_merged"]:
+        lines.append(f"  Narrators merged: {totals['narrators_merged']}, Speakers merged: {totals['speakers_merged']}")
+    if totals["batches_failed"] or totals["batches_skipped_vram"]:
+        lines.append(f"  Batches failed: {totals['batches_failed']}, skipped (VRAM): {totals['batches_skipped_vram']}")
+    if show_aliases:
+        if aliases:
+            lines.append(f"  New alias(es) found ({len(aliases)}):")
+            for a in aliases:
+                ev = f"  ({a['evidence']})" if a.get("evidence") else ""
+                lines.append(f"    '{a['variant']}' -> '{a['canonical']}'  [{a['book']}]{ev}")
+        else:
+            lines.append("  New aliases found: none")
+    return "\n".join(lines)
+
+
+_STAT_LABELS = [
+    ("text_changed", "Lines with reworded text"),
+    ("speaker_changed", "Lines where the speaker was corrected"),
+    ("instruct_changed", "Lines with updated voice direction"),
+    ("entries_added", "New lines added"),
+    ("entries_removed", "Lines removed"),
+    ("narrators_merged", "Narration lines merged together for smoother flow"),
+    ("speakers_merged", "Lines updated for renamed/merged characters"),
+]
+
+
+def _markdown_stats_table(stats: dict) -> List[str]:
+    """Plain-language bullet list of what changed, skipping anything that was zero."""
+    lines = [f"- **Total changes:** {stats['total_changes']}"]
+    for key, label in _STAT_LABELS:
+        if stats.get(key):
+            lines.append(f"- **{label}:** {stats[key]}")
+    return lines
+
+
+def _markdown_heads_up_lines(stats: dict) -> List[str]:
+    """Plain-language notes about anything the reviewer couldn't finish."""
+    lines = []
+    if stats.get("batches_failed"):
+        lines.append(f"- {stats['batches_failed']} section(s) ran into an error and were left "
+                      f"unchanged. Running the review again may fix these.")
+    if stats.get("batches_skipped_vram"):
+        lines.append(f"- {stats['batches_skipped_vram']} section(s) were skipped because the "
+                      f"graphics card was running low on memory. Running the review again may "
+                      f"catch these.")
+    return lines
+
+
+def _markdown_aliases_lines(aliases: List[dict], pass_label: str = "") -> List[str]:
+    """Plain-language bullet list of newly-discovered character name variants."""
+    lines = []
+    for a in aliases:
+        evidence = f" — {a['evidence']}" if a.get("evidence") else ""
+        book = f" (in *{a['book']}*)" if a.get("book") else ""
+        lines.append(f"- **{a['variant']}** is also known as **{a['canonical']}**{book}{pass_label}{evidence}")
+    return lines
+
+
+def _markdown_diff_highlights_lines(highlights: dict, max_each: int = 3, heading: str = "###") -> List[str]:
+    """Plain-language 'before vs after' examples for the most notable changes."""
+    def _clean(s: str) -> str:
+        return " ".join(s.split())
+
+    lines = []
+    rewrites = highlights.get("text_rewrites", [])[:max_each]
+    if rewrites:
+        lines += [f"{heading} Biggest rewrites", ""]
+        for r in rewrites:
+            book = f" (in *{r['book']}*)" if r.get("book") else ""
+            lines.append(f"- **{r.get('speaker') or 'Narrator'}**{book}")
+            lines.append(f"  - Before: “{_clean(r.get('before', ''))}”")
+            lines.append(f"  - After: “{_clean(r.get('after', ''))}”")
+
+    changes = highlights.get("speaker_changes", [])[:max_each]
+    if changes:
+        if rewrites:
+            lines.append("")
+        lines += [f"{heading} Speaker corrections", ""]
+        for c in changes:
+            book = f" (in *{c['book']}*)" if c.get("book") else ""
+            lines.append(f"- “{_clean(c.get('text', ''))}” — was **{c.get('before') or '?'}**, "
+                          f"corrected to **{c.get('after') or '?'}**{book}")
+    return lines
+
+
+def _markdown_book_pass_lines(stats: dict, diffs: Optional[dict], heading: str = "####") -> List[str]:
+    """Stats table + heads-up notes + top diff highlights for one book (or one
+    pass of a book, in a bidirectional run)."""
+    lines = _markdown_stats_table(stats)
+    hu = _markdown_heads_up_lines(stats)
+    if hu:
+        lines += [""] + hu
+    if diffs:
+        hl = _markdown_diff_highlights_lines(diffs, max_each=2, heading=heading)
+        if hl:
+            lines += [""] + hl
+    return lines
+
+
+_REPORT_SUMMARY_SYSTEM_PROMPT = (
+    "You explain audiobook script-review results to someone with no technical or "
+    "programming background. You will be given a Markdown report full of statistics "
+    "about an automated review pass over a book script. Write a short summary "
+    "(3-6 sentences, plain prose, no headings, no markdown formatting, no field names "
+    "verbatim) that a non-technical person could read to understand what happened, "
+    "what kinds of things were fixed, and whether anything needs their attention. "
+    "Be warm and concrete, and mention any new character names that were discovered, "
+    "if listed. Respond with the summary text only."
+)
+
+
+def _load_llm_config() -> dict:
+    """Return the `llm` section of config.json, or {} if missing/unreadable."""
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f).get("llm", {})
+        except Exception:
+            pass
+    return {}
+
+
+def _make_llm_client(timeout: float = 60):
+    """Build an OpenAI-compatible client + model name from config.json's `llm` section."""
+    from openai import OpenAI
+    llm_cfg = _load_llm_config()
+    client = OpenAI(
+        base_url=llm_cfg.get("base_url", "http://localhost:11434/v1"),
+        api_key=llm_cfg.get("api_key", "local"),
+        timeout=timeout,
+    )
+    return client, llm_cfg.get("model_name", "")
+
+
+def _llm_summarize_report(markdown_body: str) -> Optional[str]:
+    """Ask the local LLM (the same one used for script review) to write a short,
+    friendly plain-language summary of a review report.
+
+    Best-effort: returns None (and the caller falls back to the plain-language
+    report on its own) if the LLM is unavailable or the request fails.
+    """
+    try:
+        client, model_name = _make_llm_client(timeout=60)
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": _REPORT_SUMMARY_SYSTEM_PROMPT},
+                {"role": "user", "content": markdown_body},
+            ],
+            temperature=0.4,
+        )
+        text = (response.choices[0].message.content or "").strip()
+        return text or None
+    except Exception as e:
+        logger.warning(f"LLM report summary failed, continuing without it: {e}")
+        return None
+
+
+def _insert_llm_summary(lines: List[str], intro_len: int) -> List[str]:
+    """Ask the local LLM to summarize `lines` in plain English and, if it answers,
+    splice that summary in as an "In Plain English" section right after the intro
+    (the first `intro_len` lines). Returns `lines` unchanged if the LLM is
+    unavailable."""
+    summary = _llm_summarize_report("\n".join(lines))
+    if not summary:
+        return lines
+    return lines[:intro_len] + ["", "## In Plain English", "", summary] + lines[intro_len:]
+
+
+def _write_single_review_report(stats: dict, highlights: Optional[dict] = None) -> Optional[str]:
+    """Write a plain-language Markdown summary of a single (non-batch) review run.
+
+    Returns the path to the written file, or None if it couldn't be written.
+    """
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    path = os.path.join(REPORTS_DIR, f"review_{timestamp}.md")
+
+    intro = [
+        "# Script Review Report",
+        "",
+        f"*Generated {time.strftime('%Y-%m-%d %H:%M:%S')}*",
+        "",
+        "The AI reviewer checked your script for mistakes — like the wrong character "
+        "speaking a line, awkward wording, or repeated narration — and fixed what it found.",
+        "",
+        f"Your script went from **{stats['entries_before']}** lines to "
+        f"**{stats['entries_after']}** lines.",
+    ]
+
+    if stats.get("batches_skipped_vram"):
+        intro += ["", f"**Note:** this script was only partially reviewed — the GPU ran low "
+                       f"on memory and {stats['batches_skipped_vram']} section(s) were skipped. "
+                       "Re-run the review to finish the rest."]
+
+    lines = list(intro)
+    if stats["total_changes"] == 0:
+        lines += ["", "No changes were needed — your script looked good!"]
+    else:
+        lines += ["", "## What changed", ""]
+        lines += _markdown_stats_table(stats)
+
+        if highlights:
+            hl_lines = _markdown_diff_highlights_lines(highlights)
+            if hl_lines:
+                lines += ["", "## Highlights", ""]
+                lines += hl_lines
+
+    heads_up = _markdown_heads_up_lines(stats)
+    if heads_up:
+        lines += ["", "## Things to check", ""]
+        lines += heads_up
+
+    lines = _insert_llm_summary(lines, len(intro))
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        return None
+    return path
+
+
+def _write_batch_review_report(state: dict, names: List[str], bidirectional: bool, discover: bool) -> Optional[str]:
+    """Write one plain-language Markdown summary covering an entire batch review run
+    (whether it was 1 book or many).
+
+    Returns the path to the written file, or None if it couldn't be written.
+    """
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    path = os.path.join(REPORTS_DIR, f"batch_review_{timestamp}.md")
+
+    tasks = state.get("tasks", [])
+    total_books = len(names)
+    if bidirectional:
+        # The bare "stats"/"diffs" keys hold whichever pass ran last, so a book
+        # that only completed the forward pass before cancellation would still
+        # look "done" via the bare key. Require both passes' stats and a
+        # "done" status (not "incomplete", which means VRAM cut a pass short).
+        done = [t for t in tasks if t.get("stats_fwd") and t.get("stats_bwd") and t.get("status") == "done"]
+    else:
+        done = [t for t in tasks if t.get("stats_fwd") and t.get("status") == "done"]
+    incomplete = [t for t in tasks if t.get("status") == "incomplete"]
+    failed = [t for t in tasks if t.get("status") == "failed"]
+    cancelled = [t for t in tasks if t.get("status") == "cancelled"]
+
+    book_word = "book" if total_books == 1 else "books"
+    intro = [
+        "# Batch Review Report",
+        "",
+        f"*Generated {time.strftime('%Y-%m-%d %H:%M:%S')}*",
+        "",
+        f"The AI reviewer checked **{total_books} {book_word}** for mistakes — like the wrong "
+        "character speaking a line, awkward wording, or repeated narration — and fixed what "
+        "it found.",
+    ]
+
+    if bidirectional:
+        intro += [
+            "",
+            "It went through the books twice: once in reading order, then a second "
+            '"hindsight" pass from the last book back to the first, so things learned about '
+            "characters later in the series could also be applied to earlier books.",
+        ]
+
+    if cancelled or state.get("cancel"):
+        intro += ["", f"**Note:** this run was stopped early — {len(done)} of {total_books} "
+                       f"{book_word} finished before it was cancelled."]
+    if failed:
+        names_list = ", ".join(f"*{t['name']}*" for t in failed)
+        intro += ["", f"**Note:** {len(failed)} {'book' if len(failed) == 1 else 'books'} "
+                       f"could not be reviewed (an error occurred): {names_list}"]
+    if incomplete:
+        names_list = ", ".join(f"*{t['name']}*" for t in incomplete)
+        intro += ["", f"**Note:** {len(incomplete)} {'book' if len(incomplete) == 1 else 'books'} "
+                       f"{'was' if len(incomplete) == 1 else 'were'} only partially reviewed — the "
+                       f"GPU ran low on memory and the run stopped early for "
+                       f"{'it' if len(incomplete) == 1 else 'them'}: {names_list}. "
+                       "Re-run the review to finish the rest."]
+
+    if bidirectional:
+        overall = _combine_pass_totals(state)
+    else:
+        overall = state["totals_fwd"]
+
+    lines = list(intro)
+    lines += ["", "## Overall totals", ""]
+    lines += _markdown_stats_table(overall)
+
+    if bidirectional:
+        lines += ["", "### First pass (reading order)", ""]
+        lines += _markdown_stats_table(state["totals_fwd"])
+        lines += ["", "### Second pass (hindsight)", ""]
+        lines += _markdown_stats_table(state["totals_bwd"])
+
+    diff_pool = state.get("diff_pool", {"text": [], "speaker": []})
+    overall_highlights = {
+        "text_rewrites": sorted(diff_pool["text"], key=lambda h: h["magnitude"], reverse=True)[:5],
+        "speaker_changes": diff_pool["speaker"][:5],
+    }
+    hl_lines = _markdown_diff_highlights_lines(overall_highlights, max_each=5)
+    if hl_lines:
+        lines += ["", "## Highlights", ""]
+        lines += hl_lines
+
+    heads_up = _markdown_heads_up_lines(overall)
+    if heads_up:
+        lines += ["", "## Things to check", ""]
+        lines += heads_up
+
+    if discover:
+        aliases_fwd = state.get("aliases_fwd", [])
+        aliases_bwd = state.get("aliases_bwd", [])
+        lines += ["", "## New character names discovered", ""]
+        if not aliases_fwd and not aliases_bwd:
+            lines.append("- No new character names were found.")
+        elif bidirectional:
+            if aliases_fwd:
+                lines += _markdown_aliases_lines(aliases_fwd, pass_label=" — first pass")
+            if aliases_bwd:
+                lines += _markdown_aliases_lines(aliases_bwd, pass_label=" — second/hindsight pass")
+        else:
+            lines += _markdown_aliases_lines(aliases_fwd)
+
+    # Ask the LLM for a plain-English summary of the report so far, before appending
+    # the (potentially very long) book-by-book breakdown.
+    lines = _insert_llm_summary(lines, len(intro))
+
+    if total_books > 1:
+        lines += ["", "## Book-by-book breakdown", ""]
+        for t in tasks:
+            name = t.get("name", "?")
+            status = t.get("status")
+            lines += [f"### {name}", ""]
+            if bidirectional:
+                stats_fwd = t.get("stats_fwd")
+                stats_bwd = t.get("stats_bwd")
+                if stats_fwd or stats_bwd:
+                    if stats_fwd:
+                        lines += ["#### First pass (reading order)", ""]
+                        lines += _markdown_book_pass_lines(stats_fwd, t.get("diffs_fwd"), heading="#####")
+                    if stats_bwd:
+                        if stats_fwd:
+                            lines.append("")
+                        lines += ["#### Second pass (hindsight)", ""]
+                        lines += _markdown_book_pass_lines(stats_bwd, t.get("diffs_bwd"), heading="#####")
+                elif status == "cancelled":
+                    lines.append("- Not reviewed — the run was cancelled before reaching this book.")
+                elif status == "failed":
+                    lines.append("- Not reviewed — an error occurred for this book.")
+                else:
+                    lines.append("- Not reviewed.")
+            else:
+                stats = t.get("stats")
+                if stats:
+                    lines += _markdown_book_pass_lines(stats, t.get("diffs"))
+                elif status == "cancelled":
+                    lines.append("- Not reviewed — the run was cancelled before reaching this book.")
+                elif status == "failed":
+                    lines.append("- Not reviewed — an error occurred for this book.")
+                else:
+                    lines.append("- Not reviewed.")
+            lines.append("")
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        return None
+    return path
 
 
 @app.get("/api/system/stats")
@@ -574,6 +1286,57 @@ async def get_system_stats():
         "cpu_count": cpu_count,
         "ram_gb": ram_gb,
     }
+
+
+@app.get("/api/status/eta")
+async def get_eta_status():
+    """Return progress/ETA for the most relevant currently-running task, if any."""
+    for key, label in ETA_TASKS:
+        state = process_state.get(key)
+        if state and state.get("running"):
+            eta = _compute_eta(state)
+            eta.update({"running": True, "task": key, "label": label})
+            return eta
+    return {"running": False}
+
+
+def _get_llm_model_name():
+    return _load_llm_config().get("model_name")
+
+
+class LMStudioOptimizeRequest(BaseModel):
+    enable: bool
+
+
+@app.get("/api/lmstudio/status")
+async def lmstudio_status():
+    """Report whether LM Studio's loaded model is using VRAM-safe settings
+    (8192 context, parallel 1) so the UI can show an at-a-glance indicator."""
+    model_name = _get_llm_model_name()
+    if not model_name:
+        return {"available": False, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False, "model": None}
+    status = await asyncio.to_thread(get_lmstudio_status, model_name)
+    status["model"] = model_name
+    return status
+
+
+@app.post("/api/lmstudio/optimize")
+async def lmstudio_optimize(req: LMStudioOptimizeRequest):
+    """Toggle the loaded LM Studio model between VRAM-safe settings
+    (8192 context, parallel 1) and LM Studio's default settings."""
+    model_name = _get_llm_model_name()
+    if not model_name:
+        raise HTTPException(status_code=400, detail="No LLM model configured")
+
+    ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+    if not ok:
+        raise HTTPException(status_code=502, detail=msg)
+
+    status = await asyncio.to_thread(get_lmstudio_status, model_name)
+    status["model"] = model_name
+    status["message"] = msg
+    return status
 
 # Endpoints
 
@@ -898,43 +1661,63 @@ def _posix_signal(proc, signame):
     except (ProcessLookupError, OSError) as e:
         raise HTTPException(status_code=400, detail=f"Signal failed: {e}")
 
-@app.post("/api/generate_script/pause")
-async def generate_script_pause():
-    state = process_state["script"]
+
+def _pause_task(state_key: str, not_running_msg: str, starting_up_msg: str, log_label: str):
+    """Pause a running subprocess task by sending SIGSTOP."""
+    state = process_state[state_key]
     if not state["running"]:
-        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+        raise HTTPException(status_code=400, detail=not_running_msg)
     proc = state.get("process")
     if proc is None:
-        raise HTTPException(status_code=503, detail="Script generation is starting up, retry in a moment.")
+        raise HTTPException(status_code=503, detail=starting_up_msg)
     _posix_signal(proc, "SIGSTOP")
     state["paused"] = True
-    state["logs"].append("[PAUSED] Script generation paused.")
+    state["logs"].append(f"[PAUSED] {log_label} paused.")
     return {"status": "paused"}
 
-@app.post("/api/generate_script/resume")
-async def generate_script_resume():
-    state = process_state["script"]
+
+def _resume_task(state_key: str, not_running_msg: str, log_label: str):
+    """Resume a paused subprocess task by sending SIGCONT."""
+    state = process_state[state_key]
     if not state["running"]:
-        raise HTTPException(status_code=400, detail="No script generation is currently running.")
+        raise HTTPException(status_code=400, detail=not_running_msg)
     proc = state.get("process")
     if proc is None:
         raise HTTPException(status_code=400, detail="Process not available.")
     _posix_signal(proc, "SIGCONT")
     state["paused"] = False
-    state["logs"].append("[RESUMED] Script generation resumed.")
+    state["logs"].append(f"[RESUMED] {log_label} resumed.")
     return {"status": "resumed"}
 
 
+@app.post("/api/generate_script/pause")
+async def generate_script_pause():
+    return _pause_task("script", "No script generation is currently running.",
+                        "Script generation is starting up, retry in a moment.",
+                        "Script generation")
+
+@app.post("/api/generate_script/resume")
+async def generate_script_resume():
+    return _resume_task("script", "No script generation is currently running.",
+                         "Script generation")
+
+
 @app.post("/api/review_script")
-async def review_script(background_tasks: BackgroundTasks):
+async def review_script(background_tasks: BackgroundTasks, request: ReviewRequest = ReviewRequest()):
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
     if process_state["review"]["running"]:
         raise HTTPException(status_code=400, detail="Script review already running")
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running")
 
-    background_tasks.add_task(run_process, [sys.executable, "-u", "review_script.py"], "review")
-    return {"status": "started"}
+    cmd = [sys.executable, "-u", "review_script.py"]
+    if request.dedupe_speakers:
+        cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
+                "--alias-registry", CHARACTER_ALIASES_PATH]
+    background_tasks.add_task(run_process, cmd, "review")
+    return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 @app.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
@@ -943,6 +1726,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
 
     if process_state["review"]["running"]:
         raise HTTPException(status_code=400, detail="Script review already running")
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running")
 
     window_size = max(1, min(int(request.window_size or 4), 12))
     total_entries = 0
@@ -962,9 +1747,13 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
             review_batch_size = 25
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
+    cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
+    if request.dedupe_speakers:
+        cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
+                "--alias-registry", CHARACTER_ALIASES_PATH]
     background_tasks.add_task(
         run_process,
-        [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)],
+        cmd,
         "review"
     )
     return {
@@ -974,7 +1763,303 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         "batch_size": review_batch_size,
         "total_entries": total_entries,
         "estimated_calls": estimated_calls,
+        "dedupe_speakers": request.dedupe_speakers,
     }
+
+
+@app.post("/api/review_script/cancel")
+async def review_script_cancel():
+    return _cancel_task("review", "No script review is currently running.", "Script review process already exited.")
+
+
+@app.post("/api/review_script/pause")
+async def review_script_pause():
+    return _pause_task("review", "No script review is currently running.",
+                        "Script review is starting up, retry in a moment.",
+                        "Script review")
+
+
+@app.post("/api/review_script/resume")
+async def review_script_resume():
+    return _resume_task("review", "No script review is currently running.",
+                         "Script review")
+
+
+@app.post("/api/find_nicknames")
+async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
+    """Scan the working script for character nicknames/aliases and write character_aliases.json."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
+    if process_state["nicknames"]["running"]:
+        raise HTTPException(status_code=400, detail="Nickname discovery already running")
+    cmd = [sys.executable, "-u", "find_nicknames.py",
+           "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
+    background_tasks.add_task(run_process, cmd, "nicknames")
+    return {"status": "started"}
+
+
+@app.post("/api/find_nicknames/cancel")
+async def find_nicknames_cancel():
+    return _cancel_task("nicknames", "No nickname discovery is currently running.", "Nickname discovery already exited.")
+
+
+@app.post("/api/find_nicknames/pause")
+async def find_nicknames_pause():
+    return _pause_task("nicknames", "No nickname discovery is currently running.",
+                        "Nickname discovery is starting up, retry in a moment.",
+                        "Nickname discovery")
+
+
+@app.post("/api/find_nicknames/resume")
+async def find_nicknames_resume():
+    return _resume_task("nicknames", "No nickname discovery is currently running.",
+                         "Nickname discovery")
+
+
+@app.get("/api/character_aliases")
+async def get_character_aliases():
+    """Return the current alias map { alias: canonical }."""
+    if not os.path.exists(CHARACTER_ALIASES_PATH):
+        return {}
+    try:
+        with open(CHARACTER_ALIASES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    # Hide identity rows (NAME -> NAME) — they're inert and only clutter the editor.
+    # Exact-match only, so a legitimate case-fix alias (kenji -> KENJI) stays visible.
+    return {k: v for k, v in data.items()
+            if isinstance(k, str) and isinstance(v, str) and k.strip() != v.strip()}
+
+
+@app.post("/api/character_aliases")
+async def save_character_aliases(aliases: Dict[str, str]):
+    """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
+    cleaned = {k.strip(): v.strip() for k, v in aliases.items() if k.strip() and v.strip()}
+    atomic_json_write(cleaned, CHARACTER_ALIASES_PATH)
+    return {"status": "saved", "count": len(cleaned)}
+
+
+@app.post("/api/review_script/batch/start")
+async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
+    """Review multiple saved scripts from the Scripts library, in place.
+    A shared alias registry keeps merged character names consistent across the batch."""
+    if process_state["batch_review"]["running"]:
+        raise HTTPException(status_code=400, detail="Batch review already running.")
+    if process_state["review"]["running"]:
+        raise HTTPException(status_code=400, detail="Single script review already running.")
+    if not request.script_names:
+        raise HTTPException(status_code=400, detail="No scripts selected.")
+
+    window = max(0, min(int(request.context_window or 0), 12))
+    dedupe = bool(request.dedupe_speakers)
+    discover = bool(request.find_nicknames) and dedupe
+    # A backward pass only adds value when discovery is on (it re-scans early books with the
+    # now-complete registry as hindsight context). With discovery off it would be a pure re-apply.
+    bidirectional = bool(request.bidirectional) and discover
+
+    names = request.script_names
+    total = len(names)
+
+    def _run():
+        state = process_state["batch_review"]
+        state["running"] = True
+        state["cancel"] = False
+        state["paused"] = False
+        state["start_time"] = time.time()
+        prefix = "bidirectional " if bidirectional else ""
+        state["logs"] = [f"Starting {prefix}batch review of {total} script(s)..."]
+        state["tasks"] = [{"name": n, "status": "pending"} for n in names]
+        state["current_task_idx"] = -1
+        state["bidirectional"] = bidirectional
+        state["totals_fwd"] = _new_review_totals()
+        state["totals_bwd"] = _new_review_totals()
+        state["aliases_fwd"] = []
+        state["aliases_bwd"] = []
+        state["diff_pool"] = {"text": [], "speaker": []}
+
+        # One full on-disk log for the whole batch (in-memory list is a capped tail)
+        log_path = _init_task_log("batch_review")
+
+        # One shared registry for the whole batch so canonical names align across books
+        registry_path = os.path.join(SCRIPTS_DIR, ".series_aliases.json") if dedupe else None
+
+        def _process_book(i: int, name: str, tag: str = "") -> bool:
+            """Discover + review one book in place. Returns False to stop the batch (cancel)."""
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+
+            script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+            if not os.path.exists(script_path):
+                state["logs"].append(f"--- [{i+1}/{total}]{tag} Skipping — not found: {name} ---")
+                state["tasks"][i]["status"] = "failed"
+                return True
+
+            state["logs"].append(f"--- [{i+1}/{total}]{tag} Reviewing '{name}' ---")
+
+            # Optional nickname discovery first, accumulating into the shared series registry
+            if discover and registry_path:
+                state["logs"].append(f"[{i+1}]{tag} Discovering nicknames...")
+                nick_cmd = [
+                    sys.executable, "-u",
+                    os.path.join(BASE_DIR, "find_nicknames.py"),
+                    "--input", script_path,
+                    "--aliases-file", registry_path,
+                    "--append",
+                ]
+                _, nick_lines = _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+                if state.get("cancel"):
+                    state["tasks"][i]["status"] = "cancelled"
+                    return False
+                new_aliases = _extract_new_aliases(nick_lines)
+                if new_aliases:
+                    state["tasks"][i]["aliases_found"] = new_aliases
+                    bucket = state["aliases_bwd"] if tag == " [bwd]" else state["aliases_fwd"]
+                    for a in new_aliases:
+                        bucket.append({**a, "book": name})
+                    state["logs"].append(
+                        f"[{i+1}]{tag} New alias(es): " +
+                        ", ".join(f"'{a['variant']}' -> '{a['canonical']}'" for a in new_aliases)
+                    )
+
+            # Each pass is a fresh, one-shot review of script_path. Clear any
+            # checkpoint left behind by a previous pass (e.g. a VRAM-aborted
+            # forward pass) so this pass can't silently "resume" — and thereby
+            # skip — work that actually belongs to a different pass.
+            clear_checkpoint(script_path)
+
+            cmd = [
+                sys.executable, "-u",
+                os.path.join(BASE_DIR, "review_script.py"),
+                "--input", script_path,
+                "--output", script_path,
+            ]
+            if window > 0:
+                cmd += ["--context-window", str(window)]
+            if dedupe:
+                cmd += ["--dedupe-speakers", "--alias-registry", registry_path]
+                companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+                if os.path.exists(companion):
+                    cmd += ["--remap-voice-config", companion]
+
+            rc, own_lines = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                return False
+            elif rc == 0:
+                # Bidirectional runs review each book twice (forward, then backward); keep
+                # each pass's stats/diffs separate so the per-book breakdown doesn't lose
+                # the first pass's results when the second pass overwrites them.
+                pass_key = "bwd" if tag == " [bwd]" else "fwd"
+                stats = _extract_review_stats(own_lines)
+                if stats and stats.get("batches_skipped_vram", 0) > 0:
+                    # The reviewer bailed out early to avoid an OOM; entries past the
+                    # abort point were left unreviewed and a checkpoint may remain on
+                    # disk for a future resume. Don't report this book as "done".
+                    state["tasks"][i]["status"] = "incomplete"
+                else:
+                    state["tasks"][i]["status"] = "done"
+                if stats:
+                    state["tasks"][i][f"stats_{pass_key}"] = stats
+                    # "stats" is the combined fwd+bwd total used by the per-book
+                    # badge tooltip — recompute it from whichever pass(es) have
+                    # run so far rather than letting the last pass overwrite it.
+                    state["tasks"][i]["stats"] = _combine_pass_stats(
+                        state["tasks"][i].get("stats_fwd"), state["tasks"][i].get("stats_bwd"))
+                    totals = state["totals_bwd"] if tag == " [bwd]" else state["totals_fwd"]
+                    for key in totals:
+                        if key != "books_done":
+                            totals[key] += stats[key]
+                    totals["books_done"] += 1
+                    state["logs"].append(_format_book_summary(i, total, tag, name, stats))
+                else:
+                    # The subprocess exited 0 but its "Review complete: X -> Y
+                    # entries" summary line wasn't found - surface this rather
+                    # than silently recording no stats for an otherwise "done" book.
+                    state["logs"].append(
+                        f"[{i+1}]{tag} Warning: '{name}' finished but no summary "
+                        "stats were found in its output."
+                    )
+                highlights = _extract_diff_highlights(own_lines)
+                if highlights["text_rewrites"] or highlights["speaker_changes"]:
+                    state["tasks"][i][f"diffs_{pass_key}"] = highlights
+                    state["tasks"][i]["diffs"] = highlights
+                    for item in highlights["text_rewrites"]:
+                        state["diff_pool"]["text"].append({**item, "book": name})
+                    for item in highlights["speaker_changes"]:
+                        state["diff_pool"]["speaker"].append({**item, "book": name})
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
+            return True
+
+        # Forward pass (reading order)
+        state["current_pass"] = "fwd"
+        if bidirectional:
+            state["logs"].append("=== Forward pass (reading order) ===")
+        for i, name in enumerate(names):
+            if state["cancel"]:
+                state["logs"].append("Batch review cancelled.")
+                break
+            if not _process_book(i, name, tag=" [fwd]" if bidirectional else ""):
+                break
+
+        state["logs"].append(_format_pass_summary(
+            "Forward pass" if bidirectional else "Batch review",
+            state["totals_fwd"], state["aliases_fwd"], show_aliases=discover))
+
+        # Backward pass — re-scan from the end so early books get discovery seeded with the
+        # now-complete series registry (catches references that only resolve later in the series).
+        if bidirectional and not state["cancel"]:
+            state["logs"].append("=== Backward pass (hindsight: re-scanning from the end) ===")
+            state["current_pass"] = "bwd"
+            for i in range(total - 1, -1, -1):
+                if state["cancel"]:
+                    state["logs"].append("Batch review cancelled.")
+                    break
+                if not _process_book(i, names[i], tag=" [bwd]"):
+                    break
+
+            state["logs"].append(_format_pass_summary(
+                "Backward pass (hindsight)", state["totals_bwd"], state["aliases_bwd"], show_aliases=discover))
+
+            overall_totals = _combine_pass_totals(state)
+            overall_aliases = state["aliases_fwd"] + state["aliases_bwd"]
+            state["logs"].append(_format_pass_summary("Overall", overall_totals, overall_aliases, show_aliases=discover))
+
+        report_path = _write_batch_review_report(state, names, bidirectional, discover)
+        if report_path:
+            state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
+
+        state["running"] = False
+        state["logs"].append("Batch review finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "task_count": total, "bidirectional": bidirectional}
+
+
+@app.post("/api/review_script/batch/cancel")
+async def review_script_batch_cancel():
+    state = process_state["batch_review"]
+    state["cancel"] = True
+    _resume_if_paused(state, state.get("process"))
+    return {"status": "cancel_requested"}
+
+
+@app.post("/api/review_script/batch/pause")
+async def review_script_batch_pause():
+    return _pause_task("batch_review", "No batch review is currently running.",
+                        "Batch review is starting up, retry in a moment.",
+                        "Batch review")
+
+
+@app.post("/api/review_script/batch/resume")
+async def review_script_batch_resume():
+    return _resume_task("batch_review", "No batch review is currently running.",
+                         "Batch review")
 
 
 class BatchScriptTask(BaseModel):
@@ -998,9 +2083,13 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state["running"] = True
         state["cancel"] = False
         state["paused"] = False
+        state["start_time"] = time.time()
         state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
         state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
         state["current_task_idx"] = -1
+
+        # One full on-disk log for the whole batch (in-memory list is a capped tail)
+        log_path = _init_task_log("batch_script")
 
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
@@ -1035,7 +2124,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 input_path,
                 "--output", output_path,
             ]
-            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+            rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"
@@ -1065,30 +2154,15 @@ async def generate_script_batch_cancel():
 
 @app.post("/api/generate_script/batch/pause")
 async def generate_script_batch_pause():
-    state = process_state["batch_script"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
-    proc = state.get("process")
-    if proc is None:
-        raise HTTPException(status_code=503, detail="Batch script generation is starting up, retry in a moment.")
-    _posix_signal(proc, "SIGSTOP")
-    state["paused"] = True
-    state["logs"].append("[PAUSED] Batch script generation paused.")
-    return {"status": "paused"}
+    return _pause_task("batch_script", "No batch script generation is currently running.",
+                        "Batch script generation is starting up, retry in a moment.",
+                        "Batch script generation")
 
 
 @app.post("/api/generate_script/batch/resume")
 async def generate_script_batch_resume():
-    state = process_state["batch_script"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No batch script generation is currently running.")
-    proc = state.get("process")
-    if proc is None:
-        raise HTTPException(status_code=400, detail="Process not available.")
-    _posix_signal(proc, "SIGCONT")
-    state["paused"] = False
-    state["logs"].append("[RESUMED] Batch script generation resumed.")
-    return {"status": "resumed"}
+    return _resume_task("batch_script", "No batch script generation is currently running.",
+                         "Batch script generation")
 
 
 @app.get("/api/annotated_script")
@@ -1106,6 +2180,23 @@ async def get_status(task_name: str):
     state = dict(process_state[task_name])
     state.pop("process", None)
     return state
+
+
+@app.get("/api/logs/{task_name}")
+async def get_task_log(task_name: str, download: bool = False):
+    """Serve the complete on-disk log for a task (the in-memory status only keeps a
+    capped tail). Use ?download=true to download the file."""
+    if task_name not in process_state:
+        raise HTTPException(status_code=404, detail="Task not found")
+    log_path = _task_log_path(task_name)
+    if not os.path.exists(log_path):
+        raise HTTPException(status_code=404, detail="No log file for this task yet.")
+    filename = f"{task_name}.log"
+    return FileResponse(
+        log_path,
+        media_type="text/plain",
+        filename=filename if download else None,
+    )
 
 @app.get("/api/voices")
 async def get_voices():
@@ -1197,25 +2288,253 @@ async def cancel_persona():
 
 @app.post("/api/save_voice_config")
 async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
-    # Read existing to preserve any fields not sent?
-    # For now, we assume frontend sends full config or we just overwrite specific keys
+    def _save():
+        # Hold the lock across the read-modify-write so this can't race a batch
+        # review's concurrent speaker-rename remap of the same file.
+        with file_lock(VOICE_CONFIG_PATH):
+            current_config = {}
+            if os.path.exists(VOICE_CONFIG_PATH):
+                with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    try:
+                        current_config = json.load(f)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
 
-    current_config = {}
-    if os.path.exists(VOICE_CONFIG_PATH):
-        with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
-            try:
-                current_config = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                pass
+            # Update current config with new data
+            for voice_name, config in config_data.items():
+                # Convert Pydantic model to dict
+                current_config[voice_name] = config.model_dump()
 
-    # Update current config with new data
-    for voice_name, config in config_data.items():
-        # Convert Pydantic model to dict
-        current_config[voice_name] = config.model_dump()
+            atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
-    atomic_json_write(current_config, VOICE_CONFIG_PATH)
+    # Offload to a worker thread so file_lock's wait loop can't block the event loop.
+    await asyncio.to_thread(_save)
 
     return {"status": "saved"}
+
+
+# --- Auto-suggest best LoRA voice per character -------------------------------
+
+def _infer_lora_gender(model):
+    """Best-effort gender for a LoRA candidate: explicit field, then name suffix,
+    then description keywords, then mean f0 from voice_features."""
+    g = (model.get("gender") or "").strip().lower()
+    if g in ("male", "female"):
+        return g
+    name_id = f"{model.get('name', '')} {model.get('id', '')}".lower()
+    if re.search(r"(_|\b)f(\b|_|\d|emale)", name_id):
+        return "female"
+    if re.search(r"(_|\b)m(\b|_|\d|ale)", name_id):
+        return "male"
+    desc = (model.get("description") or model.get("voice_profile") or "").lower()
+    if any(w in desc for w in ("alto", "soprano", "mezzo", "feminine", "woman", "girl")):
+        return "female"
+    if any(w in desc for w in ("baritone", "tenor", "bass", "masculine", "man", "boy")):
+        return "male"
+    f0 = (model.get("voice_features") or {}).get("mean_f0")
+    if isinstance(f0, (int, float)) and f0 > 0:
+        return "female" if f0 >= 165 else "male"
+    return "unknown"
+
+
+def _infer_character_gender(text):
+    """Rough gender guess for a character from persona/style/sample text via pronoun counts."""
+    t = (text or "").lower()
+    male = len(re.findall(r"\b(he|him|his|himself|man|men|boy|male|sir|mr|lord|king|father)\b", t))
+    female = len(re.findall(r"\b(she|her|hers|herself|woman|women|girl|female|lady|mrs|ms|miss|queen|mother)\b", t))
+    if male > female and male > 0:
+        return "male"
+    if female > male and female > 0:
+        return "female"
+    return "unknown"
+
+
+def _build_lora_candidates():
+    """Downloaded built-in + user-trained adapters with normalized fields for matching."""
+    candidates = []
+    for m in _load_builtin_lora_manifest():
+        if not m.get("downloaded", False):
+            continue
+        candidates.append({
+            "adapter_id": m["id"],
+            "name": m.get("name") or m["id"],
+            "type": "builtin_lora",
+            "gender": _infer_lora_gender(m),
+            "description": m.get("description") or m.get("voice_profile") or "",
+        })
+    for m in _load_manifest(LORA_MODELS_MANIFEST):
+        candidates.append({
+            "adapter_id": m["id"],
+            "name": m.get("name") or m["id"],
+            "type": "lora",
+            "gender": _infer_lora_gender(m),
+            "description": m.get("description") or m.get("voice_profile") or "",
+        })
+    return candidates
+
+
+def _heuristic_match(char_profile, candidates, preferred_gender=None):
+    """Gender-filter then keyword-overlap rank. Returns (candidate, reason) or (None, reason).
+    `preferred_gender` (e.g. inferred from an explicit gender word in the character name)
+    overrides the pronoun-count guess when provided."""
+    if not candidates:
+        return None, "No downloaded LoRA voices available"
+    cgender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(char_profile)
+    pool = candidates
+    if cgender != "unknown":
+        gender_match = [c for c in candidates if c["gender"] == cgender]
+        if gender_match:
+            pool = gender_match
+    words = set(re.findall(r"[a-z]{4,}", char_profile.lower()))
+    best, best_score = None, -1
+    for c in pool:
+        cwords = set(re.findall(r"[a-z]{4,}", c["description"].lower()))
+        score = len(words & cwords)
+        if score > best_score:
+            best, best_score = c, score
+    if best is None:
+        return None, "No candidate after filtering"
+    reason = f"Heuristic match ({cgender or 'unknown'} gender)"
+    if best_score > 0:
+        reason += f", {best_score} description keyword(s) in common"
+    return best, reason
+
+
+@app.post("/api/suggest_voices")
+def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
+    # Sync (not async) on purpose: this makes a blocking LLM call and file I/O.
+    # FastAPI runs sync endpoints in a threadpool, so the event loop (status
+    # polling, log streaming, every other request) stays responsive while a
+    # slow local model is thinking. Do not convert back to `async def`.
+    """Suggest the best-matching downloaded LoRA voice for each character based on
+    the character's dialogue + persona, ranked by the configured LLM (heuristic fallback)."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=400, detail="No script found. Generate a script first.")
+
+    try:
+        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+            script = json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Script is not valid JSON.")
+
+    # Collect per-character sample dialogue lines (in order, deduped)
+    samples = {}
+    for entry in script:
+        speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+        text = (entry.get("text") or "").strip()
+        if not speaker or not text:
+            continue
+        lines = samples.setdefault(speaker, [])
+        if text not in lines and len(lines) < max(1, min(int(request.max_lines or 8), 30)):
+            lines.append(text)
+    if not samples:
+        return {"method": "none", "suggestions": {}, "message": "No characters found in script."}
+
+    # Existing config (for persona descriptions/styles + only_unset filtering)
+    voice_config = {}
+    if os.path.exists(VOICE_CONFIG_PATH):
+        try:
+            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                voice_config = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            voice_config = {}
+
+    candidates = _build_lora_candidates()
+    if not candidates:
+        raise HTTPException(status_code=400, detail="No downloaded LoRA voices available. Download a built-in voice or train an adapter first.")
+
+    # Build per-character profile text (persona description/style + sample lines)
+    characters = {}
+    for speaker, lines in samples.items():
+        if request.only_unset:
+            existing = voice_config.get(speaker, {})
+            if existing.get("type") in ("lora", "builtin_lora") and existing.get("adapter_id"):
+                continue
+        cfg = voice_config.get(speaker, {})
+        persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
+        profile = " ".join(b for b in persona_bits if b)
+        characters[speaker] = {"profile": profile, "lines": lines}
+
+    if not characters:
+        return {"method": "none", "suggestions": {}, "message": "No characters to suggest (all already set)."}
+
+    cand_by_id = {c["adapter_id"]: c for c in candidates}
+    suggestions = {}
+    method = "heuristic"
+
+    # --- Try LLM ranking first ---
+    llm_ok = False
+    try:
+        # don't let a stuck model hang the worker thread forever
+        client, model_name = _make_llm_client(timeout=120)
+
+        voice_catalog = "\n".join(
+            f'- id="{c["adapter_id"]}" | name="{c["name"]}" | gender={c["gender"]} | description: {c["description"] or "(none)"}'
+            for c in candidates
+        )
+        char_block = "\n\n".join(
+            f'CHARACTER: {name}\nPersona/style: {info["profile"] or "(none)"}\nSample lines:\n'
+            + "\n".join(f'  - "{ln}"' for ln in info["lines"][:8])
+            for name, info in characters.items()
+        )
+        system_prompt = (
+            "You are a casting director matching narrated audiobook characters to available LoRA TTS voices. "
+            "For each character, pick the single best-fitting voice id from the catalog, considering gender, "
+            "age, timbre, and personality implied by the character's dialogue and persona. "
+            "Only choose from the provided voice ids. Respond with ONLY a JSON object mapping each character "
+            'name to {"adapter_id": "<id>", "reason": "<short reason>"}. No prose, no markdown.'
+        )
+        user_prompt = f"AVAILABLE VOICES:\n{voice_catalog}\n\nCHARACTERS:\n{char_block}\n\nReturn the JSON object now."
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+        )
+        raw = response.choices[0].message.content or ""
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        parsed = json.loads(m.group(0)) if m else {}
+
+        for name in characters:
+            pick = parsed.get(name) if isinstance(parsed, dict) else None
+            if isinstance(pick, dict) and pick.get("adapter_id") in cand_by_id:
+                c = cand_by_id[pick["adapter_id"]]
+                suggestions[name] = {
+                    "adapter_id": c["adapter_id"],
+                    "adapter_name": c["name"],
+                    "type": c["type"],
+                    "reason": (pick.get("reason") or "").strip()[:240] or "LLM recommendation",
+                }
+        if suggestions:
+            llm_ok = True
+            method = "llm"
+    except Exception as e:
+        logger.warning(f"LLM voice suggestion failed, falling back to heuristic: {e}")
+
+    # --- Heuristic fallback for any character the LLM didn't cover ---
+    for name, info in characters.items():
+        if name in suggestions:
+            continue
+        profile_text = " ".join([name, info["profile"]] + info["lines"][:5])
+        # An explicit gender word in the character's name/label is authoritative
+        name_gender = _infer_character_gender(name)
+        best, reason = _heuristic_match(profile_text, candidates, preferred_gender=name_gender)
+        if best:
+            suggestions[name] = {
+                "adapter_id": best["adapter_id"],
+                "adapter_name": best["name"],
+                "type": best["type"],
+                "reason": reason,
+            }
+
+    if not llm_ok and suggestions:
+        method = "heuristic"
+
+    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates)}
+
 
 @app.get("/api/audiobook")
 async def get_audiobook():
@@ -1291,6 +2610,7 @@ async def merge_audio_endpoint(background_tasks: BackgroundTasks):
 
     def task():
         process_state["audio"]["running"] = True
+        process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = ["Starting merge..."]
         try:
             success, msg = project_manager.merge_audio()
@@ -1429,6 +2749,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
     def task():
         process_state["audio"]["running"] = True
         process_state["audio"]["cancel"] = False
+        process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = [
             f"Starting parallel generation of {total} chunks with {workers} workers..."
         ]
@@ -1494,6 +2815,7 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
     def task():
         process_state["audio"]["running"] = True
         process_state["audio"]["cancel"] = False
+        process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = [
             f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."
         ]
@@ -1549,6 +2871,40 @@ def _sanitize_name(name: str) -> str:
     name = re.sub(r'[^\w\- ]', '', name).strip()
     name = re.sub(r'\s+', '_', name)
     return name.lower()
+
+@app.get("/api/reports")
+async def list_reports():
+    """List all generated review reports in the reports/ directory, newest first."""
+    if not os.path.isdir(REPORTS_DIR):
+        return []
+    reports = []
+    for f in os.listdir(REPORTS_DIR):
+        if not f.endswith(".md"):
+            continue
+        filepath = os.path.join(REPORTS_DIR, f)
+        reports.append({
+            "filename": f,
+            "type": "batch" if f.startswith("batch_review_") else "review",
+            "mtime": os.path.getmtime(filepath),
+            "size": os.path.getsize(filepath),
+        })
+    reports.sort(key=lambda r: r["mtime"], reverse=True)
+    return reports
+
+
+@app.get("/api/reports/{filename}")
+async def get_report(filename: str):
+    """Return the raw Markdown contents of a generated report."""
+    safe_name = os.path.basename(filename)
+    if safe_name != filename or not safe_name.endswith(".md"):
+        raise HTTPException(status_code=400, detail="Invalid report filename.")
+    filepath = os.path.join(REPORTS_DIR, safe_name)
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="Report not found.")
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return PlainTextResponse(content, media_type="text/markdown")
+
 
 @app.get("/api/scripts")
 async def list_saved_scripts():
@@ -1629,6 +2985,381 @@ async def delete_script(name: str):
 
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}
+
+## ── Series Voice Library (cross-book cast) ──────────────────────
+
+# Character names that belong to the shared cross-series pool by default
+# (a series usually keeps the same narrator unless it explicitly uses a different one).
+SHARED_DEFAULT_NAMES = {"narrator"}
+
+
+def _norm_name(name: str) -> str:
+    """Normalize a character name for matching: lowercase, trimmed, collapsed spaces."""
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def _name_similarity(a: str, b: str) -> float:
+    """Similarity in [0,1] combining sequence ratio and token overlap on normalized names."""
+    na, nb = _norm_name(a), _norm_name(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    ratio = difflib.SequenceMatcher(None, na, nb).ratio()
+    ta, tb = set(na.split()), set(nb.split())
+    jaccard = len(ta & tb) / len(ta | tb) if (ta and tb) else 0.0
+    # Containment bonus: "kenji" vs "kenji sato"
+    contain = 1.0 if (ta and tb and (ta <= tb or tb <= ta)) else 0.0
+    return max(ratio, jaccard, contain * 0.9)
+
+
+def _load_voice_library() -> dict:
+    lib = {"shared": {}, "casts": {}}
+    if os.path.exists(VOICE_LIBRARY_PATH):
+        try:
+            with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                lib["shared"] = data.get("shared", {}) or {}
+                lib["casts"] = data.get("casts", {}) or {}
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return lib
+
+
+def _save_voice_library(lib: dict):
+    atomic_json_write(lib, VOICE_LIBRARY_PATH)
+
+
+def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
+    """Per-speaker line counts from the given annotated script (defaults to the current one)."""
+    counts = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                script = json.load(f)
+            for entry in script:
+                speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+                if speaker and (entry.get("text") or "").strip():
+                    counts[speaker] = counts.get(speaker, 0) + 1
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return counts
+
+
+def _cast_match_pool(lib: dict, cast_name: str) -> dict:
+    """Build the candidate pool for matching against a cast: shared first, cast
+    members override on key collision (a cast-specific narrator beats the
+    shared narrator = "different narrator")."""
+    pool = {}
+    for k, m in lib["shared"].items():
+        pool[k] = {"key": k, "name": m.get("name", k), "source": "shared",
+                   "type": (m.get("config") or {}).get("type")}
+    for k, m in lib["casts"][cast_name].get("members", {}).items():
+        pool[k] = {"key": k, "name": m.get("name", k), "source": "cast",
+                   "type": (m.get("config") or {}).get("type")}
+    return pool
+
+
+def _build_match_proposals(counts: Dict[str, int], pool: dict) -> List[dict]:
+    """Fuzzy-match each character in `counts` against `pool`, returning proposals
+    sorted by line count descending. Shared by /match and /match_bulk."""
+    proposals = []
+    for char in sorted(counts, key=lambda n: counts[n], reverse=True):
+        best, best_score = None, 0.0
+        for cand in pool.values():
+            score = _name_similarity(char, cand["name"])
+            if score > best_score:
+                best, best_score = cand, score
+        match = None
+        if best and best_score >= 0.6:
+            match = {
+                "key": best["key"], "name": best["name"], "source": best["source"],
+                "type": best["type"], "score": round(best_score, 3),
+                "exact": best_score >= 0.999,
+            }
+        proposals.append({"character": char, "line_count": counts[char], "match": match})
+    return proposals
+
+
+def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
+                         current_config: dict, chars: Optional[dict] = None) -> Tuple[dict, List[str]]:
+    """Apply a confirmed character -> library member mapping onto a voice_config
+    dict, mutating and returning it along with the list of characters that were
+    actually applied.
+
+    If `chars` is given (the per-speaker line counts of a specific book), only
+    characters present in it are considered — used by the bulk endpoint so a
+    book only receives entries for characters that actually appear in it."""
+    def resolve_entry(key):
+        # cast members win over shared on collision
+        return lib["casts"][cast_name].get("members", {}).get(key) or lib["shared"].get(key)
+
+    applied = []
+    for char, key in mapping.items():
+        if chars is not None and char not in chars:
+            continue
+        entry = resolve_entry(key)
+        if not entry:
+            continue
+        cfg = dict(entry.get("config") or {})
+        cfg.pop("alias_of", None)
+        # Preserve an existing alias_of on the current character (book-specific)
+        if isinstance(current_config.get(char), dict) and current_config[char].get("alias_of"):
+            cfg["alias_of"] = current_config[char]["alias_of"]
+        current_config[char] = cfg
+        applied.append(char)
+    return current_config, applied
+
+
+def _make_library_entry(display_name: str, config: dict, line_count: int) -> dict:
+    cfg = dict(config or {})
+    cfg.pop("alias_of", None)  # aliases are book-specific; don't carry across books
+    return {
+        "name": display_name,
+        "config": cfg,
+        "line_count": line_count,
+        "saved_at": time.time(),
+    }
+
+
+@app.get("/api/voice_library")
+async def voice_library_get():
+    """Return the full library plus the current book's characters with line counts."""
+    lib = _load_voice_library()
+    counts = _script_line_counts()
+
+    casts = []
+    for cast_name, cast in sorted(lib["casts"].items()):
+        members = cast.get("members", {})
+        casts.append({
+            "name": cast_name,
+            "member_count": len(members),
+            "members": [
+                {"key": k, "name": m.get("name", k), "type": (m.get("config") or {}).get("type"),
+                 "line_count": m.get("line_count", 0)}
+                for k, m in sorted(members.items())
+            ],
+        })
+
+    shared = [
+        {"key": k, "name": m.get("name", k), "type": (m.get("config") or {}).get("type"),
+         "line_count": m.get("line_count", 0)}
+        for k, m in sorted(lib["shared"].items())
+    ]
+
+    current_characters = [
+        {"name": name, "line_count": counts[name]}
+        for name in sorted(counts, key=lambda n: counts[n], reverse=True)
+    ]
+
+    return {"casts": casts, "shared": shared, "current_characters": current_characters}
+
+
+@app.post("/api/voice_library/casts")
+async def voice_library_create_cast(request: CastCreateRequest):
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Cast name is required.")
+    lib = _load_voice_library()
+    if name in lib["casts"]:
+        raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
+    lib["casts"][name] = {"members": {}}
+    _save_voice_library(lib)
+    return {"status": "created", "name": name}
+
+
+@app.delete("/api/voice_library/casts/{cast}")
+async def voice_library_delete_cast(cast: str):
+    lib = _load_voice_library()
+    if cast not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+    del lib["casts"][cast]
+    _save_voice_library(lib)
+    return {"status": "deleted", "name": cast}
+
+
+@app.delete("/api/voice_library/casts/{cast}/members/{key}")
+async def voice_library_delete_member(cast: str, key: str):
+    lib = _load_voice_library()
+    if cast == "__shared__":
+        pool = lib["shared"]
+    else:
+        if cast not in lib["casts"]:
+            raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+        pool = lib["casts"][cast].setdefault("members", {})
+    if key not in pool:
+        raise HTTPException(status_code=404, detail=f"Member '{key}' not found.")
+    del pool[key]
+    _save_voice_library(lib)
+    return {"status": "deleted", "cast": cast, "key": key}
+
+
+@app.post("/api/voice_library/save")
+async def voice_library_save(request: LibrarySaveRequest):
+    """Save selected current-book characters into a cast (NARRATOR -> shared by default)."""
+    cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found. Create it first.")
+
+    voice_config = {}
+    if os.path.exists(VOICE_CONFIG_PATH):
+        try:
+            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                voice_config = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            voice_config = {}
+
+    counts = _script_line_counts()
+    shared_override = {_norm_name(n) for n in (request.shared or [])}
+    cast_specific = {_norm_name(n) for n in (request.cast_specific or [])}
+
+    saved = {"cast": [], "shared": []}
+    for char in request.characters:
+        config = voice_config.get(char)
+        if not config:
+            continue  # nothing configured for this character; skip
+        key = _norm_name(char)
+        entry = _make_library_entry(char, config, counts.get(char, 0))
+        # Narrator (or explicitly flagged) goes to the shared cross-series pool,
+        # unless this book uses a different narrator (forced cast-specific).
+        is_shared = (key in SHARED_DEFAULT_NAMES or key in shared_override) and key not in cast_specific
+        if is_shared:
+            lib["shared"][key] = entry
+            saved["shared"].append(char)
+        else:
+            lib["casts"][cast_name].setdefault("members", {})[key] = entry
+            saved["cast"].append(char)
+
+    _save_voice_library(lib)
+    return {"status": "saved", "cast": cast_name, "saved": saved}
+
+
+@app.post("/api/voice_library/match")
+async def voice_library_match(request: CastCreateRequest):
+    """Fuzzy-match the current book's characters against a cast (+shared pool).
+    Returns proposals for the user to confirm before applying. `name` = cast name."""
+    cast_name = request.name.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    pool = _cast_match_pool(lib, cast_name)
+
+    counts = _script_line_counts()
+    if not counts:
+        raise HTTPException(status_code=400, detail="No characters in the current book. Generate a script first.")
+
+    proposals = _build_match_proposals(counts, pool)
+
+    return {"cast": cast_name, "proposals": proposals}
+
+
+@app.post("/api/voice_library/match_bulk")
+async def voice_library_match_bulk(request: CastMatchBulkRequest):
+    """Fuzzy-match the union of characters across several saved books against a
+    cast (+shared pool). Same proposal shape as /api/voice_library/match, but
+    `line_count` is the sum across all selected books."""
+    cast_name = request.name.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    pool = _cast_match_pool(lib, cast_name)
+
+    def _collect_counts():
+        counts = {}
+        for name in request.script_names:
+            script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+            for char, n in _script_line_counts(script_path).items():
+                counts[char] = counts.get(char, 0) + n
+        return counts
+
+    # Offload the per-book file reads to a worker thread so reading a large
+    # series doesn't block the event loop (and other in-flight requests).
+    counts = await asyncio.to_thread(_collect_counts)
+
+    if not counts:
+        raise HTTPException(status_code=400, detail="No characters found in the selected books.")
+
+    proposals = _build_match_proposals(counts, pool)
+
+    return {"cast": cast_name, "proposals": proposals, "book_count": len(request.script_names)}
+
+
+@app.post("/api/voice_library/apply")
+async def voice_library_apply(request: LibraryApplyRequest):
+    """Apply confirmed cast members onto the current voice_config by the given mapping."""
+    cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    def _apply():
+        # Hold the lock across the read-modify-write so this can't race a batch
+        # review's concurrent speaker-rename remap of the same file.
+        with file_lock(VOICE_CONFIG_PATH):
+            current_config = {}
+            if os.path.exists(VOICE_CONFIG_PATH):
+                try:
+                    with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                        current_config = json.load(f)
+                except (json.JSONDecodeError, ValueError):
+                    current_config = {}
+
+            current_config, applied = _apply_cast_mapping(lib, cast_name, request.mapping, current_config)
+
+            atomic_json_write(current_config, VOICE_CONFIG_PATH)
+        return applied
+
+    # Offload to a worker thread so file_lock's wait loop can't block the event loop.
+    applied = await asyncio.to_thread(_apply)
+
+    return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied)}
+
+
+@app.post("/api/voice_library/apply_bulk")
+async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
+    """Apply confirmed cast members onto several saved books' voice_config.json
+    files at once. Each book only receives entries for characters that actually
+    appear in that book."""
+    cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+
+    def _apply_all():
+        results = []
+        for name in request.script_names:
+            chars = _script_line_counts(os.path.join(SCRIPTS_DIR, f"{name}.json"))
+
+            config_path = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+            # Hold the lock across the read-modify-write so this can't race a batch
+            # review's concurrent speaker-rename remap of the same companion file.
+            with file_lock(config_path):
+                current_config = {}
+                if os.path.exists(config_path):
+                    try:
+                        with open(config_path, "r", encoding="utf-8") as f:
+                            current_config = json.load(f)
+                    except (json.JSONDecodeError, ValueError):
+                        current_config = {}
+
+                current_config, applied = _apply_cast_mapping(lib, cast_name, request.mapping, current_config, chars=chars)
+
+                if applied:
+                    atomic_json_write(current_config, config_path)
+
+            results.append({"name": name, "applied": applied, "count": len(applied)})
+        return results
+
+    # Offload the per-book locking/read/write loop to a worker thread so
+    # applying a cast to a long series doesn't block the event loop.
+    results = await asyncio.to_thread(_apply_all)
+
+    return {"cast": cast_name, "results": results}
+
 
 ## ── Voice Designer ──────────────────────────────────────────────
 
@@ -2718,7 +4449,7 @@ async def preparer_start(
                "--min-confidence", str(config.min_confidence),
                "--min-snr", str(config.min_snr)]
 
-        rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
+        rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
 
         if state.get("cancel"):
             state["status"] = "cancelled"
@@ -2829,7 +4560,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]
 
-            rc = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+            rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"
@@ -2852,6 +4583,298 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
 async def preparer_batch_cancel():
     process_state["batch_preparer"]["cancel"] = True
     return {"status": "cancel_requested"}
+
+
+## ── Voice Lab: end-to-end audiobook → named LoRA pipeline ─────────────────────
+#
+# Orchestrates the four post-preparer stages as a single sequential job:
+#   dedup   → voice_analysis.py --phase dedup   (this repo, ROCm env)
+#   train   → batch_train_lora.py               (sibling repo, ROCm env)
+#   profile → voice_profiler.py                 (sibling repo, ROCm env)
+#   name    → name_voices.py                    (this repo, pure stdlib)
+#
+# Stages 1-3 need the ROCm ML env (torch/librosa/speechbrain), which the web app's
+# own venv does NOT have — so they run under a configurable interpreter. The paths
+# are machine-specific (the user's established setup) and live in a small editable
+# config file rather than being hardcoded, so another machine can point them
+# elsewhere without code changes.
+
+VOICELAB_CONFIG_PATH = os.path.join(ROOT_DIR, "voicelab_config.json")
+
+VOICELAB_DEFAULTS = {
+    # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
+    "rocm_python": "/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python",
+    # Repo holding batch_train_lora.py + voice_profiler.py
+    "pipeline_repo": "/home/fakemitch/pinokio/api/alexandria-audiobook.git",
+    # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
+    "profiler_model": "",
+    # Default zips2 root (folder of narrator subfolders) the dedup stage reads
+    "zips_dir": "/home/fakemitch/Desktop/zips2",
+}
+
+VOICELAB_STAGES = ("dedup", "train", "profile", "name")
+
+
+def _load_voicelab_config() -> dict:
+    cfg = dict(VOICELAB_DEFAULTS)
+    if os.path.exists(VOICELAB_CONFIG_PATH):
+        try:
+            with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
+        except (json.JSONDecodeError, ValueError, OSError):
+            pass
+    return cfg
+
+
+class VoiceLabConfig(BaseModel):
+    rocm_python: Optional[str] = None
+    pipeline_repo: Optional[str] = None
+    profiler_model: Optional[str] = None
+    zips_dir: Optional[str] = None
+
+
+class VoiceLabRequest(BaseModel):
+    zips_dir: Optional[str] = None                 # narrator-subfolder root; default from config
+    stages: List[str] = list(VOICELAB_STAGES)      # which stages to run, in pipeline order
+    device: Optional[str] = None                   # cuda/cpu for the dedup stage (auto if unset)
+    target_loss: float = 4.15                      # batch-train early-stop target
+    max_epochs: int = 6
+    lora_r: int = 64
+    profiler_model: Optional[str] = None           # override GGUF for the profile stage
+    name_apply: bool = True                        # name stage: actually rename (else dry-run)
+    name_overwrite: bool = False                   # also re-name already-named adapters
+
+
+@app.get("/api/voicelab/config")
+async def voicelab_get_config():
+    """Return the pipeline paths plus whether each resolves on this machine."""
+    cfg = _load_voicelab_config()
+    return {
+        "config": cfg,
+        "checks": {
+            "rocm_python": os.path.isfile(cfg["rocm_python"]),
+            "pipeline_repo": os.path.isdir(cfg["pipeline_repo"]),
+            "batch_train_lora": os.path.isfile(os.path.join(cfg["pipeline_repo"], "batch_train_lora.py")),
+            "voice_profiler": os.path.isfile(os.path.join(cfg["pipeline_repo"], "voice_profiler.py")),
+            "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
+            "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
+            "profiler_model": (not cfg["profiler_model"]) or os.path.isfile(cfg["profiler_model"]),
+            "zips_dir": os.path.isdir(cfg["zips_dir"]),
+        },
+        "defaults": VOICELAB_DEFAULTS,
+    }
+
+
+@app.post("/api/voicelab/config")
+async def voicelab_save_config(request: VoiceLabConfig):
+    cfg = _load_voicelab_config()
+    for k, v in request.model_dump(exclude_none=True).items():
+        cfg[k] = v.strip() if isinstance(v, str) else v
+    atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
+    return {"status": "saved", "config": cfg}
+
+
+@app.get("/api/voicelab/inspect")
+async def voicelab_inspect(zips_dir: Optional[str] = None):
+    """Preview what a dedup input folder contains so the UI can show readiness."""
+    cfg = _load_voicelab_config()
+    root = (zips_dir or cfg["zips_dir"]).strip()
+    if not root or not os.path.isdir(root):
+        raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
+
+    narrators = []
+    for name in sorted(os.listdir(root)):
+        sub = os.path.join(root, name)
+        if name.startswith("_") or not os.path.isdir(sub):
+            continue
+        zips = [f for f in os.listdir(sub) if f.lower().endswith(".zip")]
+        narrators.append({"name": name, "zip_count": len(zips)})
+
+    deduped_dir = os.path.join(root, "_deduped")
+    deduped_zips = (
+        [f for f in os.listdir(deduped_dir) if f.lower().endswith(".zip")]
+        if os.path.isdir(deduped_dir) else []
+    )
+
+    manifest = _load_manifest(LORA_MODELS_MANIFEST)
+    trained = sum(1 for e in manifest if e.get("zip_source"))
+    unnamed = sum(1 for e in manifest
+                  if e.get("zip_source") and e.get("dataset_id") and e.get("id") == e.get("dataset_id"))
+    profiled = sum(1 for e in manifest if e.get("voice_profile"))
+
+    return {
+        "zips_dir": root,
+        "narrator_count": len(narrators),
+        "narrators": narrators,
+        "deduped_exists": os.path.isdir(deduped_dir),
+        "deduped_count": len(deduped_zips),
+        "manifest": {"trained": trained, "profiled": profiled, "unnamed": unnamed},
+    }
+
+
+def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
+    """Build the (stage_name, command, cwd) tuples for the requested stages."""
+    rocm = cfg["rocm_python"]
+    repo = cfg["pipeline_repo"]
+    deduped_dir = os.path.join(zips_dir, "_deduped")
+    profiler_model = (req.profiler_model or cfg["profiler_model"]).strip()
+
+    steps = []
+    if "dedup" in req.stages:
+        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_analysis.py"),
+               "--phase", "dedup", "--zips2", zips_dir]
+        if req.device:
+            cmd += ["--device", req.device]
+        steps.append(("dedup", cmd, ROOT_DIR))
+    if "train" in req.stages:
+        cmd = [rocm, "-u", os.path.join(repo, "batch_train_lora.py"),
+               "--zips_dir", deduped_dir,
+               "--models_dir", LORA_MODELS_DIR,
+               "--manifest", LORA_MODELS_MANIFEST,
+               "--target_loss", str(req.target_loss),
+               "--max_epochs", str(req.max_epochs),
+               "--lora_r", str(req.lora_r)]
+        steps.append(("train", cmd, repo))
+    if "profile" in req.stages:
+        cmd = [rocm, "-u", os.path.join(repo, "voice_profiler.py"),
+               "--manifest", LORA_MODELS_MANIFEST]
+        if profiler_model:
+            cmd += ["--model", profiler_model]
+        steps.append(("profile", cmd, repo))
+    if "name" in req.stages:
+        # Pure stdlib — safe to run under the web app's own interpreter
+        cmd = [sys.executable, "-u", os.path.join(ROOT_DIR, "name_voices.py"),
+               "--manifest", LORA_MODELS_MANIFEST, "--models-dir", LORA_MODELS_DIR]
+        if req.name_apply:
+            cmd.append("--apply")
+        if req.name_overwrite:
+            cmd.append("--overwrite")
+        steps.append(("name", cmd, ROOT_DIR))
+    return steps
+
+
+@app.post("/api/voicelab/start")
+async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
+    """Run the selected pipeline stages in sequence as one cancel/pausable job."""
+    if process_state["voicelab"]["running"]:
+        raise HTTPException(status_code=400, detail="Voice Lab pipeline already running.")
+
+    bad = [s for s in request.stages if s not in VOICELAB_STAGES]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"Unknown stage(s): {', '.join(bad)}")
+    # Keep canonical pipeline order regardless of how the request listed them
+    request.stages = [s for s in VOICELAB_STAGES if s in request.stages]
+    if not request.stages:
+        raise HTTPException(status_code=400, detail="No stages selected.")
+
+    cfg = _load_voicelab_config()
+    zips_dir = (request.zips_dir or cfg["zips_dir"]).strip()
+
+    # Validate prerequisites up front with actionable errors
+    needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
+    if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
+        raise HTTPException(status_code=400,
+                            detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    if "dedup" in request.stages and not os.path.isdir(zips_dir):
+        raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
+    if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
+        raise HTTPException(status_code=400,
+                            detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
+    for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
+                           ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
+        if s in request.stages and not os.path.isfile(os.path.join(base, fname)):
+            raise HTTPException(status_code=400,
+                                detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
+
+    steps = _voicelab_build_commands(request, cfg, zips_dir)
+
+    def _run():
+        state = process_state["voicelab"]
+        state["running"] = True
+        state["cancel"] = False
+        state["paused"] = False
+        state["start_time"] = time.time()
+        state["status"] = "running"
+        state["process"] = None
+        state["pid"] = None
+        state["logs"] = [f"Voice Lab: {len(steps)} stage(s) — {', '.join(s[0] for s in steps)}"]
+        state["tasks"] = [{"name": s[0], "status": "pending"} for s in steps]
+        state["current_task_idx"] = -1
+
+        log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
+
+        failed = False
+        for i, (stage, cmd, cwd) in enumerate(steps):
+            if state["cancel"]:
+                state["logs"].append("Pipeline cancelled.")
+                break
+            state["current_task_idx"] = i
+            state["tasks"][i]["status"] = "running"
+            state["logs"].append(f"--- [{i+1}/{len(steps)}] {stage} ---")
+
+            try:
+                rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path)
+            except Exception as e:
+                state["logs"].append(f"[{stage}] error launching: {e}")
+                state["tasks"][i]["status"] = "failed"
+                failed = True
+                break
+
+            if state.get("cancel"):
+                state["tasks"][i]["status"] = "cancelled"
+                break
+            if rc == 0:
+                state["tasks"][i]["status"] = "done"
+            else:
+                state["tasks"][i]["status"] = "failed"
+                state["logs"].append(f"[{stage}] failed (exit {rc}) — stopping pipeline.")
+                failed = True
+                break  # later stages depend on earlier ones; don't continue on failure
+
+        state["process"] = None
+        state["pid"] = None
+        state["running"] = False
+        if state.get("cancel"):
+            state["status"] = "cancelled"
+        elif failed:
+            state["status"] = "failed"
+        else:
+            state["status"] = "done"
+            state["logs"].append("Voice Lab pipeline finished.")
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "stages": request.stages, "zips_dir": zips_dir}
+
+
+@app.post("/api/voicelab/cancel")
+async def voicelab_cancel():
+    state = process_state["voicelab"]
+    if not state["running"]:
+        raise HTTPException(status_code=400, detail="No Voice Lab pipeline is currently running.")
+    state["cancel"] = True
+    _resume_if_paused(state, state.get("process"))
+    proc = state.get("process")
+    if proc is not None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, OSError):
+            pass
+    return {"status": "cancel_requested"}
+
+
+@app.post("/api/voicelab/pause")
+async def voicelab_pause():
+    return _pause_task("voicelab", "No Voice Lab pipeline is currently running.",
+                        "Voice Lab is between stages, retry in a moment.",
+                        "Voice Lab")
+
+
+@app.post("/api/voicelab/resume")
+async def voicelab_resume():
+    return _resume_task("voicelab", "No Voice Lab pipeline is currently running.",
+                         "Voice Lab")
 
 
 if __name__ == "__main__":
