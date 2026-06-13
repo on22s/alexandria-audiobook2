@@ -22,6 +22,7 @@ voicelab_config.json
 voices.json
 annotated_script.json
 annotated_script.txt
+*.review_checkpoint.json
 cloned_audiobook.mp3
 audacity_export.zip
 audiobook.m4b
@@ -43,6 +44,7 @@ audiobook.mp3
 
 # Generated runtime files
 chunks.json
+reports/
 temp_batch_*.wav
 app/flash-attention/
 error_screenshot.png
