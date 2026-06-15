@@ -8,7 +8,7 @@ import io
 import re
 import time
 import logging
-from utils import atomic_json_write
+from utils import atomic_json_write, safe_load_json
 from tts import (
     TTSEngine,
     combine_audio_with_pauses,
@@ -102,20 +102,27 @@ class ProjectManager:
         os.makedirs(self.voicelines_dir, exist_ok=True)
 
         self.engine = None
-        self._chunks_lock = threading.Lock()  # Thread-safe file writes
+        self._chunks_lock = threading.Lock()  # Thread-safe chunks.json writes
+        self._config_cache = None
+        self._config_mtime = None
+
+    def _read_config(self):
+        """Load config.json, caching by mtime to avoid repeated disk reads/parses
+        across hot-path calls (get_engine, _load_tts_config, ...)."""
+        try:
+            mtime = os.path.getmtime(self.config_path)
+        except OSError:
+            mtime = None
+        if self._config_cache is None or mtime != self._config_mtime:
+            self._config_cache = safe_load_json(self.config_path, default={})
+            self._config_mtime = mtime
+        return self._config_cache
 
     def get_engine(self):
         if self.engine:
             return self.engine
 
-        # Load config
-        config = {}
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception:
-                pass
+        config = self._read_config()
 
         try:
             self.engine = TTSEngine(config)
@@ -127,20 +134,31 @@ class ProjectManager:
 
     def _load_tts_config(self):
         """Load TTS config section from config.json for pause defaults."""
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                return json.load(f).get("tts", {})
-        except Exception:
-            return {}
+        return self._read_config().get("tts", {})
 
     def load_chunks(self):
+        """Load chunks from disk, regenerating if missing or corrupted.
+        
+        Uses _chunks_lock to prevent race conditions with concurrent saves.
+        """
+        with self._chunks_lock:
+            return self._read_chunks()
+
+    def _read_chunks(self):
+        """Read chunks.json, regenerating from script if missing or corrupted.
+
+        Internal method - callers must hold _chunks_lock. Always returns a
+        list (possibly empty), never None.
+        """
+        chunks = safe_load_json(self.chunks_path)
+        if chunks is not None:
+            return chunks
         if os.path.exists(self.chunks_path):
+            logger.warning("chunks.json is corrupted; deleting so it can be regenerated.")
             try:
-                with open(self.chunks_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                print(f"WARNING: chunks.json is corrupted ({e}). Regenerating from script...")
                 os.remove(self.chunks_path)
+            except OSError:
+                pass
 
         # If no chunks (or corrupted), generate from script
         if os.path.exists(self.script_path):
@@ -148,7 +166,7 @@ class ProjectManager:
                 with open(self.script_path, "r", encoding="utf-8") as f:
                     script = json.load(f)
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"WARNING: annotated_script.json is also corrupted ({e}). Starting with empty chunks.")
+                logger.warning(f"annotated_script.json is also corrupted ({e}). Starting with empty chunks.")
                 return []
 
             chunks = group_into_chunks(script)
@@ -156,10 +174,10 @@ class ProjectManager:
             # Initialize chunk status
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
-                chunk["status"] = "pending" # pending, generating, done, error
+                chunk["status"] = "pending"  # pending, generating, done, error
                 chunk["audio_path"] = None
 
-            self.save_chunks(chunks)
+            atomic_json_write(chunks, self.chunks_path)
             return chunks
 
         return []
@@ -174,7 +192,7 @@ class ProjectManager:
             return speaker
         name = speaker
         seen = set()
-        for _ in range(8):
+        for _ in range(16):  # Increased from 8 to handle longer alias chains
             if name in seen:
                 logger.warning(f"Alias cycle detected for speaker '{speaker}': chain visited {seen}")
                 break
@@ -188,37 +206,35 @@ class ProjectManager:
                 break
             # Continue resolution
             name = alias
+        else:
+            # Loop completed without break - chain exceeded limit
+            logger.warning(f"Alias chain for '{speaker}' exceeded 16 iterations; using last resolved name '{name}'")
         return name
 
     def save_chunks(self, chunks):
         with self._chunks_lock:
             atomic_json_write(chunks, self.chunks_path)
 
-    def _update_chunk_fields(self, index, **fields):
-        """Atomically update fields on a single chunk (thread-safe read-modify-write).
+    def _modify_chunk(self, index, mutator):
+        """Atomically apply `mutator(chunk)` to a single chunk (thread-safe read-modify-write).
 
         Unlike load_chunks() + modify + save_chunks(), this holds the lock for the
         entire read-modify-write cycle, preventing concurrent threads from
         overwriting each other's updates.
         """
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
-            chunks[index].update(fields)
+            chunk = chunks[index]
+            mutator(chunk)
             atomic_json_write(chunks, self.chunks_path)
-            return chunks[index]
+            return chunk
 
     def insert_chunk(self, after_index):
         """Insert an empty chunk after the given index. Returns the new chunk list."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= after_index < len(chunks)):
                 return None
 
@@ -244,10 +260,7 @@ class ProjectManager:
     def delete_chunk(self, index):
         """Delete a chunk at the given index. Returns (deleted_chunk, updated_chunks) or None."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
             if len(chunks) <= 1:
@@ -265,10 +278,7 @@ class ProjectManager:
     def restore_chunk(self, at_index, chunk_data):
         """Re-insert a chunk at a specific index. Returns the updated chunk list."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
 
             at_index = max(0, min(at_index, len(chunks)))
             chunks.insert(at_index, chunk_data)
@@ -281,10 +291,8 @@ class ProjectManager:
             return chunks
 
     def update_chunk(self, index, data):
-        chunks = self.load_chunks()
-        if 0 <= index < len(chunks):
-            chunk = chunks[index]
-            # Update fields
+        """Thread-safe chunk update. See _modify_chunk."""
+        def mutator(chunk):
             if "text" in data: chunk["text"] = data["text"]
             if "instruct" in data: chunk["instruct"] = data["instruct"]
             if "speaker" in data: chunk["speaker"] = data["speaker"]
@@ -300,9 +308,18 @@ class ProjectManager:
             if "text" in data or "instruct" in data or "speaker" in data:
                 chunk["status"] = "pending"
 
-            self.save_chunks(chunks)
-            return chunk
-        return None
+        return self._modify_chunk(index, mutator)
+
+    def _update_chunk_fields(self, index, **kwargs):
+        """Atomically set arbitrary fields on a chunk (status, audio_path, error, etc.).
+
+        Unlike update_chunk, this applies the given fields directly with no
+        special-casing or status side-effects. See _modify_chunk.
+        """
+        def mutator(chunk):
+            chunk.update(kwargs)
+
+        return self._modify_chunk(index, mutator)
 
     def generate_chunk_audio(self, index):
         chunks = self.load_chunks()
@@ -312,17 +329,17 @@ class ProjectManager:
         chunk = chunks[index]
         self._update_chunk_fields(index, status="generating")
 
+        temp_path = None
         try:
             engine = self.get_engine()
             if not engine:
                 self._update_chunk_fields(index, status="error")
                 return False, "TTS engine not initialized"
 
-            # Load voice config
-            voice_config = {}
-            if os.path.exists(self.voice_config_path):
-                with open(self.voice_config_path, "r", encoding="utf-8") as f:
-                    voice_config = json.load(f)
+            # atomic_json_write's write-temp+rename makes plain reads safe even
+            # while app.py's voice_library endpoints hold file_lock(voice_config_path)
+            # for a read-modify-write — no extra locking needed here.
+            voice_config = safe_load_json(self.voice_config_path, default={})
 
             speaker = chunk["speaker"]
             # Resolve aliases to canonical speaker used for TTS
@@ -336,7 +353,9 @@ class ProjectManager:
             print(f"Generating chunk {index}: speaker={speaker}, instruct='{instruct}', text='{text[:50]}...'")
 
             # Generate to temp file (unique per chunk for parallel processing)
-            temp_path = os.path.join(self.root_dir, f"temp_chunk_{index}.wav")
+            import tempfile
+            fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
+            os.close(fd)  # Close the file descriptor, we'll write via TTS engine
 
             # Pass canonical speaker to the TTS engine so it uses the aliased config
             success = engine.generate_voice(text, instruct, speaker_to_use, voice_config, temp_path)
@@ -388,18 +407,6 @@ class ProjectManager:
 
                 self._update_chunk_fields(index, status="done", audio_path=audio_path)
 
-                # Cleanup with retry (may be locked by pydub/ffmpeg on Windows)
-                if os.path.exists(temp_path):
-                    for attempt in range(3):
-                        try:
-                            os.remove(temp_path)
-                            break
-                        except OSError:
-                            if attempt < 2:
-                                time.sleep(0.1 * (attempt + 1))
-                            else:
-                                print(f"Warning: Could not delete temp file {temp_path}")
-
                 return True, audio_path
             else:
                 self._update_chunk_fields(index, status="error")
@@ -411,6 +418,20 @@ class ProjectManager:
             except Exception as update_err:
                 print(f"Warning: Failed to update chunk {index} status to error: {update_err}")
             return False, str(e)
+        finally:
+            # Cleanup with retry (may be locked by pydub/ffmpeg on Windows). Runs on
+            # every exit path - success, early "Generation failed"/validation
+            # returns, and exceptions - so the temp wav never leaks.
+            if temp_path and os.path.exists(temp_path):
+                for attempt in range(3):
+                    try:
+                        os.remove(temp_path)
+                        break
+                    except OSError:
+                        if attempt < 2:
+                            time.sleep(0.1 * (attempt + 1))
+                        else:
+                            print(f"Warning: Could not delete temp file {temp_path}")
 
     def _load_pause_defaults(self):
         """Return (pause_between_speakers_ms, pause_same_speaker_ms) from config."""
@@ -863,10 +884,11 @@ class ProjectManager:
 
         print(f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed}, "
               f"group_by_type={batch_group_by_type})...")
-        voice_config = {}
-        if os.path.exists(self.voice_config_path):
-            with open(self.voice_config_path, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
+        
+        # atomic_json_write's write-temp+rename makes plain reads safe even
+        # while app.py's voice_library endpoints hold file_lock(voice_config_path)
+        # for a read-modify-write — no extra locking needed here.
+        voice_config = safe_load_json(self.voice_config_path, default={})
 
         # Get TTS engine
         engine = self.get_engine()

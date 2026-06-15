@@ -2314,6 +2314,9 @@
             genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.classList.remove('btn-outline-success');
+            pauseBtn.classList.add('btn-outline-warning');
             _resetPauseBtn('btn-pause-script');
 
             try {
@@ -2413,6 +2416,7 @@
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
         let scriptBatchPoller = null;
+        let scriptBatchPollGen = 0;
 
         window.toggleScriptBatchMode = () => {
             const isBatch = document.getElementById('script-batch-mode').checked;
@@ -2491,13 +2495,16 @@
         }
 
         function _pollScriptBatchLogs() {
-            if (scriptBatchPoller) clearInterval(scriptBatchPoller);
+            if (scriptBatchPoller) clearTimeout(scriptBatchPoller);
             const logEl = document.getElementById('script-logs');
             let offset = 0;
+            const myGen = ++scriptBatchPollGen;
 
-            scriptBatchPoller = setInterval(async () => {
+            const poll = async () => {
+                if (myGen !== scriptBatchPollGen) return;
                 try {
                     const state = await API.get('/api/status/batch_script');
+                    if (myGen !== scriptBatchPollGen) return;
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -2517,7 +2524,6 @@
                     }
 
                     if (!state.running) {
-                        clearInterval(scriptBatchPoller);
                         scriptBatchPoller = null;
                         notifyJobDone('batch_script');
                         document.getElementById('btn-gen-script').disabled = false;
@@ -2526,9 +2532,14 @@
                         document.getElementById('script-batch-status-msg').innerHTML =
                             '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
                         loadSavedScripts();
+                    } else {
+                        scriptBatchPoller = setTimeout(poll, 1000);
                     }
-                } catch (e) { /* network hiccup — keep polling */ }
-            }, 1000);
+                } catch (e) {
+                    scriptBatchPoller = setTimeout(poll, 2000);
+                }
+            };
+            poll();
         }
 
         // --- Single review (with pause/cancel + character-name merging) ---
@@ -3207,6 +3218,9 @@
                     document.getElementById('btn-apply-all-suggestions').style.display = 'inline-block';
                     document.getElementById('btn-clear-suggestions').style.display = 'inline-block';
                 }
+                if (res.llm_warning) {
+                    status.innerHTML += `<div class="text-warning small mt-1"><i class="fas fa-exclamation-triangle me-1"></i>${escapeHtml(res.llm_warning)}</div>`;
+                }
                 renderVoiceSuggestions();
             } catch (e) {
                 status.innerHTML = `<i class="fas fa-times text-danger me-1"></i>${escapeHtml(e.message || String(e))}`;
@@ -3654,7 +3668,7 @@
                 const rows = res.results.map(r => `
                     <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small">
                         <span>${escapeHtml(r.name)}</span>
-                        <span class="text-muted">${r.count} applied</span>
+                        <span class="${r.error ? 'text-danger' : 'text-muted'}">${r.error ? escapeHtml(r.error) : `${r.count} applied`}</span>
                     </li>`).join('');
                 panel.innerHTML = `
                     <div class="border rounded p-2">
@@ -3756,6 +3770,7 @@
         let isPlayingSequence = false;
         let isRenderingAll = false;
         let cachedChunks = []; // Cache to track changes
+        let loadChunksTimer = null; // Pending poll timer, so re-entrant calls don't stack up
 
         function buildSpeakerSelect(chunk) {
             const current = (chunk.speaker || '').trim();
@@ -3823,7 +3838,7 @@
                 if (chunk.status === 'done' && chunk.audio_path) {
                     const existingAudio = actionContainer.querySelector('audio');
                     const existingNoAudio = actionContainer.querySelector('.text-muted');
-                    const newSrc = `/${chunk.audio_path}?t=${Date.now()}`;
+                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${Date.now()}`;
 
                     if (existingNoAudio) {
                         // No audio element yet, create one
@@ -3841,6 +3856,12 @@
         }
 
         async function loadChunks(forceFullRedraw = false) {
+            // Cancel any pending poll so re-entrant calls don't stack up
+            if (loadChunksTimer) {
+                clearTimeout(loadChunksTimer);
+                loadChunksTimer = null;
+            }
+
             const tbody = document.getElementById('chunks-table-body');
 
             // Show loading only if empty
@@ -3875,7 +3896,7 @@
 
                     // Continue polling if generating
                     if (chunks.some(c => c.status === 'generating')) {
-                        setTimeout(() => loadChunks(false), 2000);
+                        loadChunksTimer = setTimeout(() => loadChunks(false), 2000);
                     }
                     return;
                 }
@@ -3901,7 +3922,7 @@
                                           chunk.status === 'error' ? 'danger' : 'secondary';
 
                         const audioPlayer = chunk.audio_path ?
-                            `<audio class="chunk-audio" data-id="${chunk.id}" controls src="/${chunk.audio_path}?t=${Date.now()}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
+                            `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${Date.now()}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
                             '<span class="text-muted small">No audio</span>';
 
                         const actionArea = chunk.status === 'generating' ?
@@ -3940,7 +3961,7 @@
 
                 // If any chunk is generating, poll (without full redraw)
                 if (chunks.some(c => c.status === 'generating')) {
-                    setTimeout(() => loadChunks(false), 2000);
+                    loadChunksTimer = setTimeout(() => loadChunks(false), 2000);
                 }
 
             } catch (e) {
@@ -4071,16 +4092,12 @@
             btn.onclick = stopSequence;
             btn.classList.replace('btn-primary', 'btn-danger');
 
-            const audios = Array.from(document.querySelectorAll('.chunk-audio'));
-            if (audios.length === 0) {
-                stopSequence();
-                return;
-            }
-
             let currentIndex = 0;
 
             const playNext = () => {
                 if (!isPlayingSequence) return;
+                
+                const audios = Array.from(document.querySelectorAll('.chunk-audio'));
 
                 // Find next valid audio
                 while (currentIndex < audios.length) {
@@ -4526,16 +4543,20 @@
         };
 
         // --- Polling Logic ---
+        const _pollLogsGen = {};
         async function pollLogs(taskName, elementId, onDone) {
             const el = document.getElementById(elementId);
-            const interval = setInterval(async () => {
+            const myGen = (_pollLogsGen[taskName] = (_pollLogsGen[taskName] || 0) + 1);
+
+            const poll = async () => {
+                if (myGen !== _pollLogsGen[taskName]) return;
                 try {
                     const status = await API.get(`/api/status/${taskName}`);
+                    if (myGen !== _pollLogsGen[taskName]) return;
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
 
                     if (!status.running) {
-                        clearInterval(interval);
                         notifyJobDone(taskName);
                         if (onDone) onDone(status);
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
@@ -4555,12 +4576,15 @@
                                 loadChunks();
                             }
                         }
+                    } else {
+                        setTimeout(poll, 1000);
                     }
                 } catch (e) {
                     console.error("Poll error", e);
-                    clearInterval(interval);
+                    setTimeout(poll, 2000);
                 }
-            }, 1000);
+            };
+            poll();
         }
 
         // ── Saved Scripts ──────────────────────────────────────

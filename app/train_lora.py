@@ -51,6 +51,8 @@ def parse_args():
                         help="Early-stop when epoch avg_loss first drops at or below this value. "
                              "Best checkpoint with loss >= 4.1 is always preserved. "
                              "Recommended: 4.15 for auto sweet-spot detection.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducible shuffling")
     return parser.parse_args()
 
 
@@ -463,9 +465,16 @@ def train(args):
     best_loss = float("inf")
     # Safe checkpoint: best loss that's still >= GARBLE_FLOOR
     # This protects against overshooting when early stopping is enabled.
-    GARBLE_FLOOR = 4.1
+    GARBLE_FLOOR = 4.1  # Empirical threshold: below this, audio quality degrades significantly
     safe_best_loss = float("inf")
     training_start = time.time()
+    
+    # Set random seed for reproducible shuffling if provided
+    if args.seed is not None:
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
 
     # Access underlying model structure (stable references)
     base_talker = peft_talker.base_model.model  # original talker with LoRA layers
@@ -565,6 +574,9 @@ def train(args):
 
                 if "cuda" in device:
                     torch.cuda.empty_cache()
+                
+                # Periodic garbage collection to prevent memory leaks
+                gc.collect()
 
             print(f"[TRAIN] epoch={epoch}/{args.epochs} step={step_idx}/{total_steps_per_epoch} "
                   f"loss={step_loss:.4f} talker_loss={step_talker_loss:.4f} "

@@ -25,7 +25,9 @@ night-super-night-themes branch (review_script.py / app.py):
       current_task_idx can't produce a negative ETA.
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_code_review_fixes.py
+  python test_code_review_fixes.py
+  # or from project root:
+  # app/env/bin/python test_code_review_fixes.py
 """
 import asyncio
 import json

@@ -29,7 +29,9 @@ night-super-night-themes branch (app.py / review_script.py / utils.py / index.ht
      review loops.
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_high_review_fixes.py
+  python test_high_review_fixes.py
+  # or from project root:
+  # app/env/bin/python test_high_review_fixes.py
 """
 import asyncio
 import json
@@ -430,6 +432,30 @@ def test_load_saved_scripts_uses_shared_helper():
           "fetch('/api/scripts')" not in body and 'fetch("/api/scripts")' not in body, body)
 
 
+# ── Fix: /api/scripts excludes alias registries and review checkpoints ──────
+
+def test_list_saved_scripts_excludes_internal_artifacts():
+    print("\n=== Fix: list_saved_scripts() filters out .series_aliases.json, "
+          "*.review_checkpoint.json, and *.voice_config.json ===")
+    with tempfile.TemporaryDirectory() as scripts_dir:
+        for f in ("book_one.json", "book_two.json",
+                  "book_one.voice_config.json",
+                  "book_one.json.review_checkpoint.json",
+                  ".series_aliases.json"):
+            with open(os.path.join(scripts_dir, f), "w", encoding="utf-8") as fh:
+                fh.write("{}")
+
+        with mock.patch.object(app_module, "SCRIPTS_DIR", scripts_dir):
+            scripts = asyncio.run(app_module.list_saved_scripts())
+
+        names = {s["name"] for s in scripts}
+        check("real scripts are listed", names == {"book_one", "book_two"}, names)
+        check("review checkpoint companion is excluded",
+              "book_one.json.review_checkpoint" not in names, names)
+        check("series alias registry is excluded",
+              ".series_aliases" not in names, names)
+
+
 # ── Fix #10: review_script._load_resume_state ───────────────────────────────
 
 def test_load_resume_state_fresh_run():
@@ -484,6 +510,7 @@ def main():
     test_apply_cast_mapping_chars_filter_for_bulk()
     test_voice_library_apply_bulk_writes_companion_config_under_lock()
     test_load_saved_scripts_uses_shared_helper()
+    test_list_saved_scripts_excludes_internal_artifacts()
     test_load_resume_state_fresh_run()
     test_load_resume_state_resumed_run()
 

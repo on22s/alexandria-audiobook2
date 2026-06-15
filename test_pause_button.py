@@ -1,103 +1,87 @@
 """
-Test: Verify that both Pause and Cancel buttons appear in the
-Generate Script section when script generation is running.
+Regression test: when script generation starts, both the Pause and Cancel
+buttons in the Generate Script section become visible together (and both
+are hidden beforehand).
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_pause_button.py
+  python test_pause_button.py
+  # or from project root:
+  # app/env/bin/python test_pause_button.py
 """
 import asyncio
 import os
 
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = (
-    "/home/fakemitch/pinokio/cache/XDG_CACHE_HOME/ms-playwright"
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.environ.get(
+    "PLAYWRIGHT_BROWSERS_PATH",
+    os.path.expanduser("~/.cache/ms-playwright")
 )
 
 from playwright.async_api import async_playwright
 
+FAILURES = []
+
+PAGE_LOAD_TIMEOUT = 15000
+UI_SETTLE_DELAY = 400
+APP_URL = "http://127.0.0.1:4200"
+
+
+def check(label, condition, detail=""):
+    status = "PASS" if condition else "FAIL"
+    print(f"  [{status}] {label}" + (f" — {detail}" if detail and not condition else ""))
+    if not condition:
+        FAILURES.append(label)
+
 
 async def run():
     async with async_playwright() as p:
-        browser = await p.firefox.launch(headless=False)
+        browser = await p.firefox.launch(headless=True)
         page = await browser.new_page()
-
-        print("Loading app at http://127.0.0.1:4200 ...")
-        await page.goto("http://127.0.0.1:4200", timeout=15000)
+        await page.goto(APP_URL, timeout=PAGE_LOAD_TIMEOUT)
         await page.wait_for_load_state("networkidle")
 
         # Navigate to the Generate Script tab (step 2)
         links = page.locator(".nav-link")
-        clicked = False
         for i in range(await links.count()):
             txt = (await links.nth(i).inner_text()).strip()
-            if "Script" in txt or "script" in txt:
-                print(f"Clicking tab: '{txt}'")
+            if "script" in txt.lower():
                 await links.nth(i).click()
-                clicked = True
                 break
-        if not clicked:
-            print("WARNING: could not find Script tab, testing from current page")
-        await page.wait_for_timeout(600)
+        await page.wait_for_timeout(UI_SETTLE_DELAY)
 
-        pause_btn  = page.locator("#btn-pause-script")
+        pause_btn = page.locator("#btn-pause-script")
         cancel_btn = page.locator("#btn-cancel-script")
 
-        # 1) Initial state — both should be hidden
-        pause_initial  = await pause_btn.is_visible()
-        cancel_initial = await cancel_btn.is_visible()
-        print(f"\nINITIAL STATE — Pause visible: {pause_initial}, Cancel visible: {cancel_initial}")
-        if not pause_initial and not cancel_initial:
-            print("  ✓ Both hidden initially (correct)")
-        else:
-            print("  ! Unexpected: one or both buttons are visible before generation starts")
+        print("\n=== 1) Initial state — both buttons hidden before generation starts ===")
+        check("Pause hidden initially", not await pause_btn.is_visible())
+        check("Cancel hidden initially", not await cancel_btn.is_visible())
 
-        # 2) Simulate the JS the click-handler runs (without actually calling the API)
+        print("\n=== 2) Both buttons become visible together once generation starts ===")
+        # Mirror the btn-gen-script click handler's state-setting in index.html
+        # (it shows both buttons and resets the pause button's label/classes).
         await page.evaluate("""() => {
-            const genBtn    = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
             const pauseBtn  = document.getElementById('btn-pause-script');
-            if (!genBtn || !cancelBtn || !pauseBtn) {
-                throw new Error('One or more buttons not found in DOM');
-            }
-            genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display  = 'inline-block';
-            pauseBtn.innerHTML = '<i class=\"fas fa-pause me-1\"></i>Pause';
+            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             pauseBtn.classList.remove('btn-outline-success');
             pauseBtn.classList.add('btn-outline-warning');
         }""")
-        await page.wait_for_timeout(400)
+        await page.wait_for_timeout(UI_SETTLE_DELAY)
 
-        pause_running  = await pause_btn.is_visible()
-        cancel_running = await cancel_btn.is_visible()
-        print(f"\nRUNNING STATE — Pause visible: {pause_running}, Cancel visible: {cancel_running}")
+        check("Pause visible while generation is running", await pause_btn.is_visible())
+        check("Cancel visible while generation is running", await cancel_btn.is_visible())
 
-        # Screenshot so we can see exactly what the user sees
-        await page.screenshot(path="/tmp/alexandria_button_test.png")
-        print("Screenshot saved to /tmp/alexandria_button_test.png")
-
-        if pause_running and cancel_running:
-            print("\n  ✓ PASS: Both Pause and Cancel are visible — layout is correct")
-        elif cancel_running and not pause_running:
-            print("\n  ✗ FAIL: Cancel visible but Pause is NOT — this is the bug!")
-            style = await page.evaluate("""() => {
-                const btn = document.getElementById('btn-pause-script');
-                const cs  = window.getComputedStyle(btn);
-                return {
-                    display:    cs.display,
-                    visibility: cs.visibility,
-                    opacity:    cs.opacity,
-                    width:      cs.width,
-                    height:     cs.height,
-                    position:   cs.position,
-                };
-            }""")
-            print(f"  Computed style of #btn-pause-script: {style}")
-        else:
-            print(f"\n  ✗ FAIL: Unexpected state — Pause:{pause_running}, Cancel:{cancel_running}")
-
-        print("\nKeeping browser open 8s so you can inspect…")
-        await page.wait_for_timeout(8000)
         await browser.close()
 
+    print("\n" + "=" * 60)
+    if FAILURES:
+        print(f"RESULT: {len(FAILURES)} check(s) FAILED: {FAILURES}")
+    else:
+        print("RESULT: all checks passed")
+    print("=" * 60)
+    return 1 if FAILURES else 0
 
-asyncio.run(run())
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(run()))

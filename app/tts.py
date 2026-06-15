@@ -1,20 +1,34 @@
 import os
 import re
+import sys
+import time
 import json
 import threading
 import shutil
+import tempfile
+import subprocess
+from pathlib import Path
+from typing import List, Optional, Dict, Any, Tuple
+
 import numpy as np
 import soundfile as sf
 from pydub import AudioSegment
+
+try:
+    from .utils import secure_filename as _secure_filename
+except ImportError:
+    from utils import secure_filename as _secure_filename
 
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
 def sanitize_filename(name):
-    """Make a string safe for use in filenames"""
-    name = re.sub(r'[^\w\-]', '_', name)
-    return name.lower()
+    """Make a string safe for use in filenames. Uses secure_filename to prevent path
+    traversal, then collapses remaining spaces/dots/etc. to underscores to match the
+    naming convention existing on-disk files were written with."""
+    safe = _secure_filename(name) or "unnamed"
+    return re.sub(r'[^\w\-]', '_', safe).lower()
 
 
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,
@@ -424,10 +438,12 @@ class TTSEngine:
                             pass
                 patched.multi_processor_count = true_cus
                 patched.warp_size = true_warp
-                old_threads = props.multi_processor_count * props.warp_size
+                # Safely calculate old thread count - handle missing warp_size on unusual ROCm versions
+                old_warp = getattr(props, 'warp_size', 32)  # Default to 32 if missing
+                old_threads = props.multi_processor_count * old_warp
                 new_threads = true_cus * true_warp
                 print(f"  [RDNA fix] {props.name}: CUs {props.multi_processor_count}->{true_cus}, "
-                      f"warp {props.warp_size}->{true_warp}, "
+                      f"warp {old_warp}->{true_warp}, "
                       f"threads {old_threads}->{new_threads}")
                 _cache[key] = patched
                 return patched
@@ -1070,6 +1086,21 @@ class TTSEngine:
         return results
 
     # ── Connection test ──────────────────────────────────────────
+
+    def set_sub_batch_size(self, max_items: int):
+        """Set the sub-batch size for benchmarking. Public wrapper for _sub_batch_max_items."""
+        self._sub_batch_max_items = max_items
+
+    def run_benchmark_batch(self, chunks, voice_config, output_dir):
+        """Run a benchmark batch generation. Public wrapper for _local_batch_custom."""
+        return self._local_batch_custom(chunks, voice_config, output_dir)
+
+    def enable_codec_compilation(self):
+        """Enable torch.compile for codec. Public wrapper for internal compilation."""
+        if hasattr(self, '_compile_codec_enabled') and hasattr(self, '_compile_codec'):
+            self._compile_codec_enabled = True
+            if getattr(self, '_local_custom_model', None) is not None:
+                self._compile_codec(self._local_custom_model)
 
     # ── Local backend methods ────────────────────────────────────
 

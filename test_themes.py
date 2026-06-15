@@ -3,20 +3,33 @@ Visual theme audit: captures screenshots of key UI sections in light, night,
 and super-night modes so we can spot contrast/colour problems and fix them.
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_themes.py
+  python test_themes.py
+  # or from project root:
+  # app/env/bin/python test_themes.py
 """
 import asyncio
 import os
+import tempfile
 
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = (
-    "/home/fakemitch/pinokio/cache/XDG_CACHE_HOME/ms-playwright"
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.environ.get(
+    "PLAYWRIGHT_BROWSERS_PATH",
+    os.path.expanduser("~/.cache/ms-playwright")
 )
 
 from playwright.async_api import async_playwright
 
 APP_URL  = "http://127.0.0.1:4200"
-OUT_DIR  = "/tmp/alexandria_theme_audit"
+OUT_DIR  = os.path.join(tempfile.gettempdir(), "alexandria_theme_audit")
 THEMES   = ["light", "night", "super-night"]
+
+# Timeout constants (in milliseconds)
+PAGE_LOAD_TIMEOUT = 15000
+THEME_TRANSITION_DELAY = 300  # wait for CSS theme transition
+TAB_NAV_DELAY = 400  # wait after clicking a tab
+
+# Viewport dimensions
+VIEWPORT_WIDTH = 1280
+VIEWPORT_HEIGHT = 900
 
 # Sections to screenshot: (label, selector-or-None-for-full-page)
 SECTIONS = [
@@ -32,7 +45,7 @@ async def set_theme(page, theme: str):
         await page.evaluate("document.documentElement.removeAttribute('data-theme')")
     else:
         await page.evaluate(f"document.documentElement.setAttribute('data-theme', '{theme}')")
-    await page.wait_for_timeout(300)   # let transition finish
+    await page.wait_for_timeout(THEME_TRANSITION_DELAY)  # let transition finish
 
 
 async def show_running_state(page):
@@ -69,7 +82,7 @@ async def navigate_to_tab(page, tab_text: str) -> bool:
         txt = (await links.nth(i).inner_text()).strip()
         if tab_text.lower() in txt.lower():
             await links.nth(i).click()
-            await page.wait_for_timeout(400)
+            await page.wait_for_timeout(TAB_NAV_DELAY)
             return True
     return False
 
@@ -79,10 +92,10 @@ async def run():
 
     async with async_playwright() as p:
         browser = await p.firefox.launch(headless=True)
-        page = await browser.new_page(viewport={"width": 1280, "height": 900})
+        page = await browser.new_page(viewport={"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT})
 
         print(f"Loading {APP_URL} …")
-        await page.goto(APP_URL, timeout=15000)
+        await page.goto(APP_URL, timeout=PAGE_LOAD_TIMEOUT)
         await page.wait_for_load_state("networkidle")
 
         # Navigate to Script tab and simulate running state once

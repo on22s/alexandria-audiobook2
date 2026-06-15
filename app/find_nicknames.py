@@ -15,7 +15,8 @@ import sys
 import json
 import re
 import argparse
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
+from utils import safe_load_json, atomic_json_write
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
@@ -137,7 +138,7 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
         raw = resp.choices[0].message.content or ""
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         data = json.loads(m.group(0)) if m else {}
-    except Exception as e:
+    except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
         print(f"Nickname discovery failed: {e}")
         return {}, {}
 
@@ -189,14 +190,8 @@ def main():
         entries = json.load(f)
     print(f"Scanning {len(entries)} entries for character nicknames...")
 
-    config = {}
     config_path = os.path.join(base, "config.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Warning: failed to load config.json: {e}")
+    config = safe_load_json(config_path, default={})
     llm = config.get("llm", {})
     client = OpenAI(base_url=llm.get("base_url", "http://localhost:11434/v1"),
                     api_key=llm.get("api_key", "local"))
@@ -204,12 +199,8 @@ def main():
     print(f"Using model: {model_name}")
 
     existing = {}
-    if args.append and os.path.exists(aliases_path):
-        try:
-            with open(aliases_path, "r", encoding="utf-8") as f:
-                existing = json.load(f) or {}
-        except (json.JSONDecodeError, ValueError):
-            existing = {}
+    if args.append:
+        existing = safe_load_json(aliases_path, default={}) or {}
 
     aliases, evidence = find_nicknames(client, model_name, entries, existing_aliases=existing)
 
@@ -223,8 +214,7 @@ def main():
 
     merged = dict(existing)
     merged.update(aliases)
-    with open(aliases_path, "w", encoding="utf-8") as f:
-        json.dump(merged, f, indent=2, ensure_ascii=False)
+    atomic_json_write(merged, aliases_path)
     print(f"\nAlias file saved to: {aliases_path} ({len(merged)} total entries)")
     print("Task find_nicknames completed successfully.")
 

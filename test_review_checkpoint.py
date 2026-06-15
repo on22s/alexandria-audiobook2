@@ -14,7 +14,9 @@ fixes from the night-super-night-themes code review:
      retried on resume instead of being permanently skipped.
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_review_checkpoint.py
+  python test_review_checkpoint.py
+  # or from project root:
+  # app/env/bin/python test_review_checkpoint.py
 """
 import json
 import os

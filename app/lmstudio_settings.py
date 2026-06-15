@@ -38,7 +38,11 @@ def get_lmstudio_status(model_name):
         result = subprocess.run([lms, "ps", "--json"], capture_output=True,
                                  text=True, timeout=15)
         models = json.loads(result.stdout)
-    except Exception:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        return {"available": True, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False}
+
+    if not isinstance(models, list):
         return {"available": True, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
@@ -77,7 +81,7 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
         unload_result = subprocess.run([lms, "unload", model_name], capture_output=True,
                                         text=True, timeout=60)
         unload_failed = unload_result.returncode != 0
-    except Exception:
+    except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
         unload_failed = True
 
     try:
@@ -91,7 +95,7 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
              "-y"],
             capture_output=True, text=True, timeout=180
         )
-    except Exception as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
         return False, f"Failed to run lms load: {e}"
 
     if result.returncode != 0:

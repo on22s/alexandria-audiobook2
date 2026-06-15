@@ -10,7 +10,7 @@ from openai import OpenAI
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import clean_json_string, repair_json_array, salvage_json_entries
 from lmstudio_settings import apply_lmstudio_settings, get_lmstudio_status
-from utils import file_lock, atomic_json_write
+from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -24,21 +24,78 @@ VRAM_POLL_INTERVAL = 15     # seconds between checks while waiting
 
 
 def get_vram_usage():
-    """Return (used_bytes, total_bytes) for GPU 0 via rocm-smi, or None if unavailable."""
+    """Return (worst_used_bytes, worst_total_bytes) for the most constrained GPU.
+
+    On multi-GPU systems, returns the card with the highest VRAM utilization ratio
+    so the headroom check doesn't pass on GPU 0 while GPU 1 is saturated.
+    Supports both AMD (rocm-smi) and NVIDIA (nvidia-smi) GPUs.
+    """
+    # Try AMD first
+    data = run_rocm_smi_json(["--showmeminfo", "vram"])
+    if data is not None:
+        worst_ratio = 0.0
+        worst_used = 0
+        worst_total = 0
+
+        for card_id, card_data in data.items():
+            if not isinstance(card_data, dict):
+                continue
+            try:
+                used = int(card_data.get("VRAM Total Used Memory (B)", 0))
+                total = int(card_data.get("VRAM Total Memory (B)", 0))
+                if total <= 0:
+                    continue
+                ratio = used / total
+                # Track the GPU with the highest utilization ratio
+                if ratio > worst_ratio:
+                    worst_ratio = ratio
+                    worst_used = used
+                    worst_total = total
+            except (ValueError, TypeError):
+                continue
+
+        if worst_total > 0:
+            return worst_used, worst_total
+    
+    # Try NVIDIA
     try:
         result = subprocess.run(
-            ["rocm-smi", "--showmeminfo", "vram", "--json"],
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5
         )
-        data = json.loads(result.stdout)
-        card = next(iter(data.values()))
-        used = int(card["VRAM Total Used Memory (B)"])
-        total = int(card["VRAM Total Memory (B)"])
-        if total <= 0:
-            return None
-        return used, total
+        if result.returncode == 0:
+            worst_ratio = 0.0
+            worst_used = 0
+            worst_total = 0
+            
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split(',')
+                if len(parts) != 2:
+                    continue
+                try:
+                    # nvidia-smi returns values in MiB
+                    used_mib = float(parts[0].strip())
+                    total_mib = float(parts[1].strip())
+                    used = int(used_mib * 1024 * 1024)  # Convert to bytes
+                    total = int(total_mib * 1024 * 1024)
+                    if total <= 0:
+                        continue
+                    ratio = used / total
+                    if ratio > worst_ratio:
+                        worst_ratio = ratio
+                        worst_used = used
+                        worst_total = total
+                except (ValueError, TypeError):
+                    continue
+            
+            if worst_total > 0:
+                return worst_used, worst_total
     except Exception:
-        return None
+        pass  # nvidia-smi not available either
+    
+    return None
 
 
 def wait_for_vram_headroom():
@@ -56,15 +113,22 @@ def wait_for_vram_headroom():
     print(f"  WARNING: GPU VRAM at {used/total:.0%} ({used/1e9:.1f}/{total/1e9:.1f} GB) "
           f"- pausing to avoid an OOM crash...")
     waited = 0
+    last_reported = 0
     while waited < VRAM_MAX_WAIT:
         time.sleep(VRAM_POLL_INTERVAL)
         waited += VRAM_POLL_INTERVAL
+        
+        # Report progress every 30 seconds so user knows we're still waiting
+        if waited - last_reported >= 30:
+            print(f"  Still waiting for VRAM to drop... ({waited}s elapsed, max {VRAM_MAX_WAIT}s)")
+            last_reported = waited
+        
         usage = get_vram_usage()
         if usage is None:
             return True
         used, total = usage
         if used / total < VRAM_WARN_THRESHOLD:
-            print(f"  VRAM back to {used/total:.0%} - resuming.")
+            print(f"  VRAM back to {used/total:.0%} after {waited}s - resuming.")
             return True
 
     print(f"  VRAM still at {used/total:.0%} after {VRAM_MAX_WAIT}s - "
@@ -126,11 +190,15 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
     completed_batches = data["completed_batches"]
     if failed_batches and len(batch_lengths) == completed_batches:
         retry_from = failed_batches[0]
-        keep_entries = sum(batch_lengths[:retry_from - 1])
+        # Keep entries from all batches before the first failed one
+        # retry_from is 1-indexed, so batch_lengths[:retry_from - 1] gives us
+        # the lengths of batches 1 through (retry_from - 1)
+        keep_count = max(0, retry_from - 1)
+        keep_entries = sum(batch_lengths[:keep_count])
         all_corrected = data["all_corrected"][:keep_entries]
         data["all_corrected"] = all_corrected
-        data["completed_batches"] = retry_from - 1
-        data["batch_lengths"] = batch_lengths[:retry_from - 1]
+        data["completed_batches"] = keep_count
+        data["batch_lengths"] = batch_lengths[:keep_count]
         data["previous_tail"] = all_corrected[-2:] if all_corrected else None
         data["total_stats"]["batches_failed"] = max(
             0, data["total_stats"].get("batches_failed", 0) - len(failed_batches))
@@ -157,16 +225,30 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "batch_lengths": batch_lengths,
         "failed_batches": failed_batches,
     }
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp_path, path)
+    # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
+    try:
+        atomic_json_write(data, path)
+    except OSError as e:
+        # If checkpoint save fails (e.g., disk full, permission denied),
+        # log the error but don't crash the review process
+        print(f"WARNING: Failed to save checkpoint: {e}. Review will continue but resume may not work.")
 
 
 def clear_checkpoint(output_path):
+    """Remove checkpoint file with file_lock to prevent race conditions."""
     path = _checkpoint_path(output_path)
     if os.path.exists(path):
-        os.remove(path)
+        try:
+            # Use file_lock to coordinate with concurrent reads/writes
+            with file_lock(path):
+                os.remove(path)
+        except (TimeoutError, OSError) as e:
+            # If the file is still there, removal genuinely failed (lock
+            # contention or e.g. permission error) - warn, since a stale
+            # checkpoint can make the next run resume from the wrong place.
+            if os.path.exists(path):
+                print(f"WARNING: Failed to clear checkpoint {path}: {e}. "
+                      f"A stale checkpoint may cause the next run to resume incorrectly.")
 
 
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
@@ -383,9 +465,10 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         for variant, canonical in clean_map.items():
             registry[variant] = canonical
         try:
-            with open(registry_path, "w", encoding="utf-8") as f:
-                json.dump(registry, f, indent=2, ensure_ascii=False)
-        except OSError as e:
+            # Use file_lock to prevent concurrent writes from corrupting the registry
+            with file_lock(registry_path):
+                atomic_json_write(registry, registry_path)
+        except (OSError, TimeoutError) as e:
             print(f"  Warning: could not update alias registry: {e}")
 
     return clean_map, renamed
@@ -398,27 +481,44 @@ def _remap_voice_config(voice_config_path, mapping):
     # Hold the lock across the whole read-modify-write so this can't lose an
     # update to (or clobber) a concurrent write from the UI, e.g. "apply cast
     # to multiple books" writing the same companion voice_config.json.
-    with file_lock(voice_config_path):
-        try:
-            with open(voice_config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        except (json.JSONDecodeError, ValueError, OSError):
-            return 0
-        moved = 0
-        changed = False
-        for variant, canonical in mapping.items():
-            if variant in cfg:
-                # Don't clobber an existing canonical config; only fill if absent
-                if canonical not in cfg:
-                    cfg[canonical] = cfg[variant]
-                    moved += 1
-                del cfg[variant]
-                changed = True  # even a delete-only change must be persisted
-        if changed:
-            try:
-                atomic_json_write(cfg, voice_config_path)
-            except OSError:
-                pass
+    try:
+        with file_lock(voice_config_path):
+            cfg = safe_load_json(voice_config_path)
+            if cfg is None:
+                return 0
+            moved = 0
+            changed = False
+            for variant, canonical in mapping.items():
+                if variant in cfg:
+                    # If canonical doesn't exist yet, just move it
+                    if canonical not in cfg:
+                        cfg[canonical] = cfg[variant]
+                        moved += 1
+                    else:
+                        # Canonical already exists - merge variant's config into it
+                        # Preserve variant-specific settings by updating only missing keys
+                        existing = cfg[canonical]
+                        variant_cfg = cfg[variant]
+                        if isinstance(existing, dict) and isinstance(variant_cfg, dict):
+                            # Update existing with variant's values, preferring existing for conflicts
+                            for key, value in variant_cfg.items():
+                                if key not in existing:
+                                    existing[key] = value
+                        elif isinstance(variant_cfg, dict):
+                            # canonical's entry is corrupted/non-dict - variant's dict wins
+                            cfg[canonical] = variant_cfg
+                        # else: neither side is a usable dict - keep canonical's existing value
+                        moved += 1
+                    del cfg[variant]
+                    changed = True  # even a delete-only change must be persisted
+            if changed:
+                try:
+                    atomic_json_write(cfg, voice_config_path)
+                except OSError:
+                    pass
+    except TimeoutError as e:
+        print(f"  Warning: could not lock {voice_config_path} for speaker remap ({e}); skipping.")
+        return 0
     return moved
 
 
@@ -614,13 +714,20 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_b
     [threshold, upper_bound]. If upper_bound is None, it defaults to
     1.0 + (1.0 - threshold), i.e. symmetric around 1.0.
     """
+    import re
+    
     orig_words = []
     for e in original_entries:
-        orig_words.extend(normalize_text(e.get("text", "")).split())
+        # Use regex split to handle all Unicode whitespace properly
+        text = normalize_text(e.get("text", ""))
+        words = re.split(r'\s+', text.strip())
+        orig_words.extend([w for w in words if w])  # Filter empty strings
 
     corr_words = []
     for e in corrected_entries:
-        corr_words.extend(normalize_text(e.get("text", "")).split())
+        text = normalize_text(e.get("text", ""))
+        words = re.split(r'\s+', text.strip())
+        corr_words.extend([w for w in words if w])
 
     if not orig_words:
         return True, "", "", 1.0
@@ -789,6 +896,14 @@ def main():
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
+    # Re-verify LM Studio settings are still optimized right before review starts
+    # to catch any configuration changes that happened between apply and now
+    pre_review_status = get_lmstudio_status(model_name)
+    if pre_review_status["loaded"] and not pre_review_status["optimized"]:
+        print(f"WARNING: LM Studio model '{model_name}' is loaded but NOT optimized for VRAM.")
+        print("This may cause OOM crashes during batch review. Consider restarting LM Studio")
+        print("with VRAM-safe settings or reducing batch size.")
+
     all_corrected = []
     total_stats = {
         "text_changed": 0,
@@ -872,9 +987,9 @@ def main():
                                 batch_lengths, failed_batches)
                 continue
 
-            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.15)
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
             if not passed:
-                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.15)")
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
                 print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
                 print(f"  Keeping original entries for batch {batch_index} to prevent data corruption (will retry on next resume).")
                 all_corrected.extend(batch)
@@ -971,8 +1086,8 @@ def main():
                                 batch_lengths, failed_batches)
                 continue
 
-            # Text-loss safety check
-            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected)
+            # Text-loss safety check (same bounds as contextual mode for consistency)
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
             if not passed:
                 print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
                 print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
@@ -1056,9 +1171,8 @@ def main():
 
     output_entries = all_corrected + unreviewed_remainder
 
-    # Write corrected script
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output_entries, f, indent=2, ensure_ascii=False)
+    # Write corrected script atomically so a crash mid-write doesn't corrupt the output
+    atomic_json_write(output_entries, output_path)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.

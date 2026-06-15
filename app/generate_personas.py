@@ -9,31 +9,54 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write
+from utils import atomic_json_write as _atomic_json_write, safe_load_json
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 
 
 def extract_json_object(text):
-    # Find first JSON object in text
+    """Extract the first JSON object from text using robust parsing.
+    
+    Tries standard json.loads first, then uses a brace-matching approach
+    that properly handles escaped characters in strings.
+    """
+    if not text:
+        return None
+    
+    # Try parsing as-is first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Find JSON object by tracking brace depth while respecting string escaping
     start = text.find('{')
     if start == -1:
         return None
+    
     depth = 0
-    in_str = False
-    esc = False
+    in_string = False
+    escape_next = False
     end = None
-    for i, ch in enumerate(text[start:], start):
-        if esc:
-            esc = False
+    
+    for i in range(start, len(text)):
+        ch = text[i]
+        
+        if escape_next:
+            escape_next = False
             continue
+        
         if ch == '\\':
-            esc = True
+            if in_string:
+                escape_next = True
             continue
+        
         if ch == '"':
-            in_str = not in_str
+            in_string = not in_string
             continue
-        if in_str:
+        
+        if in_string:
             continue
+        
         if ch == '{':
             depth += 1
         elif ch == '}':
@@ -41,12 +64,14 @@ def extract_json_object(text):
             if depth == 0:
                 end = i + 1
                 break
+    
     if end is None:
         return None
+    
     obj_text = text[start:end]
     try:
         return json.loads(obj_text)
-    except Exception:
+    except json.JSONDecodeError:
         return None
 
 
@@ -81,8 +106,8 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
 
     Tries:
     1. Exact match after normalization.
-    2. Substring match after normalization.
-    3. Token Jaccard similarity.
+    2. Substring match with word boundary checks (not just any substring).
+    3. Token Jaccard similarity with higher threshold.
     """
     if not raw_name:
         return None
@@ -96,13 +121,27 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
         if normalize_speaker_name(name) == norm_raw:
             return name
 
-    # Step 2: Substring match (either raw is in name, or name is in raw)
+    # Step 2: Substring match with word boundaries (avoid 'john' matching 'johnson')
     for name in allowed:
         norm_name = normalize_speaker_name(name)
-        if norm_name and (norm_name in norm_raw or norm_raw in norm_name):
+        if not norm_name:
+            continue
+        # Only match if one is a complete word within the other
+        # Use word boundary regex to avoid partial matches like john/johnson
+        pattern_raw_in_name = r'\b' + re.escape(norm_raw) + r'\b'
+        pattern_name_in_raw = r'\b' + re.escape(norm_name) + r'\b'
+        if re.search(pattern_raw_in_name, norm_name) or re.search(pattern_name_in_raw, norm_raw):
             return name
 
-    # Step 3: Token Jaccard similarity
+        # Short prefix/nickname match (e.g. 'ann' vs 'anna', len diff <= 2).
+        # Require both names to have at least 3 chars so short names/initials
+        # ('al', 'jo') don't spuriously match unrelated longer names ('allan', 'jonathan').
+        if len(norm_raw) >= 3 and len(norm_name) >= 3:
+            if (norm_name.startswith(norm_raw) and len(norm_name) - len(norm_raw) <= 2) or \
+               (norm_raw.startswith(norm_name) and len(norm_raw) - len(norm_name) <= 2):
+                return name
+
+    # Step 3: Token Jaccard similarity with higher threshold
     best_name = None
     best_score = 0.0
     for name in allowed:
@@ -218,6 +257,10 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names):
             temperature=0.1,
             max_tokens=max(1500, len(speakers_info) * 80),
         )
+        # Check if response has choices before accessing
+        if not response.choices or len(response.choices) == 0:
+            print("Warning: LLM returned empty response for alias resolution")
+            return {}
         result = extract_json_object(response.choices[0].message.content.strip())
         if isinstance(result, dict):
             # Normalize keys and values to match exact input names casing
@@ -306,13 +349,7 @@ def _character_ref_path(ref_dir, speaker):
 
 def _load_character_ref(ref_dir, speaker):
     path = _character_ref_path(ref_dir, speaker)
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
+    default = {
         "name": speaker,
         "aliases": [],
         "features": [],
@@ -322,6 +359,7 @@ def _load_character_ref(ref_dir, speaker):
         "sample_lines": [],
         "observations": [],
     }
+    return safe_load_json(path, default=default)
 
 
 def _append_character_ref(ref_dir, speaker, batch_number, character_data):
@@ -599,7 +637,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
                 max_tokens=600,
             )
             parsed = extract_json_object(response.choices[0].message.content.strip())
-            if parsed:
+            if isinstance(parsed, dict):
                 description = str(parsed.get("description", "") or "").strip()
                 ref_text = str(parsed.get("ref_text", "") or "").strip()
         except Exception as e:
@@ -664,13 +702,7 @@ def main():
         narrator_context[speaker] = _collect_narrator_context(script, speaker, window)
 
     # Load LLM config
-    config = {}
-    if os.path.exists(app_config_path):
-        try:
-            with open(app_config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Warning: Failed to load app/config.json: {e}")
+    config = safe_load_json(app_config_path, default={})
 
     llm_cfg = config.get("llm", {})
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
@@ -686,13 +718,7 @@ def main():
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT
 
     # Load existing voice_config (preserve other fields)
-    voice_config = {}
-    if os.path.exists(voice_config_path):
-        try:
-            with open(voice_config_path, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
-        except Exception:
-            voice_config = {}
+    voice_config = safe_load_json(voice_config_path, default={})
 
     # Disable compile_codec for persona previews: compilation overhead
     # outweighs benefit for single generations, and subprocess context
@@ -844,7 +870,7 @@ def main():
             parsed = extract_json_object(text)
             description = ""
             ref_text = ""
-            if parsed:
+            if isinstance(parsed, dict):
                 description = str(parsed.get("description", "") or "").strip()
                 ref_text = str(parsed.get("ref_text", "") or "").strip()
 

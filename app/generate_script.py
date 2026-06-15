@@ -175,18 +175,18 @@ def salvage_json_entries(json_text):
 
 def fix_mojibake(text):
     """Fix common mojibake characters resulting from CP1252-as-UTF8."""
-    replacements = {
-        'â€™': ''',  # Right single quote
-        'â€˜': ''',  # Left single quote
-        'â€œ': '"',  # Left double quote
-        'â€\x9d': '"', # Right double quote
-        'â€?': '"', # Sometimes ? if undefined
-        'â€"': '—',  # Em dash
-        'â€"': '–',  # En dash
-        'â€¦': '…',  # Ellipsis
-    }
+    replacements = [
+        ('â€™', '\u2019'),  # Right single quote
+        ('â€˜', '\u2018'),  # Left single quote
+        ('â€œ', '\u201c'),  # Left double quote
+        ('â€\x9d', '\u201d'),  # Right double quote
+        ('â€?', '\u201d'),  # Sometimes ? if undefined
+        ('â€“', '\u2013'),  # En dash (UTF-8 E2 80 93 read as CP1252)
+        ('â€”', '\u2014'),  # Em dash (UTF-8 E2 80 94 read as CP1252)
+        ('â€¦', '\u2026'),  # Ellipsis
+    ]
 
-    for bad, good in replacements.items():
+    for bad, good in replacements:
         text = text.replace(bad, good)
 
     return text
@@ -290,6 +290,18 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_e
             log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, "llm_responses.log")
+            
+            # Rotate log if it exceeds 10MB to prevent unbounded growth
+            max_log_size = 10 * 1024 * 1024  # 10MB
+            if os.path.exists(log_path) and os.path.getsize(log_path) > max_log_size:
+                backup_path = log_path + ".bak"
+                try:
+                    if os.path.exists(backup_path):
+                        os.remove(backup_path)
+                    os.rename(log_path, backup_path)
+                except OSError:
+                    pass  # If rotation fails, just append to existing log
+            
             with open(log_path, "a", encoding="utf-8") as lf:
                 lf.write(f"\n{'='*80}\n")
                 lf.write(f"CHUNK {chunk_num}/{total_chunks} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
@@ -419,6 +431,8 @@ def main():
 
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
 
+    output_path = args.output or os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
+
     all_entries = []
     chunk_times = []
     start_time = time.monotonic()
@@ -465,7 +479,6 @@ def main():
         sys.exit(1)
 
     # Save as JSON
-    output_path = args.output or os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(all_entries, f, indent=2, ensure_ascii=False)
 

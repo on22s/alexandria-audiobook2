@@ -4,18 +4,31 @@ app/static/index.html (derives paused/running from the button's own
 class instead of a closure variable + .reset(), and retries on 503).
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_pause_resume_refactor.py
+  python test_pause_resume_refactor.py
+  # or from project root:
+  # app/env/bin/python test_pause_resume_refactor.py
 """
 import asyncio
 import os
 
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = (
-    "/home/fakemitch/pinokio/cache/XDG_CACHE_HOME/ms-playwright"
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.environ.get(
+    "PLAYWRIGHT_BROWSERS_PATH",
+    os.path.expanduser("~/.cache/ms-playwright")
 )
 
 from playwright.async_api import async_playwright
 
 FAILURES = []
+
+# Timeout constants (in milliseconds)
+PAGE_LOAD_TIMEOUT = 15000
+UI_SETTLE_DELAY = 200  # wait for UI to settle after click
+RETRY_POLL_DELAY = 2500  # wait for 503 retry attempts
+FAILURE_POLL_DELAY = 500  # wait for non-retried failure
+POST_CLICK_WAIT = 400  # wait after simulated button click
+MANUAL_WAIT = 600  # wait after manual navigation
+BROWSER_CLOSE_WAIT = 8000  # time to keep browser open for manual inspection
+APP_URL = "http://127.0.0.1:4200"
 
 
 def check(label, condition, detail=""):
@@ -29,7 +42,7 @@ async def run():
     async with async_playwright() as p:
         browser = await p.firefox.launch(headless=True)
         page = await browser.new_page()
-        await page.goto("http://127.0.0.1:4200", timeout=15000)
+        await page.goto(APP_URL, timeout=PAGE_LOAD_TIMEOUT)
         await page.wait_for_load_state("networkidle")
 
         # --- Stub out fetch so we can drive /pause and /resume responses
@@ -65,7 +78,7 @@ async def run():
         }""")
 
         await page.evaluate("() => window.pauseResumeScript()")
-        await page.wait_for_timeout(200)
+        await page.wait_for_timeout(UI_SETTLE_DELAY)
         state1 = await page.evaluate("""() => ({
             calls: window.__calls.slice(),
             label: document.getElementById('btn-pause-script').innerHTML,
@@ -103,7 +116,7 @@ async def run():
             window.__calls = [];
         }""")
         await page.evaluate("() => window.pauseResumeScript()")
-        await page.wait_for_timeout(200)
+        await page.wait_for_timeout(UI_SETTLE_DELAY)
         state3 = await page.evaluate("() => window.__calls.slice()")
         check("after a fresh-run reset, next click correctly calls /pause (not /resume)",
               any('/pause' in c and 'batch' not in c for c in state3), state3)
@@ -128,7 +141,7 @@ async def run():
             };
         }""")
         await page.evaluate("() => window.pauseResumeScript()")
-        await page.wait_for_timeout(2500)
+        await page.wait_for_timeout(RETRY_POLL_DELAY)
         state4 = await page.evaluate("""() => ({
             calls: window.__calls.slice(),
             toasts: window.__toasts.slice(),
@@ -154,7 +167,7 @@ async def run():
             };
         }""")
         await page.evaluate("() => window.pauseResumeScript()")
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(FAILURE_POLL_DELAY)
         state5 = await page.evaluate("""() => ({
             calls: window.__calls.slice(),
             toasts: window.__toasts.slice(),

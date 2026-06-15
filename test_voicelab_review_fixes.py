@@ -29,7 +29,9 @@ testable behavior and is not covered here.
      batch_review, batch_script, and voicelab.
 
 Run with:
-  /home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python test_voicelab_review_fixes.py
+  python test_voicelab_review_fixes.py
+  # or from project root:
+  # app/env/bin/python test_voicelab_review_fixes.py
 """
 import asyncio
 import inspect

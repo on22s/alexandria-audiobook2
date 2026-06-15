@@ -100,14 +100,14 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
         print(f"  Sweep: sub_batch_max_items={max_items}, n_chunks={n_chunks_per_run}")
         print(f"{'='*60}")
 
-        engine._sub_batch_max_items = max_items
+        engine.set_sub_batch_size(max_items)
         random.seed(42)
         chunks = make_chunks(n_chunks_per_run)
 
         import torch
         torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
-        batch_results = engine._local_batch_custom(chunks, voice_config, output_dir)
+        batch_results = engine.run_benchmark_batch(chunks, voice_config, output_dir)
         elapsed = time.time() - t0
         peak_gb = torch.cuda.max_memory_allocated() / 1e9
 
@@ -254,8 +254,7 @@ def main():
         post_results = []
         if args.compile:
             print(f"\n--- Compiling codec ---")
-            engine._compile_codec_enabled = True
-            engine._compile_codec(engine._local_custom_model)
+            engine.enable_codec_compilation()
             print(f"\n--- Post-compile sweep ---")
             post_results = run_sweep(engine, voice_config, args.sizes, output_dir, args.chunks)
 
