@@ -43,9 +43,12 @@ def download_model():
         processor.save_pretrained(model_path)
         print("✓ Processor saved")
 
-        # Check size
-        result = os.popen(f"du -sh {model_path}").read().strip()
-        print(f"✓ Total size: {result}")
+        # Check size (stdlib walk — portable, no shell/du dependency)
+        total_bytes = sum(
+            os.path.getsize(os.path.join(dp, f))
+            for dp, _, files in os.walk(model_path) for f in files
+        )
+        print(f"✓ Total size: {total_bytes / (1024 ** 2):.1f} MB")
 
         print()
         print("=" * 70)

@@ -306,6 +306,27 @@
             --bs-card-bg: var(--bg-card);
             --bs-card-cap-bg: var(--bg-card-header);
             --bs-modal-bg: var(--bg-modal);
+            /* Surface tokens Bootstrap leaves light by default — without these,
+               .bg-body-tertiary / .bg-body-secondary (e.g. the batch-review
+               totals box) render as a near-white box with unreadable text. */
+            --bs-secondary-bg: var(--bg-card-header);
+            --bs-tertiary-bg: var(--bg-card);
+            --bs-secondary-color: var(--text-muted);
+            --bs-tertiary-color: var(--text-muted);
+        }
+
+        /* Form switches: Bootstrap's unchecked knob + border are near-invisible
+           on dark backgrounds — give the track a visible border and a light knob. */
+        html[data-theme="night"] .form-switch .form-check-input,
+        html[data-theme="super-night"] .form-switch .form-check-input {
+            background-color: var(--bg-input);
+            border-color: rgba(255,255,255,0.30);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba(255,255,255,0.6)'/%3e%3c/svg%3e");
+        }
+        html[data-theme="night"] .form-switch .form-check-input:checked,
+        html[data-theme="super-night"] .form-switch .form-check-input:checked {
+            background-color: #198754;   /* match the app's green accent */
+            border-color: #198754;
         }
 
         /* ── Bootstrap contextual table class overrides ────────────────── */
@@ -1804,6 +1825,15 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // Parse a numeric input's value, falling back to `def` when the field is
+        // empty/non-numeric. Uses Number.isFinite (not `|| def`) so a deliberate 0
+        // is preserved rather than treated as falsy.
+        function numFieldValue(id, def, isInt = false) {
+            const raw = document.getElementById(id).value;
+            const v = isInt ? parseInt(raw, 10) : parseFloat(raw);
+            return Number.isFinite(v) ? v : def;
+        }
+
         // --- Desktop notifications ---
         const TASK_LABELS = {
             script: 'Script generation',
@@ -2252,11 +2282,11 @@
                     compile_codec: document.getElementById('compile-codec').checked,
                     batch_group_by_type: document.getElementById('batch-group-by-type').checked,
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
-                    sub_batch_min_size: parseInt(document.getElementById('sub-batch-min-size').value) || 4,
-                    sub_batch_ratio: parseFloat(document.getElementById('sub-batch-ratio').value) || 5,
-                    sub_batch_max_items: parseInt(document.getElementById('sub-batch-max-items').value) || 0,
-                    pause_between_speakers_ms: parseInt(document.getElementById('pause-between-speakers').value) || 500,
-                    pause_same_speaker_ms: parseInt(document.getElementById('pause-same-speaker').value) || 250
+                    sub_batch_min_size: numFieldValue('sub-batch-min-size', 4, true),
+                    sub_batch_ratio: numFieldValue('sub-batch-ratio', 5),
+                    sub_batch_max_items: numFieldValue('sub-batch-max-items', 0, true),
+                    pause_between_speakers_ms: numFieldValue('pause-between-speakers', 500, true),
+                    pause_same_speaker_ms: numFieldValue('pause-same-speaker', 250, true)
                 },
                 prompts: {
                     system_prompt: document.getElementById('system-prompt').value,
@@ -2270,11 +2300,11 @@
                 generation: {
                     chunk_size: chunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
-                    temperature: parseFloat(document.getElementById('temperature').value),
-                    top_p: parseFloat(document.getElementById('top-p').value),
-                    top_k: parseInt(document.getElementById('top-k').value),
-                    min_p: parseFloat(document.getElementById('min-p').value),
-                    presence_penalty: parseFloat(document.getElementById('presence-penalty').value),
+                    temperature: numFieldValue('temperature', 0.6),
+                    top_p: numFieldValue('top-p', 0.8),
+                    top_k: numFieldValue('top-k', 0, true),
+                    min_p: numFieldValue('min-p', 0),
+                    presence_penalty: numFieldValue('presence-penalty', 0.0),
                     banned_tokens: document.getElementById('banned-tokens').value
                         ? document.getElementById('banned-tokens').value.split(',').map(t => t.trim()).filter(t => t)
                         : [],
@@ -2447,8 +2477,7 @@
             }
             document.getElementById('script-batch-queue-container').style.display = 'block';
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
+            [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
@@ -2456,7 +2485,7 @@
                 `;
                 tbody.appendChild(row);
                 scriptBatchQueue.push({ file });
-            }
+            });
         };
 
         window.cancelBatchScript = async () => {
@@ -2486,12 +2515,12 @@
             logEl.innerHTML = '';
 
             try {
-                const tasks = [];
-                for (const item of scriptBatchQueue) {
+                // Upload files in parallel; map preserves queue order for `tasks`.
+                const tasks = await Promise.all(scriptBatchQueue.map(async (item) => {
                     const res = await API.upload(item.file);
                     // Use stored_filename if provided (handles epub→txt), otherwise fall back
-                    tasks.push({ filename: res.stored_filename || res.filename });
-                }
+                    return { filename: res.stored_filename || res.filename };
+                }));
 
                 statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
                 await API.post('/api/generate_script/batch/start', { tasks });
@@ -2985,8 +3014,8 @@
                         clearInterval(interval);
                         // Refresh voices and caches
                         try { await loadVoices(); } catch (e) { /* ignore */ }
-                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { }
-                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { }
+                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
+                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
                         showToast('Persona generation finished', 'success');
                         statusSpan.innerText = '';
                         if (cancelButton) {
@@ -3328,7 +3357,7 @@
         window._selectedCast = window._selectedCast || '';
         let castBulkScripts = [];   // saved-script list for the "apply to multiple books" picker
 
-        function castStatus(html, isError) {
+        function setCastStatus(html, isError) {
             const el = document.getElementById('cast-status');
             if (el) el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html;
         }
@@ -3400,8 +3429,8 @@
                 await API.post('/api/voice_library/casts', { name });
                 window._selectedCast = name;
                 await loadCastLibrary();
-                castStatus(`<i class="fas fa-check text-success me-1"></i>Created cast "${escapeHtml(name)}"`);
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+                setCastStatus(`<i class="fas fa-check text-success me-1"></i>Created cast "${escapeHtml(name)}"`);
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         async function deleteCast() {
@@ -3411,15 +3440,15 @@
                 await API.del(`/api/voice_library/casts/${encodeURIComponent(window._selectedCast)}`);
                 window._selectedCast = '';
                 await loadCastLibrary();
-                castStatus('<i class="fas fa-check text-success me-1"></i>Cast deleted');
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+                setCastStatus('<i class="fas fa-check text-success me-1"></i>Cast deleted');
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         async function deleteCastMember(cast, key) {
             try {
                 await API.del(`/api/voice_library/casts/${encodeURIComponent(cast)}/members/${encodeURIComponent(key)}`);
                 await loadCastLibrary();
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         // Save current-book characters into the selected cast
@@ -3483,7 +3512,7 @@
         async function submitCastSave() {
             const checks = Array.from(document.querySelectorAll('.cast-save-check:checked'));
             const characters = checks.map(cb => cb.dataset.name);
-            if (!characters.length) { castStatus('Select at least one character.', true); return; }
+            if (!characters.length) { setCastStatus('Select at least one character.', true); return; }
             // Narrators marked "this cast only" are saved as a series-specific (different) narrator
             const cast_specific = Array.from(document.querySelectorAll('.cast-save-scope'))
                 .filter(s => s.value === 'cast' && characters.includes(s.dataset.name))
@@ -3496,12 +3525,12 @@
                 let msg = `Saved ${nc} to cast`;
                 if (ns) msg += `, ${ns} shared`;
                 if (skipped > 0) msg += ` (${skipped} skipped — not configured)`;
-                castStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+                setCastStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         // Build the candidate-member pool for the current cast (shared + cast-specific)
-        function _castMatchPool() {
+        function _getCastMatchPool() {
             const cast = getSelectedCastObj();
             return [...(window._voiceLibrary.shared || []).map(m => ({ ...m, source: 'shared' })),
                     ...((cast && cast.members) || []).map(m => ({ ...m, source: 'cast' }))];
@@ -3533,9 +3562,9 @@
             let res;
             try {
                 res = await API.post('/api/voice_library/match', { name: window._selectedCast });
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
 
-            const pool = _castMatchPool();
+            const pool = _getCastMatchPool();
             const anyMatch = res.proposals.some(p => p.match);
             const rows = _renderCastMatchRows(res.proposals, pool);
 
@@ -3564,12 +3593,12 @@
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
                 if (sel && sel.value) mapping[char] = sel.value;
             });
-            if (!Object.keys(mapping).length) { castStatus('Nothing selected to apply.', true); return; }
+            if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
                 const res = await API.post('/api/voice_library/apply', { cast: window._selectedCast, mapping });
-                castStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}`);
+                setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}`);
                 await loadVoices();  // re-render cards with the applied configs
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         // --- Apply a cast to multiple saved books at once ---
@@ -3632,15 +3661,15 @@
         // render the same review table as openCastApply but for all of them at once.
         async function openCastApplyBulkMatch() {
             const script_names = Array.from(document.querySelectorAll('.cast-bulk-check:checked')).map(cb => cb.dataset.name);
-            if (!script_names.length) { castStatus('Select at least one book.', true); return; }
+            if (!script_names.length) { setCastStatus('Select at least one book.', true); return; }
             const panel = document.getElementById('cast-panel');
             panel.innerHTML = '<div class="small text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Matching characters...</div>';
             let res;
             try {
                 res = await API.post('/api/voice_library/match_bulk', { name: window._selectedCast, script_names });
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); renderCastMembers(); return; }
 
-            const pool = _castMatchPool();
+            const pool = _getCastMatchPool();
             const anyMatch = res.proposals.some(p => p.match);
             const rows = _renderCastMatchRows(res.proposals, pool);
 
@@ -3670,7 +3699,7 @@
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
                 if (sel && sel.value) mapping[char] = sel.value;
             });
-            if (!Object.keys(mapping).length) { castStatus('Nothing selected to apply.', true); return; }
+            if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
             try {
                 const res = await API.post('/api/voice_library/apply_bulk', { cast: window._selectedCast, mapping, script_names });
@@ -3687,8 +3716,8 @@
                         <ul class="list-group list-group-flush border rounded mb-2">${rows || '<li class="list-group-item small text-muted py-2 px-2">No books updated.</li>'}</ul>
                         <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Done</button>
                     </div>`;
-                castStatus(`<i class="fas fa-check text-success me-1"></i>Applied to ${res.results.length} book${res.results.length !== 1 ? 's' : ''}`);
-            } catch (e) { castStatus(escapeHtml(e.message || String(e)), true); }
+                setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied to ${res.results.length} book${res.results.length !== 1 ? 's' : ''}`);
+            } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
 
         function collectVoiceConfig() {
@@ -5966,11 +5995,12 @@
         // job is healthy server-side. Only one task feeds this window at a time, so
         // attach the first running one in priority order.
         async function reattachRunningPollers() {
-            const running = {};
-            for (const t of ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'voicelab']) {
-                try { running[t] = (await API.get(`/api/status/${t}`)).running; }
-                catch (e) { running[t] = false; }
-            }
+            // Fetch all task statuses in parallel; each falls back to false on error.
+            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'voicelab'];
+            const flags = await Promise.all(names.map(t =>
+                API.get(`/api/status/${t}`).then(r => r.running).catch(() => false)
+            ));
+            const running = Object.fromEntries(names.map((t, i) => [t, flags[i]]));
 
             const show = (id, disp = 'inline-block') => {
                 const el = document.getElementById(id); if (el) el.style.display = disp;
@@ -6052,8 +6082,7 @@
             }
             document.getElementById('prep-batch-queue-container').style.display = 'block';
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
+            [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="text-truncate" style="max-width:350px;">${file.name}</td>
@@ -6061,7 +6090,7 @@
                 `;
                 tbody.appendChild(row);
                 prepBatchQueue.push({ audio: file.name });
-            }
+            });
         };
 
         window.startPreparer = async () => {
@@ -6081,8 +6110,8 @@
                 audio_filename: audioFile.name,
                 output_filename: document.getElementById('prep-output').value,
                 lang:            document.getElementById('prep-lang').value,
-                min_confidence:  parseFloat(document.getElementById('prep-confidence').value),
-                min_snr:         parseInt(document.getElementById('prep-snr').value),
+                min_confidence:  numFieldValue('prep-confidence', 0.85),
+                min_snr:         numFieldValue('prep-snr', 25, true),
             };
 
             const fd = new FormData();
@@ -6122,8 +6151,8 @@
             const body = {
                 tasks,
                 lang:           document.getElementById('prep-lang').value,
-                min_confidence: parseFloat(document.getElementById('prep-confidence').value),
-                min_snr:        parseInt(document.getElementById('prep-snr').value),
+                min_confidence: numFieldValue('prep-confidence', 0.85),
+                min_snr:        numFieldValue('prep-snr', 25, true),
             };
 
             try {

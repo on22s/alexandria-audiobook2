@@ -23,6 +23,23 @@ DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
+def voice_category(voice_data):
+    """Normalize a voice config entry's type into a routing category.
+
+    Collapses the "lora"/"builtin_lora" pair into a single "lora" category so
+    the membership test isn't duplicated at every call site. Returns one of
+    "clone", "lora", "design", or "custom".
+    """
+    voice_type = (voice_data or {}).get("type", "custom")
+    if voice_type == "clone":
+        return "clone"
+    if voice_type in ("lora", "builtin_lora"):
+        return "lora"
+    if voice_type == "design":
+        return "design"
+    return "custom"
+
+
 def sanitize_filename(name):
     """Make a string safe for use in filenames. Uses secure_filename to prevent path
     traversal, then collapses remaining spaces/dots/etc. to underscores to match the
@@ -743,13 +760,13 @@ class TTSEngine:
             print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
             return False
 
-        voice_type = voice_data.get("type", "custom")
+        category = voice_category(voice_data)
 
-        if voice_type == "clone":
+        if category == "clone":
             return self.generate_clone_voice(text, speaker, voice_config, output_path)
-        elif voice_type in ("lora", "builtin_lora"):
+        elif category == "lora":
             return self.generate_lora_voice(text, instruct_text, voice_data, output_path)
-        elif voice_type == "design":
+        elif category == "design":
             return self.generate_design_voice(text, instruct_text, voice_data, output_path)
         else:
             return self.generate_custom_voice(text, instruct_text, speaker, voice_config, output_path)
@@ -990,13 +1007,13 @@ class TTSEngine:
         for chunk in chunks:
             speaker = chunk.get("speaker")
             voice_data = voice_config.get(speaker, {})
-            voice_type = voice_data.get("type", "custom")
+            category = voice_category(voice_data)
 
-            if voice_type == "clone":
+            if category == "clone":
                 clone_chunks.append(chunk)
-            elif voice_type in ("lora", "builtin_lora"):
+            elif category == "lora":
                 lora_chunks.append(chunk)
-            elif voice_type == "design":
+            elif category == "design":
                 design_chunks.append(chunk)
             else:
                 custom_chunks.append(chunk)

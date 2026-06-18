@@ -99,6 +99,15 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
         for tok in _name_tokens(sp):
             token_to_speaker.setdefault(tok, sp)
 
+    # Pre-compile one word-boundary pattern per token (once, not per entry) and
+    # test each independently. A combined alternation with findall would be
+    # faster but is NOT equivalent: findall consumes a match, so when one
+    # speaker's token is a prefix of another's at the same position (e.g. "beat"
+    # vs "beatrice"), only the longer would register and a real co-occurrence
+    # would be dropped. Independent searches credit every token that appears.
+    token_patterns = [(re.compile(rf"\b{re.escape(tok)}"), sp)
+                      for tok, sp in token_to_speaker.items()]
+
     cooccur = []
     seen = set()
     for e in entries:
@@ -106,7 +115,7 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
         if not txt or len(txt) > 600:
             continue
         low = txt.lower()
-        hits = {sp for tok, sp in token_to_speaker.items() if re.search(rf"\b{re.escape(tok)}", low)}
+        hits = {sp for pat, sp in token_patterns if pat.search(low)}
         if len(hits) >= 2:
             key = txt[:120]
             if key not in seen:

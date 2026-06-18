@@ -4,6 +4,7 @@ import sys
 import json
 import re
 import time
+from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 
@@ -227,12 +228,143 @@ def split_into_chunks(text, max_size=3000):
 
     return chunks
 
-def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_entries=None, max_retries=2, system_prompt=None, user_prompt_template=None, max_tokens=4096, temperature=0.6, top_p=0.8, top_k=None, min_p=None, presence_penalty=0.0, banned_tokens=None):
-    """Process a text chunk and return JSON script entries"""
-    # Use provided prompts or fall back to defaults
-    sys_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
-    usr_template = user_prompt_template or DEFAULT_USER_PROMPT
+@dataclass
+class LLMGenParams:
+    """LLM prompt + sampling settings shared by script generation and review.
 
+    Groups the knobs previously threaded as ~9 separate arguments through
+    process_chunk()/review_batch() and their callers. `system_prompt` and
+    `user_prompt_template` are optional overrides; each caller falls back to its
+    own module default when they are None.
+
+    NOTE: the sampling defaults below are a script-generation baseline only. The
+    review pass uses different tuned values (higher max_tokens, lower temperature,
+    top_k=20) and always constructs this explicitly, so don't rely on these
+    defaults for review — pass review's values in.
+    """
+    system_prompt: str = None
+    user_prompt_template: str = None
+    max_tokens: int = 4096
+    temperature: float = 0.6
+    top_p: float = 0.8
+    top_k: int = None
+    min_p: float = None
+    presence_penalty: float = 0.0
+    banned_tokens: list = None
+
+
+def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
+    """Rotate <log_path> to <log_path>.bak once it exceeds max_bytes (best-effort)."""
+    if os.path.exists(log_path) and os.path.getsize(log_path) > max_bytes:
+        backup_path = log_path + ".bak"
+        try:
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            os.rename(log_path, backup_path)
+        except OSError:
+            pass  # If rotation fails, just append to existing log
+
+
+def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
+                         log_name, label, max_retries=2):
+    """Call the LLM and parse a JSON array of entries, with retries.
+
+    Shared by process_chunk() (script generation) and review_batch() (review):
+    the two only differed in their log file/label and failure sentinel. Returns a
+    list of entries, or [] if every attempt failed to produce parseable JSON.
+    `log_name` is the raw-response log basename; `label` tags each block
+    (e.g. "CHUNK 3/40" or "BATCH 2/10").
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=params.temperature,
+                top_p=params.top_p,
+                presence_penalty=params.presence_penalty,
+                max_tokens=params.max_tokens,
+                extra_body={
+                    k: v for k, v in {
+                        "top_k": params.top_k,
+                        "min_p": params.min_p,
+                        "banned_tokens": params.banned_tokens if params.banned_tokens else None,
+                    }.items() if v is not None
+                }
+            )
+
+            choice = response.choices[0]
+            text = choice.message.content.strip()
+            finish_reason = choice.finish_reason
+            usage = getattr(response, 'usage', None)
+
+            # Log raw response for debugging (rotating to cap unbounded growth)
+            log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, log_name)
+            _rotate_log_if_large(log_path)
+            with open(log_path, "a", encoding="utf-8") as lf:
+                lf.write(f"\n{'='*80}\n")
+                lf.write(f"{label} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
+                if usage:
+                    lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
+                lf.write(f"{'─'*80}\n")
+                lf.write(text)
+                lf.write(f"\n{'='*80}\n")
+
+            print(f"  finish_reason={finish_reason}", end="")
+            if usage:
+                print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
+            print()
+
+            if finish_reason == "length":
+                print(f"  WARNING: Response was truncated (hit max_tokens={params.max_tokens}). Consider increasing max_tokens.")
+
+        except Exception as e:
+            print(f"Error calling LLM API (attempt {attempt + 1}): {e}")
+            if attempt < max_retries:
+                continue
+            return []
+
+        # Clean and extract JSON from response
+        json_text = clean_json_string(text)
+
+        if not json_text:
+            print(f"Warning: Could not find JSON array in {label} response (attempt {attempt + 1})")
+            if attempt < max_retries:
+                print("Retrying...")
+                continue
+            print(f"Response preview: {text[:300]}...")
+            return []
+
+        # Try to parse, with repair attempts
+        entries = repair_json_array(json_text)
+
+        if entries and len(entries) > 0:
+            if attempt > 0:
+                print(f"  Succeeded on retry {attempt + 1}")
+            return entries
+
+        print(f"Warning: Could not parse {label} response as JSON (attempt {attempt + 1})")
+        print(f"JSON preview: {json_text[:300]}...")
+
+        if attempt < max_retries:
+            print("Retrying...")
+
+        # Last resort: extract individual valid entries with regex
+        salvaged_entries = salvage_json_entries(json_text)
+        if salvaged_entries:
+            print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
+            return salvaged_entries
+
+    return []
+
+
+def _build_chunk_context(chunk_num, total_chunks, previous_entries):
+    """Build the positional + character-roster context block prepended to a chunk."""
     context_parts = []
 
     if chunk_num == 1:
@@ -257,107 +389,24 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_e
         for entry in tail:
             context_parts.append(json.dumps(entry, ensure_ascii=False))
 
-    context = "\n".join(context_parts)
+    return "\n".join(context_parts)
+
+
+def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
+                  previous_entries=None, max_retries=2):
+    """Process a text chunk and return JSON script entries."""
+    sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
+    usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
+
+    context = _build_chunk_context(chunk_num, total_chunks, previous_entries)
     user_prompt = usr_template.format(context=context, chunk=chunk)
 
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=temperature,
-                top_p=top_p,
-                presence_penalty=presence_penalty,
-                max_tokens=max_tokens,
-                extra_body={
-                    k: v for k, v in {
-                        "top_k": top_k if top_k is not None else None,
-                        "min_p": min_p if min_p is not None else None,
-                        "banned_tokens": banned_tokens if banned_tokens else None,
-                    }.items() if v is not None
-                }
-            )
-
-            choice = response.choices[0]
-            text = choice.message.content.strip()
-            finish_reason = choice.finish_reason
-            usage = getattr(response, 'usage', None)
-
-            # Log raw response for debugging
-            log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, "llm_responses.log")
-            
-            # Rotate log if it exceeds 10MB to prevent unbounded growth
-            max_log_size = 10 * 1024 * 1024  # 10MB
-            if os.path.exists(log_path) and os.path.getsize(log_path) > max_log_size:
-                backup_path = log_path + ".bak"
-                try:
-                    if os.path.exists(backup_path):
-                        os.remove(backup_path)
-                    os.rename(log_path, backup_path)
-                except OSError:
-                    pass  # If rotation fails, just append to existing log
-            
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"\n{'='*80}\n")
-                lf.write(f"CHUNK {chunk_num}/{total_chunks} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
-                if usage:
-                    lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
-                lf.write(f"{'─'*80}\n")
-                lf.write(text)
-                lf.write(f"\n{'='*80}\n")
-
-            print(f"  finish_reason={finish_reason}", end="")
-            if usage:
-                print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
-            print()
-
-            if finish_reason == "length":
-                print(f"  WARNING: Response was truncated (hit max_tokens={max_tokens}). Consider increasing max_tokens.")
-
-        except Exception as e:
-            print(f"Error calling LLM API (attempt {attempt + 1}): {e}")
-            if attempt < max_retries:
-                continue
-            return []
-
-        # Clean and extract JSON from response
-        json_text = clean_json_string(text)
-
-        if not json_text:
-            print(f"Warning: Could not find JSON array in chunk {chunk_num} response (attempt {attempt + 1})")
-            if attempt < max_retries:
-                print("Retrying...")
-                continue
-            print(f"Response preview: {text[:300]}...")
-            return []
-
-        # Try to parse, with repair attempts
-        entries = repair_json_array(json_text)
-
-        if entries and len(entries) > 0:
-            if attempt > 0:
-                print(f"  Succeeded on retry {attempt + 1}")
-            return entries
-
-        # If repair failed, show warning
-        print(f"Warning: Could not parse chunk {chunk_num} response as JSON (attempt {attempt + 1})")
-        print(f"JSON preview: {json_text[:300]}...")
-
-        if attempt < max_retries:
-            print("Retrying with lower temperature...")
-
-        # Last resort: extract individual valid entries with regex
-        salvaged_entries = salvage_json_entries(json_text)
-        if salvaged_entries:
-            print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
-            return salvaged_entries
-
-    return []
+    return call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log",
+        label=f"CHUNK {chunk_num}/{total_chunks}",
+        max_retries=max_retries,
+    )
 
 def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
@@ -439,23 +488,27 @@ def main():
     chunk_times = []
     start_time = time.monotonic()
 
+    # Sampling/prompt settings are constant across chunks - build once.
+    gen_params = LLMGenParams(
+        system_prompt=system_prompt,
+        user_prompt_template=user_prompt_template,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        min_p=min_p,
+        presence_penalty=presence_penalty,
+        banned_tokens=banned_tokens,
+    )
+
     for i, chunk in enumerate(chunks, 1):
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
         chunk_start = time.monotonic()
         previous = all_entries if len(all_entries) > 0 else None
         entries = process_chunk(
-            client, model_name, chunk, i, total_chunks,
+            client, model_name, chunk, i, total_chunks, gen_params,
             previous_entries=previous,
-            system_prompt=system_prompt,
-            user_prompt_template=user_prompt_template,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            min_p=min_p,
-            presence_penalty=presence_penalty,
-            banned_tokens=banned_tokens
         )
         chunk_elapsed = time.monotonic() - chunk_start
         chunk_times.append(chunk_elapsed)

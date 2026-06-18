@@ -27,6 +27,7 @@ from math import ceil
 
 # Import ProjectManager
 from project import ProjectManager
+from tts import voice_category
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
@@ -160,6 +161,42 @@ def _get_torch():
 _gpu_stats_cache = {"data": None, "timestamp": 0}
 _GPU_STATS_CACHE_TTL = 5  # seconds
 
+def _gpu_stats_via_rocm_smi():
+    """VRAM/util from rocm-smi when torch can't see the GPU (e.g. a CUDA-only
+    torch build on an AMD box). Returns the same dict shape as get_gpu_stats(),
+    or None on any rocm-smi failure (missing binary, timeout, bad/empty JSON)."""
+    data = run_rocm_smi_json(["--showmeminfo", "vram", "--showuse"],
+                             rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+    if not data:
+        return None
+    for card_data in data.values():
+        if not isinstance(card_data, dict):
+            continue
+        total_b = card_data.get("VRAM Total Memory (B)")
+        used_b = card_data.get("VRAM Total Used Memory (B)")
+        if total_b is None:
+            continue
+        try:
+            total = int(total_b) / 1e9
+            used = int(used_b) / 1e9 if used_b is not None else 0.0
+        except (ValueError, TypeError):
+            continue
+        if total <= 0:
+            continue
+        stats = {"allocated_gb": used, "reserved_gb": used, "total_gb": total,
+                 "allocated_percent": used / total * 100,
+                 "utilization_percent": None}
+        for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
+            v = card_data.get(key)
+            if v not in (None, "N/A"):
+                try:
+                    stats["utilization_percent"] = float(v)
+                    break
+                except (ValueError, TypeError):
+                    pass
+        return stats
+    return None
+
 def get_gpu_stats():
     """Get current GPU memory and utilization stats with caching."""
     now = time.time()
@@ -170,10 +207,14 @@ def get_gpu_stats():
 
     torch = _get_torch()
     if torch is None or not torch.cuda.is_available():
-        logger.debug("GPU stats: No GPU available")
-        _gpu_stats_cache["data"] = None
+        # torch can't see the GPU (e.g. a CUDA-only build on an AMD box) —
+        # fall back to rocm-smi so AMD GPUs are still detected.
+        stats = _gpu_stats_via_rocm_smi()
+        if stats is None:
+            logger.debug("GPU stats: No GPU available (torch + rocm-smi both failed)")
+        _gpu_stats_cache["data"] = stats
         _gpu_stats_cache["timestamp"] = now
-        return None
+        return stats
 
     stats = {}
     try:
@@ -1460,6 +1501,17 @@ async def get_system_stats():
             gpu_name = torch.cuda.get_device_name(0)
     except (RuntimeError, OSError, AttributeError):
         pass
+    if gpu_name is None:
+        # torch can't see the GPU — ask rocm-smi for the product name (AMD).
+        name_data = run_rocm_smi_json(["--showproductname"],
+                                      rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+        if name_data:
+            for card_data in name_data.values():
+                if isinstance(card_data, dict):
+                    name = card_data.get("Card Series") or card_data.get("Card Model")
+                    if name and name != "N/A":
+                        gpu_name = name
+                        break
 
     return {
         "gpu": gpu,
@@ -2076,12 +2128,12 @@ async def find_nicknames_resume():
 @app.get("/api/character_aliases")
 async def get_character_aliases():
     """Return the current alias map { alias: canonical }."""
-    data = safe_load_json(CHARACTER_ALIASES_PATH, default={})
-    if not isinstance(data, dict):
+    aliases = safe_load_json(CHARACTER_ALIASES_PATH, default={})
+    if not isinstance(aliases, dict):
         return {}
     # Hide identity rows (NAME -> NAME) — they're inert and only clutter the editor.
     # Exact-match only, so a legitimate case-fix alias (kenji -> KENJI) stays visible.
-    return {k: v for k, v in data.items()
+    return {k: v for k, v in aliases.items()
             if isinstance(k, str) and isinstance(v, str) and k.strip() != v.strip()}
 
 
@@ -2746,7 +2798,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     for speaker, lines in samples.items():
         if request.only_unset:
             existing = voice_config.get(speaker, {})
-            if existing.get("type") in ("lora", "builtin_lora") and existing.get("adapter_id"):
+            if voice_category(existing) == "lora" and existing.get("adapter_id"):
                 continue
         cfg = voice_config.get(speaker, {})
         persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
@@ -2867,9 +2919,9 @@ async def restore_chunk(request: ChunkRestoreRequest):
 
 @app.post("/api/chunks/{index}")
 async def update_chunk(index: int, update: ChunkUpdate):
-    data = update.model_dump(exclude_unset=True)
-    logger.info(f"Updating chunk {index} with data: {data}")
-    chunk = project_manager.update_chunk(index, data)
+    updates = update.model_dump(exclude_unset=True)
+    logger.info(f"Updating chunk {index} with data: {updates}")
+    chunk = project_manager.update_chunk(index, updates)
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk not found")
     logger.info(f"Chunk {index} updated, instruct is now: '{chunk.get('instruct', '')}'")
@@ -3829,7 +3881,7 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
         return {"status": "ok", "audio_url": f"/designed_voices/previews/{filename}"}
     except Exception as e:
         logger.error(f"Voice design preview failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Voice design preview failed — see server logs for details.")
 
 @app.post("/api/voice_design/save")
 async def voice_design_save(request: VoiceDesignSaveRequest):
@@ -4348,7 +4400,7 @@ async def lora_download_builtin(adapter_id: str):
         return {"status": "downloaded", "adapter_id": adapter_id}
     except Exception as e:
         logger.error(f"Download failed for {adapter_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Built-in adapter download failed — see server logs for details.")
 
 @app.post("/api/lora/test")
 async def lora_test_model(request: LoraTestRequest):
@@ -4374,7 +4426,8 @@ async def lora_test_model(request: LoraTestRequest):
             download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
             adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Auto-download failed: {e}")
+            logger.error(f"Auto-download failed for {request.adapter_id}: {e}")
+            raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
     elif not os.path.isdir(adapter_dir):
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
@@ -4406,7 +4459,7 @@ async def lora_test_model(request: LoraTestRequest):
         }
     except Exception as e:
         logger.error(f"LoRA test generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.")
 
 LORA_PREVIEW_TEXT = "The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy that had been growing for centuries."
 
@@ -4433,7 +4486,8 @@ async def lora_preview(adapter_id: str):
             download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
             adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Auto-download failed: {e}")
+            logger.error(f"Auto-download failed for {adapter_id}: {e}")
+            raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
     elif not os.path.isdir(adapter_dir):
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
@@ -4465,7 +4519,7 @@ async def lora_preview(adapter_id: str):
         return {"status": "generated", "audio_url": f"{url_prefix}/preview_sample.wav"}
     except Exception as e:
         logger.error(f"LoRA preview generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.")
 
 ## ── Dataset Builder ──────────────────────────────────────────
 
@@ -4625,7 +4679,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
         samples[request.sample_index] = {"status": "error", "error": str(e)}
         state["samples"] = samples
         _save_builder_state(request.dataset_name, state)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.")
 
 @app.post("/api/dataset_builder/generate_batch")
 async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
@@ -4830,7 +4884,8 @@ async def dataset_builder_save(request: DatasetSaveRequest):
         # Clean up on failure
         if os.path.exists(dataset_dir):
             shutil.rmtree(dataset_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Dataset save failed: {e}")
+        raise HTTPException(status_code=500, detail="Dataset save failed — see server logs for details.")
 
 @app.delete("/api/dataset_builder/{name}")
 async def dataset_builder_delete(name: str):

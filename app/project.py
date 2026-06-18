@@ -15,6 +15,7 @@ from tts import (
     combine_audio_with_pauses,
     compute_timeline,
     sanitize_filename,
+    voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS
 )
@@ -418,41 +419,10 @@ class ProjectManager:
                 # Name by stable uid (not list position) so a later insert/delete
                 # can't make this file collide with another chunk's audio.
                 filename_base = f"voiceline_{chunk.get('uid') or f'{index+1:04d}'}_{sanitize_filename(speaker_to_use)}"
-                audio_path = None
 
-                try:
-                    segment = AudioSegment.from_wav(temp_path)
-
-                    if len(segment) == 0:
-                         self._update_chunk_fields(index, status="error")
-                         return False, "Generated audio has 0 duration"
-
-                    mp3_filename = f"{filename_base}.mp3"
-                    mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-
-                    # This might fail if ffmpeg is missing or lacks MP3 encoder
-                    segment.export(mp3_filepath, format="mp3")
-
-                    # Validate: conda ffmpeg often lacks libmp3lame, producing
-                    # a tiny (~428 byte) header-only file without raising an error
-                    mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
-                    if mp3_size < 1024:
-                        print(f"MP3 export produced invalid file ({mp3_size} bytes) — ffmpeg likely lacks MP3 encoder (libmp3lame). Falling back to WAV.")
-                        os.remove(mp3_filepath)
-                        raise RuntimeError("MP3 export produced invalid file")
-
-                    audio_path = f"voicelines/{mp3_filename}"
-
-                except Exception as e:
-                    if "invalid file" not in str(e).lower():
-                        print(f"MP3 conversion failed (ffmpeg missing?): {e}")
-                    # Fallback: copy WAV
-                    wav_filename = f"{filename_base}.wav"
-                    wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
-                    shutil.copy(temp_path, wav_filepath)
-
-                    audio_path = f"voicelines/{wav_filename}"
-
+                # Shared MP3-export-with-WAV-fallback (raises on 0-duration audio,
+                # caught by the outer handler below).
+                audio_path = self._export_chunk_audio(temp_path, filename_base)
                 self._update_chunk_fields(index, status="done", audio_path=audio_path)
 
                 return True, audio_path
@@ -467,19 +437,10 @@ class ProjectManager:
                 print(f"Warning: Failed to update chunk {index} status to error: {update_err}")
             return False, str(e)
         finally:
-            # Cleanup with retry (may be locked by pydub/ffmpeg on Windows). Runs on
-            # every exit path - success, early "Generation failed"/validation
-            # returns, and exceptions - so the temp wav never leaks.
-            if temp_path and os.path.exists(temp_path):
-                for attempt in range(3):
-                    try:
-                        os.remove(temp_path)
-                        break
-                    except OSError:
-                        if attempt < 2:
-                            time.sleep(0.1 * (attempt + 1))
-                        else:
-                            print(f"Warning: Could not delete temp file {temp_path}")
+            # Cleanup runs on every exit path - success, early validation returns,
+            # and exceptions - so the temp wav never leaks.
+            if temp_path:
+                self._remove_temp_file(temp_path)
 
     def _load_pause_defaults(self):
         """Return (pause_between_speakers_ms, pause_same_speaker_ms) from config."""
@@ -915,14 +876,14 @@ class ProjectManager:
             # Resolve alias before grouping so alias groups collate with their canonical speaker
             canonical = self._resolve_alias(speaker, voice_config)
             voice_data = voice_config.get(canonical, {})
-            voice_type = voice_data.get("type", "custom")
+            category = voice_category(voice_data)
 
-            if voice_type == "clone":
+            if category == "clone":
                 key = f"clone:{canonical}"
-            elif voice_type in ("lora", "builtin_lora"):
+            elif category == "lora":
                 adapter_id = voice_data.get("adapter_id", "")
                 key = f"lora:{adapter_id}"
-            elif voice_type == "design":
+            elif category == "design":
                 key = "design"
             else:
                 key = "custom"
@@ -935,6 +896,98 @@ class ProjectManager:
             reordered.extend(group_indices)
 
         return reordered
+
+    def _export_chunk_audio(self, temp_path, filename_base):
+        """Convert a temp WAV to MP3, falling back to a copied WAV when ffmpeg
+        lacks an MP3 encoder. Returns the relative audio_path (under voicelines/).
+        Raises ValueError if the source audio has zero duration.
+        """
+        segment = AudioSegment.from_file(temp_path)
+        if len(segment) == 0:
+            raise ValueError("Audio has 0 duration")
+
+        try:
+            mp3_filename = f"{filename_base}.mp3"
+            mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
+            segment.export(mp3_filepath, format="mp3")
+
+            # Validate: conda ffmpeg often lacks libmp3lame, producing a tiny
+            # (~428 byte) header-only file without raising an error.
+            mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
+            if mp3_size < 1024:
+                print(f"MP3 export produced invalid file ({mp3_size} bytes) — ffmpeg likely "
+                      f"lacks MP3 encoder (libmp3lame). Falling back to WAV.")
+                os.remove(mp3_filepath)
+                raise RuntimeError("MP3 export produced invalid file")
+            return f"voicelines/{mp3_filename}"
+
+        except Exception as e:
+            if "invalid file" not in str(e).lower():
+                print(f"MP3 conversion failed: {e}")
+            wav_filename = f"{filename_base}.wav"
+            wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
+            shutil.copy(temp_path, wav_filepath)
+            return f"voicelines/{wav_filename}"
+
+    def _remove_temp_file(self, temp_path):
+        """Best-effort delete of a temp batch WAV, retrying briefly on transient locks."""
+        if not os.path.exists(temp_path):
+            return
+        for attempt in range(3):
+            try:
+                os.remove(temp_path)
+                return
+            except OSError:
+                if attempt < 2:
+                    time.sleep(0.1 * (attempt + 1))
+                else:
+                    print(f"Warning: Could not delete temp file {temp_path}")
+
+    def _finalize_completed_chunk(self, idx, chunks, results):
+        """Convert one completed chunk's temp audio to its final file, update its
+        status, and remove the temp. Records failure in `results` on any error.
+        """
+        if not (0 <= idx < len(chunks)):
+            print(f"Chunk {idx} skipped: index out of range (chunks changed during generation?)")
+            results["failed"].append((idx, "Index out of range after reload"))
+            return
+
+        temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
+        if not os.path.exists(temp_path):
+            results["failed"].append((idx, "Temp audio file not found"))
+            chunks[idx]["status"] = "error"
+            return
+
+        try:
+            chunk = chunks[idx]
+            speaker = chunk.get("speaker", "unknown")
+            # Stable uid (not list position) so the file can't collide with a
+            # neighbour's after an insert/delete shifts indices.
+            filename_base = f"voiceline_{chunk.get('uid') or f'{idx+1:04d}'}_{sanitize_filename(speaker)}"
+            chunks[idx]["audio_path"] = self._export_chunk_audio(temp_path, filename_base)
+            chunks[idx]["status"] = "done"
+            results["completed"].append(idx)
+            print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
+            self._remove_temp_file(temp_path)
+        except Exception as e:
+            print(f"Error processing chunk {idx}: {e}")
+            results["failed"].append((idx, str(e)))
+            chunks[idx]["status"] = "error"
+
+    def _record_batch_failures(self, batch_failed, chunks, results, current_batch_size):
+        """Split a batch's failures into retryable OOM indices (returned for retry
+        at a smaller size) and hard failures (recorded in `results`, status=error).
+        """
+        oom_failed = []
+        for idx, error in batch_failed:
+            if _is_oom_failure(error) and current_batch_size > 1:
+                # Retryable at a smaller size - don't mark as error yet.
+                oom_failed.append(idx)
+                continue
+            if 0 <= idx < len(chunks):
+                chunks[idx]["status"] = "error"
+            results["failed"].append((idx, error))
+        return oom_failed
 
     def generate_chunks_batch(self, indices, batch_seed=-1, batch_size=4, progress_callback=None,
                                batch_group_by_type=False, cancel_check=None):
@@ -1033,83 +1086,10 @@ class ProjectManager:
             chunks = self.load_chunks()  # Reload for each batch
 
             for idx in batch_results["completed"]:
-                if not (0 <= idx < len(chunks)):
-                    print(f"Chunk {idx} skipped: index out of range (chunks changed during generation?)")
-                    results["failed"].append((idx, "Index out of range after reload"))
-                    continue
+                self._finalize_completed_chunk(idx, chunks, results)
 
-                temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
-
-                if not os.path.exists(temp_path):
-                    results["failed"].append((idx, "Temp audio file not found"))
-                    chunks[idx]["status"] = "error"
-                    continue
-
-                try:
-                    chunk = chunks[idx]
-                    speaker = chunk.get("speaker", "unknown")
-                    # Stable uid (not list position) so the file can't collide
-                    # with a neighbour's after an insert/delete shifts indices.
-                    filename_base = f"voiceline_{chunk.get('uid') or f'{idx+1:04d}'}_{sanitize_filename(speaker)}"
-
-                    try:
-                        segment = AudioSegment.from_file(temp_path)
-                        if len(segment) == 0:
-                            results["failed"].append((idx, "Audio has 0 duration"))
-                            chunks[idx]["status"] = "error"
-                            continue
-
-                        mp3_filename = f"{filename_base}.mp3"
-                        mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-                        segment.export(mp3_filepath, format="mp3")
-
-                        # Validate: conda ffmpeg often lacks libmp3lame, producing
-                        # a tiny (~428 byte) header-only file without raising an error
-                        mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
-                        if mp3_size < 1024:
-                            print(f"MP3 export produced invalid file ({mp3_size} bytes) for chunk {idx} — ffmpeg likely lacks MP3 encoder (libmp3lame). Falling back to WAV.")
-                            os.remove(mp3_filepath)
-                            raise RuntimeError("MP3 export produced invalid file")
-
-                        chunks[idx]["audio_path"] = f"voicelines/{mp3_filename}"
-
-                    except Exception as e:
-                        if "invalid file" not in str(e).lower():
-                            print(f"MP3 conversion failed for chunk {idx}: {e}")
-                        wav_filename = f"{filename_base}.wav"
-                        wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
-                        shutil.copy(temp_path, wav_filepath)
-                        chunks[idx]["audio_path"] = f"voicelines/{wav_filename}"
-
-                    chunks[idx]["status"] = "done"
-                    results["completed"].append(idx)
-                    print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
-
-                    if os.path.exists(temp_path):
-                        for attempt in range(3):
-                            try:
-                                os.remove(temp_path)
-                                break
-                            except OSError:
-                                if attempt < 2:
-                                    time.sleep(0.1 * (attempt + 1))
-                                else:
-                                    print(f"Warning: Could not delete temp file {temp_path}")
-
-                except Exception as e:
-                    print(f"Error processing chunk {idx}: {e}")
-                    results["failed"].append((idx, str(e)))
-                    chunks[idx]["status"] = "error"
-
-            oom_failed = []
-            for idx, error in batch_results["failed"]:
-                if _is_oom_failure(error) and current_batch_size > 1:
-                    # Retryable at a smaller size - don't mark as error yet.
-                    oom_failed.append(idx)
-                    continue
-                if 0 <= idx < len(chunks):
-                    chunks[idx]["status"] = "error"
-                results["failed"].append((idx, error))
+            oom_failed = self._record_batch_failures(
+                batch_results["failed"], chunks, results, current_batch_size)
 
             self.save_chunks(chunks)
 

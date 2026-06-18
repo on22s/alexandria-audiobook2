@@ -14,6 +14,18 @@ module.exports = {
       message: "python -m venv env"
     }
   }, {
+    // Install the platform-correct torch FIRST so transitive deps below
+    // (peft, qwen-tts) see it already satisfied and don't pull a CUDA build.
+    method: "script.start",
+    params: {
+      uri: "torch.js",
+      params: {
+        path: "app",
+        venv: "env",
+        flashattention: true
+      }
+    }
+  }, {
     method: "shell.run",
     params: {
       venv: "env",
@@ -23,16 +35,6 @@ module.exports = {
         "uv pip install -r requirements.txt",
         "uv pip install qwen-tts==0.1.1"
       ]
-    }
-  }, {
-    method: "script.start",
-    params: {
-      uri: "torch.js",
-      params: {
-        path: "app",
-        venv: "env",
-        flashattention: true
-      }
     }
   }, {
     method: "notify",

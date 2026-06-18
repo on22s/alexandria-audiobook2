@@ -8,7 +8,10 @@ import subprocess
 import argparse
 from openai import OpenAI
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
-from generate_script import clean_json_string, repair_json_array, salvage_json_entries
+from generate_script import (
+    clean_json_string, repair_json_array, salvage_json_entries,
+    LLMGenParams, call_llm_for_entries,
+)
 from lmstudio_settings import apply_lmstudio_settings, get_lmstudio_status
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
 
@@ -587,14 +590,15 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
     return merged, merges
 
 
-def review_batch(client, model_name, batch_entries, batch_num, total_batches,
-                 previous_tail=None, source_context=None, max_retries=2,
-                 system_prompt=None, user_prompt_template=None,
-                 max_tokens=8000, temperature=0.4, top_p=0.8, top_k=20,
-                 min_p=0, presence_penalty=0.0, banned_tokens=None):
-    """Send a batch of script entries through the LLM for review and correction."""
-    sys_prompt = system_prompt or REVIEW_SYSTEM_PROMPT
-    usr_template = user_prompt_template or REVIEW_USER_PROMPT
+def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
+                 previous_tail=None, source_context=None, max_retries=2):
+    """Send a batch of script entries through the LLM for review and correction.
+
+    Returns the corrected entries, or None if every attempt failed (so the caller
+    can keep the originals and retry on the next resume).
+    """
+    sys_prompt = params.system_prompt or REVIEW_SYSTEM_PROMPT
+    usr_template = params.user_prompt_template or REVIEW_USER_PROMPT
 
     # Build context
     context_parts = []
@@ -613,89 +617,13 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches,
     batch_json = json.dumps(batch_entries, indent=2, ensure_ascii=False)
     user_prompt = usr_template.format(context=context, batch=batch_json)
 
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=temperature,
-                top_p=top_p,
-                presence_penalty=presence_penalty,
-                max_tokens=max_tokens,
-                extra_body={
-                    k: v for k, v in {
-                        "top_k": top_k,
-                        "min_p": min_p,
-                        "banned_tokens": banned_tokens if banned_tokens else None,
-                    }.items() if v is not None
-                }
-            )
-
-            choice = response.choices[0]
-            text = choice.message.content.strip()
-            finish_reason = choice.finish_reason
-            usage = getattr(response, 'usage', None)
-
-            # Log raw response
-            log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, "review_responses.log")
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"\n{'='*80}\n")
-                lf.write(f"BATCH {batch_num}/{total_batches} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
-                if usage:
-                    lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
-                lf.write(f"{'─'*80}\n")
-                lf.write(text)
-                lf.write(f"\n{'='*80}\n")
-
-            print(f"  finish_reason={finish_reason}", end="")
-            if usage:
-                print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
-            print()
-
-            if finish_reason == "length":
-                print(f"  WARNING: Response was truncated (hit max_tokens={max_tokens}). Consider increasing max_tokens or reducing batch size.")
-
-        except Exception as e:
-            print(f"Error calling LLM API (attempt {attempt + 1}): {e}")
-            if attempt < max_retries:
-                continue
-            return None
-
-        # Clean and parse JSON response
-        json_text = clean_json_string(text)
-
-        if not json_text:
-            print(f"Warning: Could not find JSON array in batch {batch_num} response (attempt {attempt + 1})")
-            if attempt < max_retries:
-                print("Retrying...")
-                continue
-            print(f"Response preview: {text[:300]}...")
-            return None
-
-        entries = repair_json_array(json_text)
-
-        if entries and len(entries) > 0:
-            if attempt > 0:
-                print(f"  Succeeded on retry {attempt + 1}")
-            return entries
-
-        print(f"Warning: Could not parse batch {batch_num} response as JSON (attempt {attempt + 1})")
-
-        if attempt < max_retries:
-            print("Retrying...")
-
-        # Last resort
-        salvaged = salvage_json_entries(json_text)
-        if salvaged:
-            print(f"Regex-salvaged {len(salvaged)} entries from malformed response")
-            return salvaged
-
-    return None
+    entries = call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="review_responses.log",
+        label=f"BATCH {batch_num}/{total_batches}",
+        max_retries=max_retries,
+    )
+    return entries or None
 
 
 def normalize_text(text):
@@ -866,6 +794,19 @@ def main():
     presence_penalty = generation_config.get("presence_penalty", 0.0)
     banned_tokens = generation_config.get("banned_tokens", [])
 
+    # Constant across every batch in both review modes - build once.
+    gen_params = LLMGenParams(
+        system_prompt=review_sys,
+        user_prompt_template=review_usr,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        min_p=min_p,
+        presence_penalty=presence_penalty,
+        banned_tokens=banned_tokens,
+    )
+
     print(f"Connecting to: {base_url}")
     print(f"Using model: {model_name}")
     print(f"Batch size: {batch_size} entries, Max tokens: {max_tokens}")
@@ -961,18 +902,9 @@ def main():
                 contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
 
             corrected = review_batch(
-                client, model_name, batch, batch_index, total_batches,
+                client, model_name, batch, batch_index, total_batches, gen_params,
                 previous_tail=None,  # contextual mode uses explicit before/after window instead
                 source_context="\n".join(contextual_lines),
-                system_prompt=review_sys,
-                user_prompt_template=review_usr,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                min_p=min_p,
-                presence_penalty=presence_penalty,
-                banned_tokens=banned_tokens
             )
 
             if corrected is None:
@@ -1060,18 +992,9 @@ def main():
             print(f"\nReviewing batch {i}/{total_batches} ({len(batch)} entries)...")
 
             corrected = review_batch(
-                client, model_name, batch, i, total_batches,
+                client, model_name, batch, i, total_batches, gen_params,
                 previous_tail=previous_tail,
                 source_context=None,  # Mode 2: would pass source text chunk here
-                system_prompt=review_sys,
-                user_prompt_template=review_usr,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                min_p=min_p,
-                presence_penalty=presence_penalty,
-                banned_tokens=banned_tokens
             )
 
             if corrected is None:
