@@ -8,6 +8,7 @@ import io
 import re
 import time
 import logging
+import uuid
 from utils import atomic_json_write, safe_load_json
 from tts import (
     TTSEngine,
@@ -20,6 +21,30 @@ from tts import (
 from pydub import AudioSegment
 
 MAX_CHUNK_CHARS = 500
+
+
+def _new_chunk_uid():
+    """Stable per-chunk id for audio filenames.
+
+    Unlike chunk['id'] (which is the list position and gets renumbered on every
+    insert/delete), this is assigned once and never changes, so a chunk's audio
+    filename can't collide with a neighbour's after the list shifts.
+    """
+    return uuid.uuid4().hex[:12]
+
+
+_OOM_MARKERS = (
+    "out of memory", "outofmemory", "cuda out of memory", "cuda error",
+    "hip out of memory", "hip error", "cublas_status_alloc_failed",
+    "cannot allocate memory", "alloc failed",
+)
+
+
+def _is_oom_failure(err) -> bool:
+    """True if an error message looks like a GPU/VRAM out-of-memory condition,
+    so the caller can step concurrency down and retry rather than give up."""
+    return any(marker in str(err).lower() for marker in _OOM_MARKERS)
+
 
 def get_speaker(entry):
     """Get speaker from entry, checking both 'speaker' and 'type' fields."""
@@ -152,13 +177,30 @@ class ProjectManager:
         """
         chunks = safe_load_json(self.chunks_path)
         if chunks is not None:
+            # Backfill stable uids for chunks saved before uid-based filenames.
+            # Assigned once and persisted so a chunk keeps the same audio file
+            # name across later inserts/deletes.
+            changed = False
+            for chunk in chunks:
+                if isinstance(chunk, dict) and not chunk.get("uid"):
+                    chunk["uid"] = _new_chunk_uid()
+                    changed = True
+            if changed:
+                atomic_json_write(chunks, self.chunks_path)
             return chunks
         if os.path.exists(self.chunks_path):
-            logger.warning("chunks.json is corrupted; deleting so it can be regenerated.")
+            # Back the corrupted file up rather than deleting it - regenerating
+            # resets every chunk to pending/no-audio, so keep a copy in case the
+            # user's generation progress can be salvaged from it.
+            backup = self.chunks_path + ".corrupt"
+            logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
             try:
-                os.remove(self.chunks_path)
+                os.replace(self.chunks_path, backup)
             except OSError:
-                pass
+                try:
+                    os.remove(self.chunks_path)
+                except OSError:
+                    pass
 
         # If no chunks (or corrupted), generate from script
         if os.path.exists(self.script_path):
@@ -174,6 +216,7 @@ class ProjectManager:
             # Initialize chunk status
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
+                chunk["uid"] = _new_chunk_uid()
                 chunk["status"] = "pending"  # pending, generating, done, error
                 chunk["audio_path"] = None
 
@@ -242,6 +285,7 @@ class ProjectManager:
             source = chunks[after_index]
             new_chunk = {
                 "id": after_index + 1,
+                "uid": _new_chunk_uid(),
                 "speaker": source.get("speaker", "NARRATOR"),
                 "text": "",
                 "instruct": "",
@@ -281,6 +325,8 @@ class ProjectManager:
             chunks = self._read_chunks()
 
             at_index = max(0, min(at_index, len(chunks)))
+            if isinstance(chunk_data, dict):
+                chunk_data.setdefault("uid", _new_chunk_uid())
             chunks.insert(at_index, chunk_data)
 
             # Re-number all IDs
@@ -368,8 +414,10 @@ class ProjectManager:
 
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
-                # Try to convert to mp3, fallback to wav if ffmpeg missing
-                filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker_to_use)}"
+                # Try to convert to mp3, fallback to wav if ffmpeg missing.
+                # Name by stable uid (not list position) so a later insert/delete
+                # can't make this file collide with another chunk's audio.
+                filename_base = f"voiceline_{chunk.get('uid') or f'{index+1:04d}'}_{sanitize_filename(speaker_to_use)}"
                 audio_path = None
 
                 try:
@@ -542,6 +590,9 @@ class ProjectManager:
             end_sec = (start_ms + len(segment)) / 1000.0
             text_preview = chunk.get("text", "")[:80]
             label = f"[{chunk['speaker']}] {text_preview}"
+            # Audacity labels are tab-separated, one per line - a tab or newline
+            # inside the text would add a phantom column or split the row.
+            label = label.replace("\t", " ").replace("\r", " ").replace("\n", " ")
             label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
         labels_content = "\n".join(label_lines) + "\n"
 
@@ -749,6 +800,7 @@ class ProjectManager:
             dict with 'completed', 'failed', and 'cancelled' keys
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import gc
 
         results = {"completed": [], "failed": [], "cancelled": 0}
 
@@ -762,48 +814,80 @@ class ProjectManager:
         if total == 0:
             return results
 
-        print(f"Starting parallel generation of {total} chunks with {max_workers} workers...")
+        all_indices = list(indices)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(self.generate_chunk_audio, idx): idx
-                for idx in indices
-            }
+        def _run_round(round_indices, workers):
+            """One pass at `workers` concurrency.
 
-            cancelled = False
-            for future in as_completed(futures):
-                if cancel_check and cancel_check():
-                    cancelled = True
-                    print("[CANCEL] Cancellation requested — stopping parallel generation")
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    break
+            Returns (completed, oom_failed, hard_failed, cancelled). OOM failures
+            are kept separate so the caller can step concurrency down and retry
+            just those, while hard failures (bad text, missing engine) are final.
+            """
+            completed, oom_failed, hard_failed = [], [], []
+            was_cancelled = False
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {executor.submit(self.generate_chunk_audio, idx): idx for idx in round_indices}
+                for future in as_completed(futures):
+                    if cancel_check and cancel_check():
+                        was_cancelled = True
+                        print("[CANCEL] Cancellation requested — stopping parallel generation")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    idx = futures[future]
+                    try:
+                        success, msg = future.result()
+                        if success:
+                            completed.append(idx)
+                            print(f"Chunk {idx} completed: {msg}")
+                        elif _is_oom_failure(msg):
+                            oom_failed.append((idx, msg))
+                            print(f"Chunk {idx} failed (VRAM): {msg}")
+                        else:
+                            hard_failed.append((idx, msg))
+                            print(f"Chunk {idx} failed: {msg}")
+                    except Exception as e:
+                        (oom_failed if _is_oom_failure(e) else hard_failed).append((idx, str(e)))
+                        print(f"Chunk {idx} error: {e}")
+                    if progress_callback:
+                        progress_callback(len(results["completed"]) + len(completed),
+                                          len(results["failed"]) + len(hard_failed), total)
+            return completed, oom_failed, hard_failed, was_cancelled
 
-                idx = futures[future]
-                try:
-                    success, msg = future.result()
-                    if success:
-                        results["completed"].append(idx)
-                        print(f"Chunk {idx} completed: {msg}")
-                    else:
-                        results["failed"].append((idx, msg))
-                        print(f"Chunk {idx} failed: {msg}")
-                except Exception as e:
-                    results["failed"].append((idx, str(e)))
-                    print(f"Chunk {idx} error: {e}")
+        # Start at the configured worker count and step down one at a time only
+        # when a round hits VRAM OOM, retrying just the OOM-failed chunks, until
+        # they succeed or we're down to a single worker.
+        workers = max(1, max_workers)
+        pending = list(all_indices)
+        cancelled = False
+        print(f"Starting parallel generation of {total} chunks with {workers} workers...")
+        while pending:
+            completed, oom_failed, hard_failed, was_cancelled = _run_round(pending, workers)
+            results["completed"].extend(completed)
+            results["failed"].extend(hard_failed)
+            if was_cancelled:
+                cancelled = True
+                break
+            if oom_failed and workers > 1:
+                workers -= 1
+                pending = [idx for idx, _ in oom_failed]
+                print(f"[VRAM] Out-of-memory on {len(pending)} chunk(s) — stepping TTS "
+                      f"workers down to {workers} and retrying.")
+                gc.collect()
+                continue
+            # workers == 1 (or no OOM left): remaining OOM failures are now final.
+            results["failed"].extend(oom_failed)
+            break
 
-                if progress_callback:
-                    progress_callback(len(results["completed"]), len(results["failed"]), total)
-
-            # Reset remaining "generating" chunks to "pending"
-            if cancelled:
-                done_indices = set(results["completed"]) | {idx for idx, _ in results["failed"]}
-                chunks = self.load_chunks()
-                if chunks:
-                    for idx in indices:
-                        if idx not in done_indices and 0 <= idx < len(chunks) and chunks[idx].get("status") == "generating":
-                            chunks[idx]["status"] = "pending"
-                            results["cancelled"] += 1
-                    self.save_chunks(chunks)
+        # Reset remaining "generating" chunks to "pending" on cancel.
+        if cancelled:
+            done_indices = set(results["completed"]) | {idx for idx, _ in results["failed"]}
+            chunks = self.load_chunks()
+            if chunks:
+                for idx in all_indices:
+                    if idx not in done_indices and 0 <= idx < len(chunks) and chunks[idx].get("status") == "generating":
+                        chunks[idx]["status"] = "pending"
+                        results["cancelled"] += 1
+                self.save_chunks(chunks)
 
         print(f"Parallel generation complete: {len(results['completed'])} succeeded, "
               f"{len(results['failed'])} failed, {results['cancelled']} cancelled")
@@ -909,18 +993,23 @@ class ProjectManager:
         if batch_group_by_type:
             indices = self._group_indices_by_voice_type(indices, chunks, voice_config)
 
-        # Split indices into batches
-        batches = [indices[i:i + batch_size] for i in range(0, len(indices), batch_size)]
-        print(f"Processing {len(batches)} batches...")
-
+        # Process indices in batches, starting at the configured size and
+        # stepping the size down only when a batch hits VRAM OOM (retrying just
+        # the OOM-failed chunks at the smaller size), down to 1.
+        pending = list(indices)
+        current_batch_size = max(1, batch_size)
+        batch_num = 0
         cancelled = False
-        for batch_num, batch_indices in enumerate(batches):
+        while pending:
             if cancel_check and cancel_check():
                 cancelled = True
                 print(f"[CANCEL] Cancellation requested before batch {batch_num + 1}")
                 break
 
-            print(f"Batch {batch_num + 1}/{len(batches)}: {len(batch_indices)} chunks")
+            batch_indices = pending[:current_batch_size]
+            pending = pending[current_batch_size:]
+            batch_num += 1
+            print(f"Batch {batch_num} ({len(batch_indices)} chunks, size={current_batch_size}, {len(pending)} queued)")
 
             # Build batch request data
             batch_chunks = []
@@ -959,7 +1048,9 @@ class ProjectManager:
                 try:
                     chunk = chunks[idx]
                     speaker = chunk.get("speaker", "unknown")
-                    filename_base = f"voiceline_{idx+1:04d}_{sanitize_filename(speaker)}"
+                    # Stable uid (not list position) so the file can't collide
+                    # with a neighbour's after an insert/delete shifts indices.
+                    filename_base = f"voiceline_{chunk.get('uid') or f'{idx+1:04d}'}_{sanitize_filename(speaker)}"
 
                     try:
                         segment = AudioSegment.from_file(temp_path)
@@ -1010,12 +1101,25 @@ class ProjectManager:
                     results["failed"].append((idx, str(e)))
                     chunks[idx]["status"] = "error"
 
+            oom_failed = []
             for idx, error in batch_results["failed"]:
+                if _is_oom_failure(error) and current_batch_size > 1:
+                    # Retryable at a smaller size - don't mark as error yet.
+                    oom_failed.append(idx)
+                    continue
                 if 0 <= idx < len(chunks):
                     chunks[idx]["status"] = "error"
                 results["failed"].append((idx, error))
 
             self.save_chunks(chunks)
+
+            if oom_failed:
+                import gc
+                gc.collect()
+                current_batch_size = max(1, current_batch_size - 1)
+                pending = oom_failed + pending  # retry the OOM chunks first
+                print(f"[VRAM] Out-of-memory on {len(oom_failed)} chunk(s) — stepping TTS "
+                      f"batch size down to {current_batch_size} and retrying.")
 
             if progress_callback:
                 progress_callback(len(results["completed"]), len(results["failed"]), total)

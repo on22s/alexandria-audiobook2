@@ -493,6 +493,9 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
             shutil.copy2(wav_path, dest_path)
         except Exception as e:
             print(f"Warning: Could not copy preview for {speaker}: {e}")
+            # Bail rather than register a voice whose ref_audio points at a file
+            # we failed to write - the TTS engine would crash on the missing file.
+            return False
 
         voice_entry = voice_config.get(speaker, {})
         voice_entry.update({

@@ -21,9 +21,14 @@ def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
             [rocm_smi_path] + list(args) + ["--json"],
             capture_output=True, text=True, timeout=timeout
         )
-        json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
-        if json_lines:
-            return json.loads(json_lines[0])
+        # rocm-smi sometimes prints warnings to stdout ahead of the JSON, and
+        # the JSON payload itself may be pretty-printed across several lines.
+        # Parse everything from the first line that opens the JSON object so a
+        # multi-line payload isn't truncated to just "{".
+        lines = result.stdout.split('\n')
+        for i, line in enumerate(lines):
+            if line.strip().startswith('{'):
+                return json.loads('\n'.join(lines[i:]))
     except Exception:
         pass
     return None
@@ -70,6 +75,14 @@ def atomic_json_write(data, target_path, max_retries=5):
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
     try:
+        # mkstemp creates the temp file 0600; relax to 0644 so the replaced file
+        # isn't owner-only (other local tools/users may read it). A fixed chmod
+        # avoids mutating the process-global umask, which would race other
+        # file-creating threads.
+        try:
+            os.chmod(tmp_path, 0o644)
+        except OSError:
+            pass
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 

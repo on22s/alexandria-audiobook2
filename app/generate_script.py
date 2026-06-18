@@ -227,7 +227,7 @@ def split_into_chunks(text, max_size=3000):
 
     return chunks
 
-def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_entries=None, max_retries=2, system_prompt=None, user_prompt_template=None, max_tokens=4096, temperature=0.6, top_p=0.8, top_k=0, min_p=0, presence_penalty=0.0, banned_tokens=None):
+def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_entries=None, max_retries=2, system_prompt=None, user_prompt_template=None, max_tokens=4096, temperature=0.6, top_p=0.8, top_k=None, min_p=None, presence_penalty=0.0, banned_tokens=None):
     """Process a text chunk and return JSON script entries"""
     # Use provided prompts or fall back to defaults
     sys_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
@@ -274,8 +274,8 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, previous_e
                 max_tokens=max_tokens,
                 extra_body={
                     k: v for k, v in {
-                        "top_k": top_k if top_k else None,
-                        "min_p": min_p if min_p else None,
+                        "top_k": top_k if top_k is not None else None,
+                        "min_p": min_p if min_p is not None else None,
                         "banned_tokens": banned_tokens if banned_tokens else None,
                     }.items() if v is not None
                 }
@@ -408,8 +408,10 @@ def main():
     max_tokens = generation_config.get("max_tokens", 4096)
     temperature = generation_config.get("temperature", 0.6)
     top_p = generation_config.get("top_p", 0.8)
-    top_k = generation_config.get("top_k", 0)
-    min_p = generation_config.get("min_p", 0)
+    # Default to None (not 0) so an unconfigured sampler is omitted from the
+    # request, while an explicit 0 is preserved and sent through.
+    top_k = generation_config.get("top_k")
+    min_p = generation_config.get("min_p")
     presence_penalty = generation_config.get("presence_penalty", 0.0)
     banned_tokens = generation_config.get("banned_tokens", [])
 

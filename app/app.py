@@ -81,7 +81,7 @@ LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
-PREPARER_SCRIPT_PATH = os.path.join(BASE_DIR, "alexandria_preparer.py")
+PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
 PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -478,7 +478,9 @@ process_state = {
 }
 
 # Tasks that don't touch the GPU/LLM and are exempt from the global GPU lock.
-NON_GPU_TASKS = {"voices", "audacity_export", "m4b_export"}
+# "voices" (suggest_voices) is intentionally NOT here: it runs local LLM
+# inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
+NON_GPU_TASKS = {"audacity_export", "m4b_export"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 
 def check_global_gpu_lock(new_task_name: str):
@@ -530,6 +532,13 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     state["logs"] = logs
     state["tasks"] = tasks
     state["current_task_idx"] = -1
+    # Clear any stale process/pid left over from a previous run so an early
+    # cancel (before the first subprocess is spawned) can't signal a dead or
+    # recycled PID.
+    if "process" in state:
+        state["process"] = None
+    if "pid" in state:
+        state["pid"] = None
 
 
 _PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
@@ -629,13 +638,13 @@ def _compute_eta(state: dict) -> dict:
 def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and stream its output into process_state logs."""
     state = process_state[task_name]
-    
-    # Guard against concurrent starts of the same task
-    if state.get("running"):
-        logger.warning(f"Task {task_name} is already running, ignoring duplicate start request")
-        return
-    
-    # Atomically set running flag to prevent races
+
+    # NOTE: do NOT bail out here if state["running"] is already True. GPU tasks
+    # reserve their slot via claim_gpu_task() on the request thread (which sets
+    # running=True before this background task is scheduled), and the few
+    # non-GPU callers (e.g. nicknames) guard against double-starts at their own
+    # endpoint. A guard here would see claim_gpu_task's own reservation and
+    # abort every GPU task, deadlocking the queue.
     state["running"] = True
     state["logs"] = []
     if "paused"      in state: state["paused"]      = False
@@ -1797,6 +1806,31 @@ def _claim_unique_path(directory: str, filename: str) -> str:
         candidate = f"{base}_{counter}{ext}"
 
 
+def _safe_subpath(base_dir: str, name: str) -> str:
+    """Resolve `name` under `base_dir`, rejecting path traversal (e.g. '..' or
+    absolute paths). Returns the realpath; raises HTTP 400 if it escapes.
+
+    Guards endpoints that build a filesystem path from a user-supplied name and
+    then delete/extract it, so a value like '..' can't reach outside base_dir.
+    """
+    base = os.path.realpath(base_dir)
+    target = os.path.realpath(os.path.join(base_dir, name))
+    if target != base and not target.startswith(base + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid name.")
+    return target
+
+
+def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
+    """zipfile.extractall, but reject members that would escape dest_dir
+    (Zip-Slip path traversal via '../' entries or absolute paths)."""
+    dest = os.path.realpath(dest_dir)
+    for member in zf.namelist():
+        target = os.path.realpath(os.path.join(dest_dir, member))
+        if target != dest and not target.startswith(dest + os.sep):
+            raise HTTPException(status_code=400, detail="Archive contains an unsafe path.")
+    zf.extractall(dest_dir)
+
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     # Validate and sanitize filename to prevent path traversal
@@ -1822,6 +1856,12 @@ async def upload_file(file: UploadFile = File(...)):
         txt_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name)
         with open(txt_path, 'w', encoding='utf-8') as f:
             f.write(text)
+        # The original .epub is no longer needed once its text is extracted;
+        # leaving it behind leaks disk space as books accumulate.
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
         file_path = txt_path
 
     # Save input path to state.json to be compatible with original scripts if needed
@@ -2006,8 +2046,9 @@ async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
     """Scan the working script for character nicknames/aliases and write character_aliases.json."""
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
-    if process_state["nicknames"]["running"]:
-        raise HTTPException(status_code=400, detail="Nickname discovery already running")
+    # nicknames runs the LLM, so it must claim the GPU lock (this also guards
+    # against a duplicate start, replacing the old running-flag check).
+    claim_gpu_task("nicknames")
     cmd = [sys.executable, "-u", "find_nicknames.py",
            "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
     background_tasks.add_task(run_process, cmd, "nicknames")
@@ -2652,8 +2693,14 @@ async def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest())
     the character's dialogue + persona, ranked by the configured LLM (heuristic fallback).
     
     Offloaded to threadpool via asyncio.to_thread to avoid blocking the event loop."""
-    check_global_gpu_lock("voices")
-    return await asyncio.to_thread(_suggest_voices_impl, request)
+    # Reserve the GPU slot for the duration of the (local-LLM) suggestion so it
+    # can't run concurrently with TTS/review and trigger a VRAM OOM. Released in
+    # finally since this is a synchronous request, not a run_process task.
+    claim_gpu_task("voices")
+    try:
+        return await asyncio.to_thread(_suggest_voices_impl, request)
+    finally:
+        process_state["voices"]["running"] = False
 
 
 def _suggest_voices_impl(request: SuggestVoicesRequest):
@@ -3133,12 +3180,17 @@ async def list_reports():
         if not f.endswith(".md"):
             continue
         filepath = os.path.join(REPORTS_DIR, f)
-        reports.append({
-            "filename": f,
-            "type": "batch" if f.startswith("batch_review_") else "review",
-            "mtime": os.path.getmtime(filepath),
-            "size": os.path.getsize(filepath),
-        })
+        try:
+            entry = {
+                "filename": f,
+                "type": "batch" if f.startswith("batch_review_") else "review",
+                "mtime": os.path.getmtime(filepath),
+                "size": os.path.getsize(filepath),
+            }
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        reports.append(entry)
     reports.sort(key=lambda r: r["mtime"], reverse=True)
     return reports
 
@@ -3165,6 +3217,80 @@ async def get_report(filename: str):
     return PlainTextResponse(content, media_type="text/markdown")
 
 
+def _summarize_review_checkpoint(path: str) -> Optional[dict]:
+    """Summarize a *.review_checkpoint.json for the UI: how far it got and where
+    a resumed review would pick up. Returns None if the file isn't a usable
+    checkpoint."""
+    data = safe_load_json(path)
+    if not isinstance(data, dict) or "completed_batches" not in data:
+        return None
+    completed = data.get("completed_batches", 0) or 0
+    total = data.get("total_batches", 0) or 0
+    failed = sorted(data.get("failed_batches", []) or [])
+    batch_lengths = data.get("batch_lengths", []) or []
+    stats = data.get("total_stats", {}) or {}
+    # Mirror load_checkpoint's rewind: a failed batch (with full batch_lengths
+    # coverage) rewinds the resume point back to the first failed batch.
+    resume_from_batch = completed + 1
+    if failed and len(batch_lengths) == completed:
+        resume_from_batch = failed[0]
+    return {
+        "completed_batches": completed,
+        "total_batches": total,
+        "resume_from_batch": resume_from_batch,
+        "entries_done": len(data.get("all_corrected", []) or []),
+        "batch_size": data.get("batch_size"),
+        "context_window": data.get("context_window"),
+        "failed_batches": failed,
+        "batches_skipped_vram": stats.get("batches_skipped_vram", 0),
+        "text_changed": stats.get("text_changed", 0),
+        "speaker_changed": stats.get("speaker_changed", 0),
+        "mtime": os.path.getmtime(path) if os.path.exists(path) else None,
+    }
+
+
+@app.get("/api/review/checkpoints")
+async def list_review_checkpoints():
+    """List saved review checkpoints (what's done + where a re-run resumes), plus
+    the live pass/order if a batch review is currently running."""
+    out = []
+    suffix = ".review_checkpoint.json"
+
+    active_cp = SCRIPT_PATH + suffix
+    if os.path.exists(active_cp):
+        s = _summarize_review_checkpoint(active_cp)
+        if s:
+            out.append({"book": "(active script)", **s})
+
+    if os.path.isdir(SCRIPTS_DIR):
+        for f in sorted(os.listdir(SCRIPTS_DIR)):
+            if not f.endswith(suffix):
+                continue
+            book = f[:-len(suffix)]
+            if book.endswith(".json"):
+                book = book[:-5]  # "{name}.json.review_checkpoint.json" -> "{name}"
+            s = _summarize_review_checkpoint(os.path.join(SCRIPTS_DIR, f))
+            if s:
+                out.append({"book": book, **s})
+
+    out.sort(key=lambda c: c.get("mtime") or 0, reverse=True)
+
+    # Live pass/order while a bidirectional batch is mid-flight.
+    bstate = process_state.get("batch_review", {})
+    live = None
+    if bstate.get("running"):
+        live = {
+            "bidirectional": bstate.get("bidirectional", False),
+            "current_pass": bstate.get("current_pass"),  # "fwd" / "bwd" / None
+            "current_task_idx": bstate.get("current_task_idx"),
+            "tasks": [
+                {"name": t.get("name"), "status": t.get("status")}
+                for t in bstate.get("tasks", []) if isinstance(t, dict)
+            ],
+        }
+    return {"checkpoints": out, "live": live}
+
+
 @app.get("/api/scripts")
 async def list_saved_scripts():
     """List all saved scripts in the scripts/ directory.
@@ -3183,9 +3309,14 @@ async def list_saved_scripts():
         name = f[:-5]  # strip .json
         filepath = os.path.join(SCRIPTS_DIR, f)
         companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+        try:
+            created = os.path.getmtime(filepath)
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
         scripts.append({
             "name": name,
-            "created": os.path.getmtime(filepath),
+            "created": created,
             "has_voice_config": os.path.exists(companion)
         })
     scripts.sort(key=lambda x: x["created"], reverse=True)
@@ -3470,6 +3601,10 @@ async def voice_library_create_cast(request: CastCreateRequest):
     name = request.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Cast name is required.")
+    if name == "__shared__":
+        # Reserved sentinel: other endpoints treat this name as the global
+        # shared pool, so a real cast by this name would be unaddressable.
+        raise HTTPException(status_code=400, detail="'__shared__' is a reserved name.")
     lib = _load_voice_library()
     if name in lib["casts"]:
         raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
@@ -3700,7 +3835,9 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
 async def voice_design_save(request: VoiceDesignSaveRequest):
     """Save a preview voice as a permanent designed voice."""
     previews_dir = os.path.join(DESIGNED_VOICES_DIR, "previews")
-    preview_path = os.path.join(previews_dir, request.preview_file)
+    # Constrain to the previews dir so preview_file can't traverse out and copy
+    # an arbitrary host file (e.g. ../../etc/passwd) into the web-served dir.
+    preview_path = _safe_subpath(previews_dir, request.preview_file)
 
     if not os.path.exists(preview_path):
         raise HTTPException(status_code=404, detail="Preview file not found")
@@ -3858,7 +3995,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
 
         os.makedirs(dataset_dir, exist_ok=True)
         with zipfile.ZipFile(tmp_path, "r") as zf:
-            zf.extractall(dataset_dir)
+            _safe_extractall(zf, dataset_dir)
 
         # Check for metadata.jsonl (may be inside a subdirectory)
         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
@@ -4043,18 +4180,21 @@ async def lora_list_datasets():
             continue
         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
         sample_count = 0
-        if os.path.exists(metadata_path):
+        try:
             with open(metadata_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         sample_count += 1
+        except FileNotFoundError:
+            # No metadata yet, or it vanished mid-listing (concurrent delete).
+            pass
         datasets.append({"dataset_id": name, "sample_count": sample_count})
     return datasets
 
 @app.delete("/api/lora/datasets/{dataset_id}")
 async def lora_delete_dataset(dataset_id: str):
     """Delete an uploaded dataset."""
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, dataset_id)
+    dataset_dir = _safe_subpath(LORA_DATASETS_DIR, dataset_id)
     if not os.path.isdir(dataset_dir):
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -4068,7 +4208,7 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
     check_global_gpu_lock("lora_training")
 
     # Validate dataset exists
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, request.dataset_id)
+    dataset_dir = _safe_subpath(LORA_DATASETS_DIR, request.dataset_id)
     if not os.path.isdir(dataset_dir):
         raise HTTPException(status_code=400, detail=f"Dataset '{request.dataset_id}' not found")
 
@@ -4695,7 +4835,7 @@ async def dataset_builder_save(request: DatasetSaveRequest):
 @app.delete("/api/dataset_builder/{name}")
 async def dataset_builder_delete(name: str):
     """Discard a dataset builder working project."""
-    work_dir = os.path.join(DATASET_BUILDER_DIR, name)
+    work_dir = _safe_subpath(DATASET_BUILDER_DIR, name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Dataset builder project not found")
     shutil.rmtree(work_dir, ignore_errors=True)
@@ -4704,6 +4844,30 @@ async def dataset_builder_delete(name: str):
 
 # ── Preparer ─────────────────────────────────────────────────────────────────
 
+def _resolve_preparer_interpreter() -> str:
+    """Return the interpreter to run the preparer with, or raise 503.
+
+    alexandria_preparer_rocm_compatible.py imports torch/llama-cpp/whisper,
+    which the web app's own env lacks, so it must run under the configurable
+    rocm_python interpreter (shared with Voice Lab) rather than sys.executable.
+    """
+    interpreter = _load_voicelab_config()["rocm_python"]
+    if not os.path.exists(PREPARER_SCRIPT_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Preparer script not found at {PREPARER_SCRIPT_PATH}.",
+        )
+    if not os.path.isfile(interpreter):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Preparer needs the ROCm interpreter (torch/llama-cpp); not "
+                f"found: {interpreter}. Set 'rocm_python' in Voice Lab settings."
+            ),
+        )
+    return interpreter
+
+
 @app.post("/api/preparer/start")
 async def preparer_start(
     background_tasks: BackgroundTasks,
@@ -4711,11 +4875,7 @@ async def preparer_start(
     audio_file: UploadFile = File(...),
 ):
     """Upload audio and run the preparer to generate a voice training dataset."""
-    if not os.path.exists(PREPARER_SCRIPT_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
-        )
+    interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("preparer")
 
     try:
@@ -4747,7 +4907,7 @@ async def preparer_start(
         state["output_file"] = None
         state["process"] = None
 
-        cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+        cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
                "--audio", audio_path,
                "--output", os.path.join(PREPARER_OUTPUT_DIR, output_filename),
                "--lang", config.lang,
@@ -4800,11 +4960,16 @@ async def preparer_list_outputs():
         if not fname.endswith(".zip"):
             continue
         fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
-        files.append({
-            "filename": fname,
-            "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
-            "modified": os.path.getmtime(fpath),
-        })
+        try:
+            entry = {
+                "filename": fname,
+                "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
+                "modified": os.path.getmtime(fpath),
+            }
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        files.append(entry)
     return {"files": files}
 
 
@@ -4823,11 +4988,7 @@ async def preparer_download(filename: str):
 @app.post("/api/preparer/batch/start")
 async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
     """Process multiple audio files sequentially through the preparer script."""
-    if not os.path.exists(PREPARER_SCRIPT_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
-        )
+    interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("batch_preparer")
 
     has_space, free_gb = check_disk_space(ROOT_DIR, 5.0)
@@ -4887,7 +5048,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
             existing_outputs.add(candidate)
             safe_output = candidate
 
-            cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+            cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
                    "--audio", audio_path,
                    "--output", os.path.join(PREPARER_OUTPUT_DIR, safe_output),
                    "--lang", request.lang,

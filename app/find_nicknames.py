@@ -44,6 +44,21 @@ NICKNAME_SYSTEM_PROMPT = (
 )
 
 
+# Rough English chars-per-token, used only to budget the prompt so it fits the
+# model's context window (the VRAM-safe LM Studio default is 8192).
+_CHARS_PER_TOKEN = 3.5
+
+
+def _prompt_char_budget(context_length, max_tokens, system_chars):
+    """Char budget for the user prompt so system+user+reply fit context_length.
+
+    Reserves the reply (`max_tokens`) plus a margin, converts the remaining
+    token room to chars, and subtracts the (fixed) system prompt length.
+    """
+    input_tokens = max(512, context_length - max_tokens - 512)
+    return max(1000, int(input_tokens * _CHARS_PER_TOKEN) - system_chars)
+
+
 def _entry_speaker(e):
     return (e.get("speaker") or e.get("type") or "").strip()
 
@@ -59,7 +74,7 @@ def _name_tokens(name):
     return [t for t in toks if t not in {"the", "and", "voice", "echo"}]
 
 
-def collect_context(entries, max_per_speaker=6, max_cooccur=40):
+def collect_context(entries, max_per_speaker=6, max_cooccur=300):
     """Return (speakers, samples, cooccurrence_snippets).
 
     cooccurrence_snippets are entry texts mentioning >=2 distinct character name tokens —
@@ -103,50 +118,17 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=40):
     return speakers, samples, cooccur
 
 
-def find_nicknames(client, model_name, entries, existing_aliases=None,
-                   max_tokens=2000, temperature=0.2):
-    """Ask the LLM to discover nickname/alias relationships. Returns (aliases, evidence)."""
-    speakers, samples, cooccur = collect_context(entries)
-    if len(speakers) < 2:
-        return {}, {}
+def _parse_alias_response(raw, speakers):
+    """Normalize one LLM response into (aliases, evidence) maps.
 
-    existing_aliases = existing_aliases or {}
-    parts = []
-    if existing_aliases:
-        parts.append("EXISTING ALIASES (stay consistent):")
-        parts.append(json.dumps(existing_aliases, ensure_ascii=False))
-        parts.append("")
-    parts.append("SPEAKER LABELS + SAMPLE LINES:")
-    for sp in speakers:
-        parts.append(f'- "{sp}": ' + " | ".join(samples[sp]))
-    if cooccur:
-        parts.append("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):")
-        parts.extend(f"- {c}" for c in cooccur)
-    parts.append("\nReturn the JSON now.")
-    user_prompt = "\n".join(parts)
-
-    try:
-        resp = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        raw = resp.choices[0].message.content or ""
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        data = json.loads(m.group(0)) if m else {}
-    except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
-        print(f"Nickname discovery failed: {e}")
-        return {}, {}
-
+    Resolves model casing back to the real speaker label, drops self/NARRATOR/
+    group mappings, and keeps only variants that actually appear as a label.
+    """
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    data = json.loads(m.group(0)) if m else {}
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
 
-    # Case-insensitive resolution back to the actual speaker-label spelling, since
-    # the model often echoes prose casing (e.g. "Betty") not the label ("BETTY").
     label_by_norm = {sp.strip().lower(): sp for sp in speakers}
     aliases = {}
     for variant, canonical in (raw_aliases or {}).items():
@@ -169,6 +151,95 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
             continue
         aliases[actual_variant] = canonical
     return aliases, evidence
+
+
+def _chunk_evidence(cooccur, evidence_budget):
+    """Pack co-occurrence passages into char-budgeted chunks (>=1 chunk always)."""
+    chunks, cur, cur_len = [], [], 0
+    for c in cooccur:
+        line = f"- {c}"
+        if cur and cur_len + len(line) + 1 > evidence_budget:
+            chunks.append(cur)
+            cur, cur_len = [], 0
+        cur.append(line)
+        cur_len += len(line) + 1
+    if cur:
+        chunks.append(cur)
+    return chunks or [[]]
+
+
+def find_nicknames(client, model_name, entries, existing_aliases=None,
+                   max_tokens=2000, temperature=0.2, context_length=8192):
+    """Discover nickname/alias relationships. Returns (aliases, evidence).
+
+    The full speaker roster is sent with every request, but the co-occurrence
+    evidence is split into chunks that each fit `context_length` (default 8192,
+    the VRAM-safe LM Studio setting). This lets the model see ALL the evidence
+    across several safe-sized calls instead of overflowing the context window
+    (the old single-call approach failed large-cast books with an n_ctx error).
+    Aliases found in earlier chunks are fed forward so later chunks stay
+    consistent, and all results are merged.
+    """
+    speakers, samples, cooccur = collect_context(entries)
+    if len(speakers) < 2:
+        return {}, {}
+
+    existing_aliases = dict(existing_aliases or {})
+    budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
+
+    # Roster block (every speaker + scaled sample lines) goes in every call, so
+    # cap it at ~half the budget and leave the rest for a chunk of evidence.
+    roster_budget = int(budget * 0.5)
+    per_speaker = max(1, min(6, roster_budget // max(1, len(speakers)) // 140))
+    roster_lines = ["SPEAKER LABELS + SAMPLE LINES:"]
+    for sp in speakers:
+        roster_lines.append(f'- "{sp}": ' + " | ".join(samples[sp][:per_speaker]))
+    roster_block = "\n".join(roster_lines)
+    if len(roster_block) > budget:  # extreme cast - truncate roster as last resort
+        roster_block = roster_block[:budget]
+
+    evidence_budget = max(500, budget - len(roster_block))
+    chunks = _chunk_evidence(cooccur, evidence_budget)
+    if len(chunks) > 1:
+        print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
+              f"context-safe chunk(s) for {context_length}-token model.")
+
+    all_aliases, all_evidence = {}, {}
+    for ci, ev_lines in enumerate(chunks):
+        parts = []
+        accumulated = {**existing_aliases, **all_aliases}
+        if accumulated:
+            parts.append("EXISTING ALIASES (stay consistent):")
+            parts.append(json.dumps(accumulated, ensure_ascii=False))
+            parts.append("")
+        parts.append(roster_block)
+        if ev_lines:
+            parts.append("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):")
+            parts.extend(ev_lines)
+        parts.append("\nReturn the JSON now.")
+        user_prompt = "\n".join(parts)
+
+        if len(chunks) > 1:
+            print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            raw = resp.choices[0].message.content or ""
+            aliases, evidence = _parse_alias_response(raw, speakers)
+        except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
+            print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)}: {e}")
+            continue
+        all_aliases.update(aliases)
+        all_evidence.update(evidence)
+
+    return all_aliases, all_evidence
 
 
 def main():
@@ -196,13 +267,16 @@ def main():
     client = OpenAI(base_url=llm.get("base_url", "http://localhost:11434/v1"),
                     api_key=llm.get("api_key", "local"))
     model_name = llm.get("model_name", "local-model")
+    context_length = int(llm.get("context_length", 8192) or 8192)
     print(f"Using model: {model_name}")
 
     existing = {}
     if args.append:
         existing = safe_load_json(aliases_path, default={}) or {}
 
-    aliases, evidence = find_nicknames(client, model_name, entries, existing_aliases=existing)
+    aliases, evidence = find_nicknames(client, model_name, entries,
+                                       existing_aliases=existing,
+                                       context_length=context_length)
 
     if aliases:
         print(f"\nFound {len(aliases)} nickname/alias mapping(s):")

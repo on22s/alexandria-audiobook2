@@ -1701,6 +1701,15 @@
                             <div id="reports-list" class="list-group list-group-flush"></div>
                         </div>
                     </div>
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="m-0">Review Checkpoints</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadCheckpoints()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="checkpoints-list" class="list-group list-group-flush"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-8">
                     <div class="card">
@@ -1864,6 +1873,7 @@
                     voicelabInspect();
                 } else if (e.target.dataset.tab === 'reports') {
                     loadReports();
+                    loadCheckpoints();
                 }
             });
         });
@@ -6353,6 +6363,47 @@
                 }).join('');
             } catch (e) {
                 listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load reports: ${escapeHtml(e.message || String(e))}</div>`;
+            }
+        }
+
+        async function loadCheckpoints() {
+            const listEl = document.getElementById('checkpoints-list');
+            if (!listEl) return;
+            try {
+                const data = await API.get('/api/review/checkpoints');
+                const cps = data.checkpoints || [];
+                let html = '';
+                if (data.live) {
+                    const L = data.live;
+                    const passLabel = L.bidirectional
+                        ? (L.current_pass === 'bwd' ? 'backward pass (2/2)' : 'forward pass (1/2)')
+                        : 'single pass';
+                    const items = (L.tasks || []).map((t, i) =>
+                        `${i + 1}. ${escapeHtml(t.name || '')} — ${escapeHtml(t.status || 'pending')}`).join('<br>');
+                    html += `<div class="list-group-item">
+                        <div><span class="badge bg-primary">running</span> <strong>${escapeHtml(passLabel)}</strong></div>
+                        <div class="text-muted small mt-1">${items}</div>
+                    </div>`;
+                }
+                if (!cps.length) {
+                    html += '<div class="list-group-item text-muted small">No saved checkpoints. One is written while a review runs and cleared when it finishes cleanly — a lingering one here means that book\'s review was interrupted.</div>';
+                } else {
+                    html += cps.map(c => {
+                        const pct = c.total_batches ? Math.round(100 * c.completed_batches / c.total_batches) : 0;
+                        const when = c.mtime ? new Date(c.mtime * 1000).toLocaleString() : '';
+                        const failed = (c.failed_batches && c.failed_batches.length) ? ` · ${c.failed_batches.length} failed` : '';
+                        const vram = c.batches_skipped_vram ? ` · ${c.batches_skipped_vram} VRAM-skipped` : '';
+                        return `<div class="list-group-item">
+                            <div><i class="fas fa-bookmark me-2"></i><strong>${escapeHtml(c.book)}</strong></div>
+                            <div class="small">${c.completed_batches}/${c.total_batches} batches (${pct}%) · ${c.entries_done} entries done</div>
+                            <div class="text-muted small">resumes at batch ${c.resume_from_batch}${failed}${vram}</div>
+                            <div class="text-muted small">${escapeHtml(when)}</div>
+                        </div>`;
+                    }).join('');
+                }
+                listEl.innerHTML = html;
+            } catch (e) {
+                listEl.innerHTML = `<div class="list-group-item text-danger small">Failed to load checkpoints: ${escapeHtml(e.message || String(e))}</div>`;
             }
         }
 
