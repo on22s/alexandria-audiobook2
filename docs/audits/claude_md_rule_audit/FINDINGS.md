@@ -78,3 +78,27 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** Each OOM is printed (`[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping sample`) at the moment it happens, so it isn't fully silent — but unlike `load_dataset`'s `skipped_missing`/`skipped_too_long` counters (which are tallied and printed in a `[DATA] Prepared N samples (M skipped: ...)` summary), no equivalent counter exists for OOM-skipped samples across the whole training run. `training_meta.json` (the one artifact consumers reach for after the run, e.g. the Voice Lab pipeline) has no `oom_skips` field, so a run where e.g. 30% of samples silently OOM'd every epoch looks identical in the metadata to a clean run — only a full scrollback through stdout/the captured log would reveal it.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — track a running OOM-skip counter (per-epoch and/or total) and include it in the `[EPOCH]` summary line and `training_meta.json`, mirroring the existing `load_dataset` skip-counter pattern.
+
+### [F-010] Rule 2 — `parse_alias_decision` has zero callers anywhere in the repo
+- **Piece:** P10 — app/generate_personas.py
+- **Location:** `app/generate_personas.py:285-301` (`parse_alias_decision`)
+- **Severity:** low
+- **Description:** `grep -rn "parse_alias_decision" .` (no file-type filter) returns only the function's own definition line. Nothing in `app/generate_personas.py` itself, `app/app.py`, `app/static/index.html`, or any other file calls it. It appears to be a leftover from an earlier per-speaker alias-decision flow (the file's actual alias resolution today goes through `_resolve_to_canonical` and `_resolve_aliases_batch` instead, both of which are called). No CLI flag, route, or test references it either, so this isn't a dormant external entrypoint.
+- **Status:** fixed-inline (commit `36e3277`)
+- **Suggested fix:** delete the function; confirmed zero callers, meets fix-now criteria.
+
+### [F-011] Rule 8 — Corrupted `manifest.json` is silently reset to empty list with no logging
+- **Piece:** P10 — app/generate_personas.py
+- **Location:** `app/generate_personas.py:518-522` (inner `try/except Exception: manifest = []` in `_save_generated_preview`)
+- **Severity:** medium
+- **Description:** When `designed_voices/manifest.json` exists but fails to parse (corrupt JSON, truncated write, etc.), the inner `except Exception: manifest = []` discards the parse error with zero logging and proceeds as if the manifest were simply empty. Every previously tracked manifest entry for every other speaker is then lost the moment the next speaker's preview is saved (the function rebuilds `manifest` from this now-empty list and overwrites the file via `_atomic_json_write(manifest, manifest_path)` at line 551). This is silent data loss disguised as the normal "no manifest yet" case — the outer `except Exception as e: print(f"Warning: could not update manifest for {speaker}: {e}")` at line 552 only fires for errors in the surrounding block, not for this already-caught inner one.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — log the parse failure distinctly from the legitimate "file doesn't exist yet" case (e.g. `print(f"Warning: manifest.json corrupted, rebuilding from scratch: {e}")`) so the data loss is visible instead of indistinguishable from first-run behavior.
+
+### [F-012] Rule 15 — `generate_personas.py` never self-heals or checks remote LM Studio settings, unlike `review_script.py`/`find_nicknames.py`
+- **Piece:** P10 — app/generate_personas.py
+- **Location:** `app/generate_personas.py:739-747` (`main()`, LLM client construction)
+- **Severity:** medium
+- **Description:** [rule15-candidate] Same gap as F-007 (`generate_script.py`), found independently in a third sibling script. `main()` reads `llm_cfg.get("base_url", ...)` directly from config and constructs an `OpenAI` client with no call to `lmstudio_settings.ensure_ideal_settings` / `is_remote_llm` / `llm_bench.get_cached_or_benchmarked_concurrency`, unlike `review_script.py:822-830` and `find_nicknames.py:326-339`, which both call `ensure_ideal_settings(llm_mode, base_url, model_name, ...)` then fetch a concurrency value before making LLM calls. `generate_personas.py` makes many sequential per-speaker/per-batch LLM calls (`_resolve_aliases_batch`, `_discover_batch_characters`, `_compile_persona`, the simple-mode per-speaker loop) with no self-heal for a stale/restarted remote LM Studio and no remote-aware concurrency, so a misconfigured remote endpoint surfaces as a raw connection error per call instead of the shared heal-and-retry path.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — same as F-007: confirm whether this script should adopt the `ensure_ideal_settings`/`get_cached_or_benchmarked_concurrency` pair for consistency with its pipeline siblings.
