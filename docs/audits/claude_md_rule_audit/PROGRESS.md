@@ -22,7 +22,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P12b — app/review_script.py (review_batch → main)
 - [x] P13a — app/tts.py (voice_category → compute_timeline)
 - [x] P13b — app/tts.py (class TTSEngine)
-- [ ] P14a — app/test_api.py (helpers → chunk tests)
+- [x] P14a — app/test_api.py (helpers → chunk tests)
 - [ ] P14b — app/test_api.py (status/preparer/voicelab/lora/dataset-builder/audio tests + run_all_tests/main)
 
 ### Group B — app/app.py
