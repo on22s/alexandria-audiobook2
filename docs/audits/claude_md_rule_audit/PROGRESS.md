@@ -36,7 +36,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P22 — /api/lora/upload_dataset → /api/lora/preview/{adapter_id} (lines 4143–4667)
 - [x] P23 — /api/dataset_builder/* (lines 4668–5043)
 - [x] P24 — /api/preparer/* (lines 5044–5318)
-- [ ] P25 — /api/voicelab/* (lines 5319–end)
+- [x] P25 — /api/voicelab/* (lines 5319–end)
 
 ### Group C — app/static/index.html
 - [ ] P26 — HTML/CSS shell + tab markup (lines 1–1789)
