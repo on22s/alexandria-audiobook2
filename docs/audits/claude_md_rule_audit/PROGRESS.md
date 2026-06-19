@@ -15,7 +15,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P06 — app/find_nicknames.py
 - [x] P07 — app/tts_vram_benchmark.py
 - [x] P08 — app/generate_script.py
-- [ ] P09 — app/train_lora.py
+- [x] P09 — app/train_lora.py
 - [ ] P10 — app/generate_personas.py
 - [ ] P11 — app/project.py
 - [ ] P12a — app/review_script.py (get_vram_usage → merge_consecutive_narrators)
