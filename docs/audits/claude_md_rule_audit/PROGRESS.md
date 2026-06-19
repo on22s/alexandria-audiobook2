@@ -31,7 +31,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P17 — /api/generate_script → /api/logs/{task_name} (lines 2051–2646)
 - [x] P18 — /api/voices → /api/suggest_voices (lines 2647–3011)
 - [x] P19 — /api/audiobook → /api/review/checkpoints (lines 3012–3462)
-- [ ] P20 — /api/scripts → /api/voice_library/apply_bulk (lines 3463–3983)
+- [x] P20 — /api/scripts → /api/voice_library/apply_bulk (lines 3463–3983)
 - [ ] P21 — /api/voice_design/preview → /api/clone_voices/{voice_id} (lines 3984–4142)
 - [ ] P22 — /api/lora/upload_dataset → /api/lora/preview/{adapter_id} (lines 4143–4667)
 - [ ] P23 — /api/dataset_builder/* (lines 4668–5043)
