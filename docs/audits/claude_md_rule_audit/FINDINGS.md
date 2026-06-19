@@ -142,3 +142,27 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** After mutating `cfg` in memory to merge/move renamed-speaker entries, `try: atomic_json_write(cfg, voice_config_path) except OSError: pass` discards a write failure with zero logging, but the function still `return`s `moved` (a count computed before the write was attempted) regardless of whether the write succeeded. `main()` (P12b, `app/review_script.py:1130-1132`) takes this return value at face value and prints `"Remapped {moved} voice config entr(y/ies) to canonical names."` even when the underlying file was never actually updated — a disk-full/permission-denied failure produces a successful-looking log line while the voice config silently still has the old (now-renamed) speaker keys.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — log the `OSError` (e.g. `print(f"  Warning: failed to write {voice_config_path}: {e}")`) and either return `0` or propagate the failure so `main()`'s success message isn't printed for a write that didn't happen.
+
+### [F-018] Rule 8 — `main()` unconditionally prints "Task review completed successfully" even after a VRAM abort or batch failures
+- **Piece:** P12b — app/review_script.py
+- **Location:** `app/review_script.py:1184-1194` (end of `main()`)
+- **Severity:** low
+- **Description:** The final lines of `main()` always print `"Task review completed successfully."` regardless of `vram_aborted` (some entries were never reviewed and saved as-is) or `total_stats["batches_failed"] > 0` (some batches kept their original unreviewed entries after every retry failed) — both conditions are detected and printed as warnings just above (`"Stopped early..."` / per-batch `"FAILED — keeping original entries..."`), but the literal final status line doesn't reflect either. `app/app.py` mitigates the practical impact by regex-parsing `Batches failed:\s*(\d+)` (line 946) from stdout rather than trusting this literal string, but anyone reading raw script output or `logs/api/*.log` directly (which CLAUDE.md instructs as the first debugging step) sees a "completed successfully" line on a run that left part of the script unreviewed.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — gate the final line on `vram_aborted`/`batches_failed`, e.g. print "Task review completed with N batch failure(s)/early stop" instead of an unconditional success message.
+
+### [F-019] Rule 2 — `--source`/`source_text` is loaded but never wired into review calls; "mode 2" context is dead scaffolding
+- **Piece:** P12b — app/review_script.py
+- **Location:** `app/review_script.py:732,759-766` (`--source` arg + `source_text` load) vs `:1017` (`source_context=None,  # Mode 2: would pass source text chunk here`)
+- **Severity:** low
+- **Description:** `main()` parses `--source`, opens the file, reads it into `source_text`, and prints its length — but `source_text` is never read again anywhere in the file. The non-contextual review path's own comment at line 1017 confirms this is deliberately deferred ("Mode 2: would pass source text chunk here"), and the `--source` arg's help text says "mode 2, not yet implemented." This is exactly the speculative-branch pattern Rule 2 flags: a parameter and its file-load side effect (and printed length) exist purely for a documented-but-unbuilt future caller, with zero effect on today's review behavior.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — either remove `--source`/the load until mode 2 is actually implemented, or leave as-is if the team wants the CLI surface pre-reserved; not fix-now since it's a user-facing CLI flag, not a zero-caller private helper.
+
+### [F-020] Rule 2 — Redundant local `import re` shadows the already-imported module-level `re`
+- **Piece:** P12b — app/review_script.py
+- **Location:** `app/review_script.py:648` (`check_text_loss`)
+- **Severity:** low
+- **Description:** `check_text_loss` has `import re` as its first statement, even though `re` is already imported at module level (`app/review_script.py:4`) and used freely elsewhere in the same file (e.g. `_is_group_label`, `_is_section_break`) without a local re-import. Harmless (same module object either way) but unnecessary — minimum-code-that-solves-the-problem violation.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — delete the local `import re` line; trivial one-line cleanup, left as needs-decision only because Rule 3 (surgical changes / don't touch adjacent code) governs whether unrelated cleanup is in scope for this audit pass.
