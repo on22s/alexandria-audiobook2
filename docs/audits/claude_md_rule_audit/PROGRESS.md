@@ -17,7 +17,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P08 — app/generate_script.py
 - [x] P09 — app/train_lora.py
 - [x] P10 — app/generate_personas.py
-- [ ] P11 — app/project.py
+- [x] P11 — app/project.py
 - [ ] P12a — app/review_script.py (get_vram_usage → merge_consecutive_narrators)
 - [ ] P12b — app/review_script.py (review_batch → main)
 - [ ] P13a — app/tts.py (voice_category → compute_timeline)
