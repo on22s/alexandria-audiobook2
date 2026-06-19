@@ -166,3 +166,11 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `check_text_loss` has `import re` as its first statement, even though `re` is already imported at module level (`app/review_script.py:4`) and used freely elsewhere in the same file (e.g. `_is_group_label`, `_is_section_break`) without a local re-import. Harmless (same module object either way) but unnecessary — minimum-code-that-solves-the-problem violation.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — delete the local `import re` line; trivial one-line cleanup, left as needs-decision only because Rule 3 (surgical changes / don't touch adjacent code) governs whether unrelated cleanup is in scope for this audit pass.
+
+### [F-021] Rule 9 — CLAUDE.md's "review_batch retry/gc.collect() loop" doesn't match any code in review_script.py
+- **Piece:** P12b (controller spot-check while reviewing the P12a/b subagent's work)
+- **Location:** CLAUDE.md (Rule 9 text) vs `app/review_script.py:596-629` (`review_batch`) vs `app/project.py:818-836` and `app/project.py:1085-1100` (`_run_round`/`generate_batch` worker-stepdown loops, both `gc.collect()` then retry on VRAM OOM)
+- **Severity:** low
+- **Description:** CLAUDE.md's Rule 9 names "the `review_batch` retry/`gc.collect()` loop" as a protected safety net. `review_batch` (app/review_script.py:596) has no `gc.collect()` and delegates its only retry loop to `generate_script.py::call_llm_for_entries`, which also has no `gc.collect()` — confirmed via `grep -rn "gc.collect" app/`. The actual mechanism matching CLAUDE.md's description (step the worker/batch count down on VRAM OOM, `gc.collect()`, retry just the failed items) lives in `app/project.py`'s two audio-generation loops instead, which is unrelated to script review. This is a documentation-accuracy gap in CLAUDE.md itself, not a code defect — flagging because a future audit session searching for "the review_batch retry/gc.collect() loop" inside review_script.py will not find it, same as happened here.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — this is for the user to correct in CLAUDE.md (e.g. retarget the citation at `project.py`'s worker-stepdown loops), not something the audit can fix in code.
