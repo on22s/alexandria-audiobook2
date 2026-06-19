@@ -26,7 +26,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P14b — app/test_api.py (status/preparer/voicelab/lora/dataset-builder/audio tests + run_all_tests/main)
 
 ### Group B — app/app.py
-- [ ] P15 — imports → check_global_gpu_lock (lines 1–1491)
+- [x] P15 — imports → check_global_gpu_lock (lines 1–1491)
 - [ ] P16 — /api/system/stats → /api/upload (lines 1492–2050)
 - [ ] P17 — /api/generate_script → /api/logs/{task_name} (lines 2051–2646)
 - [ ] P18 — /api/voices → /api/suggest_voices (lines 2647–3011)
