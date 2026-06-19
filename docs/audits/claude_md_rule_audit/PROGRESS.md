@@ -20,8 +20,8 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P11 — app/project.py
 - [x] P12a — app/review_script.py (get_vram_usage → merge_consecutive_narrators)
 - [x] P12b — app/review_script.py (review_batch → main)
-- [ ] P13a — app/tts.py (voice_category → compute_timeline)
-- [ ] P13b — app/tts.py (class TTSEngine)
+- [x] P13a — app/tts.py (voice_category → compute_timeline)
+- [x] P13b — app/tts.py (class TTSEngine)
 - [ ] P14a — app/test_api.py (helpers → chunk tests)
 - [ ] P14b — app/test_api.py (status/preparer/voicelab/lora/dataset-builder/audio tests + run_all_tests/main)
 
