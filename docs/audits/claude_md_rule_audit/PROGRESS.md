@@ -10,7 +10,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P01 — app/utils.py
 - [x] P02 — app/hf_utils.py
 - [x] P03 — app/default_prompts.py + app/persona_prompts.py + app/review_prompts.py
-- [ ] P04 — app/lmstudio_settings.py
+- [x] P04 — app/lmstudio_settings.py
 - [ ] P05 — app/llm_bench.py
 - [ ] P06 — app/find_nicknames.py
 - [ ] P07 — app/tts_vram_benchmark.py
