@@ -282,25 +282,6 @@ def pick_ref_text(lines):
     return next((ln.strip() for ln in lines if ln and ln.strip()), "")
 
 
-def parse_alias_decision(text):
-    parsed = extract_json_object(text)
-    if not parsed:
-        return {
-            "is_alias": False,
-            "alias_of": "",
-            "description": "",
-            "ref_text": "",
-            "reason": "unparseable"
-        }
-    return {
-        "is_alias": bool(parsed.get("is_alias", False)),
-        "alias_of": str(parsed.get("alias_of", "") or "").strip(),
-        "description": str(parsed.get("description", "") or "").strip(),
-        "ref_text": str(parsed.get("ref_text", "") or "").strip(),
-        "reason": str(parsed.get("reason", "") or "").strip()
-    }
-
-
 def _as_list(value):
     if isinstance(value, list):
         return [str(v).strip() for v in value if str(v).strip()]
