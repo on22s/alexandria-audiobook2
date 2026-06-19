@@ -22,3 +22,19 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** All three modules implement the same pattern (read a `---SEPARATOR---`-delimited `.txt` file, split into N parts, raise `RuntimeError` if missing/malformed), but `load_default_prompts` alone added an mtime-based cache while the other two re-read and re-split the file from disk on every call. `app/app.py`'s `get_config()` and `get_default_prompts()` call all three loaders together, repeatedly, on the same request paths (e.g. `app/app.py:1716-1830`), so the caching behavior is inconsistent across what is otherwise one conceptual operation.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — either factor the shared read/split/validate logic into one parametrized helper (delimiter count, error message) used by all three, with caching applied uniformly, or add a comment explaining why `default_prompts.py` needed caching and the others didn't.
+
+### [F-003] Rule 8 — `measure_throughput` swallows any exception identically, indistinguishable from a real bug
+- **Piece:** P05 — app/llm_bench.py
+- **Location:** `app/llm_bench.py:78-82` (`measure_throughput`)
+- **Severity:** low
+- **Description:** `except Exception: return None` inside the `as_completed` loop catches every possible error from `_one_call` (network timeout, auth failure, a `TypeError` from a future code change, malformed API response, etc.) with no logging at all, then silently returns `None`. The docstring documents `None` as meaning "this concurrency level isn't safe," but a latent bug producing the exact same `None` every time would be indistinguishable from a real server limitation in `get_cached_or_benchmarked_concurrency`'s caller-facing prints (which only print the chosen concurrency, never that a request actually raised an exception or what kind).
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — log the exception type/message (e.g. `logger.debug` or a print) before returning `None`, so a real bug surfaces differently from an expected timeout/connection failure.
+
+### [F-004] Rule 15 — `get_cached_or_benchmarked_concurrency` branches on raw `llm_mode == "remote"` instead of `is_remote_llm(llm_mode, base_url)`
+- **Piece:** P05 — app/llm_bench.py
+- **Location:** `app/llm_bench.py:167,179,183` (`get_cached_or_benchmarked_concurrency`)
+- **Severity:** medium
+- **Description:** [rule15-candidate] This function takes both `llm_mode` and `base_url` as parameters, but its three remote/local branch points (`profile_key` selection at line 167, the `status` fetch at line 179, and the GPU-probe/label selection at line 183) all test `llm_mode == "remote"` directly rather than calling `lmstudio_settings.is_remote_llm(llm_mode, base_url)`. `is_remote_llm`'s own docstring in `app/lmstudio_settings.py` exists specifically because `llm_mode` alone "misses... a save_config edge case where llm_mode and the active base_url have drifted out of sync" — this function has `base_url` in scope and could hit exactly that drift, picking the wrong cache profile / status-fetch path / GPU probe.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — not resolved here per audit scope; flagging for the Rule 15 cross-cutting pass (Task 4 in PROGRESS.md).
