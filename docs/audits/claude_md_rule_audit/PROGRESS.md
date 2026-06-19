@@ -23,7 +23,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P13a — app/tts.py (voice_category → compute_timeline)
 - [x] P13b — app/tts.py (class TTSEngine)
 - [x] P14a — app/test_api.py (helpers → chunk tests)
-- [ ] P14b — app/test_api.py (status/preparer/voicelab/lora/dataset-builder/audio tests + run_all_tests/main)
+- [x] P14b — app/test_api.py (status/preparer/voicelab/lora/dataset-builder/audio tests + run_all_tests/main)
 
 ### Group B — app/app.py
 - [ ] P15 — imports → check_global_gpu_lock (lines 1–1491)
