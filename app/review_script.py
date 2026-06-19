@@ -6,13 +6,16 @@ import time
 import difflib
 import subprocess
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
+from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import (
     clean_json_string, repair_json_array, salvage_json_entries,
     LLMGenParams, call_llm_for_entries,
 )
-from lmstudio_settings import apply_lmstudio_settings, get_lmstudio_status
+from lmstudio_settings import ensure_ideal_settings, get_current_status
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
 
 
@@ -780,11 +783,11 @@ def main():
     model_name = llm_config.get("model_name", "local-model")
 
     # Load custom review prompts or use defaults from review_prompts.txt
-    prompts_config = config.get("prompts", {})
+    prompts_config = config.get("prompts") or {}
     review_sys = prompts_config.get("review_system_prompt") or REVIEW_SYSTEM_PROMPT
     review_usr = prompts_config.get("review_user_prompt") or REVIEW_USER_PROMPT
 
-    generation_config = config.get("generation", {})
+    generation_config = config.get("generation") or {}
     batch_size = generation_config.get("review_batch_size", 25)
     max_tokens = generation_config.get("max_tokens", 8000)
     temperature = generation_config.get("temperature", 0.4)
@@ -813,37 +816,34 @@ def main():
     if banned_tokens:
         print(f"Banned tokens: {banned_tokens}")
 
-    # Make sure LM Studio is loaded with VRAM-safe settings (8192 ctx,
-    # parallel 1) regardless of what's currently loaded - covers the case
-    # where LM Studio was restarted or a different model/config was used last.
-    ok, msg = apply_lmstudio_settings(model_name, ideal=True)
-    if ok:
-        print(f"LM Studio: {msg}")
-    else:
-        # The reload failed, but if the model happens to already be loaded
-        # with VRAM-safe settings (e.g. a previous run applied them and the
-        # reload here was just redundant), there's nothing to worry about.
-        status = get_lmstudio_status(model_name)
-        if status["loaded"] and status["optimized"]:
-            print(f"LM Studio: could not reload ({msg}), but {model_name} is "
-                  f"already loaded with VRAM-safe settings - continuing.")
-        else:
-            print(f"LM Studio: WARNING - could not apply VRAM-safe settings ({msg}). "
-                  f"The model may be running with a higher 'parallel'/context-length "
-                  f"configuration, which uses more VRAM per request and increases the "
-                  f"risk of an out-of-memory crash. The VRAM watchdog below will still "
-                  f"pause batches if usage gets too high, but if you hit OOM, restart "
-                  f"LM Studio and re-run.")
+    # A remote LM Studio (e.g. on a Thunder Compute instance) is loaded and
+    # managed elsewhere; the local `lms` CLI and the local-GPU VRAM watchdog
+    # don't apply, so skip them entirely when the endpoint isn't local.
+    llm_mode = config.get("llm_mode", "local")
+    is_remote, lm_status, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
-    # Re-verify LM Studio settings are still optimized right before review starts
-    # to catch any configuration changes that happened between apply and now
-    pre_review_status = get_lmstudio_status(model_name)
+    wave_size = get_cached_or_benchmarked_concurrency(
+        config_path, llm_mode, base_url, model_name, client,
+        ssh_alias=config.get("llm_remote_ssh"), status=lm_status)
+    if wave_size > 1:
+        print(f"Using concurrency: {wave_size}")
+
+    # Re-verify settings are still optimized right before review starts, to
+    # catch drift between the initial heal and now (e.g. a slow concurrency
+    # benchmark, or - for remote - TTL/idle expiry, since
+    # apply_remote_lmstudio_settings intentionally doesn't pin a TTL).
+    pre_review_status = get_current_status(llm_mode, base_url, model_name,
+                                            ssh_alias=config.get("llm_remote_ssh"))
     if pre_review_status["loaded"] and not pre_review_status["optimized"]:
-        print(f"WARNING: LM Studio model '{model_name}' is loaded but NOT optimized for VRAM.")
-        print("This may cause OOM crashes during batch review. Consider restarting LM Studio")
-        print("with VRAM-safe settings or reducing batch size.")
+        label = "Remote LM Studio" if is_remote else "LM Studio"
+        print(f"WARNING: {label} model '{model_name}' is loaded but NOT optimized.")
+        if not is_remote:
+            print("This may cause OOM crashes during batch review. Consider restarting LM Studio")
+            print("with VRAM-safe settings or reducing batch size.")
 
     all_corrected = []
     total_stats = {
@@ -881,7 +881,7 @@ def main():
             before = entries[max(0, start - window):start]
             after = entries[end:min(len(entries), end + window)]
 
-            if not wait_for_vram_headroom():
+            if not is_remote and not wait_for_vram_headroom():
                 unreviewed_remainder = entries[start:]
                 total_stats["batches_skipped_vram"] = total_batches - batch_index + 1
                 vram_aborted = True
@@ -979,83 +979,124 @@ def main():
             print(f"Resuming from checkpoint: {completed_batches}/{total_batches} batches already reviewed.")
 
         unreviewed_remainder = []
-        for offset_idx, batch in enumerate(remaining_batches):
-            i = completed_batches + 1 + offset_idx
+        # Guards the per-batch VRAM check below: wave_size>1 batches run
+        # concurrently, so a single pre-wave check (the old approach) can't
+        # see VRAM consumed by sibling batches still starting up within the
+        # same wave. vram_lock serializes each batch's own live check (so it
+        # reflects whatever siblings dispatched moments earlier already
+        # claimed); vram_abort lets one batch's sustained-saturation timeout
+        # tell not-yet-started siblings/waves to stop too.
+        vram_abort = threading.Event()
+        vram_lock = threading.Lock()
+        for wave_start in range(0, len(remaining_batches), wave_size):
+            wave_batches = remaining_batches[wave_start:wave_start + wave_size]
+            wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
+            # Every batch in this wave gets the SAME previous_tail (from the end of
+            # the last wave) - they can't see each other's corrections yet, only
+            # results from earlier, already-finished waves. Mirrors find_nicknames.py.
+            wave_tail = previous_tail
 
-            if not wait_for_vram_headroom():
-                for remaining in remaining_batches[offset_idx:]:
+            if len(wave_batches) > 1:
+                print(f"\nReviewing batches {wave_indices[0]}-{wave_indices[-1]}/{total_batches} "
+                      f"({sum(len(b) for b in wave_batches)} entries, {len(wave_batches)} concurrent)...")
+            else:
+                print(f"\nReviewing batch {wave_indices[0]}/{total_batches} ({len(wave_batches[0])} entries)...")
+
+            def _run_one(item):
+                i, batch = item
+                if not is_remote:
+                    with vram_lock:
+                        if vram_abort.is_set():
+                            return "VRAM_SKIP"
+                        if not wait_for_vram_headroom():
+                            vram_abort.set()
+                            return "VRAM_SKIP"
+                return review_batch(
+                    client, model_name, batch, i, total_batches, gen_params,
+                    previous_tail=wave_tail,
+                    source_context=None,  # Mode 2: would pass source text chunk here
+                )
+
+            with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
+                wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
+
+            for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
+                if corrected == "VRAM_SKIP":
+                    unreviewed_remainder.extend(batch)
+                    continue
+
+                if corrected is None:
+                    print(f"  FAILED — keeping original entries for batch {i} (will retry on next resume)")
+                    all_corrected.extend(batch)
+                    total_stats["batches_failed"] += 1
+                    previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                    batch_lengths.append(len(batch))
+                    failed_batches.append(i)
+                    save_checkpoint(output_path, i, total_batches, batch_size,
+                                    args.context_window, all_corrected, total_stats, previous_tail,
+                                    batch_lengths, failed_batches)
+                    continue
+
+                # Text-loss safety check (same bounds as contextual mode for consistency)
+                passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
+                if not passed:
+                    print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
+                    print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
+                    print(f"  Keeping original entries for batch {i} to prevent data corruption (will retry on next resume).")
+                    all_corrected.extend(batch)
+                    total_stats["batches_failed"] += 1
+                    previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                    batch_lengths.append(len(batch))
+                    failed_batches.append(i)
+                    save_checkpoint(output_path, i, total_batches, batch_size,
+                                    args.context_window, all_corrected, total_stats, previous_tail,
+                                    batch_lengths, failed_batches)
+                    continue
+
+                # Diff stats
+                stats = diff_entries(batch, corrected, highlight_pool)
+                entry_diff = len(corrected) - len(batch)
+
+                if entry_diff > 0:
+                    total_stats["entries_added"] += entry_diff
+                elif entry_diff < 0:
+                    total_stats["entries_removed"] += abs(entry_diff)
+
+                total_stats["text_changed"] += stats["text_changed"]
+                total_stats["speaker_changed"] += stats["speaker_changed"]
+                total_stats["instruct_changed"] += stats["instruct_changed"]
+
+                changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+                if changes > 0 or entry_diff != 0:
+                    print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                    if entry_diff > 0:
+                        print(f", +{entry_diff} entries (splits)")
+                    elif entry_diff < 0:
+                        print(f", {entry_diff} entries (merges)")
+                    else:
+                        print()
+                else:
+                    print(f"  No changes")
+
+                all_corrected.extend(corrected)
+                previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+                batch_lengths.append(len(corrected))
+                save_checkpoint(output_path, i, total_batches, batch_size,
+                                args.context_window, all_corrected, total_stats, previous_tail,
+                                batch_lengths, failed_batches)
+
+            if vram_abort.is_set():
+                # Some batches in this wave may have already succeeded before
+                # the abort was detected (kept above, in all_corrected) -
+                # only the genuinely-skipped ones and every later, untried
+                # wave count as unreviewed.
+                skipped_count = sum(1 for r in wave_results if r == "VRAM_SKIP")
+                for remaining in remaining_batches[wave_start + len(wave_batches):]:
                     unreviewed_remainder.extend(remaining)
-                total_stats["batches_skipped_vram"] = total_batches - i + 1
+                    skipped_count += 1
+                total_stats["batches_skipped_vram"] = skipped_count
                 vram_aborted = True
                 break
-
-            print(f"\nReviewing batch {i}/{total_batches} ({len(batch)} entries)...")
-
-            corrected = review_batch(
-                client, model_name, batch, i, total_batches, gen_params,
-                previous_tail=previous_tail,
-                source_context=None,  # Mode 2: would pass source text chunk here
-            )
-
-            if corrected is None:
-                print(f"  FAILED — keeping original entries for batch {i} (will retry on next resume)")
-                all_corrected.extend(batch)
-                total_stats["batches_failed"] += 1
-                previous_tail = batch[-2:] if len(batch) >= 2 else batch
-                batch_lengths.append(len(batch))
-                failed_batches.append(i)
-                save_checkpoint(output_path, i, total_batches, batch_size,
-                                args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
-                continue
-
-            # Text-loss safety check (same bounds as contextual mode for consistency)
-            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
-            if not passed:
-                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
-                print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
-                print(f"  Keeping original entries for batch {i} to prevent data corruption (will retry on next resume).")
-                all_corrected.extend(batch)
-                total_stats["batches_failed"] += 1
-                previous_tail = batch[-2:] if len(batch) >= 2 else batch
-                batch_lengths.append(len(batch))
-                failed_batches.append(i)
-                save_checkpoint(output_path, i, total_batches, batch_size,
-                                args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
-                continue
-
-            # Diff stats
-            stats = diff_entries(batch, corrected, highlight_pool)
-            entry_diff = len(corrected) - len(batch)
-
-            if entry_diff > 0:
-                total_stats["entries_added"] += entry_diff
-            elif entry_diff < 0:
-                total_stats["entries_removed"] += abs(entry_diff)
-
-            total_stats["text_changed"] += stats["text_changed"]
-            total_stats["speaker_changed"] += stats["speaker_changed"]
-            total_stats["instruct_changed"] += stats["instruct_changed"]
-
-            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
-            if changes > 0 or entry_diff != 0:
-                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
-                if entry_diff > 0:
-                    print(f", +{entry_diff} entries (splits)")
-                elif entry_diff < 0:
-                    print(f", {entry_diff} entries (merges)")
-                else:
-                    print()
-            else:
-                print(f"  No changes")
-
-            all_corrected.extend(corrected)
-            previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
-            batch_lengths.append(len(corrected))
-            save_checkpoint(output_path, i, total_batches, batch_size,
-                            args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches)
 
     # Post-processing: merge consecutive NARRATOR entries with same instruct.
     # This is purely local (no LLM calls), so it's safe to run on the

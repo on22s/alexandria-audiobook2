@@ -276,6 +276,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     (e.g. "CHUNK 3/40" or "BATCH 2/10").
     """
     for attempt in range(max_retries + 1):
+        t0 = time.time()
         try:
             response = client.chat.completions.create(
                 model=model_name,
@@ -318,13 +319,13 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f"  finish_reason={finish_reason}", end="")
             if usage:
                 print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
-            print()
+            print(f" | took {time.time() - t0:.1f}s")
 
             if finish_reason == "length":
                 print(f"  WARNING: Response was truncated (hit max_tokens={params.max_tokens}). Consider increasing max_tokens.")
 
         except Exception as e:
-            print(f"Error calling LLM API (attempt {attempt + 1}): {e}")
+            print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
             if attempt < max_retries:
                 continue
             return []
@@ -447,12 +448,12 @@ def main():
     model_name = llm_config.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
 
     # Load custom prompts or use defaults
-    prompts_config = config.get("prompts", {})
+    prompts_config = config.get("prompts") or {}
     system_prompt = prompts_config.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
     user_prompt_template = prompts_config.get("user_prompt") or DEFAULT_USER_PROMPT
 
     # Load generation settings
-    generation_config = config.get("generation", {})
+    generation_config = config.get("generation") or {}
     chunk_size = generation_config.get("chunk_size", 3000)
     max_tokens = generation_config.get("max_tokens", 4096)
     temperature = generation_config.get("temperature", 0.6)

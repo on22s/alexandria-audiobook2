@@ -512,6 +512,14 @@
                     <form id="config-form">
                         <h5 class="mb-3">LLM Settings (Script Generation)</h5>
                         <div class="mb-3">
+                            <label class="form-label">LLM Location <span id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
+                            <select class="form-select" id="llm-mode" onchange="onLlmModeChange()">
+                                <option value="local">Local</option>
+                                <option value="remote">Remote (Thunder / network)</option>
+                            </select>
+                            <div class="form-text">Switch between your local LLM and a remote one (e.g. LM Studio on a Thunder Compute instance). Each location keeps its own settings.</div>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Base URL</label>
                             <input type="text" class="form-control" id="llm-url" placeholder="http://localhost:1234/v1">
                             <div class="form-text">URL for your OpenAI-compatible server (LM Studio, Ollama, etc.)</div>
@@ -523,6 +531,17 @@
                         <div class="mb-3">
                             <label class="form-label">Model Name</label>
                             <input type="text" class="form-control" id="llm-model" placeholder="local-model">
+                        </div>
+                        <div class="mb-3" id="llm-ssh-group" style="display:none;">
+                            <label class="form-label">Remote SSH host alias</label>
+                            <input type="text" class="form-control" id="llm-ssh" placeholder="tnr-0">
+                            <div class="form-text">Only used by the "Optimize" button to reconfigure the remote LM Studio over SSH. Run <code>tnr connect &lt;id&gt;</code> once first so the alias exists.</div>
+                        </div>
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="llm-test-btn" onclick="testLlmConnection()">
+                                <i class="fas fa-plug me-1"></i>Test Connection
+                            </button>
+                            <span id="llm-test-result" class="ms-2 small"></span>
                         </div>
 
                         <h5 class="mb-3 mt-4">TTS Settings (Voice Generation)</h5>
@@ -690,11 +709,11 @@
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div class="form-check form-switch mb-0">
                                         <input class="form-check-input" type="checkbox" id="lmstudio-optimize-toggle" onchange="toggleLmStudioOptimize()">
-                                        <label class="form-check-label" for="lmstudio-optimize-toggle">VRAM-safe LM Studio settings</label>
+                                        <label class="form-check-label" for="lmstudio-optimize-toggle">Optimize LM Studio settings</label>
                                     </div>
                                     <span id="lmstudio-status-badge" class="badge bg-secondary">Checking...</span>
                                 </div>
-                                <div class="form-text">Reloads the local LLM with context 8192 / parallel 1 (lower VRAM usage during batch review). Off restores LM Studio's defaults (context 4096 / parallel 4). Batch review applies the safe settings automatically either way.</div>
+                                <div class="form-text">Local: reloads with context 8192 / parallel 1 (lower VRAM during batch review). Remote: reloads the remote model with context 98304 / parallel 2 over SSH (needs the SSH host alias above). Off restores LM Studio's defaults.</div>
                             </div>
                             <hr>
                             <h6 class="mb-3">Prompt Customization</h6>
@@ -1815,6 +1834,19 @@
             });
         }
 
+        // Big/long-running jobs (batch review, batch script generation) bill a
+        // remote GPU by the hour while they run - confirm before committing to
+        // that, since there's no way for the app to check your actual Thunder
+        // balance automatically. Local has no cloud cost, so it's a no-op there.
+        async function confirmIfRemote(taskLabel) {
+            if (currentLlmMode !== 'remote') return true;
+            return await showConfirm(
+                `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
+                `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
+                `to Local in Setup first?`
+            );
+        }
+
         function escapeHtml(str) {
             if (str == null) return '';
             return String(str)
@@ -2086,15 +2118,109 @@
             document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
         }
 
+        // Local/Remote LLM profile state. Each mode keeps its own base_url/key/model
+        // so switching the toggle never clobbers the other location's settings.
+        let llmProfiles = { local: {base_url:'', api_key:'local', model_name:''},
+                            remote: {base_url:'', api_key:'local', model_name:''} };
+        let currentLlmMode = 'local';
+        let savedLlmMode = 'local';   // last-saved llm_mode; drives the "Active:" badge
+
+        function populateLlmInputs(mode) {
+            const p = llmProfiles[mode] || {};
+            document.getElementById('llm-url').value = p.base_url || '';
+            document.getElementById('llm-key').value = p.api_key || 'local';
+            document.getElementById('llm-model').value = p.model_name || '';
+        }
+
+        function syncCurrentLlmProfile() {
+            llmProfiles[currentLlmMode] = {
+                base_url: document.getElementById('llm-url').value,
+                api_key: document.getElementById('llm-key').value,
+                model_name: document.getElementById('llm-model').value
+            };
+        }
+
+        // Reflects the last-SAVED llm_mode, not the dropdown's live selection
+        // (currentLlmMode) - the gap between the two is what tells the user
+        // their Location change hasn't taken effect yet.
+        function renderActiveLlmModeBadge() {
+            const badge = document.getElementById('llm-active-mode-badge');
+            if (!badge) return;
+            badge.textContent = 'Active: ' + (savedLlmMode === 'remote' ? 'Remote (Thunder / network)' : 'Local');
+        }
+
+        function onLlmModeChange(isInit) {
+            const newMode = document.getElementById('llm-mode').value;
+            if (!isInit && newMode !== currentLlmMode) {
+                syncCurrentLlmProfile();           // stash the mode we're leaving
+                currentLlmMode = newMode;
+                populateLlmInputs(currentLlmMode); // show the mode we're entering
+            }
+            document.getElementById('llm-ssh-group').style.display =
+                (newMode === 'remote') ? '' : 'none';
+            document.getElementById('llm-test-result').innerHTML = '';
+        }
+
+        async function testLlmConnection() {
+            const btn = document.getElementById('llm-test-btn');
+            const out = document.getElementById('llm-test-result');
+            const baseUrl = document.getElementById('llm-url').value.trim();
+            if (!baseUrl) {
+                out.className = 'ms-2 small text-danger';
+                out.innerHTML = '<i class="fas fa-times me-1"></i>Enter a Base URL before testing.';
+                return;
+            }
+            btn.disabled = true;
+            out.className = 'ms-2 small text-muted';
+            out.textContent = 'Testing…';
+            try {
+                const res = await API.post('/api/llm/test', {
+                    base_url: document.getElementById('llm-url').value,
+                    api_key: document.getElementById('llm-key').value,
+                    model_name: document.getElementById('llm-model').value
+                });
+                if (res.ok) {
+                    out.className = 'ms-2 small text-success';
+                    const note = res.model_present === false
+                        ? ` — warning: model "${escapeHtml(res.model)}" not in server list` : '';
+                    out.innerHTML = `<i class="fas fa-check me-1"></i>Connected. Reply: "${escapeHtml(res.reply || '')}"${note}`;
+
+                    const modeLabel = currentLlmMode === 'remote' ? 'Remote' : 'Local';
+                    const banner = document.getElementById('auto-config-banner');
+                    document.getElementById('auto-config-msg').innerHTML =
+                        `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ` +
+                        `${modeLabel} LLM connected (${escapeHtml(res.base_url)}, model "${escapeHtml(res.model)}") — click Save to apply.`;
+                    banner.style.display = '';
+                    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    out.className = 'ms-2 small text-danger';
+                    const log = res.log_file ? ` (log: ${escapeHtml(res.log_file)})` : '';
+                    out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
+                }
+            } catch (e) {
+                out.className = 'ms-2 small text-danger';
+                out.textContent = 'Test request failed: ' + (e.message || 'unknown error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         async function loadConfig() {
             document.getElementById('chunk-size').value = 3000;
             document.getElementById('max-tokens').value = 4096;
 
             try {
                 const config = await API.get('/api/config');
-                document.getElementById('llm-url').value = config.llm.base_url;
-                document.getElementById('llm-key').value = config.llm.api_key;
-                document.getElementById('llm-model').value = config.llm.model_name;
+                // Local/Remote LLM profiles: keep both in memory, show the active one.
+                llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
+                llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
+                currentLlmMode = config.llm_mode || 'local';
+                savedLlmMode = currentLlmMode;
+                renderActiveLlmModeBadge();
+                document.getElementById('llm-mode').value = currentLlmMode;
+                document.getElementById('llm-ssh').value = config.llm_remote_ssh || '';
+                populateLlmInputs(currentLlmMode);
+                onLlmModeChange(true);
                 document.getElementById('tts-mode').value = config.tts.mode || 'external';
                 document.getElementById('tts-url').value = config.tts.url || 'http://127.0.0.1:7860';
                 document.getElementById('tts-device').value = config.tts.device || 'auto';
@@ -2266,12 +2392,15 @@
             parallelWorkers = Math.max(1, parallelWorkers);
             document.getElementById('parallel-workers').value = parallelWorkers;
 
+            // Persist whatever's currently shown into the active profile first,
+            // then send both profiles + the active one (mirrored server-side into `llm`).
+            syncCurrentLlmProfile();
             const config = {
-                llm: {
-                    base_url: document.getElementById('llm-url').value,
-                    api_key: document.getElementById('llm-key').value,
-                    model_name: document.getElementById('llm-model').value
-                },
+                llm: llmProfiles[currentLlmMode],
+                llm_mode: currentLlmMode,
+                llm_local: llmProfiles.local,
+                llm_remote: llmProfiles.remote,
+                llm_remote_ssh: document.getElementById('llm-ssh').value.trim() || null,
                 tts: {
                     mode: document.getElementById('tts-mode').value,
                     url: document.getElementById('tts-url').value,
@@ -2313,6 +2442,8 @@
             };
             try {
                 await API.post('/api/config', config);
+                savedLlmMode = currentLlmMode;
+                renderActiveLlmModeBadge();
                 showToast('Configuration Saved!', 'success');
             } catch (e) {
                 showToast('Error saving config: ' + e.message, 'error');
@@ -2500,6 +2631,7 @@
 
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
+            if (!(await confirmIfRemote('this batch script generation'))) return;
 
             const btn = document.getElementById('btn-gen-script');
             const pauseBtn = document.getElementById('btn-pause-batch-script');
@@ -2752,6 +2884,7 @@
         async function startBatchReview() {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
+            if (!(await confirmIfRemote('this batch review'))) return;
             reviewBatchSelected = names;
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
@@ -5945,7 +6078,11 @@
             if (!badge || !toggle) return;
             try {
                 const status = await API.get('/api/lmstudio/status');
-                if (!status.available) {
+                if (status.remote) {
+                    badge.textContent = 'Remote (optimize via SSH)';
+                    badge.className = 'badge bg-info text-dark';
+                    toggle.disabled = false;
+                } else if (!status.available) {
                     badge.textContent = 'lms CLI not found';
                     badge.className = 'badge bg-secondary';
                     toggle.disabled = true;

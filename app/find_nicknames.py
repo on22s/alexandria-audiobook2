@@ -14,9 +14,13 @@ import os
 import sys
 import json
 import re
+import time
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, OpenAIError
 from utils import safe_load_json, atomic_json_write
+from llm_bench import get_cached_or_benchmarked_concurrency
+from lmstudio_settings import ensure_ideal_settings
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
@@ -178,7 +182,8 @@ def _chunk_evidence(cooccur, evidence_budget):
 
 
 def find_nicknames(client, model_name, entries, existing_aliases=None,
-                   max_tokens=2000, temperature=0.2, context_length=8192):
+                   max_tokens=2000, temperature=0.2, context_length=8192,
+                   concurrency=1):
     """Discover nickname/alias relationships. Returns (aliases, evidence).
 
     The full speaker roster is sent with every request, but the co-occurrence
@@ -186,14 +191,26 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
     the VRAM-safe LM Studio setting). This lets the model see ALL the evidence
     across several safe-sized calls instead of overflowing the context window
     (the old single-call approach failed large-cast books with an n_ctx error).
-    Aliases found in earlier chunks are fed forward so later chunks stay
-    consistent, and all results are merged.
+
+    Chunks are processed `concurrency` at a time ("waves") instead of strictly
+    one at a time, so a server that can serve multiple requests at once (e.g.
+    `--parallel N`) actually gets used. Aliases found in earlier WAVES are fed
+    forward so later waves stay consistent; chunks within the same wave can't
+    see each other's results yet (fixed up once that wave finishes), all
+    results are merged at the end.
     """
     speakers, samples, cooccur = collect_context(entries)
     if len(speakers) < 2:
         return {}, {}
 
-    existing_aliases = dict(existing_aliases or {})
+    # Keep only registry entries this call could actually use: _parse_alias_response
+    # discards any variant that isn't one of this book's speaker labels, so a variant
+    # from another book in the series is dead weight - and with a multi-book shared
+    # registry (--append across a whole batch) that dead weight is what was blowing
+    # the context budget below, since it's otherwise dumped into every chunk uncounted.
+    speaker_set = {sp.strip().lower() for sp in speakers}
+    existing_aliases = {k: v for k, v in (existing_aliases or {}).items()
+                        if k.strip().lower() in speaker_set}
     budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
 
     # Roster block (every speaker + scaled sample lines) goes in every call, so
@@ -207,19 +224,23 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
     if len(roster_block) > budget:  # extreme cast - truncate roster as last resort
         roster_block = roster_block[:budget]
 
-    evidence_budget = max(500, budget - len(roster_block))
+    # Existing aliases are prepended to every chunk too (see loop below) - even
+    # filtered, count them against the budget as a backstop.
+    existing_block_chars = (len(json.dumps(existing_aliases, ensure_ascii=False)) + 40
+                            if existing_aliases else 0)
+
+    evidence_budget = max(500, budget - len(roster_block) - existing_block_chars)
     chunks = _chunk_evidence(cooccur, evidence_budget)
     if len(chunks) > 1:
         print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
               f"context-safe chunk(s) for {context_length}-token model.")
 
-    all_aliases, all_evidence = {}, {}
-    for ci, ev_lines in enumerate(chunks):
+    def _process_chunk(item):
+        ci, ev_lines, accumulated_snapshot = item
         parts = []
-        accumulated = {**existing_aliases, **all_aliases}
-        if accumulated:
+        if accumulated_snapshot:
             parts.append("EXISTING ALIASES (stay consistent):")
-            parts.append(json.dumps(accumulated, ensure_ascii=False))
+            parts.append(json.dumps(accumulated_snapshot, ensure_ascii=False))
             parts.append("")
         parts.append(roster_block)
         if ev_lines:
@@ -230,6 +251,7 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
 
         if len(chunks) > 1:
             print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
+        t0 = time.time()
         try:
             resp = client.chat.completions.create(
                 model=model_name,
@@ -241,12 +263,27 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                 temperature=temperature,
             )
             raw = resp.choices[0].message.content or ""
-            aliases, evidence = _parse_alias_response(raw, speakers)
+            print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
+            return _parse_alias_response(raw, speakers)
         except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
-            print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)}: {e}")
-            continue
-        all_aliases.update(aliases)
-        all_evidence.update(evidence)
+            print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
+                  f"after {time.time() - t0:.1f}s: {e}")
+            return {}, {}
+
+    all_aliases, all_evidence = {}, {}
+    indexed_chunks = list(enumerate(chunks))
+    for wave_start in range(0, len(indexed_chunks), concurrency):
+        wave = indexed_chunks[wave_start:wave_start + concurrency]
+        # Every chunk in this wave sees the same "aliases found so far" snapshot,
+        # taken before the wave starts - they can't see each other's results,
+        # only chunks from earlier, already-finished waves.
+        snapshot = {**existing_aliases, **all_aliases}
+        wave_items = [(ci, ev_lines, snapshot) for ci, ev_lines in wave]
+        with ThreadPoolExecutor(max_workers=len(wave_items)) as executor:
+            results = list(executor.map(_process_chunk, wave_items))
+        for aliases, evidence in results:
+            all_aliases.update(aliases)
+            all_evidence.update(evidence)
 
     return all_aliases, all_evidence
 
@@ -273,11 +310,35 @@ def main():
     config_path = os.path.join(base, "config.json")
     config = safe_load_json(config_path, default={})
     llm = config.get("llm", {})
-    client = OpenAI(base_url=llm.get("base_url", "http://localhost:11434/v1"),
+    base_url = llm.get("base_url", "")
+    client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
                     api_key=llm.get("api_key", "local"))
     model_name = llm.get("model_name", "local-model")
-    context_length = int(llm.get("context_length", 8192) or 8192)
+    llm_mode = config.get("llm_mode", "local")
     print(f"Using model: {model_name}")
+
+    # Self-heal LM Studio's load settings every run before deciding what
+    # context_length is safe to chunk evidence against - covers the case
+    # where LM Studio (local or the remote Thunder instance) was restarted
+    # since the last run. config["llm"] never actually stores a
+    # context_length, so this replaces a previous hardcoded 8192 guess that
+    # was disconnected from whatever was really loaded.
+    is_remote, status, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
+
+    if status.get("loaded") and status.get("context_length"):
+        context_length = status["context_length"]
+    else:
+        context_length = 4096  # conservative: LM Studio's own real-world default, not an optimistic guess
+        print(f"WARNING: could not determine the model's actual loaded context length; "
+              f"falling back to a conservative {context_length} for evidence chunk sizing.")
+
+    concurrency = get_cached_or_benchmarked_concurrency(
+        config_path, llm_mode, base_url, model_name, client,
+        ssh_alias=config.get("llm_remote_ssh"), status=status)
+    if concurrency > 1:
+        print(f"Using concurrency: {concurrency}")
 
     existing = {}
     if args.append:
@@ -285,7 +346,8 @@ def main():
 
     aliases, evidence = find_nicknames(client, model_name, entries,
                                        existing_aliases=existing,
-                                       context_length=context_length)
+                                       context_length=context_length,
+                                       concurrency=concurrency)
 
     if aliases:
         print(f"\nFound {len(aliases)} nickname/alias mapping(s):")

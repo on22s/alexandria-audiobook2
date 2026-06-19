@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Literal
 import re
 import time
 import queue
@@ -19,7 +19,9 @@ import difflib
 import threading
 import zipfile
 import subprocess
+import traceback
 import aiofiles
+from datetime import datetime
 from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
@@ -32,7 +34,9 @@ from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
-from lmstudio_settings import get_lmstudio_status, apply_lmstudio_settings
+from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
+                               apply_remote_lmstudio_settings, is_local_llm_endpoint,
+                               get_current_status)
 from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
@@ -317,7 +321,11 @@ class PromptConfig(BaseModel):
     persona_advanced_prompt: Optional[str] = None
 
 class AppConfig(BaseModel):
-    llm: LLMConfig
+    llm: LLMConfig  # active profile - mirrored from llm_local/llm_remote per llm_mode
+    llm_mode: Literal["local", "remote"] = "local"  # remote = e.g. LM Studio on Thunder
+    llm_local: Optional[LLMConfig] = None   # saved local profile
+    llm_remote: Optional[LLMConfig] = None  # saved remote profile
+    llm_remote_ssh: Optional[str] = None    # ssh host alias (e.g. "tnr-0") for remote optimize
     tts: TTSConfig
     prompts: Optional[PromptConfig] = None
     generation: Optional[GenerationConfig] = None
@@ -1187,10 +1195,15 @@ def _validate_local_llm_base_url(base_url: str) -> None:
     """
     if not base_url:
         return
+    if is_local_llm_endpoint(base_url):
+        return
     from urllib.parse import urlparse
     hostname = (urlparse(base_url).hostname or "").lower()
-    if hostname not in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
-        raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
+    # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
+    # that trusted remote host for running LM Studio on a Thunder GPU instance.
+    if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
+        return
+    raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
 
 
 # LLM client cache to avoid creating new HTTP sessions for every request.
@@ -1537,43 +1550,131 @@ async def get_eta_status():
     return {"running": False}
 
 
-def _get_llm_model_name():
-    return _load_llm_config().get("model_name")
-
-
 class LMStudioOptimizeRequest(BaseModel):
     enable: bool
 
 
 @app.get("/api/lmstudio/status")
 async def lmstudio_status():
-    """Report whether LM Studio's loaded model is using VRAM-safe settings
-    (8192 context, parallel 1) so the UI can show an at-a-glance indicator."""
-    model_name = _get_llm_model_name()
+    """Report whether the loaded model is using ideal settings (VRAM-safe
+    locally, large-context remotely) so the UI can show an at-a-glance indicator."""
+    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    llm_cfg = full_cfg.get("llm") or {}
+    base_url = llm_cfg.get("base_url", "")
+    model_name = llm_cfg.get("model_name")
     if not model_name:
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False, "model": None}
-    status = await asyncio.to_thread(get_lmstudio_status, model_name)
+    llm_mode = full_cfg.get("llm_mode", "local")
+    ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
+    status = await asyncio.to_thread(get_current_status, llm_mode, base_url, model_name, ssh_alias)
     status["model"] = model_name
+    if is_remote_llm(llm_mode, base_url):
+        status["remote"] = True
     return status
+
+
+def _log_llm_failure(kind: str, detail: str) -> str:
+    """Write an LLM connection/optimize failure to logs/api/ and return the path."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat()}] LLM {kind} failure\n\n{detail}\n")
+    except OSError:
+        return ""
+    return path
 
 
 @app.post("/api/lmstudio/optimize")
 async def lmstudio_optimize(req: LMStudioOptimizeRequest):
-    """Toggle the loaded LM Studio model between VRAM-safe settings
-    (8192 context, parallel 1) and LM Studio's default settings."""
-    model_name = _get_llm_model_name()
+    """Toggle the loaded model between VRAM-safe/best settings and LM Studio's
+    defaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.
+    LM Studio on Thunder) are driven over SSH via the configured host alias."""
+    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    cfg = full_cfg.get("llm", {})
+    model_name = cfg.get("model_name")
     if not model_name:
         raise HTTPException(status_code=400, detail="No LLM model configured")
 
-    ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
-    if not ok:
-        raise HTTPException(status_code=502, detail=msg)
+    if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
+        ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+        if not ok:
+            raise HTTPException(status_code=502, detail=msg)
+        status = await asyncio.to_thread(get_lmstudio_status, model_name)
+        status["model"] = model_name
+        status["message"] = msg
+        return status
 
-    status = await asyncio.to_thread(get_lmstudio_status, model_name)
-    status["model"] = model_name
-    status["message"] = msg
-    return status
+    # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
+    ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
+    if not ssh_alias:
+        raise HTTPException(status_code=400, detail=(
+            "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
+            "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
+    ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+    if not ok:
+        log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
+        raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
+    return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
+
+
+def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
+    """Probe an OpenAI-compatible endpoint: list models, then a tiny completion.
+
+    Returns a dict describing each step. On failure, writes a log file and
+    includes its path so the user can hand it back for debugging.
+    """
+    from openai import OpenAI
+    try:
+        _validate_local_llm_base_url(base_url)
+    except LLMConfigError as e:
+        return {"ok": False, "step": "validate", "error": str(e)}
+
+    client = OpenAI(base_url=base_url, api_key=api_key or "local", timeout=30)
+    # Step 1: list models (cheap reachability + model-id check)
+    try:
+        models = [m.id for m in client.models.list().data]
+    except Exception as e:
+        detail = f"base_url={base_url}\nGET /models failed:\n{traceback.format_exc()}"
+        return {"ok": False, "step": "models", "error": str(e),
+                "log_file": _log_llm_failure("test", detail)}
+    model_present = model_name in models if model_name else None
+    # Step 2: tiny chat completion
+    try:
+        resp = client.chat.completions.create(
+            model=model_name or (models[0] if models else ""),
+            messages=[{"role": "user", "content": "Reply with the single word: pong"}],
+            max_tokens=8, temperature=0,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+    except Exception as e:
+        detail = (f"base_url={base_url}\nmodel={model_name}\navailable={models}\n"
+                  f"chat completion failed:\n{traceback.format_exc()}")
+        return {"ok": False, "step": "completion", "error": str(e),
+                "models": models, "model_present": model_present,
+                "log_file": _log_llm_failure("test", detail)}
+    return {"ok": True, "base_url": base_url, "model": model_name,
+            "models": models, "model_present": model_present, "reply": reply}
+
+
+@app.post("/api/llm/test")
+async def llm_test(profile: Optional[LLMConfig] = None):
+    """Test LLM connectivity. Uses the posted profile if given (so the Setup tab
+    can test before saving), otherwise the active config. Writes a log on failure."""
+    if profile is not None and profile.base_url.strip():
+        url = profile.base_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url += "/v1"
+        base_url, api_key, model_name = url, profile.api_key, profile.model_name
+    else:
+        cfg = _load_llm_config()
+        base_url = cfg.get("base_url", "")
+        api_key = cfg.get("api_key", "local")
+        model_name = cfg.get("model_name", "")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="No LLM base_url configured")
+    return await asyncio.to_thread(_run_llm_test, base_url, api_key, model_name)
 
 # Endpoints
 
@@ -1599,6 +1700,7 @@ async def get_config():
             "api_key": "local",
             "model_name": "richardyoung/qwen3-14b-abliterated:Q8_0"
         },
+        "llm_mode": "local",
         "tts": {
             "mode": "local",
             "url": "http://127.0.0.1:7860",
@@ -1632,8 +1734,10 @@ async def get_config():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
 
-    # Ensure prompts section exists with defaults from file
-    if "prompts" not in config:
+    # Ensure prompts section exists with defaults from file. Treat an explicit
+    # null (config saved without a prompts field) the same as a missing key so
+    # the dict-access branches below don't crash on None.
+    if not config.get("prompts"):
         sys_prompt, usr_prompt = load_default_prompts()
         prompts = {"system_prompt": sys_prompt, "user_prompt": usr_prompt}
         try:
@@ -1678,6 +1782,15 @@ async def get_config():
             except RuntimeError:
                 pass
 
+    # Local/Remote LLM toggle: ensure mode + both profiles are present so the UI
+    # can populate the toggle. Migrate older config.json (only had `llm`) by
+    # seeding the local profile from the active section.
+    config.setdefault("llm_mode", "local")
+    if not config.get("llm_local"):
+        config["llm_local"] = dict(config.get("llm", {}))
+    config.setdefault("llm_remote", None)
+    config.setdefault("llm_remote_ssh", None)
+
     # Always include current_file (null when no state or file missing)
     config["current_file"] = None
     state_path = os.path.join(ROOT_DIR, "state.json")
@@ -1715,19 +1828,40 @@ async def get_default_prompts():
         pass
     return result
 
-@app.post("/api/config")
-async def save_config(config: AppConfig):
-    if not config.llm.base_url.strip():
+def _normalize_and_validate_llm(profile: "LLMConfig") -> None:
+    """Append /v1 to the base_url (in place) and ensure it's a local/trusted host."""
+    if not profile.base_url.strip():
         raise HTTPException(status_code=400, detail="LLM base_url is required")
-    # Ensure base_url ends with /v1 so the OpenAI client targets the correct path
-    url = config.llm.base_url.rstrip("/")
+    url = profile.base_url.rstrip("/")
     if not url.endswith("/v1"):
         url += "/v1"
-    config.llm.base_url = url
+    profile.base_url = url
     try:
         _validate_local_llm_base_url(url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/config")
+async def save_config(config: AppConfig):
+    # Normalize/validate whichever profiles were sent. The local/remote profiles
+    # are persisted side-by-side so toggling never loses the other one's settings.
+    if config.llm_local is not None and config.llm_local.base_url.strip():
+        _normalize_and_validate_llm(config.llm_local)
+    if config.llm_remote is not None and config.llm_remote.base_url.strip():
+        _normalize_and_validate_llm(config.llm_remote)
+
+    # Pick the active profile from the toggle, then mirror it into `llm` - the
+    # section every consumer (review/generate/personas/nicknames) reads.
+    active = config.llm_remote if config.llm_mode == "remote" else config.llm_local
+    if active is None:
+        raise HTTPException(status_code=400, detail=(
+            f"llm_mode is '{config.llm_mode}' but no llm_{config.llm_mode} "
+            f"profile was provided - refusing to save a config where llm_mode "
+            f"and the active llm profile would disagree."))
+    config.llm = active.model_copy(deep=True)
+    _normalize_and_validate_llm(config.llm)
+
     atomic_json_write(config.model_dump(), CONFIG_PATH)
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
@@ -2049,7 +2183,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
-                review_batch_size = max(1, int(cfg.get("generation", {}).get("review_batch_size", 25)))
+                review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
         except (json.JSONDecodeError, ValueError, TypeError, OSError):
             review_batch_size = 25
 

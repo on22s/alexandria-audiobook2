@@ -747,7 +747,7 @@ def main():
     client = OpenAI(base_url=base_url, api_key=api_key)
 
     # Load persona prompts from config, fall back to defaults
-    prompts_cfg = config.get("prompts", {})
+    prompts_cfg = config.get("prompts") or {}
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT
