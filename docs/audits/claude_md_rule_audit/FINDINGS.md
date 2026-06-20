@@ -735,7 +735,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — wrap each `os.rename` in its own `try/except OSError`, log the failure, leave that entry's manifest `id`/`name` unchanged (so a re-run can retry just that one), and continue the loop instead of letting one failure abort the whole batch with already-applied-but-unrecorded renames.
 
-### [F-086] Rule 8 — `_normalize_filename_tokens` calls `re.findall` but `re` is never imported in this file
+### [F-092] Rule 8 — `_normalize_filename_tokens` calls `re.findall` but `re` is never imported in this file
 - **Piece:** P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
 - **Location:** `alexandria_batch_processor.py:7-17` (module imports) and `:149` (`_normalize_filename_tokens`, `re.findall(...)`)
 - **Severity:** high
@@ -743,7 +743,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** logged
 - **Suggested fix:** add `import re` to the top-level import block. Trivial one-line fix, but left as logged-only per audit scope (not in the fix-now criteria, which is limited to deleting dead zero-caller helpers) — flagging here for the maintainer to apply directly given severity.
 
-### [F-087] Rule 15-candidate — `format_duration` duplicated between `alexandria_batch_processor.py` and `alexandria_preparer_rocm_compatible.py` with different, incompatible output formats
+### [F-093] Rule 15-candidate — `format_duration` duplicated between `alexandria_batch_processor.py` and `alexandria_preparer_rocm_compatible.py` with different, incompatible output formats
 - **Piece:** P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
 - **Location:** `alexandria_batch_processor.py:114-124` (`format_duration`) vs `alexandria_preparer_rocm_compatible.py:287-298` (`format_duration`)
 - **Severity:** medium
@@ -751,7 +751,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — these are separate processes/environments so a shared import isn't free, but a tiny shared `format_duration` in a common utility module (or at minimum making the two implementations byte-for-byte identical) would remove the visible inconsistency; tag for the Rule 15 cross-cutting pass (Task 4) rather than resolving here.
 
-### [F-088] Rule 15-candidate — `check_disk_space` duplicated between `alexandria_batch_processor.py` and `app/app.py` with a different signature, return type, and exception-handling policy
+### [F-094] Rule 15-candidate — `check_disk_space` duplicated between `alexandria_batch_processor.py` and `app/app.py` with a different signature, return type, and exception-handling policy
 - **Piece:** P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
 - **Location:** `alexandria_batch_processor.py:230-249` (`check_disk_space(path, required_gb_per_file, num_files)`) vs `app/app.py:271-279` (`check_disk_space(path, required_gb)`)
 - **Severity:** low
@@ -759,7 +759,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** logged
 - **Suggested fix:** see needs-decision (tag only, not resolving) — if unified, prefer `app.py`'s `(bool, free_gb)` return shape since it doesn't discard information, and its narrower exception type.
 
-### [F-089] Rule 8 — `get_gpu_stats`'s inner rocm-smi `except Exception` and outer `except Exception` both log only at `logger.debug`, invisible at the console's default INFO level
+### [F-095] Rule 8 — `get_gpu_stats`'s inner rocm-smi `except Exception` and outer `except Exception` both log only at `logger.debug`, invisible at the console's default INFO level
 - **Piece:** P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
 - **Location:** `alexandria_batch_processor.py:90-92` (inner rocm-smi `except Exception as e: logger.debug(...)`) and `:94-96` (outer `except Exception as e: logger.debug(...); return None`)
 - **Severity:** low
@@ -767,7 +767,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — bump the outer catch-all (line 94) to `logger.warning` so an unexpected GPU-stats failure is visible on console, distinct from the expected "no GPU" / "rocm-smi unavailable" cases which can stay at debug.
 
-### [F-090] Rule 8 — `main()`'s `--folder` scan hardcodes a 3-extension set that silently disagrees with `BatchProcessor.SUPPORTED_FORMATS` (5 extensions) and the flag's own `--help` text
+### [F-096] Rule 8 — `main()`'s `--folder` scan hardcodes a 3-extension set that silently disagrees with `BatchProcessor.SUPPORTED_FORMATS` (5 extensions) and the flag's own `--help` text
 - **Piece:** P39b — alexandria_batch_processor.py (class BatchProcessor → main)
 - **Location:** `alexandria_batch_processor.py:729` (`supported = {".wav", ".flac", ".ogg"}` in `main()`) vs `:252` (`BatchProcessor.SUPPORTED_FORMATS = {'.wav', '.mp3', '.m4a', '.flac', '.ogg'}`) vs `:653-654` (`--folder`'s own `help=` text: "Folder to scan for audio files (.wav .mp3 .m4a .flac .ogg)")
 - **Severity:** medium
@@ -775,7 +775,7 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — replace the hardcoded `supported = {".wav", ".flac", ".ogg"}` literal with `BatchProcessor.SUPPORTED_FORMATS` so there's one source of truth for "what audio format does this tool support," matching Rule 15's spirit even though both checks live in the same file/process this time.
 
-### [F-091] Rule 8 — `validate_files`'s `sys.exit(1)` paths (missing model / missing fallback model) skip `print_summary()` entirely, so no `batch_results_*.json` is written even though `self.results["skipped"]` may already hold real entries
+### [F-097] Rule 8 — `validate_files`'s `sys.exit(1)` paths (missing model / missing fallback model) skip `print_summary()` entirely, so no `batch_results_*.json` is written even though `self.results["skipped"]` may already hold real entries
 - **Piece:** P39b — alexandria_batch_processor.py (class BatchProcessor → main)
 - **Location:** `alexandria_batch_processor.py:320-329` (`validate_files`, the two `sys.exit(1)` calls) vs `:630-637` (`print_summary`, the only place `batch_results_*.json` is written)
 - **Severity:** low
