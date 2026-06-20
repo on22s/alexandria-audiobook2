@@ -44,7 +44,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P28 — loadConfig → _onReviewDone (lines ~2216–2810)
 - [x] P29 — _loadScriptList → pollPersonaStatus (lines ~2811–3177)
 - [x] P30 — createVoiceCard → submitCastApplyBulk (lines ~3178–3861)
-- [ ] P31 — collectVoiceConfig → _runBatchRender (lines ~3862–4663)
+- [x] P31 — collectVoiceConfig → _runBatchRender (lines ~3862–4663)
 - [ ] P32 — pollLogs → resetDesignerForm (lines ~4664–5147)
 - [ ] P33 — loadLoraDatasets → dsbStopBatch (lines ~5148–5948)
 - [ ] P34 — updateSystemStats → viewReport (lines ~5949–6539)

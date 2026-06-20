@@ -502,3 +502,51 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `[rule15-candidate]` Both functions build a `mapping` object from `.cast-apply-check:checked` / `.cast-apply-target` DOM elements with identical 7-line logic (`const mapping = {}; document.querySelectorAll(...).forEach(cb => {...}); if (!Object.keys(mapping).length) {...}`), then diverge only in which API endpoint they POST to. The file already extracted the shared match-table-rendering logic into `_getCastMatchPool`/`_renderCastMatchRows` for the analogous "open" half of these two flows, but the "submit" half's mapping-extraction was left duplicated rather than also factored into a shared helper.
 - **Status:** logged
 - **Suggested fix:** see needs-decision — not resolving per audit scope (tag only); a future pass could extract a shared `_collectCastApplyMapping()` helper used by both submit functions.
+
+### [F-063] Rule 18 — 10 single-line `if` bodies without braces in collectVoiceConfig→exportM4B
+- **Piece:** P31
+- **Location:** `app/static/index.html:3921, 3963, 3971, 4239, 4252, 4270, 4355, 4604, 4659, 4664`
+- **Severity:** low
+- **Description:** Ten `if (...) <statement>;` one-liners with no `{ }`: `3921` (`if (cards.length === 0) return;` in `debouncedSaveVoices`), `3963` (`if (!audio.paused && !audio.ended) return true;` in `isAudioPlaying`), `3971` (`if (!tr) return false;` in `updateChunkRow`), `4239` (`if (toast) toast.hide();` in `undoDeleteChunk`), `4252` (`if (isPlayingSequence) return;` in `stopOthers`), `4270` (`if (!isPlayingSequence) return;` in `playSequence`'s `playNext`), `4355` (`if (!tr) return;` in `saveRowEdits`), `4604` (`if (!await showConfirm(...)) return;` in the merge button handler), `4659` (`if (!file) return;` in the M4B cover-upload handler), `4664` (`if (!resp.ok) throw new Error(...);` in the same handler). Same recurring pattern already logged for other pieces of this file (e.g. F-060).
+- **Status:** fixed-inline (commit `52cb10f`)
+- **Suggested fix:** add `{ }` to all 10, preserving behavior exactly (fix-now criterion 2).
+
+### [F-064] Rule 10 — `renderAll` enforces a "regenerate all" confirmation dialog that `renderBatchFast` silently skips, despite both being reachable from the same `startRender` button via the same `regenerateAll` flag
+- **Piece:** P31
+- **Location:** `app/static/index.html:4441-4448` (`startRender`), `:4467-4470` (`renderAll`'s confirm gate), `:4530-4545` (`renderBatchFast`, no equivalent gate)
+- **Severity:** medium
+- **Description:** `startRender(regenerateAll)` dispatches to `renderAll(regenerateAll)` when `tts-mode === 'external'` and to `renderBatchFast(regenerateAll)` otherwise — both triggered by the same "Regenerate All" button (`onclick="startRender(true)"`, line 1605). `renderAll` gates a true `regenerateAll` behind `showConfirm` ("Regenerate all N non-empty chunks? This will replace existing audio.") before proceeding (lines 4467-4470), but `renderBatchFast` has no such check at all — it goes straight from building `toProcess` to firing `/api/generate_batch_fast`. This is the same "regenerate all and overwrite existing audio" decision made two different ways depending on which TTS mode happens to be selected, rather than one consistent policy applied regardless of path.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — likely move the `regenerateAll` confirm check up into `startRender` (or duplicate it identically into `renderBatchFast`) so the same destructive action always asks for confirmation regardless of TTS mode.
+
+### [F-065] Rule 2 / Rule 15 (candidate) — `renderAll` and `renderBatchFast` are ~95%-identical polling/error-handling logic differing only by endpoint and one missing confirm gate
+- **Piece:** P31
+- **Location:** `app/static/index.html:4450-4528` (`renderAll`) vs `:4530-4601` (`renderBatchFast`)
+- **Severity:** medium
+- **Description:** `[rule15-candidate]` These two ~75-line functions are line-for-line identical except: the API endpoint (`/api/generate_batch` vs `/api/generate_batch_fast`), the `regenerateAll` confirm gate (see F-064, present only in `renderAll`), two comments, and the `console.error` label string. The entire `toProcess` filtering, optimistic-UI marking loop, and `setInterval`-based completion-polling block (including the `isRenderingAll` bail-out and the completed/failed toast summary) is duplicated verbatim rather than factored into one shared helper parametrized by endpoint.
+- **Status:** logged
+- **Suggested fix:** see needs-decision — not resolved here per audit scope; a future pass could extract a shared `_pollBatchCompletion(indices, onDone)` (or similar) used by both, which would also have prevented F-064 by construction.
+
+### [F-066] Rule 8 — `playSequence`'s playback-failure handlers use `console.log` only (not even `console.error`) and never surface a failed chunk to the user
+- **Piece:** P31
+- **Location:** `app/static/index.html:4296-4316` (`playSequence`'s `playNext`, `playPromise.catch` and `audio.onerror`)
+- **Severity:** low
+- **Description:** When `audio.play()` rejects (line 4299-4304) or the `<audio>` element fires `onerror` (line 4312-4316), the handler logs `console.log("Play failed (empty or skipped):", e)` / `console.log("Audio error, skipping")` and silently advances to the next chunk in the sequence — no `console.error`, no `showToast`. A user listening to "Play Sequence" who hits a corrupt/missing audio file gets no indication a chunk was skipped; it just looks like silence or a jump in the sequence.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — at minimum use `console.error` instead of `console.log`; consider a one-time `showToast` (not per-chunk-spam) summarizing how many chunks were skipped due to playback errors, if any.
+
+### [F-067] Rule 8 — `debouncedSaveVoices` and the M4B-cover-upload handler surface save/upload failures via UI text only, with no `console.error`
+- **Piece:** P31
+- **Location:** `app/static/index.html:3927-3929` (`debouncedSaveVoices`'s `catch`) and `:4667-4670` (M4B-cover-upload `change` handler's `catch`)
+- **Severity:** low
+- **Description:** Both `catch` blocks set `statusEl`'s text/class to show a "save failed" / error message — so the failure isn't fully silent to the user — but neither logs to the console, unlike most other catches in this same range (e.g. `cancelRender`'s `console.error('Cancel error:', e)` at line 4437, `generateChunk`'s `console.error`+`showToast` pair at lines 4422-4423). This makes the two inconsistent with the file's own dominant convention of pairing user-facing feedback with a console log for diagnosability.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — add `console.error(e)` alongside the existing status-text update in both catches, matching the convention used elsewhere in this range.
+
+### [F-068] Rule 16 — `debouncedSaveVoices` has no leading verb despite triggering a network write (`/api/save_voice_config` POST)
+- **Piece:** P31
+- **Location:** `app/static/index.html:3915` (`debouncedSaveVoices`)
+- **Severity:** low
+- **Description:** The function's first word is the adjective "debounced," not a verb — unlike every other side-effecting function in this range (`updateChunkRow`, `loadChunks`, `saveRowEdits`, `cancelRender`, `renderAll`, etc., all verb-first per Rule 16). The side effect (`Save...Voices`, an `await API.post('/api/save_voice_config', ...)`) is present but pushed to the middle of the name instead of the front.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — e.g. rename to `saveVoicesDebounced` so the verb leads, or treat "debounced" as an accepted modifier prefix alongside `render*`/`on*`/`open*` if the team prefers not to rename (this is the only such case found so far in the audit).
