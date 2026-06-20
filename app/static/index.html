@@ -2736,7 +2736,9 @@
             try {
                 await API.post('/api/generate_script/batch/cancel', {});
                 _resetPauseBtn('btn-pause-batch-script');
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
+            }
         };
 
         window.pauseResumeBatchScript = _batchPauseResume;
@@ -2889,7 +2891,7 @@
             try {
                 await API.post('/api/review_script/batch/cancel', {});
                 _resetPauseBtn('btn-pause-batch-review');
-            } catch (e) { /* ignore */ }
+            } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning'); }
         };
 
         // --- Batch review ---
@@ -3059,7 +3061,7 @@
         async function loadCharacterAliases(show) {
             const panel = document.getElementById('nickname-aliases-panel');
             let aliases = {};
-            try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }
+            try { aliases = await API.get('/api/character_aliases'); } catch (e) { console.error('Failed to load character aliases:', e); aliases = {}; }
             const entries = Object.entries(aliases || {});
             if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `
@@ -3251,7 +3253,7 @@
                 },
                 onDone: async () => {
                     // Refresh voices and caches
-                    try { await loadVoices(); } catch (e) { /* ignore */ }
+                    try { await loadVoices(); } catch (e) { console.debug('voices refresh failed', e); }
                     try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
                     try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
                     showToast('Persona generation finished', 'success');
@@ -3429,18 +3431,18 @@
             // Refresh voice caches so dropdowns are populated
             try {
                 window._designedVoicesCache = await API.get('/api/voice_design/list');
-            } catch (e) { /* ignore if designer not available */ }
+            } catch (e) { console.debug('designed-voices cache refresh failed', e); }
             try {
                 window._cloneVoicesCache = await API.get('/api/clone_voices/list');
-            } catch (e) { /* ignore if no uploads */ }
+            } catch (e) { console.debug('clone-voices cache refresh failed', e); }
             try {
                 window._loraModelsCache = await API.get('/api/lora/models');
-            } catch (e) { /* ignore if no adapters */ }
+            } catch (e) { console.debug('lora-models cache refresh failed', e); }
 
             // Load the series cast library (also gives us per-character line counts for badges)
             try {
                 await loadCastLibrary();
-            } catch (e) { /* ignore if library unavailable */ }
+            } catch (e) { console.debug('cast library refresh failed', e); }
 
             const voices = await API.get('/api/voices');
             // Cache simple names for alias dropdowns
@@ -3473,7 +3475,7 @@
             status.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing characters and matching voices...';
             try {
                 // Make sure lora caches are fresh so we can resolve suggested adapters in the dropdowns
-                try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { /* ignore */ }
+                try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { console.debug('lora-models cache refresh failed', e); }
                 const res = await API.post('/api/suggest_voices', { only_unset: false });
                 window._voiceSuggestions = res.suggestions || {};
                 const n = Object.keys(window._voiceSuggestions).length;
@@ -4022,6 +4024,7 @@
                     statusEl.innerHTML = '<i class="fas fa-check text-success me-1"></i>saved';
                     setTimeout(() => { statusEl.innerHTML = ''; }, 2000);
                 } catch (e) {
+                    console.error('Failed to save voice config:', e);
                     statusEl.innerHTML = '<i class="fas fa-times text-danger me-1"></i>save failed';
                 }
             }, 800);
@@ -4362,10 +4365,11 @@
             btn.classList.replace('btn-primary', 'btn-danger');
 
             let currentIndex = 0;
+            let skippedCount = 0;
 
             const playNext = () => {
                 if (!isPlayingSequence) { return; }
-                
+
                 const audios = Array.from(document.querySelectorAll('.chunk-audio'));
 
                 // Find next valid audio
@@ -4379,6 +4383,9 @@
 
                 if (currentIndex >= audios.length) {
                     stopSequence();
+                    if (skippedCount > 0) {
+                        showToast(`Play Sequence finished - ${skippedCount} chunk(s) skipped due to playback errors`, 'warning');
+                    }
                     return;
                 }
 
@@ -4394,7 +4401,8 @@
 
                 if (playPromise !== undefined) {
                     playPromise.catch(e => {
-                        console.log("Play failed (empty or skipped):", e);
+                        console.error("Play failed (empty or skipped):", e);
+                        skippedCount++;
                         // If play fails, move next
                         currentIndex++;
                         playNext();
@@ -4407,7 +4415,8 @@
                 };
 
                 audio.onerror = () => {
-                     console.log("Audio error, skipping");
+                     console.error("Audio error, skipping");
+                     skippedCount++;
                      currentIndex++;
                      playNext();
                 }
@@ -4696,6 +4705,7 @@
                 statusEl.textContent = 'Uploaded';
                 statusEl.className = 'small text-success';
             } catch (err) {
+                console.error('Failed to upload M4B cover:', err);
                 statusEl.textContent = err.message;
                 statusEl.className = 'small text-danger';
             }
@@ -4869,6 +4879,7 @@
                 nameInput.value = '';
                 loadSavedScripts();
             } catch (e) {
+                console.error('Error saving script:', e);
                 showToast('Error saving script: ' + e.message, 'error');
             }
         }
@@ -4893,6 +4904,7 @@
                 resetDesignerForm();
                 loadDesignedVoices();
             } catch (e) {
+                console.error('Error loading script:', e);
                 showToast('Error loading script: ' + e.message, 'error');
             }
         }
@@ -4908,6 +4920,7 @@
                 }
                 loadSavedScripts();
             } catch (e) {
+                console.error('Error deleting script:', e);
                 showToast('Error deleting script: ' + e.message, 'error');
             }
         }
@@ -4947,6 +4960,7 @@
                     </table>`;
             } catch (e) {
                 console.error('Failed to load designed voices:', e);
+                showToast('Failed to load designed voices', 'error');
             }
         }
 
@@ -6327,7 +6341,7 @@
         window.cancelPreparer = async () => {
             const isBatch = document.getElementById('prep-batch-mode').checked;
             const url = isBatch ? '/api/preparer/batch/cancel' : '/api/preparer/cancel';
-            try { await API.post(url, {}); } catch (e) { /* ignore */ }
+            try { await API.post(url, {}); } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown'), 'warning'); }
         };
 
         async function _startBatchPreparer() {
@@ -6457,7 +6471,7 @@
                 document.getElementById('voicelab-readiness').innerHTML = issues
                     ? `<span class="badge bg-warning text-dark">${issues} issue${issues>1?'s':''}</span>`
                     : '<span class="badge bg-success">ready</span>';
-            } catch (e) { /* leave fields as-is */ }
+            } catch (e) { console.error('Failed to load Voice Lab config:', e); }
         }
 
         window.saveVoicelabConfig = async () => {

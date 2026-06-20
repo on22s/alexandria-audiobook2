@@ -78,7 +78,8 @@ def measure_throughput(client, model, concurrency, max_tokens=_BENCH_MAX_TOKENS,
         for future in as_completed(futures):
             try:
                 results.append(future.result())
-            except Exception:
+            except Exception as e:
+                print(f"  [bench] request failed at concurrency={concurrency}: {type(e).__name__}: {e}")
                 return None
         wall = time.time() - t_start
     if wall <= 0:

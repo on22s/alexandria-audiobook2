@@ -1196,7 +1196,12 @@ def main():
         print(f"Fixed {total_changes} issues across {total_batches} batches.")
 
     print(f"Output saved to: {output_path}")
-    print("Task review completed successfully.")
+    if vram_aborted:
+        print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
+    elif total_stats["batches_failed"] > 0:
+        print(f"Task review completed with {total_stats['batches_failed']} batch failure(s) - those entries were saved unreviewed.")
+    else:
+        print("Task review completed successfully.")
 
 
 if __name__ == "__main__":

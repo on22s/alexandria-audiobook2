@@ -93,7 +93,7 @@ def get_gpu_stats():
             stats['utilization_percent'] = None
 
     except Exception as e:
-        logger.debug(f"Could not get GPU stats: {e}")
+        logger.warning(f"Could not get GPU stats: {e}")
         return None
 
     return stats

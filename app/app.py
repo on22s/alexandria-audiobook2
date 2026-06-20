@@ -4225,19 +4225,20 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
         # Count samples and validate audio file presence
         sample_count = 0
         missing_audio = []
+        malformed_lines = []
         with open(metadata_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for line_num, line in enumerate(f, start=1):
                 line = line.strip()
                 if not line:
                     continue
-                sample_count += 1
                 try:
                     entry = json.loads(line)
                     audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
                     if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
                         missing_audio.append(audio_rel)
-                except (json.JSONDecodeError, KeyError):
-                    pass
+                    sample_count += 1
+                except (json.JSONDecodeError, KeyError) as e:
+                    malformed_lines.append((line_num, str(e)))
 
         wav_count = sum(1 for f in os.listdir(dataset_dir) if f.lower().endswith(".wav"))
         ref_wav = os.path.exists(os.path.join(dataset_dir, "ref.wav"))
@@ -4256,6 +4257,12 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
             )
         else:
             logger.info(f"LoRA dataset '{dataset_name}': all {sample_count} audio files present in ZIP")
+        if malformed_lines:
+            logger.warning(
+                f"LoRA dataset '{dataset_name}': {len(malformed_lines)} malformed "
+                f"metadata.jsonl line(s) skipped: {malformed_lines[:5]}"
+                f"{'  (+more)' if len(malformed_lines) > 5 else ''}"
+            )
 
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
 
@@ -5425,8 +5432,8 @@ async def voicelab_get_config():
     try:
         resolved_zips = _resolve_zips_dir(cfg["zips_dir"])
         zips_dir_ok = os.path.isdir(resolved_zips)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to resolve voicelab zips_dir '{cfg.get('zips_dir')}': {e}")
 
     return {
         "config": cfg,

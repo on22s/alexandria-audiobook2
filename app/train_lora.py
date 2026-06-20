@@ -468,6 +468,7 @@ def train(args):
     GARBLE_FLOOR = 4.1  # Empirical threshold: below this, audio quality degrades significantly
     safe_best_loss = float("inf")
     training_start = time.time()
+    total_oom_skips = 0
     
     # Set random seed for reproducible shuffling if provided
     if args.seed is not None:
@@ -483,6 +484,7 @@ def train(args):
     for epoch in range(1, args.epochs + 1):
         epoch_loss = 0.0
         epoch_steps = 0
+        epoch_oom_skips = 0
         optimizer.zero_grad()
 
         # Shuffle samples each epoch
@@ -555,6 +557,8 @@ def train(args):
 
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
+                    epoch_oom_skips += 1
+                    total_oom_skips += 1
                     print(f"[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping sample", flush=True)
                     if "cuda" in device:
                         torch.cuda.empty_cache()
@@ -606,7 +610,8 @@ def train(args):
             zone = " [BELOW FLOOR — garble risk]"
         elif args.target_loss and avg_loss <= args.target_loss:
             zone = " [TARGET REACHED]"
-        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}", flush=True)
+        oom_note = f" oom_skips={epoch_oom_skips}" if epoch_oom_skips else ""
+        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}{oom_note}", flush=True)
 
         # Early stopping: first epoch where loss crosses at or below the target
         if args.target_loss is not None and avg_loss <= args.target_loss:
@@ -652,6 +657,7 @@ def train(args):
         "final_loss": avg_loss,
         "best_loss": best_loss,
         "training_time_seconds": round(training_time, 1),
+        "oom_skips": total_oom_skips,
         "language": args.language,
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,

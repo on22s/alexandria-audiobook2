@@ -810,9 +810,22 @@ def test_voice_design_save_and_delete():
     assert_key(data, "voice_id")
     voice_id = data["voice_id"]
 
+    # Verify it appears in list
+    r = get("/api/voice_design/list")
+    assert_status(r, 200)
+    found = any(v["id"] == voice_id for v in r.json())
+    if not found:
+        raise TestFailure(f"Saved voice design {voice_id} not found in list")
+
     # Delete it
     r = delete(f"/api/voice_design/{voice_id}")
     assert_status(r, 200)
+
+    # Verify it's gone
+    r = get("/api/voice_design/list")
+    found = any(v["id"] == voice_id for v in r.json())
+    if found:
+        raise TestFailure(f"Voice design {voice_id} still in list after delete")
 
 
 # ── Section 9b: Clone Voices ────────────────────────────────
@@ -1367,26 +1380,26 @@ def cleanup():
     try:
         delete(f"/api/scripts/{TEST_PREFIX}script")
         items.append("test script")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete test script: {e}")
 
     try:
         delete(f"/api/dataset_builder/{TEST_PREFIX}builder_proj")
         items.append("builder project")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete builder project: {e}")
 
     try:
         delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
         items.append("gen project")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete gen project: {e}")
 
     try:
         delete(f"/api/lora/datasets/{TEST_PREFIX}dataset")
         items.append("test dataset")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete test dataset: {e}")
 
     try:
         r = get("/api/voice_design/list")
@@ -1395,8 +1408,8 @@ def cleanup():
                 if v.get("id", "").startswith(TEST_PREFIX):
                     delete(f"/api/voice_design/{v['id']}")
                     items.append(f"voice {v['id']}")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete stray voice-design entries: {e}")
 
     if items:
         print(f"  Cleaned: {', '.join(items)}")

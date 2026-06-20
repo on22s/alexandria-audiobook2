@@ -123,14 +123,20 @@ def review_log_path(output_path: str) -> Path:
     p = Path(output_path)
     return p.with_name(p.stem + '_review_log.jsonl')
 
+_log_decision_warned = False
+
 def log_decision(log_path: Path, record: dict):
     """Append one decision as a JSON line. Best-effort: a logging failure
     must never abort the user's review session."""
+    global _log_decision_warned
     try:
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
-    except Exception:
-        pass
+    except Exception as e:
+        if not _log_decision_warned:
+            _log_decision_warned = True
+            print(f"{YELLOW}Warning: review log stopped recording decisions ({e}). "
+                  f"Your choices are still being applied, just not logged.{RESET}")
 
 def remove_log_entries(log_path: Path, indices: set) -> int:
     """Rewrite the review log without records whose entry_idx is in `indices`.
