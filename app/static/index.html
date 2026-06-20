@@ -1811,6 +1811,7 @@
                                             <label class="form-label small mb-1">Cover Image</label>
                                             <div class="d-flex align-items-center gap-2">
                                                 <input type="file" class="form-control form-control-sm" id="m4b-cover-input" accept="image/*">
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="removeM4bCover()" title="Remove cover image"><i class="fas fa-times"></i></button>
                                                 <span id="m4b-cover-status" class="small text-muted"></span>
                                             </div>
                                         </div>
@@ -4733,6 +4734,20 @@
                 statusEl.className = 'small text-danger';
             }
         });
+
+        window.removeM4bCover = async () => {
+            const statusEl = document.getElementById('m4b-cover-status');
+            try {
+                await fetch('/api/m4b_cover', { method: 'DELETE' });
+                document.getElementById('m4b-cover-input').value = '';
+                statusEl.textContent = 'Removed';
+                statusEl.className = 'small text-muted';
+            } catch (err) {
+                console.error('Failed to remove M4B cover:', err);
+                statusEl.textContent = err.message;
+                statusEl.className = 'small text-danger';
+            }
+        };
 
         window.exportM4B = async () => {
             const statusEl = document.getElementById('m4b-status');

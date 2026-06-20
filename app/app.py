@@ -436,13 +436,6 @@ class LoraDatasetSample(BaseModel):
     emotion: str = ""
     text: str
 
-class LoraGenerateDatasetRequest(BaseModel):
-    name: str
-    description: str  # root voice description
-    samples: Optional[List[LoraDatasetSample]] = None  # emotion+text pairs
-    texts: Optional[List[str]] = None  # legacy: flat text list (no emotions)
-    language: Optional[str] = None
-
 class DatasetSampleGenRequest(BaseModel):
     description: str      # full voice description (root + emotion already combined by frontend)
     text: str
@@ -521,7 +514,6 @@ process_state = {
     "lora_test": {"running": False, "logs": []},
     "voice_design": {"running": False, "logs": []},
     "lmstudio_optimize": {"running": False, "logs": []},
-    "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
@@ -2654,7 +2646,11 @@ async def generate_script_batch_resume():
 
 @app.get("/api/annotated_script")
 async def get_annotated_script():
-    """Return the current working annotated_script.json."""
+    """Return the current working annotated_script.json.
+
+    No SPA caller - intentionally kept as a programmatic/curl-accessible
+    read endpoint (exercised by test_api.py's test_get_annotated_script).
+    """
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=404, detail="No annotated script found")
     with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
@@ -4283,116 +4279,6 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-@app.post("/api/lora/generate_dataset")
-async def lora_generate_dataset(request: LoraGenerateDatasetRequest, background_tasks: BackgroundTasks):
-    """Generate a LoRA training dataset using Voice Designer.
-
-    Generates multiple audio samples with the same voice description,
-    saving them as a ready-to-train dataset.
-    """
-    check_global_gpu_lock("dataset_gen")
-
-    # Build unified sample list from either format
-    sample_list = []
-    if request.samples:
-        for s in request.samples:
-            if s.text.strip():
-                sample_list.append({"emotion": s.emotion.strip(), "text": s.text.strip()})
-    elif request.texts:
-        for t in request.texts:
-            if t.strip():
-                sample_list.append({"emotion": "", "text": t.strip()})
-
-    if not sample_list:
-        raise HTTPException(status_code=400, detail="Provide at least one sample text")
-
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
-
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, safe_name)
-    if os.path.exists(dataset_dir):
-        raise HTTPException(status_code=400, detail=f"Dataset '{safe_name}' already exists")
-
-    total = len(sample_list)
-    root_description = request.description.strip()
-
-    def task():
-        process_state["dataset_gen"]["running"] = True
-        process_state["dataset_gen"]["logs"] = [
-            f"Generating {total} samples with VoiceDesign..."
-        ]
-        try:
-            engine = project_manager.get_engine()
-            if not engine:
-                process_state["dataset_gen"]["logs"].append("Error: TTS engine not initialized")
-                return
-
-            os.makedirs(dataset_dir, exist_ok=True)
-            metadata_lines = []
-            completed = 0
-
-            for i, sample in enumerate(sample_list):
-                text = sample["text"]
-                emotion = sample["emotion"]
-                # Build full description: root + emotion if provided
-                description = f"{root_description}, {emotion}" if emotion else root_description
-
-                process_state["dataset_gen"]["logs"].append(
-                    f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{ text[:60]}{'...' if len(text) > 60 else ''}\""
-                )
-                try:
-                    wav_path, sr = engine.generate_voice_design(
-                        description=description,
-                        sample_text=text,
-                        language=request.language,
-                    )
-                    # Copy to dataset dir with sequential name
-                    dest_filename = f"sample_{i:03d}.wav"
-                    dest_path = os.path.join(dataset_dir, dest_filename)
-                    shutil.copy2(wav_path, dest_path)
-
-                    # Save first successful sample as ref.wav for consistent speaker embedding
-                    if completed == 0:
-                        shutil.copy2(wav_path, os.path.join(dataset_dir, "ref.wav"))
-
-                    metadata_lines.append(json.dumps({
-                        "audio_filepath": dest_filename,
-                        "text": text,
-                        "ref_audio": "ref.wav",
-                    }, ensure_ascii=False))
-                    completed += 1
-                    process_state["dataset_gen"]["logs"].append(
-                        f"  Saved {dest_filename}"
-                    )
-                except Exception as e:
-                    process_state["dataset_gen"]["logs"].append(
-                        f"  Failed: {e}"
-                    )
-
-            # Write metadata.jsonl
-            metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
-            with open(metadata_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(metadata_lines) + "\n")
-
-            process_state["dataset_gen"]["logs"].append(
-                f"Dataset '{safe_name}' complete: {completed}/{total} samples generated."
-            )
-            logger.info(f"LoRA dataset generated: '{safe_name}' ({completed} samples)")
-
-        except Exception as e:
-            process_state["dataset_gen"]["logs"].append(f"Error: {e}")
-            logger.error(f"Dataset generation error: {e}")
-            # Clean up partial dataset on failure
-            if os.path.exists(dataset_dir):
-                shutil.rmtree(dataset_dir)
-        finally:
-            process_state["dataset_gen"]["running"] = False
-
-    claim_gpu_task("dataset_gen")
-    background_tasks.add_task(task)
-    return {"status": "started", "dataset_id": safe_name, "total": total}
 
 @app.get("/api/lora/datasets")
 async def lora_list_datasets():

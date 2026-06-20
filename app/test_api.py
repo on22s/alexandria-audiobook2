@@ -707,7 +707,7 @@ def test_restore_chunk():
 def test_status_known_tasks():
     task_names = [
         "script", "audio", "audacity_export",
-        "review", "lora_training", "dataset_gen", "dataset_builder",
+        "review", "lora_training", "dataset_builder",
         "preparer", "batch_preparer", "persona",
     ]
     for name in task_names:
@@ -1212,29 +1212,6 @@ def test_lora_test_model():
     assert_key(data, "audio_url")
 
 
-def test_lora_generate_dataset():
-    r = post("/api/lora/generate_dataset", json={
-        "name": f"{TEST_PREFIX}dataset",
-        "description": "A clear young male voice",
-        "samples": [
-            {"emotion": "neutral", "text": "Hello, this is a test sample."},
-            {"emotion": "happy", "text": "Great to see you today!"}
-        ]
-    })
-    if r.status_code == 400:
-        raise TestFailure("SKIP: already running or bad request")
-    assert_status(r, 200)
-    data = r.json()
-    if data.get("status") != "started":
-        raise TestFailure(f"Expected status=started, got {data}")
-    if not wait_for_task("dataset_gen", timeout=120):
-        raise TestFailure("lora_generate_dataset did not complete within 120s")
-    datasets = get("/api/lora/datasets").json()
-    ids = [d.get("dataset_id") for d in datasets]
-    if f"{TEST_PREFIX}dataset" not in ids:
-        raise TestFailure(f"Generated dataset not found in list: {ids}")
-
-
 def test_dataset_builder_generate_sample():
     # Create a temp project for this test
     post("/api/dataset_builder/create", json={"name": f"{TEST_PREFIX}gen_proj"})
@@ -1375,7 +1352,6 @@ def run_all_tests():
 
     section("LoRA (TTS)")
     run_test("lora_test_model", test_lora_test_model, requires_full=True)
-    run_test("lora_generate_dataset", test_lora_generate_dataset, requires_full=True)
 
     section("Dataset Builder Generate (TTS)")
     run_test("dataset_builder_generate_sample", test_dataset_builder_generate_sample, requires_full=True)
