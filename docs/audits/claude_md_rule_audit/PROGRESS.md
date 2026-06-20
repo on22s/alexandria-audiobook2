@@ -67,7 +67,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P42c — alexandria_preparer_rocm_compatible.py (source loading/tokenization + chunking)
 - [x] P42d — alexandria_preparer_rocm_compatible.py (multi-tier alignment recovery)
 - [x] P42e — alexandria_preparer_rocm_compatible.py (LLM prosody annotation + write outputs)
-- [ ] P42f — alexandria_preparer_rocm_compatible.py (resume/checkpoint/scratch-state)
+- [x] P42f — alexandria_preparer_rocm_compatible.py (resume/checkpoint/scratch-state)
 
 ## Cross-cutting / synthesis
 
