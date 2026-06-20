@@ -4721,16 +4721,16 @@
             const myGen = (_pollLogsGen[taskName] = (_pollLogsGen[taskName] || 0) + 1);
 
             const poll = async () => {
-                if (myGen !== _pollLogsGen[taskName]) return;
+                if (myGen !== _pollLogsGen[taskName]) { return; }
                 try {
                     const status = await API.get(`/api/status/${taskName}`);
-                    if (myGen !== _pollLogsGen[taskName]) return;
+                    if (myGen !== _pollLogsGen[taskName]) { return; }
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
 
                     if (!status.running) {
                         notifyJobDone(taskName);
-                        if (onDone) onDone(status);
+                        if (onDone) { onDone(status); }
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
                             // Load audio player
                             const audio = document.getElementById('main-audio');
@@ -4742,7 +4742,7 @@
                         if ((taskName === 'script' || taskName === 'review') && status.logs.some(l => l.includes("completed successfully"))) {
                             // Clear cached chunks table so next load shows fresh data
                             const tbody = document.getElementById('chunks-table-body');
-                            if (tbody) tbody.innerHTML = '';
+                            if (tbody) { tbody.innerHTML = ''; }
                             // If editor tab is visible, refresh immediately
                             if (document.getElementById('editor-tab').style.display !== 'none') {
                                 loadChunks();
@@ -4818,7 +4818,7 @@
         }
 
         async function loadScript(name) {
-            if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`)) return;
+            if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`)) { return; }
             try {
                 const res = await fetch('/api/scripts/load', {
                     method: 'POST',
@@ -4842,7 +4842,7 @@
         }
 
         async function deleteScript(name) {
-            if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`)) return;
+            if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`)) { return; }
             try {
                 const res = await fetch(`/api/scripts/${encodeURIComponent(name)}`, {method: 'DELETE'});
                 if (!res.ok) {
