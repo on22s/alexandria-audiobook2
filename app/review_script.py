@@ -356,7 +356,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
     if len(speakers) < 2:
-        return {}, 0
+        return {}, 0, []
 
     # Load existing alias map / cross-book canonical registry. Entries here are
     # treated as KNOWN aliases and applied deterministically (this is how a
@@ -426,7 +426,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         # LLM unavailable — still apply the known aliases from the file
         print(f"  Speaker dedupe LLM step failed ({e}); applying known aliases only.")
         if not forced_map:
-            return {}, 0
+            return {}, 0, []
 
     # Sanitize: drop no-ops, self-maps, and any NARRATOR merges
     clean_map = {}
