@@ -57,7 +57,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P38a — voice_analysis.py (load_model → run_dedup)
 - [x] P38b — voice_analysis.py (run_analyze → main)
 - [x] P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
-- [ ] P39b — alexandria_batch_processor.py (class BatchProcessor → main)
+- [x] P39b — alexandria_batch_processor.py (class BatchProcessor → main)
 - [ ] P40a — alexandria_compare.py (load_jsonl → write_output)
 - [ ] P40b — alexandria_compare.py (run → main)
 - [ ] P41a — alexandria_alignment.py (_expand_honorifics → trim_span_to_alignment)
