@@ -1406,9 +1406,15 @@ def _sweep_orphan_wavs(temp_dir, next_segment_idx):
 
 
 def _wipe_temp_dir(temp_dir):
-    """Remove all preparer-generated files from temp_dir but keep the directory itself."""
+    """Remove all preparer-generated files from temp_dir but keep the directory itself.
+
+    Returns a list of (path, error) tuples for anything that failed to be
+    removed (empty list = fully clean). Callers must check this rather than
+    assume the wipe succeeded - a partial wipe is exactly the cross-book
+    dataset_temp/ corruption this function exists to prevent. See FIXED.md F-119.
+    """
     if not os.path.exists(temp_dir):
-        return
+        return []
     # Protect intermediate files used across phases
     protected = {
         "asr_segments.json",       # ASR phase output
@@ -1417,6 +1423,7 @@ def _wipe_temp_dir(temp_dir):
         "asr_chunks_for_enrich.json",  # Enrichment input chunks
         "diarization.json",        # Speaker diarization output
     }
+    failures = []
     for name in os.listdir(temp_dir):
         if name in protected:
             continue
@@ -1428,6 +1435,8 @@ def _wipe_temp_dir(temp_dir):
                 shutil.rmtree(full_path)
         except Exception as e:
             logger.warning(f"Failed to remove {full_path}: {e}")
+            failures.append((full_path, str(e)))
+    return failures
 
 
 def _check_source_marker(temp_dir, audio_source_path):
@@ -1793,7 +1802,17 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
             )
         elif os.listdir(temp_dir):
             logger.info("▶ Wiping stale dataset_temp/ contents for fresh start")
-        _wipe_temp_dir(temp_dir)
+        wipe_failures = _wipe_temp_dir(temp_dir)
+        if wipe_failures:
+            logger.error(
+                f"▶ Could not fully wipe {temp_dir} - {len(wipe_failures)} item(s) "
+                f"could not be removed, so a fresh run cannot be guaranteed not to "
+                f"mix leftover files from a different source:"
+            )
+            for path, err in wipe_failures:
+                logger.error(f"  ├─ {path}: {err}")
+            logger.error(f"  └─ Manually clear {temp_dir} and re-run.")
+            sys.exit(1)
         existing_entries, resume_time, next_segment_idx = [], 0.0, 0
 
     # Always (re)write the source marker for the current run
@@ -2794,45 +2813,57 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
             train_meta = []
             val_meta = []
 
-            with zipfile.ZipFile(vol_path, "w", zipfile.ZIP_DEFLATED) as z:
-                for i, entry in enumerate(vol_metadata):
-                    wav_name = entry["audio_filepath"]
-                    src_path = os.path.join(temp_dir, wav_name)
+            # Write to a temp path and atomically replace vol_path only once the
+            # zip is fully written, so a crash mid-write never leaves a
+            # truncated/corrupt file at the permanent path, and a re-run never
+            # destroys the prior good volume before the new one is confirmed
+            # good. See FIXED.md F-115.
+            tmp_vol_path = vol_path + ".tmp"
+            try:
+                with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for i, entry in enumerate(vol_metadata):
+                        wav_name = entry["audio_filepath"]
+                        src_path = os.path.join(temp_dir, wav_name)
 
-                    if not os.path.exists(src_path):
-                        logger.warning(f"  ⚠ Audio file not found for ZIP {vol_path}: {wav_name}")
-                        continue
+                        if not os.path.exists(src_path):
+                            logger.warning(f"  ⚠ Audio file not found for ZIP {vol_path}: {wav_name}")
+                            continue
 
-                    is_val = (i in v_indices)
-                    folder = "val" if is_val else "train"
-                    zip_wav_path = f"{folder}/{wav_name}"
+                        is_val = (i in v_indices)
+                        folder = "val" if is_val else "train"
+                        zip_wav_path = f"{folder}/{wav_name}"
 
-                    zip_entry = entry.copy()
-                    zip_entry["audio_filepath"] = zip_wav_path
+                        zip_entry = entry.copy()
+                        zip_entry["audio_filepath"] = zip_wav_path
 
-                    if is_val:
-                        val_meta.append(zip_entry)
-                        total_val += 1
-                    else:
-                        train_meta.append(zip_entry)
-                        total_train += 1
+                        if is_val:
+                            val_meta.append(zip_entry)
+                            total_val += 1
+                        else:
+                            train_meta.append(zip_entry)
+                            total_train += 1
 
-                    z.write(src_path, zip_wav_path)
+                        z.write(src_path, zip_wav_path)
 
-                # Write partitioned metadata.jsonl files
-                if train_meta:
-                    train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
-                    z.writestr("train/metadata.jsonl", train_jsonl)
-                if val_meta:
-                    val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
-                    z.writestr("val/metadata.jsonl", val_jsonl)
+                    # Write partitioned metadata.jsonl files
+                    if train_meta:
+                        train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
+                        z.writestr("train/metadata.jsonl", train_jsonl)
+                    if val_meta:
+                        val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
+                        z.writestr("val/metadata.jsonl", val_jsonl)
 
-                # Volume manifest
-                vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
-                if vol_manifest:
-                    manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
-                    z.writestr("metadata.jsonl", manifest_jsonl)
-            
+                    # Volume manifest
+                    vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
+                    if vol_manifest:
+                        manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
+                        z.writestr("metadata.jsonl", manifest_jsonl)
+                os.replace(tmp_vol_path, vol_path)
+            except Exception:
+                if os.path.exists(tmp_vol_path):
+                    os.remove(tmp_vol_path)
+                raise
+
             total_vols += 1
             logger.info(f"  ✓ Volume {total_vols} saved: {vol_path} ({len(vol_metadata)} segments)")
 
