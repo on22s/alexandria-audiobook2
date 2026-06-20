@@ -39,7 +39,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P25 — /api/voicelab/* (lines 5319–end)
 
 ### Group C — app/static/index.html
-- [ ] P26 — HTML/CSS shell + tab markup (lines 1–1789)
+- [x] P26 — HTML/CSS shell + tab markup (lines 1–1789)
 - [ ] P27 — showToast → testLlmConnection (lines ~1790–2215)
 - [ ] P28 — loadConfig → _onReviewDone (lines ~2216–2810)
 - [ ] P29 — _loadScriptList → pollPersonaStatus (lines ~2811–3177)
