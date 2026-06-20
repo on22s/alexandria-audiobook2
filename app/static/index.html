@@ -2454,7 +2454,7 @@
         document.getElementById('file-upload').addEventListener('change', async () => {
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
-            if (fileInput.files.length === 0) return;
+            if (fileInput.files.length === 0) { return; }
 
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
@@ -2493,7 +2493,7 @@
             try {
                 await API.post('/api/generate_script', {});
                 pollLogs('script', 'script-logs', () => {
-                    if (!scriptBatchPoller) genBtn.disabled = false;
+                    if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
                 });
@@ -2518,7 +2518,7 @@
         // calls the wrong endpoint.
         function _resetPauseBtn(btnId) {
             const btn = document.getElementById(btnId);
-            if (!btn) return;
+            if (!btn) { return; }
             btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             btn.classList.remove('btn-outline-success');
             btn.classList.add('btn-outline-warning');
@@ -2546,7 +2546,7 @@
             // button to its "Pause"/btn-outline-warning appearance).
             return async () => {
                 const btn = document.getElementById(btnId);
-                if (btn.disabled) return;
+                if (btn.disabled) { return; }
                 const paused = btn.classList.contains('btn-outline-success');
                 btn.disabled = true;
                 try {
@@ -2631,7 +2631,7 @@
 
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch script generation'))) return;
+            if (!(await confirmIfRemote('this batch script generation'))) { return; }
 
             const btn = document.getElementById('btn-gen-script');
             const pauseBtn = document.getElementById('btn-pause-batch-script');
@@ -2666,16 +2666,16 @@
         }
 
         function _pollScriptBatchLogs() {
-            if (scriptBatchPoller) clearTimeout(scriptBatchPoller);
+            if (scriptBatchPoller) { clearTimeout(scriptBatchPoller); }
             const logEl = document.getElementById('script-logs');
             let offset = 0;
             const myGen = ++scriptBatchPollGen;
 
             const poll = async () => {
-                if (myGen !== scriptBatchPollGen) return;
+                if (myGen !== scriptBatchPollGen) { return; }
                 try {
                     const state = await API.get('/api/status/batch_script');
-                    if (myGen !== scriptBatchPollGen) return;
+                    if (myGen !== scriptBatchPollGen) { return; }
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -2688,7 +2688,7 @@
                     if (state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
-                            if (!el) return;
+                            if (!el) { return; }
                             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
                             el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
                         });
@@ -2721,7 +2721,7 @@
         function _showReviewControls(show) {
             document.getElementById('btn-pause-review').style.display = show ? 'inline-block' : 'none';
             document.getElementById('btn-cancel-review').style.display = show ? 'inline-block' : 'none';
-            if (show) _resetPauseBtn('btn-pause-review');
+            if (show) { _resetPauseBtn('btn-pause-review'); }
         }
         function _disableReviewButtons(disabled) {
             document.getElementById('btn-review-script').disabled = disabled;
@@ -2793,7 +2793,7 @@
             document.getElementById('review-single-area').style.display = isBatch ? 'none' : 'block';
             document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
             document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
-            if (isBatch) loadReviewBatchScripts();
+            if (isBatch) { loadReviewBatchScripts(); }
         };
 
         // --- Shared helpers for saved-script checkbox pickers (Batch Review,
