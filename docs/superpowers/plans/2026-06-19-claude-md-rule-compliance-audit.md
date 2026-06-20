@@ -100,6 +100,10 @@ Safe to fix immediately, in a commit separate from the findings-log commit:
 
 Everything else (Rule 8 silent-failure fixes, Rule 9 safety-net concerns, Rule 10 retry-consistency fixes, Rule 12 test-rigor gaps, Rule 15 consolidation, Rule 17 dual-purpose-parameter refactors) → log only, `Status: needs-decision`, do not touch the code.
 
+### Moving a finding to FIXED.md (added 2026-06-20, applies to every fix from here on)
+
+`docs/audits/claude_md_rule_audit/FIXED.md` holds only resolved findings — `FINDINGS.md` should always show just what's still open. Whenever a finding's `Status` becomes `fixed-inline (commit <sha>)` (whether via this plan's own fix-now criteria above, or via a later, separately-approved fix session covering `needs-decision` items from the backlog), **cut its entire entry out of `FINDINGS.md` and paste it into `FIXED.md`** — don't just edit the `Status:` line in place. Keep the same `F-###` ID (never renumber on move). `FIXED.md` entries are kept sorted by `F-###` for scannability. If `FIXED.md` doesn't exist yet in a future session, create it with the same header shape as `FINDINGS.md` plus a one-line note that entries are moved here once resolved.
+
 ---
 
 ## Task 0: Set up tracking files
