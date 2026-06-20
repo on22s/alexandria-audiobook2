@@ -347,10 +347,12 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
 def dedupe_speakers(client, model_name, entries, registry_path=None,
                     max_tokens=2000, temperature=0.2):
     """Ask the LLM to merge speaker labels that are the same character.
-    Applies the mapping to `entries` in place. If `registry_path` is given, the
-    shared canonical names there are fed to the model and updated, so the same
-    character keeps one canonical name across multiple books (a series).
-    Returns (mapping, renamed_count)."""
+    Does not mutate `entries` - the caller applies the returned changes. If
+    `registry_path` is given, the shared canonical names there are fed to the
+    model and updated, so the same character keeps one canonical name across
+    multiple books (a series).
+    Returns (mapping, renamed_count, changes), where changes is a list of
+    (index, key, new_value) tuples to apply to the caller's own entries list."""
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
     if len(speakers) < 2:
@@ -449,16 +451,15 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     clean_map.update(forced_map)
 
     if not clean_map:
-        return {}, 0
+        return {}, 0, []
 
     renamed = 0
-    for e in entries:
+    changes = []
+    for i, e in enumerate(entries):
         sp = (e.get("speaker") or e.get("type") or "").strip()
         if sp in clean_map:
-            if "speaker" in e:
-                e["speaker"] = clean_map[sp]
-            else:
-                e["type"] = clean_map[sp]
+            key = "speaker" if "speaker" in e else "type"
+            changes.append((i, key, clean_map[sp]))
             renamed += 1
 
     for variant, canonical in clean_map.items():
@@ -478,7 +479,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         except (OSError, TimeoutError) as e:
             print(f"  Warning: could not update alias registry: {e}")
 
-    return clean_map, renamed
+    return clean_map, renamed, changes
 
 
 def _remap_voice_config(voice_config_path, mapping):
@@ -1124,9 +1125,11 @@ def main():
         print("\nSkipping speaker alias resolution (stopped early due to low GPU VRAM).")
     elif args.dedupe_speakers:
         print("\nResolving character aliases (merging duplicate names)...")
-        dedupe_map, speakers_merged = dedupe_speakers(
+        dedupe_map, speakers_merged, dedupe_changes = dedupe_speakers(
             client, model_name, all_corrected, registry_path=args.alias_registry
         )
+        for idx, key, new_value in dedupe_changes:
+            all_corrected[idx][key] = new_value
         if speakers_merged > 0:
             print(f"Merged {len(dedupe_map)} alias label(s), updating {speakers_merged} entries.")
             moved = _remap_voice_config(args.remap_voice_config, dedupe_map)

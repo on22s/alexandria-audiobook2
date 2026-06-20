@@ -3707,8 +3707,8 @@ def _build_match_proposals(counts: Dict[str, int], pool: dict) -> List[dict]:
 def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
                          current_config: dict, chars: Optional[dict] = None) -> Tuple[dict, List[str]]:
     """Apply a confirmed character -> library member mapping onto a voice_config
-    dict, mutating and returning it along with the list of characters that were
-    actually applied.
+    dict, returning a new dict (current_config is not mutated) along with the
+    list of characters that were actually applied.
 
     If `chars` is given (the per-speaker line counts of a specific book), only
     characters present in it are considered — used by the bulk endpoint so a
@@ -3717,6 +3717,7 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         # cast members win over shared on collision
         return lib["casts"][cast_name].get("members", {}).get(key) or lib["shared"].get(key)
 
+    result_config = dict(current_config)
     applied = []
     for char, key in mapping.items():
         if chars is not None and char not in chars:
@@ -3727,11 +3728,11 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         cfg = dict(entry.get("config") or {})
         cfg.pop("alias_of", None)
         # Preserve an existing alias_of on the current character (book-specific)
-        if isinstance(current_config.get(char), dict) and current_config[char].get("alias_of"):
-            cfg["alias_of"] = current_config[char]["alias_of"]
-        current_config[char] = cfg
+        if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
+            cfg["alias_of"] = result_config[char]["alias_of"]
+        result_config[char] = cfg
         applied.append(char)
-    return current_config, applied
+    return result_config, applied
 
 
 def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
