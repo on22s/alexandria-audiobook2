@@ -2844,7 +2844,7 @@
         // Sort `list` (array of {name, ...}) in place per the A→Z / Z→A / 1→10 /
         // 10→1 / Reverse sort buttons shared by the saved-script pickers.
         function _sortScriptList(list, mode) {
-            if (!list.length) return;
+            if (!list.length) { return; }
             const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
             const byNum  = (a, b) => _scriptVolumeNum(a.name) - _scriptVolumeNum(b.name) || byName(a, b);
             switch (mode) {
@@ -2884,7 +2884,7 @@
         async function startBatchReview() {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch review'))) return;
+            if (!(await confirmIfRemote('this batch review'))) { return; }
             reviewBatchSelected = names;
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
@@ -2953,7 +2953,7 @@
             let aliases = {};
             try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }
             const entries = Object.entries(aliases || {});
-            if (show) panel.style.display = 'block';
+            if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `
                 <div class="input-group input-group-sm mb-1 nick-alias-row">
                     <input type="text" class="form-control nick-alias" placeholder="alias / nickname" value="${escapeHtml(a)}">
@@ -2977,7 +2977,7 @@
         window.addAliasRow = () => {
             const rows = document.getElementById('nick-alias-rows');
             const placeholder = rows.querySelector('.text-muted');
-            if (placeholder) placeholder.remove();
+            if (placeholder) { placeholder.remove(); }
             const div = document.createElement('div');
             div.className = 'input-group input-group-sm mb-1 nick-alias-row';
             div.innerHTML = `
@@ -2993,7 +2993,7 @@
             document.querySelectorAll('#nick-alias-rows .nick-alias-row').forEach(row => {
                 const a = row.querySelector('.nick-alias').value.trim();
                 const c = row.querySelector('.nick-canonical').value.trim();
-                if (a && c) map[a] = c;
+                if (a && c) { map[a] = c; }
             });
             try {
                 const res = await API.post('/api/character_aliases', map);
@@ -3007,25 +3007,25 @@
         function _formatBookStats(s) {
             let txt = `${s.total_changes} changes: ${s.text_changed} text, ${s.speaker_changed} speaker, ` +
                       `${s.instruct_changed} instruct, +${s.entries_added}/-${s.entries_removed} entries`;
-            if (s.narrators_merged) txt += `, ${s.narrators_merged} narrators merged`;
-            if (s.speakers_merged) txt += `, ${s.speakers_merged} speakers merged`;
-            if (s.batches_failed) txt += `, ${s.batches_failed} batch(es) failed`;
-            if (s.batches_skipped_vram) txt += `, ${s.batches_skipped_vram} batch(es) skipped (VRAM)`;
+            if (s.narrators_merged) { txt += `, ${s.narrators_merged} narrators merged`; }
+            if (s.speakers_merged) { txt += `, ${s.speakers_merged} speakers merged`; }
+            if (s.batches_failed) { txt += `, ${s.batches_failed} batch(es) failed`; }
+            if (s.batches_skipped_vram) { txt += `, ${s.batches_skipped_vram} batch(es) skipped (VRAM)`; }
             return txt;
         }
 
         function _formatTotalsLine(label, t) {
-            if (!t || !t.books_done) return `${label}: no books finished yet`;
+            if (!t || !t.books_done) { return `${label}: no books finished yet`; }
             let txt = `${label}: ${t.books_done} book(s), ${t.total_changes} total change(s) ` +
                       `(${t.text_changed} text, ${t.speaker_changed} speaker, ${t.instruct_changed} instruct, ` +
                       `+${t.entries_added}/-${t.entries_removed} entries)`;
-            if (t.batches_failed) txt += ` — ${t.batches_failed} batch(es) failed`;
+            if (t.batches_failed) { txt += ` — ${t.batches_failed} batch(es) failed`; }
             return txt;
         }
 
         function _updateReviewBatchTotals(state) {
             const el = document.getElementById('review-batch-totals');
-            if (!el) return;
+            if (!el) { return; }
             const fwd = state.totals_fwd, bwd = state.totals_bwd;
             const aliasesBwd = state.aliases_bwd || [];
             if (!(fwd && fwd.books_done) && !(bwd && bwd.books_done) && !aliasesBwd.length) {
@@ -3051,7 +3051,7 @@
 
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
-            if (reviewBatchPoller) clearInterval(reviewBatchPoller);
+            if (reviewBatchPoller) { clearInterval(reviewBatchPoller); }
             reviewBatchPoller = setInterval(async () => {
                 try {
                     const state = await API.get('/api/status/batch_review');
@@ -3060,7 +3060,7 @@
                     (state.tasks || []).forEach(t => {
                         // Map by name (the list shows all scripts; only selected ones are tasks)
                         const cb = document.querySelector(`.review-batch-check[data-name="${CSS.escape(t.name)}"]`);
-                        if (!cb) return;
+                        if (!cb) { return; }
                         const el = document.getElementById(cb.id.replace('rb-check-', 'rb-status-'));
                         if (el) {
                             el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
