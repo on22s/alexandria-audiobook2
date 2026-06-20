@@ -1024,3 +1024,32 @@ All `[rule15-candidate]`/Rule-15 tags from the 54-piece sweep, plus a fresh repo
 F-062 (`submitCastApply`/`submitCastApplyBulk` checkbox→mapping extraction), F-065 (`renderAll`/`renderBatchFast` ~95%-identical polling logic, with the Rule 10 confirm-gate gap from F-064 living in the part that differs), F-072 (`pollLogs` alone has stale-response protection among ~10 hand-rolled pollers). These are all single-file (`index.html`) maintenance-burden duplications rather than cross-process drift risks — lower severity than Clusters A-E, included here for completeness since they were tagged `[rule15-candidate]` during the sweep.
 
 **Summary for Task 5:** of the 7 clusters, **B (missing `ensure_ideal_settings` calls)** is the clearest, lowest-risk, highest-value fix. **A's `llm_bench.py` branch (F-004)** is the clearest pure-refactor swap-to-canonical-helper fix. The rest (C, D, E, F, G) require either a new shared module across environments that don't currently share one, or accepting the duplication as a documented tradeoff — genuine `needs-decision` judgment calls for the user, not mechanical fixes.
+
+---
+
+## Task 5: Synthesis report
+
+**Totals:** 120 findings across all 54 pieces. 5 high severity, 41 medium, 74 low. 10 fixed-inline (all Rule 18 brace additions + 1 dead-code deletion in `app/generate_personas.py` + 1 dead-code deletion in `alexandria_preparer_rocm_compatible.py`), 14 logged/closed (informational or false-positive-on-inspection, no action needed), **96 needs-decision** (require a judgment call before any fix lands, per this audit's fix policy).
+
+**By rule:** Rule 8 (Fail Loud) 41 · Rule 9 (Safety Nets) 21 · Rule 2 (Simplicity) 18 · Rule 15 (Single Dispatch) 11 · Rule 18 (JS braces) 8, all fixed · Rule 10 (Retry Consistency) 7 · Rule 16 (Verb Naming) 7 · Rule 17 (Dual-Purpose Params) 4 · Rule 12 (Test Rigor) 3.
+
+### The 5 high-severity findings
+
+1. **F-032** — `POST /api/chunks/{index}/generate` runs real TTS/GPU inference with zero GPU-lock check or `process_state` entry at all.
+2. **F-043** — `POST /api/dataset_builder/generate_sample` same gap, plus isn't registered in `process_state["dataset_builder"]` at all (its sibling `generate_batch` is correctly registered).
+3. **F-092** — `alexandria_batch_processor.py`'s `_normalize_filename_tokens` calls `re.findall` but `re` is never imported — guaranteed `NameError` the moment the documented fuzzy-source-match fallback path is actually exercised.
+4. **F-115** — The final dataset ZIP in the preparer pipeline is written directly to its destination path with no scratch-then-rename; a crash mid-write leaves a truncated/corrupt zip at the permanent output path, and a re-run destroys any prior good zip before the new one is confirmed good.
+5. **F-119** — `_wipe_temp_dir`'s per-file removal is best-effort, not atomic: one locked/undeletable file silently produces a partial wipe — the exact cross-book corruption scenario the source-marker/wipe system exists to prevent, reintroduced at file-removal granularity.
+
+### Two systemic patterns (each one fix-pattern resolves multiple findings)
+
+**Pattern 1 — Single-item/synchronous GPU routes skip the GPU lock that their batch siblings correctly use (6 findings, 2 high + 4 medium):** F-029 (`lmstudio/optimize`), F-032 (chunk generate, high), F-038 (voice_design/preview), F-039 (lora/test), F-040 (lora/preview), F-043 (dataset_builder/generate_sample, high). Every one of these is a "preview"/"test"/single-item GPU route that races `GPU_TASKS` because it was apparently written by analogy to its read-only siblings rather than its GPU-heavy batch sibling. Same fix shape every time: add `check_global_gpu_lock`/`claim_gpu_task` (or for synchronous-not-backgrounded ones, at least the check) around the GPU call, matching the pattern every batch-equivalent route already uses correctly.
+
+**Pattern 2 — Corrupted JSON state files are silently reset to empty/default, then the next save overwrites the file, permanently losing all prior data (6 findings, all medium/low):** F-011 (`manifest.json`), F-015 (alias registry), F-031 (`GET /api/voices`), F-035 (`voice_library.json`), F-036 (designed-voice/clone manifest), F-046 (`voicelab_config.json`). Every one of these is the same shape: `except Exception: <reset to empty>` with no logging, in a `_load_*` helper whose result later gets unconditionally written back to disk. Same fix shape every time: log the parse failure (so a human notices before the silent overwrite happens) and/or refuse to overwrite a file that failed to parse until a human confirms starting fresh is intended.
+
+**See Task 4 above** for the third systemic pattern (Rule 15 dispatch duplication, 7 clusters) and its own recommended fixes — the clearest of which is **Cluster B**: `generate_script.py`/`generate_personas.py` are missing the same `ensure_ideal_settings` self-heal call their siblings `review_script.py`/`find_nicknames.py` already have.
+
+**Frontend poller inconsistency (4 findings, no single canonical answer yet):** F-058, F-073, F-079 (tagged under Task 4 alongside F-072) collectively show `index.html`'s ~10 hand-rolled `setInterval` pollers split three ways on what a poll error means — retry forever silently, give up immediately with no toast, or give up immediately with a toast. No fix-now shape here since the three policies are genuinely different *design choices*, not one obviously-correct pattern accidentally not applied everywhere — this needs a decision on which policy is right before any fix.
+
+### Everything else
+The remaining ~100 findings are one-off `needs-decision` items (a missing read-back in a test, a duplicated regex, a misnamed function, a dual-purpose parameter) — full detail and exact locations are in this file under each piece's section above, searchable by `F-###` ID.
