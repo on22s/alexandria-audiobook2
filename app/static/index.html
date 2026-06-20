@@ -1974,7 +1974,7 @@
         // Parse a numeric input's value, falling back to `def` when the field is
         // empty/non-numeric. Uses Number.isFinite (not `|| def`) so a deliberate 0
         // is preserved rather than treated as falsy.
-        function numFieldValue(id, def, isInt = false) {
+        function getNumFieldValue(id, def, isInt = false) {
             const raw = document.getElementById(id).value;
             const v = isInt ? parseInt(raw, 10) : parseFloat(raw);
             return Number.isFinite(v) ? v : def;
@@ -2525,11 +2525,11 @@
                     compile_codec: document.getElementById('compile-codec').checked,
                     batch_group_by_type: document.getElementById('batch-group-by-type').checked,
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
-                    sub_batch_min_size: numFieldValue('sub-batch-min-size', 4, true),
-                    sub_batch_ratio: numFieldValue('sub-batch-ratio', 5),
-                    sub_batch_max_items: numFieldValue('sub-batch-max-items', 0, true),
-                    pause_between_speakers_ms: numFieldValue('pause-between-speakers', 500, true),
-                    pause_same_speaker_ms: numFieldValue('pause-same-speaker', 250, true)
+                    sub_batch_min_size: getNumFieldValue('sub-batch-min-size', 4, true),
+                    sub_batch_ratio: getNumFieldValue('sub-batch-ratio', 5),
+                    sub_batch_max_items: getNumFieldValue('sub-batch-max-items', 0, true),
+                    pause_between_speakers_ms: getNumFieldValue('pause-between-speakers', 500, true),
+                    pause_same_speaker_ms: getNumFieldValue('pause-same-speaker', 250, true)
                 },
                 prompts: {
                     system_prompt: document.getElementById('system-prompt').value,
@@ -2543,11 +2543,11 @@
                 generation: {
                     chunk_size: chunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
-                    temperature: numFieldValue('temperature', 0.6),
-                    top_p: numFieldValue('top-p', 0.8),
-                    top_k: numFieldValue('top-k', 0, true),
-                    min_p: numFieldValue('min-p', 0),
-                    presence_penalty: numFieldValue('presence-penalty', 0.0),
+                    temperature: getNumFieldValue('temperature', 0.6),
+                    top_p: getNumFieldValue('top-p', 0.8),
+                    top_k: getNumFieldValue('top-k', 0, true),
+                    min_p: getNumFieldValue('min-p', 0),
+                    presence_penalty: getNumFieldValue('presence-penalty', 0.0),
                     banned_tokens: document.getElementById('banned-tokens').value
                         ? document.getElementById('banned-tokens').value.split(',').map(t => t.trim()).filter(t => t)
                         : [],
@@ -2825,7 +2825,7 @@
         }
 
         // --- Single review (with pause/cancel + character-name merging) ---
-        function _reviewDedupe() {
+        function _isReviewDedupeChecked() {
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
@@ -2847,7 +2847,7 @@
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe() });
+                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked() });
                 pollLogs('review', 'script-logs', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
@@ -2861,7 +2861,7 @@
                 const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe() });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked() });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -2946,7 +2946,7 @@
 
         // Trailing number in a script name for numeric ("1→10") sorting,
         // e.g. "arc_8_-_volume_37" → 37. Names without a number sort last.
-        function _scriptVolumeNum(name) {
+        function _getScriptVolumeNum(name) {
             const m = String(name).match(/(\d+)(?!.*\d)/);
             return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
         }
@@ -2956,7 +2956,7 @@
         function _sortScriptList(list, mode) {
             if (!list.length) { return; }
             const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-            const byNum  = (a, b) => _scriptVolumeNum(a.name) - _scriptVolumeNum(b.name) || byName(a, b);
+            const byNum  = (a, b) => _getScriptVolumeNum(a.name) - _getScriptVolumeNum(b.name) || byName(a, b);
             switch (mode) {
                 case 'az':       list.sort(byName); break;
                 case 'za':       list.sort(byName).reverse(); break;
@@ -3014,7 +3014,7 @@
                 await API.post('/api/review_script/batch/start', {
                     script_names: names,
                     context_window: contextWindow,
-                    dedupe_speakers: _reviewDedupe(),
+                    dedupe_speakers: _isReviewDedupeChecked(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
                 });
@@ -3424,7 +3424,7 @@
             card.querySelector('.clone-opts').style.display = radio.value === 'clone' ? 'block' : 'none';
             card.querySelector('.lora-opts').style.display = radio.value === 'lora' ? 'block' : 'none';
             card.querySelector('.design-opts').style.display = radio.value === 'design' ? 'block' : 'none';
-            debouncedSaveVoices();
+            saveVoicesDebounced();
         };
 
         async function loadVoices() {
@@ -3456,7 +3456,7 @@
 
             // If any voice has no saved config, save defaults immediately
             if (voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
-                debouncedSaveVoices();
+                saveVoicesDebounced();
             }
 
             // Restore any pending voice suggestions onto the freshly rendered cards
@@ -3559,7 +3559,7 @@
             if (banner) { banner.remove(); }
             delete window._voiceSuggestions[name];
             updateSuggestionToolbar();
-            debouncedSaveVoices();
+            saveVoicesDebounced();
         }
 
         function applyAllVoiceSuggestions() {
@@ -4011,7 +4011,7 @@
         }
 
         let _voiceSaveTimer = null;
-        function debouncedSaveVoices() {
+        function saveVoicesDebounced() {
             const statusEl = document.getElementById('voice-save-status');
             statusEl.innerHTML = '<i class="fas fa-circle text-warning" style="font-size:0.5em;"></i> unsaved';
             clearTimeout(_voiceSaveTimer);
@@ -4032,10 +4032,10 @@
 
         // Auto-save on any change inside the voices list
         document.getElementById('voices-list').addEventListener('change', () => {
-            debouncedSaveVoices();
+            saveVoicesDebounced();
         });
         document.getElementById('voices-list').addEventListener('input', () => {
-            debouncedSaveVoices();
+            saveVoicesDebounced();
         });
 
         // --- Editor Tab ---
@@ -5043,7 +5043,7 @@
                         if (aliasSel) {
                             aliasSel.value = selectedAlias || '';
                             // Trigger save via existing auto-save debounce
-                            debouncedSaveVoices();
+                            saveVoicesDebounced();
                         }
                     }
                 }
@@ -5205,7 +5205,7 @@
                     if (deleteBtn) deleteBtn.style.display = 'none';
                 }
             }
-            debouncedSaveVoices();
+            saveVoicesDebounced();
         };
 
         // --- Clone Voice Upload Handlers ---
@@ -6301,20 +6301,20 @@
                 audio_filename: audioFile.name,
                 output_filename: document.getElementById('prep-output').value,
                 lang:            document.getElementById('prep-lang').value,
-                min_confidence:  numFieldValue('prep-confidence', 0.85),
-                min_snr:         numFieldValue('prep-snr', 25, true),
+                min_confidence:  getNumFieldValue('prep-confidence', 0.85),
+                min_snr:         getNumFieldValue('prep-snr', 25, true),
                 model:           document.getElementById('prep-model').value || null,
                 fallback_model:  document.getElementById('prep-fallback-model').value || null,
                 source_filename: sourceFile ? sourceFile.name : null,
-                source_threshold: numFieldValue('prep-source-threshold', 0.65),
+                source_threshold: getNumFieldValue('prep-source-threshold', 0.65),
                 keep_unaligned:  document.getElementById('prep-keep-unaligned').checked,
-                chunk_size:      numFieldValue('prep-chunk-size', 10),
+                chunk_size:      getNumFieldValue('prep-chunk-size', 10),
                 resume:          document.getElementById('prep-resume').checked,
                 skip_annotation: document.getElementById('prep-skip-annotation').checked,
-                source_start:    document.getElementById('prep-source-start').value ? numFieldValue('prep-source-start', 0, true) : null,
+                source_start:    document.getElementById('prep-source-start').value ? getNumFieldValue('prep-source-start', 0, true) : null,
                 source_start_text: document.getElementById('prep-source-start-text').value || null,
                 no_auto_anchor:  document.getElementById('prep-no-auto-anchor').checked,
-                batch_size:      numFieldValue('prep-batch-size', 1, true),
+                batch_size:      getNumFieldValue('prep-batch-size', 1, true),
                 enrich_with_llm: document.getElementById('prep-enrich-with-llm').checked,
                 llm_model_path:  document.getElementById('prep-llm-model-path').value || null,
                 enrich_speaker_attribution: document.getElementById('prep-enrich-speaker').checked,
@@ -6360,8 +6360,8 @@
             const body = {
                 tasks,
                 lang:           document.getElementById('prep-lang').value,
-                min_confidence: numFieldValue('prep-confidence', 0.85),
-                min_snr:        numFieldValue('prep-snr', 25, true),
+                min_confidence: getNumFieldValue('prep-confidence', 0.85),
+                min_snr:        getNumFieldValue('prep-snr', 25, true),
             };
 
             try {
@@ -6444,7 +6444,7 @@
             '/api/voicelab/pause', '/api/voicelab/resume', 'btn-vl-pause');
         window.pauseResumeVoicelab = _voicelabPauseResume;
 
-        function _vlChk(id, ok) {
+        function _vlSetCheckIcon(id, ok) {
             const el = document.getElementById(id);
             if (el) {
                 el.innerHTML = ok
@@ -6466,7 +6466,7 @@
 
                 const ck = res.checks || {};
                 ['rocm_python','pipeline_repo','batch_train_lora','voice_profiler','profiler_model','zips_dir']
-                    .forEach(k => _vlChk('chk-' + k, !!ck[k]));
+                    .forEach(k => _vlSetCheckIcon('chk-' + k, !!ck[k]));
                 const issues = Object.values(ck).filter(v => v === false).length;
                 document.getElementById('voicelab-readiness').innerHTML = issues
                     ? `<span class="badge bg-warning text-dark">${issues} issue${issues>1?'s':''}</span>`

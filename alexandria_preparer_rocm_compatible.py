@@ -1100,7 +1100,7 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
     return n - 1, 'fallback'
 
 
-def _provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
+def _build_provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
     """Pack the first N chunks' worth of ASR words into the entry shape
     alignment.auto_anchor / alignment.estimate_alignment_quality expect.
 
@@ -3383,7 +3383,7 @@ def main():
             # ── Optional: source-guided chunking ──────────────────────────────────
             source_state = None
             if args.source:
-                entries_for_anchor = _provisional_entries_for_anchor(
+                entries_for_anchor = _build_provisional_entries_for_anchor(
                     word_segments, args.chunk_size, max_entries=30
                 )
                 source_state = _build_source_state(
