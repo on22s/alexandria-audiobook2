@@ -280,6 +280,14 @@ Entries here were moved out of `FINDINGS.md` once resolved — cut, not copied, 
 - **Status:** fixed-inline (commit `e7b18f3`)
 - **Suggested fix:** see needs-decision — likely move the `regenerateAll` confirm check up into `startRender` (or duplicate it identically into `renderBatchFast`) so the same destructive action always asks for confirmation regardless of TTS mode.
 
+### [F-065] Rule 2 / Rule 15 (candidate) — `renderAll` and `renderBatchFast` are ~95%-identical polling/error-handling logic differing only by endpoint and one missing confirm gate
+- **Piece:** P31
+- **Location:** `app/static/index.html:4450-4528` (`renderAll`) vs `:4530-4601` (`renderBatchFast`)
+- **Severity:** medium
+- **Description:** `[rule15-candidate]` These two ~75-line functions are line-for-line identical except: the API endpoint (`/api/generate_batch` vs `/api/generate_batch_fast`), the `regenerateAll` confirm gate (see F-064, present only in `renderAll`), two comments, and the `console.error` label string. The entire `toProcess` filtering, optimistic-UI marking loop, and `setInterval`-based completion-polling block (including the `isRenderingAll` bail-out and the completed/failed toast summary) is duplicated verbatim rather than factored into one shared helper parametrized by endpoint.
+- **Status:** fixed-inline (commit `300d651`)
+- **Suggested fix:** see needs-decision — not resolved here per audit scope; a future pass could extract a shared `_pollBatchCompletion(indices, onDone)` (or similar) used by both, which would also have prevented F-064 by construction.
+
 ### [F-069] Rule 18 — Six unbraced single-statement `if` bodies in `pollLogs`, `loadScript`, `deleteScript`
 - **Piece:** P32
 - **Location:** `app/static/index.html:4724`, `:4727`, `:4733` (all in `pollLogs`), `:4745` (`pollLogs`'s `onDone` continuation), `:4821` (`loadScript`), `:4845` (`deleteScript`)
