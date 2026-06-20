@@ -1839,7 +1839,7 @@
         // that, since there's no way for the app to check your actual Thunder
         // balance automatically. Local has no cloud cost, so it's a no-op there.
         async function confirmIfRemote(taskLabel) {
-            if (currentLlmMode !== 'remote') return true;
+            if (currentLlmMode !== 'remote') { return true; }
             return await showConfirm(
                 `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
                 `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
@@ -1848,7 +1848,7 @@
         }
 
         function escapeHtml(str) {
-            if (str == null) return '';
+            if (str == null) { return ''; }
             return String(str)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -1885,8 +1885,8 @@
         // navigated away from the tab (no point popping up a notification for
         // something they're already watching).
         function notifyJobDone(taskName, detail = '') {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            if (document.visibilityState === 'visible' && document.hasFocus()) return;
+            if (!('Notification' in window) || Notification.permission !== 'granted') { return; }
+            if (document.visibilityState === 'visible' && document.hasFocus()) { return; }
             const title = `${TASK_LABELS[taskName] || taskName} finished`;
             try {
                 new Notification(title, { body: detail || 'Switch back to Alexandria to see the results.', icon: '/favicon.ico' });
@@ -1976,11 +1976,11 @@
         // --- API Helpers ---
         const API = {
             _handleError: async (res) => {
-                if (res.ok) return;
+                if (res.ok) { return; }
                 let detail = res.statusText;
                 try {
                     const body = await res.json();
-                    if (body && body.detail) detail = body.detail;
+                    if (body && body.detail) { detail = body.detail; }
                 } catch (e) { /* non-JSON error body; fall back to statusText */ }
                 const err = new Error(detail);
                 err.status = res.status;
@@ -2098,9 +2098,9 @@
             }
 
             const parts = [tier];
-            if (gpuName) parts.push(gpuName);
-            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
-            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
+            if (gpuName) { parts.push(gpuName); }
+            if (ramGb) { parts.push(`${Math.round(ramGb)} GB RAM`); }
+            if (stats.cpu_count) { parts.push(`${stats.cpu_count} CPU threads`); }
             const summary = parts.join(' · ');
 
             return { settings, summary };
@@ -2145,7 +2145,7 @@
         // their Location change hasn't taken effect yet.
         function renderActiveLlmModeBadge() {
             const badge = document.getElementById('llm-active-mode-badge');
-            if (!badge) return;
+            if (!badge) { return; }
             badge.textContent = 'Active: ' + (savedLlmMode === 'remote' ? 'Remote (Thunder / network)' : 'Local');
         }
 
