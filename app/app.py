@@ -518,6 +518,9 @@ process_state = {
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "lora_training": {"running": False, "logs": []},
+    "lora_test": {"running": False, "logs": []},
+    "voice_design": {"running": False, "logs": []},
+    "lmstudio_optimize": {"running": False, "logs": []},
     "dataset_gen": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
@@ -1597,26 +1600,33 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     if not model_name:
         raise HTTPException(status_code=400, detail="No LLM model configured")
 
-    if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
-        ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
-        if not ok:
-            raise HTTPException(status_code=502, detail=msg)
-        status = await asyncio.to_thread(get_lmstudio_status, model_name)
-        status["model"] = model_name
-        status["message"] = msg
-        return status
+    # Reloading the model is a real VRAM operation - keep it from racing any
+    # other GPU_TASKS member (review/audio/script/etc.) holding VRAM against
+    # the same model. See FINDINGS.md F-029.
+    claim_gpu_task("lmstudio_optimize")
+    try:
+        if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
+            ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+            if not ok:
+                raise HTTPException(status_code=502, detail=msg)
+            status = await asyncio.to_thread(get_lmstudio_status, model_name)
+            status["model"] = model_name
+            status["message"] = msg
+            return status
 
-    # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
-    ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
-    if not ssh_alias:
-        raise HTTPException(status_code=400, detail=(
-            "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
-            "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-    ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
-    if not ok:
-        log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
-        raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
-    return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
+        # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
+        ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
+        if not ssh_alias:
+            raise HTTPException(status_code=400, detail=(
+                "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
+                "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
+        ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+        if not ok:
+            log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
+            raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
+        return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
+    finally:
+        process_state["lmstudio_optimize"]["running"] = False
 
 
 def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
@@ -3087,8 +3097,13 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks)
         raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
 
     def task():
-        project_manager.generate_chunk_audio(index)
+        try:
+            project_manager.generate_chunk_audio(index)
+        finally:
+            process_state["audio"]["running"] = False
 
+    # Same GPU resource as /api/generate_batch - must not race it. See F-032.
+    claim_gpu_task("audio")
     background_tasks.add_task(task)
     return {"status": "started"}
 
@@ -4004,6 +4019,8 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
+    # Synchronous local TTS/GPU inference - must not race other GPU_TASKS. See F-038.
+    claim_gpu_task("voice_design")
     try:
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
@@ -4016,6 +4033,8 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
     except Exception as e:
         logger.error(f"Voice design preview failed: {e}")
         raise HTTPException(status_code=500, detail="Voice design preview failed — see server logs for details.")
+    finally:
+        process_state["voice_design"]["running"] = False
 
 @app.post("/api/voice_design/save")
 async def voice_design_save(request: VoiceDesignSaveRequest):
@@ -4539,6 +4558,9 @@ async def lora_download_builtin(adapter_id: str):
 @app.post("/api/lora/test")
 async def lora_test_model(request: LoraTestRequest):
     """Generate test audio using a LoRA adapter (built-in or user-trained)."""
+    # Fail fast before the manifest lookup / possible adapter auto-download
+    # below. See F-039.
+    check_global_gpu_lock("lora_test")
     # Check both manifests
     builtin = _load_builtin_lora_manifest()
     user_trained = _load_manifest(LORA_MODELS_MANIFEST)
@@ -4569,6 +4591,7 @@ async def lora_test_model(request: LoraTestRequest):
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
+    claim_gpu_task("lora_test")
     try:
         output_filename = f"test_{request.adapter_id}_{int(time.time())}.wav"
         output_path = os.path.join(adapter_dir, output_filename)
@@ -4594,6 +4617,8 @@ async def lora_test_model(request: LoraTestRequest):
     except Exception as e:
         logger.error(f"LoRA test generation failed: {e}")
         raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.")
+    finally:
+        process_state["lora_test"]["running"] = False
 
 LORA_PREVIEW_TEXT = "The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy that had been growing for centuries."
 
@@ -4631,11 +4656,17 @@ async def lora_preview(adapter_id: str):
     if os.path.exists(preview_path):
         return {"status": "cached", "audio_url": f"{url_prefix}/preview_sample.wav"}
 
-    # Generate preview
+    # Generate preview. Only reaches here on a cache miss, so the lock is
+    # acquired after the cache check above, not at the top of the function -
+    # no GPU work happens on a cache hit. Shares the "lora_test" slot with
+    # /api/lora/test since both are "try out this adapter" operations that
+    # shouldn't run concurrently with each other either. See F-040.
+    check_global_gpu_lock("lora_test")
     engine = project_manager.get_engine()
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
+    claim_gpu_task("lora_test")
     try:
         voice_data = {
             "type": "lora",
@@ -4654,6 +4685,8 @@ async def lora_preview(adapter_id: str):
     except Exception as e:
         logger.error(f"LoRA preview generation failed: {e}")
         raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.")
+    finally:
+        process_state["lora_test"]["running"] = False
 
 ## ── Dataset Builder ──────────────────────────────────────────
 
@@ -4761,6 +4794,9 @@ async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
 @app.post("/api/dataset_builder/generate_sample")
 async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     """Generate a single dataset sample using VoiceDesign."""
+    # Same "dataset_builder" slot as the sibling /generate_batch route -
+    # fail fast before any setup work below. See F-043.
+    check_global_gpu_lock("dataset_builder")
     engine = project_manager.get_engine()
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
@@ -4768,6 +4804,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     work_dir = os.path.join(DATASET_BUILDER_DIR, request.dataset_name)
     os.makedirs(work_dir, exist_ok=True)
 
+    claim_gpu_task("dataset_builder")
     try:
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
@@ -4814,6 +4851,8 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
         state["samples"] = samples
         _save_builder_state(request.dataset_name, state)
         raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.")
+    finally:
+        process_state["dataset_builder"]["running"] = False
 
 @app.post("/api/dataset_builder/generate_batch")
 async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
