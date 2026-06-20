@@ -4659,31 +4659,25 @@
             try {
                 await API.post('/api/export_audacity', {});
 
-                const poll = setInterval(async () => {
-                    try {
-                        const status = await API.get('/api/status/audacity_export');
-                        if (!status.running) {
-                            clearInterval(poll);
-                            if (status.logs.some(l => l.includes("complete"))) {
-                                statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Done!</span>';
-                                // Auto-download the zip
-                                const a = document.createElement('a');
-                                a.href = `/api/export_audacity?t=${Date.now()}`;
-                                a.download = 'audacity_export.zip';
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
-                            } else {
-                                const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
-                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
-                            }
+                _startPolling('audacity_export', () => API.get('/api/status/audacity_export'), {
+                    doneCheck: status => !status.running,
+                    onDone: status => {
+                        if (status.logs.some(l => l.includes("complete"))) {
+                            statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Done!</span>';
+                            // Auto-download the zip
+                            const a = document.createElement('a');
+                            a.href = `/api/export_audacity?t=${Date.now()}`;
+                            a.download = 'audacity_export.zip';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+                        } else {
+                            const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
+                            statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
                         }
-                    } catch (e) {
-                        clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
                     }
-                }, 1000);
+                });
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
             }
@@ -4722,30 +4716,24 @@
                     description: document.getElementById('m4b-description').value
                 });
 
-                const poll = setInterval(async () => {
-                    try {
-                        const status = await API.get('/api/status/m4b_export');
-                        if (!status.running) {
-                            clearInterval(poll);
-                            if (status.logs.some(l => l.includes("complete"))) {
-                                statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Done!</span>';
-                                const a = document.createElement('a');
-                                a.href = `/api/audiobook_m4b?t=${Date.now()}`;
-                                a.download = 'audiobook.m4b';
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
-                            } else {
-                                const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
-                                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
-                            }
+                _startPolling('m4b_export', () => API.get('/api/status/m4b_export'), {
+                    doneCheck: status => !status.running,
+                    onDone: status => {
+                        if (status.logs.some(l => l.includes("complete"))) {
+                            statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Done!</span>';
+                            const a = document.createElement('a');
+                            a.href = `/api/audiobook_m4b?t=${Date.now()}`;
+                            a.download = 'audiobook.m4b';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+                        } else {
+                            const lastLog = status.logs[status.logs.length - 1] || 'Unknown error';
+                            statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(lastLog)}</span>`;
                         }
-                    } catch (e) {
-                        clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
                     }
-                }, 1000);
+                });
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(e.message)}</span>`;
             }
