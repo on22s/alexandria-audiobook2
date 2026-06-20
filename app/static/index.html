@@ -1953,7 +1953,7 @@
         // that, since there's no way for the app to check your actual Thunder
         // balance automatically. Local has no cloud cost, so it's a no-op there.
         async function confirmIfRemote(taskLabel) {
-            if (currentLlmMode !== 'remote') { return true; }
+            if (!currentIsRemote) { return true; }
             return await showConfirm(
                 `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
                 `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
@@ -2246,6 +2246,11 @@
                             remote: {base_url:'', api_key:'local', model_name:''} };
         let currentLlmMode = 'local';
         let savedLlmMode = 'local';   // last-saved llm_mode; drives the "Active:" badge
+        // Server-computed lmstudio_settings.is_remote_llm(llm_mode, base_url)
+        // for the ACTIVE (saved) config - reflects llm_mode/base_url drift
+        // that a bare `currentLlmMode === 'remote'` check would miss. Updated
+        // from /api/config's response on load and after a successful save.
+        let currentIsRemote = false;
 
         function populateLlmInputs(mode) {
             const p = llmProfiles[mode] || {};
@@ -2307,7 +2312,7 @@
                         ? ` — warning: model "${escapeHtml(res.model)}" not in server list` : '';
                     out.innerHTML = `<i class="fas fa-check me-1"></i>Connected. Reply: "${escapeHtml(res.reply || '')}"${note}`;
 
-                    const modeLabel = currentLlmMode === 'remote' ? 'Remote' : 'Local';
+                    const modeLabel = res.is_remote ? 'Remote' : 'Local';
                     const banner = document.getElementById('auto-config-banner');
                     document.getElementById('auto-config-msg').innerHTML =
                         `<i class="fas fa-check-circle me-1 text-success"></i><strong>Auto-configured:</strong> ` +
@@ -2338,6 +2343,7 @@
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
                 currentLlmMode = config.llm_mode || 'local';
                 savedLlmMode = currentLlmMode;
+                currentIsRemote = !!config.is_remote;
                 renderActiveLlmModeBadge();
                 document.getElementById('llm-mode').value = currentLlmMode;
                 document.getElementById('llm-ssh').value = config.llm_remote_ssh || '';
@@ -2567,6 +2573,11 @@
                 await API.post('/api/config', config);
                 savedLlmMode = currentLlmMode;
                 renderActiveLlmModeBadge();
+                // Refresh is_remote from the now-active saved config (not a
+                // full loadConfig() - that resets unrelated fields like
+                // chunk-size to hardcoded defaults).
+                try { currentIsRemote = !!(await API.get('/api/config')).is_remote; }
+                catch (e) { console.debug('is_remote refresh after save failed', e); }
                 showToast('Configuration Saved!', 'success');
             } catch (e) {
                 showToast('Error saving config: ' + e.message, 'error');

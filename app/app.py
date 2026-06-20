@@ -1670,7 +1670,11 @@ def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
                 "models": models, "model_present": model_present,
                 "log_file": _log_llm_failure("test", detail)}
     return {"ok": True, "base_url": base_url, "model": model_name,
-            "models": models, "model_present": model_present, "reply": reply}
+            "models": models, "model_present": model_present, "reply": reply,
+            # Computed from the base_url actually tested (not the saved
+            # llm_mode) so the caller can label this result correctly even
+            # when testing a not-yet-saved profile.
+            "is_remote": not is_local_llm_endpoint(base_url)}
 
 
 @app.post("/api/llm/test")
@@ -1818,6 +1822,11 @@ async def get_config():
                 config["current_file"] = os.path.basename(input_path)
         except (json.JSONDecodeError, ValueError):
             pass
+
+    # Precomputed drift-aware answer to "is the active LLM endpoint remote?"
+    # so the frontend doesn't have to re-derive it from llm_mode alone (which
+    # can drift from the actual active base_url) - see lmstudio_settings.is_remote_llm.
+    config["is_remote"] = is_remote_llm(config["llm_mode"], config.get("llm", {}).get("base_url", ""))
 
     return config
 
