@@ -2701,7 +2701,6 @@
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
         let scriptBatchPoller = null;
-        let scriptBatchPollGen = 0;
 
         window.toggleScriptBatchMode = () => {
             const isBatch = document.getElementById('script-batch-mode').checked;
@@ -2780,16 +2779,18 @@
         }
 
         function _pollScriptBatchLogs() {
-            if (scriptBatchPoller) { clearTimeout(scriptBatchPoller); }
             const logEl = document.getElementById('script-logs');
             let offset = 0;
-            const myGen = ++scriptBatchPollGen;
+            // scriptBatchPoller is read elsewhere (pollLogs('script', ...)'s
+            // onDone callbacks) to decide whether the single-script Generate
+            // button should re-enable - it's a plain "is batch_script
+            // currently polling" flag, not the timer id; the actual poll
+            // loop is owned by _startPolling.
+            scriptBatchPoller = true;
 
-            const poll = async () => {
-                if (myGen !== scriptBatchPollGen) { return; }
-                try {
-                    const state = await API.get('/api/status/batch_script');
-                    if (myGen !== scriptBatchPollGen) { return; }
+            _startPolling('batch_script', () => API.get('/api/status/batch_script'), {
+                doneCheck: state => !state.running,
+                onTick: state => {
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -2807,24 +2808,18 @@
                             el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
                         });
                     }
-
-                    if (!state.running) {
-                        scriptBatchPoller = null;
-                        notifyJobDone('batch_script');
-                        document.getElementById('btn-gen-script').disabled = false;
-                        document.getElementById('btn-pause-batch-script').style.display = 'none';
-                        document.getElementById('btn-cancel-batch-script').style.display = 'none';
-                        document.getElementById('script-batch-status-msg').innerHTML =
-                            '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
-                        loadSavedScripts();
-                    } else {
-                        scriptBatchPoller = setTimeout(poll, 1000);
-                    }
-                } catch (e) {
-                    scriptBatchPoller = setTimeout(poll, 2000);
+                },
+                onDone: () => {
+                    scriptBatchPoller = null;
+                    notifyJobDone('batch_script');
+                    document.getElementById('btn-gen-script').disabled = false;
+                    document.getElementById('btn-pause-batch-script').style.display = 'none';
+                    document.getElementById('btn-cancel-batch-script').style.display = 'none';
+                    document.getElementById('script-batch-status-msg').innerHTML =
+                        '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
+                    loadSavedScripts();
                 }
-            };
-            poll();
+            });
         }
 
         // --- Single review (with pause/cancel + character-name merging) ---
@@ -2898,7 +2893,6 @@
         };
 
         // --- Batch review ---
-        let reviewBatchPoller = null;
         let reviewBatchSelected = [];
         let reviewBatchScripts = [];   // current saved-script list, kept so we can re-sort without refetching
 
@@ -3165,10 +3159,9 @@
 
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
-            if (reviewBatchPoller) { clearInterval(reviewBatchPoller); }
-            reviewBatchPoller = setInterval(async () => {
-                try {
-                    const state = await API.get('/api/status/batch_review');
+            _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
+                doneCheck: state => !state.running,
+                onTick: state => {
                     if (logEl) { logEl.innerText = (state.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
                     const colours = { pending: 'secondary', running: 'primary', done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
                     (state.tasks || []).forEach(t => {
@@ -3182,18 +3175,16 @@
                         }
                     });
                     _updateReviewBatchTotals(state);
-                    if (!state.running) {
-                        clearInterval(reviewBatchPoller);
-                        reviewBatchPoller = null;
-                        notifyJobDone('batch_review');
-                        document.getElementById('btn-review-batch-start').disabled = false;
-                        document.getElementById('btn-pause-batch-review').style.display = 'none';
-                        document.getElementById('btn-cancel-batch-review').style.display = 'none';
-                        document.getElementById('review-batch-status-msg').innerHTML =
-                            '<span class="text-muted">Batch review complete.</span>';
-                    }
-                } catch (e) { /* keep polling through hiccups */ }
-            }, 1000);
+                },
+                onDone: () => {
+                    notifyJobDone('batch_review');
+                    document.getElementById('btn-review-batch-start').disabled = false;
+                    document.getElementById('btn-pause-batch-review').style.display = 'none';
+                    document.getElementById('btn-cancel-batch-review').style.display = 'none';
+                    document.getElementById('review-batch-status-msg').innerHTML =
+                        '<span class="text-muted">Batch review complete.</span>';
+                }
+            });
         }
 
         // --- Persona Generation ---
@@ -3244,9 +3235,10 @@
             const logEl = document.getElementById('voices-logs');
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
-            const interval = setInterval(async () => {
-                try {
-                    const status = await API.get('/api/status/persona');
+            _startPolling('persona', () => API.get('/api/status/persona'), {
+                intervalMs: 1500,
+                doneCheck: status => !status.running,
+                onTick: status => {
                     const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
                     statusSpan.innerText = status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
                     if (cancelButton) {
@@ -3256,28 +3248,19 @@
                         logEl.innerText = (status.logs || []).join('\n');
                         logEl.scrollTop = logEl.scrollHeight;
                     }
-
-                    if (!status.running) {
-                        clearInterval(interval);
-                        // Refresh voices and caches
-                        try { await loadVoices(); } catch (e) { /* ignore */ }
-                        try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
-                        try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
-                        showToast('Persona generation finished', 'success');
-                        statusSpan.innerText = '';
-                        if (cancelButton) {
-                            cancelButton.style.display = 'none';
-                        }
-                    }
-                } catch (e) {
-                    clearInterval(interval);
-                    showToast('Persona status poll failed: ' + e.message, 'error');
+                },
+                onDone: async () => {
+                    // Refresh voices and caches
+                    try { await loadVoices(); } catch (e) { /* ignore */ }
+                    try { window._designedVoicesCache = await API.get('/api/voice_design/list'); } catch (e) { console.debug('designed-voices cache prefetch failed', e); }
+                    try { window._cloneVoicesCache = await API.get('/api/clone_voices/list'); } catch (e) { console.debug('clone-voices cache prefetch failed', e); }
+                    showToast('Persona generation finished', 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
                         cancelButton.style.display = 'none';
                     }
                 }
-            }, 1500);
+            });
         }
 
         // --- Voices Tab ---
@@ -4834,48 +4817,79 @@
         };
 
         // --- Polling Logic ---
-        const _pollLogsGen = {};
-        async function pollLogs(taskName, elementId, onDone) {
-            const el = document.getElementById(elementId);
-            const myGen = (_pollLogsGen[taskName] = (_pollLogsGen[taskName] || 0) + 1);
-
-            const poll = async () => {
-                if (myGen !== _pollLogsGen[taskName]) { return; }
+        // Shared polling engine: every hand-rolled status poller in this file
+        // used to implement its own setInterval/setTimeout + try/catch with a
+        // different, undocumented error policy (some retried forever
+        // silently, some gave up on the first error, one showed a toast and
+        // gave up). This is the ONE consistent policy: retry silently up to
+        // MAX_SILENT_ERRORS times, then a visible-but-non-blocking warning
+        // toast (polling keeps going either way - nothing here needs "give
+        // up forever", since every poller's done-condition is server-driven).
+        // Also generalizes pollLogs's stale-response generation-counter guard
+        // to any poller. See FIXED.md F-053/058/072/073/079.
+        const _pollGen = {};
+        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone } = {}) {
+            const myGen = (_pollGen[key] = (_pollGen[key] || 0) + 1);
+            let consecutiveErrors = 0;
+            const MAX_SILENT_ERRORS = 3;
+            const tick = async () => {
+                if (myGen !== _pollGen[key]) { return; }
                 try {
-                    const status = await API.get(`/api/status/${taskName}`);
-                    if (myGen !== _pollLogsGen[taskName]) { return; }
-                    el.innerText = status.logs.join('\n');
-                    el.scrollTop = el.scrollHeight;
-
-                    if (!status.running) {
-                        notifyJobDone(taskName);
-                        if (onDone) { onDone(status); }
-                        if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
-                            // Load audio player
-                            const audio = document.getElementById('main-audio');
-                            audio.src = `/api/audiobook?t=${new Date().getTime()}`;
-                            document.getElementById('audio-player-container').style.display = 'block';
-                            document.getElementById('download-link').href = audio.src;
-                        }
-                        // Refresh editor chunks when script generation or review completes
-                        if ((taskName === 'script' || taskName === 'review') && status.logs.some(l => l.includes("completed successfully"))) {
-                            // Clear cached chunks table so next load shows fresh data
-                            const tbody = document.getElementById('chunks-table-body');
-                            if (tbody) { tbody.innerHTML = ''; }
-                            // If editor tab is visible, refresh immediately
-                            if (document.getElementById('editor-tab').style.display !== 'none') {
-                                loadChunks();
-                            }
-                        }
-                    } else {
-                        setTimeout(poll, 1000);
+                    const data = await fetchFn();
+                    if (myGen !== _pollGen[key]) { return; }
+                    consecutiveErrors = 0;
+                    if (onTick) { onTick(data); }
+                    if (doneCheck(data)) {
+                        if (onDone) { onDone(data); }
+                        return;
                     }
                 } catch (e) {
-                    console.error("Poll error", e);
-                    setTimeout(poll, 2000);
+                    consecutiveErrors++;
+                    console.error(`Poll error (${key}):`, e);
+                    if (consecutiveErrors === MAX_SILENT_ERRORS) {
+                        showToast(`Having trouble reaching the server for "${key}" status updates — still retrying...`, 'warning');
+                    }
                 }
+                if (myGen === _pollGen[key]) { setTimeout(tick, intervalMs); }
             };
-            poll();
+            tick();
+            // Callers that need to stop a poll before its own doneCheck fires
+            // (e.g. a user-initiated cancel) can call the returned function -
+            // it just bumps the generation counter, which the next tick (in
+            // flight or scheduled) will see and exit on.
+            return () => { _pollGen[key] = (_pollGen[key] || 0) + 1; };
+        }
+
+        async function pollLogs(taskName, elementId, onDone) {
+            const el = document.getElementById(elementId);
+            _startPolling(`logs:${taskName}`, () => API.get(`/api/status/${taskName}`), {
+                doneCheck: status => !status.running,
+                onTick: status => {
+                    el.innerText = status.logs.join('\n');
+                    el.scrollTop = el.scrollHeight;
+                },
+                onDone: status => {
+                    notifyJobDone(taskName);
+                    if (onDone) { onDone(status); }
+                    if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
+                        // Load audio player
+                        const audio = document.getElementById('main-audio');
+                        audio.src = `/api/audiobook?t=${new Date().getTime()}`;
+                        document.getElementById('audio-player-container').style.display = 'block';
+                        document.getElementById('download-link').href = audio.src;
+                    }
+                    // Refresh editor chunks when script generation or review completes
+                    if ((taskName === 'script' || taskName === 'review') && status.logs.some(l => l.includes("completed successfully"))) {
+                        // Clear cached chunks table so next load shows fresh data
+                        const tbody = document.getElementById('chunks-table-body');
+                        if (tbody) { tbody.innerHTML = ''; }
+                        // If editor tab is visible, refresh immediately
+                        if (document.getElementById('editor-tab').style.display !== 'none') {
+                            loadChunks();
+                        }
+                    }
+                }
+            });
         }
 
         // ── Saved Scripts ──────────────────────────────────────
@@ -5425,9 +5439,10 @@
             const epochDisplay = document.getElementById('lora-epoch-display');
             const lossDisplay = document.getElementById('lora-loss-display');
 
-            const interval = setInterval(async () => {
-                try {
-                    const status = await API.get('/api/status/lora_training');
+            _startPolling('lora_training', () => API.get('/api/status/lora_training'), {
+                intervalMs: 2000,
+                doneCheck: status => !status.running,
+                onTick: status => {
                     logsEl.innerText = status.logs.join('\n');
                     logsEl.scrollTop = logsEl.scrollHeight;
 
@@ -5459,36 +5474,31 @@
                             break;
                         }
                     }
+                },
+                onDone: status => {
+                    notifyJobDone('lora_training');
+                    const btn = document.getElementById('btn-lora-train');
+                    btn.disabled = false;
 
-                    if (!status.running) {
-                        clearInterval(interval);
-                        notifyJobDone('lora_training');
-                        const btn = document.getElementById('btn-lora-train');
-                        btn.disabled = false;
+                    const isDone = status.logs.some(l => l.includes('[DONE]'));
+                    const isError = status.logs.some(l => l.includes('[ERROR]'));
 
-                        const isDone = status.logs.some(l => l.includes('[DONE]'));
-                        const isError = status.logs.some(l => l.includes('[ERROR]'));
-
-                        if (isDone) {
-                            document.getElementById('lora-train-status').innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Training complete!</span>';
-                            progressBar.style.width = '100%';
-                            progressBar.innerText = '100%';
-                            progressBar.classList.remove('progress-bar-animated');
-                            progressBar.classList.replace('bg-info', 'bg-success');
-                            loadLoraModels();
-                        } else if (isError) {
-                            document.getElementById('lora-train-status').innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Training failed</span>';
-                            progressBar.classList.remove('progress-bar-animated');
-                            progressBar.classList.replace('bg-info', 'bg-danger');
-                        } else {
-                            document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Training stopped</span>';
-                        }
+                    if (isDone) {
+                        document.getElementById('lora-train-status').innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Training complete!</span>';
+                        progressBar.style.width = '100%';
+                        progressBar.innerText = '100%';
+                        progressBar.classList.remove('progress-bar-animated');
+                        progressBar.classList.replace('bg-info', 'bg-success');
+                        loadLoraModels();
+                    } else if (isError) {
+                        document.getElementById('lora-train-status').innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Training failed</span>';
+                        progressBar.classList.remove('progress-bar-animated');
+                        progressBar.classList.replace('bg-info', 'bg-danger');
+                    } else {
+                        document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Training stopped</span>';
                     }
-                } catch (e) {
-                    console.error('LoRA poll error:', e);
-                    clearInterval(interval);
                 }
-            }, 2000);
+            });
         }
 
         async function loadLoraModels() {
@@ -5959,84 +5969,70 @@
         };
 
         function dsbStartPolling(name) {
-            if (dsbPolling) { clearInterval(dsbPolling); }
-            dsbPolling = setInterval(() => dsbPollStatus(name), 2000);
-        }
+            if (dsbPolling) { dsbPolling(); }
+            dsbPolling = _startPolling(`dataset_builder:${name}`, () => API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`), {
+                intervalMs: 2000,
+                doneCheck: result => !result.running,
+                onTick: result => {
+                    const serverSamples = result.samples || [];
 
-        async function dsbPollStatus(name, silent = false) {
-            try {
-                const result = await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
-                const serverSamples = result.samples || [];
+                    // Merge server state into local rows, creating missing rows
+                    const changed = [];
+                    let added = false;
+                    serverSamples.forEach((s, i) => {
+                        if (i < dsbRows.length) {
+                            const oldStatus = dsbRows[i].status;
+                            const oldAudio = dsbRows[i].audio_url;
+                            if (s.status) { dsbRows[i].status = s.status; }
+                            if (s.audio_url) { dsbRows[i].audio_url = s.audio_url; }
+                            if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) { changed.push(i); }
+                        } else {
+                            dsbRows.push({
+                                emotion: s.description || '',
+                                text: s.text || '',
+                                seed: s.seed ?? '',
+                                status: s.status || 'pending',
+                                audio_url: s.audio_url || null
+                            });
+                            added = true;
+                        }
+                    });
 
-                // Merge server state into local rows, creating missing rows
-                const changed = [];
-                let added = false;
-                serverSamples.forEach((s, i) => {
-                    if (i < dsbRows.length) {
-                        const oldStatus = dsbRows[i].status;
-                        const oldAudio = dsbRows[i].audio_url;
-                        if (s.status) { dsbRows[i].status = s.status; }
-                        if (s.audio_url) { dsbRows[i].audio_url = s.audio_url; }
-                        if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) { changed.push(i); }
-                    } else {
-                        dsbRows.push({
-                            emotion: s.description || '',
-                            text: s.text || '',
-                            seed: s.seed ?? '',
-                            status: s.status || 'pending',
-                            audio_url: s.audio_url || null
-                        });
-                        added = true;
+                    if (added) {
+                        dsbRenderTable();
+                    } else if (changed.length > 0) {
+                        dsbRenderTable(changed);
                     }
-                });
 
-                if (added) {
-                    dsbRenderTable();
-                } else if (changed.length > 0) {
-                    dsbRenderTable(changed);
-                }
+                    // Update logs
+                    if (result.logs && result.logs.length > 0) {
+                        const logsEl = document.getElementById('dsb-logs');
+                        logsEl.style.display = '';
+                        logsEl.innerText = result.logs.join('\n');
+                        logsEl.scrollTop = logsEl.scrollHeight;
+                    }
 
-                // Update logs
-                if (result.logs && result.logs.length > 0) {
-                    const logsEl = document.getElementById('dsb-logs');
-                    logsEl.style.display = '';
-                    logsEl.innerText = result.logs.join('\n');
-                    logsEl.scrollTop = logsEl.scrollHeight;
+                    // Resume polling if server is still running (e.g. after page reload)
+                    if (result.running && !dsbBatchRunning) {
+                        dsbBatchRunning = true;
+                        document.getElementById('dsb-btn-gen-all').style.display = 'none';
+                        document.getElementById('dsb-btn-regen-all').style.display = 'none';
+                        document.getElementById('dsb-btn-cancel').style.display = '';
+                    }
+                },
+                onDone: () => {
+                    // Check if batch is done
+                    if (dsbBatchRunning) {
+                        notifyJobDone('dataset_builder');
+                        dsbStopBatch();
+                    }
                 }
-
-                // Resume polling if server is still running (e.g. after page reload)
-                if (result.running && !dsbBatchRunning) {
-                    dsbBatchRunning = true;
-                    dsbStartPolling(name);
-                    document.getElementById('dsb-btn-gen-all').style.display = 'none';
-                    document.getElementById('dsb-btn-regen-all').style.display = 'none';
-                    document.getElementById('dsb-btn-cancel').style.display = '';
-                }
-
-                // Check if batch is done
-                if (!result.running && dsbBatchRunning) {
-                    notifyJobDone('dataset_builder');
-                    dsbStopBatch();
-                }
-
-                // If not running and this was a one-time check, stop polling
-                if (!result.running && silent && dsbPolling) {
-                    clearInterval(dsbPolling);
-                    dsbPolling = null;
-                }
-            } catch (e) {
-                if (!silent) { console.error('Poll error:', e); }
-                // Status endpoint may 404 if no state.json yet — ignore silently
-                if (silent && dsbPolling) {
-                    clearInterval(dsbPolling);
-                    dsbPolling = null;
-                }
-            }
+            });
         }
 
         function dsbStopBatch() {
             dsbBatchRunning = false;
-            if (dsbPolling) { clearInterval(dsbPolling); dsbPolling = null; }
+            if (dsbPolling) { dsbPolling(); dsbPolling = null; }
             document.getElementById('dsb-btn-gen-all').style.display = '';
             document.getElementById('dsb-btn-regen-all').style.display = '';
             document.getElementById('dsb-btn-cancel').style.display = 'none';
@@ -6319,7 +6315,6 @@
 
         // ── Preparer ──────────────────────────────────────────────
         let prepBatchQueue = [];
-        let prepPoller = null;
 
         window.togglePrepBatchMode = () => {
             const isBatch = document.getElementById('prep-batch-mode').checked;
@@ -6443,13 +6438,12 @@
         }
 
         function _pollPreparerLogs(taskName) {
-            if (prepPoller) { clearInterval(prepPoller); }
             const logEl = document.getElementById('preparer-logs');
             let offset = 0;
 
-            prepPoller = setInterval(async () => {
-                try {
-                    const state = await API.get(`/api/status/${taskName}`);
+            _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
+                doneCheck: state => !state.running,
+                onTick: state => {
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -6468,19 +6462,16 @@
                             el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
                         });
                     }
-
-                    if (!state.running) {
-                        clearInterval(prepPoller);
-                        prepPoller = null;
-                        notifyJobDone(taskName);
-                        document.getElementById('btn-prep-start').disabled = false;
-                        document.getElementById('btn-prep-cancel').style.display = 'none';
-                        const msg = taskName === 'preparer' ? state.status : 'Batch finished';
-                        document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
-                        loadPreparerOutputs();  // refresh the download list with any new ZIPs
-                    }
-                } catch (e) { /* network hiccup — keep polling */ }
-            }, 1000);
+                },
+                onDone: state => {
+                    notifyJobDone(taskName);
+                    document.getElementById('btn-prep-start').disabled = false;
+                    document.getElementById('btn-prep-cancel').style.display = 'none';
+                    const msg = taskName === 'preparer' ? state.status : 'Batch finished';
+                    document.getElementById('prep-status-msg').innerHTML = `<span class="text-muted">${msg}</span>`;
+                    loadPreparerOutputs();  // refresh the download list with any new ZIPs
+                }
+            });
         }
 
         // List/download the dataset ZIPs produced by completed preparer runs.
@@ -6512,7 +6503,6 @@
         }
 
         // ── Voice Lab: audiobook → named LoRA pipeline ───────────────────────
-        let voicelabPoller = null;
         const _voicelabPauseResume = _makePauseResumeHandler(
             '/api/voicelab/pause', '/api/voicelab/resume', 'btn-vl-pause');
         window.pauseResumeVoicelab = _voicelabPauseResume;
@@ -6626,28 +6616,26 @@
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-            if (voicelabPoller) { clearInterval(voicelabPoller); }
-            voicelabPoller = setInterval(async () => {
-                try {
-                    const s = await API.get('/api/status/voicelab');
+            _startPolling('voicelab', () => API.get('/api/status/voicelab'), {
+                doneCheck: s => !s.running,
+                onTick: s => {
                     if (logEl) { logEl.innerText = (s.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
                     if (s.tasks && s.tasks.length) {
                         progEl.style.display = 'flex';
                         progEl.innerHTML = s.tasks.map(t =>
                             `<span class="badge bg-${colours[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
                     }
-                    if (!s.running) {
-                        clearInterval(voicelabPoller); voicelabPoller = null;
-                        _vlSetRunning(false);
-                        notifyJobDone('voicelab');
-                        const cls = s.status === 'done' ? 'text-success'
-                                  : s.status === 'cancelled' ? 'text-warning' : 'text-danger';
-                        document.getElementById('voicelab-status').innerHTML =
-                            `<span class="${cls}">Pipeline ${escapeHtml(s.status || 'finished')}.</span>`;
-                        voicelabInspect();  // refresh manifest counts
-                    }
-                } catch (e) { /* keep polling through hiccups */ }
-            }, 1000);
+                },
+                onDone: s => {
+                    _vlSetRunning(false);
+                    notifyJobDone('voicelab');
+                    const cls = s.status === 'done' ? 'text-success'
+                              : s.status === 'cancelled' ? 'text-warning' : 'text-danger';
+                    document.getElementById('voicelab-status').innerHTML =
+                        `<span class="${cls}">Pipeline ${escapeHtml(s.status || 'finished')}.</span>`;
+                    voicelabInspect();  // refresh manifest counts
+                }
+            });
         }
 
         // ── Reports ────────────────────────────────────────────────────
