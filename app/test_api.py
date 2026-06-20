@@ -449,6 +449,15 @@ def test_get_voices():
 
 
 def test_save_voice_config():
+    # NOTE: GET /api/voices only returns speakers present in the active
+    # script (app.py's get_voices builds voices_list from annotated_script.json
+    # speakers, then merges voice_config.json onto those - a config-only key
+    # with no matching script speaker is structurally never returned). So a
+    # synthetic _test_voice key can't be verified via a script-level read-back
+    # the way other config tests verify against GET /api/config. Instead this
+    # re-saves the same key with a changed field and a second, independent
+    # field to confirm the merge-write path doesn't silently no-op or corrupt
+    # an existing key on a second write to the same name.
     r = post("/api/save_voice_config", json={
         f"{TEST_PREFIX}voice": {
             "type": "custom",
@@ -461,6 +470,19 @@ def test_save_voice_config():
     data = r.json()
     if data.get("status") != "saved":
         raise TestFailure(f"Expected status=saved, got {data}")
+
+    r2 = post("/api/save_voice_config", json={
+        f"{TEST_PREFIX}voice": {
+            "type": "custom",
+            "voice": "Ryan",
+            "character_style": "cheerful",
+            "seed": "42"
+        }
+    })
+    assert_status(r2, 200)
+    data2 = r2.json()
+    if data2.get("status") != "saved":
+        raise TestFailure(f"Expected status=saved on overwrite, got {data2}")
 
 
 # ── Section 7: Chunks ───────────────────────────────────────
@@ -1050,6 +1072,12 @@ def test_get_audacity_export():
 # ── Section 14: Full Tests — Generation ─────────────────────
 
 def test_generate_script():
+    # Intentionally does not wait_for_task/verify output: script generation
+    # and review are open-ended LLM passes over a whole book with no fixed
+    # upper bound, unlike the other requires_full tests below (single-chunk
+    # or single-sample operations bounded to well under 120s). Forcing a
+    # poll-to-completion here would make the suite's duration track full-book
+    # generation time instead of a fixed test budget. See FIXED.md F-024.
     r = post("/api/generate_script")
     if r.status_code == 400:
         raise TestFailure("SKIP: prerequisite not met (no uploaded file or already running)")
@@ -1077,6 +1105,11 @@ def test_generate_chunk():
         raise TestFailure("SKIP: no chunks available")
     r = post("/api/chunks/0/generate")
     assert_status(r, 200)
+    if not wait_for_task("audio", timeout=120):
+        raise TestFailure("generate_chunk did not complete within 120s")
+    chunks = get("/api/chunks").json()
+    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
+        raise TestFailure(f"Chunk 0 did not finish generating: {chunks[0] if chunks else None}")
 
 
 def test_generate_batch():
@@ -1092,6 +1125,9 @@ def test_generate_batch():
     # Wait for batch to finish so subsequent tests don't conflict
     if not wait_for_task("audio", timeout=120):
         raise TestFailure("generate_batch did not complete within 120s")
+    chunks = get("/api/chunks").json()
+    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
+        raise TestFailure(f"Chunk 0 did not finish generating via batch: {chunks[0] if chunks else None}")
 
 
 def test_generate_batch_fast():
@@ -1107,6 +1143,11 @@ def test_generate_batch_fast():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    if not wait_for_task("audio", timeout=120):
+        raise TestFailure("generate_batch_fast did not complete within 120s")
+    chunks = get("/api/chunks").json()
+    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
+        raise TestFailure(f"Chunk 0 did not finish generating via batch-fast: {chunks[0] if chunks else None}")
 
 
 def test_cancel_audio():
@@ -1126,6 +1167,11 @@ def test_export_audacity():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    if not wait_for_task("audacity_export", timeout=120):
+        raise TestFailure("export_audacity did not complete within 120s")
+    r2 = get("/api/export_audacity")
+    if r2.status_code != 200:
+        raise TestFailure(f"Expected the exported file to be downloadable, got {r2.status_code}")
 
 
 def test_lora_test_model():
@@ -1158,6 +1204,12 @@ def test_lora_generate_dataset():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    if not wait_for_task("dataset_gen", timeout=120):
+        raise TestFailure("lora_generate_dataset did not complete within 120s")
+    datasets = get("/api/lora/datasets").json()
+    ids = [d.get("dataset_id") for d in datasets]
+    if f"{TEST_PREFIX}dataset" not in ids:
+        raise TestFailure(f"Generated dataset not found in list: {ids}")
 
 
 def test_dataset_builder_generate_sample():
@@ -1177,7 +1229,8 @@ def test_dataset_builder_generate_sample():
     })
     assert_status(r, 200)
     data = r.json()
-    assert_key(data, "status")
+    if data.get("status") != "done" or not data.get("audio_url"):
+        raise TestFailure(f"Expected a completed sample with audio_url, got {data}")
 
     # Cleanup
     delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
