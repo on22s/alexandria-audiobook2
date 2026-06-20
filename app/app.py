@@ -5102,8 +5102,10 @@ async def preparer_start(
     background_tasks: BackgroundTasks,
     config_json: str = Form(...),
     audio_file: UploadFile = File(...),
+    source_file: Optional[UploadFile] = File(None),
 ):
-    """Upload audio and run the preparer to generate a voice training dataset."""
+    """Upload audio (and optionally a source EPUB/TXT) and run the preparer
+    to generate a voice training dataset."""
     interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("preparer")
 
@@ -5127,6 +5129,16 @@ async def preparer_start(
         while chunk := await audio_file.read(1024 * 1024):
             await f.write(chunk)
 
+    source_path = None
+    if source_file is not None:
+        source_filename = secure_filename(config.source_filename or source_file.filename)
+        if not source_filename:
+            raise HTTPException(status_code=400, detail="Invalid source filename")
+        source_path = os.path.join(UPLOADS_DIR, source_filename)
+        async with aiofiles.open(source_path, "wb") as f:
+            while chunk := await source_file.read(1024 * 1024):
+                await f.write(chunk)
+
     def _run():
         state = process_state["preparer"]
         state["running"] = True
@@ -5141,7 +5153,40 @@ async def preparer_start(
                "--output", os.path.join(PREPARER_OUTPUT_DIR, output_filename),
                "--lang", config.lang,
                "--min-confidence", str(config.min_confidence),
-               "--min-snr", str(config.min_snr)]
+               "--min-snr", str(config.min_snr),
+               "--chunk-size", str(config.chunk_size),
+               "--min-chunk-duration", str(config.min_chunk_duration),
+               "--batch-size", str(config.batch_size)]
+        if config.resume:
+            cmd.append("--resume")
+        if config.skip_annotation:
+            cmd.append("--skip-annotation")
+        if config.model:
+            cmd.extend(["--model", config.model])
+        if config.fallback_model:
+            cmd.extend(["--fallback-model", config.fallback_model])
+        # Source-alignment options only make sense with a source file.
+        if source_path:
+            cmd.extend(["--source", source_path,
+                        "--source-threshold", str(config.source_threshold)])
+            if config.keep_unaligned:
+                cmd.append("--keep-unaligned")
+            if config.source_start is not None:
+                cmd.extend(["--source-start", str(config.source_start)])
+            if config.source_start_text:
+                cmd.extend(["--source-start-text", config.source_start_text])
+            if config.no_auto_anchor:
+                cmd.append("--no-auto-anchor")
+        if config.enrich_with_llm:
+            cmd.append("--enrich-with-llm")
+            if config.llm_model_path:
+                cmd.extend(["--llm-model-path", config.llm_model_path])
+            if config.enrich_speaker_attribution:
+                cmd.append("--enrich-speaker-attribution")
+            if config.enrich_narration_style:
+                cmd.append("--enrich-narration-style")
+            if config.enrich_emotional_tone:
+                cmd.append("--enrich-emotional-tone")
 
         rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
 

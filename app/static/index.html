@@ -1117,6 +1117,120 @@
                                 <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
                             </div>
                         </div>
+
+                        <div class="accordion mb-3" id="prep-advanced-acc">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#prep-advanced">
+                                        <i class="fas fa-sliders-h me-2"></i>Advanced (source alignment &amp; LLM enrichment)
+                                    </button>
+                                </h2>
+                                <div id="prep-advanced" class="accordion-collapse collapse" data-bs-parent="#prep-advanced-acc">
+                                    <div class="accordion-body">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Primary GGUF Model (optional, default from Setup)</label>
+                                                <input type="text" class="form-control" id="prep-model" placeholder="Path to primary GGUF model for annotation">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Fallback GGUF Model (optional)</label>
+                                                <input type="text" class="form-control" id="prep-fallback-model" placeholder="Path to fallback GGUF model">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Source Text (EPUB/TXT, optional)</label>
+                                                <input type="file" class="form-control" id="prep-source-file" accept=".epub,.txt">
+                                                <div class="form-text">Enables source-guided chunking and alignment recovery.</div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Source Threshold</label>
+                                                <input type="number" class="form-control" id="prep-source-threshold" value="0.65" step="0.01" min="0" max="1">
+                                            </div>
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="prep-keep-unaligned">
+                                                    <label class="form-check-label" for="prep-keep-unaligned">Keep unaligned chunks</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Source Start Word</label>
+                                                <input type="number" class="form-control" id="prep-source-start" min="0">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label">Source Start Text</label>
+                                                <input type="text" class="form-control" id="prep-source-start-text" placeholder="Search source for this text and start there">
+                                            </div>
+                                            <div class="col-md-4 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="prep-no-auto-anchor">
+                                                    <label class="form-check-label" for="prep-no-auto-anchor">Disable auto-anchor</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Chunk Size (s)</label>
+                                                <input type="number" class="form-control" id="prep-chunk-size" value="10" step="0.5" min="1">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Min Chunk Duration (s)</label>
+                                                <input type="number" class="form-control" id="prep-min-chunk-duration" value="2" step="0.5" min="0">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">LLM Batch Size</label>
+                                                <input type="number" class="form-control" id="prep-batch-size" value="1" min="1">
+                                            </div>
+                                            <div class="col-md-4 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="prep-resume">
+                                                    <label class="form-check-label" for="prep-resume">Resume from dataset_temp/</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="prep-skip-annotation">
+                                                    <label class="form-check-label" for="prep-skip-annotation">Skip LLM annotation</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="prep-enrich-with-llm" onchange="document.getElementById('prep-enrich-options').style.display = this.checked ? '' : 'none';">
+                                                    <label class="form-check-label" for="prep-enrich-with-llm">LLM enrichment</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="prep-enrich-options" style="display:none;">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Enrichment LLM Model Path</label>
+                                                    <input type="text" class="form-control" id="prep-llm-model-path" placeholder="Path to GGUF model for enrichment">
+                                                </div>
+                                                <div class="col-md-6 d-flex align-items-end gap-3">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="prep-enrich-speaker">
+                                                        <label class="form-check-label" for="prep-enrich-speaker">Speaker attribution</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="prep-enrich-narration">
+                                                        <label class="form-check-label" for="prep-enrich-narration">Narration style</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="prep-enrich-emotion">
+                                                        <label class="form-check-label" for="prep-enrich-emotion">Emotional tone</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Batch Mode -->
@@ -6249,17 +6363,37 @@
             document.getElementById('preparer-progress-section').style.display = 'block';
             document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
 
+            const sourceFile = document.getElementById('prep-source-file').files[0];
+
             const config = {
                 audio_filename: audioFile.name,
                 output_filename: document.getElementById('prep-output').value,
                 lang:            document.getElementById('prep-lang').value,
                 min_confidence:  numFieldValue('prep-confidence', 0.85),
                 min_snr:         numFieldValue('prep-snr', 25, true),
+                model:           document.getElementById('prep-model').value || null,
+                fallback_model:  document.getElementById('prep-fallback-model').value || null,
+                source_filename: sourceFile ? sourceFile.name : null,
+                source_threshold: numFieldValue('prep-source-threshold', 0.65),
+                keep_unaligned:  document.getElementById('prep-keep-unaligned').checked,
+                chunk_size:      numFieldValue('prep-chunk-size', 10),
+                resume:          document.getElementById('prep-resume').checked,
+                skip_annotation: document.getElementById('prep-skip-annotation').checked,
+                source_start:    document.getElementById('prep-source-start').value ? numFieldValue('prep-source-start', 0, true) : null,
+                source_start_text: document.getElementById('prep-source-start-text').value || null,
+                no_auto_anchor:  document.getElementById('prep-no-auto-anchor').checked,
+                batch_size:      numFieldValue('prep-batch-size', 1, true),
+                enrich_with_llm: document.getElementById('prep-enrich-with-llm').checked,
+                llm_model_path:  document.getElementById('prep-llm-model-path').value || null,
+                enrich_speaker_attribution: document.getElementById('prep-enrich-speaker').checked,
+                enrich_narration_style:     document.getElementById('prep-enrich-narration').checked,
+                enrich_emotional_tone:      document.getElementById('prep-enrich-emotion').checked,
             };
 
             const fd = new FormData();
             fd.append('config_json', JSON.stringify(config));
             fd.append('audio_file', audioFile);
+            if (sourceFile) { fd.append('source_file', sourceFile); }
 
             try {
                 const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
