@@ -65,11 +65,13 @@ EXCLUDE_ZIPS = {
 
 # ─── Model ──────────────────────────────────────────────────────────────────
 
+_EMBEDDING_MODEL_ID = "speechbrain/spkrec-ecapa-voxceleb"
+
 def load_model(savedir, device):
     print("Loading SpeechBrain ECAPA-TDNN speaker embedding model...")
     from speechbrain.inference.speaker import EncoderClassifier
     model = EncoderClassifier.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb",
+        source=_EMBEDDING_MODEL_ID,
         savedir=str(savedir),
         run_opts={"device": device},
     )
@@ -176,7 +178,11 @@ def run_dedup(model, device, zips2_root, output_dir):
 
         for zp in zips:
             label     = zp.stem
-            cache_key = f"{folder_name}/{label}"
+            # Including DEDUP_SAMPLES + the model id means a config/model
+            # change naturally invalidates old entries (a fresh cache_key
+            # that was never cached) instead of silently reusing embeddings
+            # extracted under a different sample count or model.
+            cache_key = f"{folder_name}/{label}::{DEDUP_SAMPLES}::{_EMBEDDING_MODEL_ID}"
 
             if cache_key in cache:
                 zip_embeddings[label] = cache[cache_key]

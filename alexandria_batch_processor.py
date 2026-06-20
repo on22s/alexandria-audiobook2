@@ -287,6 +287,21 @@ class BatchProcessor:
     def validate_files(self, audio_files):
         """Validate all audio files and skip already-processed ones."""
         logger.info("▶ Validating input files...")
+
+        # Fail fast on a typo'd model path before doing any per-file
+        # validation work (or accumulating skip reasons that would otherwise
+        # never make it into batch_results_*.json - sys.exit(1) below skips
+        # print_summary entirely).
+        if not self.model_path or not os.path.exists(self.model_path):
+            logger.error(f"Model file not found: {self.model_path}")
+            logger.error("Cannot proceed without model")
+            sys.exit(1)
+
+        if self.fallback_model and not os.path.exists(self.fallback_model):
+            logger.error(f"Fallback model not found: {self.fallback_model}")
+            logger.error("Either fix the path or omit --fallback-model")
+            sys.exit(1)
+
         valid_files = []
 
         for audio_file in audio_files:
@@ -324,17 +339,6 @@ class BatchProcessor:
             file_size_mb = audio_path.stat().st_size / (1024 * 1024)
             logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
             valid_files.append(audio_file)
-
-        if not self.model_path or not os.path.exists(self.model_path):
-            logger.error(f"Model file not found: {self.model_path}")
-            logger.error("Cannot proceed without model")
-            sys.exit(1)
-
-        # Validate fallback model eagerly so we don't fail mid-batch if it's typo'd
-        if self.fallback_model and not os.path.exists(self.fallback_model):
-            logger.error(f"Fallback model not found: {self.fallback_model}")
-            logger.error("Either fix the path or omit --fallback-model")
-            sys.exit(1)
 
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
         if self.fallback_model:

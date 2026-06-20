@@ -1825,6 +1825,16 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 "▶ --resume specified, but dataset_temp/ belongs to a different source file "
                 "(or has no marker). Wiping and starting fresh to avoid corrupting another run."
             )
+        elif not resume and marker_matches and os.listdir(temp_dir):
+            # Distinct from the generic "stale contents" case below: this is
+            # unfinished progress on THIS exact source, about to be discarded
+            # only because --resume wasn't passed - not foreign/garbage data.
+            existing_entries, _, _ = _load_existing_checkpoint(temp_dir)
+            logger.warning(
+                f"▶ dataset_temp/ contains {len(existing_entries)} segment(s) of unfinished "
+                f"progress on THIS source ({audio_source_path}) - pass --resume to continue, "
+                f"or this run will discard them."
+            )
         elif os.listdir(temp_dir):
             logger.info("▶ Wiping stale dataset_temp/ contents for fresh start")
         wipe_failures = _wipe_temp_dir(temp_dir)

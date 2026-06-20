@@ -41,7 +41,7 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
         # Save local copy for offline fallback
         os.makedirs(builtin_dir, exist_ok=True)
         local_path = os.path.join(builtin_dir, "manifest.json")
-        _atomic_json_write(entries, local_path, max_retries=3)
+        _atomic_json_write(entries, local_path)
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning(f"Failed to fetch remote LoRA manifest, using local fallback: {e}")
         local_path = os.path.join(builtin_dir, "manifest.json")

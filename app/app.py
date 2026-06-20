@@ -536,7 +536,12 @@ NON_GPU_TASKS = {"audacity_export", "m4b_export"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 
 def check_global_gpu_lock(new_task_name: str):
-    """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash."""
+    """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
+
+    Raises HTTPException on conflict (every caller relies on this propagating
+    straight out of the route handler) - unlike check_disk_space/
+    check_text_loss's return-a-value convention.
+    """
     if process_state.get(new_task_name, {}).get("running"):
         raise HTTPException(
             status_code=400,

@@ -959,20 +959,22 @@ class ProjectManager:
                 else:
                     print(f"Warning: Could not delete temp file {temp_path}")
 
-    def _finalize_completed_chunk(self, idx, chunks, results):
-        """Convert one completed chunk's temp audio to its final file, update its
-        status, and remove the temp. Records failure in `results` on any error.
+    def _finalize_completed_chunk(self, idx, chunks):
+        """Convert one completed chunk's temp audio to its final file and
+        update its status in `chunks` (in place - chunks is this whole
+        batch's load-mutate-save accumulator, saved once by the caller).
+
+        Returns ("completed", idx, audio_path) or ("failed", idx, error_msg)
+        for the caller to fold into its own results dict.
         """
         if not (0 <= idx < len(chunks)):
             print(f"Chunk {idx} skipped: index out of range (chunks changed during generation?)")
-            results["failed"].append((idx, "Index out of range after reload"))
-            return
+            return "failed", idx, "Index out of range after reload"
 
         temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
         if not os.path.exists(temp_path):
-            results["failed"].append((idx, "Temp audio file not found"))
             chunks[idx]["status"] = "error"
-            return
+            return "failed", idx, "Temp audio file not found"
 
         try:
             chunk = chunks[idx]
@@ -982,19 +984,24 @@ class ProjectManager:
             filename_base = f"voiceline_{chunk.get('uid') or f'{idx+1:04d}'}_{sanitize_filename(speaker)}"
             chunks[idx]["audio_path"] = self._export_chunk_audio(temp_path, filename_base)
             chunks[idx]["status"] = "done"
-            results["completed"].append(idx)
             print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
             self._remove_temp_file(temp_path)
+            return "completed", idx, chunks[idx]["audio_path"]
         except Exception as e:
             print(f"Error processing chunk {idx}: {e}")
-            results["failed"].append((idx, str(e)))
             chunks[idx]["status"] = "error"
+            return "failed", idx, str(e)
 
-    def _record_batch_failures(self, batch_failed, chunks, results, current_batch_size):
-        """Split a batch's failures into retryable OOM indices (returned for retry
-        at a smaller size) and hard failures (recorded in `results`, status=error).
+    def _record_batch_failures(self, batch_failed, chunks, current_batch_size):
+        """Split a batch's failures into retryable OOM indices and hard
+        failures (status=error, set in `chunks` in place - see
+        _finalize_completed_chunk's docstring).
+
+        Returns (oom_failed_indices, hard_failure_tuples) for the caller to
+        retry/fold into its own results dict.
         """
         oom_failed = []
+        hard_failures = []
         for idx, error in batch_failed:
             if _is_oom_failure(error) and current_batch_size > 1:
                 # Retryable at a smaller size - don't mark as error yet.
@@ -1002,8 +1009,8 @@ class ProjectManager:
                 continue
             if 0 <= idx < len(chunks):
                 chunks[idx]["status"] = "error"
-            results["failed"].append((idx, error))
-        return oom_failed
+            hard_failures.append((idx, error))
+        return oom_failed, hard_failures
 
     def generate_chunks_batch(self, indices, batch_seed=-1, batch_size=4, progress_callback=None,
                                batch_group_by_type=False, cancel_check=None):
@@ -1102,10 +1109,15 @@ class ProjectManager:
             chunks = self.load_chunks()  # Reload for each batch
 
             for idx in batch_results["completed"]:
-                self._finalize_completed_chunk(idx, chunks, results)
+                outcome, out_idx, payload = self._finalize_completed_chunk(idx, chunks)
+                if outcome == "completed":
+                    results["completed"].append(out_idx)
+                else:
+                    results["failed"].append((out_idx, payload))
 
-            oom_failed = self._record_batch_failures(
-                batch_results["failed"], chunks, results, current_batch_size)
+            oom_failed, hard_failures = self._record_batch_failures(
+                batch_results["failed"], chunks, current_batch_size)
+            results["failed"].extend(hard_failures)
 
             self.save_chunks(chunks)
 

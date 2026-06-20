@@ -614,7 +614,7 @@
                             </div>
                             <div class="col-md-2">
                                 <div class="form-check form-switch mt-4">
-                                    <input class="form-check-input" type="checkbox" id="sub-batch-enabled" checked>
+                                    <input class="form-check-input" type="checkbox" id="sub-batch-enabled" checked onchange="toggleSubBatchFields()">
                                     <label class="form-check-label" for="sub-batch-enabled">Sub-batching</label>
                                 </div>
                                 <div class="form-text">Split batches by text length to reduce padding waste</div>
@@ -2140,6 +2140,13 @@
             document.getElementById('tts-local-options').style.display = mode === 'local' ? '' : 'none';
         }
 
+        function toggleSubBatchFields() {
+            const enabled = document.getElementById('sub-batch-enabled').checked;
+            ['sub-batch-min-group', 'sub-batch-ratio-group', 'sub-batch-max-items-group'].forEach(id => {
+                document.getElementById(id).style.display = enabled ? '' : 'none';
+            });
+        }
+
         async function autoConfigureSettings() {
             const btn = document.getElementById('btn-auto-configure');
             btn.disabled = true;
@@ -2227,6 +2234,7 @@
             document.getElementById('compile-codec').checked = s.compileCodec;
             document.getElementById('batch-group-by-type').checked = s.batchGroupByType;
             document.getElementById('sub-batch-enabled').checked = s.subBatchEnabled;
+            toggleSubBatchFields();
             document.getElementById('sub-batch-min-size').value = s.subBatchMinSize;
             document.getElementById('sub-batch-ratio').value = s.subBatchRatio;
             document.getElementById('sub-batch-max-items').value = s.subBatchMaxItems;
@@ -2346,6 +2354,7 @@
                 document.getElementById('compile-codec').checked = !!config.tts.compile_codec;
                 document.getElementById('batch-group-by-type').checked = !!config.tts.batch_group_by_type;
                 document.getElementById('sub-batch-enabled').checked = config.tts.sub_batch_enabled !== false;
+                toggleSubBatchFields();
                 if (config.tts.sub_batch_min_size != null) {
                     document.getElementById('sub-batch-min-size').value = config.tts.sub_batch_min_size;
                 }

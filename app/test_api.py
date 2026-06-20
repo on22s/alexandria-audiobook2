@@ -80,11 +80,21 @@ def assert_key(data, key):
 def wait_for_task(task, timeout=120, poll_interval=2):
     """Poll /api/status/{task} until it stops running or timeout is reached."""
     deadline = time.time() + timeout
+    last_status_code = None
+    last_body = None
     while time.time() < deadline:
         r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        last_status_code = r.status_code
+        last_body = r.text[:200]
         if r.status_code == 200 and not r.json().get("running"):
             return True
         time.sleep(poll_interval)
+    if last_status_code != 200:
+        print(f"  [wait_for_task:{task}] timed out after {timeout}s - last poll returned "
+              f"status {last_status_code}: {last_body!r} (broken endpoint, not just slow)")
+    else:
+        print(f"  [wait_for_task:{task}] timed out after {timeout}s - still running "
+              f"(last poll: 200 OK, running=true)")
     return False
 
 
