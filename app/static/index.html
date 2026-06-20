@@ -4544,7 +4544,11 @@
             }
         };
 
-        window.renderAll = async (regenerateAll = false) => {
+        // Shared by renderAll/renderBatchFast - identical except the endpoint
+        // and how each one's response describes what it started (the two
+        // endpoints return different fields, so that can't be a static
+        // template). See FIXED.md F-065.
+        async function _runBatchRender(endpoint, regenerateAll, { label, describeStart }) {
             isRenderingAll = true;
             document.getElementById('btn-batch-fast').style.display = 'none';
             document.getElementById('btn-regen-all').style.display = 'none';
@@ -4580,9 +4584,8 @@
                     }
                 }
 
-                // Call batch endpoint for parallel processing
-                const response = await API.post('/api/generate_batch', { indices });
-                console.log(`Batch generation started: ${response.total_chunks} chunks with ${response.workers} workers`);
+                const response = await API.post(endpoint, { indices });
+                console.log(`${label} started: ${describeStart(response)}`);
 
                 // Poll for completion
                 const pollInterval = setInterval(async () => {
@@ -4618,89 +4621,21 @@
                 }, 2000);
 
             } catch (e) {
-                console.error("Render All error:", e);
+                console.error(`${label} error:`, e);
                 showToast("Error during batch rendering: " + e.message, 'error');
                 cancelRender(true);
             }
-        };
+        }
 
-        window.renderBatchFast = async (regenerateAll = false) => {
-            isRenderingAll = true;
-            document.getElementById('btn-batch-fast').style.display = 'none';
-            document.getElementById('btn-regen-all').style.display = 'none';
-            document.getElementById('btn-cancel-render').style.display = 'inline-block';
+        window.renderAll = (regenerateAll = false) => _runBatchRender('/api/generate_batch', regenerateAll, {
+            label: 'Batch generation',
+            describeStart: r => `${r.total_chunks} chunks with ${r.workers} workers`
+        });
 
-            try {
-                const chunks = await API.get('/api/chunks');
-                const toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
-                    .filter(c => c.text && c.text.trim());
-
-                if (toProcess.length === 0) {
-                    showToast("No non-empty chunks to render!", 'warning');
-                    cancelRender(true);
-                    return;
-                }
-
-                if (regenerateAll && !await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
-                    cancelRender(true);
-                    return;
-                }
-
-                // Mark all chunks as generating in UI
-                const indices = toProcess.map(c => c.id);
-                for (const id of indices) {
-                    const tr = document.querySelector(`tr[data-id="${id}"]`);
-                    if (tr) {
-                        tr.classList.add('table-info');
-                        const badge = tr.querySelector('.badge');
-                        if (badge) {
-                            badge.className = 'badge bg-warning';
-                            badge.innerText = 'generating';
-                        }
-                    }
-                }
-
-                // Call fast batch endpoint (requires custom Qwen3-TTS)
-                const response = await API.post('/api/generate_batch_fast', { indices });
-                console.log(`Fast batch started: ${response.total_chunks} chunks (batch_size=${response.batch_size}, seed=${response.batch_seed})`);
-
-                // Poll for completion
-                const pollInterval = setInterval(async () => {
-                    if (!isRenderingAll) {
-                        clearInterval(pollInterval);
-                        return;
-                    }
-
-                    try {
-                        await loadChunks(false);
-                        const updated = await API.get('/api/chunks');
-                        const stillGenerating = updated.filter(c =>
-                            indices.includes(c.id) && c.status === 'generating'
-                        );
-
-                        if (stillGenerating.length === 0) {
-                            clearInterval(pollInterval);
-                            document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
-                            cancelRender(true);
-                            await loadChunks(false);
-
-                            const completed = updated.filter(c => indices.includes(c.id) && c.status === 'done').length;
-                            const failed = updated.filter(c => indices.includes(c.id) && c.status === 'error').length;
-                            if (failed > 0) {
-                                showToast(`Batch complete: ${completed} succeeded, ${failed} failed`, 'warning');
-                            }
-                        }
-                    } catch (e) {
-                        console.error("Polling error", e);
-                    }
-                }, 2000);
-
-            } catch (e) {
-                console.error("Batch Fast error:", e);
-                showToast("Error during batch rendering: " + e.message, 'error');
-                cancelRender(true);
-            }
-        };
+        window.renderBatchFast = (regenerateAll = false) => _runBatchRender('/api/generate_batch_fast', regenerateAll, {
+            label: 'Fast batch',
+            describeStart: r => `${r.total_chunks} chunks (batch_size=${r.batch_size}, seed=${r.batch_seed})`
+        });
 
         document.getElementById('btn-merge').addEventListener('click', async () => {
              if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) { return; }
