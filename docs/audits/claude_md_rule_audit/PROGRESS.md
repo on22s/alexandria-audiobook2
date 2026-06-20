@@ -41,7 +41,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 ### Group C — app/static/index.html
 - [x] P26 — HTML/CSS shell + tab markup (lines 1–1789)
 - [x] P27 — showToast → testLlmConnection (lines ~1790–2215)
-- [ ] P28 — loadConfig → _onReviewDone (lines ~2216–2810)
+- [x] P28 — loadConfig → _onReviewDone (lines ~2216–2810)
 - [ ] P29 — _loadScriptList → pollPersonaStatus (lines ~2811–3177)
 - [ ] P30 — createVoiceCard → submitCastApplyBulk (lines ~3178–3861)
 - [ ] P31 — collectVoiceConfig → _runBatchRender (lines ~3862–4663)

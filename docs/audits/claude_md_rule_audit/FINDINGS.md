@@ -406,3 +406,35 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `numFieldValue(id, def, isInt)` reads a DOM input's `.value`, parses it, and returns the parsed number or a fallback default — a pure read with zero side effects, exactly the case CLAUDE.md's Rule 16 says should read as `get_`-style. Every other function in this range either matches the file's documented `render*`/`on*`/`open*` conventions or has a clear action verb (`show`, `escape`, `notify`, `apply`, `cycle`, `toggle`, `populate`, `sync`, `test`, `confirm`); `numFieldValue` alone is a bare noun phrase with no verb at all, so a reader can't tell from the name whether it reads, writes, or both.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — rename to `getNumFieldValue` (all 15 call sites would need updating); left as needs-decision rather than fix-now since renaming isn't in the fix-now criteria (zero-caller deletion or Rule 18 braces only) and this function has many call sites outside the P27 range.
+
+### [F-051] Rule 18 — 11 single-line `if` bodies without braces in loadConfig→_onReviewDone (plus toggleReviewBatchMode)
+- **Piece:** P28
+- **Location:** `app/static/index.html:2457` (`file-upload` change handler), `:2496` (`btn-gen-script` click handler), `:2521` (`_resetPauseBtn`), `:2549` (`_makePauseResumeHandler`'s returned handler), `:2634` (`_startBatchScript`), `:2669,2675,2678` (`_pollScriptBatchLogs`), `:2691` (`_pollScriptBatchLogs`'s `state.tasks.forEach` callback), `:2724` (`_showReviewControls`), `:2796` (`toggleReviewBatchMode`, just past `_onReviewDone` but inside this piece's contiguous range)
+- **Severity:** low
+- **Description:** Per CLAUDE.md Rule 18, every `if`/`for`/`while` in this file must brace its body even when it's a single statement. Found 11 violations, all single-line `if (...) <statement>;` with no `{ }`: `if (fileInput.files.length === 0) return;` (2457); `if (!scriptBatchPoller) genBtn.disabled = false;` (2496); `if (!btn) return;` (2521); `if (btn.disabled) return;` (2549); `if (!(await confirmIfRemote('this batch script generation'))) return;` (2634); `if (scriptBatchPoller) clearTimeout(scriptBatchPoller);` (2669); `if (myGen !== scriptBatchPollGen) return;` (2675 and again at 2678); `if (!el) return;` (2691); `if (show) _resetPauseBtn('btn-pause-review');` (2724); `if (isBatch) loadReviewBatchScripts();` (2796).
+- **Status:** fixed-inline (commit `c5c1a46`)
+- **Suggested fix:** add `{ }` around each one-line body, preserving behavior exactly — fix-now per audit plan.
+
+### [F-052] Rule 8 — `cancelBatchScript`/`cancelBatchReview` swallow cancel failures with `/* ignore */`, unlike their single-item siblings `cancelScript`/`cancelReview`
+- **Piece:** P28
+- **Location:** `app/static/index.html:2622-2627` (`cancelBatchScript`), `:2779-2784` (`cancelBatchReview`) vs `:2577-2584` (`cancelScript`) and `:2773-2778` (`cancelReview`)
+- **Severity:** low
+- **Description:** `cancelScript` and `cancelReview` both call `showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning')` in their `catch` block so the user learns a cancel request didn't go through. Their batch counterparts, `cancelBatchScript` and `cancelBatchReview`, use `catch (e) { /* ignore */ }` instead — a failed batch-cancel (e.g. network error, 500) is completely invisible: the Cancel button's pause-button reset (`_resetPauseBtn`) never runs, the batch keeps running server-side, and the user gets no feedback that their click did nothing. This is an inconsistency within the same file between two near-identical pairs of functions, not just a generic missing-log case.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — mirror `cancelScript`/`cancelReview`'s `showToast('Cancel failed: ...', 'warning')` in both batch variants' `catch` blocks.
+
+### [F-053] Rule 10 — `_pollScriptBatchLogs`'s poll loop retries indefinitely on any error with no cap or surfaced error, unlike `_makePauseResumeHandler`'s bounded/typed retry
+- **Piece:** P28
+- **Location:** `app/static/index.html:2674-2713` (`_pollScriptBatchLogs`'s inner `poll` function), specifically the `catch (e) { scriptBatchPoller = setTimeout(poll, 2000); }` at lines 2709-2711
+- **Severity:** low
+- **Description:** On any error from `API.get('/api/status/batch_script')` — a transient network blip, a 500, or a real client bug — the loop just reschedules itself with a longer timeout (2000ms vs. the normal 1000ms) and keeps going forever; there's no attempt counter, no max-duration cutoff, and no `console.error`/`showToast` distinguishing "still polling through a hiccup" from "this has been failing for 10 minutes." This contrasts with `_makePauseResumeHandler`'s `postWithRetry` (same piece, lines 2530-2542), which has an explicit, bounded, single-condition retry policy (`e.status === 503 && attempt < 2`) consistent with Rule 10's "decide one policy and follow it on every attempt." It's not strictly inconsistent within itself (every iteration is treated the same way), but the complete absence of a cap or visible failure signal means a persistent server-side outage during a long batch-script run would silently poll forever with the user seeing only a frozen log panel, no error.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — track a consecutive-failure counter and surface a `showToast`/visible warning (without necessarily stopping the poll) once it crosses a threshold, so a stuck poll is distinguishable from a quiet but healthy one.
+
+### [F-054] Rule 16 — `_reviewDedupe` has no leading verb despite being a pure read function
+- **Piece:** P28
+- **Location:** `app/static/index.html:2717-2720` (`_reviewDedupe`)
+- **Severity:** low
+- **Description:** `_reviewDedupe()` reads the `review-dedupe-speakers` checkbox and returns a boolean (defaulting to `true` if the checkbox doesn't exist) — a pure read with zero side effects, the same shape as F-050's `numFieldValue` and exactly the case Rule 16 says should read as `get_`/`is_`-style. The name is a bare noun phrase with no verb, so a reader can't tell from the name alone whether it reads, writes, or toggles dedupe state.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — rename to `_isReviewDedupeChecked` or `_getReviewDedupe` (4 call sites would need updating); not fix-now since renaming isn't in the fix-now criteria.
