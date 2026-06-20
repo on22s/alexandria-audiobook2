@@ -349,12 +349,19 @@ def run(
         # a section the audio skipped (or vice versa). Try a wider search ahead.
         # If realign finds a confident jump, use it. If not, the chunk likely
         # has no source equivalent — keep cursor where it is.
+        # Tier-0 entry is gated on `threshold` itself (not a hardcoded
+        # catastrophic-only bar) so recovery fires for every chunk that
+        # wouldn't otherwise be auto-approved. Tier-1 -> tier-2 escalation is
+        # the logical complement of tier-1's own acceptance bar, so every
+        # tier-1 rejection gets a tier-2 attempt. Kept identical to
+        # alexandria_preparer_rocm_compatible.py's annotate_chunks, which
+        # mirrors this same chain. See FIXED.md F-113/F-114.
         no_source_match = False
-        if ratio < 0.45 and len(chunk_words) >= 5:
+        if ratio < threshold and len(chunk_words) >= 5:
             r_start, r_end, r_ratio = realign(chunk_words, orig_match, cursor)
             if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
                 start, end, ratio = r_start, r_end, r_ratio
-            elif r_ratio < 0.30:
+            else:
                 # Last-resort full-source re-anchor. Catches catastrophic
                 # alignment loss caused by unusual EPUB ordering — e.g. when
                 # the front matter (J Novel Club credits, copyright, etc.)
@@ -859,7 +866,7 @@ def main():
     if not decisions:
         print(f"\n🔍 Estimating source/audio alignment quality...")
         avg, n_sampled, low_ct, review_ct = estimate_alignment_quality(
-            entries, orig_match, cursor
+            entries, orig_match, cursor, threshold=threshold
         )
         if n_sampled >= 10:
             pct_low = low_ct / n_sampled

@@ -2111,14 +2111,15 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         #     front-matter order put content far from where
                         #     the cursor expected it.
                         #
-                        # Each tier only fires when the previous one's result
-                        # is too weak to be confident, and each requires the
-                        # new ratio to clear a tier-specific bar that's higher
-                        # than what `--source-threshold` would otherwise require.
-                        # That keeps a chunk from being rescued by a low-
-                        # confidence wider match when the local match was
-                        # just noise.
-                        if sa_ratio < 0.45 and len(chunk_match_words) >= 5:
+                        # Tier 0 entry is gated on source_threshold itself (not
+                        # a hardcoded catastrophic-only bar) so recovery fires
+                        # for every chunk that wouldn't otherwise be accepted,
+                        # not just severe ASR/source drift. Tier 1 -> tier 2
+                        # escalation is the logical complement of tier 1's own
+                        # acceptance bar, so every tier-1 rejection gets a
+                        # tier-2 attempt rather than only catastrophic ones.
+                        # See FIXED.md F-113/F-114.
+                        if sa_ratio < source_threshold and len(chunk_match_words) >= 5:
                             r_start, r_end, r_ratio = alignment.realign(
                                 chunk_match_words,
                                 source_state['orig_match'],
@@ -2132,7 +2133,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                     f"(jumped {r_end - cursor_before} words)"
                                 )
                                 sa_start, sa_end, sa_ratio = r_start, r_end, r_ratio
-                            elif r_ratio < 0.30:
+                            else:
                                 # Tier 2: full-source scan. Same logic compare
                                 # uses for catastrophic alignment loss. Requires
                                 # both an absolute bar (>=0.60) AND a clear
@@ -3394,7 +3395,8 @@ def main():
                 )
                 avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
                     entries_for_anchor, source_state['orig_match'], source_state['cursor'],
-                    start_entry_idx=source_state['anchor_entry_idx']
+                    start_entry_idx=source_state['anchor_entry_idx'],
+                    threshold=args.source_threshold
                 )
                 if n_sampled >= 10:
                     pct_low = low_ct / n_sampled

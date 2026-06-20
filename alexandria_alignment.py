@@ -899,6 +899,7 @@ def estimate_alignment_quality(
     initial_cursor: int,
     max_samples: int = 30,
     start_entry_idx: int = 0,
+    threshold: float = 0.45,
 ) -> tuple:
     """Pre-scan the first ~max_samples entries to estimate how well the audio
     aligns with the chosen source. Returns (avg_ratio, n_sampled, n_below_60).
@@ -911,7 +912,10 @@ def estimate_alignment_quality(
 
     Mirrors the run() loop's full alignment logic (find_best_match → realign
     → full-source re-anchor) so the estimate reflects what the user will
-    actually see, including recoveries that the new re-anchor catches.
+    actually see, including recoveries that the new re-anchor catches. Pass
+    the caller's actual acceptance threshold (source_threshold/threshold) so
+    the tier-0 recovery gate genuinely matches what run()/annotate_chunks use -
+    see FIXED.md F-104/F-113/F-114.
     """
     cursor = initial_cursor
     ratios = []
@@ -920,11 +924,11 @@ def estimate_alignment_quality(
         if len(chunk_words) < 5:
             continue
         start, end, ratio = find_best_match(chunk_words, orig_match, cursor)
-        if ratio < 0.45:
+        if ratio < threshold:
             r_start, r_end, r_ratio = realign(chunk_words, orig_match, cursor)
             if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
                 start, end, ratio = r_start, r_end, r_ratio
-            elif r_ratio < 0.30:
+            else:
                 a_start, a_end, a_ratio = find_anchor_position(
                     chunk_words, orig_match, min_ratio=0.6
                 )
