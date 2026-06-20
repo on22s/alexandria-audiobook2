@@ -478,3 +478,27 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `_scriptVolumeNum(name)` regex-matches a trailing number out of a script name and returns it (or `Infinity` if none found) — a pure computation with zero side effects, the same shape as F-050 (`numFieldValue`) and F-054 (`_reviewDedupe`), now a third instance of this naming gap. The name is a bare noun phrase with no verb, so a reader can't tell from the name alone that it's a read/extraction rather than something that mutates state.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — rename to `_getScriptVolumeNum` or `_extractScriptVolumeNum` (2 call sites would need updating); not fix-now since renaming isn't in the fix-now criteria.
+
+### [F-060] Rule 18 — 15 single-line `if` bodies without braces in createVoiceCard→submitCastApplyBulk
+- **Piece:** P30
+- **Location:** `app/static/index.html:3411` (`renderVoiceSuggestions`), `:3433,3435` (`applyVoiceSuggestion`), `:3460` (`applyVoiceSuggestion`), `:3495` (`setCastStatus`), `:3560` (`createCast`), `:3570,3571` (`deleteCast`), `:3589` (`openCastSave`), `:3659,3660` (`submitCastSave`), `:3692` (`openCastApply`), `:3727` (`submitCastApply`), `:3741` (`openCastApplyBulk`), `:3833` (`submitCastApplyBulk`)
+- **Severity:** low
+- **Description:** Per CLAUDE.md Rule 18, every `if`/`for`/`while` in this file must brace its body even when it's a single statement. Found 15 violations, all single-line `if (...) <statement>;` with no `{ }`: `if (banner) banner.remove();` (3411, 3460 — two separate functions); `if (!sugg) return;` / `if (!card) return;` (3433, 3435); `if (el) el.innerHTML = ...;` (3495); `if (!name) return;` (3560); `if (!window._selectedCast) return;` (3570, 3589, 3692, 3741 — four separate functions); `if (!confirm(...)) return;` (3571); `if (ns) msg += ...;` / `if (skipped > 0) msg += ...;` (3659-3660); `if (sel && sel.value) mapping[char] = sel.value;` (3727, 3833 — two separate functions with verbatim-identical bodies, see also F-062).
+- **Status:** fixed-inline (commit `90f728d`)
+- **Suggested fix:** add `{ }` around each one-line body, preserving behavior exactly — fix-now per audit plan. Verified with `node --check` on the extracted `<script>` content before committing.
+
+### [F-061] Rule 8 — `loadVoices` and `suggestVoices` swallow four cache-refresh fetch failures with comment-only `catch` blocks, no logging
+- **Piece:** P30
+- **Location:** `app/static/index.html:3333-3341` (`loadVoices`, three `try/catch` blocks for `/api/voice_design/list`, `/api/clone_voices/list`, `/api/lora/models`) and `:3344-3346` (`loadVoices`, `loadCastLibrary()` call) and `:3379` (`suggestVoices`, `/api/lora/models` refresh)
+- **Severity:** low
+- **Description:** Five separate `try { await API.get(...) } catch (e) { /* ignore if ... */ }` blocks across these two functions discard any fetch failure (network error, 500, malformed JSON) with zero logging, then proceed as if the cache were simply empty — indistinguishable from "nothing to show yet." This is the same recurring silent-swallow-into-success-looking pattern already logged for other parts of this file (F-031, F-035, F-036, F-046, F-056, F-057), now found concentrated in the Voices-tab cache refreshes that back the voice-type dropdowns (built-in LoRA, clone, LoRA-adapter selects) — a real failure here would silently leave those dropdowns empty/stale with no diagnostic trail.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — add `console.debug`/`console.warn` in each `catch`, matching the pattern already used elsewhere in the file (e.g. `pollPersonaStatus`'s `_designedVoicesCache`/`_cloneVoicesCache` prefetch from F-057).
+
+### [F-062] Rule 15 (candidate) — `submitCastApply` and `submitCastApplyBulk` duplicate the same checkbox→mapping extraction logic verbatim
+- **Piece:** P30
+- **Location:** `app/static/index.html:3723-3729` (`submitCastApply`) vs `:3829-3835` (`submitCastApplyBulk`)
+- **Severity:** low
+- **Description:** `[rule15-candidate]` Both functions build a `mapping` object from `.cast-apply-check:checked` / `.cast-apply-target` DOM elements with identical 7-line logic (`const mapping = {}; document.querySelectorAll(...).forEach(cb => {...}); if (!Object.keys(mapping).length) {...}`), then diverge only in which API endpoint they POST to. The file already extracted the shared match-table-rendering logic into `_getCastMatchPool`/`_renderCastMatchRows` for the analogous "open" half of these two flows, but the "submit" half's mapping-extraction was left duplicated rather than also factored into a shared helper.
+- **Status:** logged
+- **Suggested fix:** see needs-decision — not resolving per audit scope (tag only); a future pass could extract a shared `_collectCastApplyMapping()` helper used by both submit functions.
