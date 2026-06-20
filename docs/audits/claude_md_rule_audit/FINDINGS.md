@@ -966,3 +966,61 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** This piece's brief frames the wipe as gated on "source marker mismatch confirmed," but the actual condition reaching `_wipe_temp_dir` (`:1796`) is the boolean complement of `resume and marker_matches` — which is also true whenever the caller simply did not pass `--resume` (default), independent of whether the marker matches. In that sub-case (`not resume`, `marker_matches=True` — i.e., re-running on the exact same audio file without `--resume`), the code takes the generic `elif os.listdir(temp_dir): logger.info("Wiping stale dataset_temp/ contents for fresh start")` branch (`:1794-1795`), not the mismatch-warning branch (`:1789-1793`), and silently destroys all prior progress on the SAME book. This matches the documented CLI semantics (`--resume` help text: "Resume from existing dataset_temp/ instead of starting over" — resuming is opt-in, starting over is the default) and is not a code defect, but it means the wipe trigger is strictly broader than "mismatch confirmed," and a user who forgets `--resume` on a same-book re-run gets a full silent wipe with no mismatch warning at all — only the generic "stale contents" log line, which reads identically whether the prior run was stale garbage or hours of unfinished progress on the current book.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — purely a clarity/footgun question, not a logic bug: e.g. log a distinct, louder message specifically for the `not resume and marker_matches` sub-case ("dataset_temp/ contains N segments of unfinished progress on THIS source — pass --resume to continue, or this run will discard them") so the wipe-without-mismatch case is distinguishable from genuinely stale/foreign contents.
+
+---
+
+## Task 4: Rule 15 cross-cutting pass
+
+All `[rule15-candidate]`/Rule-15 tags from the 54-piece sweep, plus a fresh repo-wide grep for the same decision patterns (to catch anything an individual piece's narrower scope missed). Grouped by the underlying decision. No code changes made in this task — every cluster below is `needs-decision`, consistent with Rule 9/14 (cross-file consolidation requires judgment and user approval, never auto-fixed).
+
+### Cluster A — "Is this LLM endpoint remote?"
+**Canonical helper:** `lmstudio_settings.is_remote_llm(llm_mode, base_url)` (`app/lmstudio_settings.py:45-52`), written specifically to handle `llm_mode`/`base_url` drift (see its own docstring).
+
+| Call site | Uses canonical helper? |
+|---|---|
+| `app/app.py:1572` (`lmstudio_status`) | Yes |
+| `app/app.py:1600` (`lmstudio_optimize`) | Yes |
+| `app/app.py:1856` (`save_config`, picking which submitted profile — `llm_remote` vs `llm_local` — to mirror into the active `llm` config) | No, but **likely not a violation** — re-checked during this pass: this is selecting between two profile *objects the user just submitted in this request*, not deciding whether a resolved endpoint is remote; `is_remote_llm` answers a different question (and `base_url` may be ambiguous mid-save). Closing as a false-positive-on-inspection, no action needed. |
+| `app/llm_bench.py:167,179,183` (`get_cached_or_benchmarked_concurrency`) — **F-004** | No — flagged in original sweep, confirmed real (`base_url` is in scope and unused) |
+| `app/static/index.html` `confirmIfRemote`/`testLlmConnection` — **F-049** | No — frontend has no access to a backend-computed drift-aware value at all; `/api/config` never exposes one |
+
+**Resolution:** F-004 is the one clear violation — `llm_bench.py` has `base_url` in scope and should call `is_remote_llm(llm_mode, base_url)` instead of `llm_mode == "remote"` at all three sites. F-049 is a smaller, lower-leverage gap (frontend-only cost-warning gate, not a routing decision) — fixing it well would mean `/api/config` starts returning the drift-aware computed value, which is a small API change, not a one-line fix. `app/app.py:1856` is closed, not a violation.
+
+### Cluster B — "Self-heal/check ideal LM Studio settings before running"
+**Canonical pattern:** `ensure_ideal_settings(...)` from `app/lmstudio_settings.py`, called by exactly 2 of the 4 LLM-driving scripts in `app/`:
+
+| Script | Calls `ensure_ideal_settings`? |
+|---|---|
+| `app/review_script.py:823` | Yes |
+| `app/find_nicknames.py:326` | Yes |
+| `app/generate_script.py` — **F-007** | No |
+| `app/generate_personas.py` — **F-012** | No |
+
+**Resolution:** confirmed via repo-wide grep this is exactly a 2-of-4 split, not a wider problem. `generate_script.py` and `generate_personas.py` are the two outliers — both should plausibly call `ensure_ideal_settings` at the same point in their startup as their two siblings do, for the same reason (VRAM-safety/remote-detection self-heal before LLM work begins). This is a `needs-decision` add-the-missing-call fix, not a refactor — flagging as the single highest-value, lowest-risk Rule 15 fix in this whole pass.
+
+### Cluster C — `format_duration` (3 independent implementations, one diverging pair)
+| File | Behavior |
+|---|---|
+| `alexandria_batch_processor.py:114` | No negative-clamp; always shows seconds even with hours |
+| `alexandria_preparer_rocm_compatible.py:287` | Clamps negatives to 0; drops seconds once hours are present |
+| `app/static/index.html:6039` `formatDuration` | Frontend-only, different context (UI display, not log lines) — not part of the same drift risk since it never shares a log stream with the other two |
+
+**Resolution (F-093):** the first two genuinely interleave in the same log stream (the batch processor launches the preparer as a subprocess) and produce visibly different formatting for the same duration — confirmed still drifted. `index.html`'s copy is unrelated (different process, different purpose) and is not part of this cluster's risk, even though it's nominally "the same decision."
+
+### Cluster D — `check_disk_space` (2 implementations, different contract)
+`alexandria_batch_processor.py:230` vs `app/app.py:271` — confirmed (F-094) these are the only two definitions in the repo. Different signature, return type, and exception narrowness, as already documented. Both fail open. Genuinely separate processes/environments (CLI orchestrator vs. FastAPI server) — a real Rule 15 case, but consolidation would require introducing a shared module both environments can import, which is a larger structural change than a fix-now edit.
+
+### Cluster E — Alignment/annotation token-parsing duplication (already fully resolved during the sweep)
+- `parse_annotated_tokens` + `merge_annotations_with_source`: verbatim-duplicated between `alexandria_compare.py:72-156/159-253` and `alexandria_alignment.py:985-1069/1072-1166` (**F-098**, confirmed from both sides).
+- Compound-split regex: duplicated between `alexandria_preparer_rocm_compatible.py`'s `_build_source_state` and `alexandria_compare.py`'s `main()` (**F-110**).
+- `find_best_match`/`realign`/`find_anchor_position`: **closed, not a duplicate** (**F-112**) — `alexandria_preparer_rocm_compatible.py` imports these from `alexandria_alignment.py` (`import alexandria_alignment as alignment`, line 63); the architecture skill's phase-table wording ("same") was just imprecise and should be corrected to say "imported from alexandria_alignment.py."
+
+**Resolution:** `alexandria_compare.py` and `alexandria_alignment.py` already share `alexandria_alignment.py` as an import dependency in the opposite direction is not established — confirmed `alexandria_compare.py` does NOT `import alexandria_alignment`, it has its own inline copies. Since `alexandria_preparer_rocm_compatible.py` already proves importing `alexandria_alignment.py` works fine from a sibling root script, the cleanest fix for F-098/F-110 is for `alexandria_compare.py` to import these three from `alexandria_alignment.py` too, the same way the preparer already does, rather than maintaining inline forks.
+
+### Cluster F — Internal self-inconsistency (not cross-file, but same root cause: one copy claims to mirror another and doesn't)
+**F-104** — `alexandria_preparer_rocm_compatible.py`'s `estimate_alignment_quality` docstring claims to mirror `annotate_chunks`'s own recovery-chain gating, but the entry-gating condition differs (drops short chunks entirely vs. only gating one tier). Not a cross-*file* duplication, but the same underlying problem Rule 15 cares about: two copies of one decision, one drifting silently because nothing keeps them in sync.
+
+### Cluster G — index.html-internal duplications (lower priority, single-file, already fully documented)
+F-062 (`submitCastApply`/`submitCastApplyBulk` checkbox→mapping extraction), F-065 (`renderAll`/`renderBatchFast` ~95%-identical polling logic, with the Rule 10 confirm-gate gap from F-064 living in the part that differs), F-072 (`pollLogs` alone has stale-response protection among ~10 hand-rolled pollers). These are all single-file (`index.html`) maintenance-burden duplications rather than cross-process drift risks — lower severity than Clusters A-E, included here for completeness since they were tagged `[rule15-candidate]` during the sweep.
+
+**Summary for Task 5:** of the 7 clusters, **B (missing `ensure_ideal_settings` calls)** is the clearest, lowest-risk, highest-value fix. **A's `llm_bench.py` branch (F-004)** is the clearest pure-refactor swap-to-canonical-helper fix. The rest (C, D, E, F, G) require either a new shared module across environments that don't currently share one, or accepting the duplication as a documented tradeoff — genuine `needs-decision` judgment calls for the user, not mechanical fixes.

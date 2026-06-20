@@ -71,5 +71,5 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 
 ## Cross-cutting / synthesis
 
-- [ ] Task 4 — Rule 15 cross-cutting pass
+- [x] Task 4 — Rule 15 cross-cutting pass
 - [ ] Task 5 — Synthesis report + approval gate
