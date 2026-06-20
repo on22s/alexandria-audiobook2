@@ -3408,7 +3408,7 @@
                 let banner = card.querySelector('.voice-suggestion');
                 const sugg = window._voiceSuggestions[name];
                 if (!sugg) {
-                    if (banner) banner.remove();
+                    if (banner) { banner.remove(); }
                     return;
                 }
                 if (!banner) {
@@ -3430,9 +3430,9 @@
 
         function applyVoiceSuggestion(name) {
             const sugg = window._voiceSuggestions[name];
-            if (!sugg) return;
+            if (!sugg) { return; }
             const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
-            if (!card) return;
+            if (!card) { return; }
             const body = card.querySelector('.card-body');
 
             // Select the correct voice type radio and reveal its options
@@ -3457,7 +3457,7 @@
 
             // Remove the banner and clear from pending suggestions
             const banner = card.querySelector('.voice-suggestion');
-            if (banner) banner.remove();
+            if (banner) { banner.remove(); }
             delete window._voiceSuggestions[name];
             updateSuggestionToolbar();
             debouncedSaveVoices();
@@ -3492,7 +3492,7 @@
 
         function setCastStatus(html, isError) {
             const el = document.getElementById('cast-status');
-            if (el) el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html;
+            if (el) { el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html; }
         }
 
         async function loadCastLibrary() {
@@ -3557,7 +3557,7 @@
 
         async function createCast() {
             const name = (prompt('Name this cast (e.g. the series title):') || '').trim();
-            if (!name) return;
+            if (!name) { return; }
             try {
                 await API.post('/api/voice_library/casts', { name });
                 window._selectedCast = name;
@@ -3567,8 +3567,8 @@
         }
 
         async function deleteCast() {
-            if (!window._selectedCast) return;
-            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) return;
+            if (!window._selectedCast) { return; }
+            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) { return; }
             try {
                 await API.del(`/api/voice_library/casts/${encodeURIComponent(window._selectedCast)}`);
                 window._selectedCast = '';
@@ -3586,7 +3586,7 @@
 
         // Save current-book characters into the selected cast
         function openCastSave() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             const chars = window._voiceLibrary.current_characters || [];
             if (!chars.length) {
@@ -3656,8 +3656,8 @@
                 const nc = res.saved.cast.length, ns = res.saved.shared.length;
                 const skipped = characters.length - nc - ns;
                 let msg = `Saved ${nc} to cast`;
-                if (ns) msg += `, ${ns} shared`;
-                if (skipped > 0) msg += ` (${skipped} skipped — not configured)`;
+                if (ns) { msg += `, ${ns} shared`; }
+                if (skipped > 0) { msg += ` (${skipped} skipped — not configured)`; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
             } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
@@ -3689,7 +3689,7 @@
 
         // Apply a cast to the current book (fuzzy match + confirm)
         async function openCastApply() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             panel.innerHTML = '<div class="small text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Matching characters...</div>';
             let res;
@@ -3724,7 +3724,7 @@
             document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
                 const char = cb.dataset.char;
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
-                if (sel && sel.value) mapping[char] = sel.value;
+                if (sel && sel.value) { mapping[char] = sel.value; }
             });
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
@@ -3738,7 +3738,7 @@
 
         // Render a saved-scripts checkbox picker into #cast-panel
         async function openCastApplyBulk() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             panel.innerHTML = `
                 <div class="border rounded p-2">
@@ -3830,7 +3830,7 @@
             document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
                 const char = cb.dataset.char;
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
-                if (sel && sel.value) mapping[char] = sel.value;
+                if (sel && sel.value) { mapping[char] = sel.value; }
             });
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
