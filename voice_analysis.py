@@ -104,7 +104,6 @@ def extract_prosody(wav, sr):
     rms     = librosa.feature.rms(y=wav, frame_length=2048, hop_length=512)[0]
     rms_db  = librosa.amplitude_to_db(rms, ref=np.max)
     sc      = librosa.feature.spectral_centroid(y=wav, sr=sr, hop_length=512)[0]
-    mfcc    = librosa.feature.mfcc(y=wav, sr=sr, n_mfcc=13, hop_length=512)
     return {
         "f0_mean":        float(np.nanmean(f0v)),
         "f0_std":         float(np.nanstd(f0v)),
@@ -113,8 +112,6 @@ def extract_prosody(wav, sr):
         "rms_std_db":     float(np.std(rms_db)),
         "spec_cent_mean": float(np.mean(sc)),
         "spec_cent_std":  float(np.std(sc)),
-        "mfcc_mean":      mfcc.mean(axis=1),
-        "mfcc_std":       mfcc.std(axis=1),
         "duration":       dur,
     }
 
@@ -313,6 +310,16 @@ def run_dedup(model, device, zips2_root, output_dir):
 
 # ─── Phase 2: Analyze ────────────────────────────────────────────────────────
 
+def normalize_group_key(name):
+    """Derive an analyze-phase group key from a narrator/zip-stem name.
+
+    Used by both run_analyze (building zip_groups) and write_pipeline_summary
+    (recomputing the same key to check membership in analyzed_groups) - they
+    must always agree, so this is the one place that decision lives.
+    """
+    return re.sub(r"[^a-z0-9]+", "_",
+                  name.replace("-converted", "").strip().lower()).strip("_")
+
 def run_analyze(model, device, deduped_root, output_dir):
     """
     Cross-group speaker similarity, prosody divergence (EMD), and UMAP
@@ -327,8 +334,7 @@ def run_analyze(model, device, deduped_root, output_dir):
 
     zip_groups = {}
     for zp in sorted(deduped_root.glob("*.zip")):
-        key = re.sub(r"[^a-z0-9]+", "_",
-                     zp.stem.replace("-converted", "").strip().lower()).strip("_")
+        key = normalize_group_key(zp.stem)
         zip_groups[key] = [str(zp)]
 
     if not zip_groups:
@@ -572,8 +578,7 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
             continue
 
         has_dedup = name in deduped_narrators
-        norm = re.sub(r"[^a-z0-9]+", "_",
-                      name.replace("-converted", "").strip().lower()).strip("_")
+        norm = normalize_group_key(name)
         is_analyzed = norm in analyzed_groups
 
         if has_dedup and is_analyzed:

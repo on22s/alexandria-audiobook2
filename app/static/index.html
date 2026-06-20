@@ -3818,13 +3818,21 @@
                 </div>`;
         }
 
-        async function submitCastApply() {
+        // Shared by submitCastApply/submitCastApplyBulk - both build a
+        // mapping from the same checked-rows/target-select DOM shape, then
+        // diverge only in which endpoint they POST to.
+        function _collectCastApplyMapping() {
             const mapping = {};
             document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
                 const char = cb.dataset.char;
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
                 if (sel && sel.value) { mapping[char] = sel.value; }
             });
+            return mapping;
+        }
+
+        async function submitCastApply() {
+            const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
                 const res = await API.post('/api/voice_library/apply', { cast: window._selectedCast, mapping });
@@ -3925,12 +3933,7 @@
         }
 
         async function submitCastApplyBulk(script_names) {
-            const mapping = {};
-            document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
-                const char = cb.dataset.char;
-                const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
-                if (sel && sel.value) { mapping[char] = sel.value; }
-            });
+            const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
             try {

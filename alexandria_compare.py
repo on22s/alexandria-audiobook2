@@ -257,25 +257,7 @@ def apply_targeted_reset(
             cp['cursor'] = prev['cursor_after'] if (prev and 'cursor_after' in prev) else 0
         cp_path.write_text(json.dumps(cp, indent=2, ensure_ascii=False))
 
-    log_removed = 0
-    if also_clear_log and log_path.exists():
-        kept = []
-        with open(log_path, encoding='utf-8') as f:
-            for line in f:
-                line = line.rstrip('\n')
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                    if rec.get('entry_idx') in indices:
-                        log_removed += 1
-                        continue
-                except json.JSONDecodeError:
-                    pass
-                kept.append(line)
-        with open(log_path, 'w', encoding='utf-8') as f:
-            for line in kept:
-                f.write(line + '\n')
+    log_removed = remove_log_entries(log_path, indices) if also_clear_log and log_path.exists() else 0
 
     print(f"Reset {len(indices)} target(s):")
     print(f"  {restored} JSONL line(s) restored from {jsonl_path}")
