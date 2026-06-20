@@ -499,7 +499,8 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
                 try:
                     with open(manifest_path, 'r', encoding='utf-8') as mf:
                         manifest = json.load(mf)
-                except Exception:
+                except Exception as e:
+                    print(f"Warning: corrupted manifest.json at {manifest_path}, resetting to empty: {e}")
                     manifest = []
 
             stale_entries = [entry for entry in manifest if entry.get("name") == speaker]

@@ -364,7 +364,8 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         try:
             with open(registry_path, "r", encoding="utf-8") as f:
                 registry = json.load(f) or {}
-        except (json.JSONDecodeError, ValueError, OSError):
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            print(f"Warning: corrupted alias registry at {registry_path}, resetting to empty: {e}")
             registry = {}
     existing_canonicals = sorted(set(registry.values())) if registry else []
 

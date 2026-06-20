@@ -2685,8 +2685,8 @@ async def get_voices():
                 if speaker:
                     voices_set.add(speaker)
             voices_list = sorted(voices_set)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted script at {SCRIPT_PATH}, returning empty voice list: {e}")
 
     if not voices_list:
         return []
@@ -3633,8 +3633,8 @@ def _load_voice_library() -> dict:
             if isinstance(data, dict):
                 lib["shared"] = data.get("shared", {}) or {}
                 lib["casts"] = data.get("casts", {}) or {}
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted voice library at {VOICE_LIBRARY_PATH}, resetting to empty: {e}")
     return lib
 
 
@@ -4004,8 +4004,8 @@ def _load_manifest(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted manifest at {path}, returning empty list: {e}")
     return []
 
 def _save_manifest(path, manifest):
@@ -5347,8 +5347,8 @@ def _load_voicelab_config() -> dict:
                 data = json.load(f)
             if isinstance(data, dict):
                 cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
-        except (json.JSONDecodeError, ValueError, OSError):
-            pass
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            logger.warning(f"Corrupted voicelab config at {VOICELAB_CONFIG_PATH}, using defaults: {e}")
     return cfg
 
 
