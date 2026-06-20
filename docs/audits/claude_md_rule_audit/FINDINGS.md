@@ -654,3 +654,11 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `_vlChk(id, ok)` sets a readiness-checklist icon's `innerHTML` to a check-circle or times-circle glyph — a real side effect. "Chk" most naturally reads as a truncation of the noun "check(mark)" rather than the imperative verb "check," so unlike its neighbor `_vlSetRunning` (clearly verb-first, `Set`), a reader scanning this file's Voice Lab section can't tell from the name alone that `_vlChk` mutates the DOM rather than just returning a boolean. Narrow scope (private helper, 1 call site via `.forEach`) keeps the impact low.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — rename to `_vlSetCheckIcon` or similar so the verb leads, consistent with `_vlSetRunning`; not fix-now since renaming isn't in the fix-now criteria.
+
+### [F-082] Rule 2 — Model id/path duplicated between `download_model.py` and `alexandria_preparer_rocm_compatible.py` with no shared constant
+- **Piece:** P35 — download_model.py
+- **Location:** `download_model.py:18,33,42` (`model_path`, `"openai/whisper-base"` x2) vs `alexandria_preparer_rocm_compatible.py:741-742` (`model_name = "openai/whisper-base"`, `local_model_path = os.path.join(script_dir, "models", "whisper-base")`)
+- **Severity:** low
+- **Description:** `download_model.py` is a standalone helper script (no callers in the repo other than its own `if __name__ == "__main__"`) whose entire purpose is to pre-populate `models/whisper-base` so `alexandria_preparer_rocm_compatible.py`'s ASR phase (line 742) can find and prefer it over the HuggingFace model id. Both the relative path `"models/whisper-base"` and the upstream model id `"openai/whisper-base"` are independently hardcoded as string literals in both files, with no shared constant or comment cross-referencing the other file. If the model were ever swapped (e.g. to `whisper-small`), one file could be updated and the other silently missed, since nothing ties them together.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — low priority given the two files run in different environments/contexts (one is a one-shot setup script, the other a pipeline phase); if addressed, a shared tiny constants module (or at least a comment in each file pointing at the other) would prevent silent drift.

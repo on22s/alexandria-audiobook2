@@ -51,7 +51,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 
 ## Phase 2: root dataset-prep pipeline (Task 3)
 
-- [ ] P35 — download_model.py
+- [x] P35 — download_model.py
 - [ ] P36 — llm_enricher.py
 - [ ] P37 — name_voices.py
 - [ ] P38a — voice_analysis.py (load_model → run_dedup)
