@@ -164,7 +164,8 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     check via ensure_ideal_settings) - avoids a redundant SSH/subprocess
     round-trip on a cache miss.
     """
-    profile_key = "llm_remote" if llm_mode == "remote" else "llm_local"
+    is_remote = lmstudio_settings.is_remote_llm(llm_mode, base_url)
+    profile_key = "llm_remote" if is_remote else "llm_local"
     cache_key = f"{base_url}::{model_name}"
 
     config = safe_load_json(config_path, default={})
@@ -176,11 +177,11 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
 
     hostname = platform.node()
     if status is None:
-        if llm_mode == "remote":
+        if is_remote:
             status = lmstudio_settings.get_remote_lmstudio_status(ssh_alias, model_name)
         else:
             status = lmstudio_settings.get_lmstudio_status(model_name)
-    if llm_mode == "remote":
+    if is_remote:
         gpu_name, backend = lmstudio_settings.get_remote_gpu_name_and_backend(ssh_alias)
         where = f"remote via '{ssh_alias}'" if ssh_alias else "remote (no SSH alias configured)"
     else:

@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+from lmstudio_settings import ensure_ideal_settings
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
@@ -447,6 +448,7 @@ def main():
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")
     api_key = llm_config.get("api_key", "local")
     model_name = llm_config.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
+    llm_mode = config.get("llm_mode", "local")
 
     # Load custom prompts or use defaults
     prompts_config = config.get("prompts") or {}
@@ -471,6 +473,15 @@ def main():
     print(f"Chunk size: {chunk_size} chars, Max tokens: {max_tokens}")
     if banned_tokens:
         print(f"Banned tokens: {banned_tokens}")
+
+    # Self-heal a stale/misconfigured local or remote LM Studio before making
+    # any calls, mirroring review_script.py/find_nicknames.py. This file has
+    # no VRAM watchdog or concurrency wave processing of its own (chunks are
+    # processed strictly sequentially), so only the self-heal call applies
+    # here - is_remote/lm_status aren't needed for anything else in this file.
+    _, _, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
 
     # Create OpenAI client with custom base URL
     client = OpenAI(

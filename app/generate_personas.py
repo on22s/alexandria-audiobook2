@@ -11,6 +11,7 @@ from openai import OpenAI
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
+from lmstudio_settings import ensure_ideal_settings
 
 
 def extract_json_object(text):
@@ -725,6 +726,16 @@ def main():
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
     api_key = llm_cfg.get("api_key", "local")
     model_name = llm_cfg.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
+    llm_mode = config.get("llm_mode", "local")
+
+    # Self-heal a stale/misconfigured local or remote LM Studio before making
+    # any calls, mirroring review_script.py/find_nicknames.py. This file has
+    # no VRAM watchdog or concurrency wave processing of its own (personas
+    # are generated sequentially per speaker/batch), so only the self-heal
+    # call applies here.
+    _, _, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
