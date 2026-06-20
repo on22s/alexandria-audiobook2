@@ -438,3 +438,43 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** `_reviewDedupe()` reads the `review-dedupe-speakers` checkbox and returns a boolean (defaulting to `true` if the checkbox doesn't exist) — a pure read with zero side effects, the same shape as F-050's `numFieldValue` and exactly the case Rule 16 says should read as `get_`/`is_`-style. The name is a bare noun phrase with no verb, so a reader can't tell from the name alone whether it reads, writes, or toggles dedupe state.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — rename to `_isReviewDedupeChecked` or `_getReviewDedupe` (4 call sites would need updating); not fix-now since renaming isn't in the fix-now criteria.
+
+### [F-055] Rule 18 — 14 single-line `if` bodies without braces in _loadScriptList→pollPersonaStatus
+- **Piece:** P29
+- **Location:** `app/static/index.html:2847` (`_sortScriptList`), `:2887` (`startBatchReview`), `:2956` (`loadCharacterAliases`), `:2980` (`addAliasRow`), `:2996` (`saveCharacterAliases`), `:3010-3013` (`_formatBookStats`, 4 lines), `:3018,3022` (`_formatTotalsLine`, 2 lines), `:3028` (`_updateReviewBatchTotals`), `:3054` (`pollReviewBatch`), `:3063` (`pollReviewBatch`'s `state.tasks.forEach` callback)
+- **Severity:** low
+- **Description:** Per CLAUDE.md Rule 18, every `if`/`for`/`while` in this file must brace its body even when it's a single statement. Found 14 violations, all single-line `if (...) <statement>;` with no `{ }`: `if (!list.length) return;` (2847); `if (!(await confirmIfRemote('this batch review'))) return;` (2887); `if (show) panel.style.display = 'block';` (2956); `if (placeholder) placeholder.remove();` (2980); `if (a && c) map[a] = c;` (2996); `if (s.narrators_merged) txt += ...;` / `if (s.speakers_merged) txt += ...;` / `if (s.batches_failed) txt += ...;` / `if (s.batches_skipped_vram) txt += ...;` (3010-3013); `if (!t || !t.books_done) return ...;` (3018); `if (t.batches_failed) txt += ...;` (3022); `if (!el) return;` (3028); `if (reviewBatchPoller) clearInterval(reviewBatchPoller);` (3054); `if (!cb) return;` (3063).
+- **Status:** fixed-inline (commit `e81f926`)
+- **Suggested fix:** add `{ }` around each one-line body, preserving behavior exactly — fix-now per audit plan.
+
+### [F-056] Rule 8 — `loadCharacterAliases` silently treats any fetch failure as "no aliases yet," with no logging
+- **Piece:** P29
+- **Location:** `app/static/index.html:2954` (`loadCharacterAliases`)
+- **Severity:** low
+- **Description:** `try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }` discards any fetch failure (network error, 500, malformed JSON) with zero logging, then renders the panel as if no aliases had ever been found/saved — indistinguishable from the legitimate "nothing discovered yet" case. Same recurring silent-swallow-into-success-looking-render pattern already logged for other files' manifest/config loads (e.g. F-031, F-035, F-036, F-046), now found in the frontend for `character_aliases.json`.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — `console.error`/`console.warn` the caught error before falling back to `{}`, so a fetch failure is distinguishable in the browser console from "no aliases yet."
+
+### [F-057] Rule 8 — `pollPersonaStatus`'s post-completion `loadVoices()` refresh swallows its error silently while its two neighboring cache-refresh calls both log
+- **Piece:** P29
+- **Location:** `app/static/index.html:3149` (`pollPersonaStatus`) vs `:3150-3151` (same function, two lines below)
+- **Severity:** low
+- **Description:** Inside the `if (!status.running)` block, three sequential cache/UI-refresh calls each have their own `try/catch`: `try { await loadVoices(); } catch (e) { /* ignore */ }` (3149) swallows with no logging at all, while the next two lines — `_designedVoicesCache`/`_cloneVoicesCache` prefetch — both call `console.debug('...failed', e)` on the identical kind of failure. `loadVoices()` refreshes the actual Voices tab the user is about to look at after persona generation finishes, arguably the most user-visible of the three refreshes, yet it's the one with zero diagnostic trail if it fails — inconsistent with its own immediate neighbors in the same block.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — change `catch (e) { /* ignore */ }` to `catch (e) { console.debug('voices refresh failed', e); }`, matching the pattern already used two lines below.
+
+### [F-058] Rule 10 — `pollReviewBatch` and `pollPersonaStatus` disagree on what a poll error means: one retries forever silently, the other aborts immediately with a toast
+- **Piece:** P29
+- **Location:** `app/static/index.html:3052-3083` (`pollReviewBatch`, `catch (e) { /* keep polling through hiccups */ }` at line 3081) vs `:3129-3167` (`pollPersonaStatus`, `catch (e) { clearInterval(interval); showToast(...); ... }` at lines 3158-3164)
+- **Severity:** medium
+- **Description:** Both functions poll a near-identical `/api/status/<task>` shape on a fixed interval and can fail for the same reasons (network blip, transient 500, JSON parse error). `pollReviewBatch` treats every error as a harmless hiccup: it swallows the error completely and lets `setInterval` fire again on schedule, with no cap, no logging, and no user-visible signal — if the underlying cause is not transient (e.g. the server crashed), this polls forever with a frozen-looking UI and no error ever surfaces. `pollPersonaStatus` does the opposite for the same class of error: on the very first failure it immediately `clearInterval`s, shows `showToast('Persona status poll failed: ...', 'error')`, and gives up — a single transient network blip permanently stops the poll and tells the user persona generation failed even if it's still running fine server-side. Per Rule 10 ("decide on ONE consistent policy... and follow it on every attempt"), this is the same decision (how to interpret a poll failure) answered two incompatible ways by two structurally identical loops in the same file.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — pick one policy (e.g. retry up to N times with a visible warning after the first failure, then stop and toast) and apply it to both `pollReviewBatch` and `pollPersonaStatus` (and ideally `_pollScriptBatchLogs` from F-053, which has its own third variant).
+
+### [F-059] Rule 16 — `_scriptVolumeNum` has no leading verb despite being a pure computation function
+- **Piece:** P29
+- **Location:** `app/static/index.html:2839-2842` (`_scriptVolumeNum`)
+- **Severity:** low
+- **Description:** `_scriptVolumeNum(name)` regex-matches a trailing number out of a script name and returns it (or `Infinity` if none found) — a pure computation with zero side effects, the same shape as F-050 (`numFieldValue`) and F-054 (`_reviewDedupe`), now a third instance of this naming gap. The name is a bare noun phrase with no verb, so a reader can't tell from the name alone that it's a read/extraction rather than something that mutates state.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — rename to `_getScriptVolumeNum` or `_extractScriptVolumeNum` (2 call sites would need updating); not fix-now since renaming isn't in the fix-now criteria.
