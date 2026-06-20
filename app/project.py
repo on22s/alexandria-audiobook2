@@ -451,25 +451,35 @@ class ProjectManager:
         )
 
     def _load_chunks_with_audio(self):
-        """Load chunks and pair each with its AudioSegment. Returns list of (chunk, segment)."""
+        """Load chunks and pair each with its AudioSegment.
+
+        Returns (result, skipped_count): result is the list of (chunk, segment)
+        pairs that loaded successfully; skipped_count is how many chunks were
+        dropped (missing audio_path, missing file, or a failed audio load) so
+        callers can report a partial export instead of a silent blanket success.
+        """
         chunks = self.load_chunks()
         result = []
+        skipped = 0
         for chunk in chunks:
             path = chunk.get("audio_path")
             if not path:
+                skipped += 1
                 continue
             full_path = os.path.join(self.root_dir, path)
             if not os.path.exists(full_path):
+                skipped += 1
                 continue
             try:
                 segment = AudioSegment.from_file(full_path)
                 result.append((chunk, segment))
             except Exception as e:
                 print(f"Error loading audio segment {path}: {e}")
-        return result
+                skipped += 1
+        return result, skipped
 
     def merge_audio(self):
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -488,12 +498,14 @@ class ProjectManager:
         output_path = os.path.join(self.root_dir, output_filename)
         final_audio.export(output_path, format="mp3")
 
+        if skipped:
+            return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
 
     def export_audacity(self):
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -569,6 +581,8 @@ class ProjectManager:
                 speaker_tracks[speaker].export(wav_buffer, format="wav")
                 zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
 
+        if skipped:
+            return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, zip_path
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None):
@@ -584,7 +598,7 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -667,6 +681,8 @@ class ProjectManager:
                     except OSError:
                         pass
 
+        if skipped:
+            return True, f"audiobook.m4b ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, "audiobook.m4b"
 
     @staticmethod

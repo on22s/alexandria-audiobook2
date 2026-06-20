@@ -5570,6 +5570,7 @@
                     document.getElementById('dsb-btn-cancel').style.display = '';
                 }
             } catch (e) {
+                console.error('Failed to load project:', e);
                 dsbRows = [];
                 dsbAddRow();
             }

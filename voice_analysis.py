@@ -199,8 +199,8 @@ def run_dedup(model, device, zips2_root, output_dir):
                     wav, sr = load_wav_from_zip(str(zp), wn)
                     embs.append(extract_embedding(wav, sr, model, device))
                     used.append(wn)
-                except Exception:
-                    pass
+                except Exception as e:
+                    tqdm.write(f"  Warning: extraction failed for {wn}: {e}")
 
             if embs:
                 zip_embeddings[label] = (np.array(embs), used)
@@ -376,8 +376,8 @@ def run_analyze(model, device, deduped_root, output_dir):
                     g_embs.append(extract_embedding(wav, sr, model, device))
                     g_pros.append(extract_prosody(wav, sr))
                     g_wavs.append((zp, wname))
-                except Exception:
-                    pass
+                except Exception as e:
+                    tqdm.write(f"  Warning: extraction failed for {wname}: {e}")
 
         if g_embs:
             all_embs[group_name]      = np.array(g_embs)

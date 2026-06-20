@@ -109,7 +109,8 @@ Output JSON: """
         return {
             "speaker_attribution": "N/A",
             "narration_style": "N/A",
-            "emotional_tone": "N/A"
+            "emotional_tone": "N/A",
+            "_enrichment_failed": True
         }
 
 def main():

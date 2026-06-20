@@ -521,8 +521,9 @@ def _remap_voice_config(voice_config_path, mapping):
             if changed:
                 try:
                     atomic_json_write(cfg, voice_config_path)
-                except OSError:
-                    pass
+                except OSError as e:
+                    print(f"  Warning: failed to write {voice_config_path}: {e}")
+                    moved = 0
     except TimeoutError as e:
         print(f"  Warning: could not lock {voice_config_path} for speaker remap ({e}); skipping.")
         return 0

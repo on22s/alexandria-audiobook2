@@ -321,7 +321,8 @@ def _wav_overflow_info(path):
     """
     try:
         info = sf.info(path)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"sf.info failed in _wav_overflow_info: {e}")
         return False, 0.0, 0.0
     header_dur = info.duration
     if info.format != 'WAV':
@@ -1448,7 +1449,8 @@ def _check_source_marker(temp_dir, audio_source_path):
         with open(marker_path, "r", encoding="utf-8") as f:
             stored = f.read().strip()
         return stored == os.path.abspath(audio_source_path)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to read source marker at {marker_path}: {e}")
         return False
 
 

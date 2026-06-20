@@ -77,14 +77,16 @@ def vram_state():
         return {"allocated_gb": round(alloc, 2),
                 "free_gb": round(free / 1e9, 2),
                 "total_gb": round(total / 1e9, 1)}
-    except Exception:
+    except Exception as e:
+        print(f"Warning: vram_state probe failed: {e}")
         return None
 
 def gpu_name():
     try:
         import torch
         return torch.cuda.get_device_name(0)
-    except Exception:
+    except Exception as e:
+        print(f"Warning: gpu_name probe failed: {e}")
         return "unknown"
 
 # ---------------------------------------------------------------------------
@@ -123,8 +125,8 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
                 if os.path.exists(p):
                     info = sf.info(p)
                     total_audio += info.duration
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: duration estimation failed: {e}")
 
         rtf = total_audio / elapsed if elapsed > 0 and total_audio > 0 else None
 

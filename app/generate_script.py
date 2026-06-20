@@ -168,7 +168,8 @@ def salvage_json_entries(json_text):
                 "instruct": match.group(3).replace('\\"', '"').replace('\\n', '\n')
             }
             entries.append(entry)
-        except Exception:
+        except Exception as e:
+            print(f"  [salvage] discarding malformed candidate: {e}")
             continue
 
     return entries if entries else None
