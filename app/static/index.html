@@ -3918,7 +3918,7 @@
             clearTimeout(_voiceSaveTimer);
             _voiceSaveTimer = setTimeout(async () => {
                 const cards = document.querySelectorAll('.voice-card');
-                if (cards.length === 0) return;
+                if (cards.length === 0) { return; }
                 try {
                     const config = collectVoiceConfig();
                     await API.post('/api/save_voice_config', config);
@@ -3960,7 +3960,7 @@
         function isAudioPlaying() {
             const audios = document.querySelectorAll('audio');
             for (const audio of audios) {
-                if (!audio.paused && !audio.ended) return true;
+                if (!audio.paused && !audio.ended) { return true; }
             }
             return false;
         }
@@ -3968,7 +3968,7 @@
         // Update only changed rows instead of full redraw
         function updateChunkRow(chunk) {
             const tr = document.querySelector(`tr[data-id="${chunk.id}"]`);
-            if (!tr) return false;
+            if (!tr) { return false; }
 
             const statusColor = chunk.status === 'done' ? 'success' :
                               chunk.status === 'generating' ? 'warning' :
@@ -4236,7 +4236,7 @@
                 const el = document.getElementById(toastId);
                 if (el) {
                     const toast = bootstrap.Toast.getInstance(el);
-                    if (toast) toast.hide();
+                    if (toast) { toast.hide(); }
                 }
 
                 _lastDeleted = null;
@@ -4249,7 +4249,7 @@
         };
 
         window.stopOthers = (id) => {
-            if (isPlayingSequence) return; // Sequence player handles its own logic
+            if (isPlayingSequence) { return; } // Sequence player handles its own logic
             document.querySelectorAll('audio').forEach(audio => {
                 if (audio.dataset.id != id) {
                     audio.pause();
@@ -4267,7 +4267,7 @@
             let currentIndex = 0;
 
             const playNext = () => {
-                if (!isPlayingSequence) return;
+                if (!isPlayingSequence) { return; }
                 
                 const audios = Array.from(document.querySelectorAll('.chunk-audio'));
 
@@ -4352,7 +4352,7 @@
         // Save all pending edits from a row before generation
         async function saveRowEdits(id) {
             const tr = document.querySelector(`tr[data-id="${id}"]`);
-            if (!tr) return;
+            if (!tr) { return; }
 
             const inputs = tr.querySelectorAll('input, textarea');
             const data = {};
@@ -4601,7 +4601,7 @@
         };
 
         document.getElementById('btn-merge').addEventListener('click', async () => {
-             if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) return;
+             if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) { return; }
 
              try {
                  await API.post('/api/merge', {});
@@ -4656,12 +4656,12 @@
         document.getElementById('m4b-cover-input').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             const statusEl = document.getElementById('m4b-cover-status');
-            if (!file) return;
+            if (!file) { return; }
             const formData = new FormData();
             formData.append('file', file);
             try {
                 const resp = await fetch('/api/m4b_cover', { method: 'POST', body: formData });
-                if (!resp.ok) throw new Error((await resp.json()).detail || resp.statusText);
+                if (!resp.ok) { throw new Error((await resp.json()).detail || resp.statusText); }
                 statusEl.textContent = 'Uploaded';
                 statusEl.className = 'small text-success';
             } catch (err) {
