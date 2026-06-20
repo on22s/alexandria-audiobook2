@@ -95,6 +95,30 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — not a bug introduced by this audit, just flagging the missing invalidation key (e.g. include `DEDUP_SAMPLES` and a model identifier in `cache_key` or alongside the cached tuple) in case stale-cache-after-config-change has bitten anyone in practice.
 
+### [F-089] Rule 8 — Per-sample extraction failures in `run_analyze` are swallowed with no logging, same pattern as F-086
+- **Piece:** P38b — voice_analysis.py
+- **Location:** `voice_analysis.py:373-380` (`run_analyze`)
+- **Severity:** medium
+- **Description:** Same shape as F-086 (logged for `run_dedup`): `except Exception: pass` around `load_wav_from_zip`/`extract_embedding`/`extract_prosody` discards every per-WAV failure silently, with only an aggregate `→ N embeddings extracted` count printed per group afterward. A systematic failure (e.g. `extract_prosody`'s `librosa.pyin` raising on a particular sample rate, or a corrupt subset of WAVs) is indistinguishable from "this group simply had fewer usable samples" in every downstream artifact (similarity matrix, EMD table, UMAP plot, summary print).
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — same as F-086: log the exception (e.g. via `tqdm.write`) and/or tally per-group failure counts so a silent regression in extraction is distinguishable from a thin sample set.
+
+### [F-090] Rule 9 — `run_analyze`'s embeddings cache is checkpointed once at the end, unlike `run_dedup`'s per-folder checkpoint
+- **Piece:** P38b — voice_analysis.py
+- **Location:** `voice_analysis.py:348-391` (`run_analyze`'s extraction loop and final `pickle.dump`) vs `voice_analysis.py:180-213` (`run_dedup`'s per-zip cache write, P38a)
+- **Severity:** medium
+- **Description:** `run_dedup` writes its `embeddings_cache.pkl` after finishing each narrator folder (`voice_analysis.py:213`), so an interrupted run only loses progress on the folder in flight. `run_analyze` extracts embeddings/prosody for *every* group in `zip_groups` (potentially many, each itself sampling up to `ANALYZE_SAMPLES`=200 WAVs with full embedding+prosody extraction) entirely in memory, and only calls `pickle.dump` once, after the entire `for group_name, zip_paths in zip_groups.items()` loop completes (line 388-391). A crash, OOM, or manual interrupt partway through a long multi-group run (this is the cross-group analyze phase, expected to run over many narrators) loses all extraction work for that invocation, including groups that had already finished — forcing a full re-extraction of every group on retry, since the cache file on disk is unchanged from before the run started. This is the same conceptual checkpoint/cache-resume safety net (per CLAUDE.md Rule 9's listed examples) implemented with two different granularities within the same file.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — if this hasn't bitten anyone in practice, no action needed; otherwise move the `pickle.dump` inside the `for group_name` loop (after each group's `if g_embs:` block) to match `run_dedup`'s per-unit checkpoint granularity.
+
+### [F-091] Rule 2/15 — Narrator-name normalization regex duplicated verbatim between `run_analyze` and `write_pipeline_summary`
+- **Piece:** P38b — voice_analysis.py
+- **Location:** `voice_analysis.py:330-331` (`run_analyze`) and `voice_analysis.py:573-574` (`write_pipeline_summary`)
+- **Severity:** low
+- **Description:** [rule15-candidate] The exact same normalization expression — `re.sub(r"[^a-z0-9]+", "_", name.replace("-converted", "").strip().lower()).strip("_")` — appears character-for-character in two functions in the same file: once to build `zip_groups` keys from zip filenames in `run_analyze`, and again in `write_pipeline_summary` to recompute the same key from narrator-folder names so it can check membership in `analyzed_groups`. Both encode the same "how do we name an analyze-phase group" decision; if one site's normalization rule changes (e.g. to strip an additional suffix), the other silently drifts and `write_pipeline_summary`'s DONE/PENDING ANALYZE classification would become wrong for any narrator whose old vs. new normalized name differ.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — extract a single `normalize_group_key(name)` helper used by both call sites, since they must always agree for `write_pipeline_summary`'s cache-membership check to be meaningful.
+
 ### [F-009] Rule 8 — Per-sample OOM skips during training are logged live but never aggregated into the run's durable output
 - **Piece:** P09 — app/train_lora.py
 - **Location:** `app/train_lora.py:556-564` (OOM handler in `train()`'s per-sample loop) vs `:642-660` (`training_meta.json` write)
