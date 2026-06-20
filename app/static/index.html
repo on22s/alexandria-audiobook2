@@ -5937,7 +5937,7 @@
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) throw new Error('Expected JSON array');
+                    if (!Array.isArray(data)) { throw new Error('Expected JSON array'); }
                     dsbRows = data.map(item => ({
                         emotion: item.emotion || item.instruct || '',
                         text: item.text || '',
@@ -5958,7 +5958,7 @@
         window.dsbExport = () => {
             const data = dsbRows.map(r => {
                 const entry = { emotion: r.emotion, text: r.text };
-                if (r.seed !== '' && r.seed !== undefined) entry.seed = parseInt(r.seed);
+                if (r.seed !== '' && r.seed !== undefined) { entry.seed = parseInt(r.seed); }
                 return entry;
             });
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -6037,11 +6037,11 @@
 
         // Format a duration in seconds as a short "1h 5m" / "5m 30s" / "30s" string.
         function formatDuration(seconds) {
-            if (seconds == null || !isFinite(seconds) || seconds < 0) return '--';
+            if (seconds == null || !isFinite(seconds) || seconds < 0) { return '--'; }
             seconds = Math.round(seconds);
-            if (seconds < 60) return `${seconds}s`;
+            if (seconds < 60) { return `${seconds}s`; }
             const m = Math.floor(seconds / 60);
-            if (seconds < 3600) return `${m}m ${seconds % 60}s`;
+            if (seconds < 3600) { return `${m}m ${seconds % 60}s`; }
             const h = Math.floor(seconds / 3600);
             return `${h}h ${Math.floor((seconds % 3600) / 60)}m`;
         }
@@ -6075,7 +6075,7 @@
         async function refreshLmStudioStatus() {
             const badge = document.getElementById('lmstudio-status-badge');
             const toggle = document.getElementById('lmstudio-optimize-toggle');
-            if (!badge || !toggle) return;
+            if (!badge || !toggle) { return; }
             try {
                 const status = await API.get('/api/lmstudio/status');
                 if (status.remote) {
@@ -6140,10 +6140,10 @@
             const running = Object.fromEntries(names.map((t, i) => [t, flags[i]]));
 
             const show = (id, disp = 'inline-block') => {
-                const el = document.getElementById(id); if (el) el.style.display = disp;
+                const el = document.getElementById(id); if (el) { el.style.display = disp; }
             };
             const disable = (id) => {
-                const el = document.getElementById(id); if (el) el.disabled = true;
+                const el = document.getElementById(id); if (el) { el.disabled = true; }
             };
 
             if (running.batch_script) {
@@ -6155,7 +6155,7 @@
                 show('btn-cancel-script'); show('btn-pause-script');
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) {
-                        const b = document.getElementById('btn-gen-script'); if (b) b.disabled = false;
+                        const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
                     }
                     show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
                 });
@@ -6173,7 +6173,7 @@
                 show('btn-pause-nick'); show('btn-cancel-nick');
                 pollLogs('nicknames', 'script-logs', async () => {
                     const btn = document.getElementById('btn-find-nicknames');
-                    if (btn) btn.disabled = false;
+                    if (btn) { btn.disabled = false; }
                     show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
                     await loadCharacterAliases(true);
                 });
@@ -6257,7 +6257,7 @@
 
             try {
                 const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                if (!res.ok) { throw new Error((await res.json()).detail || res.statusText); }
                 _pollPreparerLogs('preparer');
             } catch (e) {
                 showToast('Failed to start: ' + e.message, 'error');
@@ -6303,7 +6303,7 @@
         }
 
         function _pollPreparerLogs(taskName) {
-            if (prepPoller) clearInterval(prepPoller);
+            if (prepPoller) { clearInterval(prepPoller); }
             const logEl = document.getElementById('preparer-logs');
             let offset = 0;
 
@@ -6323,7 +6323,7 @@
                     if (taskName === 'batch_preparer' && state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`prep-batch-status-${i}`);
-                            if (!el) return;
+                            if (!el) { return; }
                             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
                             el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
                         });
@@ -6346,7 +6346,7 @@
         // List/download the dataset ZIPs produced by completed preparer runs.
         async function loadPreparerOutputs() {
             const el = document.getElementById('preparer-outputs');
-            if (!el) return;
+            if (!el) { return; }
             try {
                 const res = await API.get('/api/preparer/list');
                 const files = res.files || [];
@@ -6379,9 +6379,11 @@
 
         function _vlChk(id, ok) {
             const el = document.getElementById(id);
-            if (el) el.innerHTML = ok
-                ? '<i class="fas fa-check-circle text-success"></i>'
-                : '<i class="fas fa-times-circle text-danger"></i>';
+            if (el) {
+                el.innerHTML = ok
+                    ? '<i class="fas fa-check-circle text-success"></i>'
+                    : '<i class="fas fa-times-circle text-danger"></i>';
+            }
         }
 
         async function loadVoicelabConfig() {
@@ -6393,7 +6395,7 @@
                 document.getElementById('vl-profiler_model').value = c.profiler_model || '';
                 document.getElementById('vl-zips_dir_cfg').value = c.zips_dir || '';
                 const input = document.getElementById('vl-zips_dir');
-                if (!input.value) input.value = c.zips_dir || '';
+                if (!input.value) { input.value = c.zips_dir || ''; }
 
                 const ck = res.checks || {};
                 ['rocm_python','pipeline_repo','batch_train_lora','voice_profiler','profiler_model','zips_dir']
@@ -6443,14 +6445,14 @@
             document.getElementById('btn-vl-start').disabled = running;
             document.getElementById('btn-vl-pause').style.display = running ? 'inline-block' : 'none';
             document.getElementById('btn-vl-cancel').style.display = running ? 'inline-block' : 'none';
-            if (running) _resetPauseBtn('btn-vl-pause');
+            if (running) { _resetPauseBtn('btn-vl-pause'); }
         }
 
         window.startVoicelab = async () => {
             const stages = Array.from(document.querySelectorAll('.vl-stage:checked')).map(c => c.value);
             if (!stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
             if (stages.includes('name') && document.getElementById('vl-name-apply').checked
-                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) return;
+                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) { return; }
 
             const body = {
                 zips_dir: document.getElementById('vl-zips_dir').value.trim() || undefined,
@@ -6484,7 +6486,7 @@
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-            if (voicelabPoller) clearInterval(voicelabPoller);
+            if (voicelabPoller) { clearInterval(voicelabPoller); }
             voicelabPoller = setInterval(async () => {
                 try {
                     const s = await API.get('/api/status/voicelab');
@@ -6511,7 +6513,7 @@
         // ── Reports ────────────────────────────────────────────────────
         async function loadReports() {
             const listEl = document.getElementById('reports-list');
-            if (!listEl) return;
+            if (!listEl) { return; }
             try {
                 const reports = await API.get('/api/reports');
                 if (!reports.length) {
@@ -6534,7 +6536,7 @@
 
         async function loadCheckpoints() {
             const listEl = document.getElementById('checkpoints-list');
-            if (!listEl) return;
+            if (!listEl) { return; }
             try {
                 const data = await API.get('/api/review/checkpoints');
                 const cps = data.checkpoints || [];
