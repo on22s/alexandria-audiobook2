@@ -550,3 +550,35 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Description:** The function's first word is the adjective "debounced," not a verb — unlike every other side-effecting function in this range (`updateChunkRow`, `loadChunks`, `saveRowEdits`, `cancelRender`, `renderAll`, etc., all verb-first per Rule 16). The side effect (`Save...Voices`, an `await API.post('/api/save_voice_config', ...)`) is present but pushed to the middle of the name instead of the front.
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — e.g. rename to `saveVoicesDebounced` so the verb leads, or treat "debounced" as an accepted modifier prefix alongside `render*`/`on*`/`open*` if the team prefers not to rename (this is the only such case found so far in the audit).
+
+### [F-069] Rule 18 — Six unbraced single-statement `if` bodies in `pollLogs`, `loadScript`, `deleteScript`
+- **Piece:** P32
+- **Location:** `app/static/index.html:4724`, `:4727`, `:4733` (all in `pollLogs`), `:4745` (`pollLogs`'s `onDone` continuation), `:4821` (`loadScript`), `:4845` (`deleteScript`)
+- **Severity:** low
+- **Description:** Six `if` statements in this piece have a single-statement body with no `{ }`: `if (myGen !== _pollLogsGen[taskName]) return;` (×2, lines 4724 and 4727), `if (onDone) onDone(status);` (line 4733), `if (tbody) tbody.innerHTML = '';` (line 4745), `if (!await showConfirm(...)) return;` in `loadScript` (line 4821), and the identical guard in `deleteScript` (line 4845). Per Rule 18 these all need braces to prevent a future second statement silently falling outside the conditional.
+- **Status:** fixed-inline (commit `d1c34fe`)
+- **Suggested fix:** add `{ }` around each single-line body, preserving behavior exactly.
+
+### [F-070] Rule 8 — `saveScript`, `loadScript`, `deleteScript` surface failures via `showToast` only, with no `console.error`
+- **Piece:** P32
+- **Location:** `app/static/index.html:4815-4817` (`saveScript`'s `catch`), `:4839-4841` (`loadScript`'s `catch`), `:4854-4856` (`deleteScript`'s `catch`)
+- **Severity:** low
+- **Description:** All three `catch (e)` blocks call only `showToast('Error ...: ' + e.message, 'error')` — the user sees a message, but nothing is logged to the console, unlike the file's dominant convention elsewhere of pairing user-facing feedback with `console.error` (e.g. `pollLogs`'s own catch two functions above, line 4754-4757, logs `console.error("Poll error", e)`). This is the same inconsistency already logged for `debouncedSaveVoices`/M4B-cover-upload in F-067, recurring in three more functions in the very next piece.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — add `console.error(e)` alongside the existing `showToast` call in all three catches.
+
+### [F-071] Rule 8 — `loadDesignedVoices`'s catch logs to console only, with zero user-facing feedback on failure
+- **Piece:** P32
+- **Location:** `app/static/index.html:4892-4894` (`loadDesignedVoices`)
+- **Severity:** low
+- **Description:** Unlike `saveScript`/`loadScript`/`deleteScript` in the same piece (F-070, toast-only/no console), this catch is the opposite: `console.error('Failed to load designed voices:', e)` with no `showToast` and no DOM update at all. If `/api/voice_design/list` fails (e.g. when called from `resetDesignerForm`'s neighbor `loadScript` flow at line 4838, or the page-load call at line 6190), the designed-voices list silently stays in whatever state it was previously in — a user has no indication the refresh failed.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — add a `showToast('Failed to load designed voices', 'error')` (or equivalent inline status message) alongside the existing `console.error`.
+
+### [F-072] Rule 15 (candidate) — `pollLogs` is the only status-poller with stale-poll protection; ~10 other hand-rolled `setInterval`/`setTimeout` pollers in the file lack it
+- **Piece:** P32
+- **Location:** `app/static/index.html:4717-4760` (`pollLogs`, using the `_pollLogsGen` generation counter) vs. independent poll loops at `:2707` (`scriptBatchPoller`), `:3055` (`reviewBatchPoller`), `:3133`, `:4491`, `:4566`, `:4625`, `:4688` (M4B export poll), `:5309`, `:5843` (`dsbPolling`), `:6310` (`prepPoller`), `:6488` (`voicelabPoller`)
+- **Severity:** low
+- **Description:** `[rule15-candidate]` `pollLogs` solves "don't act on a response that arrived after a newer poll superseded it" by incrementing `_pollLogsGen[taskName]` on each new call and checking it before applying any response (lines 4721, 4724, 4727) — this guards against e.g. rapid start/cancel/restart of the same task name producing out-of-order UI updates. None of the ~10 other independent `setInterval`/`setTimeout`-based polling loops elsewhere in the file use this or an equivalent guard (they rely on a single module-level interval-id variable being cleared, which doesn't protect against a request already in flight resolving late). This is "is this poll response still current?" answered one good way in `pollLogs` and not at all everywhere else — the existing F-065 and the P29 `pollReviewBatch`/`pollPersonaStatus` finding already document the broader duplication; this tags `pollLogs` itself as the candidate reusable building block.
+- **Status:** logged
+- **Suggested fix:** see needs-decision — not resolved here; a future pass could extract `_pollLogsGen`'s generation-guard pattern into a small shared helper (or have the other pollers `await`/cancel a stored promise) so every status poller gets stale-response protection, not just `pollLogs`.
