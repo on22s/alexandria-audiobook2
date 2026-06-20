@@ -63,7 +63,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P41a — alexandria_alignment.py (_expand_honorifics → trim_span_to_alignment)
 - [x] P41b — alexandria_alignment.py (_num_eq_step_trailing → merge_annotations_with_source)
 - [x] P42a — alexandria_preparer_rocm_compatible.py (validate/WAV-wrap + audio loading)
-- [ ] P42b — alexandria_preparer_rocm_compatible.py (ASR transcription)
+- [x] P42b — alexandria_preparer_rocm_compatible.py (ASR transcription)
 - [ ] P42c — alexandria_preparer_rocm_compatible.py (source loading/tokenization + chunking)
 - [ ] P42d — alexandria_preparer_rocm_compatible.py (multi-tier alignment recovery)
 - [ ] P42e — alexandria_preparer_rocm_compatible.py (LLM prosody annotation + write outputs)
