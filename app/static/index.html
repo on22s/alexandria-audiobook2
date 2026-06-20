@@ -5147,7 +5147,7 @@
 
         window.handleCloneVoiceUpload = async (input) => {
             const file = input.files[0];
-            if (!file) return;
+            if (!file) { return; }
             input.value = '';
 
             const formData = new FormData();
@@ -5178,11 +5178,11 @@
         };
 
         window.deleteCloneVoice = async (btn) => {
-            if (!await showConfirm('Delete this uploaded clone voice?')) return;
+            if (!await showConfirm('Delete this uploaded clone voice?')) { return; }
             const card = btn.closest('.card-body');
             const select = card.querySelector('.designed-voice-select');
             const val = select.value;
-            if (!val.startsWith('clone:')) return;
+            if (!val.startsWith('clone:')) { return; }
             const voiceId = val.substring(6);
 
             try {
@@ -5210,7 +5210,7 @@
                 const currentVal = selectEl.value;
                 selectEl.innerHTML = '<option value="">-- Select dataset --</option>' +
                     datasets.map(d => `<option value="${escapeHtml(d.dataset_id)}">${escapeHtml(d.dataset_id)} (${d.sample_count} samples)</option>`).join('');
-                if (currentVal) selectEl.value = currentVal;
+                if (currentVal) { selectEl.value = currentVal; }
 
                 // Update list
                 if (!datasets.length) {
@@ -5255,7 +5255,7 @@
         };
 
         window.deleteLoraDataset = async (datasetId) => {
-            if (!await showConfirm(`Delete dataset "${datasetId}"?`)) return;
+            if (!await showConfirm(`Delete dataset "${datasetId}"?`)) { return; }
             try {
                 const res = await fetch(`/api/lora/datasets/${encodeURIComponent(datasetId)}`, { method: 'DELETE' });
                 if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
@@ -5416,7 +5416,7 @@
                 dropdown.innerHTML = models.filter(m => m.downloaded !== false).map(m =>
                     `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
                 ).join('');
-                if (prevVal && models.some(m => m.id === prevVal)) dropdown.value = prevVal;
+                if (prevVal && models.some(m => m.id === prevVal)) { dropdown.value = prevVal; }
                 testForm.style.display = '';
             } catch (e) {
                 console.error('Failed to load LoRA models:', e);
@@ -5476,7 +5476,7 @@
         };
 
         window.deleteLoraModel = async (adapterId) => {
-            if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) return;
+            if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) { return; }
             try {
                 const res = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}`, { method: 'DELETE' });
                 if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
@@ -5559,7 +5559,7 @@
                     status: s.status || 'pending',
                     audio_url: s.audio_url || null,
                 }));
-                if (dsbRows.length === 0) dsbAddRow();
+                if (dsbRows.length === 0) { dsbAddRow(); }
                 dsbRenderTable();
                 // Resume polling if batch is running
                 if (result.running) {
@@ -5577,7 +5577,7 @@
 
         window.dsbCreateProject = async () => {
             const name = prompt('Dataset name:');
-            if (!name || !name.trim()) return;
+            if (!name || !name.trim()) { return; }
             try {
                 const result = await API.post('/api/dataset_builder/create', { name: name.trim() });
                 await dsbLoadProjects(result.name);
@@ -5587,8 +5587,8 @@
         };
 
         window.dsbDeleteProject = async () => {
-            if (!dsbCurrentProject) return;
-            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) return;
+            if (!dsbCurrentProject) { return; }
+            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) { return; }
             try {
                 await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
                 dsbCurrentProject = '';
@@ -5603,7 +5603,7 @@
         };
 
         function dsbSaveForm() {
-            if (!dsbCurrentProject) return;
+            if (!dsbCurrentProject) { return; }
             clearTimeout(dsbSaveMetaTimer);
             dsbSaveMetaTimer = setTimeout(async () => {
                 try {
@@ -5617,7 +5617,7 @@
         }
 
         function dsbSaveRows() {
-            if (!dsbCurrentProject) return;
+            if (!dsbCurrentProject) { return; }
             clearTimeout(dsbSaveRowsTimer);
             dsbSaveRowsTimer = setTimeout(async () => {
                 try {
@@ -5637,7 +5637,7 @@
             setTimeout(() => {
                 const rows = document.querySelectorAll('#dsb-table-body tr');
                 const last = rows[rows.length - 1];
-                if (last) last.querySelector('input')?.focus();
+                if (last) { last.querySelector('input')?.focus(); }
             }, 50);
         }
 
@@ -5696,11 +5696,11 @@
             // Targeted update: only re-render changed rows
             for (const i of changedIndices) {
                 const existing = tbody.children[i];
-                if (!existing) continue;
+                if (!existing) { continue; }
                 const row = dsbRows[i];
                 const oldStatus = existing.getAttribute('data-dsb-status');
                 const oldAudio = existing.getAttribute('data-dsb-audio');
-                if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) continue;
+                if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) { continue; }
                 const temp = document.createElement('tbody');
                 temp.innerHTML = dsbBuildRowHtml(row, i);
                 existing.replaceWith(temp.firstElementChild);
@@ -5718,7 +5718,7 @@
         window.dsbStopOthers = (index) => {
             document.querySelectorAll('#dsb-table-body audio').forEach(audio => {
                 const row = audio.closest('tr');
-                if (row && parseInt(row.getAttribute('data-dsb-idx')) !== index) audio.pause();
+                if (row && parseInt(row.getAttribute('data-dsb-idx')) !== index) { audio.pause(); }
             });
         };
 
@@ -5839,7 +5839,7 @@
         };
 
         function dsbStartPolling(name) {
-            if (dsbPolling) clearInterval(dsbPolling);
+            if (dsbPolling) { clearInterval(dsbPolling); }
             dsbPolling = setInterval(() => dsbPollStatus(name), 2000);
         }
 
@@ -5855,9 +5855,9 @@
                     if (i < dsbRows.length) {
                         const oldStatus = dsbRows[i].status;
                         const oldAudio = dsbRows[i].audio_url;
-                        if (s.status) dsbRows[i].status = s.status;
-                        if (s.audio_url) dsbRows[i].audio_url = s.audio_url;
-                        if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) changed.push(i);
+                        if (s.status) { dsbRows[i].status = s.status; }
+                        if (s.audio_url) { dsbRows[i].audio_url = s.audio_url; }
+                        if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) { changed.push(i); }
                     } else {
                         dsbRows.push({
                             emotion: s.description || '',
@@ -5905,7 +5905,7 @@
                     dsbPolling = null;
                 }
             } catch (e) {
-                if (!silent) console.error('Poll error:', e);
+                if (!silent) { console.error('Poll error:', e); }
                 // Status endpoint may 404 if no state.json yet — ignore silently
                 if (silent && dsbPolling) {
                     clearInterval(dsbPolling);
@@ -5932,7 +5932,7 @@
         // Import / Export
         window.dsbImport = (event) => {
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file) { return; }
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
