@@ -54,7 +54,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P35 — download_model.py
 - [x] P36 — llm_enricher.py
 - [x] P37 — name_voices.py
-- [ ] P38a — voice_analysis.py (load_model → run_dedup)
+- [x] P38a — voice_analysis.py (load_model → run_dedup)
 - [ ] P38b — voice_analysis.py (run_analyze → main)
 - [ ] P39a — alexandria_batch_processor.py (get_gpu_stats → check_disk_space)
 - [ ] P39b — alexandria_batch_processor.py (class BatchProcessor → main)

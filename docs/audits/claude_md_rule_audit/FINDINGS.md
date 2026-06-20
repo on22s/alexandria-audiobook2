@@ -71,6 +71,30 @@ Findings use a single incrementing `F-001, F-002, ...` counter across the whole 
 - **Status:** needs-decision
 - **Suggested fix:** see needs-decision — if a shared module is impractical given the separate-env constraint, consider extracting just these two functions into a tiny dependency-free helper module both files import (`device_utils.py` or similar) rather than refactoring across the ROCm-env boundary.
 
+### [F-086] Rule 8 — Per-WAV extraction failures inside `run_dedup` are swallowed with no logging, indistinguishable from "no WAVs"
+- **Piece:** P38a — voice_analysis.py
+- **Location:** `voice_analysis.py:197-203` (`run_dedup`)
+- **Severity:** medium
+- **Description:** Inside the per-zip sampling loop, `except Exception: pass` discards any failure from `load_wav_from_zip`/`extract_embedding` (corrupt WAV, resample error, OOM on the embedding model, etc.) for every sampled file, with zero logging of which file failed or why. If most/all samples for a zip fail, the only externally visible signal is a lower `{len(embs):4d} samples` count printed alongside the zip label (or "(extraction failed)" if literally all of `DEDUP_SAMPLES` failed) — there is no way to distinguish "this zip genuinely has few WAVs" from "embedding extraction is silently broken for this zip" without re-running with print statements added. The downstream similarity matrix and dedup-cluster report are then built from whatever embeddings happened to succeed, with no record of the failure rate baked into the report itself.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — log the exception type/message (e.g. `tqdm.write` so it doesn't clobber the progress bar) and/or tally a failure counter per zip, printed alongside the sample count, so a silent extraction regression is distinguishable from a zip that simply has few WAVs.
+
+### [F-087] Rule 2 — `extract_prosody` computes `mfcc_mean`/`mfcc_std` that are never consumed anywhere in the file
+- **Piece:** P38a — voice_analysis.py
+- **Location:** `voice_analysis.py:93-119` (`extract_prosody`), specifically lines 107, 116-117
+- **Severity:** low
+- **Description:** `extract_prosody` computes a 13-coefficient MFCC (`librosa.feature.mfcc(..., n_mfcc=13, ...)`) and returns `mfcc_mean`/`mfcc_std` arrays in its result dict, but `PROSODY_METRICS` (line 52-57, the only list used to iterate prosody fields downstream in `run_analyze`/`write_pipeline_summary`) contains none of the mfcc keys — confirmed via `grep -n "mfcc" voice_analysis.py`, which shows the two keys are written once and never read. Every call to `extract_prosody` pays the cost of computing and storing a 13-row MFCC matrix per sample purely to discard it.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — either drop the `mfcc` computation/keys from `extract_prosody` if genuinely unused, or add the relevant mfcc fields to `PROSODY_METRICS` if cross-group MFCC divergence was intended to be part of the analyze-phase report.
+
+### [F-088] Rule 9 — Embeddings cache (`embeddings_cache.pkl`) has no invalidation path if `DEDUP_SAMPLES`, the model, or the WAV set changes
+- **Piece:** P38a — voice_analysis.py
+- **Location:** `voice_analysis.py:151-152` (cache load), `:182-188` (cache hit), `:207` (cache write)
+- **Severity:** low
+- **Description:** `cache_key` is just `f"{folder_name}/{label}"` (zip stem), with no fingerprint of `DEDUP_SAMPLES`, the random sample selection, or the model used to produce the embeddings. If `DEDUP_SAMPLES` is changed (e.g. 150 → 300) or the model/checkpoint is upgraded, previously cached folders silently keep using the old embeddings (the cache-hit branch at line 184-188 only logs `(cached, N samples)`, not which sample count or model produced them) rather than re-extracting — `run_dedup`'s similarity numbers would then reflect a stale, smaller/older sample set for some folders and a fresh one for others in the same run, with nothing in the printed report to indicate that.
+- **Status:** needs-decision
+- **Suggested fix:** see needs-decision — not a bug introduced by this audit, just flagging the missing invalidation key (e.g. include `DEDUP_SAMPLES` and a model identifier in `cache_key` or alongside the cached tuple) in case stale-cache-after-config-change has bitten anyone in practice.
+
 ### [F-009] Rule 8 — Per-sample OOM skips during training are logged live but never aggregated into the run's durable output
 - **Piece:** P09 — app/train_lora.py
 - **Location:** `app/train_lora.py:556-564` (OOM handler in `train()`'s per-sample loop) vs `:642-660` (`training_meta.json` write)
