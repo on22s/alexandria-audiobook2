@@ -61,7 +61,7 @@ Resume instructions: find the first unchecked box below, re-read the plan's Task
 - [x] P40a — alexandria_compare.py (load_jsonl → write_output)
 - [x] P40b — alexandria_compare.py (run → main)
 - [x] P41a — alexandria_alignment.py (_expand_honorifics → trim_span_to_alignment)
-- [ ] P41b — alexandria_alignment.py (_num_eq_step_trailing → merge_annotations_with_source)
+- [x] P41b — alexandria_alignment.py (_num_eq_step_trailing → merge_annotations_with_source)
 - [ ] P42a — alexandria_preparer_rocm_compatible.py (validate/WAV-wrap + audio loading)
 - [ ] P42b — alexandria_preparer_rocm_compatible.py (ASR transcription)
 - [ ] P42c — alexandria_preparer_rocm_compatible.py (source loading/tokenization + chunking)
