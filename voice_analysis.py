@@ -384,11 +384,13 @@ def run_analyze(model, device, deduped_root, output_dir):
             all_prosody[group_name]   = g_pros
             all_wav_names[group_name] = g_wavs
             print(f"  → {len(g_embs)} embeddings extracted")
-
-    pickle.dump(
-        {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
-        open(cache_file, "wb"),
-    )
+            # Checkpoint after each group, mirroring run_dedup's per-zip
+            # checkpoint granularity - an interrupted run only loses progress
+            # on the group in flight, not every already-finished group too.
+            pickle.dump(
+                {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
+                open(cache_file, "wb"),
+            )
     print(f"\nCache saved to {cache_file}")
 
     group_names = sorted(all_embs.keys())

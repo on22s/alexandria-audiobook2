@@ -4544,6 +4544,11 @@
                     return;
                 }
 
+                if (regenerateAll && !await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
+                    cancelRender(true);
+                    return;
+                }
+
                 // Mark all chunks as generating in UI
                 const indices = toProcess.map(c => c.id);
                 for (const id of indices) {

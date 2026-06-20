@@ -113,12 +113,19 @@ def log_gpu_stats(label=""):
         logger.info(f"  └─ GPU Utilization: (rocm-smi unavailable)")
 
 def format_duration(seconds):
-    """Format seconds as Xh Ym Zs or Ym Zs."""
-    hours = int(seconds // 3600)
-    mins = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
+    """Format seconds as Xh Ym (or smaller unit when applicable).
+
+    Byte-for-byte identical to alexandria_preparer_rocm_compatible.py's
+    version - this orchestrator launches that script as a subprocess per
+    book, so their log lines interleave and must format durations the same
+    way. See FIXED.md F-093.
+    """
+    seconds = max(0, int(seconds))
+    hours = seconds // 3600
+    mins = (seconds % 3600) // 60
+    secs = seconds % 60
     if hours > 0:
-        return f"{hours}h {mins}m {secs}s"
+        return f"{hours}h {mins}m"
     elif mins > 0:
         return f"{mins}m {secs}s"
     else:

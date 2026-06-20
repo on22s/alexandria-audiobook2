@@ -965,6 +965,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_wav2vec2(audio_16k, language, limit=limit)
+            if not word_segments:
+                raise RuntimeError("Wav2Vec2 returned an empty transcript")
             logger.info(f"✓ SUCCESS with Wav2Vec2")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  ├─ Context preservation: Full audio (30s overlapping chunks)")
@@ -982,6 +984,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_insanely_fast_whisper(audio_16k, language)
+            if not word_segments:
+                raise RuntimeError("Insanely Fast Whisper returned an empty transcript")
             logger.info(f"✓ SUCCESS with Insanely Fast Whisper")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
@@ -998,6 +1002,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_whisperx_cpu(audio_16k, language)
+            if not word_segments:
+                raise RuntimeError("WhisperX-CPU returned an empty transcript")
             logger.info(f"✓ SUCCESS with WhisperX-CPU")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
