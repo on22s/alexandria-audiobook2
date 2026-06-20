@@ -644,52 +644,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         logger.debug(traceback.format_exc())
         raise
 
-def transcribe_with_whisper_v3(audio_16k: np.ndarray, device: str) -> tuple:
-    """Use OpenAI Whisper-large-v3 (best model, CPU stable)."""
-    if not TRANSFORMERS_WHISPER_AVAILABLE:
-        raise ImportError("Transformers not available")
-
-    logger.info("Starting Whisper-large-v3 transcription...")
-
-    try:
-        # Use CPU to avoid CUDA/ROCm issues, v3 is fast enough
-        pipe_device = -1
-        logger.debug(f"Loading Whisper-large-v3 pipeline (device=CPU)...")
-
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
-            device=pipe_device,
-            return_timestamps="word"
-        )
-        logger.info("✓ Whisper-large-v3 pipeline loaded")
-
-        logger.info("Transcribing audio with Whisper-v3...")
-        result = pipe(audio_16k, return_timestamps="word")
-
-        word_segments = []
-        if "chunks" in result:
-            for chunk in result["chunks"]:
-                if "timestamp" in chunk and chunk["timestamp"]:
-                    start, end = chunk["timestamp"]
-                    if start is not None and end is not None:
-                        word_segments.append({
-                            "word": chunk["text"].strip(),
-                            "start": start,
-                            "end": end
-                        })
-
-        del pipe
-        clear_vram()
-
-        logger.info(f"✓ Whisper-v3 complete: {len(word_segments)} words transcribed")
-        return word_segments, "en"
-
-    except Exception as e:
-        logger.error(f"Whisper-v3 failed: {e}")
-        logger.debug(traceback.format_exc())
-        raise
-
 def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str = "en") -> tuple:
     """Use Insanely Fast Whisper ROCm (optimized for AMD GPUs)."""
     if not INSANELY_FAST_WHISPER_AVAILABLE:
