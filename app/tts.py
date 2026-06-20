@@ -12,6 +12,8 @@ from typing import List, Optional, Dict, Any, Tuple
 
 import numpy as np
 import soundfile as sf
+
+import device_utils
 from pydub import AudioSegment
 
 try:
@@ -332,55 +334,13 @@ class TTSEngine:
 
     def _resolve_device(self):
         """Resolve 'auto' device to the best available."""
-        if self._device != "auto":
-            return self._device
-
-        try:
-            import torch
-            if torch.cuda.is_available():
-                return "cuda"
-            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                return "mps"
-        except ImportError:
-            pass
-        return "cpu"
-
+        return device_utils.resolve_device(self._device)
 
     def _enable_rocm_optimizations(self):
-        """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU.
-
-        1. FLASH_ATTENTION_TRITON_AMD_ENABLE: Lets qwen_tts whisper encoder
-           use native flash attention via Triton AMD backend.
-        2. MIOPEN_FIND_MODE=2: Forces MIOpen to use fast-find instead of
-           exhaustive search, avoiding workspace allocation failures that
-           cause fallback to slow GEMM algorithms.
-        3. MIOPEN_LOG_LEVEL=4: Suppress noisy MIOpen workspace warnings.
-        4. triton_key shim: Bridges pytorch-triton-rocm's get_cache_key()
-           to the triton_key() that PyTorch's inductor expects.
-        """
-        try:
-            import torch
-            if not (hasattr(torch.version, "hip") and torch.version.hip):
-                return  # not ROCm
-        except ImportError:
-            return
-
-        # MIOpen: use fast-find to avoid workspace allocation failures
-        os.environ.setdefault("MIOPEN_FIND_MODE", "2")
-        # Suppress MIOpen workspace warnings
-        os.environ.setdefault("MIOPEN_LOG_LEVEL", "4")
-
-        # Flash attention via Triton AMD backend
-        os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_ENABLE", "TRUE")
-
-        # Fix triton_key compatibility for torch.compile on ROCm
-        try:
-            from triton.compiler import compiler as triton_compiler
-            if not hasattr(triton_compiler, "triton_key"):
-                import triton
-                triton_compiler.triton_key = lambda: f"pytorch-triton-rocm-{triton.__version__}"
-        except ImportError:
-            pass
+        """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU. See
+        device_utils.enable_rocm_optimizations for the per-step rationale
+        (MIOpen fast-find, flash attention via Triton AMD, triton_key shim)."""
+        device_utils.enable_rocm_optimizations()
 
         # Correct under-reported GPU properties on consumer RDNA2/3.
         # ROCm reports half the CU count and warp size 32 instead of 64,

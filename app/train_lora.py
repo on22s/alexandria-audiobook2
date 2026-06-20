@@ -28,6 +28,8 @@ import sys
 import time
 import traceback
 
+from device_utils import resolve_device, enable_rocm_optimizations
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="LoRA fine-tuning for Qwen3-TTS Base model")
@@ -54,32 +56,6 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducible shuffling")
     return parser.parse_args()
-
-
-def resolve_device(device_str):
-    if device_str != "auto":
-        return device_str
-    import torch
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
-
-
-def enable_rocm_optimizations():
-    """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU."""
-    import torch
-    if not (hasattr(torch.version, "hip") and torch.version.hip):
-        return
-    os.environ.setdefault("MIOPEN_FIND_MODE", "2")
-    os.environ.setdefault("MIOPEN_LOG_LEVEL", "4")
-    os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_ENABLE", "TRUE")
-    try:
-        from triton.compiler import compiler as triton_compiler
-        if not hasattr(triton_compiler, "triton_key"):
-            import triton
-            triton_compiler.triton_key = lambda: f"pytorch-triton-rocm-{triton.__version__}"
-    except ImportError:
-        pass
 
 
 # ── Data preparation ────────────────────────────────────────────────────

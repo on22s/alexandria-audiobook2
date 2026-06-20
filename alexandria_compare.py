@@ -35,6 +35,7 @@ from alexandria_alignment import (
     load_source,
     normalize,
     to_words,
+    split_compounds,
     _build_proper_nouns,
     find_best_match,
     find_anchor_position,
@@ -359,7 +360,7 @@ def run(
                 # the prologue prose that's actually at char 0. find_anchor_position
                 # scans the WHOLE source and can jump backward.
                 a_start, a_end, a_ratio = find_anchor_position(
-                    chunk_words, orig_match, min_ratio=0.6
+                    chunk_words, orig_match, overlap_ratio_hint=0.6
                 )
                 # Require both an absolute high bar and a clear improvement
                 # over the local ratio, so we don't false-positive on
@@ -740,19 +741,17 @@ def main():
 
     # Build parallel word lists: display (original form) and match (normalised).
     #
-    # Hyphens and dashes are split BEFORE whitespace tokenisation so that a
-    # source compound like "twenty-minute" becomes two entries ["twenty",
-    # "minute"] instead of one. Without this split, orig_match[i] would be
-    # the string "twenty minute" (one element with an embedded space), and
-    # the audio chunk's separately-spoken "twenty" / "minute" tokens fail to
-    # align with it — causing those words to disappear from ORIGINAL when
-    # trim_span_to_alignment runs. Loss of the hyphen in display is fine
-    # for TTS training (the audio speaks the parts as separate words with
-    # a slight pause anyway).
-    # U+2500 (BOX DRAWINGS LIGHT HORIZONTAL) shows up in EPUB→text conversions
-    # in place of a real em-dash (U+2014). Treat it as a dash for split purposes.
-    _COMPOUND_SPLIT = re.compile(r'[-‐‑‒–—―─━]')
-    source_tokens = _COMPOUND_SPLIT.sub(' ', source_text).split()
+    # Hyphens and dashes are split BEFORE whitespace tokenisation (shared
+    # split_compounds(), same one alexandria_preparer_rocm_compatible.py
+    # uses) so that a source compound like "twenty-minute" becomes two
+    # entries ["twenty", "minute"] instead of one. Without this split,
+    # orig_match[i] would be the string "twenty minute" (one element with an
+    # embedded space), and the audio chunk's separately-spoken "twenty" /
+    # "minute" tokens fail to align with it — causing those words to
+    # disappear from ORIGINAL when trim_span_to_alignment runs. Loss of the
+    # hyphen in display is fine for TTS training (the audio speaks the parts
+    # as separate words with a slight pause anyway).
+    source_tokens = split_compounds(source_text)
     orig_display, orig_match = [], []
     for w in source_tokens:
         m = normalize(w)

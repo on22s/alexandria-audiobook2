@@ -692,7 +692,9 @@ def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str =
         logger.debug(f"Working directory: {os.getcwd()}")
         logger.debug(f"sys.executable Python version: {sys.version}")
 
-        # Use pre-downloaded model or HuggingFace model ID
+        # Use pre-downloaded model or HuggingFace model ID. The model id and
+        # local path are also hardcoded in download_model.py (the script that
+        # populates this directory) - keep both in sync if the model changes.
         model_name = "openai/whisper-base"
         local_model_path = os.path.join(script_dir, "models", "whisper-base")
         if os.path.exists(local_model_path):
@@ -1229,11 +1231,8 @@ def _build_source_state(source_path: str,
         more = f' +{len(alignment._PROPER_NOUNS) - 8} more' if len(alignment._PROPER_NOUNS) > 8 else ''
         logger.info(f"  ├─ {len(alignment._PROPER_NOUNS)} recurring proper nouns ({sample}{more})")
 
-    # Hyphenated compounds split into separate tokens so "twenty-minute" doesn't
-    # become a single un-alignable word. Same logic as compare's main(); U+2500
-    # appears in some EPUB→text conversions where em-dashes should be.
-    compound_split = re.compile(r'[-‐‑‒–—―─━]')
-    tokens = compound_split.sub(' ', source_text).split()
+    # Same shared split_compounds() compare.py's main() also uses.
+    tokens = alignment.split_compounds(source_text)
     orig_display, orig_match = [], []
     for w in tokens:
         m = alignment.normalize(w)
@@ -2145,7 +2144,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                 a_start, a_end, a_ratio = alignment.find_anchor_position(
                                     chunk_match_words,
                                     source_state['orig_match'],
-                                    min_ratio=0.6,
+                                    overlap_ratio_hint=0.6,
                                 )
                                 if a_ratio >= 0.6 and a_ratio > sa_ratio + 0.4:
                                     # Trim the wide-anchor window down to the

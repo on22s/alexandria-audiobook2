@@ -116,6 +116,17 @@ def normalize(text: str) -> str:
 def to_words(text: str) -> list:
     return [w for w in normalize(text).split() if w]
 
+# Hyphenated compounds split into separate tokens so "twenty-minute" doesn't
+# become a single un-alignable word. U+2500 (BOX DRAWINGS LIGHT HORIZONTAL)
+# shows up in some EPUB→text conversions where an em-dash should be - treat
+# it as a dash for split purposes too.
+_COMPOUND_SPLIT = re.compile(r'[-‐‑‒–—―─━]')
+
+def split_compounds(text: str) -> list:
+    """Split text on dash-like characters, returning the resulting tokens
+    (still raw - callers normalize() each one themselves before comparing)."""
+    return _COMPOUND_SPLIT.sub(' ', text).split()
+
 
 # ── Source loaders ─────────────────────────────────────────────────────────────
 def load_epub(path: str) -> str:
@@ -754,13 +765,19 @@ def find_best_match(
 def find_anchor_position(
     chunk_words: list,
     orig_match: list,
-    min_ratio: float = 0.4,
+    overlap_ratio_hint: float = 0.4,
 ) -> tuple:
     """
     Wide search across the ENTIRE source for the best position for this chunk.
     Used to determine where the audio first connects to the text, skipping
     any audio-only intro material (credits, narrator intros, etc.).
     Returns (start, end, ratio).
+
+    overlap_ratio_hint only tunes the coarse-search prefilter (how much
+    overlap a candidate window must have before being scored) - it does NOT
+    gate the return value the way realign's same-shaped min_ratio does.
+    Every current caller already re-checks the returned ratio itself before
+    trusting it. See FIXED.md F-105.
     """
     n = len(chunk_words)
     if n == 0 or len(orig_match) < n:
@@ -768,7 +785,7 @@ def find_anchor_position(
 
     stride = max(1, n // 4)
     chunk_set = set(chunk_words)
-    required_overlap = max(1, int(min_ratio * 0.6 * n))
+    required_overlap = max(1, int(overlap_ratio_hint * 0.6 * n))
 
     best_ratio = -1.0
     best_start = 0
@@ -930,7 +947,7 @@ def estimate_alignment_quality(
                 start, end, ratio = r_start, r_end, r_ratio
             else:
                 a_start, a_end, a_ratio = find_anchor_position(
-                    chunk_words, orig_match, min_ratio=0.6
+                    chunk_words, orig_match, overlap_ratio_hint=0.6
                 )
                 if a_ratio >= 0.6 and a_ratio > ratio + 0.4:
                     t_start, t_end = trim_span_to_alignment(
