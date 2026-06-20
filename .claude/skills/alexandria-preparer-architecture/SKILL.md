@@ -20,8 +20,8 @@ Read top-to-bottom — each phase consumes the previous phase's output.
 | 3 | ASR transcription | same | `choose_and_transcribe()` → one of `transcribe_with_*()` | Wav2Vec2 primary (CTC-aligned word timestamps), insanely-fast-whisper / whisperx fallbacks |
 | 4 | **LLM Enrichment (optional)** | `llm_enricher.py` | `LLMEnricher.enrich_transcript_chunk()` | Groups ASR words into 10s chunks, runs small GGUF LLM to add `speaker_attribution`, `narration_style`, `emotional_tone` |
 | 5 | Source loading + tokenization | same | `_build_source_state()` → `_COMPOUND_SPLIT`, `normalize()` | Loads EPUB/TXT, expands compounds, normalizes for alignment |
-| 6 | Source-guided chunking | same | `_find_best_cut()` + `_provisional_entries_for_anchor()` | Finds natural sentence breaks near the ASR's word-timed segments |
-| 7 | Multi-tier alignment recovery | same | `find_best_match` → `realign` → `find_anchor_position` | Drift-resistant: fuzzy, then local search, then full-source re-anchor |
+| 6 | Source-guided chunking | same | `_find_best_cut()` + `_build_provisional_entries_for_anchor()` | Finds natural sentence breaks near the ASR's word-timed segments |
+| 7 | Multi-tier alignment recovery | imported from `alexandria_alignment.py` | `find_best_match` → `realign` → `find_anchor_position` | Drift-resistant: fuzzy, then local search, then full-source re-anchor |
 | 8 | LLM prosody annotation | same | `_load_llm()` → `annotate_chunks()` | Qwen 2.5 14B Q6_K primary, Gemma fallback. `_sanitize_annotation()` cleans output |
 | 9 | Write outputs | same | end of `annotate_chunks()` and `main()` | Atomic write to scratch, then promote to dataset folder |
 
