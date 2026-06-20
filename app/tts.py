@@ -340,6 +340,7 @@ class TTSEngine:
         """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU. See
         device_utils.enable_rocm_optimizations for the per-step rationale
         (MIOpen fast-find, flash attention via Triton AMD, triton_key shim)."""
+        import torch
         device_utils.enable_rocm_optimizations()
 
         # Correct under-reported GPU properties on consumer RDNA2/3.
