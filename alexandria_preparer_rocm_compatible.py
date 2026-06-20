@@ -1662,6 +1662,7 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
 
     except Exception as e:
         stats['llm_fail'] += 1
+        _check_llm_fail_rate(stats)
         logger.warning(f"Batch annotation failed ({len(batch_data)} chunks), falling back to per-chunk: {e}")
         logger.debug(f"llm-batch-fail: {traceback.format_exc()}")
         return None  # Signal caller to use per-chunk fallback
@@ -1758,6 +1759,23 @@ def _calculate_chunk_snr(chunk_audio: np.ndarray) -> float:
         return 100.0  # No detectable noise
 
     return 10 * np.log10(signal_power / noise_power)
+
+def _check_llm_fail_rate(stats):
+    """Fail loud (once) if the LLM-annotation failure rate crosses 50% of
+    chunks processed so far - a dead/misconfigured LLM server would otherwise
+    silently fill the dataset with unannotated raw text, indistinguishable
+    from a healthy run except for per-chunk warnings buried in the log. Does
+    not abort the run: annotation failure isn't fatal, the raw-text fallback
+    is still a usable degraded result. See FIXED.md F-116."""
+    total = stats['llm_success'] + stats['llm_fail']
+    if total >= 20 and not stats.get('llm_fail_rate_warned') and stats['llm_fail'] / total > 0.5:
+        stats['llm_fail_rate_warned'] = True
+        logger.error(
+            f"⚠ LLM annotation failure rate is {stats['llm_fail']}/{total} "
+            f"({stats['llm_fail'] / total:.0%}) - the LLM server may be down "
+            f"or misconfigured. The run will continue (chunks fall back to "
+            f"unannotated raw text) but check the LLM connection."
+        )
 
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     resume=False, audio_source_path=None, fallback_model_path=None,
@@ -2255,6 +2273,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                             temperature=0.3,
                                         )
                                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                                        if not annotated_raw:
+                                            raise RuntimeError("LLM returned an empty response")
                                         if item.get("source_words_for_merge") is not None:
                                             annotated = alignment.merge_annotations_with_source(
                                                 annotated_raw, item["source_words_for_merge"]
@@ -2264,6 +2284,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                         stats['llm_success'] += 1
                                     except Exception as e:
                                         stats['llm_fail'] += 1
+                                        _check_llm_fail_rate(stats)
                                         logger.warning(f"Batch fallback LLM failed for chunk {segment_idx + i}: {e}")
                                         annotated = item["text"]
 
@@ -2340,6 +2361,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         )
                         timing['llm_infer'] += time.monotonic() - t0_llm
                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                        if not annotated_raw:
+                            raise RuntimeError("LLM returned an empty response")
 
                         t0_sanitize = time.monotonic()
                         if source_words_for_merge is not None:
@@ -2358,6 +2381,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
                     except Exception as e:
                         stats['llm_fail'] += 1
+                        _check_llm_fail_rate(stats)
                         logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
                         annotated = text
 
@@ -2451,6 +2475,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             temperature=0.3,
                         )
                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                        if not annotated_raw:
+                            raise RuntimeError("LLM returned an empty response")
                         if item.get("source_words_for_merge") is not None:
                             annotated = alignment.merge_annotations_with_source(
                                 annotated_raw, item["source_words_for_merge"]
@@ -2460,6 +2486,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         stats['llm_success'] += 1
                     except Exception as e:
                         stats['llm_fail'] += 1
+                        _check_llm_fail_rate(stats)
                         logger.warning(f"Tail batch fallback LLM failed for chunk {idx}: {e}")
                         annotated = item["text"]
             # Update context after each tail item so subsequent items see it
