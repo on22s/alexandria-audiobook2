@@ -8,7 +8,10 @@ package boundary.
 """
 
 import json
+import logging
 import subprocess
+
+logger = logging.getLogger(__name__)
 
 
 def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
@@ -16,21 +19,37 @@ def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
 
     Filters stdout down to JSON-looking lines first, since rocm-smi sometimes
     prints warnings to stdout ahead of the JSON payload. Returns None if the
-    binary is missing, times out, or produces no JSON.
+    binary is missing, times out, exits non-zero, or produces no JSON.
     """
     try:
         result = subprocess.run(
             [rocm_smi_path] + list(args) + ["--json"],
             capture_output=True, text=True, timeout=timeout
         )
-        # rocm-smi sometimes prints warnings to stdout ahead of the JSON, and
-        # the JSON payload itself may be pretty-printed across several lines.
-        # Parse everything from the first line that opens the JSON object so a
-        # multi-line payload isn't truncated to just "{".
-        lines = result.stdout.split('\n')
-        for i, line in enumerate(lines):
-            if line.strip().startswith('{'):
+    except FileNotFoundError:
+        logger.debug(f"{rocm_smi_path} not found")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.debug(f"{rocm_smi_path} timed out after {timeout}s")
+        return None
+    except Exception as e:
+        logger.debug(f"{rocm_smi_path} unexpected error: {e}")
+        return None
+
+    if result.returncode != 0:
+        logger.debug(f"{rocm_smi_path} returned error: {result.returncode}, stderr: {result.stderr}")
+        return None
+
+    # rocm-smi sometimes prints warnings to stdout ahead of the JSON, and
+    # the JSON payload itself may be pretty-printed across several lines.
+    # Parse everything from the first line that opens the JSON object so a
+    # multi-line payload isn't truncated to just "{".
+    lines = result.stdout.split('\n')
+    for i, line in enumerate(lines):
+        if line.strip().startswith('{'):
+            try:
                 return json.loads('\n'.join(lines[i:]))
-    except Exception:
-        pass
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.debug(f"{rocm_smi_path} JSON parse error: {e}")
+                return None
     return None
