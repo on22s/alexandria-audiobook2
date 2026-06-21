@@ -4630,38 +4630,33 @@
                 const response = await API.post(endpoint, { indices });
                 console.log(`${label} started: ${describeStart(response)}`);
 
-                // Poll for completion
-                const pollInterval = setInterval(async () => {
-                    if (!isRenderingAll) {
-                        clearInterval(pollInterval);
-                        return;
-                    }
-
-                    try {
-                        await loadChunks(false);
-                        const updated = await API.get('/api/chunks');
+                // Poll for completion via the shared engine - gets the
+                // staleness guard and bounded-retry-then-toast behavior every
+                // other poller in this file already has, instead of a 9th
+                // bespoke setInterval loop with console-only error handling.
+                _startPolling('render_batch', () => API.get('/api/chunks'), {
+                    intervalMs: 2000,
+                    doneCheck: (updated) => {
+                        if (!isRenderingAll) { return true; }
                         const stillGenerating = updated.filter(c =>
                             indices.includes(c.id) && c.status === 'generating'
                         );
+                        return stillGenerating.length === 0;
+                    },
+                    onTick: async () => { await loadChunks(false); },
+                    onDone: async (updated) => {
+                        if (!isRenderingAll) { return; }
+                        document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
+                        cancelRender(true);
+                        await loadChunks(false);
 
-                        if (stillGenerating.length === 0) {
-                            clearInterval(pollInterval);
-                            // Clear highlights
-                            document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
-                            cancelRender(true);
-                            await loadChunks(false);
-
-                            // Show completion summary
-                            const completed = updated.filter(c => indices.includes(c.id) && c.status === 'done').length;
-                            const failed = updated.filter(c => indices.includes(c.id) && c.status === 'error').length;
-                            if (failed > 0) {
-                                showToast(`Batch complete: ${completed} succeeded, ${failed} failed`, 'warning');
-                            }
+                        const completed = updated.filter(c => indices.includes(c.id) && c.status === 'done').length;
+                        const failed = updated.filter(c => indices.includes(c.id) && c.status === 'error').length;
+                        if (failed > 0) {
+                            showToast(`Batch complete: ${completed} succeeded, ${failed} failed`, 'warning');
                         }
-                    } catch (e) {
-                        console.error("Polling error", e);
-                    }
-                }, 2000);
+                    },
+                });
 
             } catch (e) {
                 console.error(`${label} error:`, e);
