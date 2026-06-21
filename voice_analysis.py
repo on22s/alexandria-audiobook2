@@ -396,11 +396,16 @@ def run_analyze(model, device, deduped_root, output_dir):
             all_prosody[group_name]   = g_pros
             all_wav_names[group_name] = g_wavs
             print(f"  → {len(g_embs)} embeddings extracted")
-
-    pickle.dump(
-        {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
-        open(cache_file, "wb"),
-    )
+            # Checkpoint after each group. This re-serializes every
+            # previously-finished group's embeddings too (same cumulative-I/O
+            # cost run_dedup's own per-folder checkpoint at line 216 already
+            # pays) - deliberately accepted because losing a crash/interrupt's
+            # GPU-extraction progress for every group done so far is worse
+            # than the extra I/O.
+            pickle.dump(
+                {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
+                open(cache_file, "wb"),
+            )
     print(f"\nCache saved to {cache_file}")
 
     group_names = sorted(all_embs.keys())
