@@ -826,8 +826,14 @@ class ProjectManager:
                         (oom_failed if _is_oom_failure(e) else hard_failed).append((idx, str(e)))
                         print(f"Chunk {idx} error: {e}")
                     if progress_callback:
+                        # oom_failed chunks aren't final yet (they get retried
+                        # next round at a lower worker count), but they ARE
+                        # accounted for right now - count them alongside
+                        # completed/hard_failed so the running total this
+                        # round doesn't look like it's stalled or losing track
+                        # of in-flight work.
                         progress_callback(len(results["completed"]) + len(completed),
-                                          len(results["failed"]) + len(hard_failed), total)
+                                          len(results["failed"]) + len(hard_failed) + len(oom_failed), total)
             return completed, oom_failed, hard_failed, was_cancelled
 
         # Start at the configured worker count and step down one at a time only
