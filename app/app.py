@@ -1821,8 +1821,8 @@ async def get_config():
             input_path = state.get("input_file_path", "")
             if input_path and os.path.exists(input_path):
                 config["current_file"] = os.path.basename(input_path)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted state at {state_path}, ignoring current_file: {e}")
 
     # Precomputed drift-aware answer to "is the active LLM endpoint remote?"
     # so the frontend doesn't have to re-derive it from llm_mode alone (which
@@ -2082,8 +2082,8 @@ async def upload_file(file: UploadFile = File(...)):
         with open(state_path, "r", encoding="utf-8") as f:
             try:
                 state = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                pass
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Corrupted state at {state_path}, overwriting with new data: {e}")
 
     state["input_file_path"] = file_path
     atomic_json_write(state, state_path)
@@ -3262,8 +3262,8 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default worker count: {e}")
 
     indices = request.indices
     total = len(indices)
@@ -3329,8 +3329,8 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
                     batch_seed = int(seed_val)
                 batch_size = max(1, tts_cfg.get("parallel_workers", 4))
                 batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default batch settings: {e}")
 
     indices = request.indices
     total = len(indices)
