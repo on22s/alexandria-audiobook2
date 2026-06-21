@@ -2230,7 +2230,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
     try:
         with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
             total_entries = len(json.load(f))
-    except (json.JSONDecodeError, ValueError, OSError):
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        logger.warning(f"Corrupted script at {SCRIPT_PATH}, estimated_calls will read 0: {e}")
         total_entries = 0
 
     review_batch_size = 25
@@ -2239,7 +2240,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
-        except (json.JSONDecodeError, ValueError, TypeError, OSError):
+        except (json.JSONDecodeError, ValueError, TypeError, OSError) as e:
+            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default review_batch_size: {e}")
             review_batch_size = 25
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
