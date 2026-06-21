@@ -77,6 +77,20 @@ def assert_key(data, key):
         raise TestFailure(f"Missing key '{key}' in: {json.dumps(data)[:300]}")
 
 
+def assert_chunk0_done(context_label):
+    """Wait for the 'audio' task to finish, then assert chunk 0 completed.
+
+    Shared by every generate-audio test variant (single, batch, batch-fast) -
+    they differ only in how generation was triggered, not in what
+    'finished successfully' looks like afterward.
+    """
+    if not wait_for_task("audio", timeout=120):
+        raise TestFailure(f"{context_label} did not complete within 120s")
+    chunks = get("/api/chunks").json()
+    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
+        raise TestFailure(f"Chunk 0 did not finish generating via {context_label}: {chunks[0] if chunks else None}")
+
+
 def wait_for_task(task, timeout=120, poll_interval=2):
     """Poll /api/status/{task} until it stops running or timeout is reached."""
     deadline = time.time() + timeout
@@ -1155,11 +1169,7 @@ def test_generate_chunk():
         raise TestFailure("SKIP: no chunks available")
     r = post("/api/chunks/0/generate")
     assert_status(r, 200)
-    if not wait_for_task("audio", timeout=120):
-        raise TestFailure("generate_chunk did not complete within 120s")
-    chunks = get("/api/chunks").json()
-    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
-        raise TestFailure(f"Chunk 0 did not finish generating: {chunks[0] if chunks else None}")
+    assert_chunk0_done("generate_chunk")
 
 
 def test_generate_batch():
@@ -1173,11 +1183,7 @@ def test_generate_batch():
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
     # Wait for batch to finish so subsequent tests don't conflict
-    if not wait_for_task("audio", timeout=120):
-        raise TestFailure("generate_batch did not complete within 120s")
-    chunks = get("/api/chunks").json()
-    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
-        raise TestFailure(f"Chunk 0 did not finish generating via batch: {chunks[0] if chunks else None}")
+    assert_chunk0_done("generate_batch")
 
 
 def test_generate_batch_fast():
@@ -1193,11 +1199,7 @@ def test_generate_batch_fast():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
-    if not wait_for_task("audio", timeout=120):
-        raise TestFailure("generate_batch_fast did not complete within 120s")
-    chunks = get("/api/chunks").json()
-    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
-        raise TestFailure(f"Chunk 0 did not finish generating via batch-fast: {chunks[0] if chunks else None}")
+    assert_chunk0_done("generate_batch_fast")
 
 
 def test_cancel_audio():
