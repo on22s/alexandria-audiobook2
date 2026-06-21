@@ -563,9 +563,6 @@ def train(args):
 
                 if "cuda" in device:
                     torch.cuda.empty_cache()
-                
-                # Periodic garbage collection to prevent memory leaks
-                gc.collect()
 
             print(f"[TRAIN] epoch={epoch}/{args.epochs} step={step_idx}/{total_steps_per_epoch} "
                   f"loss={step_loss:.4f} talker_loss={step_talker_loss:.4f} "
