@@ -655,9 +655,10 @@ def _compute_eta(state: dict) -> dict:
             total_items = num_items * 2
             if state.get("current_pass") == "bwd":
                 position = total_items - 1 - idx
-                # Show which book in the backward pass (reverse order)
-                bwd_book_num = num_items - idx
-                progress = f"item {bwd_book_num}/{num_items} (pass 2/2)"
+                # Book number matches the per-book log lines elsewhere
+                # (e.g. "--- [{i+1}/{total}] Reviewing ... ---"), which use
+                # idx + 1 in both passes - not a reversed countdown.
+                progress = f"item {idx + 1}/{num_items} (pass 2/2)"
             else:
                 position = idx
                 progress = f"item {idx + 1}/{num_items} (pass 1/2)"
