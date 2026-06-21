@@ -4612,34 +4612,36 @@ async def lora_preview(adapter_id: str):
         adapter_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
         url_prefix = f"/lora_models/{adapter_id}"
 
-    if not os.path.isdir(adapter_dir) and is_builtin:
-        try:
-            download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
-            adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
-        except Exception as e:
-            logger.error(f"Auto-download failed for {adapter_id}: {e}")
-            raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
-    elif not os.path.isdir(adapter_dir):
+    if not os.path.isdir(adapter_dir) and not is_builtin:
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
     preview_path = os.path.join(adapter_dir, "preview_sample.wav")
 
-    # Return cached if exists
+    # Return cached if exists. This check intentionally runs BEFORE the lock -
+    # no GPU/download work happens on a cache hit, regardless of whether the
+    # adapter directory exists yet (a cached preview implies it does).
     if os.path.exists(preview_path):
         return {"status": "cached", "audio_url": f"{url_prefix}/preview_sample.wav"}
 
-    # Generate preview. Only reaches here on a cache miss, so the lock is
-    # acquired after the cache check above, not at the top of the function -
-    # no GPU work happens on a cache hit. Shares the "lora_test" slot with
+    # Cache miss past this point. Shares the "lora_test" slot with
     # /api/lora/test since both are "try out this adapter" operations that
     # shouldn't run concurrently with each other either. See F-040.
     check_global_gpu_lock("lora_test")
-    # Claim immediately after the check (not after get_engine()) - the engine
-    # load below allocates VRAM, so the claim has to land before it starts,
-    # not after, or two concurrent preview/test requests can both pass the
-    # check above and both begin loading the model.
+    # Claim immediately after the check, before the possible adapter download
+    # AND the engine load below - both can take real time and the engine
+    # load allocates VRAM, so the claim has to land before either starts, not
+    # after, or two concurrent preview/test requests can both pass the check
+    # above and both begin downloading/loading the model.
     claim_gpu_task("lora_test")
     try:
+        if not os.path.isdir(adapter_dir) and is_builtin:
+            try:
+                download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
+                adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
+            except Exception as e:
+                logger.error(f"Auto-download failed for {adapter_id}: {e}")
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+
         engine = project_manager.get_engine()
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
