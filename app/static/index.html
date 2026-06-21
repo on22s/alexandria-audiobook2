@@ -5575,7 +5575,7 @@
                 const audioDiv = document.getElementById('lora-test-audio');
                 audioDiv.innerHTML = `<audio controls autoplay src="${result.audio_url}?t=${Date.now()}"></audio>`;
             } catch (e) {
-                statusEl.innerHTML = `<span class="text-danger">Failed: ${e.message}</span>`;
+                statusEl.innerHTML = `<span class="text-danger">Failed: ${escapeHtml(e.message)}</span>`;
             }
         };
 
