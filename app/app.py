@@ -5361,8 +5361,22 @@ async def voicelab_get_config():
 @app.post("/api/voicelab/config")
 async def voicelab_save_config(request: VoiceLabConfig):
     cfg = _load_voicelab_config()
-    for k, v in request.model_dump(exclude_none=True).items():
-        cfg[k] = v.strip() if isinstance(v, str) else v
+    updates = {k: (v.strip() if isinstance(v, str) else v)
+               for k, v in request.model_dump(exclude_none=True).items()}
+
+    if "rocm_python" in updates:
+        path = updates["rocm_python"]
+        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+            raise HTTPException(status_code=400,
+                                detail=f"rocm_python must be an existing, executable file: {path}")
+    if "pipeline_repo" in updates and not os.path.isdir(updates["pipeline_repo"]):
+        raise HTTPException(status_code=400,
+                            detail=f"pipeline_repo must be an existing directory: {updates['pipeline_repo']}")
+    if updates.get("profiler_model") and not os.path.isfile(updates["profiler_model"]):
+        raise HTTPException(status_code=400,
+                            detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
+
+    cfg.update(updates)
     atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
     return {"status": "saved", "config": cfg}
 
@@ -5487,6 +5501,10 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
         raise HTTPException(status_code=400,
                             detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
+    if "profile" in request.stages and profiler_model and not os.path.isfile(profiler_model):
+        raise HTTPException(status_code=400,
+                            detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
     if "dedup" in request.stages and not os.path.isdir(zips_dir):
         raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
     if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
