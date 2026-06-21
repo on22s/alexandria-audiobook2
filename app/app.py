@@ -4885,7 +4885,10 @@ async def dataset_builder_cancel():
 @app.get("/api/dataset_builder/status/{name}")
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
-    state = _load_builder_state(name)
+    safe_name = secure_filename(name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    state = _load_builder_state(safe_name)
     return {
         "description": state.get("description", ""),
         "global_seed": state.get("global_seed", ""),

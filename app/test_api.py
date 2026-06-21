@@ -1015,6 +1015,16 @@ def test_dataset_builder_update_rows():
         raise TestFailure(f"Expected sample_count=2, got {data.get('sample_count')}")
 
 
+def test_dataset_builder_status_traversal():
+    # A bare ".." segment gets collapsed away client-side by `requests`
+    # before the request is even sent (verified: it rewrites the URL to
+    # ".../status/" entirely, never reaching this route) - %2e%2e survives
+    # client-side prep and arrives at the server as the literal ".." that
+    # secure_filename() then sanitizes to empty, triggering 400.
+    r = get("/api/dataset_builder/status/%2e%2e")
+    assert_status(r, 400)
+
+
 def test_dataset_builder_status():
     r = get(f"/api/dataset_builder/status/{TEST_PREFIX}builder_proj")
     assert_status(r, 200)
@@ -1348,6 +1358,7 @@ def run_all_tests():
     run_test("dataset_builder_create", test_dataset_builder_create)
     run_test("dataset_builder_update_meta", test_dataset_builder_update_meta)
     run_test("dataset_builder_update_rows", test_dataset_builder_update_rows)
+    run_test("dataset_builder_status_traversal", test_dataset_builder_status_traversal)
     run_test("dataset_builder_status", test_dataset_builder_status)
     run_test("dataset_builder_cancel", test_dataset_builder_cancel)
     run_test("dataset_builder_save_no_samples", test_dataset_builder_save_no_samples)
