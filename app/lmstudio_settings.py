@@ -141,7 +141,7 @@ def get_lmstudio_status(model_name):
     try:
         result = subprocess.run([lms, "ps", "--json"], capture_output=True,
                                  text=True, timeout=15)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, UnicodeDecodeError):
         return {"available": True, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
