@@ -18,7 +18,7 @@ import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, OpenAIError
-from utils import safe_load_json, atomic_json_write
+from utils import safe_load_json, atomic_json_write, extract_json_object
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings
 
@@ -137,8 +137,7 @@ def _parse_alias_response(raw, speakers):
     Resolves model casing back to the real speaker label, drops self/NARRATOR/
     group mappings, and keeps only variants that actually appear as a label.
     """
-    m = re.search(r"\{.*\}", raw, re.DOTALL)
-    data = json.loads(m.group(0)) if m else {}
+    data = extract_json_object(raw) or {}
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
 

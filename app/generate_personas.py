@@ -9,33 +9,9 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_balanced
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from lmstudio_settings import ensure_ideal_settings
-
-
-def extract_json_object(text):
-    """Extract the first JSON object from text using robust parsing.
-
-    Tries standard json.loads first, then falls back to escape-aware
-    brace-matching (extract_balanced) for free-form LLM output that wraps
-    the object in other text.
-    """
-    if not text:
-        return None
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    span = extract_balanced(text, '{', '}')
-    if span is None:
-        return None
-    try:
-        return json.loads(span)
-    except json.JSONDecodeError:
-        return None
 
 
 def normalize_speaker_name(name):

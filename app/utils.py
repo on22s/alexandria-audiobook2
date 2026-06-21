@@ -63,6 +63,30 @@ def extract_balanced(text, open_char, close_char):
     return None
 
 
+def extract_json_object(text):
+    """Extract the first JSON object from text using robust parsing.
+
+    Tries standard json.loads first, then falls back to escape-aware
+    brace-matching (extract_balanced) for free-form LLM output that wraps
+    the object in other text.
+    """
+    if not text:
+        return None
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    span = extract_balanced(text, '{', '}')
+    if span is None:
+        return None
+    try:
+        return json.loads(span)
+    except json.JSONDecodeError:
+        return None
+
+
 # --- Filename Sanitization ---
 
 def secure_filename(filename: str) -> str:
