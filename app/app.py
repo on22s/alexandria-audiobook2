@@ -2418,7 +2418,13 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 # the first pass's results when the second pass overwrites them.
                 pass_key = "bwd" if tag == " [bwd]" else "fwd"
                 stats = _extract_review_stats(own_lines)
-                if stats and stats.get("batches_skipped_vram", 0) > 0:
+                if stats is None:
+                    # rc == 0 but the summary line is missing/malformed - we
+                    # genuinely don't know whether this book finished cleanly
+                    # or hit a VRAM abort with no recorded summary. Treat as
+                    # incomplete rather than silently calling it "done".
+                    state["tasks"][i]["status"] = "incomplete"
+                elif stats.get("batches_skipped_vram", 0) > 0:
                     # The reviewer bailed out early to avoid an OOM; entries past the
                     # abort point were left unreviewed and a checkpoint may remain on
                     # disk for a future resume. Don't report this book as "done".
