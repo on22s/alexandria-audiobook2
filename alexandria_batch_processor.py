@@ -17,6 +17,8 @@ import torch
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from gpu_stats import run_rocm_smi_json
+
 # Setup logging
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
@@ -63,34 +65,15 @@ def get_gpu_stats():
         stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
 
         # Try to get utilization via rocm-smi for AMD GPUs
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Filter out warning lines and parse JSON
-                json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
-                if json_lines:
-                    data = json.loads(json_lines[0])
-                    # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
-                    for card_key, card_data in data.items():
-                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                        if gpu_use_str != 'N/A':
-                            stats['utilization_percent'] = float(gpu_use_str)
-                        break  # Just get first GPU
-            else:
-                logger.debug(f"rocm-smi returned error: {result.returncode}")
-                stats['utilization_percent'] = None
-        except FileNotFoundError:
-            stats['utilization_percent'] = None
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError):
-            stats['utilization_percent'] = None
-        except Exception as e:
-            logger.debug(f"rocm-smi error: {e}")
-            stats['utilization_percent'] = None
+        data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
+        stats['utilization_percent'] = None
+        if data:
+            # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+            for card_key, card_data in data.items():
+                gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                if gpu_use_str != 'N/A':
+                    stats['utilization_percent'] = float(gpu_use_str)
+                break  # Just get first GPU
 
     except Exception as e:
         logger.warning(f"Could not get GPU stats: {e}")

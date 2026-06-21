@@ -15,6 +15,8 @@ import os
 import sys
 import tempfile
 
+from gpu_stats import run_rocm_smi_json
+
 # Force llama_cpp to load first to ensure system ROCm libs are prioritized over torch's bundled ones.
 # Do NOT defer this import — llama_cpp's ggml_cuda_init() must bind to the system HIP libs before
 # torch's bundled copies get loaded, otherwise ROCm detection fails at runtime.
@@ -233,36 +235,17 @@ def get_gpu_stats():
         stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
 
         # Try to get utilization via rocm-smi for AMD GPUs
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Filter out warning lines and parse JSON
-                json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
-                if json_lines:
-                    data = json.loads(json_lines[0])
-                    # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
-                    for card_key, card_data in data.items():
-                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                        if gpu_use_str != 'N/A':
-                            stats['utilization_percent'] = float(gpu_use_str)
-                        break  # Just get first GPU
-            else:
-                logger.debug(f"rocm-smi returned error: {result.returncode}, stderr: {result.stderr}")
-                stats['utilization_percent'] = None
-        except FileNotFoundError as e:
-            logger.debug(f"rocm-smi not found: {e}")
-            stats['utilization_percent'] = None
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError) as e:
-            logger.debug(f"rocm-smi parse error: {e}")
-            stats['utilization_percent'] = None
-        except Exception as e:
-            logger.debug(f"rocm-smi unexpected error: {e}")
-            stats['utilization_percent'] = None
+        data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
+        stats['utilization_percent'] = None
+        if data:
+            # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+            for card_key, card_data in data.items():
+                gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                if gpu_use_str != 'N/A':
+                    stats['utilization_percent'] = float(gpu_use_str)
+                break  # Just get first GPU
+        else:
+            logger.debug("rocm-smi unavailable or returned no parseable JSON")
 
     except Exception as e:
         logger.debug(f"Could not get GPU stats: {e}")

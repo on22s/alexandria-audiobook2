@@ -5,33 +5,15 @@ import tempfile
 import contextlib
 import re
 import subprocess
-
+import sys
 
 # --- GPU stats (rocm-smi) ---
-
-def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
-    """Run `<rocm_smi_path> <args> --json` and return the parsed per-card dict, or None.
-
-    Filters stdout down to JSON-looking lines first, since rocm-smi sometimes
-    prints warnings to stdout ahead of the JSON payload. Returns None if the
-    binary is missing, times out, or produces no JSON.
-    """
-    try:
-        result = subprocess.run(
-            [rocm_smi_path] + list(args) + ["--json"],
-            capture_output=True, text=True, timeout=timeout
-        )
-        # rocm-smi sometimes prints warnings to stdout ahead of the JSON, and
-        # the JSON payload itself may be pretty-printed across several lines.
-        # Parse everything from the first line that opens the JSON object so a
-        # multi-line payload isn't truncated to just "{".
-        lines = result.stdout.split('\n')
-        for i, line in enumerate(lines):
-            if line.strip().startswith('{'):
-                return json.loads('\n'.join(lines[i:]))
-    except Exception:
-        pass
-    return None
+# Canonical implementation lives in gpu_stats.py at the repo root, shared
+# with the standalone alexandria_*.py scripts which can't import from
+# inside this package. Re-exported here so existing `from utils import
+# run_rocm_smi_json` call sites in app/ keep working unchanged.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from gpu_stats import run_rocm_smi_json  # noqa: F401
 
 
 # --- Balanced-bracket text extraction ---
