@@ -1576,7 +1576,7 @@ async def lmstudio_status():
                 "parallel": None, "optimized": False, "model": None}
     llm_mode = full_cfg.get("llm_mode", "local")
     ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
-    status = await asyncio.to_thread(get_current_status, llm_mode, base_url, model_name, ssh_alias)
+    status = await asyncio.to_thread(get_current_status, llm_mode, base_url, model_name, ssh_alias, use_cache=True)
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
         status["remote"] = True

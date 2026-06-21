@@ -15,6 +15,7 @@ import json
 import shlex
 import shutil
 import subprocess
+import time
 from urllib.parse import urlparse
 
 from utils import run_rocm_smi_json
@@ -171,6 +172,27 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
     return _parse_lms_ps_output(result.stdout, model_name, REMOTE_IDEAL_SETTINGS)
 
 
+_remote_status_cache = {}  # ssh_alias -> (timestamp, status_dict)
+_REMOTE_STATUS_CACHE_TTL = 10  # seconds - shorter than the UI's 30s poll interval
+
+def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
+    """Like get_remote_lmstudio_status, but reuses a result younger than
+    _REMOTE_STATUS_CACHE_TTL seconds instead of making a fresh SSH round-trip.
+
+    Multiple browser tabs each poll independently every 30s; without this,
+    each poll across every open tab triggers its own live SSH call to the
+    remote host just to refresh a status badge. This caps it to at most one
+    SSH call per TTL window regardless of how many tabs are open.
+    """
+    now = time.time()
+    cached = _remote_status_cache.get(ssh_alias)
+    if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+        return cached[1]
+    status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
+    _remote_status_cache[ssh_alias] = (now, status)
+    return status
+
+
 def _gpu_name_from_probes(run):
     """Shared logic for get_gpu_name_and_backend/get_remote_gpu_name_and_backend.
 
@@ -320,13 +342,21 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None):
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False):
     """Fetch live status (local or remote) with no self-heal side effect -
     just the is_remote_llm dispatch shared by ensure_ideal_settings's own
     status checks, the /api/lmstudio/status route, and any later
     re-verification that doesn't want to trigger a reload.
+
+    use_cache=True (only for the polling /api/lmstudio/status route, which
+    gets hit every ~30s per open browser tab) reuses a recent remote-status
+    result instead of making a fresh SSH round-trip every call. Callers that
+    need a guaranteed-fresh read before acting on it (e.g. ensure_ideal_settings
+    deciding whether to reload) must leave this False.
     """
     if is_remote_llm(llm_mode, base_url):
+        if use_cache:
+            return get_remote_lmstudio_status_cached(ssh_alias, model_name)
         return get_remote_lmstudio_status(ssh_alias, model_name)
     return get_lmstudio_status(model_name)
 
