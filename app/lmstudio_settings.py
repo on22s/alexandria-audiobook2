@@ -15,6 +15,7 @@ import json
 import shlex
 import shutil
 import subprocess
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -172,8 +173,9 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
     return _parse_lms_ps_output(result.stdout, model_name, REMOTE_IDEAL_SETTINGS)
 
 
-_remote_status_cache = {}  # ssh_alias -> (timestamp, status_dict)
+_remote_status_cache = {}  # (ssh_alias, model_name) -> (timestamp, status_dict)
 _REMOTE_STATUS_CACHE_TTL = 10  # seconds - shorter than the UI's 30s poll interval
+_remote_status_cache_lock = threading.Lock()
 
 def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
     """Like get_remote_lmstudio_status, but reuses a result younger than
@@ -183,14 +185,41 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
     each poll across every open tab triggers its own live SSH call to the
     remote host just to refresh a status badge. This caps it to at most one
     SSH call per TTL window regardless of how many tabs are open.
+
+    Keyed by (ssh_alias, model_name) - not just ssh_alias - so switching the
+    configured model doesn't return a stale status computed for the
+    previous one. The check-then-act is lock-protected so concurrent
+    requests that all see an expired entry block on one real SSH call
+    instead of each firing their own (this app configures one ssh_alias at
+    a time, so the lock serializing unrelated keys too is an acceptable
+    trade-off, not a real contention source).
     """
-    now = time.time()
-    cached = _remote_status_cache.get(ssh_alias)
-    if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
-        return cached[1]
-    status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
-    _remote_status_cache[ssh_alias] = (now, status)
-    return status
+    key = (ssh_alias, model_name)
+    with _remote_status_cache_lock:
+        now = time.time()
+        cached = _remote_status_cache.get(key)
+        if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+            return cached[1]
+        status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
+        _remote_status_cache[key] = (now, status)
+        return status
+
+
+def invalidate_remote_status_cache(ssh_alias=None):
+    """Drop cached remote status so the next poll makes a fresh SSH call.
+
+    Call this after any action that changes what 'lms ps' would report
+    (e.g. apply_remote_lmstudio_settings) - otherwise a poll within the TTL
+    window can show pre-change status right after a successful change.
+    ssh_alias=None clears every cached entry; pass a specific alias to
+    clear just that one.
+    """
+    with _remote_status_cache_lock:
+        if ssh_alias is None:
+            _remote_status_cache.clear()
+        else:
+            for key in [k for k in _remote_status_cache if k[0] == ssh_alias]:
+                del _remote_status_cache[key]
 
 
 def _gpu_name_from_probes(run):
@@ -339,6 +368,7 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
         return False, (result.stderr.strip() or result.stdout.strip()
                        or f"ssh exited {result.returncode}")
     label = f"best ({REMOTE_IDEAL_SETTINGS['context_length']} ctx)" if ideal else "default"
+    invalidate_remote_status_cache(ssh_alias)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
