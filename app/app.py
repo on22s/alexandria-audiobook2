@@ -2722,7 +2722,8 @@ async def get_voices():
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, ignoring: {e}")
             voice_config = {}
 
     missing_speakers = {voice_name for voice_name in voices_list if voice_name not in voice_config}
@@ -2795,8 +2796,8 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
                 with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                     try:
                         current_config = json.load(f)
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                    except (json.JSONDecodeError, ValueError) as e:
+                        logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, overwriting with new data: {e}")
 
             # Update current config with new data
             for voice_name, config in config_data.items():
@@ -2955,7 +2956,8 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, treating as empty: {e}")
             voice_config = {}
 
     candidates = _build_lora_candidates()
@@ -3879,7 +3881,8 @@ async def voice_library_save(request: LibrarySaveRequest):
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, ignoring: {e}")
             voice_config = {}
 
     counts = _script_line_counts()
