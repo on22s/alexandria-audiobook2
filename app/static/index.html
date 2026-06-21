@@ -3136,7 +3136,8 @@
 
         // One-line "N changes: X text, Y speaker, ..." breakdown for a finished book's badge tooltip.
         function _formatBookStats(s) {
-            let txt = `${s.total_changes} changes: ${s.text_changed} text, ${s.speaker_changed} speaker, ` +
+            let txt = s.partial ? '(partial — not every pass completed) ' : '';
+            txt += `${s.total_changes} changes: ${s.text_changed} text, ${s.speaker_changed} speaker, ` +
                       `${s.instruct_changed} instruct, +${s.entries_added}/-${s.entries_removed} entries`;
             if (s.narrators_merged) { txt += `, ${s.narrators_merged} narrators merged`; }
             if (s.speakers_merged) { txt += `, ${s.speakers_merged} speakers merged`; }

@@ -980,13 +980,21 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
 def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     """Sum per-pass review stats (e.g. forward + backward) into one dict, for
     displays — like a per-book badge tooltip — that should reflect a book's
-    combined totals rather than only whichever pass ran last."""
+    combined totals rather than only whichever pass ran last.
+
+    Sets combined["partial"] = True if any of the given stat_dicts is None/
+    falsy (a pass that crashed or hasn't run yet), so a consumer can tell
+    "both passes ran and together found little" apart from "only one pass
+    actually contributed to this total"."""
     combined = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
+    combined["partial"] = False
     for stats in stat_dicts:
         if not stats:
+            combined["partial"] = True
             continue
         for key in combined:
-            combined[key] += stats.get(key, 0)
+            if key != "partial":
+                combined[key] += stats.get(key, 0)
     return combined
 
 
