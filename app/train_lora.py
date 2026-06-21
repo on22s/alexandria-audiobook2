@@ -128,7 +128,16 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
     for i, entry in enumerate(entries):
         audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
-        audio_path = os.path.join(data_dir, audio_rel)
+        audio_path = os.path.realpath(os.path.join(data_dir, audio_rel))
+        real_data_dir = os.path.realpath(data_dir)
+        try:
+            escapes = os.path.commonpath([audio_path, real_data_dir]) != real_data_dir
+        except ValueError:
+            escapes = True
+        if escapes:
+            print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} (escapes dataset directory)", flush=True)
+            skipped_missing += 1
+            continue
         text = entry["text"]
 
         if not os.path.exists(audio_path):
