@@ -10,7 +10,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTa
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Tuple, Literal
 import re
 import time
@@ -440,7 +440,7 @@ class DatasetSampleGenRequest(BaseModel):
     description: str      # full voice description (root + emotion already combined by frontend)
     text: str
     dataset_name: str     # working directory name
-    sample_index: int     # row number
+    sample_index: int = Field(ge=0, le=4999)  # row number
     seed: int = -1        # -1 = random, >= 0 = manual seed
 
 class DatasetBatchGenRequest(BaseModel):
