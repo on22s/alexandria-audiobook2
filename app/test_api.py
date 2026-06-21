@@ -1420,29 +1420,18 @@ def cleanup():
     print(f"\n--- Cleanup ---")
     items = []
 
-    try:
-        delete(f"/api/scripts/{TEST_PREFIX}script")
-        items.append("test script")
-    except Exception as e:
-        print(f"  [cleanup] failed to delete test script: {e}")
-
-    try:
-        delete(f"/api/dataset_builder/{TEST_PREFIX}builder_proj")
-        items.append("builder project")
-    except Exception as e:
-        print(f"  [cleanup] failed to delete builder project: {e}")
-
-    try:
-        delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
-        items.append("gen project")
-    except Exception as e:
-        print(f"  [cleanup] failed to delete gen project: {e}")
-
-    try:
-        delete(f"/api/lora/datasets/{TEST_PREFIX}dataset")
-        items.append("test dataset")
-    except Exception as e:
-        print(f"  [cleanup] failed to delete test dataset: {e}")
+    simple_targets = [
+        (f"/api/scripts/{TEST_PREFIX}script", "test script"),
+        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project"),
+        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project"),
+        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset"),
+    ]
+    for url, label in simple_targets:
+        try:
+            delete(url)
+            items.append(label)
+        except Exception as e:
+            print(f"  [cleanup] failed to delete {label}: {e}")
 
     try:
         r = get("/api/voice_design/list")
