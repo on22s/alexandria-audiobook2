@@ -75,14 +75,6 @@ def atomic_json_write(data, target_path, max_retries=5):
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
     try:
-        # mkstemp creates the temp file 0600; relax to 0644 so the replaced file
-        # isn't owner-only (other local tools/users may read it). A fixed chmod
-        # avoids mutating the process-global umask, which would race other
-        # file-creating threads.
-        try:
-            os.chmod(tmp_path, 0o644)
-        except OSError:
-            pass
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
