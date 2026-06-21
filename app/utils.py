@@ -92,8 +92,9 @@ def extract_json_object(text):
 def secure_filename(filename: str) -> str:
     """Sanitize a filename to prevent path-traversal attacks.
 
-    Removes path separators and null bytes, keeps only safe characters.
-    Returns empty string if the result would be unsafe.
+    Removes path separators and null bytes, keeps only safe characters,
+    and caps length well under the ~255-byte filesystem component limit
+    (leaving room for a caller-appended suffix, e.g. "sample_001.wav").
     """
     if not filename:
         return ""
@@ -101,6 +102,7 @@ def secure_filename(filename: str) -> str:
         filename = filename.replace(sep, "_")
     filename = filename.lstrip(". ")
     filename = re.sub(r"[^\w\-. ]", "_", filename)
+    filename = filename[:150]
     if not filename:
         return ""
     return filename
