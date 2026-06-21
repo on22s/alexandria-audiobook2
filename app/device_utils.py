@@ -15,7 +15,7 @@ import sys
 # possibly invoked from a sibling repo's cwd), so the path is resolved from
 # __file__, not cwd.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from gpu_stats import system_has_gpu  # noqa: F401
+from gpu_stats import system_has_gpu, is_oom_failure  # noqa: F401
 
 
 def resolve_device(device_str):

@@ -2172,7 +2172,14 @@
         }
 
         function _computeAutoSettings(stats) {
-            const vram = stats.gpu ? stats.gpu.total_gb : 0;
+            // get_gpu_stats() falls back to rocm-smi for VRAM totals even when torch
+            // can't use the GPU (gpu_mismatch), so stats.gpu can be populated with a
+            // real, large total_gb in exactly the case where generation will actually
+            // run on CPU. Treat that the same as "no usable GPU" here - otherwise this
+            // confidently configures high parallelism/local mode for a GPU that's
+            // sitting there unused, which is worse than the safe CPU-tier defaults.
+            const gpuUsable = !!stats.gpu && !stats.gpu_mismatch;
+            const vram = gpuUsable ? stats.gpu.total_gb : 0;
             const gpuName = stats.gpu_name || null;
             const ramGb = stats.ram_gb || null;
 
@@ -2181,9 +2188,15 @@
             // Tier boundaries and maxItems calibrated from tts_vram_benchmark.py on RX 9070 XT (17.1 GB):
             // Model footprint: 4.18 GB. Peak VRAM per batch: 4-item→7.3 GB, 8-item→9.6 GB, 16-item→11.8 GB.
             // RTF: 4→2.3x, 8→3.5x (sweet spot), 12→2.8x, 16→2.9x, 24→2.7x (length-ratio caps at ~13 anyway).
-            if (!stats.gpu || vram < 5) {
-                // Model alone needs ~4.2 GB; under 5 GB it may not load reliably
-                tier = 'No GPU / insufficient VRAM';
+            if (!gpuUsable || vram < 5) {
+                // Model alone needs ~4.2 GB; under 5 GB it may not load reliably.
+                // Same safe settings whether there's truly no GPU or one that's
+                // physically present but unusable by torch (gpu_mismatch) - only
+                // the label differs, so the two cases share one branch instead of
+                // two copies of an identical settings object.
+                tier = stats.gpu_mismatch
+                    ? 'GPU detected but unusable by torch (wrong build) - defaulting to safe CPU settings'
+                    : 'No GPU / insufficient VRAM';
                 settings = { ttsMode: 'external', parallelWorkers: 1, compileCodec: false,
                     batchGroupByType: false, subBatchEnabled: true, subBatchMinSize: 4,
                     subBatchRatio: 5, subBatchMaxItems: 4 };

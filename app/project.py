@@ -10,7 +10,7 @@ import time
 import logging
 import gc
 import uuid
-from utils import atomic_json_write, safe_load_json
+from utils import atomic_json_write, safe_load_json, is_oom_failure
 from tts import (
     TTSEngine,
     combine_audio_with_pauses,
@@ -35,17 +35,6 @@ def _new_chunk_uid():
     return uuid.uuid4().hex[:12]
 
 
-_OOM_MARKERS = (
-    "out of memory", "outofmemory", "cuda out of memory", "cuda error",
-    "hip out of memory", "hip error", "cublas_status_alloc_failed",
-    "cannot allocate memory", "alloc failed",
-)
-
-
-def _is_oom_failure(err) -> bool:
-    """True if an error message looks like a GPU/VRAM out-of-memory condition,
-    so the caller can step concurrency down and retry rather than give up."""
-    return any(marker in str(err).lower() for marker in _OOM_MARKERS)
 
 
 def get_speaker(entry):
@@ -130,6 +119,7 @@ class ProjectManager:
 
         self.engine = None
         self._chunks_lock = threading.Lock()  # Thread-safe chunks.json writes
+        self._uids_backfilled = False  # see _read_chunks
         self._config_cache = None
         self._config_mtime = None
 
@@ -181,14 +171,24 @@ class ProjectManager:
         if chunks is not None:
             # Backfill stable uids for chunks saved before uid-based filenames.
             # Assigned once and persisted so a chunk keeps the same audio file
-            # name across later inserts/deletes.
-            changed = False
-            for chunk in chunks:
-                if isinstance(chunk, dict) and not chunk.get("uid"):
-                    chunk["uid"] = _new_chunk_uid()
-                    changed = True
-            if changed:
-                atomic_json_write(chunks, self.chunks_path)
+            # name across later inserts/deletes. _modify_chunk (the primitive
+            # behind every per-chunk status update during generation) calls
+            # _read_chunks() fresh on every single call, so without caching
+            # that the backfill already ran, this O(N) scan would repeat on
+            # every status transition of every chunk - O(N^2) total work for
+            # a full generation pass. insert_chunk/restore_chunk already
+            # assign a uid at creation time, so once every persisted chunk
+            # has one, nothing in this app can ever produce a uid-less chunk
+            # again - safe to check once per instance lifetime.
+            if not self._uids_backfilled:
+                changed = False
+                for chunk in chunks:
+                    if isinstance(chunk, dict) and not chunk.get("uid"):
+                        chunk["uid"] = _new_chunk_uid()
+                        changed = True
+                if changed:
+                    atomic_json_write(chunks, self.chunks_path)
+                self._uids_backfilled = True
             return chunks
         if os.path.exists(self.chunks_path):
             # Back the corrupted file up rather than deleting it - regenerating
@@ -822,14 +822,14 @@ class ProjectManager:
                         if success:
                             completed.append(idx)
                             print(f"Chunk {idx} completed: {msg}")
-                        elif _is_oom_failure(msg):
+                        elif is_oom_failure(msg):
                             oom_failed.append((idx, msg))
                             print(f"Chunk {idx} failed (VRAM): {msg}")
                         else:
                             hard_failed.append((idx, msg))
                             print(f"Chunk {idx} failed: {msg}")
                     except Exception as e:
-                        (oom_failed if _is_oom_failure(e) else hard_failed).append((idx, str(e)))
+                        (oom_failed if is_oom_failure(e) else hard_failed).append((idx, str(e)))
                         print(f"Chunk {idx} error: {e}")
                     if progress_callback:
                         # oom_failed chunks aren't final yet (they get retried
@@ -1015,7 +1015,7 @@ class ProjectManager:
         oom_failed = []
         hard_failures = []
         for idx, error in batch_failed:
-            if _is_oom_failure(error) and current_batch_size > 1:
+            if is_oom_failure(error) and current_batch_size > 1:
                 # Retryable at a smaller size - don't mark as error yet.
                 oom_failed.append(idx)
                 continue

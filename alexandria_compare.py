@@ -27,8 +27,6 @@ from pathlib import Path
 # (`_alignment._PROPER_NOUNS = ...`) in one place that all the helpers see.
 import alexandria_alignment as _alignment
 from alexandria_alignment import (
-    _SMART_QUOTES,
-    _FUZZY_KEEP_THRESHOLD,
     _OCR_DIGIT_GLITCH,
     _DIACRITIC_REJOIN,
     _DIACRITIC_REJOIN_TAIL,

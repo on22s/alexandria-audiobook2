@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # inside this package. Re-exported here so existing `from utils import
 # run_rocm_smi_json` call sites in app/ keep working unchanged.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from gpu_stats import run_rocm_smi_json, system_has_gpu  # noqa: F401
+from gpu_stats import run_rocm_smi_json, system_has_gpu, is_oom_failure  # noqa: F401
 
 
 # --- Path containment ---
@@ -172,15 +172,33 @@ def secure_filename(filename: str) -> str:
 # --- Atomic JSON write (write-to-temp + rename) ---
 
 def safe_load_json(path, default=None):
-    """Load JSON from `path`, returning `default` if missing, empty, or corrupted."""
+    """Load JSON from `path`, returning `default` if missing, empty, or corrupted.
+
+    If `default` is a dict/list, a successfully-parsed value of a different
+    type (e.g. a config.json truncated to "null" or "[]") is also treated as
+    corrupted. Most callers pass a dict/list default and call .get()/iterate
+    on the result immediately with no type check of their own - without this,
+    a type mismatch surfaces as an uncaught AttributeError/TypeError deep in
+    the caller instead of the same graceful fallback every other corruption
+    case already gets. Callers that want the raw value regardless of type
+    (e.g. to distinguish a missing file from a non-dict one themselves) should
+    pass default=None, which skips this check entirely.
+    """
     if not os.path.exists(path):
         return default
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except (OSError, json.JSONDecodeError, ValueError) as e:
         logger.warning(f"Corrupted/unreadable JSON at {path}, using default: {e}")
         return default
+    if default is not None and not isinstance(data, type(default)):
+        logger.warning(
+            f"Unexpected JSON shape at {path} (expected {type(default).__name__}, "
+            f"got {type(data).__name__}), using default"
+        )
+        return default
+    return data
 
 
 def atomic_json_write(data, target_path, max_retries=5):

@@ -17,6 +17,26 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 
+OOM_MARKERS = (
+    "out of memory", "outofmemory", "cuda out of memory", "cuda error",
+    "hip out of memory", "hip error", "cublas_status_alloc_failed",
+    "cannot allocate memory", "alloc failed",
+)
+
+
+def is_oom_failure(err) -> bool:
+    """True if an error message looks like a GPU/VRAM out-of-memory condition,
+    so the caller can step concurrency down and retry rather than give up.
+
+    Shared between app/project.py (parallel TTS generation) and
+    app/train_lora.py (LoRA training, a separate-venv subprocess that can't
+    import app/project.py directly) so both recognize the same set of
+    OOM-message variants instead of train_lora.py's own narrower copy
+    silently drifting from whatever markers project.py adds later.
+    """
+    return any(marker in str(err).lower() for marker in OOM_MARKERS)
+
+
 def system_has_gpu():
     """Best-effort, torch-independent check for whether this machine has a
     GPU at all (NVIDIA via nvidia-smi, AMD via rocm-smi, Apple Silicon via

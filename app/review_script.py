@@ -11,10 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
-from generate_script import (
-    clean_json_string, repair_json_array, salvage_json_entries,
-    LLMGenParams, call_llm_for_entries,
-)
+from generate_script import LLMGenParams, call_llm_for_entries
 from lmstudio_settings import ensure_ideal_settings, get_current_status
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json
 

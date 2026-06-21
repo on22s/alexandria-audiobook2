@@ -5195,6 +5195,26 @@ async def preparer_start(
         state["output_file"] = None
         state["process"] = None
 
+        # Re-validate immediately before exec, not just synchronously above -
+        # background_tasks.add_task defers this whole closure until after the
+        # HTTP response is sent, leaving a window where rocm_python (or a
+        # model/fallback_model/llm_model_path pointed inside an
+        # upload/generated-content directory) could be repointed before the
+        # subprocess below actually starts. Mirrors voicelab_start's same
+        # re-validation for the identical reason.
+        try:
+            _validate_voicelab_path(interpreter, "rocm_python")
+            for label, value in (("model", config.model),
+                                 ("fallback_model", config.fallback_model),
+                                 ("llm_model_path", config.llm_model_path)):
+                if value:
+                    _validate_voicelab_path(value, label)
+        except HTTPException as e:
+            state["status"] = "failed"
+            state["running"] = False
+            state["logs"].append(f"Aborted: {e.detail}")
+            return
+
         cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
                "--audio", audio_path,
                "--output", os.path.join(PREPARER_OUTPUT_DIR, output_filename),
@@ -5331,6 +5351,21 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
                 state["logs"].append("Batch cancelled.")
+                break
+
+            # Re-validate before EVERY subprocess launch, not just once before
+            # the loop - this batch makes many sequential launches all reusing
+            # the same captured `interpreter`, and background_tasks.add_task's
+            # deferral means even an up-front check only proves the path was
+            # valid when the request was *received*, not at each later launch.
+            # A single pre-loop check (the original version of this fix) left
+            # tasks 2..N unprotected against a config change made after task 1
+            # had already started - exactly the race this exists to close.
+            try:
+                _validate_voicelab_path(interpreter, "rocm_python")
+            except HTTPException as e:
+                state["logs"].append(f"Aborted: {e.detail}")
+                state["tasks"][i]["status"] = "failed"
                 break
 
             state["current_task_idx"] = i
@@ -5593,12 +5628,15 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--zips_dir", deduped_dir,
                "--models_dir", LORA_MODELS_DIR,
                "--manifest", LORA_MODELS_MANIFEST,
-               # batch_train_lora.py's own --train_script/--python defaults are
-               # hardcoded to one specific alexandria-audiobook2.git checkout -
-               # pin them to *this* app instance's own train_lora.py and
-               # configured rocm_python instead, so a worktree (or any other
-               # checkout) running this code trains with its own train_lora.py
-               # rather than silently falling back to a different checkout's.
+               # batch_train_lora.py's own --datasets_dir/--train_script/--python
+               # defaults are all hardcoded to one specific
+               # alexandria-audiobook2.git checkout - pin them to *this* app
+               # instance's own paths/train_lora.py/configured rocm_python
+               # instead, so a worktree (or any other checkout) running this
+               # code extracts/trains with its own paths rather than silently
+               # falling back to a different checkout's (datasets_dir was
+               # missed in an earlier pass that only caught train_script/python).
+               "--datasets_dir", LORA_DATASETS_DIR,
                "--train_script", os.path.join(ROOT_DIR, "app", "train_lora.py"),
                "--python", rocm,
                "--target_loss", str(req.target_loss),

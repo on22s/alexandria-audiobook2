@@ -28,7 +28,7 @@ import sys
 import time
 import traceback
 
-from device_utils import resolve_device, enable_rocm_optimizations
+from device_utils import resolve_device, enable_rocm_optimizations, is_oom_failure
 from utils import is_path_inside
 
 
@@ -462,6 +462,15 @@ def train(args):
     safe_best_loss = float("inf")
     training_start = time.time()
     total_oom_skips = 0
+    consecutive_oom_skips = 0
+    # If a real, non-recoverable error (corrupted CUDA context, hardware
+    # fault) gets misclassified as a retry-able OOM, every subsequent step
+    # would fail the exact same way - silently skipping the rest of training
+    # with no cap, ending in a "successful" run on a barely-trained adapter
+    # with no error to explain why. A streak this long is no longer
+    # consistent with "occasional large batch hit a VRAM limit" - bail out
+    # loudly instead of finishing quietly on almost no real training.
+    MAX_CONSECUTIVE_OOM_SKIPS = 10
     
     # Set random seed for reproducible shuffling if provided
     if args.seed is not None:
@@ -542,6 +551,7 @@ def train(args):
 
                 epoch_loss += step_loss
                 epoch_steps += 1
+                consecutive_oom_skips = 0
 
                 # Free intermediate tensors
                 del full_input, labels, all_codec_ids, hidden_states
@@ -549,9 +559,18 @@ def train(args):
                 del talker_loss, sub_loss, total_loss, scaled_loss
 
             except RuntimeError as e:
-                if "out of memory" in str(e).lower():
+                if is_oom_failure(e):
                     epoch_oom_skips += 1
                     total_oom_skips += 1
+                    consecutive_oom_skips += 1
+                    if consecutive_oom_skips > MAX_CONSECUTIVE_OOM_SKIPS:
+                        raise RuntimeError(
+                            f"Aborting: {consecutive_oom_skips} consecutive OOM-like "
+                            f"failures at epoch={epoch} step={step_idx} (last error: {e}). "
+                            f"This many in a row means something is actually broken, not "
+                            f"just an occasional large batch hitting a VRAM limit - "
+                            f"continuing would likely train on little to no real data."
+                        ) from e
                     print(f"[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping sample", flush=True)
                     if "cuda" in device:
                         torch.cuda.empty_cache()
