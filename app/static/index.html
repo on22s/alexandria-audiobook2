@@ -4810,7 +4810,7 @@
                     const data = await fetchFn();
                     if (myGen !== _pollGen[key]) { return; }
                     consecutiveErrors = 0;
-                    if (onTick) { onTick(data); }
+                    if (onTick) { await onTick(data); }
                     if (doneCheck(data)) {
                         if (onDone) { onDone(data); }
                         return;
