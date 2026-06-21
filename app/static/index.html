@@ -4590,7 +4590,7 @@
 
             try {
                 const chunks = await API.get('/api/chunks');
-                const toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
+                let toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
                     .filter(c => c.text && c.text.trim());
 
                 if (toProcess.length === 0) {
@@ -4599,9 +4599,18 @@
                     return;
                 }
 
-                if (regenerateAll && !await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
-                    cancelRender(true);
-                    return;
+                if (regenerateAll) {
+                    if (!await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
+                        cancelRender(true);
+                        return;
+                    }
+                    // Re-fetch after the user confirms - showConfirm only
+                    // resolves on a click, so server-side chunk state can
+                    // have changed in the meantime (e.g. another tab
+                    // finished a chunk). Using the pre-confirm snapshot here
+                    // could send indices for chunks that already moved on.
+                    const freshChunks = await API.get('/api/chunks');
+                    toProcess = freshChunks.filter(c => c.text && c.text.trim());
                 }
 
                 // Mark all chunks as generating in UI
