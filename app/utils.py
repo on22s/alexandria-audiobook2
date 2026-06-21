@@ -6,6 +6,9 @@ import contextlib
 import re
 import subprocess
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- GPU stats (rocm-smi) ---
 # Canonical implementation lives in gpu_stats.py at the repo root, shared
@@ -125,7 +128,8 @@ def safe_load_json(path, default=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (OSError, json.JSONDecodeError, ValueError):
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Corrupted/unreadable JSON at {path}, using default: {e}")
         return default
 
 
