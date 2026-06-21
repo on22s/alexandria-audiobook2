@@ -15,7 +15,33 @@ import os
 import sys
 import tempfile
 
-from gpu_stats import run_rocm_smi_json
+from gpu_stats import run_rocm_smi_json, system_has_gpu
+
+_gpu_mismatch_warned = False
+
+
+def resolve_cuda_device(torch_module):
+    """Return "cuda" if torch can use the GPU, else "cpu" - warning once per
+    process if a GPU is physically present but torch can't see it (wrong-build
+    install), rather than silently looking identical to "no GPU at all".
+    Only warns once since this gets called once per pipeline phase/feature,
+    not in a hot per-chunk loop - repeating the same warning per phase would
+    just be noise once the first one has already told the user what's wrong.
+    """
+    global _gpu_mismatch_warned
+    if torch_module.cuda.is_available():
+        return "cuda"
+    if not _gpu_mismatch_warned:
+        has_gpu, vendor = system_has_gpu()
+        if has_gpu:
+            _gpu_mismatch_warned = True
+            logger.warning(
+                f"{vendor} GPU detected on this system, but torch can't see it "
+                f"(torch.cuda.is_available() is False) - falling back to CPU, "
+                f"which will be dramatically slower. This usually means torch "
+                f"got installed as the wrong build for this GPU."
+            )
+    return "cpu"
 
 # Force llama_cpp to load first to ensure system ROCm libs are prioritized over torch's bundled ones.
 # Do NOT defer this import — llama_cpp's ggml_cuda_init() must bind to the system HIP libs before
@@ -24,7 +50,11 @@ try:
     import llama_cpp as _llama_cpp_mod
     _llama_lib_dir = os.path.join(os.path.dirname(_llama_cpp_mod.__file__), "lib")
     _hip_so = os.path.join(_llama_lib_dir, "libggml-hip.so")
-    if not os.path.exists(_hip_so):
+    if not os.path.exists(_hip_so) and system_has_gpu()[0]:
+        # Only warn when there's actually a GPU to offload to - this used to
+        # fire unconditionally, which would also warn on a genuinely
+        # GPU-less dev/test machine where a CPU-only build is correct, not
+        # a problem.
         import warnings
         warnings.warn(
             "\n\n*** llama-cpp-python is a CPU-only build — GPU acceleration disabled! ***\n"
@@ -506,7 +536,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
 
     logger.info("▶ Initializing Wav2Vec2 ASR (CTC-aligned word timestamps)...")
     logger.info(f"  ├─ Model: facebook/wav2vec2-large-960h")
-    logger.info(f"  ├─ Device: GPU (CUDA/ROCm)")
     logger.info(f"  └─ Language: {language}")
 
     try:
@@ -514,14 +543,19 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         import torch as torch_module
 
         logger.debug("Loading Wav2Vec2 processor and model...")
-        device_str = "cuda" if torch_module.cuda.is_available() else "cpu"
+        # Resolved (not assumed) and logged after the fact - this used to
+        # unconditionally claim "Device: GPU" and "loaded to GPU" above even
+        # when torch.cuda.is_available() was False and it silently fell back
+        # to CPU, which is exactly the kind of silent fallback that's
+        # supposed to be loud (see resolve_cuda_device).
+        device_str = resolve_cuda_device(torch_module)
 
         processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
         model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
         model = model.to(device_str)
         model.eval()
 
-        logger.info("✓ Wav2Vec2 model loaded to GPU")
+        logger.info(f"✓ Wav2Vec2 model loaded to {device_str.upper()}")
         log_gpu_stats("after model load")
 
         # Frame rate: for wav2vec2-large-960h, CNN downsamples 16kHz audio by 320 → 50 frames/sec
@@ -3095,7 +3129,7 @@ def main():
     try:
         if args.phase == "asr":
             t = _lazy_import_torch()
-            device = "cuda" if t.cuda.is_available() else "cpu"
+            device = resolve_cuda_device(t)
 
             logger.info("-" * 70)
             logger.info(f"PHASE: ASR (Device: {device})")
@@ -3156,7 +3190,7 @@ def main():
             # Diarize speakers if requested
             if args.diarize:
                 progress.start("Diarize speakers")
-                device_str = "cuda" if _lazy_import_torch().cuda.is_available() else "cpu"
+                device_str = resolve_cuda_device(_lazy_import_torch())
                 speaker_segments = diarize_audio(audio_24k_path, args.hf_token, device=device_str)
                 if speaker_segments:
                     diarization_path = os.path.join(temp_dir, "diarization.json")
@@ -3448,8 +3482,13 @@ def main():
     finally:
         # Only clean up the scratch audio file after the final phase (annotation)
         # or if we are not using the phase orchestration.
-        # Preserve it during the 'asr' phase so 'annotate' can use it.
-        if args.phase != "asr" and os.path.exists(audio_24k_scratch):
+        # Preserve it during the 'asr' and 'enrich' phases so 'annotate' can use
+        # it - 'enrich' never touches audio_24k_scratch itself, but deleting it
+        # here would still force 'annotate' to re-decode/resample from the
+        # original source (it has a recreate-if-missing fallback, so this was
+        # never a correctness bug, just wasted work whenever --enrich-with-llm
+        # is combined with the phase orchestrator).
+        if args.phase not in ("asr", "enrich") and os.path.exists(audio_24k_scratch):
             try:
                 os.remove(audio_24k_scratch)
                 logger.debug(f"Removed scratch audio: {audio_24k_scratch}")

@@ -721,10 +721,15 @@ class ProjectManager:
         heading_indices = []
         for i, (chunk, segment, start_ms) in enumerate(timeline):
             text = chunk.get("text", "").strip()
-            # Short structural text (likely a heading) or starts with heading keyword
+            # Starts with a heading keyword, or short structural text in its
+            # own right (likely a stylized chapter title with no keyword,
+            # e.g. "The Awakening") - the second check used to also require
+            # self._HEADING_RE.search(text), which is redundant with (and
+            # since _HEADING_RE is ^-anchored, can never succeed when) the
+            # first check already failed, making this branch unreachable.
             if self._HEADING_RE.match(text):
                 heading_indices.append(i)
-            elif len(text) < 80 and '"' not in text and text and self._HEADING_RE.search(text):
+            elif len(text) < 80 and '"' not in text and text:
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk

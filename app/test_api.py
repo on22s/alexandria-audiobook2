@@ -124,6 +124,18 @@ def delete(path, **kwargs):
     return requests.delete(f"{BASE_URL}{path}", timeout=30, **kwargs)
 
 
+def llm_mode_fields(original):
+    """llm_mode/llm_local fields to splice into a POST /api/config payload.
+
+    AppConfig requires llm_local (or llm_remote, per llm_mode) to be present -
+    save_config() 400s otherwise. GET /api/config always backfills llm_local
+    from the active llm section, so this is always safe to read back."""
+    return {
+        "llm_mode": original.get("llm_mode", "local"),
+        "llm_local": original.get("llm_local") or original["llm"],
+    }
+
+
 # ── Section 1: Server ───────────────────────────────────────
 
 def test_server_reachable():
@@ -155,6 +167,7 @@ def test_save_config_roundtrip():
     # Build test config with modified language
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": {**original.get("tts", {}), "language": "_test_roundtrip_lang"},
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -192,6 +205,7 @@ def test_save_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -208,6 +222,7 @@ def test_save_pause_config_roundtrip():
     # Save with custom pause values
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": {
             **original.get("tts", {}),
             "pause_between_speakers_ms": 1000,
@@ -236,6 +251,7 @@ def test_save_pause_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -269,6 +285,7 @@ def test_save_review_prompts_roundtrip():
     # Save config with custom review prompts
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -293,6 +310,7 @@ def test_save_review_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -309,6 +327,7 @@ def test_save_persona_prompts_roundtrip():
     # Save config with custom persona prompts
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -336,6 +355,7 @@ def test_save_persona_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),

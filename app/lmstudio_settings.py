@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections import defaultdict
 from urllib.parse import urlparse
 
 from utils import run_rocm_smi_json
@@ -175,7 +176,8 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
 
 _remote_status_cache = {}  # (ssh_alias, model_name) -> (timestamp, status_dict)
 _REMOTE_STATUS_CACHE_TTL = 10  # seconds - shorter than the UI's 30s poll interval
-_remote_status_cache_lock = threading.Lock()
+_remote_status_cache_lock = threading.Lock()  # protects _remote_status_cache itself (fast dict ops only)
+_remote_status_key_locks = defaultdict(threading.Lock)  # one lock per (ssh_alias, model_name)
 
 def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
     """Like get_remote_lmstudio_status, but reuses a result younger than
@@ -188,20 +190,28 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
 
     Keyed by (ssh_alias, model_name) - not just ssh_alias - so switching the
     configured model doesn't return a stale status computed for the
-    previous one. The check-then-act is lock-protected so concurrent
-    requests that all see an expired entry block on one real SSH call
-    instead of each firing their own (this app configures one ssh_alias at
-    a time, so the lock serializing unrelated keys too is an acceptable
-    trade-off, not a real contention source).
+    previous one. The actual SSH call runs under a per-key lock (not the
+    global _remote_status_cache_lock, which only ever guards the dict's own
+    get/set) so concurrent requests for the SAME key block on one real SSH
+    call, while requests for a DIFFERENT key aren't held up behind someone
+    else's slow round-trip.
     """
     key = (ssh_alias, model_name)
+    now = time.time()
     with _remote_status_cache_lock:
-        now = time.time()
         cached = _remote_status_cache.get(key)
+    if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
+        return cached[1]
+
+    with _remote_status_key_locks[key]:
+        now = time.time()
+        with _remote_status_cache_lock:
+            cached = _remote_status_cache.get(key)
         if cached and (now - cached[0]) < _REMOTE_STATUS_CACHE_TTL:
             return cached[1]
         status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
-        _remote_status_cache[key] = (now, status)
+        with _remote_status_cache_lock:
+            _remote_status_cache[key] = (time.time(), status)
         return status
 
 

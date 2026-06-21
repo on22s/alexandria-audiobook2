@@ -29,6 +29,7 @@ import time
 import traceback
 
 from device_utils import resolve_device, enable_rocm_optimizations
+from utils import is_path_inside
 
 
 def parse_args():
@@ -94,8 +95,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     def _resolve_in_data_dir(rel_path):
         """Resolve `rel_path` under data_dir, or return None if it escapes."""
         resolved = os.path.realpath(os.path.join(data_dir, rel_path))
-        real_data_dir = os.path.realpath(data_dir)
-        if resolved == real_data_dir or resolved.startswith(real_data_dir + os.sep):
+        if is_path_inside(resolved, data_dir):
             return resolved
         return None
 
@@ -142,12 +142,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     for i, entry in enumerate(entries):
         audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
         audio_path = os.path.realpath(os.path.join(data_dir, audio_rel))
-        real_data_dir = os.path.realpath(data_dir)
-        try:
-            escapes = os.path.commonpath([audio_path, real_data_dir]) != real_data_dir
-        except ValueError:
-            escapes = True
-        if escapes:
+        if not is_path_inside(audio_path, data_dir):
             print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} (escapes dataset directory)", flush=True)
             skipped_missing += 1
             continue
@@ -561,7 +556,16 @@ def train(args):
                     if "cuda" in device:
                         torch.cuda.empty_cache()
                     gc.collect()
-                    optimizer.zero_grad()
+                    # Deliberately NOT calling optimizer.zero_grad() here: this
+                    # `continue` also skips the accumulation-boundary check
+                    # below, so zeroing here would silently discard every
+                    # gradient legitimately accumulated by earlier successful
+                    # steps in the current window, with no optimizer.step()
+                    # ever applying them - lost training signal on every OOM,
+                    # not just the OOM'd sample itself. backward() accumulates
+                    # into .grad rather than overwriting it, so skipping this
+                    # step just means it contributes nothing (same as never
+                    # having run it) instead of erasing what came before it.
                     continue
                 raise
 
@@ -620,8 +624,28 @@ def train(args):
     # ── Final save ──
     training_time = time.time() - training_start
 
-    # Always save final adapter (overwrites best if last epoch is better)
-    peft_talker.save_pretrained(args.output_dir)
+    # Only save here if the last epoch run actually IS the best/safe
+    # checkpoint (i.e. the per-epoch logic above already saved it, or would
+    # have). Saving unconditionally would overwrite a better/safer earlier
+    # checkpoint with the last epoch's weights whenever the last epoch
+    # regressed - either by overshooting GARBLE_FLOOR (target_loss mode) or
+    # by simply having higher loss than an earlier epoch (either mode). If no
+    # checkpoint was ever saved (e.g. the very first epoch already overshot
+    # the floor), save anyway so the output directory isn't left empty.
+    if args.target_loss is not None:
+        have_checkpoint = safe_best_loss < float("inf")
+        last_epoch_is_best = avg_loss >= GARBLE_FLOOR and avg_loss <= safe_best_loss
+        kept_loss = safe_best_loss
+    else:
+        have_checkpoint = best_loss < float("inf")
+        last_epoch_is_best = avg_loss <= best_loss
+        kept_loss = best_loss
+
+    if have_checkpoint and not last_epoch_is_best:
+        print(f"[TRAIN] Final epoch (loss={avg_loss:.4f}) is not the best checkpoint - "
+              f"keeping the previously saved checkpoint (loss={kept_loss:.4f})", flush=True)
+    else:
+        peft_talker.save_pretrained(args.output_dir)
 
     # Copy reference audio as ref_sample.wav for inference
     ref_dest = os.path.join(args.output_dir, "ref_sample.wav")

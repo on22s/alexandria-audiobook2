@@ -2676,6 +2676,13 @@
             }
         }
 
+        // Same "unknown error" fallback cancelTask's default errorMessage
+        // uses, for callers (debounced autosaves) that POST a real body and
+        // so can't go through cancelTask itself, which always posts {}.
+        function _toastSaveError(action, e) {
+            showToast(`Failed to save ${action}: ` + (e.message || 'unknown error'), 'warning');
+        }
+
         function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
             // Retry once or twice on 503 ("starting up, retry in a moment") instead of
             // making the user notice the toast and click again themselves.
@@ -4421,28 +4428,35 @@
                 tr.classList.add('table-primary');
                 tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+                // Guards against onerror and the play() promise rejection both
+                // firing for this same audio element - only the first should
+                // count as a skip and advance currentIndex, or both firing
+                // would double the skip count and skip over the next track too.
+                let advanced = false;
+                const advanceOnce = (isSkip) => {
+                    if (advanced) { return; }
+                    advanced = true;
+                    if (isSkip) { skippedCount++; }
+                    currentIndex++;
+                    playNext();
+                };
+
                 const playPromise = audio.play();
 
                 if (playPromise !== undefined) {
                     playPromise.catch(e => {
                         console.error("Play failed (empty or skipped):", e);
-                        skippedCount++;
-                        // If play fails, move next
-                        currentIndex++;
-                        playNext();
+                        advanceOnce(true);
                     });
                 }
 
                 audio.onended = () => {
-                    currentIndex++;
-                    playNext();
+                    advanceOnce(false);
                 };
 
                 audio.onerror = () => {
                      console.error("Audio error, skipping");
-                     skippedCount++;
-                     currentIndex++;
-                     playNext();
+                     advanceOnce(true);
                 }
             };
 
@@ -4739,7 +4753,7 @@
         window.removeM4bCover = async () => {
             const statusEl = document.getElementById('m4b-cover-status');
             try {
-                await fetch('/api/m4b_cover', { method: 'DELETE' });
+                await API.del('/api/m4b_cover');
                 document.getElementById('m4b-cover-input').value = '';
                 statusEl.textContent = 'Removed';
                 statusEl.className = 'small text-muted';
@@ -5723,7 +5737,7 @@
                         global_seed: document.getElementById('dsb-global-seed').value,
                     });
                 } catch (e) {
-                    showToast('Failed to save meta: ' + (e.message || 'unknown error'), 'warning');
+                    _toastSaveError('meta', e);
                 }
             }, 500);
         }
@@ -5738,7 +5752,7 @@
                         rows: dsbRows.map(r => ({ emotion: r.emotion || '', text: (r.text || '').trim(), seed: r.seed ?? '' })),
                     });
                 } catch (e) {
-                    showToast('Failed to save rows: ' + (e.message || 'unknown error'), 'warning');
+                    _toastSaveError('rows', e);
                 }
             }, 500);
         }
@@ -6105,10 +6119,23 @@
                 const diskEl = document.getElementById('sys-disk-val');
                 const diskWrap = document.getElementById('sys-disk');
 
-                if (stats.gpu) {
+                if (stats.gpu_mismatch) {
+                    // A GPU is physically present but torch can't use it - everything
+                    // is silently running on CPU. Worth a much louder signal than the
+                    // normal VRAM-pressure red, since this is a broken install, not
+                    // just "busy right now".
+                    gpuEl.textContent = 'CPU fallback!';
+                    gpuWrap.title = `${stats.gpu_mismatch_vendor || 'A'} GPU was detected on this system, ` +
+                        `but the installed torch build can't use it - generation/training will run on CPU ` +
+                        `and be dramatically slower. This usually means torch/torchaudio is the wrong build ` +
+                        `for this GPU; re-run install.js to fix it.`;
+                    gpuWrap.classList.add('text-danger');
+                    gpuWrap.classList.remove('text-light');
+                } else if (stats.gpu) {
                     const used = stats.gpu.reserved_gb.toFixed(1);
                     const total = stats.gpu.total_gb.toFixed(1);
                     gpuEl.textContent = `${used}/${total} GB`;
+                    gpuWrap.title = '';
                     if (stats.gpu.allocated_percent > 90) {
                         gpuWrap.classList.add('text-danger');
                         gpuWrap.classList.remove('text-light');
@@ -6118,6 +6145,7 @@
                     }
                 } else {
                     gpuEl.textContent = 'N/A';
+                    gpuWrap.title = '';
                 }
 
                 diskEl.textContent = `${stats.disk.free_gb} GB`;
@@ -6317,7 +6345,7 @@
             [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${file.name}</td>
+                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);

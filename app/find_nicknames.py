@@ -17,8 +17,8 @@ import re
 import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from openai import OpenAI, OpenAIError
-from utils import safe_load_json, atomic_json_write, extract_json_object
+from openai import OpenAI
+from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings
 
@@ -139,8 +139,7 @@ def _parse_alias_response(raw, speakers):
     """
     data = extract_json_object(raw)
     if data is None:
-        print(f"  Warning: could not parse a JSON object from the LLM's alias "
-              f"response ({len(raw)} chars); treating as no aliases found.")
+        warn_unparseable_llm_json("alias", raw, "treating as no aliases found")
         data = {}
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
@@ -268,7 +267,13 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
             raw = resp.choices[0].message.content or ""
             print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
             return _parse_alias_response(raw, speakers)
-        except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
+        except Exception as e:
+            # Broad on purpose, matching review_script.py's equivalent LLM-call
+            # site: a local/remote LLM endpoint can fail in ways a hand-picked
+            # exception list won't anticipate. More important here than there -
+            # this runs inside executor.map() below, so anything this doesn't
+            # catch propagates out when results are collected and crashes the
+            # whole wave's worth of chunks, not just this one.
             print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
                   f"after {time.time() - t0:.1f}s: {e}")
             return {}, {}

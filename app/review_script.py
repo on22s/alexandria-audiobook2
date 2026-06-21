@@ -16,7 +16,7 @@ from generate_script import (
     LLMGenParams, call_llm_for_entries,
 )
 from lmstudio_settings import ensure_ideal_settings, get_current_status
-from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object
+from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -422,8 +422,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         raw = response.choices[0].message.content or ""
         mapping = extract_json_object(raw)
         if mapping is None:
-            print(f"  Warning: could not parse a JSON object from the LLM's "
-                  f"speaker-merge response ({len(raw)} chars); applying known aliases only.")
+            warn_unparseable_llm_json("speaker-merge", raw, "applying known aliases only")
             mapping = {}
     except Exception as e:
         # LLM unavailable — still apply the known aliases from the file

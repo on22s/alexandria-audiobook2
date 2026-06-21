@@ -1455,8 +1455,12 @@ class TTSEngine:
         results = {"completed": [], "failed": []}
         root_dir = os.path.dirname(os.path.dirname(__file__))
 
-        # Group chunks by adapter_path (resolved to absolute)
-        adapter_groups = {}  # adapter_path -> (voice_data, [chunks])
+        # Group chunks by adapter_path (resolved to absolute). Two different
+        # speakers can share the same adapter (e.g. aliases, or one trained
+        # voice reused for two characters) while having different
+        # character_style/default_style - so each chunk keeps its own
+        # voice_data instead of the group inheriting just the first chunk's.
+        adapter_groups = {}  # adapter_path -> [(chunk, voice_data), ...]
         for chunk in chunks:
             speaker = chunk.get("speaker", "")
             voice_data = voice_config.get(speaker, {})
@@ -1469,9 +1473,7 @@ class TTSEngine:
             if not os.path.isabs(adapter_path):
                 adapter_path = os.path.join(root_dir, adapter_path)
 
-            if adapter_path not in adapter_groups:
-                adapter_groups[adapter_path] = (voice_data, [])
-            adapter_groups[adapter_path][1].append(chunk)
+            adapter_groups.setdefault(adapter_path, []).append((chunk, voice_data))
 
         self._clear_gpu_cache()
 
@@ -1488,7 +1490,8 @@ class TTSEngine:
         t_total_start = time.time()
         total_audio_duration = 0.0
 
-        for adapter_path, (voice_data, group) in adapter_groups.items():
+        for adapter_path, group_entries in adapter_groups.items():
+            group = [c for c, _ in group_entries]
             if not os.path.isdir(adapter_path):
                 print(f"  Error: adapter path not found: {adapter_path}")
                 for chunk in group:
@@ -1530,16 +1533,17 @@ class TTSEngine:
                     results["failed"].append((chunk["index"], str(e)))
                 continue
 
-            character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
-
             texts = [c["text"] for c in group]
             instructs_raw = [c.get("instruct", "") for c in group]
+            character_styles = [(vd.get("character_style", "") or vd.get("default_style", ""))
+                                for _, vd in group_entries]
             indices = [c["index"] for c in group]
 
             # Sort by text length
             sort_order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
             texts = [texts[i] for i in sort_order]
             instructs_raw = [instructs_raw[i] for i in sort_order]
+            character_styles = [character_styles[i] for i in sort_order]
             indices = [indices[i] for i in sort_order]
 
             # Estimate max batch size from VRAM + clone prompt overhead
@@ -1556,6 +1560,7 @@ class TTSEngine:
             for sb_idx, (start, end) in enumerate(sub_batches):
                 sb_texts = texts[start:end]
                 sb_instructs = instructs_raw[start:end]
+                sb_character_styles = character_styles[start:end]
                 sb_indices = indices[start:end]
 
                 print(f"  Sub-batch {sb_idx+1}/{len(sub_batches)}: {len(sb_texts)} chunks "
@@ -1564,7 +1569,7 @@ class TTSEngine:
                 try:
                     # Build instruct_ids list for this sub-batch
                     instruct_ids = []
-                    for inst in sb_instructs:
+                    for inst, character_style in zip(sb_instructs, sb_character_styles):
                         instruct = inst or ""
                         if character_style:
                             instruct = f"{instruct} {character_style}".strip()

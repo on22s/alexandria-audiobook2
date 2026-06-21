@@ -7,7 +7,8 @@ import logging
 import traceback
 from typing import Dict, List, Any
 
-from llama_cpp import Llama
+from llama_cpp import Llama, llama_supports_gpu_offload
+from gpu_stats import system_has_gpu
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,6 +22,21 @@ class LLMEnricher:
         self.model_path = model_path
         self.llm = None
         try:
+            # Build-level check, independent of any specific model load: does
+            # this llama-cpp-python install even have GPU support compiled
+            # in? n_gpu_layers=-1 below silently falls back to CPU-only
+            # decoding if not - much slower, with no clear error to explain
+            # why, unless something checks for the mismatch up front.
+            if not llama_supports_gpu_offload():
+                has_gpu, vendor = system_has_gpu()
+                if has_gpu:
+                    logger.warning(
+                        f"{vendor} GPU detected on this system, but this "
+                        f"llama-cpp-python build has no GPU support compiled in "
+                        f"(llama_supports_gpu_offload() is False) - LLM inference "
+                        f"will run on CPU and be dramatically slower. Rebuild "
+                        f"llama-cpp-python with the correct GPU backend flags."
+                    )
             logger.info(f"Loading LLM model from: {self.model_path}")
             self.llm = Llama(
                 model_path=self.model_path,
@@ -47,7 +63,7 @@ class LLMEnricher:
         prompt = self._create_prompt(chunk)
 
         try:
-            logger.info(f"Enriching chunk: {chunk.get('start', 'N/A'):.2f}s - {chunk.get('end', 'N/A'):.2f}s")
+            logger.info(f"Enriching chunk: {chunk.get('start', 0.0):.2f}s - {chunk.get('end', 0.0):.2f}s")
             output = self.llm(
                 prompt,
                 max_tokens=150,

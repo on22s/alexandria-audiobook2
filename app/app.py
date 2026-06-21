@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object
+from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, system_has_gpu
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -1527,10 +1527,12 @@ async def get_system_stats():
         pass
 
     gpu_name = None
+    torch_cuda_ok = False
     try:
         torch = _get_torch()
         if torch is not None and torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
+            torch_cuda_ok = True
     except (RuntimeError, OSError, AttributeError):
         pass
     if gpu_name is None:
@@ -1545,9 +1547,21 @@ async def get_system_stats():
                         gpu_name = name
                         break
 
+    # A GPU physically present (rocm-smi/nvidia-smi/Apple Silicon) but torch
+    # unable to use it means generation/training will silently run on CPU -
+    # surfaced here so the UI can show this prominently instead of it only
+    # showing up as "everything is slow" with no clear cause.
+    gpu_mismatch = False
+    gpu_vendor = None
+    if not torch_cuda_ok:
+        has_gpu, gpu_vendor = system_has_gpu()
+        gpu_mismatch = has_gpu
+
     return {
         "gpu": gpu,
         "gpu_name": gpu_name,
+        "gpu_mismatch": gpu_mismatch,
+        "gpu_mismatch_vendor": gpu_vendor,
         "disk": {
             "free_gb": round(free_gb, 2),
             "low_space": not has_space
@@ -1731,11 +1745,7 @@ async def get_config():
             "model_name": "richardyoung/qwen3-14b-abliterated:Q8_0"
         },
         "llm_mode": "local",
-        "tts": {
-            "mode": "local",
-            "url": "http://127.0.0.1:7860",
-            "device": "auto"
-        },
+        "tts": TTSConfig().model_dump(),
         "prompts": {
             "system_prompt": "",
             "user_prompt": ""
@@ -1763,6 +1773,14 @@ async def get_config():
     else:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
+
+    # Backfill any TTSConfig field missing from an existing on-disk config.json
+    # (e.g. saved before pause_between_speakers_ms/pause_same_speaker_ms or some
+    # other field existed) with that field's model default. save_config() always
+    # writes every field via the pydantic model, so this only matters for a file
+    # that hasn't been re-saved since a field was added - without it, GET would
+    # silently omit fields the TTSConfig model promises always have a default.
+    config["tts"] = {**TTSConfig().model_dump(), **(config.get("tts") or {})}
 
     # Ensure prompts section exists with defaults from file. Treat an explicit
     # null (config saved without a prompts field) the same as a missing key so
@@ -2034,29 +2052,24 @@ def _safe_subpath(base_dir: str, name: str) -> str:
     Guards endpoints that build a filesystem path from a user-supplied name and
     then delete/extract it, so a value like '..' can't reach outside base_dir.
     """
-    base = os.path.realpath(base_dir)
     target = os.path.realpath(os.path.join(base_dir, name))
-    if target != base and not target.startswith(base + os.sep):
+    if not is_path_inside(target, base_dir):
         raise HTTPException(status_code=400, detail="Invalid name.")
     return target
 
 
-def _is_inside(path: str, base_dir: str) -> bool:
-    """True if the realpath of `path` is base_dir itself or somewhere under it."""
-    base = os.path.realpath(base_dir)
-    target = os.path.realpath(path)
-    return target == base or target.startswith(base + os.sep)
-
-
 # Directories this app writes user/attacker-suppliable content into (uploads,
-# extracted dataset ZIPs, generated samples/previews). voicelab's rocm_python/
-# pipeline_repo must never resolve inside one of these - otherwise anyone who
-# can upload a file (via /api/upload, /api/lora/upload_dataset, etc.) could
-# point voicelab at content they just planted and have it executed as the
+# extracted dataset ZIPs, generated samples/previews, preparer output).
+# voicelab's rocm_python/pipeline_repo/profiler_model must never resolve
+# inside one of these - otherwise anyone who can upload a file (via
+# /api/upload, /api/lora/upload_dataset, etc.) or run the preparer (which
+# writes to PREPARER_OUTPUT_DIR with an attacker-chosen filename) could point
+# voicelab at content they just planted and have it executed as the
 # "trusted" interpreter or pipeline script.
 _VOICELAB_FORBIDDEN_DIRS = [
     UPLOADS_DIR, LORA_DATASETS_DIR, LORA_MODELS_DIR, BUILTIN_LORA_DIR,
     DATASET_BUILDER_DIR, DESIGNED_VOICES_DIR, CLONE_VOICES_DIR, VOICELINES_DIR,
+    PREPARER_OUTPUT_DIR,
 ]
 
 
@@ -2064,7 +2077,7 @@ def _validate_voicelab_path(path: str, what: str) -> None:
     """Raise HTTPException 400 if `path` resolves inside a directory this app
     writes uploaded/generated content into - see _VOICELAB_FORBIDDEN_DIRS."""
     for forbidden in _VOICELAB_FORBIDDEN_DIRS:
-        if _is_inside(path, forbidden):
+        if is_path_inside(path, forbidden):
             raise HTTPException(
                 status_code=400,
                 detail=f"{what} cannot be inside {forbidden} - that directory holds "
@@ -2074,6 +2087,11 @@ def _validate_voicelab_path(path: str, what: str) -> None:
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
     """zipfile.extractall, but reject members that would escape dest_dir
     (Zip-Slip path traversal via '../' entries or absolute paths)."""
+    # Resolve dest_dir's realpath once, not per member - is_path_inside
+    # re-resolves its base_dir argument on every call (even when given an
+    # already-canonical path, realpath still re-walks/lstats it), which
+    # would otherwise mean one extra realpath syscall per ZIP entry. Inlined
+    # rather than routed through is_path_inside for that reason.
     dest = os.path.realpath(dest_dir)
     for member in zf.namelist():
         target = os.path.realpath(os.path.join(dest_dir, member))
@@ -4311,11 +4329,13 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
                     continue
                 try:
                     entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        raise ValueError(f"line is valid JSON but not an object (got {type(entry).__name__})")
                     audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
                     if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
                         missing_audio.append(audio_rel)
                     sample_count += 1
-                except (json.JSONDecodeError, KeyError) as e:
+                except (json.JSONDecodeError, ValueError, KeyError) as e:
                     malformed_lines.append((line_num, str(e)))
 
         wav_count = sum(1 for f in os.listdir(dataset_dir) if f.lower().endswith(".wav"))
@@ -4876,6 +4896,17 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     else:
         to_generate = list(range(len(request.samples)))
 
+    # Reject out-of-range indices up front (e.g. a stale frontend selection
+    # referencing a row that was since removed) - letting one through used to
+    # crash the background thread with an uncaught IndexError before it ever
+    # reached the per-sample try/except, leaving claim_gpu_task's "running"
+    # flag stuck True forever and permanently deadlocking every other GPU
+    # task behind check_global_gpu_lock until the server was restarted.
+    bad_indices = [idx for idx in to_generate if not (0 <= idx < len(request.samples))]
+    if bad_indices:
+        raise HTTPException(status_code=400,
+                            detail=f"indices out of range for {len(request.samples)} sample(s): {bad_indices}")
+
     total = len(to_generate)
 
     # Snapshot request data for the thread (request object may not survive)
@@ -4887,76 +4918,86 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
         process_state["dataset_builder"]["running"] = True
         process_state["dataset_builder"]["logs"] = []
         process_state["dataset_builder"]["cancel"] = False
+        # Wrapped in try/finally so ANY unexpected exception in this thread -
+        # not just the ones already anticipated by the per-sample try/except
+        # below - still releases the GPU lock. An uncaught exception in a
+        # background thread doesn't propagate or crash the process; it just
+        # kills the thread silently, which previously left "running" stuck
+        # True forever and permanently deadlocked every other GPU task behind
+        # check_global_gpu_lock until the server was restarted.
+        try:
+            engine = project_manager.get_engine()
+            if not engine:
+                process_state["dataset_builder"]["logs"].append("[ERROR] Failed to initialize TTS engine")
+                return
 
-        engine = project_manager.get_engine()
-        if not engine:
-            process_state["dataset_builder"]["logs"].append("[ERROR] Failed to initialize TTS engine")
-            process_state["dataset_builder"]["running"] = False
-            return
+            state = _load_builder_state(safe_name)
+            samples_state = state.get("samples", [])
+            # Ensure list is large enough for all samples
+            while len(samples_state) < len(samples_snapshot):
+                samples_state.append({"status": "pending"})
 
-        state = _load_builder_state(safe_name)
-        samples_state = state.get("samples", [])
-        # Ensure list is large enough for all samples
-        while len(samples_state) < len(samples_snapshot):
-            samples_state.append({"status": "pending"})
+            completed = 0
+            for i, idx in enumerate(to_generate):
+                if process_state["dataset_builder"]["cancel"]:
+                    process_state["dataset_builder"]["logs"].append(f"[CANCEL] Stopped at {completed}/{total}")
+                    break
 
-        completed = 0
-        for i, idx in enumerate(to_generate):
-            if process_state["dataset_builder"]["cancel"]:
-                process_state["dataset_builder"]["logs"].append(f"[CANCEL] Stopped at {completed}/{total}")
-                break
+                emotion, text = samples_snapshot[idx]
+                description = f"{root_desc}, {emotion}" if emotion else root_desc
 
-            emotion, text = samples_snapshot[idx]
-            description = f"{root_desc}, {emotion}" if emotion else root_desc
+                # Mark as generating (preserve existing fields like emotion, seed)
+                existing_s = samples_state[idx] if idx < len(samples_state) else {}
+                samples_state[idx] = {**existing_s, "status": "generating", "text": text, "emotion": emotion, "description": description}
+                state["samples"] = samples_state
+                _save_builder_state(safe_name, state)
 
-            # Mark as generating (preserve existing fields like emotion, seed)
-            existing_s = samples_state[idx] if idx < len(samples_state) else {}
-            samples_state[idx] = {**existing_s, "status": "generating", "text": text, "emotion": emotion, "description": description}
-            state["samples"] = samples_state
-            _save_builder_state(safe_name, state)
+                process_state["dataset_builder"]["logs"].append(
+                    f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{text[:60]}{'...' if len(text) > 60 else ''}\""
+                )
+
+                try:
+                    # Resolve seed: per-line > global > random
+                    seed = -1
+                    if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0:
+                        seed = per_seeds[idx]
+                    elif global_seed >= 0:
+                        seed = global_seed
+
+                    wav_path, sr = engine.generate_voice_design(
+                        description=description,
+                        sample_text=text,
+                        seed=seed,
+                    )
+                    dest_filename = f"sample_{idx:03d}.wav"
+                    dest_path = os.path.join(work_dir, dest_filename)
+                    shutil.copy2(wav_path, dest_path)
+
+                    samples_state[idx] = {
+                        **samples_state[idx],
+                        "status": "done",
+                        "audio_url": f"/dataset_builder/{safe_name}/{dest_filename}?t={int(time.time())}",
+                        "text": text,
+                        "emotion": emotion,
+                        "description": description,
+                    }
+                    completed += 1
+                except Exception as e:
+                    logger.error(f"Dataset builder sample {idx} failed: {e}")
+                    process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
+                    samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
+
+                state["samples"] = samples_state
+                _save_builder_state(safe_name, state)
 
             process_state["dataset_builder"]["logs"].append(
-                f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{text[:60]}{'...' if len(text) > 60 else ''}\""
+                f"[DONE] Generated {completed}/{total} samples"
             )
-
-            try:
-                # Resolve seed: per-line > global > random
-                seed = -1
-                if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0:
-                    seed = per_seeds[idx]
-                elif global_seed >= 0:
-                    seed = global_seed
-
-                wav_path, sr = engine.generate_voice_design(
-                    description=description,
-                    sample_text=text,
-                    seed=seed,
-                )
-                dest_filename = f"sample_{idx:03d}.wav"
-                dest_path = os.path.join(work_dir, dest_filename)
-                shutil.copy2(wav_path, dest_path)
-
-                samples_state[idx] = {
-                    **samples_state[idx],
-                    "status": "done",
-                    "audio_url": f"/dataset_builder/{safe_name}/{dest_filename}?t={int(time.time())}",
-                    "text": text,
-                    "emotion": emotion,
-                    "description": description,
-                }
-                completed += 1
-            except Exception as e:
-                logger.error(f"Dataset builder sample {idx} failed: {e}")
-                process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
-                samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
-
-            state["samples"] = samples_state
-            _save_builder_state(safe_name, state)
-
-        process_state["dataset_builder"]["logs"].append(
-            f"[DONE] Generated {completed}/{total} samples"
-        )
-        process_state["dataset_builder"]["running"] = False
+        except Exception as e:
+            logger.error(f"Dataset builder batch generation crashed: {e}")
+            process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")
+        finally:
+            process_state["dataset_builder"]["running"] = False
 
     claim_gpu_task("dataset_builder")
     threading.Thread(target=task, daemon=True).start()
@@ -5096,6 +5137,10 @@ def _resolve_preparer_interpreter() -> str:
                 f"found: {interpreter}. Set 'rocm_python' in Voice Lab settings."
             ),
         )
+    # Same denylist voicelab_save_config/voicelab_start enforce on this exact
+    # config value - the preparer endpoints execute it too and must not skip
+    # the check just because they read it through a different function.
+    _validate_voicelab_path(interpreter, "rocm_python")
     return interpreter
 
 
@@ -5548,6 +5593,14 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--zips_dir", deduped_dir,
                "--models_dir", LORA_MODELS_DIR,
                "--manifest", LORA_MODELS_MANIFEST,
+               # batch_train_lora.py's own --train_script/--python defaults are
+               # hardcoded to one specific alexandria-audiobook2.git checkout -
+               # pin them to *this* app instance's own train_lora.py and
+               # configured rocm_python instead, so a worktree (or any other
+               # checkout) running this code trains with its own train_lora.py
+               # rather than silently falling back to a different checkout's.
+               "--train_script", os.path.join(ROOT_DIR, "app", "train_lora.py"),
+               "--python", rocm,
                "--target_loss", str(req.target_loss),
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
@@ -5591,16 +5644,16 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
 
     # Validate prerequisites up front with actionable errors
     needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
-    if needs_rocm and not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
-        raise HTTPException(status_code=400,
-                            detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
     if needs_rocm:
+        if not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
+            raise HTTPException(status_code=400,
+                                detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
         _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
     profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
-    if "profile" in request.stages and profiler_model and not os.path.isfile(profiler_model):
-        raise HTTPException(status_code=400,
-                            detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
     if "profile" in request.stages and profiler_model:
+        if not os.path.isfile(profiler_model):
+            raise HTTPException(status_code=400,
+                                detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
         _validate_voicelab_path(profiler_model, "profiler_model")
     if "dedup" in request.stages and not os.path.isdir(zips_dir):
         raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
@@ -5609,10 +5662,10 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                             detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
     for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
                            ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
-        if s in request.stages and not os.path.isfile(os.path.join(base, fname)):
-            raise HTTPException(status_code=400,
-                                detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
         if s in request.stages:
+            if not os.path.isfile(os.path.join(base, fname)):
+                raise HTTPException(status_code=400,
+                                    detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
             _validate_voicelab_path(base, "pipeline_repo")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
@@ -5625,6 +5678,24 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         state["status"] = "running"
         state["process"] = None
         state["pid"] = None
+
+        # Re-validate immediately before exec, not just synchronously above -
+        # background_tasks.add_task defers this whole closure until after the
+        # HTTP response is sent, leaving a window where a path that passed the
+        # checks above (e.g. a symlink) could be repointed before the
+        # subprocess below actually starts.
+        try:
+            if needs_rocm:
+                _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
+            if "profile" in request.stages and profiler_model:
+                _validate_voicelab_path(profiler_model, "profiler_model")
+            if "train" in request.stages or "profile" in request.stages:
+                _validate_voicelab_path(cfg["pipeline_repo"], "pipeline_repo")
+        except HTTPException as e:
+            state["status"] = "failed"
+            state["running"] = False
+            state["logs"].append(f"Aborted: {e.detail}")
+            return
 
         log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
 

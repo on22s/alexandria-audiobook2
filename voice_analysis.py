@@ -4,7 +4,8 @@ Alexandria voice analysis pipeline.
 
 Phase 1 – dedup: For each narrator subfolder in zips2/, computes pairwise
 speaker similarity between volumes and identifies duplicate voices. Produces
-per-folder heatmaps and dedup-cluster reports.
+per-folder heatmaps and dedup-cluster reports, and copies one representative
+zip per cluster (the largest file) into zips2/_deduped/ for the train stage.
 
 Phase 2 – analyze: Across all deduplicated narrators in zips2/_deduped/,
 computes cross-group speaker similarity, prosody divergence (EMD), UMAP
@@ -23,6 +24,7 @@ import os
 import re
 import pickle
 import random
+import shutil
 import warnings
 import zipfile
 from pathlib import Path
@@ -39,6 +41,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
+
+from gpu_stats import system_has_gpu
 
 warnings.filterwarnings("ignore")
 
@@ -144,11 +148,17 @@ def list_wavs_in_zip(zip_path):
 def run_dedup(model, device, zips2_root, output_dir):
     """
     For each narrator subfolder of zips2_root, compute pairwise speaker
-    similarity across its ZIP files, then report which are the same voice.
+    similarity across its ZIP files, identify which are the same voice, and
+    copy one representative zip per cluster (largest file = most training
+    data) into zips2_root/_deduped/ so the train stage has exactly one zip
+    per distinct voice to work from.
     """
     output_dir.mkdir(exist_ok=True)
     cache_file = output_dir / "embeddings_cache.pkl"
     cache = pickle.load(open(cache_file, "rb")) if cache_file.exists() else {}
+
+    deduped_dir = zips2_root / "_deduped"
+    deduped_dir.mkdir(exist_ok=True)
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
@@ -217,6 +227,13 @@ def run_dedup(model, device, zips2_root, output_dir):
 
         if len(zip_labels) < 2:
             print("  Need at least 2 zips to compare.")
+            # Still nothing to dedup against, but a single (or zero) valid
+            # zip is trivially "unique" - copy it through so a narrator with
+            # just one volume isn't silently dropped from _deduped/.
+            if len(zip_labels) == 1:
+                rep_path = next(zp for zp in zips if zp.stem == zip_labels[0])
+                shutil.copy2(rep_path, deduped_dir / rep_path.name)
+                print(f"  [UNIQUE] kept {rep_path.name}")
             continue
 
         # Pairwise similarity matrix
@@ -282,6 +299,26 @@ def run_dedup(model, device, zips2_root, output_dir):
                     print(f"    {zip_labels[idx]}  →  character_{ci+1}_{zip_labels[idx]}")
             else:
                 print(f"  {short_labels[cluster[0]]} → UNIQUE narrator")
+
+        # Copy one representative zip per cluster into _deduped/ - the
+        # largest file is used as a proxy for "most complete dataset" among
+        # same-voice duplicates. This is what makes _deduped/ actually exist
+        # for the train stage; previously this function only printed
+        # suggestions and never wrote anything here, so "run the dedup stage
+        # first" (app.py's error when _deduped/ is missing) was misleading -
+        # re-running dedup alone could never satisfy it.
+        label_to_path = {zp.stem: zp for zp in zips}
+        print(f"\n  ── Copying representatives to {deduped_dir} ──")
+        for ci, cluster in enumerate(clusters):
+            rep_idx = max(cluster, key=lambda idx: label_to_path[zip_labels[idx]].stat().st_size)
+            rep_path = label_to_path[zip_labels[rep_idx]]
+            dest_path = deduped_dir / rep_path.name
+            shutil.copy2(rep_path, dest_path)
+            if len(cluster) > 1:
+                skipped = [zip_labels[idx] for idx in cluster if idx != rep_idx]
+                print(f"  [GROUP {ci+1}] kept {rep_path.name}  (skipped: {', '.join(skipped)})")
+            else:
+                print(f"  [UNIQUE] kept {rep_path.name}")
 
         # Heatmap
         fig, ax = plt.subplots(figsize=(max(8, n * 1.2), max(6, n * 0.9)))
@@ -678,8 +715,19 @@ def main():
 
     if args.device:
         device = args.device
+    elif torch.cuda.is_available():
+        device = "cuda"
     else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = "cpu"
+        has_gpu, vendor = system_has_gpu()
+        if has_gpu:
+            print(
+                f"WARNING: {vendor} GPU detected on this system, but torch can't "
+                f"see it (torch.cuda.is_available() is False) - falling back to "
+                f"CPU, which will be dramatically slower for embedding extraction. "
+                f"This usually means torch got installed as the wrong build for "
+                f"this GPU."
+            )
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")
 
     model_savedir = args.dedup_out / "models" / "ecapa"

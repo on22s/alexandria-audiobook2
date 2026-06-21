@@ -9,9 +9,49 @@ package boundary.
 
 import json
 import logging
+import os
+import platform
+import shutil
 import subprocess
 
 logger = logging.getLogger(__name__)
+
+
+def system_has_gpu():
+    """Best-effort, torch-independent check for whether this machine has a
+    GPU at all (NVIDIA via nvidia-smi, AMD via rocm-smi, Apple Silicon via
+    platform detection). Returns (has_gpu: bool, vendor_label: str | None).
+
+    This says nothing about whether torch (or llama-cpp, etc.) can actually
+    USE the GPU - just whether one is physically present. Comparing this
+    against torch.cuda.is_available() (or an inference library's own
+    GPU-offload state) is what catches a wrong-build install, e.g. a
+    CUDA-only torch wheel on an AMD box: from the outside, "GPU present but
+    the library can't see it" and "no GPU at all" both just look like
+    everything quietly running on CPU, unless something checks the hardware
+    independently.
+    """
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        return True, "Apple Silicon (Metal)"
+
+    if shutil.which("nvidia-smi"):
+        try:
+            r = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and r.stdout.strip():
+                return True, "NVIDIA"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    rocm_smi = shutil.which("rocm-smi") or "/opt/rocm/bin/rocm-smi"
+    if os.path.exists(rocm_smi):
+        try:
+            r = subprocess.run([rocm_smi, "--showproductname"], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and r.stdout.strip():
+                return True, "AMD/ROCm"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    return False, None
 
 
 def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):

@@ -26,7 +26,11 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     except Exception as e:
         raise RuntimeError(f"Error reading {path}: {e}")
 
-    parts = raw.split("---SEPARATOR---", maxsplit=num_parts - 1)
+    # No maxsplit: a file with one extra stray delimiter (e.g. a copy-paste
+    # slip while editing) must still produce the wrong part count and raise
+    # malformed_msg, rather than silently absorbing the extra delimiter (and
+    # everything after it) into the last part's text.
+    parts = raw.split("---SEPARATOR---")
     if len(parts) != num_parts:
         raise RuntimeError(malformed_msg)
 
