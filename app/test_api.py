@@ -1212,6 +1212,27 @@ def test_lora_test_model():
     assert_key(data, "audio_url")
 
 
+def test_dataset_builder_generate_sample_traversal():
+    # secure_filename() (see app/utils.py) replaces "/" with "_" rather than
+    # rejecting multi-segment paths outright, so "../../../tmp/x" sanitizes
+    # to a harmless literal name like "_.._.._tmp_x" and is accepted (200) -
+    # this matches the existing sibling endpoints (e.g. dataset_builder_create)
+    # and was verified directly against a running instance before writing this
+    # assertion. ".." sanitizes to "" (lstrip(". ") strips it entirely), which
+    # is the case the "if not safe_name: raise 400" guard exists to catch, so
+    # that's the value this regression test exercises.
+    r = post("/api/dataset_builder/generate_sample", json={
+        "description": "a voice",
+        "text": "hello",
+        "dataset_name": "..",
+        "sample_index": 0,
+        "seed": -1,
+    })
+    # Must be rejected before any GPU lock/engine work — sibling
+    # dataset_builder endpoints reject an unsanitizable name with 400.
+    assert_status(r, 400)
+
+
 def test_dataset_builder_generate_sample():
     # Create a temp project for this test
     post("/api/dataset_builder/create", json={"name": f"{TEST_PREFIX}gen_proj"})
@@ -1354,6 +1375,7 @@ def run_all_tests():
     run_test("lora_test_model", test_lora_test_model, requires_full=True)
 
     section("Dataset Builder Generate (TTS)")
+    run_test("dataset_builder_generate_sample_traversal", test_dataset_builder_generate_sample_traversal)
     run_test("dataset_builder_generate_sample", test_dataset_builder_generate_sample, requires_full=True)
 
 
