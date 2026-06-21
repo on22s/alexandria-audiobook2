@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings
+from utils import extract_balanced
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
@@ -29,44 +30,19 @@ def clean_json_string(text):
             text = match.group(1).strip()
 
     # Find the JSON array - match from first [ to its closing ]
-    # Use a bracket counter to find the correct closing bracket
     start = text.find('[')
     if start == -1:
         return None
 
-    bracket_count = 0
-    end = -1
-    in_string = False
-    escape_next = False
-
-    for i, char in enumerate(text[start:], start):
-        if escape_next:
-            escape_next = False
-            continue
-        if char == '\\':
-            escape_next = True
-            continue
-        if char == '"' and not escape_next:
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if char == '[':
-            bracket_count += 1
-        elif char == ']':
-            bracket_count -= 1
-            if bracket_count == 0:
-                end = i + 1
-                break
-
-    if end == -1:
+    span = extract_balanced(text, '[', ']')
+    if span is None:
         # No closing bracket found, try to salvage
         last_complete = text.rfind('},')
         if last_complete > start:
             return text[start:last_complete+1] + ']'
         return None
 
-    json_text = text[start:end]
+    json_text = span
 
     # Clean control characters inside strings (common LLM issue)
     # Replace literal newlines/tabs inside JSON strings with escaped versions

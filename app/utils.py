@@ -34,6 +34,53 @@ def run_rocm_smi_json(args, rocm_smi_path="rocm-smi", timeout=5):
     return None
 
 
+# --- Balanced-bracket text extraction ---
+
+def extract_balanced(text, open_char, close_char):
+    """Find the first `open_char ... close_char`-balanced span in `text`,
+    tracking string-escaping so a quoted brace/bracket doesn't desync the
+    depth count. Returns the matched substring, or None if `open_char`
+    never appears or never balances back to depth 0.
+
+    Shared by clean_json_string ([...]) and extract_json_object ({...}) -
+    both need the same escape-aware bracket-matching, just for a different
+    delimiter pair."""
+    start = text.find(open_char)
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if ch == '\\':
+            if in_string:
+                escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == open_char:
+            depth += 1
+        elif ch == close_char:
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
+
+
 # --- Filename Sanitization ---
 
 def secure_filename(filename: str) -> str:

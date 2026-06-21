@@ -9,69 +9,31 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write, safe_load_json
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_balanced
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from lmstudio_settings import ensure_ideal_settings
 
 
 def extract_json_object(text):
     """Extract the first JSON object from text using robust parsing.
-    
-    Tries standard json.loads first, then uses a brace-matching approach
-    that properly handles escaped characters in strings.
+
+    Tries standard json.loads first, then falls back to escape-aware
+    brace-matching (extract_balanced) for free-form LLM output that wraps
+    the object in other text.
     """
     if not text:
         return None
-    
-    # Try parsing as-is first
+
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    
-    # Find JSON object by tracking brace depth while respecting string escaping
-    start = text.find('{')
-    if start == -1:
+
+    span = extract_balanced(text, '{', '}')
+    if span is None:
         return None
-    
-    depth = 0
-    in_string = False
-    escape_next = False
-    end = None
-    
-    for i in range(start, len(text)):
-        ch = text[i]
-        
-        if escape_next:
-            escape_next = False
-            continue
-        
-        if ch == '\\':
-            if in_string:
-                escape_next = True
-            continue
-        
-        if ch == '"':
-            in_string = not in_string
-            continue
-        
-        if in_string:
-            continue
-        
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-    
-    if end is None:
-        return None
-    
-    obj_text = text[start:end]
     try:
-        return json.loads(obj_text)
+        return json.loads(span)
     except json.JSONDecodeError:
         return None
 
