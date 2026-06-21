@@ -2031,6 +2031,36 @@ def _safe_subpath(base_dir: str, name: str) -> str:
     return target
 
 
+def _is_inside(path: str, base_dir: str) -> bool:
+    """True if the realpath of `path` is base_dir itself or somewhere under it."""
+    base = os.path.realpath(base_dir)
+    target = os.path.realpath(path)
+    return target == base or target.startswith(base + os.sep)
+
+
+# Directories this app writes user/attacker-suppliable content into (uploads,
+# extracted dataset ZIPs, generated samples/previews). voicelab's rocm_python/
+# pipeline_repo must never resolve inside one of these - otherwise anyone who
+# can upload a file (via /api/upload, /api/lora/upload_dataset, etc.) could
+# point voicelab at content they just planted and have it executed as the
+# "trusted" interpreter or pipeline script.
+_VOICELAB_FORBIDDEN_DIRS = [
+    UPLOADS_DIR, LORA_DATASETS_DIR, LORA_MODELS_DIR, BUILTIN_LORA_DIR,
+    DATASET_BUILDER_DIR, DESIGNED_VOICES_DIR, CLONE_VOICES_DIR, VOICELINES_DIR,
+]
+
+
+def _validate_voicelab_path(path: str, what: str) -> None:
+    """Raise HTTPException 400 if `path` resolves inside a directory this app
+    writes uploaded/generated content into - see _VOICELAB_FORBIDDEN_DIRS."""
+    for forbidden in _VOICELAB_FORBIDDEN_DIRS:
+        if _is_inside(path, forbidden):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{what} cannot be inside {forbidden} - that directory holds "
+                       f"uploaded/generated content, not trusted pipeline code.")
+
+
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
     """zipfile.extractall, but reject members that would escape dest_dir
     (Zip-Slip path traversal via '../' entries or absolute paths)."""
@@ -5397,17 +5427,22 @@ async def voicelab_save_config(request: VoiceLabConfig):
     updates = {k: (v.strip() if isinstance(v, str) else v)
                for k, v in request.model_dump(exclude_none=True).items()}
 
-    if "rocm_python" in updates:
+    if updates.get("rocm_python"):
         path = updates["rocm_python"]
         if not (os.path.isfile(path) and os.access(path, os.X_OK)):
             raise HTTPException(status_code=400,
                                 detail=f"rocm_python must be an existing, executable file: {path}")
-    if "pipeline_repo" in updates and not os.path.isdir(updates["pipeline_repo"]):
-        raise HTTPException(status_code=400,
-                            detail=f"pipeline_repo must be an existing directory: {updates['pipeline_repo']}")
-    if updates.get("profiler_model") and not os.path.isfile(updates["profiler_model"]):
-        raise HTTPException(status_code=400,
-                            detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
+        _validate_voicelab_path(path, "rocm_python")
+    if updates.get("pipeline_repo"):
+        if not os.path.isdir(updates["pipeline_repo"]):
+            raise HTTPException(status_code=400,
+                                detail=f"pipeline_repo must be an existing directory: {updates['pipeline_repo']}")
+        _validate_voicelab_path(updates["pipeline_repo"], "pipeline_repo")
+    if updates.get("profiler_model"):
+        if not os.path.isfile(updates["profiler_model"]):
+            raise HTTPException(status_code=400,
+                                detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
+        _validate_voicelab_path(updates["profiler_model"], "profiler_model")
 
     cfg.update(updates)
     atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
@@ -5534,10 +5569,14 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
         raise HTTPException(status_code=400,
                             detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    if needs_rocm:
+        _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
     profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
     if "profile" in request.stages and profiler_model and not os.path.isfile(profiler_model):
         raise HTTPException(status_code=400,
                             detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
+    if "profile" in request.stages and profiler_model:
+        _validate_voicelab_path(profiler_model, "profiler_model")
     if "dedup" in request.stages and not os.path.isdir(zips_dir):
         raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
     if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
@@ -5548,6 +5587,8 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         if s in request.stages and not os.path.isfile(os.path.join(base, fname)):
             raise HTTPException(status_code=400,
                                 detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
+        if s in request.stages:
+            _validate_voicelab_path(base, "pipeline_repo")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
 
