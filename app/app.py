@@ -4781,15 +4781,16 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     # Same "dataset_builder" slot as the sibling /generate_batch route -
     # fail fast before any setup work below. See F-043.
     check_global_gpu_lock("dataset_builder")
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     os.makedirs(work_dir, exist_ok=True)
 
     claim_gpu_task("dataset_builder")
     try:
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
             sample_text=request.text,
@@ -4824,6 +4825,8 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
             "sample_index": request.sample_index,
             "audio_url": audio_url,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Dataset builder sample generation failed: {e}")
         # Mark as error in state
