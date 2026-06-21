@@ -91,17 +91,30 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     # ── Extract speaker embedding from ref_audio (consistent across all samples) ──
     # Check for ref_audio field in entries, or fall back to ref.wav in dataset dir,
     # or use the first training sample as reference.
+    def _resolve_in_data_dir(rel_path):
+        """Resolve `rel_path` under data_dir, or return None if it escapes."""
+        resolved = os.path.realpath(os.path.join(data_dir, rel_path))
+        real_data_dir = os.path.realpath(data_dir)
+        if resolved == real_data_dir or resolved.startswith(real_data_dir + os.sep):
+            return resolved
+        return None
+
     ref_audio_path = None
     if entries[0].get("ref_audio"):
-        ref_rel = entries[0]["ref_audio"]
-        ref_audio_path = os.path.join(data_dir, ref_rel)
+        ref_audio_path = _resolve_in_data_dir(entries[0]["ref_audio"])
+        if ref_audio_path is None:
+            print(f"[ERROR] ref_audio escapes the dataset directory: {entries[0]['ref_audio']}", flush=True)
+            sys.exit(1)
     elif os.path.exists(os.path.join(data_dir, "ref.wav")):
         ref_audio_path = os.path.join(data_dir, "ref.wav")
 
     if ref_audio_path is None:
         # Fall back to first training sample as reference
         first_audio_rel = entries[0].get("audio_filepath") or entries[0].get("audio", "")
-        ref_audio_path = os.path.join(data_dir, first_audio_rel)
+        ref_audio_path = _resolve_in_data_dir(first_audio_rel)
+        if ref_audio_path is None:
+            print(f"[ERROR] first-sample reference path escapes the dataset directory: {first_audio_rel}", flush=True)
+            sys.exit(1)
 
     if not os.path.exists(ref_audio_path):
         print(f"[ERROR] Reference audio not found: {ref_audio_path}", flush=True)
