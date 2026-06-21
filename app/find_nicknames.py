@@ -137,7 +137,11 @@ def _parse_alias_response(raw, speakers):
     Resolves model casing back to the real speaker label, drops self/NARRATOR/
     group mappings, and keeps only variants that actually appear as a label.
     """
-    data = extract_json_object(raw) or {}
+    data = extract_json_object(raw)
+    if data is None:
+        print(f"  Warning: could not parse a JSON object from the LLM's alias "
+              f"response ({len(raw)} chars); treating as no aliases found.")
+        data = {}
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
 
