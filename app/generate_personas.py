@@ -123,15 +123,14 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
             return name
 
     # Step 2: Substring match with word boundaries (avoid 'john' matching 'johnson')
+    pattern_raw_in_name = re.compile(r'\b' + re.escape(norm_raw) + r'\b')
     for name in allowed:
         norm_name = normalize_speaker_name(name)
         if not norm_name:
             continue
         # Only match if one is a complete word within the other
         # Use word boundary regex to avoid partial matches like john/johnson
-        pattern_raw_in_name = r'\b' + re.escape(norm_raw) + r'\b'
-        pattern_name_in_raw = r'\b' + re.escape(norm_name) + r'\b'
-        if re.search(pattern_raw_in_name, norm_name) or re.search(pattern_name_in_raw, norm_raw):
+        if pattern_raw_in_name.search(norm_name) or re.search(r'\b' + re.escape(norm_name) + r'\b', norm_raw):
             return name
 
         # Short prefix/nickname match (e.g. 'ann' vs 'anna', len diff <= 2).
