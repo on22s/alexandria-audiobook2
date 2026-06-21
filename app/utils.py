@@ -26,7 +26,15 @@ def extract_balanced(text, open_char, close_char):
 
     Shared by clean_json_string ([...]) and extract_json_object ({...}) -
     both need the same escape-aware bracket-matching, just for a different
-    delimiter pair."""
+    delimiter pair.
+
+    A backslash only escapes the next character while inside a string
+    (real JSON has no escape meaning outside one) - this is stricter than
+    clean_json_string's original bracket-loop, which treated any backslash
+    as an escape everywhere. That's intentional: it matches actual JSON
+    semantics, so a stray unescaped backslash in malformed LLM output
+    outside a string no longer causes a real closing bracket to be missed.
+    """
     start = text.find(open_char)
     if start == -1:
         return None
