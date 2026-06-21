@@ -2475,8 +2475,15 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # "stats" is the combined fwd+bwd total used by the per-book
                     # badge tooltip — recompute it from whichever pass(es) have
                     # run so far rather than letting the last pass overwrite it.
-                    state["tasks"][i]["stats"] = _combine_pass_stats(
-                        state["tasks"][i].get("stats_fwd"), state["tasks"][i].get("stats_bwd"))
+                    # Only combine stats_bwd in if this run is actually
+                    # bidirectional - otherwise stats_bwd is never populated
+                    # by design (no backward pass ever runs), and combining
+                    # it in would mark every single-pass book "partial" even
+                    # when that book's one-and-only pass succeeded cleanly.
+                    pass_stats = [state["tasks"][i].get("stats_fwd")]
+                    if state.get("bidirectional"):
+                        pass_stats.append(state["tasks"][i].get("stats_bwd"))
+                    state["tasks"][i]["stats"] = _combine_pass_stats(*pass_stats)
                     totals = state["totals_bwd"] if tag == " [bwd]" else state["totals_fwd"]
                     for key in totals:
                         if key != "books_done":
