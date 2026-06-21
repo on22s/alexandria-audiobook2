@@ -330,8 +330,12 @@ def main():
         context_length = status["context_length"]
     else:
         context_length = 4096  # conservative: LM Studio's own real-world default, not an optimistic guess
-        print(f"WARNING: could not determine the model's actual loaded context length; "
-              f"falling back to a conservative {context_length} for evidence chunk sizing.")
+        if not status.get("loaded"):
+            print(f"WARNING: model not loaded; falling back to a conservative "
+                  f"context length of {context_length} for evidence chunk sizing.")
+        else:
+            print(f"WARNING: loaded model reported no context_length; falling back to a "
+                  f"conservative {context_length} for evidence chunk sizing.")
 
     concurrency = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,

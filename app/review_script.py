@@ -648,8 +648,6 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_b
     [threshold, upper_bound]. If upper_bound is None, it defaults to
     1.0 + (1.0 - threshold), i.e. symmetric around 1.0.
     """
-    import re
-    
     orig_words = []
     for e in original_entries:
         # Use regex split to handle all Unicode whitespace properly

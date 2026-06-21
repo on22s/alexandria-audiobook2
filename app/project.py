@@ -8,6 +8,7 @@ import io
 import re
 import time
 import logging
+import gc
 import uuid
 from utils import atomic_json_write, safe_load_json
 from tts import (
@@ -1128,7 +1129,6 @@ class ProjectManager:
             self.save_chunks(chunks)
 
             if oom_failed:
-                import gc
                 gc.collect()
                 current_batch_size = max(1, current_batch_size - 1)
                 pending = oom_failed + pending  # retry the OOM chunks first
