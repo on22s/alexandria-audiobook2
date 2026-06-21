@@ -2659,6 +2659,23 @@
             btn.classList.add('btn-outline-warning');
         }
 
+        // Shared by every cancel-button handler in this file - posts to the
+        // cancel endpoint, runs an optional onSuccess callback, and toasts on
+        // failure. Added so a new cancel button doesn't have to remember to
+        // copy the try/catch+toast pattern by hand.
+        async function cancelTask(url, {
+            onSuccess,
+            errorMessage = (e) => 'Cancel failed: ' + (e.message || 'unknown error'),
+            toastType = 'warning',
+        } = {}) {
+            try {
+                await API.post(url, {});
+                if (onSuccess) { onSuccess(); }
+            } catch (e) {
+                showToast(errorMessage(e), toastType);
+            }
+        }
+
         function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
             // Retry once or twice on 503 ("starting up, retry in a moment") instead of
             // making the user notice the toast and click again themselves.
@@ -2709,14 +2726,9 @@
         const _batchPauseResume  = _makePauseResumeHandler(
             '/api/generate_script/batch/pause', '/api/generate_script/batch/resume', 'btn-pause-batch-script');
 
-        window.cancelScript = async () => {
-            try {
-                await API.post('/api/generate_script/cancel', {});
-                _resetPauseBtn('btn-pause-script');
-            } catch (e) {
-                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
-            }
-        };
+        window.cancelScript = () => cancelTask('/api/generate_script/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-pause-script'),
+        });
         window.pauseResumeScript      = _scriptPauseResume;
 
         // --- Script Batch Mode ---
@@ -2753,14 +2765,9 @@
             });
         };
 
-        window.cancelBatchScript = async () => {
-            try {
-                await API.post('/api/generate_script/batch/cancel', {});
-                _resetPauseBtn('btn-pause-batch-script');
-            } catch (e) {
-                showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning');
-            }
-        };
+        window.cancelBatchScript = () => cancelTask('/api/generate_script/batch/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-pause-batch-script'),
+        });
 
         window.pauseResumeBatchScript = _batchPauseResume;
 
@@ -2902,18 +2909,12 @@
             '/api/review_script/batch/pause', '/api/review_script/batch/resume', 'btn-pause-batch-review');
         window.pauseResumeReview = _reviewPauseResume;
         window.pauseResumeBatchReview = _batchReviewPauseResume;
-        window.cancelReview = async () => {
-            try {
-                await API.post('/api/review_script/cancel', {});
-                _resetPauseBtn('btn-pause-review');
-            } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning'); }
-        };
-        window.cancelBatchReview = async () => {
-            try {
-                await API.post('/api/review_script/batch/cancel', {});
-                _resetPauseBtn('btn-pause-batch-review');
-            } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown error'), 'warning'); }
-        };
+        window.cancelReview = () => cancelTask('/api/review_script/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-pause-review'),
+        });
+        window.cancelBatchReview = () => cancelTask('/api/review_script/batch/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-pause-batch-review'),
+        });
 
         // --- Batch review ---
         let reviewBatchSelected = [];
@@ -3052,10 +3053,9 @@
         const _nickPauseResume = _makePauseResumeHandler(
             '/api/find_nicknames/pause', '/api/find_nicknames/resume', 'btn-pause-nick');
         window.pauseResumeNicknames = _nickPauseResume;
-        window.cancelNicknames = async () => {
-            try { await API.post('/api/find_nicknames/cancel', {}); _resetPauseBtn('btn-pause-nick'); }
-            catch (e) { showToast('Cancel failed: ' + (e.message || ''), 'warning'); }
-        };
+        window.cancelNicknames = () => cancelTask('/api/find_nicknames/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-pause-nick'),
+        });
 
         async function findNicknames() {
             const btn = document.getElementById('btn-find-nicknames');
@@ -3244,15 +3244,14 @@
         }
 
         async function cancelPersonas() {
-            try {
-                await API.post('/api/cancel_persona', {});
-                const statusSpan = document.getElementById('persona-status');
-                if (statusSpan) {
-                    statusSpan.innerText = 'Cancelling...';
-                }
-            } catch (e) {
-                showToast('Failed to cancel persona generation: ' + e.message, 'error');
-            }
+            await cancelTask('/api/cancel_persona', {
+                onSuccess: () => {
+                    const statusSpan = document.getElementById('persona-status');
+                    if (statusSpan) { statusSpan.innerText = 'Cancelling...'; }
+                },
+                errorMessage: (e) => 'Failed to cancel persona generation: ' + e.message,
+                toastType: 'error',
+            });
         }
 
         async function pollPersonaStatus() {
@@ -4562,10 +4561,7 @@
             document.getElementById('btn-regen-all').style.display = 'inline-block';
             document.getElementById('btn-cancel-render').style.display = 'none';
             if (!skipApi) {
-                try {
-                    await API.post('/api/cancel_audio', {});
-                    await loadChunks(false);
-                } catch (e) { console.error('Cancel error:', e); }
+                await cancelTask('/api/cancel_audio', { onSuccess: () => loadChunks(false) });
             }
         };
 
@@ -6385,10 +6381,10 @@
             }
         };
 
-        window.cancelPreparer = async () => {
+        window.cancelPreparer = () => {
             const isBatch = document.getElementById('prep-batch-mode').checked;
             const url = isBatch ? '/api/preparer/batch/cancel' : '/api/preparer/cancel';
-            try { await API.post(url, {}); } catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown'), 'warning'); }
+            return cancelTask(url);
         };
 
         async function _startBatchPreparer() {
@@ -6591,10 +6587,9 @@
             }
         };
 
-        window.cancelVoicelab = async () => {
-            try { await API.post('/api/voicelab/cancel', {}); _resetPauseBtn('btn-vl-pause'); }
-            catch (e) { showToast('Cancel failed: ' + (e.message || 'unknown'), 'warning'); }
-        };
+        window.cancelVoicelab = () => cancelTask('/api/voicelab/cancel', {
+            onSuccess: () => _resetPauseBtn('btn-vl-pause'),
+        });
 
         function pollVoicelab() {
             const logEl = document.getElementById('voicelab-logs');
