@@ -1,3 +1,7 @@
+# torch / torchaudio / pytorch-triton are installed per-platform by torch.js,
+# which install.js runs BEFORE this file. Do NOT pin torch here — on AMD/ROCm
+# machines it would pull a CUDA build from PyPI and break GPU detection.
+# (peft below requires torch, but torch.js has already satisfied it.)
 fastapi==0.128.0
 uvicorn==0.40.0
 pydantic==2.12.5

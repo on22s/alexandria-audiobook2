@@ -6,11 +6,17 @@ import time
 import difflib
 import subprocess
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
+from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
-from generate_script import clean_json_string, repair_json_array, salvage_json_entries
-from lmstudio_settings import apply_lmstudio_settings, get_lmstudio_status
-from utils import file_lock, atomic_json_write
+from generate_script import (
+    clean_json_string, repair_json_array, salvage_json_entries,
+    LLMGenParams, call_llm_for_entries,
+)
+from lmstudio_settings import ensure_ideal_settings, get_current_status
+from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -24,21 +30,78 @@ VRAM_POLL_INTERVAL = 15     # seconds between checks while waiting
 
 
 def get_vram_usage():
-    """Return (used_bytes, total_bytes) for GPU 0 via rocm-smi, or None if unavailable."""
+    """Return (worst_used_bytes, worst_total_bytes) for the most constrained GPU.
+
+    On multi-GPU systems, returns the card with the highest VRAM utilization ratio
+    so the headroom check doesn't pass on GPU 0 while GPU 1 is saturated.
+    Supports both AMD (rocm-smi) and NVIDIA (nvidia-smi) GPUs.
+    """
+    # Try AMD first
+    data = run_rocm_smi_json(["--showmeminfo", "vram"])
+    if data is not None:
+        worst_ratio = 0.0
+        worst_used = 0
+        worst_total = 0
+
+        for card_id, card_data in data.items():
+            if not isinstance(card_data, dict):
+                continue
+            try:
+                used = int(card_data.get("VRAM Total Used Memory (B)", 0))
+                total = int(card_data.get("VRAM Total Memory (B)", 0))
+                if total <= 0:
+                    continue
+                ratio = used / total
+                # Track the GPU with the highest utilization ratio
+                if ratio > worst_ratio:
+                    worst_ratio = ratio
+                    worst_used = used
+                    worst_total = total
+            except (ValueError, TypeError):
+                continue
+
+        if worst_total > 0:
+            return worst_used, worst_total
+    
+    # Try NVIDIA
     try:
         result = subprocess.run(
-            ["rocm-smi", "--showmeminfo", "vram", "--json"],
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5
         )
-        data = json.loads(result.stdout)
-        card = next(iter(data.values()))
-        used = int(card["VRAM Total Used Memory (B)"])
-        total = int(card["VRAM Total Memory (B)"])
-        if total <= 0:
-            return None
-        return used, total
+        if result.returncode == 0:
+            worst_ratio = 0.0
+            worst_used = 0
+            worst_total = 0
+            
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split(',')
+                if len(parts) != 2:
+                    continue
+                try:
+                    # nvidia-smi returns values in MiB
+                    used_mib = float(parts[0].strip())
+                    total_mib = float(parts[1].strip())
+                    used = int(used_mib * 1024 * 1024)  # Convert to bytes
+                    total = int(total_mib * 1024 * 1024)
+                    if total <= 0:
+                        continue
+                    ratio = used / total
+                    if ratio > worst_ratio:
+                        worst_ratio = ratio
+                        worst_used = used
+                        worst_total = total
+                except (ValueError, TypeError):
+                    continue
+            
+            if worst_total > 0:
+                return worst_used, worst_total
     except Exception:
-        return None
+        pass  # nvidia-smi not available either
+    
+    return None
 
 
 def wait_for_vram_headroom():
@@ -56,15 +119,22 @@ def wait_for_vram_headroom():
     print(f"  WARNING: GPU VRAM at {used/total:.0%} ({used/1e9:.1f}/{total/1e9:.1f} GB) "
           f"- pausing to avoid an OOM crash...")
     waited = 0
+    last_reported = 0
     while waited < VRAM_MAX_WAIT:
         time.sleep(VRAM_POLL_INTERVAL)
         waited += VRAM_POLL_INTERVAL
+        
+        # Report progress every 30 seconds so user knows we're still waiting
+        if waited - last_reported >= 30:
+            print(f"  Still waiting for VRAM to drop... ({waited}s elapsed, max {VRAM_MAX_WAIT}s)")
+            last_reported = waited
+        
         usage = get_vram_usage()
         if usage is None:
             return True
         used, total = usage
         if used / total < VRAM_WARN_THRESHOLD:
-            print(f"  VRAM back to {used/total:.0%} - resuming.")
+            print(f"  VRAM back to {used/total:.0%} after {waited}s - resuming.")
             return True
 
     print(f"  VRAM still at {used/total:.0%} after {VRAM_MAX_WAIT}s - "
@@ -126,11 +196,15 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
     completed_batches = data["completed_batches"]
     if failed_batches and len(batch_lengths) == completed_batches:
         retry_from = failed_batches[0]
-        keep_entries = sum(batch_lengths[:retry_from - 1])
+        # Keep entries from all batches before the first failed one
+        # retry_from is 1-indexed, so batch_lengths[:retry_from - 1] gives us
+        # the lengths of batches 1 through (retry_from - 1)
+        keep_count = max(0, retry_from - 1)
+        keep_entries = sum(batch_lengths[:keep_count])
         all_corrected = data["all_corrected"][:keep_entries]
         data["all_corrected"] = all_corrected
-        data["completed_batches"] = retry_from - 1
-        data["batch_lengths"] = batch_lengths[:retry_from - 1]
+        data["completed_batches"] = keep_count
+        data["batch_lengths"] = batch_lengths[:keep_count]
         data["previous_tail"] = all_corrected[-2:] if all_corrected else None
         data["total_stats"]["batches_failed"] = max(
             0, data["total_stats"].get("batches_failed", 0) - len(failed_batches))
@@ -157,16 +231,30 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "batch_lengths": batch_lengths,
         "failed_batches": failed_batches,
     }
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp_path, path)
+    # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
+    try:
+        atomic_json_write(data, path)
+    except OSError as e:
+        # If checkpoint save fails (e.g., disk full, permission denied),
+        # log the error but don't crash the review process
+        print(f"WARNING: Failed to save checkpoint: {e}. Review will continue but resume may not work.")
 
 
 def clear_checkpoint(output_path):
+    """Remove checkpoint file with file_lock to prevent race conditions."""
     path = _checkpoint_path(output_path)
     if os.path.exists(path):
-        os.remove(path)
+        try:
+            # Use file_lock to coordinate with concurrent reads/writes
+            with file_lock(path):
+                os.remove(path)
+        except (TimeoutError, OSError) as e:
+            # If the file is still there, removal genuinely failed (lock
+            # contention or e.g. permission error) - warn, since a stale
+            # checkpoint can make the next run resume from the wrong place.
+            if os.path.exists(path):
+                print(f"WARNING: Failed to clear checkpoint {path}: {e}. "
+                      f"A stale checkpoint may cause the next run to resume incorrectly.")
 
 
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
@@ -259,14 +347,16 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
 def dedupe_speakers(client, model_name, entries, registry_path=None,
                     max_tokens=2000, temperature=0.2):
     """Ask the LLM to merge speaker labels that are the same character.
-    Applies the mapping to `entries` in place. If `registry_path` is given, the
-    shared canonical names there are fed to the model and updated, so the same
-    character keeps one canonical name across multiple books (a series).
-    Returns (mapping, renamed_count)."""
+    Does not mutate `entries` - the caller applies the returned changes. If
+    `registry_path` is given, the shared canonical names there are fed to the
+    model and updated, so the same character keeps one canonical name across
+    multiple books (a series).
+    Returns (mapping, renamed_count, changes), where changes is a list of
+    (index, key, new_value) tuples to apply to the caller's own entries list."""
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
     if len(speakers) < 2:
-        return {}, 0
+        return {}, 0, []
 
     # Load existing alias map / cross-book canonical registry. Entries here are
     # treated as KNOWN aliases and applied deterministically (this is how a
@@ -276,7 +366,8 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         try:
             with open(registry_path, "r", encoding="utf-8") as f:
                 registry = json.load(f) or {}
-        except (json.JSONDecodeError, ValueError, OSError):
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            print(f"Warning: corrupted alias registry at {registry_path}, resetting to empty: {e}")
             registry = {}
     existing_canonicals = sorted(set(registry.values())) if registry else []
 
@@ -329,13 +420,15 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
             temperature=temperature,
         )
         raw = response.choices[0].message.content or ""
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        mapping = json.loads(m.group(0)) if m else {}
+        mapping = extract_json_object(raw)
+        if mapping is None:
+            warn_unparseable_llm_json("speaker-merge", raw, "applying known aliases only")
+            mapping = {}
     except Exception as e:
         # LLM unavailable — still apply the known aliases from the file
         print(f"  Speaker dedupe LLM step failed ({e}); applying known aliases only.")
         if not forced_map:
-            return {}, 0
+            return {}, 0, []
 
     # Sanitize: drop no-ops, self-maps, and any NARRATOR merges
     clean_map = {}
@@ -360,16 +453,15 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     clean_map.update(forced_map)
 
     if not clean_map:
-        return {}, 0
+        return {}, 0, []
 
     renamed = 0
-    for e in entries:
+    changes = []
+    for i, e in enumerate(entries):
         sp = (e.get("speaker") or e.get("type") or "").strip()
         if sp in clean_map:
-            if "speaker" in e:
-                e["speaker"] = clean_map[sp]
-            else:
-                e["type"] = clean_map[sp]
+            key = "speaker" if "speaker" in e else "type"
+            changes.append((i, key, clean_map[sp]))
             renamed += 1
 
     for variant, canonical in clean_map.items():
@@ -383,12 +475,13 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         for variant, canonical in clean_map.items():
             registry[variant] = canonical
         try:
-            with open(registry_path, "w", encoding="utf-8") as f:
-                json.dump(registry, f, indent=2, ensure_ascii=False)
-        except OSError as e:
+            # Use file_lock to prevent concurrent writes from corrupting the registry
+            with file_lock(registry_path):
+                atomic_json_write(registry, registry_path)
+        except (OSError, TimeoutError) as e:
             print(f"  Warning: could not update alias registry: {e}")
 
-    return clean_map, renamed
+    return clean_map, renamed, changes
 
 
 def _remap_voice_config(voice_config_path, mapping):
@@ -398,27 +491,45 @@ def _remap_voice_config(voice_config_path, mapping):
     # Hold the lock across the whole read-modify-write so this can't lose an
     # update to (or clobber) a concurrent write from the UI, e.g. "apply cast
     # to multiple books" writing the same companion voice_config.json.
-    with file_lock(voice_config_path):
-        try:
-            with open(voice_config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        except (json.JSONDecodeError, ValueError, OSError):
-            return 0
-        moved = 0
-        changed = False
-        for variant, canonical in mapping.items():
-            if variant in cfg:
-                # Don't clobber an existing canonical config; only fill if absent
-                if canonical not in cfg:
-                    cfg[canonical] = cfg[variant]
-                    moved += 1
-                del cfg[variant]
-                changed = True  # even a delete-only change must be persisted
-        if changed:
-            try:
-                atomic_json_write(cfg, voice_config_path)
-            except OSError:
-                pass
+    try:
+        with file_lock(voice_config_path):
+            cfg = safe_load_json(voice_config_path)
+            if cfg is None:
+                return 0
+            moved = 0
+            changed = False
+            for variant, canonical in mapping.items():
+                if variant in cfg:
+                    # If canonical doesn't exist yet, just move it
+                    if canonical not in cfg:
+                        cfg[canonical] = cfg[variant]
+                        moved += 1
+                    else:
+                        # Canonical already exists - merge variant's config into it
+                        # Preserve variant-specific settings by updating only missing keys
+                        existing = cfg[canonical]
+                        variant_cfg = cfg[variant]
+                        if isinstance(existing, dict) and isinstance(variant_cfg, dict):
+                            # Update existing with variant's values, preferring existing for conflicts
+                            for key, value in variant_cfg.items():
+                                if key not in existing:
+                                    existing[key] = value
+                        elif isinstance(variant_cfg, dict):
+                            # canonical's entry is corrupted/non-dict - variant's dict wins
+                            cfg[canonical] = variant_cfg
+                        # else: neither side is a usable dict - keep canonical's existing value
+                        moved += 1
+                    del cfg[variant]
+                    changed = True  # even a delete-only change must be persisted
+            if changed:
+                try:
+                    atomic_json_write(cfg, voice_config_path)
+                except OSError as e:
+                    print(f"  Warning: failed to write {voice_config_path}: {e}")
+                    moved = 0
+    except TimeoutError as e:
+        print(f"  Warning: could not lock {voice_config_path} for speaker remap ({e}); skipping.")
+        return 0
     return moved
 
 
@@ -487,14 +598,15 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
     return merged, merges
 
 
-def review_batch(client, model_name, batch_entries, batch_num, total_batches,
-                 previous_tail=None, source_context=None, max_retries=2,
-                 system_prompt=None, user_prompt_template=None,
-                 max_tokens=8000, temperature=0.4, top_p=0.8, top_k=20,
-                 min_p=0, presence_penalty=0.0, banned_tokens=None):
-    """Send a batch of script entries through the LLM for review and correction."""
-    sys_prompt = system_prompt or REVIEW_SYSTEM_PROMPT
-    usr_template = user_prompt_template or REVIEW_USER_PROMPT
+def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
+                 previous_tail=None, source_context=None, max_retries=2):
+    """Send a batch of script entries through the LLM for review and correction.
+
+    Returns the corrected entries, or None if every attempt failed (so the caller
+    can keep the originals and retry on the next resume).
+    """
+    sys_prompt = params.system_prompt or REVIEW_SYSTEM_PROMPT
+    usr_template = params.user_prompt_template or REVIEW_USER_PROMPT
 
     # Build context
     context_parts = []
@@ -513,89 +625,13 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches,
     batch_json = json.dumps(batch_entries, indent=2, ensure_ascii=False)
     user_prompt = usr_template.format(context=context, batch=batch_json)
 
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=temperature,
-                top_p=top_p,
-                presence_penalty=presence_penalty,
-                max_tokens=max_tokens,
-                extra_body={
-                    k: v for k, v in {
-                        "top_k": top_k,
-                        "min_p": min_p,
-                        "banned_tokens": banned_tokens if banned_tokens else None,
-                    }.items() if v is not None
-                }
-            )
-
-            choice = response.choices[0]
-            text = choice.message.content.strip()
-            finish_reason = choice.finish_reason
-            usage = getattr(response, 'usage', None)
-
-            # Log raw response
-            log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, "review_responses.log")
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"\n{'='*80}\n")
-                lf.write(f"BATCH {batch_num}/{total_batches} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
-                if usage:
-                    lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
-                lf.write(f"{'─'*80}\n")
-                lf.write(text)
-                lf.write(f"\n{'='*80}\n")
-
-            print(f"  finish_reason={finish_reason}", end="")
-            if usage:
-                print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
-            print()
-
-            if finish_reason == "length":
-                print(f"  WARNING: Response was truncated (hit max_tokens={max_tokens}). Consider increasing max_tokens or reducing batch size.")
-
-        except Exception as e:
-            print(f"Error calling LLM API (attempt {attempt + 1}): {e}")
-            if attempt < max_retries:
-                continue
-            return None
-
-        # Clean and parse JSON response
-        json_text = clean_json_string(text)
-
-        if not json_text:
-            print(f"Warning: Could not find JSON array in batch {batch_num} response (attempt {attempt + 1})")
-            if attempt < max_retries:
-                print("Retrying...")
-                continue
-            print(f"Response preview: {text[:300]}...")
-            return None
-
-        entries = repair_json_array(json_text)
-
-        if entries and len(entries) > 0:
-            if attempt > 0:
-                print(f"  Succeeded on retry {attempt + 1}")
-            return entries
-
-        print(f"Warning: Could not parse batch {batch_num} response as JSON (attempt {attempt + 1})")
-
-        if attempt < max_retries:
-            print("Retrying...")
-
-        # Last resort
-        salvaged = salvage_json_entries(json_text)
-        if salvaged:
-            print(f"Regex-salvaged {len(salvaged)} entries from malformed response")
-            return salvaged
-
-    return None
+    entries = call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="review_responses.log",
+        label=f"BATCH {batch_num}/{total_batches}",
+        max_retries=max_retries,
+    )
+    return entries or None
 
 
 def normalize_text(text):
@@ -616,11 +652,16 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_b
     """
     orig_words = []
     for e in original_entries:
-        orig_words.extend(normalize_text(e.get("text", "")).split())
+        # Use regex split to handle all Unicode whitespace properly
+        text = normalize_text(e.get("text", ""))
+        words = re.split(r'\s+', text.strip())
+        orig_words.extend([w for w in words if w])  # Filter empty strings
 
     corr_words = []
     for e in corrected_entries:
-        corr_words.extend(normalize_text(e.get("text", "")).split())
+        text = normalize_text(e.get("text", ""))
+        words = re.split(r'\s+', text.strip())
+        corr_words.extend([w for w in words if w])
 
     if not orig_words:
         return True, "", "", 1.0
@@ -745,11 +786,11 @@ def main():
     model_name = llm_config.get("model_name", "local-model")
 
     # Load custom review prompts or use defaults from review_prompts.txt
-    prompts_config = config.get("prompts", {})
+    prompts_config = config.get("prompts") or {}
     review_sys = prompts_config.get("review_system_prompt") or REVIEW_SYSTEM_PROMPT
     review_usr = prompts_config.get("review_user_prompt") or REVIEW_USER_PROMPT
 
-    generation_config = config.get("generation", {})
+    generation_config = config.get("generation") or {}
     batch_size = generation_config.get("review_batch_size", 25)
     max_tokens = generation_config.get("max_tokens", 8000)
     temperature = generation_config.get("temperature", 0.4)
@@ -759,35 +800,53 @@ def main():
     presence_penalty = generation_config.get("presence_penalty", 0.0)
     banned_tokens = generation_config.get("banned_tokens", [])
 
+    # Constant across every batch in both review modes - build once.
+    gen_params = LLMGenParams(
+        system_prompt=review_sys,
+        user_prompt_template=review_usr,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        min_p=min_p,
+        presence_penalty=presence_penalty,
+        banned_tokens=banned_tokens,
+    )
+
     print(f"Connecting to: {base_url}")
     print(f"Using model: {model_name}")
     print(f"Batch size: {batch_size} entries, Max tokens: {max_tokens}")
     if banned_tokens:
         print(f"Banned tokens: {banned_tokens}")
 
-    # Make sure LM Studio is loaded with VRAM-safe settings (8192 ctx,
-    # parallel 1) regardless of what's currently loaded - covers the case
-    # where LM Studio was restarted or a different model/config was used last.
-    ok, msg = apply_lmstudio_settings(model_name, ideal=True)
-    if ok:
-        print(f"LM Studio: {msg}")
-    else:
-        # The reload failed, but if the model happens to already be loaded
-        # with VRAM-safe settings (e.g. a previous run applied them and the
-        # reload here was just redundant), there's nothing to worry about.
-        status = get_lmstudio_status(model_name)
-        if status["loaded"] and status["optimized"]:
-            print(f"LM Studio: could not reload ({msg}), but {model_name} is "
-                  f"already loaded with VRAM-safe settings - continuing.")
-        else:
-            print(f"LM Studio: WARNING - could not apply VRAM-safe settings ({msg}). "
-                  f"The model may be running with a higher 'parallel'/context-length "
-                  f"configuration, which uses more VRAM per request and increases the "
-                  f"risk of an out-of-memory crash. The VRAM watchdog below will still "
-                  f"pause batches if usage gets too high, but if you hit OOM, restart "
-                  f"LM Studio and re-run.")
+    # A remote LM Studio (e.g. on a Thunder Compute instance) is loaded and
+    # managed elsewhere; the local `lms` CLI and the local-GPU VRAM watchdog
+    # don't apply, so skip them entirely when the endpoint isn't local.
+    llm_mode = config.get("llm_mode", "local")
+    is_remote, lm_status, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
+
+    wave_size = get_cached_or_benchmarked_concurrency(
+        config_path, llm_mode, base_url, model_name, client,
+        ssh_alias=config.get("llm_remote_ssh"), status=lm_status)
+    if wave_size > 1:
+        print(f"Using concurrency: {wave_size}")
+
+    # Re-verify settings are still optimized right before review starts, to
+    # catch drift between the initial heal and now (e.g. a slow concurrency
+    # benchmark, or - for remote - TTL/idle expiry, since
+    # apply_remote_lmstudio_settings intentionally doesn't pin a TTL).
+    pre_review_status = get_current_status(llm_mode, base_url, model_name,
+                                            ssh_alias=config.get("llm_remote_ssh"))
+    if pre_review_status["loaded"] and not pre_review_status["optimized"]:
+        label = "Remote LM Studio" if is_remote else "LM Studio"
+        print(f"WARNING: {label} model '{model_name}' is loaded but NOT optimized.")
+        if not is_remote:
+            print("This may cause OOM crashes during batch review. Consider restarting LM Studio")
+            print("with VRAM-safe settings or reducing batch size.")
 
     all_corrected = []
     total_stats = {
@@ -825,7 +884,7 @@ def main():
             before = entries[max(0, start - window):start]
             after = entries[end:min(len(entries), end + window)]
 
-            if not wait_for_vram_headroom():
+            if not is_remote and not wait_for_vram_headroom():
                 unreviewed_remainder = entries[start:]
                 total_stats["batches_skipped_vram"] = total_batches - batch_index + 1
                 vram_aborted = True
@@ -846,18 +905,9 @@ def main():
                 contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
 
             corrected = review_batch(
-                client, model_name, batch, batch_index, total_batches,
+                client, model_name, batch, batch_index, total_batches, gen_params,
                 previous_tail=None,  # contextual mode uses explicit before/after window instead
                 source_context="\n".join(contextual_lines),
-                system_prompt=review_sys,
-                user_prompt_template=review_usr,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                min_p=min_p,
-                presence_penalty=presence_penalty,
-                banned_tokens=banned_tokens
             )
 
             if corrected is None:
@@ -872,9 +922,9 @@ def main():
                                 batch_lengths, failed_batches)
                 continue
 
-            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.15)
+            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
             if not passed:
-                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.15)")
+                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
                 print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
                 print(f"  Keeping original entries for batch {batch_index} to prevent data corruption (will retry on next resume).")
                 all_corrected.extend(batch)
@@ -932,92 +982,124 @@ def main():
             print(f"Resuming from checkpoint: {completed_batches}/{total_batches} batches already reviewed.")
 
         unreviewed_remainder = []
-        for offset_idx, batch in enumerate(remaining_batches):
-            i = completed_batches + 1 + offset_idx
+        # Guards the per-batch VRAM check below: wave_size>1 batches run
+        # concurrently, so a single pre-wave check (the old approach) can't
+        # see VRAM consumed by sibling batches still starting up within the
+        # same wave. vram_lock serializes each batch's own live check (so it
+        # reflects whatever siblings dispatched moments earlier already
+        # claimed); vram_abort lets one batch's sustained-saturation timeout
+        # tell not-yet-started siblings/waves to stop too.
+        vram_abort = threading.Event()
+        vram_lock = threading.Lock()
+        for wave_start in range(0, len(remaining_batches), wave_size):
+            wave_batches = remaining_batches[wave_start:wave_start + wave_size]
+            wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
+            # Every batch in this wave gets the SAME previous_tail (from the end of
+            # the last wave) - they can't see each other's corrections yet, only
+            # results from earlier, already-finished waves. Mirrors find_nicknames.py.
+            wave_tail = previous_tail
 
-            if not wait_for_vram_headroom():
-                for remaining in remaining_batches[offset_idx:]:
+            if len(wave_batches) > 1:
+                print(f"\nReviewing batches {wave_indices[0]}-{wave_indices[-1]}/{total_batches} "
+                      f"({sum(len(b) for b in wave_batches)} entries, {len(wave_batches)} concurrent)...")
+            else:
+                print(f"\nReviewing batch {wave_indices[0]}/{total_batches} ({len(wave_batches[0])} entries)...")
+
+            def _run_one(item):
+                i, batch = item
+                if not is_remote:
+                    with vram_lock:
+                        if vram_abort.is_set():
+                            return "VRAM_SKIP"
+                        if not wait_for_vram_headroom():
+                            vram_abort.set()
+                            return "VRAM_SKIP"
+                return review_batch(
+                    client, model_name, batch, i, total_batches, gen_params,
+                    previous_tail=wave_tail,
+                    source_context=None,  # Mode 2: would pass source text chunk here
+                )
+
+            with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
+                wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
+
+            for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
+                if corrected == "VRAM_SKIP":
+                    unreviewed_remainder.extend(batch)
+                    continue
+
+                if corrected is None:
+                    print(f"  FAILED — keeping original entries for batch {i} (will retry on next resume)")
+                    all_corrected.extend(batch)
+                    total_stats["batches_failed"] += 1
+                    previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                    batch_lengths.append(len(batch))
+                    failed_batches.append(i)
+                    save_checkpoint(output_path, i, total_batches, batch_size,
+                                    args.context_window, all_corrected, total_stats, previous_tail,
+                                    batch_lengths, failed_batches)
+                    continue
+
+                # Text-loss safety check (same bounds as contextual mode for consistency)
+                passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
+                if not passed:
+                    print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
+                    print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
+                    print(f"  Keeping original entries for batch {i} to prevent data corruption (will retry on next resume).")
+                    all_corrected.extend(batch)
+                    total_stats["batches_failed"] += 1
+                    previous_tail = batch[-2:] if len(batch) >= 2 else batch
+                    batch_lengths.append(len(batch))
+                    failed_batches.append(i)
+                    save_checkpoint(output_path, i, total_batches, batch_size,
+                                    args.context_window, all_corrected, total_stats, previous_tail,
+                                    batch_lengths, failed_batches)
+                    continue
+
+                # Diff stats
+                stats = diff_entries(batch, corrected, highlight_pool)
+                entry_diff = len(corrected) - len(batch)
+
+                if entry_diff > 0:
+                    total_stats["entries_added"] += entry_diff
+                elif entry_diff < 0:
+                    total_stats["entries_removed"] += abs(entry_diff)
+
+                total_stats["text_changed"] += stats["text_changed"]
+                total_stats["speaker_changed"] += stats["speaker_changed"]
+                total_stats["instruct_changed"] += stats["instruct_changed"]
+
+                changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+                if changes > 0 or entry_diff != 0:
+                    print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                    if entry_diff > 0:
+                        print(f", +{entry_diff} entries (splits)")
+                    elif entry_diff < 0:
+                        print(f", {entry_diff} entries (merges)")
+                    else:
+                        print()
+                else:
+                    print(f"  No changes")
+
+                all_corrected.extend(corrected)
+                previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+                batch_lengths.append(len(corrected))
+                save_checkpoint(output_path, i, total_batches, batch_size,
+                                args.context_window, all_corrected, total_stats, previous_tail,
+                                batch_lengths, failed_batches)
+
+            if vram_abort.is_set():
+                # Some batches in this wave may have already succeeded before
+                # the abort was detected (kept above, in all_corrected) -
+                # only the genuinely-skipped ones and every later, untried
+                # wave count as unreviewed.
+                skipped_count = sum(1 for r in wave_results if r == "VRAM_SKIP")
+                for remaining in remaining_batches[wave_start + len(wave_batches):]:
                     unreviewed_remainder.extend(remaining)
-                total_stats["batches_skipped_vram"] = total_batches - i + 1
+                    skipped_count += 1
+                total_stats["batches_skipped_vram"] = skipped_count
                 vram_aborted = True
                 break
-
-            print(f"\nReviewing batch {i}/{total_batches} ({len(batch)} entries)...")
-
-            corrected = review_batch(
-                client, model_name, batch, i, total_batches,
-                previous_tail=previous_tail,
-                source_context=None,  # Mode 2: would pass source text chunk here
-                system_prompt=review_sys,
-                user_prompt_template=review_usr,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                min_p=min_p,
-                presence_penalty=presence_penalty,
-                banned_tokens=banned_tokens
-            )
-
-            if corrected is None:
-                print(f"  FAILED — keeping original entries for batch {i} (will retry on next resume)")
-                all_corrected.extend(batch)
-                total_stats["batches_failed"] += 1
-                previous_tail = batch[-2:] if len(batch) >= 2 else batch
-                batch_lengths.append(len(batch))
-                failed_batches.append(i)
-                save_checkpoint(output_path, i, total_batches, batch_size,
-                                args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
-                continue
-
-            # Text-loss safety check
-            passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected)
-            if not passed:
-                print(f"  WARNING: Text length mismatch (loss or gain)! Word ratio: {ratio:.2f} (acceptable range: 0.95-1.05)")
-                print(f"  Original words: {len(orig_text.split())}, Corrected words: {len(corr_text.split())}")
-                print(f"  Keeping original entries for batch {i} to prevent data corruption (will retry on next resume).")
-                all_corrected.extend(batch)
-                total_stats["batches_failed"] += 1
-                previous_tail = batch[-2:] if len(batch) >= 2 else batch
-                batch_lengths.append(len(batch))
-                failed_batches.append(i)
-                save_checkpoint(output_path, i, total_batches, batch_size,
-                                args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
-                continue
-
-            # Diff stats
-            stats = diff_entries(batch, corrected, highlight_pool)
-            entry_diff = len(corrected) - len(batch)
-
-            if entry_diff > 0:
-                total_stats["entries_added"] += entry_diff
-            elif entry_diff < 0:
-                total_stats["entries_removed"] += abs(entry_diff)
-
-            total_stats["text_changed"] += stats["text_changed"]
-            total_stats["speaker_changed"] += stats["speaker_changed"]
-            total_stats["instruct_changed"] += stats["instruct_changed"]
-
-            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
-            if changes > 0 or entry_diff != 0:
-                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
-                if entry_diff > 0:
-                    print(f", +{entry_diff} entries (splits)")
-                elif entry_diff < 0:
-                    print(f", {entry_diff} entries (merges)")
-                else:
-                    print()
-            else:
-                print(f"  No changes")
-
-            all_corrected.extend(corrected)
-            previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
-            batch_lengths.append(len(corrected))
-            save_checkpoint(output_path, i, total_batches, batch_size,
-                            args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches)
 
     # Post-processing: merge consecutive NARRATOR entries with same instruct.
     # This is purely local (no LLM calls), so it's safe to run on the
@@ -1043,9 +1125,11 @@ def main():
         print("\nSkipping speaker alias resolution (stopped early due to low GPU VRAM).")
     elif args.dedupe_speakers:
         print("\nResolving character aliases (merging duplicate names)...")
-        dedupe_map, speakers_merged = dedupe_speakers(
+        dedupe_map, speakers_merged, dedupe_changes = dedupe_speakers(
             client, model_name, all_corrected, registry_path=args.alias_registry
         )
+        for idx, key, new_value in dedupe_changes:
+            all_corrected[idx][key] = new_value
         if speakers_merged > 0:
             print(f"Merged {len(dedupe_map)} alias label(s), updating {speakers_merged} entries.")
             moved = _remap_voice_config(args.remap_voice_config, dedupe_map)
@@ -1056,9 +1140,8 @@ def main():
 
     output_entries = all_corrected + unreviewed_remainder
 
-    # Write corrected script
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output_entries, f, indent=2, ensure_ascii=False)
+    # Write corrected script atomically so a crash mid-write doesn't corrupt the output
+    atomic_json_write(output_entries, output_path)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
@@ -1113,7 +1196,12 @@ def main():
         print(f"Fixed {total_changes} issues across {total_batches} batches.")
 
     print(f"Output saved to: {output_path}")
-    print("Task review completed successfully.")
+    if vram_aborted:
+        print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
+    elif total_stats["batches_failed"] > 0:
+        print(f"Task review completed with {total_stats['batches_failed']} batch failure(s) - those entries were saved unreviewed.")
+    else:
+        print("Task review completed successfully.")
 
 
 if __name__ == "__main__":

@@ -10,8 +10,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTa
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Tuple
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Tuple, Literal
 import re
 import time
 import queue
@@ -19,24 +19,38 @@ import difflib
 import threading
 import zipfile
 import subprocess
+import traceback
 import aiofiles
-from utils import atomic_json_write, file_lock
+from datetime import datetime
+from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, system_has_gpu
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
 
 # Import ProjectManager
 from project import ProjectManager
+from tts import voice_category
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
-from lmstudio_settings import get_lmstudio_status, apply_lmstudio_settings
-from review_script import clear_checkpoint
+from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
+                               apply_remote_lmstudio_settings, is_local_llm_endpoint,
+                               get_current_status)
+from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AlexandriaUI")
+
+
+def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> None:
+    """Log a consistent warning for a corrupted/unreadable JSON file that's
+    falling back to some default. Shared by every site that catches a JSON
+    parse failure on a config/state/manifest file - keeps the message format
+    in one place instead of over a dozen independently-written copies."""
+    logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
+
 
 app = FastAPI(title="Alexandria Audiobook")
 
@@ -81,7 +95,7 @@ LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
 LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
 DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
-PREPARER_SCRIPT_PATH = os.path.join(BASE_DIR, "alexandria_preparer.py")
+PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
 PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -135,10 +149,11 @@ if _startup_chunks:
         print(f"Startup: reset {_reset_count} stuck 'generating' chunk(s) to 'pending'")
     del _startup_chunks, _reset_count
 
-# CORS for development
+# CORS — allow configurable origins via env var, defaulting to localhost for security
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://127.0.0.1:4200,http://localhost:4200").split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -155,11 +170,64 @@ def _get_torch():
         return None
 
 
+# GPU stats cache to avoid repeated torch imports and subprocess calls
+_gpu_stats_cache = {"data": None, "timestamp": 0}
+_GPU_STATS_CACHE_TTL = 5  # seconds
+
+def _gpu_stats_via_rocm_smi():
+    """VRAM/util from rocm-smi when torch can't see the GPU (e.g. a CUDA-only
+    torch build on an AMD box). Returns the same dict shape as get_gpu_stats(),
+    or None on any rocm-smi failure (missing binary, timeout, bad/empty JSON)."""
+    data = run_rocm_smi_json(["--showmeminfo", "vram", "--showuse"],
+                             rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+    if not data:
+        return None
+    for card_data in data.values():
+        if not isinstance(card_data, dict):
+            continue
+        total_b = card_data.get("VRAM Total Memory (B)")
+        used_b = card_data.get("VRAM Total Used Memory (B)")
+        if total_b is None:
+            continue
+        try:
+            total = int(total_b) / 1e9
+            used = int(used_b) / 1e9 if used_b is not None else 0.0
+        except (ValueError, TypeError):
+            continue
+        if total <= 0:
+            continue
+        stats = {"allocated_gb": used, "reserved_gb": used, "total_gb": total,
+                 "allocated_percent": used / total * 100,
+                 "utilization_percent": None}
+        for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
+            v = card_data.get(key)
+            if v not in (None, "N/A"):
+                try:
+                    stats["utilization_percent"] = float(v)
+                    break
+                except (ValueError, TypeError):
+                    pass
+        return stats
+    return None
+
 def get_gpu_stats():
-    """Get current GPU memory and utilization stats."""
+    """Get current GPU memory and utilization stats with caching."""
+    now = time.time()
+
+    # Return cached stats if still fresh
+    if (now - _gpu_stats_cache["timestamp"]) < _GPU_STATS_CACHE_TTL:
+        return _gpu_stats_cache["data"]
+
     torch = _get_torch()
     if torch is None or not torch.cuda.is_available():
-        return None
+        # torch can't see the GPU (e.g. a CUDA-only build on an AMD box) —
+        # fall back to rocm-smi so AMD GPUs are still detected.
+        stats = _gpu_stats_via_rocm_smi()
+        if stats is None:
+            logger.debug("GPU stats: No GPU available (torch + rocm-smi both failed)")
+        _gpu_stats_cache["data"] = stats
+        _gpu_stats_cache["timestamp"] = now
+        return stats
 
     stats = {}
     try:
@@ -168,37 +236,45 @@ def get_gpu_stats():
         reserved = torch.cuda.memory_reserved() / 1e9    # GB
         total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
 
+        if total <= 0:
+            logger.warning("GPU stats: Total memory reported as 0, skipping utilization check")
+            _gpu_stats_cache["data"] = None
+            _gpu_stats_cache["timestamp"] = now
+            return None
+
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
         stats['total_gb'] = total
-        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+        stats['allocated_percent'] = allocated / total * 100
 
         # Try to get utilization via rocm-smi for AMD GPUs
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                for card_key, card_data in data.items():
-                    if not isinstance(card_data, dict):
-                        continue
-                    for key in ('GPU use (%)', 'GPU Use (%)', 'GPU Activity'):
-                        gpu_use_str = card_data.get(key)
-                        if gpu_use_str is not None and gpu_use_str != 'N/A':
+        data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+        if data is not None:
+            for card_key, card_data in data.items():
+                if not isinstance(card_data, dict):
+                    continue
+                for key in ('GPU use (%)', 'GPU Use (%)', 'GPU Activity'):
+                    gpu_use_str = card_data.get(key)
+                    if gpu_use_str is not None and gpu_use_str != 'N/A':
+                        try:
                             stats['utilization_percent'] = float(gpu_use_str)
                             break
-                    break
-        except Exception:
+                        except (ValueError, TypeError):
+                            continue
+                break
+        else:
+            logger.debug("GPU stats: Failed to get utilization via rocm-smi")
             stats['utilization_percent'] = None
 
     except Exception as e:
         logger.debug(f"Could not get GPU stats: {e}")
+        _gpu_stats_cache["data"] = None
+        _gpu_stats_cache["timestamp"] = now
         return None
 
+    # Cache the result
+    _gpu_stats_cache["data"] = stats
+    _gpu_stats_cache["timestamp"] = now
     return stats
 
 def check_disk_space(path, required_gb):
@@ -207,8 +283,9 @@ def check_disk_space(path, required_gb):
         stat = shutil.disk_usage(path)
         free_gb = stat.free / (1024 ** 3)
         return free_gb >= required_gb, free_gb
-    except Exception:
-        return True, 0
+    except (OSError, ValueError) as e:
+        logger.warning(f"Could not check disk space for {path}: {e}")
+        return True, 0.0
 
 # Data Models
 class LLMConfig(BaseModel):
@@ -253,7 +330,11 @@ class PromptConfig(BaseModel):
     persona_advanced_prompt: Optional[str] = None
 
 class AppConfig(BaseModel):
-    llm: LLMConfig
+    llm: LLMConfig  # active profile - mirrored from llm_local/llm_remote per llm_mode
+    llm_mode: Literal["local", "remote"] = "local"  # remote = e.g. LM Studio on Thunder
+    llm_local: Optional[LLMConfig] = None   # saved local profile
+    llm_remote: Optional[LLMConfig] = None  # saved remote profile
+    llm_remote_ssh: Optional[str] = None    # ssh host alias (e.g. "tnr-0") for remote optimize
     tts: TTSConfig
     prompts: Optional[PromptConfig] = None
     generation: Optional[GenerationConfig] = None
@@ -364,18 +445,11 @@ class LoraDatasetSample(BaseModel):
     emotion: str = ""
     text: str
 
-class LoraGenerateDatasetRequest(BaseModel):
-    name: str
-    description: str  # root voice description
-    samples: Optional[List[LoraDatasetSample]] = None  # emotion+text pairs
-    texts: Optional[List[str]] = None  # legacy: flat text list (no emotions)
-    language: Optional[str] = None
-
 class DatasetSampleGenRequest(BaseModel):
     description: str      # full voice description (root + emotion already combined by frontend)
     text: str
     dataset_name: str     # working directory name
-    sample_index: int     # row number
+    sample_index: int = Field(ge=0, le=4999)  # row number
     seed: int = -1        # -1 = random, >= 0 = manual seed
 
 class DatasetBatchGenRequest(BaseModel):
@@ -421,13 +495,6 @@ class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
     batch_size: int = 40
 
-class PreparerConfig(BaseModel):
-    audio_filename: str
-    output_filename: str = "alexandria_dataset.zip"
-    lang: str = "en"
-    min_confidence: float = 0.85
-    min_snr: int = 25
-
 class BatchPreparerTask(BaseModel):
     audio_filename: str
     output_filename: str
@@ -453,13 +520,84 @@ process_state = {
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "lora_training": {"running": False, "logs": []},
-    "dataset_gen": {"running": False, "logs": []},
+    "lora_test": {"running": False, "logs": []},
+    "voice_design": {"running": False, "logs": []},
+    "lmstudio_optimize": {"running": False, "logs": []},
     "dataset_builder": {"running": False, "logs": [], "cancel": False},
     "preparer": {"running": False, "logs": [], "cancel": False, "process": None, "status": "idle", "output_file": None},
     "batch_preparer": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1},
     "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None},
     "voicelab":       {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "status": "idle", "start_time": None},
 }
+
+# Tasks that don't touch the GPU/LLM and are exempt from the global GPU lock.
+# "voices" (suggest_voices) is intentionally NOT here: it runs local LLM
+# inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
+NON_GPU_TASKS = {"audacity_export", "m4b_export"}
+GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
+
+def check_global_gpu_lock(new_task_name: str):
+    """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
+
+    Raises HTTPException on conflict (every caller relies on this propagating
+    straight out of the route handler) - unlike check_disk_space/
+    check_text_loss's return-a-value convention.
+    """
+    if process_state.get(new_task_name, {}).get("running"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{new_task_name.replace('_', ' ').capitalize()} is already running."
+        )
+    if new_task_name in NON_GPU_TASKS:
+        # NON_GPU_TASKS are exempt from the global GPU lock - don't block them
+        # on other GPU tasks' running state, only guard against double-starting
+        # themselves (handled above).
+        return
+    for task_name in GPU_TASKS:
+        if task_name != new_task_name and process_state.get(task_name, {}).get("running"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM."
+            )
+
+_gpu_lock = threading.Lock()
+
+def claim_gpu_task(task_name: str):
+    """Atomically re-check and reserve the GPU lock for task_name.
+
+    check_global_gpu_lock() alone has a TOCTOU race: two requests for
+    different GPU tasks can both pass the check before either's
+    process_state[...]["running"] flag is set, and both start. Call this
+    immediately before scheduling the background task (after all validation
+    that could fail has already happened) to atomically perform the final
+    check and mark the task as running.
+    """
+    with _gpu_lock:
+        check_global_gpu_lock(task_name)
+        process_state[task_name]["running"] = True
+
+def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
+    """Reset a process_state[...] entry for the start of a new batch run.
+
+    Common initialization shared by review_script_batch_start,
+    generate_script_batch_start, and voicelab_start's background _run().
+    """
+    state["running"] = True
+    state["cancel"] = False
+    state["paused"] = False
+    state["start_time"] = time.time()
+    state["_last_eta_fraction"] = 0.0
+    state["logs"] = logs
+    state["tasks"] = tasks
+    state["current_task_idx"] = -1
+    # Clear any stale process/pid left over from a previous run so an early
+    # cancel (before the first subprocess is spawned) can't signal a dead or
+    # recycled PID.
+    if "process" in state:
+        state["process"] = None
+    if "pid" in state:
+        state["pid"] = None
+
 
 _PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
 
@@ -526,29 +664,46 @@ def _compute_eta(state: dict) -> dict:
             total_items = num_items * 2
             if state.get("current_pass") == "bwd":
                 position = total_items - 1 - idx
-                pass_label = " (pass 2/2)"
+                # Book number matches the per-book log lines elsewhere
+                # (e.g. "--- [{i+1}/{total}] Reviewing ... ---"), which use
+                # idx + 1 in both passes - not a reversed countdown.
+                progress = f"item {idx + 1}/{num_items} (pass 2/2)"
             else:
                 position = idx
-                pass_label = " (pass 1/2)"
-            progress = f"item {idx + 1}/{num_items}{pass_label}"
+                progress = f"item {idx + 1}/{num_items} (pass 1/2)"
         else:
             total_items = num_items
             position = idx
             progress = f"item {idx + 1}/{total_items}"
         fraction = (position + sub_fraction) / total_items
         fraction = min(1.0, max(0.0, fraction))
+        # Ensure fraction never decreases (protects against unexpected idx behavior)
+        last_fraction = state.get("_last_eta_fraction", 0.0)
+        if fraction < last_fraction:
+            # If fraction went backwards, clamp it to the last known value
+            fraction = last_fraction
+        state["_last_eta_fraction"] = fraction
         if sub_progress:
             progress += f" ({sub_progress})"
     else:
         fraction = sub_fraction or None
         progress = sub_progress
 
-    eta_seconds = elapsed * (1 - fraction) / fraction if fraction else None
+    eta_seconds = None
+    if fraction and fraction > 0.001:  # Avoid enormous ETAs at start
+        eta_seconds = elapsed * (1 - fraction) / fraction
     return {"elapsed_seconds": elapsed, "eta_seconds": eta_seconds, "progress": progress, "fraction": fraction}
 
 def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and stream its output into process_state logs."""
     state = process_state[task_name]
+
+    # NOTE: do NOT bail out here if state["running"] is already True. GPU tasks
+    # reserve their slot via claim_gpu_task() on the request thread (which sets
+    # running=True before this background task is scheduled), and the few
+    # non-GPU callers (e.g. nicknames) guard against double-starts at their own
+    # endpoint. A guard here would see claim_gpu_task's own reservation and
+    # abort every GPU task, deadlocking the queue.
     state["running"] = True
     state["logs"] = []
     if "paused"      in state: state["paused"]      = False
@@ -590,11 +745,19 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             if report_path:
                 state["logs"].append(f"Wrote review report: {os.path.relpath(report_path, ROOT_DIR)}")
         else:
-            state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
-            if "status" in state: state["status"] = "failed"
+            # Check if process was killed by a signal (negative return code on Unix)
+            if return_code < 0:
+                sig_name = signal.Signals(-return_code).name if hasattr(signal, 'Signals') else f"signal {-return_code}"
+                state["logs"].append(f"Task {task_name} was cancelled ({sig_name}).")
+                if "status" in state: state["status"] = "cancelled"
+            else:
+                state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
+                if "status" in state: state["status"] = "failed"
 
     except Exception as e:
-        logger.error(f"Error running {task_name}: {e}")
+        # Catch-all so we always clean up the task state even if the exception
+        # is unexpected (e.g. AttributeError, KeyError from internal bugs).
+        logger.exception(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
         if "status" in state:
             state["status"] = "cancelled" if state.get("cancel") else "failed"
@@ -693,26 +856,51 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         try:
             for line in stream:
                 q.put(line)
+        except Exception as e:
+            # Log the error so we know why the reader died
+            logger.error(f"Subprocess reader thread failed: {e}")
         finally:
-            q.put(None)
+            # Always put None sentinel even if iteration failed
+            try:
+                q.put(None)
+            except Exception:
+                pass  # Queue might be closed, nothing we can do
 
     reader = threading.Thread(target=_reader, args=(process.stdout, log_queue), daemon=True)
     reader.start()
 
     own_lines: List[str] = []
+    terminate_requested = False
+    max_idle_cycles = 600  # Max consecutive Empty polls before assuming reader died (600 * 0.2s = 120s)
+    idle_cycles = 0
 
     while True:
         try:
-            line = log_queue.get(timeout=0.05)
+            line = log_queue.get(timeout=0.2)  # Increased from 0.05 to reduce CPU spinning
+            idle_cycles = 0  # Reset on successful get
         except queue.Empty:
-            if state.get("cancel"):
+            if not state.get("paused"):
+                idle_cycles += 1
+            else:
+                idle_cycles = 0  # Reset during pause to prevent false-positive reader thread timeouts
+            if idle_cycles > max_idle_cycles:
+                if process.poll() is not None:
+                    # Process has exited but the reader thread hasn't delivered
+                    # its output/None sentinel - it may have crashed.
+                    logger.warning(f"Queue polling timed out after {max_idle_cycles * 0.2}s after process exit - assuming reader thread died")
+                    break
+                # Process is still running (e.g. a slow LLM call with no stdout
+                # output) - keep waiting rather than dropping output that
+                # arrives later.
+                idle_cycles = 0
+            if state.get("cancel") and not terminate_requested:
+                terminate_requested = True
                 try:
                     process.terminate()
                 except (ProcessLookupError, OSError):
-                    # Process already exited — let the reader thread drain
-                    # the rest of the output instead of raising here, where
-                    # run_process's except block can't tell a cancel-induced
-                    # terminate() failure apart from a genuine crash.
+                    # Process already exited on its own - nothing to terminate.
+                    # Let the reader thread drain the rest of the output; the
+                    # real exit code below reflects how it actually finished.
                     pass
             continue
         if line is None:
@@ -737,8 +925,14 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                         log_fh.flush()
                         log_lines_since_flush = 0
                         last_flush_time = now
-                except OSError:
-                    pass
+                except OSError as e:
+                    # Log write failed (e.g., disk full). Notify user and close file handle.
+                    state["logs"].append(f"WARNING: Log file write failed ({e}). Subsequent logs will only appear in memory.")
+                    try:
+                        log_fh.close()
+                    except OSError:
+                        pass
+                    log_fh = None  # Stop trying to write to disk
 
     reader.join()
     process.wait()
@@ -796,13 +990,21 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
 def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     """Sum per-pass review stats (e.g. forward + backward) into one dict, for
     displays — like a per-book badge tooltip — that should reflect a book's
-    combined totals rather than only whichever pass ran last."""
+    combined totals rather than only whichever pass ran last.
+
+    Sets combined["partial"] = True if any of the given stat_dicts is None/
+    falsy (a pass that crashed or hasn't run yet), so a consumer can tell
+    "both passes ran and together found little" apart from "only one pass
+    actually contributed to this total"."""
     combined = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
+    combined["partial"] = False
     for stats in stat_dicts:
         if not stats:
+            combined["partial"] = True
             continue
         for key in combined:
-            combined[key] += stats.get(key, 0)
+            if key != "partial":
+                combined[key] += stats.get(key, 0)
     return combined
 
 
@@ -849,7 +1051,8 @@ def _extract_diff_highlights(lines: List[str]) -> dict:
                     "text_rewrites": data.get("text_rewrites", []),
                     "speaker_changes": data.get("speaker_changes", []),
                 }
-            except (json.JSONDecodeError, AttributeError):
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Malformed DIFF_PREVIEW_JSON line, returning empty diff preview: {e}")
                 break
     return {"text_rewrites": [], "speaker_changes": []}
 
@@ -989,25 +1192,80 @@ _REPORT_SUMMARY_SYSTEM_PROMPT = (
 
 def _load_llm_config() -> dict:
     """Return the `llm` section of config.json, or {} if missing/unreadable."""
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f).get("llm", {})
-        except Exception:
-            pass
-    return {}
+    return safe_load_json(CONFIG_PATH, default={}).get("llm", {})
 
+
+class LLMConfigError(ValueError):
+    """Raised when the configured LLM base_url fails the local/trusted-host check.
+
+    A subclass of ValueError so existing `except ValueError` handlers (e.g. in
+    save_config) keep working, while callers that want to distinguish "LLM is
+    misconfigured" from other failures (transient connection errors, bad JSON
+    responses, etc.) can catch this specifically and surface it to the user.
+    """
+
+
+def _validate_local_llm_base_url(base_url: str) -> None:
+    """Raise LLMConfigError if base_url is set but doesn't point to a local/trusted host.
+
+    Enforced both when an LLM client is constructed (_make_llm_client) and when
+    config is saved (save_config), so config.json can never persist a non-local
+    endpoint and every consumer of the `llm` config section is protected.
+    """
+    if not base_url:
+        return
+    if is_local_llm_endpoint(base_url):
+        return
+    from urllib.parse import urlparse
+    hostname = (urlparse(base_url).hostname or "").lower()
+    # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
+    # that trusted remote host for running LM Studio on a Thunder GPU instance.
+    if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
+        return
+    raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
+
+
+# LLM client cache to avoid creating new HTTP sessions for every request.
+# Keyed by config (base_url/api_key/model_name/timeout) since different call
+# sites use different timeouts - a single-slot cache would thrash between them.
+_llm_client_cache: dict = {}
 
 def _make_llm_client(timeout: float = 60):
-    """Build an OpenAI-compatible client + model name from config.json's `llm` section."""
+    """Build an OpenAI-compatible client + model name from config.json's `llm` section.
+
+    Validates that the base_url is local/trusted.
+    Reuses cached client if config hasn't changed to avoid connection pool leaks.
+    """
     from openai import OpenAI
     llm_cfg = _load_llm_config()
+
+    base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
+    _validate_local_llm_base_url(base_url)
+
+    # Create a hash of the config to detect changes
+    config_key = f"{llm_cfg.get('base_url')}:{llm_cfg.get('api_key')}:{llm_cfg.get('model_name')}:{timeout}"
+
+    # Reuse cached client if config hasn't changed
+    cached_client = _llm_client_cache.get(config_key)
+    if cached_client is not None:
+        return cached_client, llm_cfg.get("model_name", "")
+
     client = OpenAI(
-        base_url=llm_cfg.get("base_url", "http://localhost:11434/v1"),
+        base_url=base_url,
         api_key=llm_cfg.get("api_key", "local"),
         timeout=timeout,
     )
-    return client, llm_cfg.get("model_name", "")
+    model_name = llm_cfg.get("model_name", "")
+
+    # Cache the client, bounding the cache size to avoid memory growth
+    if len(_llm_client_cache) >= 10:
+        oldest_key = next(iter(_llm_client_cache))
+        evicted = _llm_client_cache.pop(oldest_key, None)
+        if evicted is not None:
+            evicted.close()
+    _llm_client_cache[config_key] = client
+
+    return client, model_name
 
 
 def _llm_summarize_report(markdown_body: str) -> Optional[str]:
@@ -1016,7 +1274,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
 
     Best-effort: returns None (and the caller falls back to the plain-language
     report on its own) if the LLM is unavailable or the request fails.
-    """
+    Validates that the configured base_url is local/trusted before sending data."""
     try:
         client, model_name = _make_llm_client(timeout=60)
 
@@ -1265,20 +1523,45 @@ async def get_system_stats():
                 if _line.startswith("MemTotal:"):
                     ram_gb = round(int(_line.split()[1]) / 1_048_576, 1)
                     break
-    except Exception:
+    except (OSError, ValueError):
         pass
 
     gpu_name = None
+    torch_cuda_ok = False
     try:
         torch = _get_torch()
         if torch is not None and torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
-    except Exception:
+            torch_cuda_ok = True
+    except (RuntimeError, OSError, AttributeError):
         pass
+    if gpu_name is None:
+        # torch can't see the GPU — ask rocm-smi for the product name (AMD).
+        name_data = run_rocm_smi_json(["--showproductname"],
+                                      rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+        if name_data:
+            for card_data in name_data.values():
+                if isinstance(card_data, dict):
+                    name = card_data.get("Card Series") or card_data.get("Card Model")
+                    if name and name != "N/A":
+                        gpu_name = name
+                        break
+
+    # A GPU physically present (rocm-smi/nvidia-smi/Apple Silicon) but torch
+    # unable to use it means generation/training will silently run on CPU -
+    # surfaced here so the UI can show this prominently instead of it only
+    # showing up as "everything is slow" with no clear cause.
+    gpu_mismatch = False
+    gpu_vendor = None
+    if not torch_cuda_ok:
+        has_gpu, gpu_vendor = system_has_gpu()
+        gpu_mismatch = has_gpu
 
     return {
         "gpu": gpu,
         "gpu_name": gpu_name,
+        "gpu_mismatch": gpu_mismatch,
+        "gpu_mismatch_vendor": gpu_vendor,
         "disk": {
             "free_gb": round(free_gb, 2),
             "low_space": not has_space
@@ -1300,43 +1583,142 @@ async def get_eta_status():
     return {"running": False}
 
 
-def _get_llm_model_name():
-    return _load_llm_config().get("model_name")
-
-
 class LMStudioOptimizeRequest(BaseModel):
     enable: bool
 
 
 @app.get("/api/lmstudio/status")
 async def lmstudio_status():
-    """Report whether LM Studio's loaded model is using VRAM-safe settings
-    (8192 context, parallel 1) so the UI can show an at-a-glance indicator."""
-    model_name = _get_llm_model_name()
+    """Report whether the loaded model is using ideal settings (VRAM-safe
+    locally, large-context remotely) so the UI can show an at-a-glance indicator."""
+    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    llm_cfg = full_cfg.get("llm") or {}
+    base_url = llm_cfg.get("base_url", "")
+    model_name = llm_cfg.get("model_name")
     if not model_name:
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False, "model": None}
-    status = await asyncio.to_thread(get_lmstudio_status, model_name)
+    llm_mode = full_cfg.get("llm_mode", "local")
+    ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
+    status = await asyncio.to_thread(get_current_status, llm_mode, base_url, model_name, ssh_alias, use_cache=True)
     status["model"] = model_name
+    if is_remote_llm(llm_mode, base_url):
+        status["remote"] = True
     return status
+
+
+def _log_llm_failure(kind: str, detail: str) -> str:
+    """Write an LLM connection/optimize failure to logs/api/ and return the path."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat()}] LLM {kind} failure\n\n{detail}\n")
+    except OSError:
+        return ""
+    return path
 
 
 @app.post("/api/lmstudio/optimize")
 async def lmstudio_optimize(req: LMStudioOptimizeRequest):
-    """Toggle the loaded LM Studio model between VRAM-safe settings
-    (8192 context, parallel 1) and LM Studio's default settings."""
-    model_name = _get_llm_model_name()
+    """Toggle the loaded model between VRAM-safe/best settings and LM Studio's
+    defaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.
+    LM Studio on Thunder) are driven over SSH via the configured host alias."""
+    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    cfg = full_cfg.get("llm", {})
+    model_name = cfg.get("model_name")
     if not model_name:
         raise HTTPException(status_code=400, detail="No LLM model configured")
 
-    ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
-    if not ok:
-        raise HTTPException(status_code=502, detail=msg)
+    # Reloading the model is a real VRAM operation - keep it from racing any
+    # other GPU_TASKS member (review/audio/script/etc.) holding VRAM against
+    # the same model. See FINDINGS.md F-029.
+    claim_gpu_task("lmstudio_optimize")
+    try:
+        if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
+            ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+            if not ok:
+                raise HTTPException(status_code=502, detail=msg)
+            status = await asyncio.to_thread(get_lmstudio_status, model_name)
+            status["model"] = model_name
+            status["message"] = msg
+            return status
 
-    status = await asyncio.to_thread(get_lmstudio_status, model_name)
-    status["model"] = model_name
-    status["message"] = msg
-    return status
+        # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
+        ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
+        if not ssh_alias:
+            raise HTTPException(status_code=400, detail=(
+                "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
+                "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
+        ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+        if not ok:
+            log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
+            raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
+        return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
+    finally:
+        process_state["lmstudio_optimize"]["running"] = False
+
+
+def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
+    """Probe an OpenAI-compatible endpoint: list models, then a tiny completion.
+
+    Returns a dict describing each step. On failure, writes a log file and
+    includes its path so the user can hand it back for debugging.
+    """
+    from openai import OpenAI
+    try:
+        _validate_local_llm_base_url(base_url)
+    except LLMConfigError as e:
+        return {"ok": False, "step": "validate", "error": str(e)}
+
+    client = OpenAI(base_url=base_url, api_key=api_key or "local", timeout=30)
+    # Step 1: list models (cheap reachability + model-id check)
+    try:
+        models = [m.id for m in client.models.list().data]
+    except Exception as e:
+        detail = f"base_url={base_url}\nGET /models failed:\n{traceback.format_exc()}"
+        return {"ok": False, "step": "models", "error": str(e),
+                "log_file": _log_llm_failure("test", detail)}
+    model_present = model_name in models if model_name else None
+    # Step 2: tiny chat completion
+    try:
+        resp = client.chat.completions.create(
+            model=model_name or (models[0] if models else ""),
+            messages=[{"role": "user", "content": "Reply with the single word: pong"}],
+            max_tokens=8, temperature=0,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+    except Exception as e:
+        detail = (f"base_url={base_url}\nmodel={model_name}\navailable={models}\n"
+                  f"chat completion failed:\n{traceback.format_exc()}")
+        return {"ok": False, "step": "completion", "error": str(e),
+                "models": models, "model_present": model_present,
+                "log_file": _log_llm_failure("test", detail)}
+    return {"ok": True, "base_url": base_url, "model": model_name,
+            "models": models, "model_present": model_present, "reply": reply,
+            # Computed from the base_url actually tested (not the saved
+            # llm_mode) so the caller can label this result correctly even
+            # when testing a not-yet-saved profile.
+            "is_remote": not is_local_llm_endpoint(base_url)}
+
+
+@app.post("/api/llm/test")
+async def llm_test(profile: Optional[LLMConfig] = None):
+    """Test LLM connectivity. Uses the posted profile if given (so the Setup tab
+    can test before saving), otherwise the active config. Writes a log on failure."""
+    if profile is not None and profile.base_url.strip():
+        url = profile.base_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url += "/v1"
+        base_url, api_key, model_name = url, profile.api_key, profile.model_name
+    else:
+        cfg = _load_llm_config()
+        base_url = cfg.get("base_url", "")
+        api_key = cfg.get("api_key", "local")
+        model_name = cfg.get("model_name", "")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="No LLM base_url configured")
+    return await asyncio.to_thread(_run_llm_test, base_url, api_key, model_name)
 
 # Endpoints
 
@@ -1362,11 +1744,8 @@ async def get_config():
             "api_key": "local",
             "model_name": "richardyoung/qwen3-14b-abliterated:Q8_0"
         },
-        "tts": {
-            "mode": "local",
-            "url": "http://127.0.0.1:7860",
-            "device": "auto"
-        },
+        "llm_mode": "local",
+        "tts": TTSConfig().model_dump(),
         "prompts": {
             "system_prompt": "",
             "user_prompt": ""
@@ -1395,8 +1774,18 @@ async def get_config():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
 
-    # Ensure prompts section exists with defaults from file
-    if "prompts" not in config:
+    # Backfill any TTSConfig field missing from an existing on-disk config.json
+    # (e.g. saved before pause_between_speakers_ms/pause_same_speaker_ms or some
+    # other field existed) with that field's model default. save_config() always
+    # writes every field via the pydantic model, so this only matters for a file
+    # that hasn't been re-saved since a field was added - without it, GET would
+    # silently omit fields the TTSConfig model promises always have a default.
+    config["tts"] = {**TTSConfig().model_dump(), **(config.get("tts") or {})}
+
+    # Ensure prompts section exists with defaults from file. Treat an explicit
+    # null (config saved without a prompts field) the same as a missing key so
+    # the dict-access branches below don't crash on None.
+    if not config.get("prompts"):
         sys_prompt, usr_prompt = load_default_prompts()
         prompts = {"system_prompt": sys_prompt, "user_prompt": usr_prompt}
         try:
@@ -1441,6 +1830,15 @@ async def get_config():
             except RuntimeError:
                 pass
 
+    # Local/Remote LLM toggle: ensure mode + both profiles are present so the UI
+    # can populate the toggle. Migrate older config.json (only had `llm`) by
+    # seeding the local profile from the active section.
+    config.setdefault("llm_mode", "local")
+    if not config.get("llm_local"):
+        config["llm_local"] = dict(config.get("llm", {}))
+    config.setdefault("llm_remote", None)
+    config.setdefault("llm_remote_ssh", None)
+
     # Always include current_file (null when no state or file missing)
     config["current_file"] = None
     state_path = os.path.join(ROOT_DIR, "state.json")
@@ -1451,8 +1849,13 @@ async def get_config():
             input_path = state.get("input_file_path", "")
             if input_path and os.path.exists(input_path):
                 config["current_file"] = os.path.basename(input_path)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("state", state_path, "ignoring current_file", e)
+
+    # Precomputed drift-aware answer to "is the active LLM endpoint remote?"
+    # so the frontend doesn't have to re-derive it from llm_mode alone (which
+    # can drift from the actual active base_url) - see lmstudio_settings.is_remote_llm.
+    config["is_remote"] = is_remote_llm(config["llm_mode"], config.get("llm", {}).get("base_url", ""))
 
     return config
 
@@ -1478,15 +1881,41 @@ async def get_default_prompts():
         pass
     return result
 
-@app.post("/api/config")
-async def save_config(config: AppConfig):
-    # Ensure base_url ends with /v1 so the OpenAI client targets the correct path
-    url = config.llm.base_url.rstrip("/")
+def _normalize_and_validate_llm(profile: "LLMConfig") -> None:
+    """Append /v1 to the base_url (in place) and ensure it's a local/trusted host."""
+    if not profile.base_url.strip():
+        raise HTTPException(status_code=400, detail="LLM base_url is required")
+    url = profile.base_url.rstrip("/")
     if not url.endswith("/v1"):
         url += "/v1"
-    config.llm.base_url = url
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config.model_dump(), f, indent=2, ensure_ascii=False)
+    profile.base_url = url
+    try:
+        _validate_local_llm_base_url(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/config")
+async def save_config(config: AppConfig):
+    # Normalize/validate whichever profiles were sent. The local/remote profiles
+    # are persisted side-by-side so toggling never loses the other one's settings.
+    if config.llm_local is not None and config.llm_local.base_url.strip():
+        _normalize_and_validate_llm(config.llm_local)
+    if config.llm_remote is not None and config.llm_remote.base_url.strip():
+        _normalize_and_validate_llm(config.llm_remote)
+
+    # Pick the active profile from the toggle, then mirror it into `llm` - the
+    # section every consumer (review/generate/personas/nicknames) reads.
+    active = config.llm_remote if config.llm_mode == "remote" else config.llm_local
+    if active is None:
+        raise HTTPException(status_code=400, detail=(
+            f"llm_mode is '{config.llm_mode}' but no llm_{config.llm_mode} "
+            f"profile was provided - refusing to save a config where llm_mode "
+            f"and the active llm profile would disagree."))
+    config.llm = active.model_copy(deep=True)
+    _normalize_and_validate_llm(config.llm)
+
+    atomic_json_write(config.model_dump(), CONFIG_PATH)
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
     return {"status": "saved"}
@@ -1587,15 +2016,103 @@ def extract_epub_text(epub_path: str) -> str:
     return '\n\n'.join(chapters)
 
 
+def _claim_unique_path(directory: str, filename: str) -> str:
+    """Atomically reserve a unique path in directory for filename, returning the
+    path to a newly-created empty file the caller should now write/truncate into.
+
+    A directory scan picks a good starting candidate (avoiding O(n) O_EXCL
+    failures when the directory is large), then os.O_EXCL claims it -
+    closing the TOCTOU race a scan-then-write approach has under concurrent
+    uploads of the same filename. Caps at 1000 attempts to prevent a DoS
+    from a maliciously pre-populated directory.
+    """
+    existing = {e.name for e in os.scandir(directory) if e.is_file()}
+    base, ext = os.path.splitext(filename)
+    candidate = filename
+    counter = 1
+    while True:
+        if candidate not in existing:
+            path = os.path.join(directory, candidate)
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                os.close(fd)
+                return path
+            except FileExistsError:
+                pass  # lost the race - fall through and try the next candidate
+        if counter > 1000:
+            raise RuntimeError(f"Too many collisions for filename: {filename}")
+        counter += 1
+        candidate = f"{base}_{counter}{ext}"
+
+
+def _safe_subpath(base_dir: str, name: str) -> str:
+    """Resolve `name` under `base_dir`, rejecting path traversal (e.g. '..' or
+    absolute paths). Returns the realpath; raises HTTP 400 if it escapes.
+
+    Guards endpoints that build a filesystem path from a user-supplied name and
+    then delete/extract it, so a value like '..' can't reach outside base_dir.
+    """
+    target = os.path.realpath(os.path.join(base_dir, name))
+    if not is_path_inside(target, base_dir):
+        raise HTTPException(status_code=400, detail="Invalid name.")
+    return target
+
+
+# Directories this app writes user/attacker-suppliable content into (uploads,
+# extracted dataset ZIPs, generated samples/previews, preparer output).
+# voicelab's rocm_python/pipeline_repo/profiler_model must never resolve
+# inside one of these - otherwise anyone who can upload a file (via
+# /api/upload, /api/lora/upload_dataset, etc.) or run the preparer (which
+# writes to PREPARER_OUTPUT_DIR with an attacker-chosen filename) could point
+# voicelab at content they just planted and have it executed as the
+# "trusted" interpreter or pipeline script.
+_VOICELAB_FORBIDDEN_DIRS = [
+    UPLOADS_DIR, LORA_DATASETS_DIR, LORA_MODELS_DIR, BUILTIN_LORA_DIR,
+    DATASET_BUILDER_DIR, DESIGNED_VOICES_DIR, CLONE_VOICES_DIR, VOICELINES_DIR,
+    PREPARER_OUTPUT_DIR,
+]
+
+
+def _validate_voicelab_path(path: str, what: str) -> None:
+    """Raise HTTPException 400 if `path` resolves inside a directory this app
+    writes uploaded/generated content into - see _VOICELAB_FORBIDDEN_DIRS."""
+    for forbidden in _VOICELAB_FORBIDDEN_DIRS:
+        if is_path_inside(path, forbidden):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{what} cannot be inside {forbidden} - that directory holds "
+                       f"uploaded/generated content, not trusted pipeline code.")
+
+
+def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
+    """zipfile.extractall, but reject members that would escape dest_dir
+    (Zip-Slip path traversal via '../' entries or absolute paths)."""
+    # Resolve dest_dir's realpath once, not per member - is_path_inside
+    # re-resolves its base_dir argument on every call (even when given an
+    # already-canonical path, realpath still re-walks/lstats it), which
+    # would otherwise mean one extra realpath syscall per ZIP entry. Inlined
+    # rather than routed through is_path_inside for that reason.
+    dest = os.path.realpath(dest_dir)
+    for member in zf.namelist():
+        target = os.path.realpath(os.path.join(dest_dir, member))
+        if target != dest and not target.startswith(dest + os.sep):
+            raise HTTPException(status_code=400, detail="Archive contains an unsafe path.")
+    zf.extractall(dest_dir)
+
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    file_path = os.path.join(UPLOADS_DIR, file.filename)
+    # Validate and sanitize filename to prevent path traversal
+    safe_name = secure_filename(file.filename or "")
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid or empty filename")
+    file_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name)
     async with aiofiles.open(file_path, 'wb') as out_file:
         content = await file.read()
         await out_file.write(content)
 
     # Convert EPUB to plain text
-    if file.filename.lower().endswith('.epub'):
+    if file_path.lower().endswith('.epub'):
         try:
             text = extract_epub_text(file_path)
         except Exception as e:
@@ -1604,9 +2121,16 @@ async def upload_file(file: UploadFile = File(...)):
         if not text.strip():
             os.remove(file_path)
             raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
-        txt_path = file_path.rsplit('.', 1)[0] + '.txt'
+        txt_name = os.path.basename(file_path).rsplit('.', 1)[0] + '.txt'
+        txt_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name)
         with open(txt_path, 'w', encoding='utf-8') as f:
             f.write(text)
+        # The original .epub is no longer needed once its text is extracted;
+        # leaving it behind leaks disk space as books accumulate.
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
         file_path = txt_path
 
     # Save input path to state.json to be compatible with original scripts if needed
@@ -1616,12 +2140,11 @@ async def upload_file(file: UploadFile = File(...)):
         with open(state_path, "r", encoding="utf-8") as f:
             try:
                 state = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                pass
+            except (json.JSONDecodeError, ValueError) as e:
+                _warn_corrupted_json("state", state_path, "overwriting with new data", e)
 
     state["input_file_path"] = file_path
-    with open(state_path, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
+    atomic_json_write(state, state_path)
 
     return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
 
@@ -1639,9 +2162,9 @@ async def generate_script(background_tasks: BackgroundTasks):
     if not input_file:
          raise HTTPException(status_code=400, detail="No input file found in state")
 
-    if process_state["script"]["running"]:
-         raise HTTPException(status_code=400, detail="Script generation already running")
+    check_global_gpu_lock("script")
 
+    claim_gpu_task("script")
     background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
     return {"status": "started"}
 
@@ -1657,7 +2180,10 @@ def _posix_signal(proc, signame):
     if sys.platform == "win32":
         raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
     try:
-        proc.send_signal(getattr(signal, signame))
+        sig = getattr(signal, signame)
+        proc.send_signal(sig)
+    except AttributeError:
+        raise HTTPException(status_code=400, detail=f"Invalid signal name: {signame}")
     except (ProcessLookupError, OSError) as e:
         raise HTTPException(status_code=400, detail=f"Signal failed: {e}")
 
@@ -1703,19 +2229,20 @@ async def generate_script_resume():
 
 
 @app.post("/api/review_script")
-async def review_script(background_tasks: BackgroundTasks, request: ReviewRequest = ReviewRequest()):
+async def review_script(background_tasks: BackgroundTasks, request: Optional[ReviewRequest] = None):
+    """Review the current annotated script. Accepts empty POST or JSON body."""
+    if request is None:
+        request = ReviewRequest()  # Use defaults
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
-    if process_state["review"]["running"]:
-        raise HTTPException(status_code=400, detail="Script review already running")
-    if process_state["batch_review"]["running"]:
-        raise HTTPException(status_code=400, detail="Batch review already running")
+    check_global_gpu_lock("review")
 
     cmd = [sys.executable, "-u", "review_script.py"]
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
+    claim_gpu_task("review")
     background_tasks.add_task(run_process, cmd, "review")
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
@@ -1724,17 +2251,15 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
-    if process_state["review"]["running"]:
-        raise HTTPException(status_code=400, detail="Script review already running")
-    if process_state["batch_review"]["running"]:
-        raise HTTPException(status_code=400, detail="Batch review already running")
+    check_global_gpu_lock("review")
 
     window_size = max(1, min(int(request.window_size or 4), 12))
     total_entries = 0
     try:
         with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
             total_entries = len(json.load(f))
-    except (json.JSONDecodeError, ValueError, OSError):
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        _warn_corrupted_json("script", SCRIPT_PATH, "estimated_calls will read 0", e)
         total_entries = 0
 
     review_batch_size = 25
@@ -1742,8 +2267,9 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
-                review_batch_size = max(1, int(cfg.get("generation", {}).get("review_batch_size", 25)))
-        except (json.JSONDecodeError, ValueError, TypeError, OSError):
+                review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
+        except (json.JSONDecodeError, ValueError, TypeError, OSError) as e:
+            _warn_corrupted_json("config", CONFIG_PATH, "using default review_batch_size", e)
             review_batch_size = 25
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
@@ -1751,6 +2277,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
+    claim_gpu_task("review")
     background_tasks.add_task(
         run_process,
         cmd,
@@ -1790,8 +2317,9 @@ async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
     """Scan the working script for character nicknames/aliases and write character_aliases.json."""
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
-    if process_state["nicknames"]["running"]:
-        raise HTTPException(status_code=400, detail="Nickname discovery already running")
+    # nicknames runs the LLM, so it must claim the GPU lock (this also guards
+    # against a duplicate start, replacing the old running-flag check).
+    claim_gpu_task("nicknames")
     cmd = [sys.executable, "-u", "find_nicknames.py",
            "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
     background_tasks.add_task(run_process, cmd, "nicknames")
@@ -1819,18 +2347,12 @@ async def find_nicknames_resume():
 @app.get("/api/character_aliases")
 async def get_character_aliases():
     """Return the current alias map { alias: canonical }."""
-    if not os.path.exists(CHARACTER_ALIASES_PATH):
-        return {}
-    try:
-        with open(CHARACTER_ALIASES_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    if not isinstance(data, dict):
+    aliases = safe_load_json(CHARACTER_ALIASES_PATH, default={})
+    if not isinstance(aliases, dict):
         return {}
     # Hide identity rows (NAME -> NAME) — they're inert and only clutter the editor.
     # Exact-match only, so a legitimate case-fix alias (kenji -> KENJI) stays visible.
-    return {k: v for k, v in data.items()
+    return {k: v for k, v in aliases.items()
             if isinstance(k, str) and isinstance(v, str) and k.strip() != v.strip()}
 
 
@@ -1846,10 +2368,7 @@ async def save_character_aliases(aliases: Dict[str, str]):
 async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
     """Review multiple saved scripts from the Scripts library, in place.
     A shared alias registry keeps merged character names consistent across the batch."""
-    if process_state["batch_review"]["running"]:
-        raise HTTPException(status_code=400, detail="Batch review already running.")
-    if process_state["review"]["running"]:
-        raise HTTPException(status_code=400, detail="Single script review already running.")
+    check_global_gpu_lock("batch_review")
     if not request.script_names:
         raise HTTPException(status_code=400, detail="No scripts selected.")
 
@@ -1865,14 +2384,10 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
     def _run():
         state = process_state["batch_review"]
-        state["running"] = True
-        state["cancel"] = False
-        state["paused"] = False
-        state["start_time"] = time.time()
         prefix = "bidirectional " if bidirectional else ""
-        state["logs"] = [f"Starting {prefix}batch review of {total} script(s)..."]
-        state["tasks"] = [{"name": n, "status": "pending"} for n in names]
-        state["current_task_idx"] = -1
+        _init_batch_state(state,
+                          [f"Starting {prefix}batch review of {total} script(s)..."],
+                          [{"name": n, "status": "pending"} for n in names])
         state["bidirectional"] = bidirectional
         state["totals_fwd"] = _new_review_totals()
         state["totals_bwd"] = _new_review_totals()
@@ -1889,9 +2404,15 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         def _process_book(i: int, name: str, tag: str = "") -> bool:
             """Discover + review one book in place. Returns False to stop the batch (cancel)."""
             state["current_task_idx"] = i
+            orig_status = state["tasks"][i].get("status")
             state["tasks"][i]["status"] = "running"
 
-            script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+            safe_name = secure_filename(name)
+            if not safe_name:
+                state["logs"].append(f"--- [{i+1}/{total}]{tag} Skipping — invalid name: {name} ---")
+                state["tasks"][i]["status"] = "failed"
+                return True
+            script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
             if not os.path.exists(script_path):
                 state["logs"].append(f"--- [{i+1}/{total}]{tag} Skipping — not found: {name} ---")
                 state["tasks"][i]["status"] = "failed"
@@ -1924,11 +2445,22 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                         ", ".join(f"'{a['variant']}' -> '{a['canonical']}'" for a in new_aliases)
                     )
 
-            # Each pass is a fresh, one-shot review of script_path. Clear any
-            # checkpoint left behind by a previous pass (e.g. a VRAM-aborted
-            # forward pass) so this pass can't silently "resume" — and thereby
-            # skip — work that actually belongs to a different pass.
-            clear_checkpoint(script_path)
+            # Only clear checkpoint at the start of the first pass (forward).
+            # For bidirectional reviews, preserve the forward pass checkpoint
+            # so if the backward pass crashes, we can resume from where forward left off.
+            should_clear = True
+            if state.get("bidirectional") and state.get("current_pass") == "bwd":
+                # Don't clear checkpoint during backward pass - preserve forward progress
+                should_clear = False
+                if orig_status == "incomplete":
+                    # The forward pass on this book was VRAM-aborted and left behind
+                    # its own partial checkpoint (forward-pass progress/aliases). That
+                    # checkpoint isn't valid for the backward pass - reusing it would
+                    # silently splice forward-pass output into the backward result.
+                    should_clear = True
+
+            if should_clear:
+                clear_checkpoint(script_path)
 
             cmd = [
                 sys.executable, "-u",
@@ -1940,7 +2472,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 cmd += ["--context-window", str(window)]
             if dedupe:
                 cmd += ["--dedupe-speakers", "--alias-registry", registry_path]
-                companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+                companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
                 if os.path.exists(companion):
                     cmd += ["--remap-voice-config", companion]
 
@@ -1955,7 +2487,13 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 # the first pass's results when the second pass overwrites them.
                 pass_key = "bwd" if tag == " [bwd]" else "fwd"
                 stats = _extract_review_stats(own_lines)
-                if stats and stats.get("batches_skipped_vram", 0) > 0:
+                if stats is None:
+                    # rc == 0 but the summary line is missing/malformed - we
+                    # genuinely don't know whether this book finished cleanly
+                    # or hit a VRAM abort with no recorded summary. Treat as
+                    # incomplete rather than silently calling it "done".
+                    state["tasks"][i]["status"] = "incomplete"
+                elif stats.get("batches_skipped_vram", 0) > 0:
                     # The reviewer bailed out early to avoid an OOM; entries past the
                     # abort point were left unreviewed and a checkpoint may remain on
                     # disk for a future resume. Don't report this book as "done".
@@ -1967,8 +2505,15 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # "stats" is the combined fwd+bwd total used by the per-book
                     # badge tooltip — recompute it from whichever pass(es) have
                     # run so far rather than letting the last pass overwrite it.
-                    state["tasks"][i]["stats"] = _combine_pass_stats(
-                        state["tasks"][i].get("stats_fwd"), state["tasks"][i].get("stats_bwd"))
+                    # Only combine stats_bwd in if this run is actually
+                    # bidirectional - otherwise stats_bwd is never populated
+                    # by design (no backward pass ever runs), and combining
+                    # it in would mark every single-pass book "partial" even
+                    # when that book's one-and-only pass succeeded cleanly.
+                    pass_stats = [state["tasks"][i].get("stats_fwd")]
+                    if state.get("bidirectional"):
+                        pass_stats.append(state["tasks"][i].get("stats_bwd"))
+                    state["tasks"][i]["stats"] = _combine_pass_stats(*pass_stats)
                     totals = state["totals_bwd"] if tag == " [bwd]" else state["totals_fwd"]
                     for key in totals:
                         if key != "books_done":
@@ -1986,7 +2531,13 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 highlights = _extract_diff_highlights(own_lines)
                 if highlights["text_rewrites"] or highlights["speaker_changes"]:
                     state["tasks"][i][f"diffs_{pass_key}"] = highlights
-                    state["tasks"][i]["diffs"] = highlights
+                    # Combine diffs from both passes for the UI badge tooltip
+                    existing_diffs = state["tasks"][i].get("diffs", {})
+                    combined = {
+                        "text_rewrites": existing_diffs.get("text_rewrites", []) + highlights["text_rewrites"],
+                        "speaker_changes": existing_diffs.get("speaker_changes", []) + highlights["speaker_changes"],
+                    }
+                    state["tasks"][i]["diffs"] = combined
                     for item in highlights["text_rewrites"]:
                         state["diff_pool"]["text"].append({**item, "book": name})
                     for item in highlights["speaker_changes"]:
@@ -2037,16 +2588,30 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         state["running"] = False
         state["logs"].append("Batch review finished.")
 
+    claim_gpu_task("batch_review")
     background_tasks.add_task(_run)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 
-@app.post("/api/review_script/batch/cancel")
-async def review_script_batch_cancel():
-    state = process_state["batch_review"]
+def _batch_cancel_helper(state_key: str):
+    state = process_state[state_key]
     state["cancel"] = True
     _resume_if_paused(state, state.get("process"))
+
+    # Also terminate the current subprocess if it's running
+    proc = state.get("process")
+    if proc and proc.poll() is None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, OSError):
+            pass
+
     return {"status": "cancel_requested"}
+
+
+@app.post("/api/review_script/batch/cancel")
+async def review_script_batch_cancel():
+    return _batch_cancel_helper("batch_review")
 
 
 @app.post("/api/review_script/batch/pause")
@@ -2071,22 +2636,15 @@ class BatchScriptRequest(BaseModel):
 @app.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
     """Process multiple text/EPUB files sequentially through generate_script.py."""
-    if process_state["batch_script"]["running"]:
-        raise HTTPException(status_code=400, detail="Batch script generation already running.")
-    if process_state["script"]["running"]:
-        raise HTTPException(status_code=400, detail="Single script generation already running.")
+    check_global_gpu_lock("batch_script")
     if not request.tasks:
         raise HTTPException(status_code=400, detail="No files provided.")
 
     def _run():
         state = process_state["batch_script"]
-        state["running"] = True
-        state["cancel"] = False
-        state["paused"] = False
-        state["start_time"] = time.time()
-        state["logs"] = [f"Starting batch of {len(request.tasks)} file(s)..."]
-        state["tasks"] = [{"filename": t.filename, "status": "pending"} for t in request.tasks]
-        state["current_task_idx"] = -1
+        _init_batch_state(state,
+                          [f"Starting batch of {len(request.tasks)} file(s)..."],
+                          [{"filename": t.filename, "status": "pending"} for t in request.tasks])
 
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_script")
@@ -2100,9 +2658,14 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             state["tasks"][i]["status"] = "running"
 
             # Resolve upload path — handle epub→txt conversion
-            input_path = os.path.join(UPLOADS_DIR, task.filename)
+            safe_filename = secure_filename(task.filename)
+            if not safe_filename:
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — invalid filename: {task.filename}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+            input_path = os.path.join(UPLOADS_DIR, safe_filename)
             if not os.path.exists(input_path):
-                stem, ext = os.path.splitext(task.filename)
+                stem, ext = os.path.splitext(safe_filename)
                 if ext.lower() == ".epub":
                     txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
                     if os.path.exists(txt_path):
@@ -2113,7 +2676,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 continue
 
             stem = os.path.splitext(os.path.basename(input_path))[0]
-            safe_stem = _sanitize_name(stem) or f"batch_{i+1}"
+            safe_stem = secure_filename(stem) or f"batch_{i+1}"
             output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
 
             state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
@@ -2140,16 +2703,14 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state["running"] = False
         state["logs"].append("Batch script generation finished.")
 
+    claim_gpu_task("batch_script")
     background_tasks.add_task(_run)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
 @app.post("/api/generate_script/batch/cancel")
 async def generate_script_batch_cancel():
-    state = process_state["batch_script"]
-    state["cancel"] = True
-    _resume_if_paused(state, state.get("process"))
-    return {"status": "cancel_requested"}
+    return _batch_cancel_helper("batch_script")
 
 
 @app.post("/api/generate_script/batch/pause")
@@ -2167,7 +2728,11 @@ async def generate_script_batch_resume():
 
 @app.get("/api/annotated_script")
 async def get_annotated_script():
-    """Return the current working annotated_script.json."""
+    """Return the current working annotated_script.json.
+
+    No SPA caller - intentionally kept as a programmatic/curl-accessible
+    read endpoint (exercised by test_api.py's test_get_annotated_script).
+    """
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=404, detail="No annotated script found")
     with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
@@ -2212,8 +2777,8 @@ async def get_voices():
                 if speaker:
                     voices_set.add(speaker)
             voices_list = sorted(voices_set)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("script", SCRIPT_PATH, "returning empty voice list", e)
 
     if not voices_list:
         return []
@@ -2224,7 +2789,8 @@ async def get_voices():
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
             voice_config = {}
 
     missing_speakers = {voice_name for voice_name in voices_list if voice_name not in voice_config}
@@ -2250,8 +2816,7 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     - uses the VoiceDesign model to synthesize a preview and saves it,
     - updates `voice_config.json` with a clone-style reference for each character.
     """
-    if process_state["persona"]["running"]:
-        raise HTTPException(status_code=400, detail="Persona generation already running")
+    check_global_gpu_lock("persona")
 
     process_state["persona"]["cancel"] = False
 
@@ -2265,6 +2830,7 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     if request.advanced:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])
+    claim_gpu_task("persona")
     background_tasks.add_task(run_process, command, "persona")
     return {"status": "started", "advanced": request.advanced}
 
@@ -2297,8 +2863,8 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
                 with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                     try:
                         current_config = json.load(f)
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                    except (json.JSONDecodeError, ValueError) as e:
+                        _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "overwriting with new data", e)
 
             # Update current config with new data
             for voice_name, config in config_data.items():
@@ -2308,7 +2874,10 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
             atomic_json_write(current_config, VOICE_CONFIG_PATH)
 
     # Offload to a worker thread so file_lock's wait loop can't block the event loop.
-    await asyncio.to_thread(_save)
+    try:
+        await asyncio.to_thread(_save)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
 
     return {"status": "saved"}
 
@@ -2379,12 +2948,19 @@ def _heuristic_match(char_profile, candidates, preferred_gender=None):
     overrides the pronoun-count guess when provided."""
     if not candidates:
         return None, "No downloaded LoRA voices available"
+    
+    # Determine gender: use preferred if known, otherwise infer from profile
     cgender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(char_profile)
+    
+    # If still unknown after inference, skip gender filtering entirely
     pool = candidates
     if cgender != "unknown":
         gender_match = [c for c in candidates if c["gender"] == cgender]
         if gender_match:
             pool = gender_match
+        else:
+            # No matches for inferred gender - fall back to all candidates
+            cgender = "unknown"
     words = set(re.findall(r"[a-z]{4,}", char_profile.lower()))
     best, best_score = None, -1
     for c in pool:
@@ -2401,13 +2977,24 @@ def _heuristic_match(char_profile, candidates, preferred_gender=None):
 
 
 @app.post("/api/suggest_voices")
-def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
-    # Sync (not async) on purpose: this makes a blocking LLM call and file I/O.
-    # FastAPI runs sync endpoints in a threadpool, so the event loop (status
-    # polling, log streaming, every other request) stays responsive while a
-    # slow local model is thinking. Do not convert back to `async def`.
+async def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
     """Suggest the best-matching downloaded LoRA voice for each character based on
-    the character's dialogue + persona, ranked by the configured LLM (heuristic fallback)."""
+    the character's dialogue + persona, ranked by the configured LLM (heuristic fallback).
+    
+    Offloaded to threadpool via asyncio.to_thread to avoid blocking the event loop."""
+    # Reserve the GPU slot for the duration of the (local-LLM) suggestion so it
+    # can't run concurrently with TTS/review and trigger a VRAM OOM. Released in
+    # finally since this is a synchronous request, not a run_process task.
+    claim_gpu_task("voices")
+    try:
+        return await asyncio.to_thread(_suggest_voices_impl, request)
+    finally:
+        process_state["voices"]["running"] = False
+
+
+def _suggest_voices_impl(request: SuggestVoicesRequest):
+    # Sync implementation that makes a blocking LLM call and file I/O.
+    # Called via asyncio.to_thread from the async endpoint above.
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=400, detail="No script found. Generate a script first.")
 
@@ -2436,7 +3023,8 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "treating as empty", e)
             voice_config = {}
 
     candidates = _build_lora_candidates()
@@ -2448,7 +3036,7 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
     for speaker, lines in samples.items():
         if request.only_unset:
             existing = voice_config.get(speaker, {})
-            if existing.get("type") in ("lora", "builtin_lora") and existing.get("adapter_id"):
+            if voice_category(existing) == "lora" and existing.get("adapter_id"):
                 continue
         cfg = voice_config.get(speaker, {})
         persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
@@ -2461,6 +3049,7 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
     cand_by_id = {c["adapter_id"]: c for c in candidates}
     suggestions = {}
     method = "heuristic"
+    llm_warning = None
 
     # --- Try LLM ranking first ---
     llm_ok = False
@@ -2493,10 +3082,12 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
+            timeout=120,  # Hard timeout on the actual API call to prevent hanging
         )
         raw = response.choices[0].message.content or ""
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        parsed = json.loads(m.group(0)) if m else {}
+        parsed = extract_json_object(raw)
+        if parsed is None:
+            raise ValueError(f"Could not parse a JSON object from the LLM's casting response ({len(raw)} chars)")
 
         for name in characters:
             pick = parsed.get(name) if isinstance(parsed, dict) else None
@@ -2511,6 +3102,10 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
         if suggestions:
             llm_ok = True
             method = "llm"
+    except LLMConfigError as e:
+        # Config issue (e.g. base_url rejected by _validate_local_llm_base_url) -
+        # surface to the UI instead of silently falling back to heuristic.
+        llm_warning = str(e)
     except Exception as e:
         logger.warning(f"LLM voice suggestion failed, falling back to heuristic: {e}")
 
@@ -2533,7 +3128,7 @@ def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest()):
     if not llm_ok and suggestions:
         method = "heuristic"
 
-    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates)}
+    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates), "llm_warning": llm_warning}
 
 
 @app.get("/api/audiobook")
@@ -2563,9 +3158,9 @@ async def restore_chunk(request: ChunkRestoreRequest):
 
 @app.post("/api/chunks/{index}")
 async def update_chunk(index: int, update: ChunkUpdate):
-    data = update.model_dump(exclude_unset=True)
-    logger.info(f"Updating chunk {index} with data: {data}")
-    chunk = project_manager.update_chunk(index, data)
+    updates = update.model_dump(exclude_unset=True)
+    logger.info(f"Updating chunk {index} with data: {updates}")
+    chunk = project_manager.update_chunk(index, updates)
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk not found")
     logger.info(f"Chunk {index} updated, instruct is now: '{chunk.get('instruct', '')}'")
@@ -2597,8 +3192,13 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks)
         raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
 
     def task():
-        project_manager.generate_chunk_audio(index)
+        try:
+            project_manager.generate_chunk_audio(index)
+        finally:
+            process_state["audio"]["running"] = False
 
+    # Same GPU resource as /api/generate_batch - must not race it. See F-032.
+    claim_gpu_task("audio")
     background_tasks.add_task(task)
     return {"status": "started"}
 
@@ -2721,8 +3321,7 @@ async def delete_m4b_cover():
 @app.post("/api/generate_batch")
 async def generate_batch_endpoint(request: BatchGenerateRequest, background_tasks: BackgroundTasks):
     """Generate multiple chunks in parallel using configured worker count."""
-    if process_state["audio"]["running"]:
-        raise HTTPException(status_code=400, detail="Audio generation already running")
+    check_global_gpu_lock("audio")
 
     # Load worker count from config
     workers = 2
@@ -2731,8 +3330,8 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("config", CONFIG_PATH, "using default worker count", e)
 
     indices = request.indices
     total = len(indices)
@@ -2774,6 +3373,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
             process_state["audio"]["running"] = False
             process_state["audio"]["cancel"] = False
 
+    claim_gpu_task("audio")
     background_tasks.add_task(task)
     return {"status": "started", "workers": workers, "total_chunks": total}
 
@@ -2781,8 +3381,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
 async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background_tasks: BackgroundTasks):
     """Generate multiple chunks using batch TTS API with single seed. Faster but less flexible.
     Requires custom Qwen3-TTS with /generate_batch endpoint."""
-    if process_state["audio"]["running"]:
-        raise HTTPException(status_code=400, detail="Audio generation already running")
+    check_global_gpu_lock("audio")
 
     # Load batch_seed and batch_size from config
     batch_seed = -1
@@ -2798,8 +3397,8 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
                     batch_seed = int(seed_val)
                 batch_size = max(1, tts_cfg.get("parallel_workers", 4))
                 batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
 
     indices = request.indices
     total = len(indices)
@@ -2842,6 +3441,7 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
             process_state["audio"]["running"] = False
             process_state["audio"]["cancel"] = False
 
+    claim_gpu_task("audio")
     background_tasks.add_task(task)
     return {"status": "started", "batch_seed": batch_seed, "batch_size": batch_size, "total_chunks": total}
 
@@ -2866,12 +3466,6 @@ async def cancel_audio():
 
 ## ── Saved Scripts ──────────────────────────────────────────────
 
-def _sanitize_name(name: str) -> str:
-    """Make a string safe for use as a filename."""
-    name = re.sub(r'[^\w\- ]', '', name).strip()
-    name = re.sub(r'\s+', '_', name)
-    return name.lower()
-
 @app.get("/api/reports")
 async def list_reports():
     """List all generated review reports in the reports/ directory, newest first."""
@@ -2882,12 +3476,17 @@ async def list_reports():
         if not f.endswith(".md"):
             continue
         filepath = os.path.join(REPORTS_DIR, f)
-        reports.append({
-            "filename": f,
-            "type": "batch" if f.startswith("batch_review_") else "review",
-            "mtime": os.path.getmtime(filepath),
-            "size": os.path.getsize(filepath),
-        })
+        try:
+            entry = {
+                "filename": f,
+                "type": "batch" if f.startswith("batch_review_") else "review",
+                "mtime": os.path.getmtime(filepath),
+                "size": os.path.getsize(filepath),
+            }
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        reports.append(entry)
     reports.sort(key=lambda r: r["mtime"], reverse=True)
     return reports
 
@@ -2895,10 +3494,18 @@ async def list_reports():
 @app.get("/api/reports/{filename}")
 async def get_report(filename: str):
     """Return the raw Markdown contents of a generated report."""
+    # Prevent directory traversal via URL encoding or other tricks
     safe_name = os.path.basename(filename)
     if safe_name != filename or not safe_name.endswith(".md"):
         raise HTTPException(status_code=400, detail="Invalid report filename.")
+    
     filepath = os.path.join(REPORTS_DIR, safe_name)
+    # Resolve to absolute path and verify it's within REPORTS_DIR
+    abs_filepath = os.path.abspath(filepath)
+    abs_reports_dir = os.path.abspath(REPORTS_DIR)
+    if not abs_filepath.startswith(abs_reports_dir):
+        raise HTTPException(status_code=400, detail="Invalid report path.")
+    
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=404, detail="Report not found.")
     with open(filepath, "r", encoding="utf-8") as f:
@@ -2906,20 +3513,108 @@ async def get_report(filename: str):
     return PlainTextResponse(content, media_type="text/markdown")
 
 
+def _summarize_review_checkpoint(path: str) -> Optional[dict]:
+    """Summarize a *.review_checkpoint.json for the UI: how far it got and where
+    a resumed review would pick up. Returns None if the file isn't a usable
+    checkpoint."""
+    data = safe_load_json(path)
+    if not isinstance(data, dict) or "completed_batches" not in data:
+        return None
+    completed = data.get("completed_batches", 0) or 0
+    total = data.get("total_batches", 0) or 0
+    failed = sorted(data.get("failed_batches", []) or [])
+    batch_lengths = data.get("batch_lengths", []) or []
+    stats = data.get("total_stats", {}) or {}
+    # Mirror load_checkpoint's rewind: a failed batch (with full batch_lengths
+    # coverage) rewinds the resume point back to the first failed batch.
+    resume_from_batch = completed + 1
+    if failed and len(batch_lengths) == completed:
+        resume_from_batch = failed[0]
+    return {
+        "completed_batches": completed,
+        "total_batches": total,
+        "resume_from_batch": resume_from_batch,
+        "entries_done": len(data.get("all_corrected", []) or []),
+        "batch_size": data.get("batch_size"),
+        "context_window": data.get("context_window"),
+        "failed_batches": failed,
+        "batches_skipped_vram": stats.get("batches_skipped_vram", 0),
+        "text_changed": stats.get("text_changed", 0),
+        "speaker_changed": stats.get("speaker_changed", 0),
+        "mtime": os.path.getmtime(path) if os.path.exists(path) else None,
+    }
+
+
+@app.get("/api/review/checkpoints")
+async def list_review_checkpoints():
+    """List saved review checkpoints (what's done + where a re-run resumes), plus
+    the live pass/order if a batch review is currently running."""
+    out = []
+    suffix = ".review_checkpoint.json"
+
+    active_cp = SCRIPT_PATH + suffix
+    if os.path.exists(active_cp):
+        s = _summarize_review_checkpoint(active_cp)
+        if s:
+            out.append({"book": "(active script)", **s})
+
+    if os.path.isdir(SCRIPTS_DIR):
+        for f in sorted(os.listdir(SCRIPTS_DIR)):
+            if not f.endswith(suffix):
+                continue
+            book = f[:-len(suffix)]
+            if book.endswith(".json"):
+                book = book[:-5]  # "{name}.json.review_checkpoint.json" -> "{name}"
+            s = _summarize_review_checkpoint(os.path.join(SCRIPTS_DIR, f))
+            if s:
+                out.append({"book": book, **s})
+
+    out.sort(key=lambda c: c.get("mtime") or 0, reverse=True)
+
+    # Live pass/order while a bidirectional batch is mid-flight.
+    bstate = process_state.get("batch_review", {})
+    live = None
+    if bstate.get("running"):
+        live = {
+            "bidirectional": bstate.get("bidirectional", False),
+            "current_pass": bstate.get("current_pass"),  # "fwd" / "bwd" / None
+            "current_task_idx": bstate.get("current_task_idx"),
+            "tasks": [
+                {"name": t.get("name"), "status": t.get("status")}
+                for t in bstate.get("tasks", []) if isinstance(t, dict)
+            ],
+        }
+    return {"checkpoints": out, "live": live}
+
+
 @app.get("/api/scripts")
 async def list_saved_scripts():
-    """List all saved scripts in the scripts/ directory."""
+    """List all saved scripts in the scripts/ directory.
+
+    Uses a whitelist approach: only includes .json files that do NOT end with
+    any known companion/internal suffix (voice_config, review_checkpoint, etc.).
+    Any new companion file type added later is safely excluded by this rule.
+    """
     scripts = []
+    companion_suffixes = (".voice_config.json", ".review_checkpoint.json", ".checkpoint.jsonl")
     for f in os.listdir(SCRIPTS_DIR):
-        if f.endswith(".json") and not f.endswith(".voice_config.json"):
-            name = f[:-5]  # strip .json
-            filepath = os.path.join(SCRIPTS_DIR, f)
-            companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
-            scripts.append({
-                "name": name,
-                "created": os.path.getmtime(filepath),
-                "has_voice_config": os.path.exists(companion)
-            })
+        if not f.endswith(".json"):
+            continue
+        if f.startswith(".") or f.endswith(companion_suffixes):
+            continue
+        name = f[:-5]  # strip .json
+        filepath = os.path.join(SCRIPTS_DIR, f)
+        companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+        try:
+            created = os.path.getmtime(filepath)
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        scripts.append({
+            "name": name,
+            "created": created,
+            "has_voice_config": os.path.exists(companion)
+        })
     scripts.sort(key=lambda x: x["created"], reverse=True)
     return scripts
 
@@ -2932,7 +3627,7 @@ async def save_script(request: ScriptSaveRequest):
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
 
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid script name.")
 
@@ -2954,13 +3649,17 @@ async def load_script(request: ScriptLoadRequest):
     if process_state["audio"]["running"]:
         raise HTTPException(status_code=409, detail="Cannot load a script while audio generation is running.")
 
-    src = os.path.join(SCRIPTS_DIR, f"{request.name}.json")
+    safe_name = secure_filename(request.name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid script name.")
+
+    src = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     if not os.path.exists(src):
         raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
 
     shutil.copy2(src, SCRIPT_PATH)
 
-    companion = os.path.join(SCRIPTS_DIR, f"{request.name}.voice_config.json")
+    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     if os.path.exists(companion):
         shutil.copy2(companion, VOICE_CONFIG_PATH)
 
@@ -2974,14 +3673,21 @@ async def load_script(request: ScriptLoadRequest):
 @app.delete("/api/scripts/{name}")
 async def delete_script(name: str):
     """Delete a saved script."""
-    filepath = os.path.join(SCRIPTS_DIR, f"{name}.json")
+    safe_name = secure_filename(name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid script name.")
+
+    filepath = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
 
     os.remove(filepath)
-    companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     if os.path.exists(companion):
         os.remove(companion)
+    checkpoint = _checkpoint_path(filepath)
+    if os.path.exists(checkpoint):
+        os.remove(checkpoint)
 
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}
@@ -3022,28 +3728,39 @@ def _load_voice_library() -> dict:
             if isinstance(data, dict):
                 lib["shared"] = data.get("shared", {}) or {}
                 lib["casts"] = data.get("casts", {}) or {}
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
     return lib
 
 
 def _save_voice_library(lib: dict):
-    atomic_json_write(lib, VOICE_LIBRARY_PATH)
+    """Save voice library with file_lock to prevent race conditions."""
+    try:
+        with file_lock(VOICE_LIBRARY_PATH):
+            atomic_json_write(lib, VOICE_LIBRARY_PATH)
+    except TimeoutError as e:
+        logger.warning(f"Could not acquire lock to save voice library: {e}")
+        raise  # Re-raise so caller knows the save failed
+
+
+async def _save_voice_library_async(lib: dict):
+    """Offload _save_voice_library to a worker thread so file_lock's wait loop
+    can't block the event loop; turns lock-contention timeouts into a 503."""
+    try:
+        await asyncio.to_thread(_save_voice_library, lib)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Voice library is busy (locked by another operation); please try again.")
 
 
 def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     """Per-speaker line counts from the given annotated script (defaults to the current one)."""
     counts = {}
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                script = json.load(f)
-            for entry in script:
-                speaker = (entry.get("speaker") or entry.get("type") or "").strip()
-                if speaker and (entry.get("text") or "").strip():
-                    counts[speaker] = counts.get(speaker, 0) + 1
-        except (json.JSONDecodeError, ValueError):
-            pass
+    script = safe_load_json(path)
+    if isinstance(script, list):
+        for entry in script:
+            speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+            if speaker and (entry.get("text") or "").strip():
+                counts[speaker] = counts.get(speaker, 0) + 1
     return counts
 
 
@@ -3085,8 +3802,8 @@ def _build_match_proposals(counts: Dict[str, int], pool: dict) -> List[dict]:
 def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
                          current_config: dict, chars: Optional[dict] = None) -> Tuple[dict, List[str]]:
     """Apply a confirmed character -> library member mapping onto a voice_config
-    dict, mutating and returning it along with the list of characters that were
-    actually applied.
+    dict, returning a new dict (current_config is not mutated) along with the
+    list of characters that were actually applied.
 
     If `chars` is given (the per-speaker line counts of a specific book), only
     characters present in it are considered — used by the bulk endpoint so a
@@ -3095,6 +3812,7 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         # cast members win over shared on collision
         return lib["casts"][cast_name].get("members", {}).get(key) or lib["shared"].get(key)
 
+    result_config = dict(current_config)
     applied = []
     for char, key in mapping.items():
         if chars is not None and char not in chars:
@@ -3105,11 +3823,30 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         cfg = dict(entry.get("config") or {})
         cfg.pop("alias_of", None)
         # Preserve an existing alias_of on the current character (book-specific)
-        if isinstance(current_config.get(char), dict) and current_config[char].get("alias_of"):
-            cfg["alias_of"] = current_config[char]["alias_of"]
-        current_config[char] = cfg
+        if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
+            cfg["alias_of"] = result_config[char]["alias_of"]
+        result_config[char] = cfg
         applied.append(char)
-    return current_config, applied
+    return result_config, applied
+
+
+def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
+                                mapping: Dict[str, str], chars: Optional[dict] = None) -> List[str]:
+    """Load a voice_config.json (if present), apply the cast mapping under a file
+    lock, write it back atomically if anything changed, and return the list of
+    characters that were applied.
+
+    Raises TimeoutError if the lock can't be acquired - callers should map that
+    to a 503 (single-book) or a per-book error entry (bulk).
+    """
+    with file_lock(config_path):
+        current_config = safe_load_json(config_path, default={})
+
+        current_config, applied = _apply_cast_mapping(lib, cast_name, mapping, current_config, chars=chars)
+
+        if applied:
+            atomic_json_write(current_config, config_path)
+    return applied
 
 
 def _make_library_entry(display_name: str, config: dict, line_count: int) -> dict:
@@ -3161,11 +3898,15 @@ async def voice_library_create_cast(request: CastCreateRequest):
     name = request.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Cast name is required.")
+    if name == "__shared__":
+        # Reserved sentinel: other endpoints treat this name as the global
+        # shared pool, so a real cast by this name would be unaddressable.
+        raise HTTPException(status_code=400, detail="'__shared__' is a reserved name.")
     lib = _load_voice_library()
     if name in lib["casts"]:
         raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
     lib["casts"][name] = {"members": {}}
-    _save_voice_library(lib)
+    await _save_voice_library_async(lib)
     return {"status": "created", "name": name}
 
 
@@ -3175,7 +3916,7 @@ async def voice_library_delete_cast(cast: str):
     if cast not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
     del lib["casts"][cast]
-    _save_voice_library(lib)
+    await _save_voice_library_async(lib)
     return {"status": "deleted", "name": cast}
 
 
@@ -3191,7 +3932,7 @@ async def voice_library_delete_member(cast: str, key: str):
     if key not in pool:
         raise HTTPException(status_code=404, detail=f"Member '{key}' not found.")
     del pool[key]
-    _save_voice_library(lib)
+    await _save_voice_library_async(lib)
     return {"status": "deleted", "cast": cast, "key": key}
 
 
@@ -3208,7 +3949,8 @@ async def voice_library_save(request: LibrarySaveRequest):
         try:
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
             voice_config = {}
 
     counts = _script_line_counts()
@@ -3232,7 +3974,7 @@ async def voice_library_save(request: LibrarySaveRequest):
             lib["casts"][cast_name].setdefault("members", {})[key] = entry
             saved["cast"].append(char)
 
-    _save_voice_library(lib)
+    await _save_voice_library_async(lib)
     return {"status": "saved", "cast": cast_name, "saved": saved}
 
 
@@ -3271,7 +4013,10 @@ async def voice_library_match_bulk(request: CastMatchBulkRequest):
     def _collect_counts():
         counts = {}
         for name in request.script_names:
-            script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
+            safe_name = secure_filename(name)
+            if not safe_name:
+                continue
+            script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
             for char, n in _script_line_counts(script_path).items():
                 counts[char] = counts.get(char, 0) + n
         return counts
@@ -3296,25 +4041,14 @@ async def voice_library_apply(request: LibraryApplyRequest):
     if cast_name not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
 
-    def _apply():
-        # Hold the lock across the read-modify-write so this can't race a batch
-        # review's concurrent speaker-rename remap of the same file.
-        with file_lock(VOICE_CONFIG_PATH):
-            current_config = {}
-            if os.path.exists(VOICE_CONFIG_PATH):
-                try:
-                    with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
-                        current_config = json.load(f)
-                except (json.JSONDecodeError, ValueError):
-                    current_config = {}
-
-            current_config, applied = _apply_cast_mapping(lib, cast_name, request.mapping, current_config)
-
-            atomic_json_write(current_config, VOICE_CONFIG_PATH)
-        return applied
-
     # Offload to a worker thread so file_lock's wait loop can't block the event loop.
-    applied = await asyncio.to_thread(_apply)
+    # Hold the lock across the read-modify-write so this can't race a batch
+    # review's concurrent speaker-rename remap of the same file.
+    try:
+        applied = await asyncio.to_thread(
+            _apply_cast_to_config_file, VOICE_CONFIG_PATH, lib, cast_name, request.mapping)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
 
     return {"status": "applied", "cast": cast_name, "applied": applied, "count": len(applied)}
 
@@ -3332,24 +4066,20 @@ async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
     def _apply_all():
         results = []
         for name in request.script_names:
-            chars = _script_line_counts(os.path.join(SCRIPTS_DIR, f"{name}.json"))
+            safe_name = secure_filename(name)
+            if not safe_name:
+                results.append({"name": name, "applied": [], "count": 0, "error": "Invalid script name"})
+                continue
+            chars = _script_line_counts(os.path.join(SCRIPTS_DIR, f"{safe_name}.json"))
 
-            config_path = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+            config_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
             # Hold the lock across the read-modify-write so this can't race a batch
             # review's concurrent speaker-rename remap of the same companion file.
-            with file_lock(config_path):
-                current_config = {}
-                if os.path.exists(config_path):
-                    try:
-                        with open(config_path, "r", encoding="utf-8") as f:
-                            current_config = json.load(f)
-                    except (json.JSONDecodeError, ValueError):
-                        current_config = {}
-
-                current_config, applied = _apply_cast_mapping(lib, cast_name, request.mapping, current_config, chars=chars)
-
-                if applied:
-                    atomic_json_write(current_config, config_path)
+            try:
+                applied = _apply_cast_to_config_file(config_path, lib, cast_name, request.mapping, chars=chars)
+            except TimeoutError as e:
+                results.append({"name": name, "applied": [], "count": 0, "error": str(e)})
+                continue
 
             results.append({"name": name, "applied": applied, "count": len(applied)})
         return results
@@ -3371,8 +4101,8 @@ def _load_manifest(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("manifest", path, "returning empty list", e)
     return []
 
 def _save_manifest(path, manifest):
@@ -3386,6 +4116,8 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
+    # Synchronous local TTS/GPU inference - must not race other GPU_TASKS. See F-038.
+    claim_gpu_task("voice_design")
     try:
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
@@ -3397,18 +4129,22 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
         return {"status": "ok", "audio_url": f"/designed_voices/previews/{filename}"}
     except Exception as e:
         logger.error(f"Voice design preview failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Voice design preview failed — see server logs for details.")
+    finally:
+        process_state["voice_design"]["running"] = False
 
 @app.post("/api/voice_design/save")
 async def voice_design_save(request: VoiceDesignSaveRequest):
     """Save a preview voice as a permanent designed voice."""
     previews_dir = os.path.join(DESIGNED_VOICES_DIR, "previews")
-    preview_path = os.path.join(previews_dir, request.preview_file)
+    # Constrain to the previews dir so preview_file can't traverse out and copy
+    # an arbitrary host file (e.g. ../../etc/passwd) into the web-served dir.
+    preview_path = _safe_subpath(previews_dir, request.preview_file)
 
     if not os.path.exists(preview_path):
         raise HTTPException(status_code=404, detail="Preview file not found")
 
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid voice name")
 
@@ -3476,7 +4212,7 @@ async def clone_voices_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
 
     base_name = os.path.splitext(file.filename)[0]
-    safe_name = _sanitize_name(base_name)
+    safe_name = secure_filename(base_name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
@@ -3543,8 +4279,8 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File must be a .zip archive")
 
     # Derive dataset name from ZIP filename
-    dataset_name = re.sub(r'[^\w\- ]', '', os.path.splitext(file.filename)[0]).strip()
-    dataset_name = re.sub(r'\s+', '_', dataset_name).lower()
+    base_name = os.path.splitext(file.filename)[0]
+    dataset_name = secure_filename(base_name)
     if not dataset_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name from filename")
 
@@ -3561,7 +4297,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
 
         os.makedirs(dataset_dir, exist_ok=True)
         with zipfile.ZipFile(tmp_path, "r") as zf:
-            zf.extractall(dataset_dir)
+            _safe_extractall(zf, dataset_dir)
 
         # Check for metadata.jsonl (may be inside a subdirectory)
         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
@@ -3585,19 +4321,22 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
         # Count samples and validate audio file presence
         sample_count = 0
         missing_audio = []
+        malformed_lines = []
         with open(metadata_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for line_num, line in enumerate(f, start=1):
                 line = line.strip()
                 if not line:
                     continue
-                sample_count += 1
                 try:
                     entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        raise ValueError(f"line is valid JSON but not an object (got {type(entry).__name__})")
                     audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
                     if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
                         missing_audio.append(audio_rel)
-                except (json.JSONDecodeError, KeyError):
-                    pass
+                    sample_count += 1
+                except (json.JSONDecodeError, ValueError, KeyError) as e:
+                    malformed_lines.append((line_num, str(e)))
 
         wav_count = sum(1 for f in os.listdir(dataset_dir) if f.lower().endswith(".wav"))
         ref_wav = os.path.exists(os.path.join(dataset_dir, "ref.wav"))
@@ -3616,122 +4355,18 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
             )
         else:
             logger.info(f"LoRA dataset '{dataset_name}': all {sample_count} audio files present in ZIP")
+        if malformed_lines:
+            logger.warning(
+                f"LoRA dataset '{dataset_name}': {len(malformed_lines)} malformed "
+                f"metadata.jsonl line(s) skipped: {malformed_lines[:5]}"
+                f"{'  (+more)' if len(malformed_lines) > 5 else ''}"
+            )
 
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
 
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-@app.post("/api/lora/generate_dataset")
-async def lora_generate_dataset(request: LoraGenerateDatasetRequest, background_tasks: BackgroundTasks):
-    """Generate a LoRA training dataset using Voice Designer.
-
-    Generates multiple audio samples with the same voice description,
-    saving them as a ready-to-train dataset.
-    """
-    if process_state["dataset_gen"]["running"]:
-        raise HTTPException(status_code=400, detail="Dataset generation already running")
-
-    # Build unified sample list from either format
-    sample_list = []
-    if request.samples:
-        for s in request.samples:
-            if s.text.strip():
-                sample_list.append({"emotion": s.emotion.strip(), "text": s.text.strip()})
-    elif request.texts:
-        for t in request.texts:
-            if t.strip():
-                sample_list.append({"emotion": "", "text": t.strip()})
-
-    if not sample_list:
-        raise HTTPException(status_code=400, detail="Provide at least one sample text")
-
-    safe_name = _sanitize_name(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
-
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, safe_name)
-    if os.path.exists(dataset_dir):
-        raise HTTPException(status_code=400, detail=f"Dataset '{safe_name}' already exists")
-
-    total = len(sample_list)
-    root_description = request.description.strip()
-
-    def task():
-        process_state["dataset_gen"]["running"] = True
-        process_state["dataset_gen"]["logs"] = [
-            f"Generating {total} samples with VoiceDesign..."
-        ]
-        try:
-            engine = project_manager.get_engine()
-            if not engine:
-                process_state["dataset_gen"]["logs"].append("Error: TTS engine not initialized")
-                return
-
-            os.makedirs(dataset_dir, exist_ok=True)
-            metadata_lines = []
-            completed = 0
-
-            for i, sample in enumerate(sample_list):
-                text = sample["text"]
-                emotion = sample["emotion"]
-                # Build full description: root + emotion if provided
-                description = f"{root_description}, {emotion}" if emotion else root_description
-
-                process_state["dataset_gen"]["logs"].append(
-                    f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{ text[:60]}{'...' if len(text) > 60 else ''}\""
-                )
-                try:
-                    wav_path, sr = engine.generate_voice_design(
-                        description=description,
-                        sample_text=text,
-                        language=request.language,
-                    )
-                    # Copy to dataset dir with sequential name
-                    dest_filename = f"sample_{i:03d}.wav"
-                    dest_path = os.path.join(dataset_dir, dest_filename)
-                    shutil.copy2(wav_path, dest_path)
-
-                    # Save first successful sample as ref.wav for consistent speaker embedding
-                    if completed == 0:
-                        shutil.copy2(wav_path, os.path.join(dataset_dir, "ref.wav"))
-
-                    metadata_lines.append(json.dumps({
-                        "audio_filepath": dest_filename,
-                        "text": text,
-                        "ref_audio": "ref.wav",
-                    }, ensure_ascii=False))
-                    completed += 1
-                    process_state["dataset_gen"]["logs"].append(
-                        f"  Saved {dest_filename}"
-                    )
-                except Exception as e:
-                    process_state["dataset_gen"]["logs"].append(
-                        f"  Failed: {e}"
-                    )
-
-            # Write metadata.jsonl
-            metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
-            with open(metadata_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(metadata_lines) + "\n")
-
-            process_state["dataset_gen"]["logs"].append(
-                f"Dataset '{safe_name}' complete: {completed}/{total} samples generated."
-            )
-            logger.info(f"LoRA dataset generated: '{safe_name}' ({completed} samples)")
-
-        except Exception as e:
-            process_state["dataset_gen"]["logs"].append(f"Error: {e}")
-            logger.error(f"Dataset generation error: {e}")
-            # Clean up partial dataset on failure
-            if os.path.exists(dataset_dir):
-                shutil.rmtree(dataset_dir)
-        finally:
-            process_state["dataset_gen"]["running"] = False
-
-    background_tasks.add_task(task)
-    return {"status": "started", "dataset_id": safe_name, "total": total}
 
 @app.get("/api/lora/datasets")
 async def lora_list_datasets():
@@ -3746,18 +4381,21 @@ async def lora_list_datasets():
             continue
         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
         sample_count = 0
-        if os.path.exists(metadata_path):
+        try:
             with open(metadata_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         sample_count += 1
+        except FileNotFoundError:
+            # No metadata yet, or it vanished mid-listing (concurrent delete).
+            pass
         datasets.append({"dataset_id": name, "sample_count": sample_count})
     return datasets
 
 @app.delete("/api/lora/datasets/{dataset_id}")
 async def lora_delete_dataset(dataset_id: str):
     """Delete an uploaded dataset."""
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, dataset_id)
+    dataset_dir = _safe_subpath(LORA_DATASETS_DIR, dataset_id)
     if not os.path.isdir(dataset_dir):
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -3768,16 +4406,15 @@ async def lora_delete_dataset(dataset_id: str):
 @app.post("/api/lora/train")
 async def lora_start_training(request: LoraTrainingRequest, background_tasks: BackgroundTasks):
     """Start LoRA training as a subprocess."""
-    if process_state["lora_training"]["running"]:
-        raise HTTPException(status_code=400, detail="LoRA training already running")
+    check_global_gpu_lock("lora_training")
 
     # Validate dataset exists
-    dataset_dir = os.path.join(LORA_DATASETS_DIR, request.dataset_id)
+    dataset_dir = _safe_subpath(LORA_DATASETS_DIR, request.dataset_id)
     if not os.path.isdir(dataset_dir):
         raise HTTPException(status_code=400, detail=f"Dataset '{request.dataset_id}' not found")
 
     # Build output directory
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid adapter name")
 
@@ -3797,10 +4434,8 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
             f"r={request.lora_r}, alpha={request.lora_alpha} (scale={alpha_r:.1f}x), "
             f"grad_accum={request.gradient_accumulation_steps}, language={request.language}"
         )
-    except Exception:
+    except (OSError, ValueError, ZeroDivisionError):
         pass
-
-    # Unload TTS engine to free GPU
     if project_manager.engine is not None:
         logger.info("Unloading TTS engine for LoRA training...")
         project_manager.engine = None
@@ -3847,6 +4482,7 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
             except Exception as e:
                 logger.error(f"Failed to update LoRA manifest: {e}")
 
+    claim_gpu_task("lora_training")
     background_tasks.add_task(on_training_complete)
     return {"status": "started", "adapter_id": adapter_id}
 
@@ -3913,11 +4549,14 @@ async def lora_download_builtin(adapter_id: str):
         return {"status": "downloaded", "adapter_id": adapter_id}
     except Exception as e:
         logger.error(f"Download failed for {adapter_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Built-in adapter download failed — see server logs for details.")
 
 @app.post("/api/lora/test")
 async def lora_test_model(request: LoraTestRequest):
     """Generate test audio using a LoRA adapter (built-in or user-trained)."""
+    # Fail fast before the manifest lookup / possible adapter auto-download
+    # below. See F-039.
+    check_global_gpu_lock("lora_test")
     # Check both manifests
     builtin = _load_builtin_lora_manifest()
     user_trained = _load_manifest(LORA_MODELS_MANIFEST)
@@ -3934,20 +4573,29 @@ async def lora_test_model(request: LoraTestRequest):
         adapter_dir = os.path.join(LORA_MODELS_DIR, request.adapter_id)
         audio_url_prefix = f"/lora_models/{request.adapter_id}"
 
-    if not os.path.isdir(adapter_dir) and is_builtin:
-        try:
-            download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
-            adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Auto-download failed: {e}")
-    elif not os.path.isdir(adapter_dir):
+    if not os.path.isdir(adapter_dir) and not is_builtin:
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-
+    # Claim the GPU slot now, before the possible adapter download and the
+    # engine load below - both can take real time and the engine load
+    # allocates VRAM. Claiming only after them (the old order) left a window
+    # where two concurrent /api/lora/test (or .../preview, which shares this
+    # slot) requests could both pass check_global_gpu_lock above and both
+    # start that slow/VRAM work before either's claim landed.
+    claim_gpu_task("lora_test")
     try:
+        if not os.path.isdir(adapter_dir) and is_builtin:
+            try:
+                download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
+                adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
+            except Exception as e:
+                logger.error(f"Auto-download failed for {request.adapter_id}: {e}")
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         output_filename = f"test_{request.adapter_id}_{int(time.time())}.wav"
         output_path = os.path.join(adapter_dir, output_filename)
 
@@ -3969,9 +4617,13 @@ async def lora_test_model(request: LoraTestRequest):
             "status": "ok",
             "audio_url": f"{audio_url_prefix}/{output_filename}",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"LoRA test generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.")
+    finally:
+        process_state["lora_test"]["running"] = False
 
 LORA_PREVIEW_TEXT = "The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy that had been growing for centuries."
 
@@ -3993,27 +4645,40 @@ async def lora_preview(adapter_id: str):
         adapter_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
         url_prefix = f"/lora_models/{adapter_id}"
 
-    if not os.path.isdir(adapter_dir) and is_builtin:
-        try:
-            download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
-            adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Auto-download failed: {e}")
-    elif not os.path.isdir(adapter_dir):
+    if not os.path.isdir(adapter_dir) and not is_builtin:
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
     preview_path = os.path.join(adapter_dir, "preview_sample.wav")
 
-    # Return cached if exists
+    # Return cached if exists. This check intentionally runs BEFORE the lock -
+    # no GPU/download work happens on a cache hit, regardless of whether the
+    # adapter directory exists yet (a cached preview implies it does).
     if os.path.exists(preview_path):
         return {"status": "cached", "audio_url": f"{url_prefix}/preview_sample.wav"}
 
-    # Generate preview
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-
+    # Cache miss past this point. Shares the "lora_test" slot with
+    # /api/lora/test since both are "try out this adapter" operations that
+    # shouldn't run concurrently with each other either. See F-040.
+    check_global_gpu_lock("lora_test")
+    # Claim immediately after the check, before the possible adapter download
+    # AND the engine load below - both can take real time and the engine
+    # load allocates VRAM, so the claim has to land before either starts, not
+    # after, or two concurrent preview/test requests can both pass the check
+    # above and both begin downloading/loading the model.
+    claim_gpu_task("lora_test")
     try:
+        if not os.path.isdir(adapter_dir) and is_builtin:
+            try:
+                download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
+                adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
+            except Exception as e:
+                logger.error(f"Auto-download failed for {adapter_id}: {e}")
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         voice_data = {
             "type": "lora",
             "adapter_id": adapter_id,
@@ -4028,9 +4693,13 @@ async def lora_preview(adapter_id: str):
             output_path=preview_path,
         )
         return {"status": "generated", "audio_url": f"{url_prefix}/preview_sample.wav"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"LoRA preview generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.")
+    finally:
+        process_state["lora_test"]["running"] = False
 
 ## ── Dataset Builder ──────────────────────────────────────────
 
@@ -4041,21 +4710,22 @@ def _load_builder_state(name):
         try:
             with open(state_path, "r", encoding="utf-8") as f:
                 state = json.load(f)
+            if not isinstance(state, dict):
+                raise ValueError(f"Expected a JSON object, got {type(state).__name__}")
             # Ensure new fields exist for backward compat
             state.setdefault("description", "")
             state.setdefault("global_seed", "")
             state.setdefault("samples", [])
             return state
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to load builder state '{name}': {e}")
     return {"description": "", "global_seed": "", "samples": []}
 
 def _save_builder_state(name, state):
-    """Save per-sample state to dataset builder working directory."""
+    """Save per-sample state to dataset builder working directory atomically."""
     work_dir = os.path.join(DATASET_BUILDER_DIR, name)
     os.makedirs(work_dir, exist_ok=True)
-    with open(os.path.join(work_dir, "state.json"), "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
+    atomic_json_write(state, os.path.join(work_dir, "state.json"))
 
 @app.get("/api/dataset_builder/list")
 async def dataset_builder_list():
@@ -4078,7 +4748,7 @@ async def dataset_builder_list():
 @app.post("/api/dataset_builder/create")
 async def dataset_builder_create(request: DatasetBuilderCreateRequest):
     """Create a new dataset builder project."""
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
@@ -4090,7 +4760,9 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
 @app.post("/api/dataset_builder/update_meta")
 async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
     """Update project description and global seed without touching samples."""
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -4103,7 +4775,9 @@ async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
 @app.post("/api/dataset_builder/update_rows")
 async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
     """Update row definitions, preserving existing generation status/audio."""
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -4133,14 +4807,23 @@ async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
 @app.post("/api/dataset_builder/generate_sample")
 async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     """Generate a single dataset sample using VoiceDesign."""
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+    safe_name = secure_filename(request.dataset_name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
 
-    work_dir = os.path.join(DATASET_BUILDER_DIR, request.dataset_name)
+    # Same "dataset_builder" slot as the sibling /generate_batch route -
+    # fail fast before any setup work below. See F-043.
+    check_global_gpu_lock("dataset_builder")
+
+    work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     os.makedirs(work_dir, exist_ok=True)
 
+    claim_gpu_task("dataset_builder")
     try:
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
             sample_text=request.text,
@@ -4153,8 +4836,8 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
 
         # Update state (cache-bust URL so browser loads fresh audio on regen)
         cache_bust = int(time.time())
-        audio_url = f"/dataset_builder/{request.dataset_name}/{dest_filename}?t={cache_bust}"
-        state = _load_builder_state(request.dataset_name)
+        audio_url = f"/dataset_builder/{safe_name}/{dest_filename}?t={cache_bust}"
+        state = _load_builder_state(safe_name)
         samples = state.get("samples", [])
         # Ensure list is large enough
         while len(samples) <= request.sample_index:
@@ -4168,35 +4851,38 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
             "description": request.description,
         }
         state["samples"] = samples
-        _save_builder_state(request.dataset_name, state)
+        _save_builder_state(safe_name, state)
 
         return {
             "status": "done",
             "sample_index": request.sample_index,
             "audio_url": audio_url,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Dataset builder sample generation failed: {e}")
         # Mark as error in state
-        state = _load_builder_state(request.dataset_name)
+        state = _load_builder_state(safe_name)
         samples = state.get("samples", [])
         while len(samples) <= request.sample_index:
             samples.append({"status": "pending"})
         samples[request.sample_index] = {"status": "error", "error": str(e)}
         state["samples"] = samples
-        _save_builder_state(request.dataset_name, state)
-        raise HTTPException(status_code=500, detail=str(e))
+        _save_builder_state(safe_name, state)
+        raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.")
+    finally:
+        process_state["dataset_builder"]["running"] = False
 
 @app.post("/api/dataset_builder/generate_batch")
 async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     """Batch generate dataset samples as a background task."""
-    if process_state["dataset_builder"]["running"]:
-        raise HTTPException(status_code=400, detail="Dataset generation already running")
+    check_global_gpu_lock("dataset_builder")
 
     if not request.samples or len(request.samples) == 0:
         raise HTTPException(status_code=400, detail="No samples provided")
 
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 
@@ -4210,6 +4896,17 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     else:
         to_generate = list(range(len(request.samples)))
 
+    # Reject out-of-range indices up front (e.g. a stale frontend selection
+    # referencing a row that was since removed) - letting one through used to
+    # crash the background thread with an uncaught IndexError before it ever
+    # reached the per-sample try/except, leaving claim_gpu_task's "running"
+    # flag stuck True forever and permanently deadlocking every other GPU
+    # task behind check_global_gpu_lock until the server was restarted.
+    bad_indices = [idx for idx in to_generate if not (0 <= idx < len(request.samples))]
+    if bad_indices:
+        raise HTTPException(status_code=400,
+                            detail=f"indices out of range for {len(request.samples)} sample(s): {bad_indices}")
+
     total = len(to_generate)
 
     # Snapshot request data for the thread (request object may not survive)
@@ -4221,77 +4918,88 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
         process_state["dataset_builder"]["running"] = True
         process_state["dataset_builder"]["logs"] = []
         process_state["dataset_builder"]["cancel"] = False
+        # Wrapped in try/finally so ANY unexpected exception in this thread -
+        # not just the ones already anticipated by the per-sample try/except
+        # below - still releases the GPU lock. An uncaught exception in a
+        # background thread doesn't propagate or crash the process; it just
+        # kills the thread silently, which previously left "running" stuck
+        # True forever and permanently deadlocked every other GPU task behind
+        # check_global_gpu_lock until the server was restarted.
+        try:
+            engine = project_manager.get_engine()
+            if not engine:
+                process_state["dataset_builder"]["logs"].append("[ERROR] Failed to initialize TTS engine")
+                return
 
-        engine = project_manager.get_engine()
-        if not engine:
-            process_state["dataset_builder"]["logs"].append("[ERROR] Failed to initialize TTS engine")
-            process_state["dataset_builder"]["running"] = False
-            return
+            state = _load_builder_state(safe_name)
+            samples_state = state.get("samples", [])
+            # Ensure list is large enough for all samples
+            while len(samples_state) < len(samples_snapshot):
+                samples_state.append({"status": "pending"})
 
-        state = _load_builder_state(safe_name)
-        samples_state = state.get("samples", [])
-        # Ensure list is large enough for all samples
-        while len(samples_state) < len(samples_snapshot):
-            samples_state.append({"status": "pending"})
+            completed = 0
+            for i, idx in enumerate(to_generate):
+                if process_state["dataset_builder"]["cancel"]:
+                    process_state["dataset_builder"]["logs"].append(f"[CANCEL] Stopped at {completed}/{total}")
+                    break
 
-        completed = 0
-        for i, idx in enumerate(to_generate):
-            if process_state["dataset_builder"]["cancel"]:
-                process_state["dataset_builder"]["logs"].append(f"[CANCEL] Stopped at {completed}/{total}")
-                break
+                emotion, text = samples_snapshot[idx]
+                description = f"{root_desc}, {emotion}" if emotion else root_desc
 
-            emotion, text = samples_snapshot[idx]
-            description = f"{root_desc}, {emotion}" if emotion else root_desc
+                # Mark as generating (preserve existing fields like emotion, seed)
+                existing_s = samples_state[idx] if idx < len(samples_state) else {}
+                samples_state[idx] = {**existing_s, "status": "generating", "text": text, "emotion": emotion, "description": description}
+                state["samples"] = samples_state
+                _save_builder_state(safe_name, state)
 
-            # Mark as generating (preserve existing fields like emotion, seed)
-            existing_s = samples_state[idx] if idx < len(samples_state) else {}
-            samples_state[idx] = {**existing_s, "status": "generating", "text": text, "emotion": emotion, "description": description}
-            state["samples"] = samples_state
-            _save_builder_state(safe_name, state)
+                process_state["dataset_builder"]["logs"].append(
+                    f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{text[:60]}{'...' if len(text) > 60 else ''}\""
+                )
+
+                try:
+                    # Resolve seed: per-line > global > random
+                    seed = -1
+                    if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0:
+                        seed = per_seeds[idx]
+                    elif global_seed >= 0:
+                        seed = global_seed
+
+                    wav_path, sr = engine.generate_voice_design(
+                        description=description,
+                        sample_text=text,
+                        seed=seed,
+                    )
+                    dest_filename = f"sample_{idx:03d}.wav"
+                    dest_path = os.path.join(work_dir, dest_filename)
+                    shutil.copy2(wav_path, dest_path)
+
+                    samples_state[idx] = {
+                        **samples_state[idx],
+                        "status": "done",
+                        "audio_url": f"/dataset_builder/{safe_name}/{dest_filename}?t={int(time.time())}",
+                        "text": text,
+                        "emotion": emotion,
+                        "description": description,
+                    }
+                    completed += 1
+                except Exception as e:
+                    logger.error(f"Dataset builder sample {idx} failed: {e}")
+                    process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
+                    samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
+
+                state["samples"] = samples_state
+                _save_builder_state(safe_name, state)
 
             process_state["dataset_builder"]["logs"].append(
-                f"[{i+1}/{total}] {('[' + emotion + '] ' if emotion else '')}\"{text[:60]}{'...' if len(text) > 60 else ''}\""
+                f"[DONE] Generated {completed}/{total} samples"
             )
+        except Exception as e:
+            logger.error(f"Dataset builder batch generation crashed: {e}")
+            process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")
+        finally:
+            process_state["dataset_builder"]["running"] = False
 
-            try:
-                # Resolve seed: per-line > global > random
-                seed = -1
-                if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0:
-                    seed = per_seeds[idx]
-                elif global_seed >= 0:
-                    seed = global_seed
-
-                wav_path, sr = engine.generate_voice_design(
-                    description=description,
-                    sample_text=text,
-                    seed=seed,
-                )
-                dest_filename = f"sample_{idx:03d}.wav"
-                dest_path = os.path.join(work_dir, dest_filename)
-                shutil.copy2(wav_path, dest_path)
-
-                samples_state[idx] = {
-                    **samples_state[idx],
-                    "status": "done",
-                    "audio_url": f"/dataset_builder/{safe_name}/{dest_filename}?t={int(time.time())}",
-                    "text": text,
-                    "emotion": emotion,
-                    "description": description,
-                }
-                completed += 1
-            except Exception as e:
-                logger.error(f"Dataset builder sample {idx} failed: {e}")
-                process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
-                samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
-
-            state["samples"] = samples_state
-            _save_builder_state(safe_name, state)
-
-        process_state["dataset_builder"]["logs"].append(
-            f"[DONE] Generated {completed}/{total} samples"
-        )
-        process_state["dataset_builder"]["running"] = False
-
+    claim_gpu_task("dataset_builder")
     threading.Thread(target=task, daemon=True).start()
     return {"status": "started", "dataset_name": safe_name, "total": total}
 
@@ -4306,7 +5014,10 @@ async def dataset_builder_cancel():
 @app.get("/api/dataset_builder/status/{name}")
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
-    state = _load_builder_state(name)
+    safe_name = secure_filename(name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    state = _load_builder_state(safe_name)
     return {
         "description": state.get("description", ""),
         "global_seed": state.get("global_seed", ""),
@@ -4318,7 +5029,7 @@ async def dataset_builder_status(name: str):
 @app.post("/api/dataset_builder/save")
 async def dataset_builder_save(request: DatasetSaveRequest):
     """Finalize dataset builder project as a training dataset."""
-    safe_name = _sanitize_name(request.name)
+    safe_name = secure_filename(request.name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 
@@ -4390,12 +5101,13 @@ async def dataset_builder_save(request: DatasetSaveRequest):
         # Clean up on failure
         if os.path.exists(dataset_dir):
             shutil.rmtree(dataset_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Dataset save failed: {e}")
+        raise HTTPException(status_code=500, detail="Dataset save failed — see server logs for details.")
 
 @app.delete("/api/dataset_builder/{name}")
 async def dataset_builder_delete(name: str):
     """Discard a dataset builder working project."""
-    work_dir = os.path.join(DATASET_BUILDER_DIR, name)
+    work_dir = _safe_subpath(DATASET_BUILDER_DIR, name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Dataset builder project not found")
     shutil.rmtree(work_dir, ignore_errors=True)
@@ -4404,20 +5116,45 @@ async def dataset_builder_delete(name: str):
 
 # ── Preparer ─────────────────────────────────────────────────────────────────
 
+def _resolve_preparer_interpreter() -> str:
+    """Return the interpreter to run the preparer with, or raise 503.
+
+    alexandria_preparer_rocm_compatible.py imports torch/llama-cpp/whisper,
+    which the web app's own env lacks, so it must run under the configurable
+    rocm_python interpreter (shared with Voice Lab) rather than sys.executable.
+    """
+    interpreter = _load_voicelab_config()["rocm_python"]
+    if not os.path.exists(PREPARER_SCRIPT_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Preparer script not found at {PREPARER_SCRIPT_PATH}.",
+        )
+    if not os.path.isfile(interpreter):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Preparer needs the ROCm interpreter (torch/llama-cpp); not "
+                f"found: {interpreter}. Set 'rocm_python' in Voice Lab settings."
+            ),
+        )
+    # Same denylist voicelab_save_config/voicelab_start enforce on this exact
+    # config value - the preparer endpoints execute it too and must not skip
+    # the check just because they read it through a different function.
+    _validate_voicelab_path(interpreter, "rocm_python")
+    return interpreter
+
+
 @app.post("/api/preparer/start")
 async def preparer_start(
     background_tasks: BackgroundTasks,
     config_json: str = Form(...),
     audio_file: UploadFile = File(...),
+    source_file: Optional[UploadFile] = File(None),
 ):
-    """Upload audio and run the preparer to generate a voice training dataset."""
-    if not os.path.exists(PREPARER_SCRIPT_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
-        )
-    if process_state["preparer"]["running"]:
-        raise HTTPException(status_code=400, detail="Preparer is already running.")
+    """Upload audio (and optionally a source EPUB/TXT) and run the preparer
+    to generate a voice training dataset."""
+    interpreter = _resolve_preparer_interpreter()
+    check_global_gpu_lock("preparer")
 
     try:
         config = PreparerConfig(**json.loads(config_json))
@@ -4428,10 +5165,26 @@ async def preparer_start(
     if not has_space:
         raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 2 GB required).")
 
-    audio_path = os.path.join(UPLOADS_DIR, config.audio_filename)
+    audio_filename = secure_filename(config.audio_filename)
+    if not audio_filename:
+        raise HTTPException(status_code=400, detail="Invalid audio filename")
+    output_filename = secure_filename(config.output_filename)
+    if not output_filename:
+        raise HTTPException(status_code=400, detail="Invalid output filename")
+    audio_path = os.path.join(UPLOADS_DIR, audio_filename)
     async with aiofiles.open(audio_path, "wb") as f:
         while chunk := await audio_file.read(1024 * 1024):
             await f.write(chunk)
+
+    source_path = None
+    if source_file is not None:
+        source_filename = secure_filename(config.source_filename or source_file.filename)
+        if not source_filename:
+            raise HTTPException(status_code=400, detail="Invalid source filename")
+        source_path = os.path.join(UPLOADS_DIR, source_filename)
+        async with aiofiles.open(source_path, "wb") as f:
+            while chunk := await source_file.read(1024 * 1024):
+                await f.write(chunk)
 
     def _run():
         state = process_state["preparer"]
@@ -4442,12 +5195,45 @@ async def preparer_start(
         state["output_file"] = None
         state["process"] = None
 
-        cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+        cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
                "--audio", audio_path,
-               "--output", os.path.join(PREPARER_OUTPUT_DIR, config.output_filename),
+               "--output", os.path.join(PREPARER_OUTPUT_DIR, output_filename),
                "--lang", config.lang,
                "--min-confidence", str(config.min_confidence),
-               "--min-snr", str(config.min_snr)]
+               "--min-snr", str(config.min_snr),
+               "--chunk-size", str(config.chunk_size),
+               "--min-chunk-duration", str(config.min_chunk_duration),
+               "--batch-size", str(config.batch_size)]
+        if config.resume:
+            cmd.append("--resume")
+        if config.skip_annotation:
+            cmd.append("--skip-annotation")
+        if config.model:
+            cmd.extend(["--model", config.model])
+        if config.fallback_model:
+            cmd.extend(["--fallback-model", config.fallback_model])
+        # Source-alignment options only make sense with a source file.
+        if source_path:
+            cmd.extend(["--source", source_path,
+                        "--source-threshold", str(config.source_threshold)])
+            if config.keep_unaligned:
+                cmd.append("--keep-unaligned")
+            if config.source_start is not None:
+                cmd.extend(["--source-start", str(config.source_start)])
+            if config.source_start_text:
+                cmd.extend(["--source-start-text", config.source_start_text])
+            if config.no_auto_anchor:
+                cmd.append("--no-auto-anchor")
+        if config.enrich_with_llm:
+            cmd.append("--enrich-with-llm")
+            if config.llm_model_path:
+                cmd.extend(["--llm-model-path", config.llm_model_path])
+            if config.enrich_speaker_attribution:
+                cmd.append("--enrich-speaker-attribution")
+            if config.enrich_narration_style:
+                cmd.append("--enrich-narration-style")
+            if config.enrich_emotional_tone:
+                cmd.append("--enrich-emotional-tone")
 
         rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
 
@@ -4456,7 +5242,7 @@ async def preparer_start(
             state["logs"].append("Preparer cancelled.")
         elif rc == 0:
             state["status"] = "done"
-            state["output_file"] = config.output_filename
+            state["output_file"] = output_filename
             state["logs"].append("Preparer completed successfully.")
         else:
             state["status"] = "failed"
@@ -4465,6 +5251,7 @@ async def preparer_start(
         state["running"] = False
         state["process"] = None
 
+    claim_gpu_task("preparer")
     background_tasks.add_task(_run)
     return {"status": "started"}
 
@@ -4494,11 +5281,16 @@ async def preparer_list_outputs():
         if not fname.endswith(".zip"):
             continue
         fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
-        files.append({
-            "filename": fname,
-            "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
-            "modified": os.path.getmtime(fpath),
-        })
+        try:
+            entry = {
+                "filename": fname,
+                "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
+                "modified": os.path.getmtime(fpath),
+            }
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        files.append(entry)
     return {"files": files}
 
 
@@ -4517,13 +5309,8 @@ async def preparer_download(filename: str):
 @app.post("/api/preparer/batch/start")
 async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
     """Process multiple audio files sequentially through the preparer script."""
-    if not os.path.exists(PREPARER_SCRIPT_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail="Preparer script not installed. Add app/alexandria_preparer.py to enable this feature.",
-        )
-    if process_state["batch_preparer"]["running"]:
-        raise HTTPException(status_code=400, detail="Batch preparer is already running.")
+    interpreter = _resolve_preparer_interpreter()
+    check_global_gpu_lock("batch_preparer")
 
     has_space, free_gb = check_disk_space(ROOT_DIR, 5.0)
     if not has_space:
@@ -4537,6 +5324,10 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         state["tasks"] = [{"audio": t.audio_filename, "status": "pending"} for t in request.tasks]
         state["current_task_idx"] = -1
 
+        existing_outputs = set()
+        if os.path.exists(PREPARER_OUTPUT_DIR):
+            existing_outputs = {e.name for e in os.scandir(PREPARER_OUTPUT_DIR) if e.is_file()}
+
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
                 state["logs"].append("Batch cancelled.")
@@ -4545,17 +5336,42 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
             state["current_task_idx"] = i
             state["tasks"][i]["status"] = "running"
 
-            audio_path = os.path.join(UPLOADS_DIR, task.audio_filename)
-            if not os.path.exists(audio_path):
+            audio_filename = secure_filename(task.audio_filename)
+            audio_path = os.path.join(UPLOADS_DIR, audio_filename) if audio_filename else None
+            if not audio_path or not os.path.exists(audio_path):
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — audio not found: {task.audio_filename}")
                 state["tasks"][i]["status"] = "failed"
                 continue
 
             state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.audio_filename} ---")
 
-            cmd = [sys.executable, "-u", PREPARER_SCRIPT_PATH,
+            # Sanitize output filename to prevent path traversal
+            safe_output = secure_filename(task.output_filename)
+            if not safe_output:
+                state["logs"].append(f"[{i+1}] Skipping — invalid output filename: {task.output_filename}")
+                state["tasks"][i]["status"] = "failed"
+                continue
+
+            # Ensure unique filename across directory and current batch
+            base, ext = os.path.splitext(safe_output)
+            candidate = safe_output
+            counter = 1
+            while candidate in existing_outputs:
+                if counter > 1000:
+                    state["logs"].append(f"[{i+1}] Skipping — too many filename collisions for: {safe_output}")
+                    state["tasks"][i]["status"] = "failed"
+                    candidate = None
+                    break
+                counter += 1
+                candidate = f"{base}_{counter}{ext}"
+            if candidate is None:
+                continue
+            existing_outputs.add(candidate)
+            safe_output = candidate
+
+            cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
                    "--audio", audio_path,
-                   "--output", os.path.join(PREPARER_OUTPUT_DIR, task.output_filename),
+                   "--output", os.path.join(PREPARER_OUTPUT_DIR, safe_output),
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]
@@ -4575,6 +5391,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         state["running"] = False
         state["logs"].append("Batch processing finished.")
 
+    claim_gpu_task("batch_preparer")
     background_tasks.add_task(_run)
     return {"status": "started", "task_count": len(request.tasks)}
 
@@ -4603,13 +5420,13 @@ VOICELAB_CONFIG_PATH = os.path.join(ROOT_DIR, "voicelab_config.json")
 
 VOICELAB_DEFAULTS = {
     # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
-    "rocm_python": "/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python",
+    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", os.path.join(ROOT_DIR, "env", "bin", "python")),
     # Repo holding batch_train_lora.py + voice_profiler.py
-    "pipeline_repo": "/home/fakemitch/pinokio/api/alexandria-audiobook.git",
+    "pipeline_repo": os.environ.get("ALEXANDRIA_PIPELINE_REPO", ROOT_DIR),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
-    "profiler_model": "",
+    "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
     # Default zips2 root (folder of narrator subfolders) the dedup stage reads
-    "zips_dir": "/home/fakemitch/Desktop/zips2",
+    "zips_dir": os.environ.get("ALEXANDRIA_ZIPS_DIR", os.path.join(ROOT_DIR, "zips2")),
 }
 
 VOICELAB_STAGES = ("dedup", "train", "profile", "name")
@@ -4623,8 +5440,8 @@ def _load_voicelab_config() -> dict:
                 data = json.load(f)
             if isinstance(data, dict):
                 cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
-        except (json.JSONDecodeError, ValueError, OSError):
-            pass
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            _warn_corrupted_json("voicelab config", VOICELAB_CONFIG_PATH, "using defaults", e)
     return cfg
 
 
@@ -4651,6 +5468,13 @@ class VoiceLabRequest(BaseModel):
 async def voicelab_get_config():
     """Return the pipeline paths plus whether each resolves on this machine."""
     cfg = _load_voicelab_config()
+    zips_dir_ok = False
+    try:
+        resolved_zips = _resolve_zips_dir(cfg["zips_dir"])
+        zips_dir_ok = os.path.isdir(resolved_zips)
+    except Exception as e:
+        logger.warning(f"Failed to resolve voicelab zips_dir '{cfg.get('zips_dir')}': {e}")
+
     return {
         "config": cfg,
         "checks": {
@@ -4661,7 +5485,7 @@ async def voicelab_get_config():
             "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
             "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
             "profiler_model": (not cfg["profiler_model"]) or os.path.isfile(cfg["profiler_model"]),
-            "zips_dir": os.path.isdir(cfg["zips_dir"]),
+            "zips_dir": zips_dir_ok,
         },
         "defaults": VOICELAB_DEFAULTS,
     }
@@ -4670,10 +5494,43 @@ async def voicelab_get_config():
 @app.post("/api/voicelab/config")
 async def voicelab_save_config(request: VoiceLabConfig):
     cfg = _load_voicelab_config()
-    for k, v in request.model_dump(exclude_none=True).items():
-        cfg[k] = v.strip() if isinstance(v, str) else v
+    updates = {k: (v.strip() if isinstance(v, str) else v)
+               for k, v in request.model_dump(exclude_none=True).items()}
+
+    if updates.get("rocm_python"):
+        path = updates["rocm_python"]
+        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+            raise HTTPException(status_code=400,
+                                detail=f"rocm_python must be an existing, executable file: {path}")
+        _validate_voicelab_path(path, "rocm_python")
+    if updates.get("pipeline_repo"):
+        if not os.path.isdir(updates["pipeline_repo"]):
+            raise HTTPException(status_code=400,
+                                detail=f"pipeline_repo must be an existing directory: {updates['pipeline_repo']}")
+        _validate_voicelab_path(updates["pipeline_repo"], "pipeline_repo")
+    if updates.get("profiler_model"):
+        if not os.path.isfile(updates["profiler_model"]):
+            raise HTTPException(status_code=400,
+                                detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
+        _validate_voicelab_path(updates["profiler_model"], "profiler_model")
+
+    cfg.update(updates)
     atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
     return {"status": "saved", "config": cfg}
+
+
+def _resolve_zips_dir(raw: str) -> str:
+    """Resolve a (possibly relative) zips_dir the same way voicelab_start does.
+
+    zips_dir is a machine-specific path (like rocm_python/pipeline_repo) and may be
+    absolute; relative values are resolved against the project root.
+    """
+    resolved = os.path.normpath(raw)
+    if not os.path.isabs(resolved):
+        resolved = os.path.abspath(os.path.join(ROOT_DIR, resolved))
+    else:
+        resolved = os.path.abspath(resolved)
+    return resolved
 
 
 @app.get("/api/voicelab/inspect")
@@ -4681,7 +5538,10 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
     """Preview what a dedup input folder contains so the UI can show readiness."""
     cfg = _load_voicelab_config()
     root = (zips_dir or cfg["zips_dir"]).strip()
-    if not root or not os.path.isdir(root):
+    if not root:
+        raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
+    root = _resolve_zips_dir(root)
+    if not os.path.isdir(root):
         raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
 
     narrators = []
@@ -4733,6 +5593,14 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--zips_dir", deduped_dir,
                "--models_dir", LORA_MODELS_DIR,
                "--manifest", LORA_MODELS_MANIFEST,
+               # batch_train_lora.py's own --train_script/--python defaults are
+               # hardcoded to one specific alexandria-audiobook2.git checkout -
+               # pin them to *this* app instance's own train_lora.py and
+               # configured rocm_python instead, so a worktree (or any other
+               # checkout) running this code trains with its own train_lora.py
+               # rather than silently falling back to a different checkout's.
+               "--train_script", os.path.join(ROOT_DIR, "app", "train_lora.py"),
+               "--python", rocm,
                "--target_loss", str(req.target_loss),
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
@@ -4758,8 +5626,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
 @app.post("/api/voicelab/start")
 async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
     """Run the selected pipeline stages in sequence as one cancel/pausable job."""
-    if process_state["voicelab"]["running"]:
-        raise HTTPException(status_code=400, detail="Voice Lab pipeline already running.")
+    check_global_gpu_lock("voicelab")
 
     bad = [s for s in request.stages if s not in VOICELAB_STAGES]
     if bad:
@@ -4770,13 +5637,24 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=400, detail="No stages selected.")
 
     cfg = _load_voicelab_config()
-    zips_dir = (request.zips_dir or cfg["zips_dir"]).strip()
+    zips_dir_raw = (request.zips_dir or cfg["zips_dir"]).strip()
+    if not zips_dir_raw:
+        raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
+    zips_dir = _resolve_zips_dir(zips_dir_raw)
 
     # Validate prerequisites up front with actionable errors
     needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
-    if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
-        raise HTTPException(status_code=400,
-                            detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    if needs_rocm:
+        if not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
+            raise HTTPException(status_code=400,
+                                detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+        _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
+    profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
+    if "profile" in request.stages and profiler_model:
+        if not os.path.isfile(profiler_model):
+            raise HTTPException(status_code=400,
+                                detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
+        _validate_voicelab_path(profiler_model, "profiler_model")
     if "dedup" in request.stages and not os.path.isdir(zips_dir):
         raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
     if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
@@ -4784,24 +5662,40 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                             detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
     for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
                            ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
-        if s in request.stages and not os.path.isfile(os.path.join(base, fname)):
-            raise HTTPException(status_code=400,
-                                detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
+        if s in request.stages:
+            if not os.path.isfile(os.path.join(base, fname)):
+                raise HTTPException(status_code=400,
+                                    detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
+            _validate_voicelab_path(base, "pipeline_repo")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
 
     def _run():
         state = process_state["voicelab"]
-        state["running"] = True
-        state["cancel"] = False
-        state["paused"] = False
-        state["start_time"] = time.time()
+        _init_batch_state(state,
+                          [f"Voice Lab: {len(steps)} stage(s) — {', '.join(s[0] for s in steps)}"],
+                          [{"name": s[0], "status": "pending"} for s in steps])
         state["status"] = "running"
         state["process"] = None
         state["pid"] = None
-        state["logs"] = [f"Voice Lab: {len(steps)} stage(s) — {', '.join(s[0] for s in steps)}"]
-        state["tasks"] = [{"name": s[0], "status": "pending"} for s in steps]
-        state["current_task_idx"] = -1
+
+        # Re-validate immediately before exec, not just synchronously above -
+        # background_tasks.add_task defers this whole closure until after the
+        # HTTP response is sent, leaving a window where a path that passed the
+        # checks above (e.g. a symlink) could be repointed before the
+        # subprocess below actually starts.
+        try:
+            if needs_rocm:
+                _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
+            if "profile" in request.stages and profiler_model:
+                _validate_voicelab_path(profiler_model, "profiler_model")
+            if "train" in request.stages or "profile" in request.stages:
+                _validate_voicelab_path(cfg["pipeline_repo"], "pipeline_repo")
+        except HTTPException as e:
+            state["status"] = "failed"
+            state["running"] = False
+            state["logs"].append(f"Aborted: {e.detail}")
+            return
 
         log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
 
@@ -4844,24 +5738,14 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             state["status"] = "done"
             state["logs"].append("Voice Lab pipeline finished.")
 
+    claim_gpu_task("voicelab")
     background_tasks.add_task(_run)
     return {"status": "started", "stages": request.stages, "zips_dir": zips_dir}
 
 
 @app.post("/api/voicelab/cancel")
 async def voicelab_cancel():
-    state = process_state["voicelab"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No Voice Lab pipeline is currently running.")
-    state["cancel"] = True
-    _resume_if_paused(state, state.get("process"))
-    proc = state.get("process")
-    if proc is not None:
-        try:
-            proc.terminate()
-        except (ProcessLookupError, OSError):
-            pass
-    return {"status": "cancel_requested"}
+    return _batch_cancel_helper("voicelab")
 
 
 @app.post("/api/voicelab/pause")

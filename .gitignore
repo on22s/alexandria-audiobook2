@@ -34,6 +34,7 @@ scripts/
 app/config.json
 app/output_audio_cloned/
 app/output_audio/
+app/torch-constraints.txt
 /AGENTS.md
 /CLAUDE.md
 /GEMINI.md

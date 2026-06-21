@@ -4,7 +4,8 @@ Alexandria voice analysis pipeline.
 
 Phase 1 – dedup: For each narrator subfolder in zips2/, computes pairwise
 speaker similarity between volumes and identifies duplicate voices. Produces
-per-folder heatmaps and dedup-cluster reports.
+per-folder heatmaps and dedup-cluster reports, and copies one representative
+zip per cluster (the largest file) into zips2/_deduped/ for the train stage.
 
 Phase 2 – analyze: Across all deduplicated narrators in zips2/_deduped/,
 computes cross-group speaker similarity, prosody divergence (EMD), UMAP
@@ -23,6 +24,7 @@ import os
 import re
 import pickle
 import random
+import shutil
 import warnings
 import zipfile
 from pathlib import Path
@@ -39,6 +41,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
+
+from gpu_stats import system_has_gpu
 
 warnings.filterwarnings("ignore")
 
@@ -65,11 +69,13 @@ EXCLUDE_ZIPS = {
 
 # ─── Model ──────────────────────────────────────────────────────────────────
 
+_EMBEDDING_MODEL_ID = "speechbrain/spkrec-ecapa-voxceleb"
+
 def load_model(savedir, device):
     print("Loading SpeechBrain ECAPA-TDNN speaker embedding model...")
     from speechbrain.inference.speaker import EncoderClassifier
     model = EncoderClassifier.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb",
+        source=_EMBEDDING_MODEL_ID,
         savedir=str(savedir),
         run_opts={"device": device},
     )
@@ -104,7 +110,6 @@ def extract_prosody(wav, sr):
     rms     = librosa.feature.rms(y=wav, frame_length=2048, hop_length=512)[0]
     rms_db  = librosa.amplitude_to_db(rms, ref=np.max)
     sc      = librosa.feature.spectral_centroid(y=wav, sr=sr, hop_length=512)[0]
-    mfcc    = librosa.feature.mfcc(y=wav, sr=sr, n_mfcc=13, hop_length=512)
     return {
         "f0_mean":        float(np.nanmean(f0v)),
         "f0_std":         float(np.nanstd(f0v)),
@@ -113,8 +118,6 @@ def extract_prosody(wav, sr):
         "rms_std_db":     float(np.std(rms_db)),
         "spec_cent_mean": float(np.mean(sc)),
         "spec_cent_std":  float(np.std(sc)),
-        "mfcc_mean":      mfcc.mean(axis=1),
-        "mfcc_std":       mfcc.std(axis=1),
         "duration":       dur,
     }
 
@@ -145,11 +148,17 @@ def list_wavs_in_zip(zip_path):
 def run_dedup(model, device, zips2_root, output_dir):
     """
     For each narrator subfolder of zips2_root, compute pairwise speaker
-    similarity across its ZIP files, then report which are the same voice.
+    similarity across its ZIP files, identify which are the same voice, and
+    copy one representative zip per cluster (largest file = most training
+    data) into zips2_root/_deduped/ so the train stage has exactly one zip
+    per distinct voice to work from.
     """
     output_dir.mkdir(exist_ok=True)
     cache_file = output_dir / "embeddings_cache.pkl"
     cache = pickle.load(open(cache_file, "rb")) if cache_file.exists() else {}
+
+    deduped_dir = zips2_root / "_deduped"
+    deduped_dir.mkdir(exist_ok=True)
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
@@ -179,7 +188,11 @@ def run_dedup(model, device, zips2_root, output_dir):
 
         for zp in zips:
             label     = zp.stem
-            cache_key = f"{folder_name}/{label}"
+            # Including DEDUP_SAMPLES + the model id means a config/model
+            # change naturally invalidates old entries (a fresh cache_key
+            # that was never cached) instead of silently reusing embeddings
+            # extracted under a different sample count or model.
+            cache_key = f"{folder_name}/{label}::{DEDUP_SAMPLES}::{_EMBEDDING_MODEL_ID}"
 
             if cache_key in cache:
                 zip_embeddings[label] = cache[cache_key]
@@ -199,8 +212,8 @@ def run_dedup(model, device, zips2_root, output_dir):
                     wav, sr = load_wav_from_zip(str(zp), wn)
                     embs.append(extract_embedding(wav, sr, model, device))
                     used.append(wn)
-                except Exception:
-                    pass
+                except Exception as e:
+                    tqdm.write(f"  Warning: extraction failed for {wn}: {e}")
 
             if embs:
                 zip_embeddings[label] = (np.array(embs), used)
@@ -214,6 +227,13 @@ def run_dedup(model, device, zips2_root, output_dir):
 
         if len(zip_labels) < 2:
             print("  Need at least 2 zips to compare.")
+            # Still nothing to dedup against, but a single (or zero) valid
+            # zip is trivially "unique" - copy it through so a narrator with
+            # just one volume isn't silently dropped from _deduped/.
+            if len(zip_labels) == 1:
+                rep_path = next(zp for zp in zips if zp.stem == zip_labels[0])
+                shutil.copy2(rep_path, deduped_dir / rep_path.name)
+                print(f"  [UNIQUE] kept {rep_path.name}")
             continue
 
         # Pairwise similarity matrix
@@ -280,6 +300,26 @@ def run_dedup(model, device, zips2_root, output_dir):
             else:
                 print(f"  {short_labels[cluster[0]]} → UNIQUE narrator")
 
+        # Copy one representative zip per cluster into _deduped/ - the
+        # largest file is used as a proxy for "most complete dataset" among
+        # same-voice duplicates. This is what makes _deduped/ actually exist
+        # for the train stage; previously this function only printed
+        # suggestions and never wrote anything here, so "run the dedup stage
+        # first" (app.py's error when _deduped/ is missing) was misleading -
+        # re-running dedup alone could never satisfy it.
+        label_to_path = {zp.stem: zp for zp in zips}
+        print(f"\n  ── Copying representatives to {deduped_dir} ──")
+        for ci, cluster in enumerate(clusters):
+            rep_idx = max(cluster, key=lambda idx: label_to_path[zip_labels[idx]].stat().st_size)
+            rep_path = label_to_path[zip_labels[rep_idx]]
+            dest_path = deduped_dir / rep_path.name
+            shutil.copy2(rep_path, dest_path)
+            if len(cluster) > 1:
+                skipped = [zip_labels[idx] for idx in cluster if idx != rep_idx]
+                print(f"  [GROUP {ci+1}] kept {rep_path.name}  (skipped: {', '.join(skipped)})")
+            else:
+                print(f"  [UNIQUE] kept {rep_path.name}")
+
         # Heatmap
         fig, ax = plt.subplots(figsize=(max(8, n * 1.2), max(6, n * 0.9)))
         sns.heatmap(sim_matrix, annot=True, fmt=".3f",
@@ -313,6 +353,16 @@ def run_dedup(model, device, zips2_root, output_dir):
 
 # ─── Phase 2: Analyze ────────────────────────────────────────────────────────
 
+def normalize_group_key(name):
+    """Derive an analyze-phase group key from a narrator/zip-stem name.
+
+    Used by both run_analyze (building zip_groups) and write_pipeline_summary
+    (recomputing the same key to check membership in analyzed_groups) - they
+    must always agree, so this is the one place that decision lives.
+    """
+    return re.sub(r"[^a-z0-9]+", "_",
+                  name.replace("-converted", "").strip().lower()).strip("_")
+
 def run_analyze(model, device, deduped_root, output_dir):
     """
     Cross-group speaker similarity, prosody divergence (EMD), and UMAP
@@ -327,8 +377,7 @@ def run_analyze(model, device, deduped_root, output_dir):
 
     zip_groups = {}
     for zp in sorted(deduped_root.glob("*.zip")):
-        key = re.sub(r"[^a-z0-9]+", "_",
-                     zp.stem.replace("-converted", "").strip().lower()).strip("_")
+        key = normalize_group_key(zp.stem)
         zip_groups[key] = [str(zp)]
 
     if not zip_groups:
@@ -376,19 +425,24 @@ def run_analyze(model, device, deduped_root, output_dir):
                     g_embs.append(extract_embedding(wav, sr, model, device))
                     g_pros.append(extract_prosody(wav, sr))
                     g_wavs.append((zp, wname))
-                except Exception:
-                    pass
+                except Exception as e:
+                    tqdm.write(f"  Warning: extraction failed for {wname}: {e}")
 
         if g_embs:
             all_embs[group_name]      = np.array(g_embs)
             all_prosody[group_name]   = g_pros
             all_wav_names[group_name] = g_wavs
             print(f"  → {len(g_embs)} embeddings extracted")
-
-    pickle.dump(
-        {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
-        open(cache_file, "wb"),
-    )
+            # Checkpoint after each group. This re-serializes every
+            # previously-finished group's embeddings too (same cumulative-I/O
+            # cost run_dedup's own per-folder checkpoint at line 216 already
+            # pays) - deliberately accepted because losing a crash/interrupt's
+            # GPU-extraction progress for every group done so far is worse
+            # than the extra I/O.
+            pickle.dump(
+                {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
+                open(cache_file, "wb"),
+            )
     print(f"\nCache saved to {cache_file}")
 
     group_names = sorted(all_embs.keys())
@@ -570,8 +624,7 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
             continue
 
         has_dedup = name in deduped_narrators
-        norm = re.sub(r"[^a-z0-9]+", "_",
-                      name.replace("-converted", "").strip().lower()).strip("_")
+        norm = normalize_group_key(name)
         is_analyzed = norm in analyzed_groups
 
         if has_dedup and is_analyzed:
@@ -662,8 +715,19 @@ def main():
 
     if args.device:
         device = args.device
+    elif torch.cuda.is_available():
+        device = "cuda"
     else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = "cpu"
+        has_gpu, vendor = system_has_gpu()
+        if has_gpu:
+            print(
+                f"WARNING: {vendor} GPU detected on this system, but torch can't "
+                f"see it (torch.cuda.is_available() is False) - falling back to "
+                f"CPU, which will be dramatically slower for embedding extraction. "
+                f"This usually means torch got installed as the wrong build for "
+                f"this GPU."
+            )
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")
 
     model_savedir = args.dedup_out / "models" / "ecapa"

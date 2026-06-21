@@ -13,7 +13,13 @@ except ImportError:
     sys.exit(1)
 
 def download_model():
-    """Download and cache the whisper-base model locally."""
+    """Download and cache the whisper-base model locally.
+
+    The model id and this destination path are also hardcoded in
+    alexandria_preparer_rocm_compatible.py (the script that consumes this
+    directory, preferring it over the bare HuggingFace id when present) -
+    keep both in sync if the model changes.
+    """
     script_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(script_dir, "models", "whisper-base")
 
@@ -43,9 +49,12 @@ def download_model():
         processor.save_pretrained(model_path)
         print("✓ Processor saved")
 
-        # Check size
-        result = os.popen(f"du -sh {model_path}").read().strip()
-        print(f"✓ Total size: {result}")
+        # Check size (stdlib walk — portable, no shell/du dependency)
+        total_bytes = sum(
+            os.path.getsize(os.path.join(dp, f))
+            for dp, _, files in os.walk(model_path) for f in files
+        )
+        print(f"✓ Total size: {total_bytes / (1024 ** 2):.1f} MB")
 
         print()
         print("=" * 70)

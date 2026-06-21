@@ -236,7 +236,11 @@ def main():
             if os.path.exists(new_dir):
                 print(f"  SKIP {e['id']} → {new}: target dir already exists")
                 continue
-            os.rename(old_dir, new_dir)
+            try:
+                os.rename(old_dir, new_dir)
+            except OSError as exc:
+                print(f"  SKIP {e['id']} → {new}: rename failed ({exc}); manifest entry left unchanged so a re-run can retry it")
+                continue
         else:
             print(f"  NOTE: adapter dir missing for {e['id']} (updating manifest only)")
         e["id"] = new

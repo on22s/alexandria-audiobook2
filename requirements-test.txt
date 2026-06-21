@@ -1,0 +1,13 @@
+# Test dependencies for Alexandria audiobook generator
+# Install with: pip install -r requirements-test.txt
+# or: uv pip install -r requirements-test.txt
+
+# Playwright for E2E browser tests
+playwright>=1.40.0
+
+# HTTP client for API tests
+requests>=2.28.0
+
+# Optional: pytest for future test migration
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0

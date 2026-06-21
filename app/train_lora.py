@@ -28,6 +28,9 @@ import sys
 import time
 import traceback
 
+from device_utils import resolve_device, enable_rocm_optimizations
+from utils import is_path_inside
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="LoRA fine-tuning for Qwen3-TTS Base model")
@@ -51,33 +54,9 @@ def parse_args():
                         help="Early-stop when epoch avg_loss first drops at or below this value. "
                              "Best checkpoint with loss >= 4.1 is always preserved. "
                              "Recommended: 4.15 for auto sweet-spot detection.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducible shuffling")
     return parser.parse_args()
-
-
-def resolve_device(device_str):
-    if device_str != "auto":
-        return device_str
-    import torch
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
-
-
-def enable_rocm_optimizations():
-    """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU."""
-    import torch
-    if not (hasattr(torch.version, "hip") and torch.version.hip):
-        return
-    os.environ.setdefault("MIOPEN_FIND_MODE", "2")
-    os.environ.setdefault("MIOPEN_LOG_LEVEL", "4")
-    os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_ENABLE", "TRUE")
-    try:
-        from triton.compiler import compiler as triton_compiler
-        if not hasattr(triton_compiler, "triton_key"):
-            import triton
-            triton_compiler.triton_key = lambda: f"pytorch-triton-rocm-{triton.__version__}"
-    except ImportError:
-        pass
 
 
 # ── Data preparation ────────────────────────────────────────────────────
@@ -113,17 +92,29 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     # ── Extract speaker embedding from ref_audio (consistent across all samples) ──
     # Check for ref_audio field in entries, or fall back to ref.wav in dataset dir,
     # or use the first training sample as reference.
+    def _resolve_in_data_dir(rel_path):
+        """Resolve `rel_path` under data_dir, or return None if it escapes."""
+        resolved = os.path.realpath(os.path.join(data_dir, rel_path))
+        if is_path_inside(resolved, data_dir):
+            return resolved
+        return None
+
     ref_audio_path = None
     if entries[0].get("ref_audio"):
-        ref_rel = entries[0]["ref_audio"]
-        ref_audio_path = os.path.join(data_dir, ref_rel)
+        ref_audio_path = _resolve_in_data_dir(entries[0]["ref_audio"])
+        if ref_audio_path is None:
+            print(f"[ERROR] ref_audio escapes the dataset directory: {entries[0]['ref_audio']}", flush=True)
+            sys.exit(1)
     elif os.path.exists(os.path.join(data_dir, "ref.wav")):
         ref_audio_path = os.path.join(data_dir, "ref.wav")
 
     if ref_audio_path is None:
         # Fall back to first training sample as reference
         first_audio_rel = entries[0].get("audio_filepath") or entries[0].get("audio", "")
-        ref_audio_path = os.path.join(data_dir, first_audio_rel)
+        ref_audio_path = _resolve_in_data_dir(first_audio_rel)
+        if ref_audio_path is None:
+            print(f"[ERROR] first-sample reference path escapes the dataset directory: {first_audio_rel}", flush=True)
+            sys.exit(1)
 
     if not os.path.exists(ref_audio_path):
         print(f"[ERROR] Reference audio not found: {ref_audio_path}", flush=True)
@@ -150,7 +141,11 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
     for i, entry in enumerate(entries):
         audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
-        audio_path = os.path.join(data_dir, audio_rel)
+        audio_path = os.path.realpath(os.path.join(data_dir, audio_rel))
+        if not is_path_inside(audio_path, data_dir):
+            print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} (escapes dataset directory)", flush=True)
+            skipped_missing += 1
+            continue
         text = entry["text"]
 
         if not os.path.exists(audio_path):
@@ -463,9 +458,17 @@ def train(args):
     best_loss = float("inf")
     # Safe checkpoint: best loss that's still >= GARBLE_FLOOR
     # This protects against overshooting when early stopping is enabled.
-    GARBLE_FLOOR = 4.1
+    GARBLE_FLOOR = 4.1  # Empirical threshold: below this, audio quality degrades significantly
     safe_best_loss = float("inf")
     training_start = time.time()
+    total_oom_skips = 0
+    
+    # Set random seed for reproducible shuffling if provided
+    if args.seed is not None:
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
 
     # Access underlying model structure (stable references)
     base_talker = peft_talker.base_model.model  # original talker with LoRA layers
@@ -474,6 +477,7 @@ def train(args):
     for epoch in range(1, args.epochs + 1):
         epoch_loss = 0.0
         epoch_steps = 0
+        epoch_oom_skips = 0
         optimizer.zero_grad()
 
         # Shuffle samples each epoch
@@ -546,11 +550,22 @@ def train(args):
 
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
+                    epoch_oom_skips += 1
+                    total_oom_skips += 1
                     print(f"[TRAIN] OOM at epoch={epoch} step={step_idx}, skipping sample", flush=True)
                     if "cuda" in device:
                         torch.cuda.empty_cache()
                     gc.collect()
-                    optimizer.zero_grad()
+                    # Deliberately NOT calling optimizer.zero_grad() here: this
+                    # `continue` also skips the accumulation-boundary check
+                    # below, so zeroing here would silently discard every
+                    # gradient legitimately accumulated by earlier successful
+                    # steps in the current window, with no optimizer.step()
+                    # ever applying them - lost training signal on every OOM,
+                    # not just the OOM'd sample itself. backward() accumulates
+                    # into .grad rather than overwriting it, so skipping this
+                    # step just means it contributes nothing (same as never
+                    # having run it) instead of erasing what came before it.
                     continue
                 raise
 
@@ -594,7 +609,8 @@ def train(args):
             zone = " [BELOW FLOOR — garble risk]"
         elif args.target_loss and avg_loss <= args.target_loss:
             zone = " [TARGET REACHED]"
-        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}", flush=True)
+        oom_note = f" oom_skips={epoch_oom_skips}" if epoch_oom_skips else ""
+        print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}{oom_note}", flush=True)
 
         # Early stopping: first epoch where loss crosses at or below the target
         if args.target_loss is not None and avg_loss <= args.target_loss:
@@ -608,8 +624,28 @@ def train(args):
     # ── Final save ──
     training_time = time.time() - training_start
 
-    # Always save final adapter (overwrites best if last epoch is better)
-    peft_talker.save_pretrained(args.output_dir)
+    # Only save here if the last epoch run actually IS the best/safe
+    # checkpoint (i.e. the per-epoch logic above already saved it, or would
+    # have). Saving unconditionally would overwrite a better/safer earlier
+    # checkpoint with the last epoch's weights whenever the last epoch
+    # regressed - either by overshooting GARBLE_FLOOR (target_loss mode) or
+    # by simply having higher loss than an earlier epoch (either mode). If no
+    # checkpoint was ever saved (e.g. the very first epoch already overshot
+    # the floor), save anyway so the output directory isn't left empty.
+    if args.target_loss is not None:
+        have_checkpoint = safe_best_loss < float("inf")
+        last_epoch_is_best = avg_loss >= GARBLE_FLOOR and avg_loss <= safe_best_loss
+        kept_loss = safe_best_loss
+    else:
+        have_checkpoint = best_loss < float("inf")
+        last_epoch_is_best = avg_loss <= best_loss
+        kept_loss = best_loss
+
+    if have_checkpoint and not last_epoch_is_best:
+        print(f"[TRAIN] Final epoch (loss={avg_loss:.4f}) is not the best checkpoint - "
+              f"keeping the previously saved checkpoint (loss={kept_loss:.4f})", flush=True)
+    else:
+        peft_talker.save_pretrained(args.output_dir)
 
     # Copy reference audio as ref_sample.wav for inference
     ref_dest = os.path.join(args.output_dir, "ref_sample.wav")
@@ -640,6 +676,7 @@ def train(args):
         "final_loss": avg_loss,
         "best_loss": best_loss,
         "training_time_seconds": round(training_time, 1),
+        "oom_skips": total_oom_skips,
         "language": args.language,
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,

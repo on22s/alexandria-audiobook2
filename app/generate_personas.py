@@ -9,45 +9,9 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
-
-
-def extract_json_object(text):
-    # Find first JSON object in text
-    start = text.find('{')
-    if start == -1:
-        return None
-    depth = 0
-    in_str = False
-    esc = False
-    end = None
-    for i, ch in enumerate(text[start:], start):
-        if esc:
-            esc = False
-            continue
-        if ch == '\\':
-            esc = True
-            continue
-        if ch == '"':
-            in_str = not in_str
-            continue
-        if in_str:
-            continue
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-    if end is None:
-        return None
-    obj_text = text[start:end]
-    try:
-        return json.loads(obj_text)
-    except Exception:
-        return None
+from lmstudio_settings import ensure_ideal_settings
 
 
 def normalize_speaker_name(name):
@@ -81,8 +45,8 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
 
     Tries:
     1. Exact match after normalization.
-    2. Substring match after normalization.
-    3. Token Jaccard similarity.
+    2. Substring match with word boundary checks (not just any substring).
+    3. Token Jaccard similarity with higher threshold.
     """
     if not raw_name:
         return None
@@ -96,13 +60,26 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
         if normalize_speaker_name(name) == norm_raw:
             return name
 
-    # Step 2: Substring match (either raw is in name, or name is in raw)
+    # Step 2: Substring match with word boundaries (avoid 'john' matching 'johnson')
+    pattern_raw_in_name = re.compile(r'\b' + re.escape(norm_raw) + r'\b')
     for name in allowed:
         norm_name = normalize_speaker_name(name)
-        if norm_name and (norm_name in norm_raw or norm_raw in norm_name):
+        if not norm_name:
+            continue
+        # Only match if one is a complete word within the other
+        # Use word boundary regex to avoid partial matches like john/johnson
+        if pattern_raw_in_name.search(norm_name) or re.search(r'\b' + re.escape(norm_name) + r'\b', norm_raw):
             return name
 
-    # Step 3: Token Jaccard similarity
+        # Short prefix/nickname match (e.g. 'ann' vs 'anna', len diff <= 2).
+        # Require both names to have at least 3 chars so short names/initials
+        # ('al', 'jo') don't spuriously match unrelated longer names ('allan', 'jonathan').
+        if len(norm_raw) >= 3 and len(norm_name) >= 3:
+            if (norm_name.startswith(norm_raw) and len(norm_name) - len(norm_raw) <= 2) or \
+               (norm_raw.startswith(norm_name) and len(norm_raw) - len(norm_name) <= 2):
+                return name
+
+    # Step 3: Token Jaccard similarity with higher threshold
     best_name = None
     best_score = 0.0
     for name in allowed:
@@ -218,6 +195,10 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names):
             temperature=0.1,
             max_tokens=max(1500, len(speakers_info) * 80),
         )
+        # Check if response has choices before accessing
+        if not response.choices or len(response.choices) == 0:
+            print("Warning: LLM returned empty response for alias resolution")
+            return {}
         result = extract_json_object(response.choices[0].message.content.strip())
         if isinstance(result, dict):
             # Normalize keys and values to match exact input names casing
@@ -237,25 +218,6 @@ def pick_ref_text(lines):
         if ln and len(ln.strip()) >= 12:
             return ln.strip()
     return next((ln.strip() for ln in lines if ln and ln.strip()), "")
-
-
-def parse_alias_decision(text):
-    parsed = extract_json_object(text)
-    if not parsed:
-        return {
-            "is_alias": False,
-            "alias_of": "",
-            "description": "",
-            "ref_text": "",
-            "reason": "unparseable"
-        }
-    return {
-        "is_alias": bool(parsed.get("is_alias", False)),
-        "alias_of": str(parsed.get("alias_of", "") or "").strip(),
-        "description": str(parsed.get("description", "") or "").strip(),
-        "ref_text": str(parsed.get("ref_text", "") or "").strip(),
-        "reason": str(parsed.get("reason", "") or "").strip()
-    }
 
 
 def _as_list(value):
@@ -306,13 +268,7 @@ def _character_ref_path(ref_dir, speaker):
 
 def _load_character_ref(ref_dir, speaker):
     path = _character_ref_path(ref_dir, speaker)
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
+    default = {
         "name": speaker,
         "aliases": [],
         "features": [],
@@ -322,6 +278,7 @@ def _load_character_ref(ref_dir, speaker):
         "sample_lines": [],
         "observations": [],
     }
+    return safe_load_json(path, default=default)
 
 
 def _append_character_ref(ref_dir, speaker, batch_number, character_data):
@@ -455,6 +412,9 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
             shutil.copy2(wav_path, dest_path)
         except Exception as e:
             print(f"Warning: Could not copy preview for {speaker}: {e}")
+            # Bail rather than register a voice whose ref_audio points at a file
+            # we failed to write - the TTS engine would crash on the missing file.
+            return False
 
         voice_entry = voice_config.get(speaker, {})
         voice_entry.update({
@@ -477,7 +437,8 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
                 try:
                     with open(manifest_path, 'r', encoding='utf-8') as mf:
                         manifest = json.load(mf)
-                except Exception:
+                except Exception as e:
+                    print(f"Warning: corrupted manifest.json at {manifest_path}, resetting to empty: {e}")
                     manifest = []
 
             stale_entries = [entry for entry in manifest if entry.get("name") == speaker]
@@ -521,105 +482,137 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
         return False
 
 
+def _parse_discovered_characters(parsed):
+    """Normalize a discovery LLM response into a list of character dicts.
+
+    Accepts either {"characters": [...]} or a {name: {...}} mapping.
+    """
+    characters = []
+    if isinstance(parsed, dict):
+        if "characters" in parsed and isinstance(parsed["characters"], list):
+            characters = parsed["characters"]
+        else:
+            for key, val in parsed.items():
+                if isinstance(val, dict):
+                    val["name"] = key
+                    characters.append(val)
+    return characters
+
+
+def _discover_batch_characters(client, model_name, prompt, batch, batch_number):
+    """Run one discovery LLM call for a batch, falling back to speaker stubs on
+    an empty/unparseable response or an API error. Returns a list of characters.
+    """
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You produce concise JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=4000,
+        )
+        raw_content = response.choices[0].message.content.strip()
+        characters = _parse_discovered_characters(extract_json_object(raw_content))
+        if not characters:
+            print(f"Warning: discovery batch {batch_number} returned no parseable characters; using speaker fallback.")
+            print(f"  LLM response (first 500 chars): {raw_content[:500]}")
+            characters = _fallback_batch_characters(batch)
+        return characters
+    except Exception as e:
+        print(f"Warning: discovery batch {batch_number} failed: {e}; using speaker fallback.")
+        return _fallback_batch_characters(batch)
+
+
+def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_number):
+    """Resolve discovered character names to canonical speakers and append each
+    one's evidence to its per-character reference file.
+    """
+    for character in characters:
+        if not isinstance(character, dict):
+            continue
+        speaker = str(character.get("name") or character.get("speaker") or character.get("speaker_label") or "").strip()
+        if not speaker:
+            continue
+
+        # Map raw/fuzzy name to allowed canonical speaker labels
+        canonical_speaker = _resolve_to_canonical(speaker, selected_speakers)
+        if not canonical_speaker:
+            continue
+
+        character["name"] = canonical_speaker
+        _append_character_ref(ref_dir, canonical_speaker, batch_number, character)
+
+
+def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
+                     samples, system_prompt, advanced_prompt):
+    """Compile one speaker's accumulated reference data into a final persona
+    (description + ref_text) and generate its preview audio.
+    """
+    ref = _load_character_ref(ref_dir, speaker)
+    if not ref.get("sample_lines"):
+        ref["sample_lines"] = [line for line in samples.get(speaker, [])[:8] if line]
+        _atomic_json_write(ref, _character_ref_path(ref_dir, speaker))
+
+    print(f"Compiling persona for: {speaker}")
+    description = ""
+    ref_text = ""
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt or "You produce concise JSON only."},
+                {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}
+            ],
+            temperature=0.25,
+            max_tokens=600,
+        )
+        parsed = extract_json_object(response.choices[0].message.content.strip())
+        if isinstance(parsed, dict):
+            description = str(parsed.get("description", "") or "").strip()
+            ref_text = str(parsed.get("ref_text", "") or "").strip()
+    except Exception as e:
+        print(f"Warning: compile failed for {speaker}: {e}")
+
+    if not description:
+        description, ref_text = _fallback_compiled_persona(ref)
+    if not ref_text:
+        ref_text = pick_ref_text(samples.get(speaker, []))
+    if not ref_text:
+        ref_text = f"{speaker} speaks in a clear, natural voice."
+    if not description:
+        print(f"Warning: Empty compiled description for {speaker}, skipping")
+        return
+
+    voice_entry = voice_config.get(speaker, {})
+    voice_entry["persona_ref"] = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace('\\\\', '/')
+    voice_config[speaker] = voice_entry
+    _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
+    time.sleep(0.5)
+
+
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None):
     ref_dir = os.path.join(root, "persona_refs")
     os.makedirs(ref_dir, exist_ok=True)
 
-    selected_set = set(selected_speakers)
     batches = list(_batch_entries(script, args.batch_size))
     print(f"Advanced persona generation enabled.")
     print(f"Writing per-character reference files to: {ref_dir}")
     print(f"Processing {len(script)} script entries in {len(batches)} batches of up to {max(1, int(args.batch_size or 40))}")
 
+    # Phase 1: discover characters batch-by-batch, accumulating per-character refs.
     for batch_number, (batch_start, batch) in enumerate(batches, start=1):
         prompt = _build_batch_discovery_prompt(batch_start, batch, selected_speakers)
         print(f"Advanced discovery batch {batch_number}/{len(batches)} ({len(batch)} entries)")
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": "You produce concise JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                max_tokens=4000,
-            )
-            raw_content = response.choices[0].message.content.strip()
-            parsed = extract_json_object(raw_content)
-            characters = []
-            if isinstance(parsed, dict):
-                if "characters" in parsed and isinstance(parsed["characters"], list):
-                    characters = parsed["characters"]
-                else:
-                    for key, val in parsed.items():
-                        if isinstance(val, dict):
-                            val["name"] = key
-                            characters.append(val)
-            if not characters:
-                print(f"Warning: discovery batch {batch_number} returned no parseable characters; using speaker fallback.")
-                print(f"  LLM response (first 500 chars): {raw_content[:500]}")
-                characters = _fallback_batch_characters(batch)
-        except Exception as e:
-            print(f"Warning: discovery batch {batch_number} failed: {e}; using speaker fallback.")
-            characters = _fallback_batch_characters(batch)
+        characters = _discover_batch_characters(client, model_name, prompt, batch, batch_number)
+        _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_number)
 
-        for character in characters:
-            if not isinstance(character, dict):
-                continue
-            speaker = str(character.get("name") or character.get("speaker") or character.get("speaker_label") or "").strip()
-            if not speaker:
-                continue
-            
-            # Map raw/fuzzy name to allowed canonical speaker labels
-            canonical_speaker = _resolve_to_canonical(speaker, selected_speakers)
-            if not canonical_speaker:
-                continue
-            
-            character["name"] = canonical_speaker
-            _append_character_ref(ref_dir, canonical_speaker, batch_number, character)
-
+    # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
     for speaker in selected_speakers:
-        ref = _load_character_ref(ref_dir, speaker)
-        if not ref.get("sample_lines"):
-            ref["sample_lines"] = [line for line in samples.get(speaker, [])[:8] if line]
-            _atomic_json_write(ref, _character_ref_path(ref_dir, speaker))
-
-        print(f"Compiling persona for: {speaker}")
-        description = ""
-        ref_text = ""
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt or "You produce concise JSON only."},
-                    {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}
-                ],
-                temperature=0.25,
-                max_tokens=600,
-            )
-            parsed = extract_json_object(response.choices[0].message.content.strip())
-            if parsed:
-                description = str(parsed.get("description", "") or "").strip()
-                ref_text = str(parsed.get("ref_text", "") or "").strip()
-        except Exception as e:
-            print(f"Warning: compile failed for {speaker}: {e}")
-
-        if not description:
-            description, ref_text = _fallback_compiled_persona(ref)
-        if not ref_text:
-            ref_text = pick_ref_text(samples.get(speaker, []))
-        if not ref_text:
-            ref_text = f"{speaker} speaks in a clear, natural voice."
-        if not description:
-            print(f"Warning: Empty compiled description for {speaker}, skipping")
-            continue
-
-        voice_entry = voice_config.get(speaker, {})
-        voice_entry["persona_ref"] = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace('\\\\', '/')
-        voice_config[speaker] = voice_entry
-        _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
-        time.sleep(0.5)
+        _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
+                         speaker, samples, system_prompt, advanced_prompt)
 
 
 # _atomic_json_write imported from utils
@@ -664,35 +657,33 @@ def main():
         narrator_context[speaker] = _collect_narrator_context(script, speaker, window)
 
     # Load LLM config
-    config = {}
-    if os.path.exists(app_config_path):
-        try:
-            with open(app_config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Warning: Failed to load app/config.json: {e}")
+    config = safe_load_json(app_config_path, default={})
 
     llm_cfg = config.get("llm", {})
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
     api_key = llm_cfg.get("api_key", "local")
     model_name = llm_cfg.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
+    llm_mode = config.get("llm_mode", "local")
+
+    # Self-heal a stale/misconfigured local or remote LM Studio before making
+    # any calls, mirroring review_script.py/find_nicknames.py. This file has
+    # no VRAM watchdog or concurrency wave processing of its own (personas
+    # are generated sequentially per speaker/batch), so only the self-heal
+    # call applies here.
+    _, _, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
     # Load persona prompts from config, fall back to defaults
-    prompts_cfg = config.get("prompts", {})
+    prompts_cfg = config.get("prompts") or {}
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT
 
     # Load existing voice_config (preserve other fields)
-    voice_config = {}
-    if os.path.exists(voice_config_path):
-        try:
-            with open(voice_config_path, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
-        except Exception:
-            voice_config = {}
+    voice_config = safe_load_json(voice_config_path, default={})
 
     # Disable compile_codec for persona previews: compilation overhead
     # outweighs benefit for single generations, and subprocess context
@@ -844,7 +835,7 @@ def main():
             parsed = extract_json_object(text)
             description = ""
             ref_text = ""
-            if parsed:
+            if isinstance(parsed, dict):
                 description = str(parsed.get("description", "") or "").strip()
                 ref_text = str(parsed.get("ref_text", "") or "").strip()
 

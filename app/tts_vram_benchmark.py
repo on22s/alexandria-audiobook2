@@ -77,14 +77,16 @@ def vram_state():
         return {"allocated_gb": round(alloc, 2),
                 "free_gb": round(free / 1e9, 2),
                 "total_gb": round(total / 1e9, 1)}
-    except Exception:
+    except Exception as e:
+        print(f"Warning: vram_state probe failed: {e}")
         return None
 
 def gpu_name():
     try:
         import torch
         return torch.cuda.get_device_name(0)
-    except Exception:
+    except Exception as e:
+        print(f"Warning: gpu_name probe failed: {e}")
         return "unknown"
 
 # ---------------------------------------------------------------------------
@@ -100,14 +102,14 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
         print(f"  Sweep: sub_batch_max_items={max_items}, n_chunks={n_chunks_per_run}")
         print(f"{'='*60}")
 
-        engine._sub_batch_max_items = max_items
+        engine.set_sub_batch_size(max_items)
         random.seed(42)
         chunks = make_chunks(n_chunks_per_run)
 
         import torch
         torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
-        batch_results = engine._local_batch_custom(chunks, voice_config, output_dir)
+        batch_results = engine.run_benchmark_batch(chunks, voice_config, output_dir)
         elapsed = time.time() - t0
         peak_gb = torch.cuda.max_memory_allocated() / 1e9
 
@@ -123,8 +125,8 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
                 if os.path.exists(p):
                     info = sf.info(p)
                     total_audio += info.duration
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: duration estimation failed: {e}")
 
         rtf = total_audio / elapsed if elapsed > 0 and total_audio > 0 else None
 
@@ -254,8 +256,7 @@ def main():
         post_results = []
         if args.compile:
             print(f"\n--- Compiling codec ---")
-            engine._compile_codec_enabled = True
-            engine._compile_codec(engine._local_custom_model)
+            engine.enable_codec_compilation()
             print(f"\n--- Post-compile sweep ---")
             post_results = run_sweep(engine, voice_config, args.sizes, output_dir, args.chunks)
 

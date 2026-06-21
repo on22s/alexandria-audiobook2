@@ -1,20 +1,53 @@
 import os
 import re
+import sys
+import time
 import json
 import threading
 import shutil
+import tempfile
+import subprocess
+from pathlib import Path
+from typing import List, Optional, Dict, Any, Tuple
+
 import numpy as np
 import soundfile as sf
+
+import device_utils
 from pydub import AudioSegment
+
+try:
+    from .utils import secure_filename as _secure_filename
+except ImportError:
+    from utils import secure_filename as _secure_filename
 
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 
+def voice_category(voice_data):
+    """Normalize a voice config entry's type into a routing category.
+
+    Collapses the "lora"/"builtin_lora" pair into a single "lora" category so
+    the membership test isn't duplicated at every call site. Returns one of
+    "clone", "lora", "design", or "custom".
+    """
+    voice_type = (voice_data or {}).get("type", "custom")
+    if voice_type == "clone":
+        return "clone"
+    if voice_type in ("lora", "builtin_lora"):
+        return "lora"
+    if voice_type == "design":
+        return "design"
+    return "custom"
+
+
 def sanitize_filename(name):
-    """Make a string safe for use in filenames"""
-    name = re.sub(r'[^\w\-]', '_', name)
-    return name.lower()
+    """Make a string safe for use in filenames. Uses secure_filename to prevent path
+    traversal, then collapses remaining spaces/dots/etc. to underscores to match the
+    naming convention existing on-disk files were written with."""
+    safe = _secure_filename(name) or "unnamed"
+    return re.sub(r'[^\w\-]', '_', safe).lower()
 
 
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,
@@ -301,55 +334,14 @@ class TTSEngine:
 
     def _resolve_device(self):
         """Resolve 'auto' device to the best available."""
-        if self._device != "auto":
-            return self._device
-
-        try:
-            import torch
-            if torch.cuda.is_available():
-                return "cuda"
-            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                return "mps"
-        except ImportError:
-            pass
-        return "cpu"
-
+        return device_utils.resolve_device(self._device)
 
     def _enable_rocm_optimizations(self):
-        """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU.
-
-        1. FLASH_ATTENTION_TRITON_AMD_ENABLE: Lets qwen_tts whisper encoder
-           use native flash attention via Triton AMD backend.
-        2. MIOPEN_FIND_MODE=2: Forces MIOpen to use fast-find instead of
-           exhaustive search, avoiding workspace allocation failures that
-           cause fallback to slow GEMM algorithms.
-        3. MIOPEN_LOG_LEVEL=4: Suppress noisy MIOpen workspace warnings.
-        4. triton_key shim: Bridges pytorch-triton-rocm's get_cache_key()
-           to the triton_key() that PyTorch's inductor expects.
-        """
-        try:
-            import torch
-            if not (hasattr(torch.version, "hip") and torch.version.hip):
-                return  # not ROCm
-        except ImportError:
-            return
-
-        # MIOpen: use fast-find to avoid workspace allocation failures
-        os.environ.setdefault("MIOPEN_FIND_MODE", "2")
-        # Suppress MIOpen workspace warnings
-        os.environ.setdefault("MIOPEN_LOG_LEVEL", "4")
-
-        # Flash attention via Triton AMD backend
-        os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_ENABLE", "TRUE")
-
-        # Fix triton_key compatibility for torch.compile on ROCm
-        try:
-            from triton.compiler import compiler as triton_compiler
-            if not hasattr(triton_compiler, "triton_key"):
-                import triton
-                triton_compiler.triton_key = lambda: f"pytorch-triton-rocm-{triton.__version__}"
-        except ImportError:
-            pass
+        """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU. See
+        device_utils.enable_rocm_optimizations for the per-step rationale
+        (MIOpen fast-find, flash attention via Triton AMD, triton_key shim)."""
+        import torch
+        device_utils.enable_rocm_optimizations()
 
         # Correct under-reported GPU properties on consumer RDNA2/3.
         # ROCm reports half the CU count and warp size 32 instead of 64,
@@ -424,10 +416,12 @@ class TTSEngine:
                             pass
                 patched.multi_processor_count = true_cus
                 patched.warp_size = true_warp
-                old_threads = props.multi_processor_count * props.warp_size
+                # Safely calculate old thread count - handle missing warp_size on unusual ROCm versions
+                old_warp = getattr(props, 'warp_size', 32)  # Default to 32 if missing
+                old_threads = props.multi_processor_count * old_warp
                 new_threads = true_cus * true_warp
                 print(f"  [RDNA fix] {props.name}: CUs {props.multi_processor_count}->{true_cus}, "
-                      f"warp {props.warp_size}->{true_warp}, "
+                      f"warp {old_warp}->{true_warp}, "
                       f"threads {old_threads}->{new_threads}")
                 _cache[key] = patched
                 return patched
@@ -727,13 +721,13 @@ class TTSEngine:
             print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
             return False
 
-        voice_type = voice_data.get("type", "custom")
+        category = voice_category(voice_data)
 
-        if voice_type == "clone":
+        if category == "clone":
             return self.generate_clone_voice(text, speaker, voice_config, output_path)
-        elif voice_type in ("lora", "builtin_lora"):
+        elif category == "lora":
             return self.generate_lora_voice(text, instruct_text, voice_data, output_path)
-        elif voice_type == "design":
+        elif category == "design":
             return self.generate_design_voice(text, instruct_text, voice_data, output_path)
         else:
             return self.generate_custom_voice(text, instruct_text, speaker, voice_config, output_path)
@@ -974,13 +968,13 @@ class TTSEngine:
         for chunk in chunks:
             speaker = chunk.get("speaker")
             voice_data = voice_config.get(speaker, {})
-            voice_type = voice_data.get("type", "custom")
+            category = voice_category(voice_data)
 
-            if voice_type == "clone":
+            if category == "clone":
                 clone_chunks.append(chunk)
-            elif voice_type in ("lora", "builtin_lora"):
+            elif category == "lora":
                 lora_chunks.append(chunk)
-            elif voice_type == "design":
+            elif category == "design":
                 design_chunks.append(chunk)
             else:
                 custom_chunks.append(chunk)
@@ -1070,6 +1064,21 @@ class TTSEngine:
         return results
 
     # ── Connection test ──────────────────────────────────────────
+
+    def set_sub_batch_size(self, max_items: int):
+        """Set the sub-batch size for benchmarking. Public wrapper for _sub_batch_max_items."""
+        self._sub_batch_max_items = max_items
+
+    def run_benchmark_batch(self, chunks, voice_config, output_dir):
+        """Run a benchmark batch generation. Public wrapper for _local_batch_custom."""
+        return self._local_batch_custom(chunks, voice_config, output_dir)
+
+    def enable_codec_compilation(self):
+        """Enable torch.compile for codec. Public wrapper for internal compilation."""
+        if hasattr(self, '_compile_codec_enabled') and hasattr(self, '_compile_codec'):
+            self._compile_codec_enabled = True
+            if getattr(self, '_local_custom_model', None) is not None:
+                self._compile_codec(self._local_custom_model)
 
     # ── Local backend methods ────────────────────────────────────
 
@@ -1446,8 +1455,12 @@ class TTSEngine:
         results = {"completed": [], "failed": []}
         root_dir = os.path.dirname(os.path.dirname(__file__))
 
-        # Group chunks by adapter_path (resolved to absolute)
-        adapter_groups = {}  # adapter_path -> (voice_data, [chunks])
+        # Group chunks by adapter_path (resolved to absolute). Two different
+        # speakers can share the same adapter (e.g. aliases, or one trained
+        # voice reused for two characters) while having different
+        # character_style/default_style - so each chunk keeps its own
+        # voice_data instead of the group inheriting just the first chunk's.
+        adapter_groups = {}  # adapter_path -> [(chunk, voice_data), ...]
         for chunk in chunks:
             speaker = chunk.get("speaker", "")
             voice_data = voice_config.get(speaker, {})
@@ -1460,9 +1473,7 @@ class TTSEngine:
             if not os.path.isabs(adapter_path):
                 adapter_path = os.path.join(root_dir, adapter_path)
 
-            if adapter_path not in adapter_groups:
-                adapter_groups[adapter_path] = (voice_data, [])
-            adapter_groups[adapter_path][1].append(chunk)
+            adapter_groups.setdefault(adapter_path, []).append((chunk, voice_data))
 
         self._clear_gpu_cache()
 
@@ -1479,7 +1490,8 @@ class TTSEngine:
         t_total_start = time.time()
         total_audio_duration = 0.0
 
-        for adapter_path, (voice_data, group) in adapter_groups.items():
+        for adapter_path, group_entries in adapter_groups.items():
+            group = [c for c, _ in group_entries]
             if not os.path.isdir(adapter_path):
                 print(f"  Error: adapter path not found: {adapter_path}")
                 for chunk in group:
@@ -1521,16 +1533,17 @@ class TTSEngine:
                     results["failed"].append((chunk["index"], str(e)))
                 continue
 
-            character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
-
             texts = [c["text"] for c in group]
             instructs_raw = [c.get("instruct", "") for c in group]
+            character_styles = [(vd.get("character_style", "") or vd.get("default_style", ""))
+                                for _, vd in group_entries]
             indices = [c["index"] for c in group]
 
             # Sort by text length
             sort_order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
             texts = [texts[i] for i in sort_order]
             instructs_raw = [instructs_raw[i] for i in sort_order]
+            character_styles = [character_styles[i] for i in sort_order]
             indices = [indices[i] for i in sort_order]
 
             # Estimate max batch size from VRAM + clone prompt overhead
@@ -1547,6 +1560,7 @@ class TTSEngine:
             for sb_idx, (start, end) in enumerate(sub_batches):
                 sb_texts = texts[start:end]
                 sb_instructs = instructs_raw[start:end]
+                sb_character_styles = character_styles[start:end]
                 sb_indices = indices[start:end]
 
                 print(f"  Sub-batch {sb_idx+1}/{len(sub_batches)}: {len(sb_texts)} chunks "
@@ -1555,7 +1569,7 @@ class TTSEngine:
                 try:
                     # Build instruct_ids list for this sub-batch
                     instruct_ids = []
-                    for inst in sb_instructs:
+                    for inst, character_style in zip(sb_instructs, sb_character_styles):
                         instruct = inst or ""
                         if character_style:
                             instruct = f"{instruct} {character_style}".strip()

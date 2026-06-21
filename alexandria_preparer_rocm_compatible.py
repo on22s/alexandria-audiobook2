@@ -15,6 +15,34 @@ import os
 import sys
 import tempfile
 
+from gpu_stats import run_rocm_smi_json, system_has_gpu
+
+_gpu_mismatch_warned = False
+
+
+def resolve_cuda_device(torch_module):
+    """Return "cuda" if torch can use the GPU, else "cpu" - warning once per
+    process if a GPU is physically present but torch can't see it (wrong-build
+    install), rather than silently looking identical to "no GPU at all".
+    Only warns once since this gets called once per pipeline phase/feature,
+    not in a hot per-chunk loop - repeating the same warning per phase would
+    just be noise once the first one has already told the user what's wrong.
+    """
+    global _gpu_mismatch_warned
+    if torch_module.cuda.is_available():
+        return "cuda"
+    if not _gpu_mismatch_warned:
+        has_gpu, vendor = system_has_gpu()
+        if has_gpu:
+            _gpu_mismatch_warned = True
+            logger.warning(
+                f"{vendor} GPU detected on this system, but torch can't see it "
+                f"(torch.cuda.is_available() is False) - falling back to CPU, "
+                f"which will be dramatically slower. This usually means torch "
+                f"got installed as the wrong build for this GPU."
+            )
+    return "cpu"
+
 # Force llama_cpp to load first to ensure system ROCm libs are prioritized over torch's bundled ones.
 # Do NOT defer this import — llama_cpp's ggml_cuda_init() must bind to the system HIP libs before
 # torch's bundled copies get loaded, otherwise ROCm detection fails at runtime.
@@ -22,7 +50,11 @@ try:
     import llama_cpp as _llama_cpp_mod
     _llama_lib_dir = os.path.join(os.path.dirname(_llama_cpp_mod.__file__), "lib")
     _hip_so = os.path.join(_llama_lib_dir, "libggml-hip.so")
-    if not os.path.exists(_hip_so):
+    if not os.path.exists(_hip_so) and system_has_gpu()[0]:
+        # Only warn when there's actually a GPU to offload to - this used to
+        # fire unconditionally, which would also warn on a genuinely
+        # GPU-less dev/test machine where a CPU-only build is correct, not
+        # a problem.
         import warnings
         warnings.warn(
             "\n\n*** llama-cpp-python is a CPU-only build — GPU acceleration disabled! ***\n"
@@ -233,36 +265,17 @@ def get_gpu_stats():
         stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
 
         # Try to get utilization via rocm-smi for AMD GPUs
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Filter out warning lines and parse JSON
-                json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
-                if json_lines:
-                    data = json.loads(json_lines[0])
-                    # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
-                    for card_key, card_data in data.items():
-                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                        if gpu_use_str != 'N/A':
-                            stats['utilization_percent'] = float(gpu_use_str)
-                        break  # Just get first GPU
-            else:
-                logger.debug(f"rocm-smi returned error: {result.returncode}, stderr: {result.stderr}")
-                stats['utilization_percent'] = None
-        except FileNotFoundError as e:
-            logger.debug(f"rocm-smi not found: {e}")
-            stats['utilization_percent'] = None
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError) as e:
-            logger.debug(f"rocm-smi parse error: {e}")
-            stats['utilization_percent'] = None
-        except Exception as e:
-            logger.debug(f"rocm-smi unexpected error: {e}")
-            stats['utilization_percent'] = None
+        data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
+        stats['utilization_percent'] = None
+        if data:
+            # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+            for card_key, card_data in data.items():
+                gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                if gpu_use_str != 'N/A':
+                    stats['utilization_percent'] = float(gpu_use_str)
+                break  # Just get first GPU
+        else:
+            logger.debug("rocm-smi unavailable or returned no parseable JSON")
 
     except Exception as e:
         logger.debug(f"Could not get GPU stats: {e}")
@@ -321,7 +334,8 @@ def _wav_overflow_info(path):
     """
     try:
         info = sf.info(path)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"sf.info failed in _wav_overflow_info: {e}")
         return False, 0.0, 0.0
     header_dur = info.duration
     if info.format != 'WAV':
@@ -522,7 +536,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
 
     logger.info("▶ Initializing Wav2Vec2 ASR (CTC-aligned word timestamps)...")
     logger.info(f"  ├─ Model: facebook/wav2vec2-large-960h")
-    logger.info(f"  ├─ Device: GPU (CUDA/ROCm)")
     logger.info(f"  └─ Language: {language}")
 
     try:
@@ -530,14 +543,19 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         import torch as torch_module
 
         logger.debug("Loading Wav2Vec2 processor and model...")
-        device_str = "cuda" if torch_module.cuda.is_available() else "cpu"
+        # Resolved (not assumed) and logged after the fact - this used to
+        # unconditionally claim "Device: GPU" and "loaded to GPU" above even
+        # when torch.cuda.is_available() was False and it silently fell back
+        # to CPU, which is exactly the kind of silent fallback that's
+        # supposed to be loud (see resolve_cuda_device).
+        device_str = resolve_cuda_device(torch_module)
 
         processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
         model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
         model = model.to(device_str)
         model.eval()
 
-        logger.info("✓ Wav2Vec2 model loaded to GPU")
+        logger.info(f"✓ Wav2Vec2 model loaded to {device_str.upper()}")
         log_gpu_stats("after model load")
 
         # Frame rate: for wav2vec2-large-960h, CNN downsamples 16kHz audio by 320 → 50 frames/sec
@@ -644,52 +662,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         logger.debug(traceback.format_exc())
         raise
 
-def transcribe_with_whisper_v3(audio_16k: np.ndarray, device: str) -> tuple:
-    """Use OpenAI Whisper-large-v3 (best model, CPU stable)."""
-    if not TRANSFORMERS_WHISPER_AVAILABLE:
-        raise ImportError("Transformers not available")
-
-    logger.info("Starting Whisper-large-v3 transcription...")
-
-    try:
-        # Use CPU to avoid CUDA/ROCm issues, v3 is fast enough
-        pipe_device = -1
-        logger.debug(f"Loading Whisper-large-v3 pipeline (device=CPU)...")
-
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
-            device=pipe_device,
-            return_timestamps="word"
-        )
-        logger.info("✓ Whisper-large-v3 pipeline loaded")
-
-        logger.info("Transcribing audio with Whisper-v3...")
-        result = pipe(audio_16k, return_timestamps="word")
-
-        word_segments = []
-        if "chunks" in result:
-            for chunk in result["chunks"]:
-                if "timestamp" in chunk and chunk["timestamp"]:
-                    start, end = chunk["timestamp"]
-                    if start is not None and end is not None:
-                        word_segments.append({
-                            "word": chunk["text"].strip(),
-                            "start": start,
-                            "end": end
-                        })
-
-        del pipe
-        clear_vram()
-
-        logger.info(f"✓ Whisper-v3 complete: {len(word_segments)} words transcribed")
-        return word_segments, "en"
-
-    except Exception as e:
-        logger.error(f"Whisper-v3 failed: {e}")
-        logger.debug(traceback.format_exc())
-        raise
-
 def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str = "en") -> tuple:
     """Use Insanely Fast Whisper ROCm (optimized for AMD GPUs)."""
     if not INSANELY_FAST_WHISPER_AVAILABLE:
@@ -737,7 +709,9 @@ def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str =
         logger.debug(f"Working directory: {os.getcwd()}")
         logger.debug(f"sys.executable Python version: {sys.version}")
 
-        # Use pre-downloaded model or HuggingFace model ID
+        # Use pre-downloaded model or HuggingFace model ID. The model id and
+        # local path are also hardcoded in download_model.py (the script that
+        # populates this directory) - keep both in sync if the model changes.
         model_name = "openai/whisper-base"
         local_model_path = os.path.join(script_dir, "models", "whisper-base")
         if os.path.exists(local_model_path):
@@ -1010,6 +984,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_wav2vec2(audio_16k, language, limit=limit)
+            if not word_segments:
+                raise RuntimeError("Wav2Vec2 returned an empty transcript")
             logger.info(f"✓ SUCCESS with Wav2Vec2")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  ├─ Context preservation: Full audio (30s overlapping chunks)")
@@ -1027,6 +1003,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_insanely_fast_whisper(audio_16k, language)
+            if not word_segments:
+                raise RuntimeError("Insanely Fast Whisper returned an empty transcript")
             logger.info(f"✓ SUCCESS with Insanely Fast Whisper")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
@@ -1043,6 +1021,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_whisperx_cpu(audio_16k, language)
+            if not word_segments:
+                raise RuntimeError("WhisperX-CPU returned an empty transcript")
             logger.info(f"✓ SUCCESS with WhisperX-CPU")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
@@ -1139,7 +1119,7 @@ def _find_best_cut(word_starts, word_ends, words, chunk_start,
     return n - 1, 'fallback'
 
 
-def _provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
+def _build_provisional_entries_for_anchor(word_segments, chunk_size, max_entries=30):
     """Pack the first N chunks' worth of ASR words into the entry shape
     alignment.auto_anchor / alignment.estimate_alignment_quality expect.
 
@@ -1268,11 +1248,8 @@ def _build_source_state(source_path: str,
         more = f' +{len(alignment._PROPER_NOUNS) - 8} more' if len(alignment._PROPER_NOUNS) > 8 else ''
         logger.info(f"  ├─ {len(alignment._PROPER_NOUNS)} recurring proper nouns ({sample}{more})")
 
-    # Hyphenated compounds split into separate tokens so "twenty-minute" doesn't
-    # become a single un-alignable word. Same logic as compare's main(); U+2500
-    # appears in some EPUB→text conversions where em-dashes should be.
-    compound_split = re.compile(r'[-‐‑‒–—―─━]')
-    tokens = compound_split.sub(' ', source_text).split()
+    # Same shared split_compounds() compare.py's main() also uses.
+    tokens = alignment.split_compounds(source_text)
     orig_display, orig_match = [], []
     for w in tokens:
         m = alignment.normalize(w)
@@ -1452,9 +1429,15 @@ def _sweep_orphan_wavs(temp_dir, next_segment_idx):
 
 
 def _wipe_temp_dir(temp_dir):
-    """Remove all preparer-generated files from temp_dir but keep the directory itself."""
+    """Remove all preparer-generated files from temp_dir but keep the directory itself.
+
+    Returns a list of (path, error) tuples for anything that failed to be
+    removed (empty list = fully clean). Callers must check this rather than
+    assume the wipe succeeded - a partial wipe is exactly the cross-book
+    dataset_temp/ corruption this function exists to prevent. See FIXED.md F-119.
+    """
     if not os.path.exists(temp_dir):
-        return
+        return []
     # Protect intermediate files used across phases
     protected = {
         "asr_segments.json",       # ASR phase output
@@ -1463,6 +1446,7 @@ def _wipe_temp_dir(temp_dir):
         "asr_chunks_for_enrich.json",  # Enrichment input chunks
         "diarization.json",        # Speaker diarization output
     }
+    failures = []
     for name in os.listdir(temp_dir):
         if name in protected:
             continue
@@ -1474,6 +1458,8 @@ def _wipe_temp_dir(temp_dir):
                 shutil.rmtree(full_path)
         except Exception as e:
             logger.warning(f"Failed to remove {full_path}: {e}")
+            failures.append((full_path, str(e)))
+    return failures
 
 
 def _check_source_marker(temp_dir, audio_source_path):
@@ -1485,7 +1471,8 @@ def _check_source_marker(temp_dir, audio_source_path):
         with open(marker_path, "r", encoding="utf-8") as f:
             stored = f.read().strip()
         return stored == os.path.abspath(audio_source_path)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to read source marker at {marker_path}: {e}")
         return False
 
 
@@ -1691,6 +1678,7 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
 
     except Exception as e:
         stats['llm_fail'] += 1
+        _check_llm_fail_rate(stats)
         logger.warning(f"Batch annotation failed ({len(batch_data)} chunks), falling back to per-chunk: {e}")
         logger.debug(f"llm-batch-fail: {traceback.format_exc()}")
         return None  # Signal caller to use per-chunk fallback
@@ -1788,6 +1776,23 @@ def _calculate_chunk_snr(chunk_audio: np.ndarray) -> float:
 
     return 10 * np.log10(signal_power / noise_power)
 
+def _check_llm_fail_rate(stats):
+    """Fail loud (once) if the LLM-annotation failure rate crosses 50% of
+    chunks processed so far - a dead/misconfigured LLM server would otherwise
+    silently fill the dataset with unannotated raw text, indistinguishable
+    from a healthy run except for per-chunk warnings buried in the log. Does
+    not abort the run: annotation failure isn't fatal, the raw-text fallback
+    is still a usable degraded result. See FIXED.md F-116."""
+    total = stats['llm_success'] + stats['llm_fail']
+    if total >= 20 and not stats.get('llm_fail_rate_warned') and stats['llm_fail'] / total > 0.5:
+        stats['llm_fail_rate_warned'] = True
+        logger.error(
+            f"⚠ LLM annotation failure rate is {stats['llm_fail']}/{total} "
+            f"({stats['llm_fail'] / total:.0%}) - the LLM server may be down "
+            f"or misconfigured. The run will continue (chunks fall back to "
+            f"unannotated raw text) but check the LLM connection."
+        )
+
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     resume=False, audio_source_path=None, fallback_model_path=None,
                     source_state=None, source_threshold=0.65, keep_unaligned=False,
@@ -1837,9 +1842,29 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 "▶ --resume specified, but dataset_temp/ belongs to a different source file "
                 "(or has no marker). Wiping and starting fresh to avoid corrupting another run."
             )
+        elif not resume and marker_matches and os.listdir(temp_dir):
+            # Distinct from the generic "stale contents" case below: this is
+            # unfinished progress on THIS exact source, about to be discarded
+            # only because --resume wasn't passed - not foreign/garbage data.
+            existing_entries, _, _ = _load_existing_checkpoint(temp_dir)
+            logger.warning(
+                f"▶ dataset_temp/ contains {len(existing_entries)} segment(s) of unfinished "
+                f"progress on THIS source ({audio_source_path}) - pass --resume to continue, "
+                f"or this run will discard them."
+            )
         elif os.listdir(temp_dir):
             logger.info("▶ Wiping stale dataset_temp/ contents for fresh start")
-        _wipe_temp_dir(temp_dir)
+        wipe_failures = _wipe_temp_dir(temp_dir)
+        if wipe_failures:
+            logger.error(
+                f"▶ Could not fully wipe {temp_dir} - {len(wipe_failures)} item(s) "
+                f"could not be removed, so a fresh run cannot be guaranteed not to "
+                f"mix leftover files from a different source:"
+            )
+            for path, err in wipe_failures:
+                logger.error(f"  ├─ {path}: {err}")
+            logger.error(f"  └─ Manually clear {temp_dir} and re-run.")
+            sys.exit(1)
         existing_entries, resume_time, next_segment_idx = [], 0.0, 0
 
     # Always (re)write the source marker for the current run
@@ -2112,14 +2137,15 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         #     front-matter order put content far from where
                         #     the cursor expected it.
                         #
-                        # Each tier only fires when the previous one's result
-                        # is too weak to be confident, and each requires the
-                        # new ratio to clear a tier-specific bar that's higher
-                        # than what `--source-threshold` would otherwise require.
-                        # That keeps a chunk from being rescued by a low-
-                        # confidence wider match when the local match was
-                        # just noise.
-                        if sa_ratio < 0.45 and len(chunk_match_words) >= 5:
+                        # Tier 0 entry is gated on source_threshold itself (not
+                        # a hardcoded catastrophic-only bar) so recovery fires
+                        # for every chunk that wouldn't otherwise be accepted,
+                        # not just severe ASR/source drift. Tier 1 -> tier 2
+                        # escalation is the logical complement of tier 1's own
+                        # acceptance bar, so every tier-1 rejection gets a
+                        # tier-2 attempt rather than only catastrophic ones.
+                        # See FIXED.md F-113/F-114.
+                        if sa_ratio < source_threshold and len(chunk_match_words) >= 5:
                             r_start, r_end, r_ratio = alignment.realign(
                                 chunk_match_words,
                                 source_state['orig_match'],
@@ -2133,7 +2159,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                     f"(jumped {r_end - cursor_before} words)"
                                 )
                                 sa_start, sa_end, sa_ratio = r_start, r_end, r_ratio
-                            elif r_ratio < 0.30:
+                            else:
                                 # Tier 2: full-source scan. Same logic compare
                                 # uses for catastrophic alignment loss. Requires
                                 # both an absolute bar (>=0.60) AND a clear
@@ -2145,7 +2171,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                 a_start, a_end, a_ratio = alignment.find_anchor_position(
                                     chunk_match_words,
                                     source_state['orig_match'],
-                                    min_ratio=0.6,
+                                    overlap_ratio_hint=0.6,
                                 )
                                 if a_ratio >= 0.6 and a_ratio > sa_ratio + 0.4:
                                     # Trim the wide-anchor window down to the
@@ -2274,6 +2300,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                             temperature=0.3,
                                         )
                                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                                        if not annotated_raw:
+                                            raise RuntimeError("LLM returned an empty response")
                                         if item.get("source_words_for_merge") is not None:
                                             annotated = alignment.merge_annotations_with_source(
                                                 annotated_raw, item["source_words_for_merge"]
@@ -2283,6 +2311,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                                         stats['llm_success'] += 1
                                     except Exception as e:
                                         stats['llm_fail'] += 1
+                                        _check_llm_fail_rate(stats)
                                         logger.warning(f"Batch fallback LLM failed for chunk {segment_idx + i}: {e}")
                                         annotated = item["text"]
 
@@ -2359,6 +2388,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         )
                         timing['llm_infer'] += time.monotonic() - t0_llm
                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                        if not annotated_raw:
+                            raise RuntimeError("LLM returned an empty response")
 
                         t0_sanitize = time.monotonic()
                         if source_words_for_merge is not None:
@@ -2377,6 +2408,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             logger.info(f"✓ LLM GPU inference confirmed - {os.path.basename(active_model_path)} responding on GPU")
                     except Exception as e:
                         stats['llm_fail'] += 1
+                        _check_llm_fail_rate(stats)
                         logger.warning(f"Annotation failed for segment {segment_idx}, using original text: {e}")
                         annotated = text
 
@@ -2470,6 +2502,8 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             temperature=0.3,
                         )
                         annotated_raw = response["choices"][0]["message"]["content"].strip()
+                        if not annotated_raw:
+                            raise RuntimeError("LLM returned an empty response")
                         if item.get("source_words_for_merge") is not None:
                             annotated = alignment.merge_annotations_with_source(
                                 annotated_raw, item["source_words_for_merge"]
@@ -2479,6 +2513,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         stats['llm_success'] += 1
                     except Exception as e:
                         stats['llm_fail'] += 1
+                        _check_llm_fail_rate(stats)
                         logger.warning(f"Tail batch fallback LLM failed for chunk {idx}: {e}")
                         annotated = item["text"]
             # Update context after each tail item so subsequent items see it
@@ -2840,45 +2875,57 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
             train_meta = []
             val_meta = []
 
-            with zipfile.ZipFile(vol_path, "w", zipfile.ZIP_DEFLATED) as z:
-                for i, entry in enumerate(vol_metadata):
-                    wav_name = entry["audio_filepath"]
-                    src_path = os.path.join(temp_dir, wav_name)
+            # Write to a temp path and atomically replace vol_path only once the
+            # zip is fully written, so a crash mid-write never leaves a
+            # truncated/corrupt file at the permanent path, and a re-run never
+            # destroys the prior good volume before the new one is confirmed
+            # good. See FIXED.md F-115.
+            tmp_vol_path = vol_path + ".tmp"
+            try:
+                with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for i, entry in enumerate(vol_metadata):
+                        wav_name = entry["audio_filepath"]
+                        src_path = os.path.join(temp_dir, wav_name)
 
-                    if not os.path.exists(src_path):
-                        logger.warning(f"  ⚠ Audio file not found for ZIP {vol_path}: {wav_name}")
-                        continue
+                        if not os.path.exists(src_path):
+                            logger.warning(f"  ⚠ Audio file not found for ZIP {vol_path}: {wav_name}")
+                            continue
 
-                    is_val = (i in v_indices)
-                    folder = "val" if is_val else "train"
-                    zip_wav_path = f"{folder}/{wav_name}"
+                        is_val = (i in v_indices)
+                        folder = "val" if is_val else "train"
+                        zip_wav_path = f"{folder}/{wav_name}"
 
-                    zip_entry = entry.copy()
-                    zip_entry["audio_filepath"] = zip_wav_path
+                        zip_entry = entry.copy()
+                        zip_entry["audio_filepath"] = zip_wav_path
 
-                    if is_val:
-                        val_meta.append(zip_entry)
-                        total_val += 1
-                    else:
-                        train_meta.append(zip_entry)
-                        total_train += 1
+                        if is_val:
+                            val_meta.append(zip_entry)
+                            total_val += 1
+                        else:
+                            train_meta.append(zip_entry)
+                            total_train += 1
 
-                    z.write(src_path, zip_wav_path)
+                        z.write(src_path, zip_wav_path)
 
-                # Write partitioned metadata.jsonl files
-                if train_meta:
-                    train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
-                    z.writestr("train/metadata.jsonl", train_jsonl)
-                if val_meta:
-                    val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
-                    z.writestr("val/metadata.jsonl", val_jsonl)
+                    # Write partitioned metadata.jsonl files
+                    if train_meta:
+                        train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
+                        z.writestr("train/metadata.jsonl", train_jsonl)
+                    if val_meta:
+                        val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
+                        z.writestr("val/metadata.jsonl", val_jsonl)
 
-                # Volume manifest
-                vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
-                if vol_manifest:
-                    manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
-                    z.writestr("metadata.jsonl", manifest_jsonl)
-            
+                    # Volume manifest
+                    vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
+                    if vol_manifest:
+                        manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
+                        z.writestr("metadata.jsonl", manifest_jsonl)
+                os.replace(tmp_vol_path, vol_path)
+            except Exception:
+                if os.path.exists(tmp_vol_path):
+                    os.remove(tmp_vol_path)
+                raise
+
             total_vols += 1
             logger.info(f"  ✓ Volume {total_vols} saved: {vol_path} ({len(vol_metadata)} segments)")
 
@@ -3082,7 +3129,7 @@ def main():
     try:
         if args.phase == "asr":
             t = _lazy_import_torch()
-            device = "cuda" if t.cuda.is_available() else "cpu"
+            device = resolve_cuda_device(t)
 
             logger.info("-" * 70)
             logger.info(f"PHASE: ASR (Device: {device})")
@@ -3143,7 +3190,7 @@ def main():
             # Diarize speakers if requested
             if args.diarize:
                 progress.start("Diarize speakers")
-                device_str = "cuda" if _lazy_import_torch().cuda.is_available() else "cpu"
+                device_str = resolve_cuda_device(_lazy_import_torch())
                 speaker_segments = diarize_audio(audio_24k_path, args.hf_token, device=device_str)
                 if speaker_segments:
                     diarization_path = os.path.join(temp_dir, "diarization.json")
@@ -3362,7 +3409,7 @@ def main():
             # ── Optional: source-guided chunking ──────────────────────────────────
             source_state = None
             if args.source:
-                entries_for_anchor = _provisional_entries_for_anchor(
+                entries_for_anchor = _build_provisional_entries_for_anchor(
                     word_segments, args.chunk_size, max_entries=30
                 )
                 source_state = _build_source_state(
@@ -3374,7 +3421,8 @@ def main():
                 )
                 avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
                     entries_for_anchor, source_state['orig_match'], source_state['cursor'],
-                    start_entry_idx=source_state['anchor_entry_idx']
+                    start_entry_idx=source_state['anchor_entry_idx'],
+                    threshold=args.source_threshold
                 )
                 if n_sampled >= 10:
                     pct_low = low_ct / n_sampled
@@ -3434,8 +3482,13 @@ def main():
     finally:
         # Only clean up the scratch audio file after the final phase (annotation)
         # or if we are not using the phase orchestration.
-        # Preserve it during the 'asr' phase so 'annotate' can use it.
-        if args.phase != "asr" and os.path.exists(audio_24k_scratch):
+        # Preserve it during the 'asr' and 'enrich' phases so 'annotate' can use
+        # it - 'enrich' never touches audio_24k_scratch itself, but deleting it
+        # here would still force 'annotate' to re-decode/resample from the
+        # original source (it has a recreate-if-missing fallback, so this was
+        # never a correctness bug, just wasted work whenever --enrich-with-llm
+        # is combined with the phase orchestrator).
+        if args.phase not in ("asr", "enrich") and os.path.exists(audio_24k_scratch):
             try:
                 os.remove(audio_24k_scratch)
                 logger.debug(f"Removed scratch audio: {audio_24k_scratch}")

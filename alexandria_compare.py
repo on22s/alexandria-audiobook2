@@ -35,6 +35,7 @@ from alexandria_alignment import (
     load_source,
     normalize,
     to_words,
+    split_compounds,
     _build_proper_nouns,
     find_best_match,
     find_anchor_position,
@@ -43,6 +44,7 @@ from alexandria_alignment import (
     trim_span_to_alignment,
     estimate_alignment_quality,
     find_text_in_source,
+    merge_annotations_with_source,
     _ratio,
 )
 
@@ -66,191 +68,6 @@ def load_jsonl(path: str) -> list:
             if s:
                 entries.append(json.loads(s))
     return entries
-
-
-# ── Parse + merge (compare-specific — operates on LLM annotation markers) ────
-def parse_annotated_tokens(text: str) -> list:
-    """
-    Parse a TTS-annotated string into tokens carrying their prosody markers.
-    Each token = {'word', 'leading_pause', 'trailing_pause', 'emphasized'}.
-    Used by merge_annotations_with_source to preserve markers while replacing
-    the actual words with the cleaner source text.
-    """
-    tokens = []
-    pending_leading = ''
-    # Expand multi-word emphasis spans ("*Trull Sengar*") into per-word
-    # emphasis ("*Trull* *Sengar*") so the whitespace tokenizer below sees
-    # each emphasized word as a self-contained *word* token. Without this,
-    # *Trull splits off (starts with * but doesn't end with one) and so
-    # does Sengar*, and the emphasis is lost on both.
-    text = re.sub(
-        r'\*([^*]+)\*',
-        lambda m: ' '.join(f'*{w}*' for w in m.group(1).split()) or m.group(0),
-        text,
-    )
-    # LLM/ASR output sometimes joins words with `...` instead of spaces
-    # ("YOU...*DERONDL*...THE..."). Split those dot-runs out so the
-    # whitespace tokenizer below sees each word and each pause separately —
-    # otherwise the whole chain collapses into one garbled token and every
-    # *emphasis* marker in it is silently dropped from the merge.
-    text = re.sub(r'\.{3,}', r' \g<0> ', text)
-    for raw in text.split():
-        # Pure pause token (e.g. "..." or "....") — attach to NEXT word
-        if re.fullmatch(r'\.{3,}', raw):
-            if len(raw) > len(pending_leading):
-                pending_leading = raw
-            continue
-
-        leading = pending_leading
-        pending_leading = ''
-
-        # Leading dots fused to the start of this token
-        m = re.match(r'^(\.{3,})', raw)
-        if m:
-            d = m.group(1)
-            leading = d if len(d) > len(leading) else leading
-            raw = raw[len(d):]
-
-        # Trailing dots fused to the end
-        trailing = ''
-        m = re.search(r'(\.{3,})$', raw)
-        if m:
-            trailing = m.group(1)
-            raw = raw[:-len(m.group(1))]
-
-        # LLM sometimes attaches sentence punctuation directly to the closing
-        # emphasis marker ("*HULLO*!", "*PLEASANT*,", "*DURONDYL*?"). That
-        # hides the closing * inside the token, so the endswith('*') check
-        # below misses the emphasis. Peel any trailing non-word junk off a
-        # clean *…* group; source punctuation comes back naturally through
-        # the source spelling during merge.
-        m = re.match(r'^(\*[^*\s]+\*)([\W_]+)$', raw)
-        if m:
-            raw = m.group(1)
-
-        # Emphasis (*word*)
-        emphasized = False
-        if raw.startswith('*') and raw.endswith('*') and len(raw) >= 3:
-            emphasized = True
-            raw = raw[1:-1]
-
-        # Strip surrounding non-word punctuation for matching
-        word_for_match = re.sub(r"[^\w']", '', raw.translate(_SMART_QUOTES).lower())
-        if not word_for_match:
-            if trailing:
-                pending_leading = trailing
-            continue
-
-        tokens.append({
-            'word':           word_for_match,
-            'leading_pause':  leading,
-            'trailing_pause': trailing,
-            'emphasized':     emphasized,
-        })
-    # Trailing `...` after the final word has nowhere to attach as
-    # leading_pause — flush it onto the last token's trailing_pause so
-    # terminal pauses aren't lost.
-    if pending_leading and tokens:
-        if len(pending_leading) > len(tokens[-1]['trailing_pause']):
-            tokens[-1]['trailing_pause'] = pending_leading
-    return tokens
-
-
-def merge_annotations_with_source(annotated_text: str, source_words: list) -> str:
-    """
-    Return a new string using `source_words` (correct content/spelling/punct)
-    while preserving the LLM's prosody markers (...., *word*) from
-    `annotated_text` wherever words align.
-
-    This is the heart of the [m]erge option — it lets users fix ASR errors
-    without throwing away the prosody hints that keep TTS output expressive.
-    """
-    if not source_words:
-        return ''
-
-    annotated = parse_annotated_tokens(annotated_text)
-    annot_words = [t['word'] for t in annotated]
-
-    src_match = [
-        re.sub(r"[^\w']", '', w.translate(_SMART_QUOTES).lower())
-        for w in source_words
-    ]
-
-    # Word-level alignment between annotated and source.
-    #
-    # 'equal' opcodes are the easy case — chunk and source agree exactly.
-    # 'replace' opcodes are where ASR mistranscribes a word (chunk "amander"
-    # vs source "Amanda") or compounds get split differently (chunk "first"
-    # "hand" vs source "firsthand"). Without same-position fuzzy mapping
-    # inside 'replace' blocks, those chunk words' prosody markers (*emphasis*
-    # and pauses) get dropped on the floor and the merge silently produces
-    # plain source text, indistinguishable from [a]ccept original.
-    sm = difflib.SequenceMatcher(None, annot_words, src_match, autojunk=False)
-    src_to_tok = {}
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == 'equal':
-            for k in range(i2 - i1):
-                src_to_tok[j1 + k] = annotated[i1 + k]
-        elif tag == 'replace':
-            for k in range(min(i2 - i1, j2 - j1)):
-                sim = difflib.SequenceMatcher(
-                    None, annot_words[i1 + k], src_match[j1 + k], autojunk=False
-                ).ratio()
-                if sim >= _FUZZY_KEEP_THRESHOLD:
-                    src_to_tok[j1 + k] = annotated[i1 + k]
-            # Imbalanced replace: ASR may mash a multi-word name into one
-            # token ("Tralesengar" vs "Trull Sengar") or split one into many
-            # ("nine hundred forty third" vs "943rd"). The 1↔1 pass above
-            # only checks paired positions, so the unpaired side gets no
-            # emphasis. Try a concatenation match on whichever side is
-            # longer and, if it clears the fuzzy bar, broadcast the chunk
-            # emphasis across the matched source positions.
-            chunk_n, src_n = i2 - i1, j2 - j1
-            if chunk_n == 1 and src_n > 1 and j1 not in src_to_tok:
-                cat = ''.join(src_match[j1:j2])
-                sim = difflib.SequenceMatcher(
-                    None, annot_words[i1], cat, autojunk=False
-                ).ratio()
-                if sim >= _FUZZY_KEEP_THRESHOLD:
-                    for k in range(src_n):
-                        src_to_tok[j1 + k] = annotated[i1]
-            elif src_n == 1 and chunk_n > 1 and j1 not in src_to_tok:
-                cat = ''.join(annot_words[i1:i2])
-                sim = difflib.SequenceMatcher(
-                    None, cat, src_match[j1], autojunk=False
-                ).ratio()
-                if sim >= _FUZZY_KEEP_THRESHOLD:
-                    # Prefer the first emphasized chunk token so the
-                    # emphasis carries onto the single source word.
-                    chosen = next(
-                        (annotated[i1 + k] for k in range(chunk_n)
-                         if annotated[i1 + k]['emphasized']),
-                        annotated[i1],
-                    )
-                    src_to_tok[j1] = chosen
-
-    parts = []
-    for i, src_word in enumerate(source_words):
-        tok = src_to_tok.get(i)
-        if tok:
-            if tok['leading_pause']:
-                parts.append(tok['leading_pause'])
-            if tok['emphasized']:
-                # Wrap the word's *letters* in asterisks, leaving any
-                # surrounding punctuation outside: "library." -> "*library*."
-                m = re.match(r"^(\W*)(.*?)(\W*)$", src_word)
-                if m and m.group(2):
-                    parts.append(f"{m.group(1)}*{m.group(2)}*{m.group(3)}")
-                else:
-                    parts.append(f"*{src_word}*")
-            else:
-                parts.append(src_word)
-            if tok['trailing_pause']:
-                parts.append(tok['trailing_pause'])
-        else:
-            parts.append(src_word)
-
-    return ' '.join(parts)
 
 
 # ── Diff display ──────────────────────────────────────────────────────────────
@@ -307,14 +124,20 @@ def review_log_path(output_path: str) -> Path:
     p = Path(output_path)
     return p.with_name(p.stem + '_review_log.jsonl')
 
+_log_decision_warned = False
+
 def log_decision(log_path: Path, record: dict):
     """Append one decision as a JSON line. Best-effort: a logging failure
     must never abort the user's review session."""
+    global _log_decision_warned
     try:
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
-    except Exception:
-        pass
+    except Exception as e:
+        if not _log_decision_warned:
+            _log_decision_warned = True
+            print(f"{YELLOW}Warning: review log stopped recording decisions ({e}). "
+                  f"Your choices are still being applied, just not logged.{RESET}")
 
 def remove_log_entries(log_path: Path, indices: set) -> int:
     """Rewrite the review log without records whose entry_idx is in `indices`.
@@ -435,25 +258,7 @@ def apply_targeted_reset(
             cp['cursor'] = prev['cursor_after'] if (prev and 'cursor_after' in prev) else 0
         cp_path.write_text(json.dumps(cp, indent=2, ensure_ascii=False))
 
-    log_removed = 0
-    if also_clear_log and log_path.exists():
-        kept = []
-        with open(log_path, encoding='utf-8') as f:
-            for line in f:
-                line = line.rstrip('\n')
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                    if rec.get('entry_idx') in indices:
-                        log_removed += 1
-                        continue
-                except json.JSONDecodeError:
-                    pass
-                kept.append(line)
-        with open(log_path, 'w', encoding='utf-8') as f:
-            for line in kept:
-                f.write(line + '\n')
+    log_removed = remove_log_entries(log_path, indices) if also_clear_log and log_path.exists() else 0
 
     print(f"Reset {len(indices)} target(s):")
     print(f"  {restored} JSONL line(s) restored from {jsonl_path}")
@@ -533,12 +338,19 @@ def run(
         # a section the audio skipped (or vice versa). Try a wider search ahead.
         # If realign finds a confident jump, use it. If not, the chunk likely
         # has no source equivalent — keep cursor where it is.
+        # Tier-0 entry is gated on `threshold` itself (not a hardcoded
+        # catastrophic-only bar) so recovery fires for every chunk that
+        # wouldn't otherwise be auto-approved. Tier-1 -> tier-2 escalation is
+        # the logical complement of tier-1's own acceptance bar, so every
+        # tier-1 rejection gets a tier-2 attempt. Kept identical to
+        # alexandria_preparer_rocm_compatible.py's annotate_chunks, which
+        # mirrors this same chain. See FIXED.md F-113/F-114.
         no_source_match = False
-        if ratio < 0.45 and len(chunk_words) >= 5:
+        if ratio < threshold and len(chunk_words) >= 5:
             r_start, r_end, r_ratio = realign(chunk_words, orig_match, cursor)
             if r_ratio >= 0.55 and r_ratio > ratio + 0.15:
                 start, end, ratio = r_start, r_end, r_ratio
-            elif r_ratio < 0.30:
+            else:
                 # Last-resort full-source re-anchor. Catches catastrophic
                 # alignment loss caused by unusual EPUB ordering — e.g. when
                 # the front matter (J Novel Club credits, copyright, etc.)
@@ -548,7 +360,7 @@ def run(
                 # the prologue prose that's actually at char 0. find_anchor_position
                 # scans the WHOLE source and can jump backward.
                 a_start, a_end, a_ratio = find_anchor_position(
-                    chunk_words, orig_match, min_ratio=0.6
+                    chunk_words, orig_match, overlap_ratio_hint=0.6
                 )
                 # Require both an absolute high bar and a clear improvement
                 # over the local ratio, so we don't false-positive on
@@ -929,19 +741,17 @@ def main():
 
     # Build parallel word lists: display (original form) and match (normalised).
     #
-    # Hyphens and dashes are split BEFORE whitespace tokenisation so that a
-    # source compound like "twenty-minute" becomes two entries ["twenty",
-    # "minute"] instead of one. Without this split, orig_match[i] would be
-    # the string "twenty minute" (one element with an embedded space), and
-    # the audio chunk's separately-spoken "twenty" / "minute" tokens fail to
-    # align with it — causing those words to disappear from ORIGINAL when
-    # trim_span_to_alignment runs. Loss of the hyphen in display is fine
-    # for TTS training (the audio speaks the parts as separate words with
-    # a slight pause anyway).
-    # U+2500 (BOX DRAWINGS LIGHT HORIZONTAL) shows up in EPUB→text conversions
-    # in place of a real em-dash (U+2014). Treat it as a dash for split purposes.
-    _COMPOUND_SPLIT = re.compile(r'[-‐‑‒–—―─━]')
-    source_tokens = _COMPOUND_SPLIT.sub(' ', source_text).split()
+    # Hyphens and dashes are split BEFORE whitespace tokenisation (shared
+    # split_compounds(), same one alexandria_preparer_rocm_compatible.py
+    # uses) so that a source compound like "twenty-minute" becomes two
+    # entries ["twenty", "minute"] instead of one. Without this split,
+    # orig_match[i] would be the string "twenty minute" (one element with an
+    # embedded space), and the audio chunk's separately-spoken "twenty" /
+    # "minute" tokens fail to align with it — causing those words to
+    # disappear from ORIGINAL when trim_span_to_alignment runs. Loss of the
+    # hyphen in display is fine for TTS training (the audio speaks the parts
+    # as separate words with a slight pause anyway).
+    source_tokens = split_compounds(source_text)
     orig_display, orig_match = [], []
     for w in source_tokens:
         m = normalize(w)
@@ -1043,7 +853,7 @@ def main():
     if not decisions:
         print(f"\n🔍 Estimating source/audio alignment quality...")
         avg, n_sampled, low_ct, review_ct = estimate_alignment_quality(
-            entries, orig_match, cursor
+            entries, orig_match, cursor, threshold=threshold
         )
         if n_sampled >= 10:
             pct_low = low_ct / n_sampled

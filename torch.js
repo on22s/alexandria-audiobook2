@@ -43,7 +43,9 @@ module.exports = {
       },
       "next": null
     },
-    // amd linux (rocm) — auto-detect version
+    // amd linux (rocm) — pinned to the RDNA-verified combo (RX 9070 XT / gfx1201).
+    // Unpinned/auto-detected ROCm indexes pulled an untested torch; 2.7.0+rocm6.3
+    // is the version proven to expose this GPU (torch.cuda.is_available() == True).
     {
       "when": "{{gpu === 'amd' && platform === 'linux'}}",
       "method": "shell.run",
@@ -51,12 +53,9 @@ module.exports = {
         "venv": "{{args && args.venv ? args.venv : null}}",
         "path": "{{args && args.path ? args.path : '.'}}",
         "message": [
-          "ROCM_VER=$(cat /opt/rocm/.info/version 2>/dev/null | grep -oP '^[0-9]+\\.[0-9]+' || echo '6.3')",
-          "echo \"Detected ROCm version: $ROCM_VER\"",
-          "case $ROCM_VER in 7.*) ROCM_INDEX=rocm7.2 ;; 6.3*) ROCM_INDEX=rocm6.3 ;; 6.2*) ROCM_INDEX=rocm6.2.4 ;; *) ROCM_INDEX=rocm6.3 ;; esac",
-          "echo \"Using PyTorch index: $ROCM_INDEX\"",
-          "uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/$ROCM_INDEX --force-reinstall --no-deps",
-          "uv pip install pytorch-triton-rocm --index-url https://download.pytorch.org/whl/$ROCM_INDEX || true"
+          "echo 'Installing verified ROCm torch 2.7.0+rocm6.3 (RDNA4 / RX 9070 XT tested)'",
+          "uv pip install torch==2.7.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/rocm6.3 --force-reinstall --no-deps",
+          "uv pip install pytorch-triton-rocm==3.3.0 --index-url https://download.pytorch.org/whl/rocm6.3"
         ]
       },
       "next": null

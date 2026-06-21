@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import time
+from utils import atomic_json_write as _atomic_json_write, safe_load_json
 
 logger = logging.getLogger("AlexandriaUI")
 
@@ -40,16 +41,11 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
         # Save local copy for offline fallback
         os.makedirs(builtin_dir, exist_ok=True)
         local_path = os.path.join(builtin_dir, "manifest.json")
-        with open(local_path, "w", encoding="utf-8") as f:
-            json.dump(entries, f, indent=2, ensure_ascii=False)
-    except Exception as e:
+        _atomic_json_write(entries, local_path)
+    except (ImportError, OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning(f"Failed to fetch remote LoRA manifest, using local fallback: {e}")
         local_path = os.path.join(builtin_dir, "manifest.json")
-        if os.path.exists(local_path):
-            with open(local_path, "r", encoding="utf-8") as f:
-                entries = json.load(f)
-        else:
-            entries = []
+        entries = safe_load_json(local_path, default=[])
 
     _manifest_cache = entries
     _manifest_cache_time = now

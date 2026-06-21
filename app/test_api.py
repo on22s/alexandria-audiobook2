@@ -77,14 +77,38 @@ def assert_key(data, key):
         raise TestFailure(f"Missing key '{key}' in: {json.dumps(data)[:300]}")
 
 
+def assert_chunk0_done(context_label):
+    """Wait for the 'audio' task to finish, then assert chunk 0 completed.
+
+    Shared by every generate-audio test variant (single, batch, batch-fast) -
+    they differ only in how generation was triggered, not in what
+    'finished successfully' looks like afterward.
+    """
+    if not wait_for_task("audio", timeout=120):
+        raise TestFailure(f"{context_label} did not complete within 120s")
+    chunks = get("/api/chunks").json()
+    if not chunks or chunks[0].get("status") != "done" or not chunks[0].get("audio_path"):
+        raise TestFailure(f"Chunk 0 did not finish generating via {context_label}: {chunks[0] if chunks else None}")
+
+
 def wait_for_task(task, timeout=120, poll_interval=2):
     """Poll /api/status/{task} until it stops running or timeout is reached."""
     deadline = time.time() + timeout
+    last_status_code = None
+    last_body = None
     while time.time() < deadline:
         r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        last_status_code = r.status_code
+        last_body = r.text[:200]
         if r.status_code == 200 and not r.json().get("running"):
             return True
         time.sleep(poll_interval)
+    if last_status_code != 200:
+        print(f"  [wait_for_task:{task}] timed out after {timeout}s - last poll returned "
+              f"status {last_status_code}: {last_body!r} (broken endpoint, not just slow)")
+    else:
+        print(f"  [wait_for_task:{task}] timed out after {timeout}s - still running "
+              f"(last poll: 200 OK, running=true)")
     return False
 
 
@@ -98,6 +122,18 @@ def post(path, **kwargs):
 
 def delete(path, **kwargs):
     return requests.delete(f"{BASE_URL}{path}", timeout=30, **kwargs)
+
+
+def llm_mode_fields(original):
+    """llm_mode/llm_local fields to splice into a POST /api/config payload.
+
+    AppConfig requires llm_local (or llm_remote, per llm_mode) to be present -
+    save_config() 400s otherwise. GET /api/config always backfills llm_local
+    from the active llm section, so this is always safe to read back."""
+    return {
+        "llm_mode": original.get("llm_mode", "local"),
+        "llm_local": original.get("llm_local") or original["llm"],
+    }
 
 
 # ── Section 1: Server ───────────────────────────────────────
@@ -131,6 +167,7 @@ def test_save_config_roundtrip():
     # Build test config with modified language
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": {**original.get("tts", {}), "language": "_test_roundtrip_lang"},
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -168,6 +205,7 @@ def test_save_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -184,6 +222,7 @@ def test_save_pause_config_roundtrip():
     # Save with custom pause values
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": {
             **original.get("tts", {}),
             "pause_between_speakers_ms": 1000,
@@ -212,6 +251,7 @@ def test_save_pause_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -245,6 +285,7 @@ def test_save_review_prompts_roundtrip():
     # Save config with custom review prompts
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -269,6 +310,7 @@ def test_save_review_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -285,6 +327,7 @@ def test_save_persona_prompts_roundtrip():
     # Save config with custom persona prompts
     test_config = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -312,6 +355,7 @@ def test_save_persona_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        **llm_mode_fields(original),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -449,6 +493,15 @@ def test_get_voices():
 
 
 def test_save_voice_config():
+    # NOTE: GET /api/voices only returns speakers present in the active
+    # script (app.py's get_voices builds voices_list from annotated_script.json
+    # speakers, then merges voice_config.json onto those - a config-only key
+    # with no matching script speaker is structurally never returned). So a
+    # synthetic _test_voice key can't be verified via a script-level read-back
+    # the way other config tests verify against GET /api/config. Instead this
+    # re-saves the same key with a changed field and a second, independent
+    # field to confirm the merge-write path doesn't silently no-op or corrupt
+    # an existing key on a second write to the same name.
     r = post("/api/save_voice_config", json={
         f"{TEST_PREFIX}voice": {
             "type": "custom",
@@ -461,6 +514,19 @@ def test_save_voice_config():
     data = r.json()
     if data.get("status") != "saved":
         raise TestFailure(f"Expected status=saved, got {data}")
+
+    r2 = post("/api/save_voice_config", json={
+        f"{TEST_PREFIX}voice": {
+            "type": "custom",
+            "voice": "Ryan",
+            "character_style": "cheerful",
+            "seed": "42"
+        }
+    })
+    assert_status(r2, 200)
+    data2 = r2.json()
+    if data2.get("status") != "saved":
+        raise TestFailure(f"Expected status=saved on overwrite, got {data2}")
 
 
 # ── Section 7: Chunks ───────────────────────────────────────
@@ -675,7 +741,7 @@ def test_restore_chunk():
 def test_status_known_tasks():
     task_names = [
         "script", "audio", "audacity_export",
-        "review", "lora_training", "dataset_gen", "dataset_builder",
+        "review", "lora_training", "dataset_builder",
         "preparer", "batch_preparer", "persona",
     ]
     for name in task_names:
@@ -788,9 +854,22 @@ def test_voice_design_save_and_delete():
     assert_key(data, "voice_id")
     voice_id = data["voice_id"]
 
+    # Verify it appears in list
+    r = get("/api/voice_design/list")
+    assert_status(r, 200)
+    found = any(v["id"] == voice_id for v in r.json())
+    if not found:
+        raise TestFailure(f"Saved voice design {voice_id} not found in list")
+
     # Delete it
     r = delete(f"/api/voice_design/{voice_id}")
     assert_status(r, 200)
+
+    # Verify it's gone
+    r = get("/api/voice_design/list")
+    found = any(v["id"] == voice_id for v in r.json())
+    if found:
+        raise TestFailure(f"Voice design {voice_id} still in list after delete")
 
 
 # ── Section 9b: Clone Voices ────────────────────────────────
@@ -970,6 +1049,16 @@ def test_dataset_builder_update_rows():
         raise TestFailure(f"Expected sample_count=2, got {data.get('sample_count')}")
 
 
+def test_dataset_builder_status_traversal():
+    # A bare ".." segment gets collapsed away client-side by `requests`
+    # before the request is even sent (verified: it rewrites the URL to
+    # ".../status/" entirely, never reaching this route) - %2e%2e survives
+    # client-side prep and arrives at the server as the literal ".." that
+    # secure_filename() then sanitizes to empty, triggering 400.
+    r = get("/api/dataset_builder/status/%2e%2e")
+    assert_status(r, 400)
+
+
 def test_dataset_builder_status():
     r = get(f"/api/dataset_builder/status/{TEST_PREFIX}builder_proj")
     assert_status(r, 200)
@@ -1013,6 +1102,23 @@ def test_dataset_builder_delete_404():
     assert_status(r, 404)
 
 
+# ── Section 12b: Voice Lab Config ───────────────────────────
+
+def test_voicelab_save_config_rejects_bad_rocm_python():
+    r = post("/api/voicelab/config", json={"rocm_python": "/nonexistent/not-a-real-interpreter"})
+    assert_status(r, 400)
+
+
+def test_voicelab_save_config_rejects_bad_pipeline_repo():
+    r = post("/api/voicelab/config", json={"pipeline_repo": "/nonexistent/not-a-real-dir"})
+    assert_status(r, 400)
+
+
+def test_voicelab_save_config_rejects_bad_profiler_model():
+    r = post("/api/voicelab/config", json={"profiler_model": "/nonexistent/not-a-real-model.gguf"})
+    assert_status(r, 400)
+
+
 # ── Section 13: Persona Generation ──────────────────────────
 
 def test_cancel_persona_not_running():
@@ -1050,6 +1156,12 @@ def test_get_audacity_export():
 # ── Section 14: Full Tests — Generation ─────────────────────
 
 def test_generate_script():
+    # Intentionally does not wait_for_task/verify output: script generation
+    # and review are open-ended LLM passes over a whole book with no fixed
+    # upper bound, unlike the other requires_full tests below (single-chunk
+    # or single-sample operations bounded to well under 120s). Forcing a
+    # poll-to-completion here would make the suite's duration track full-book
+    # generation time instead of a fixed test budget. See FIXED.md F-024.
     r = post("/api/generate_script")
     if r.status_code == 400:
         raise TestFailure("SKIP: prerequisite not met (no uploaded file or already running)")
@@ -1077,6 +1189,7 @@ def test_generate_chunk():
         raise TestFailure("SKIP: no chunks available")
     r = post("/api/chunks/0/generate")
     assert_status(r, 200)
+    assert_chunk0_done("generate_chunk")
 
 
 def test_generate_batch():
@@ -1090,8 +1203,7 @@ def test_generate_batch():
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
     # Wait for batch to finish so subsequent tests don't conflict
-    if not wait_for_task("audio", timeout=120):
-        raise TestFailure("generate_batch did not complete within 120s")
+    assert_chunk0_done("generate_batch")
 
 
 def test_generate_batch_fast():
@@ -1107,6 +1219,7 @@ def test_generate_batch_fast():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    assert_chunk0_done("generate_batch_fast")
 
 
 def test_cancel_audio():
@@ -1126,6 +1239,11 @@ def test_export_audacity():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    if not wait_for_task("audacity_export", timeout=120):
+        raise TestFailure("export_audacity did not complete within 120s")
+    r2 = get("/api/export_audacity")
+    if r2.status_code != 200:
+        raise TestFailure(f"Expected the exported file to be downloadable, got {r2.status_code}")
 
 
 def test_lora_test_model():
@@ -1143,21 +1261,25 @@ def test_lora_test_model():
     assert_key(data, "audio_url")
 
 
-def test_lora_generate_dataset():
-    r = post("/api/lora/generate_dataset", json={
-        "name": f"{TEST_PREFIX}dataset",
-        "description": "A clear young male voice",
-        "samples": [
-            {"emotion": "neutral", "text": "Hello, this is a test sample."},
-            {"emotion": "happy", "text": "Great to see you today!"}
-        ]
+def test_dataset_builder_generate_sample_traversal():
+    # secure_filename() (see app/utils.py) replaces "/" with "_" rather than
+    # rejecting multi-segment paths outright, so "../../../tmp/x" sanitizes
+    # to a harmless literal name like "_.._.._tmp_x" and is accepted (200) -
+    # this matches the existing sibling endpoints (e.g. dataset_builder_create)
+    # and was verified directly against a running instance before writing this
+    # assertion. ".." sanitizes to "" (lstrip(". ") strips it entirely), which
+    # is the case the "if not safe_name: raise 400" guard exists to catch, so
+    # that's the value this regression test exercises.
+    r = post("/api/dataset_builder/generate_sample", json={
+        "description": "a voice",
+        "text": "hello",
+        "dataset_name": "..",
+        "sample_index": 0,
+        "seed": -1,
     })
-    if r.status_code == 400:
-        raise TestFailure("SKIP: already running or bad request")
-    assert_status(r, 200)
-    data = r.json()
-    if data.get("status") != "started":
-        raise TestFailure(f"Expected status=started, got {data}")
+    # Must be rejected before any GPU lock/engine work — sibling
+    # dataset_builder endpoints reject an unsanitizable name with 400.
+    assert_status(r, 400)
 
 
 def test_dataset_builder_generate_sample():
@@ -1177,7 +1299,8 @@ def test_dataset_builder_generate_sample():
     })
     assert_status(r, 200)
     data = r.json()
-    assert_key(data, "status")
+    if data.get("status") != "done" or not data.get("audio_url"):
+        raise TestFailure(f"Expected a completed sample with audio_url, got {data}")
 
     # Cleanup
     delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
@@ -1274,11 +1397,17 @@ def run_all_tests():
     run_test("dataset_builder_create", test_dataset_builder_create)
     run_test("dataset_builder_update_meta", test_dataset_builder_update_meta)
     run_test("dataset_builder_update_rows", test_dataset_builder_update_rows)
+    run_test("dataset_builder_status_traversal", test_dataset_builder_status_traversal)
     run_test("dataset_builder_status", test_dataset_builder_status)
     run_test("dataset_builder_cancel", test_dataset_builder_cancel)
     run_test("dataset_builder_save_no_samples", test_dataset_builder_save_no_samples)
     run_test("dataset_builder_delete", test_dataset_builder_delete)
     run_test("dataset_builder_delete_404", test_dataset_builder_delete_404)
+
+    section("Voice Lab Config")
+    run_test("voicelab_save_config_rejects_bad_rocm_python", test_voicelab_save_config_rejects_bad_rocm_python)
+    run_test("voicelab_save_config_rejects_bad_pipeline_repo", test_voicelab_save_config_rejects_bad_pipeline_repo)
+    run_test("voicelab_save_config_rejects_bad_profiler_model", test_voicelab_save_config_rejects_bad_profiler_model)
 
     section("Persona Generation")
     run_test("cancel_persona_not_running", test_cancel_persona_not_running)
@@ -1299,9 +1428,9 @@ def run_all_tests():
 
     section("LoRA (TTS)")
     run_test("lora_test_model", test_lora_test_model, requires_full=True)
-    run_test("lora_generate_dataset", test_lora_generate_dataset, requires_full=True)
 
     section("Dataset Builder Generate (TTS)")
+    run_test("dataset_builder_generate_sample_traversal", test_dataset_builder_generate_sample_traversal)
     run_test("dataset_builder_generate_sample", test_dataset_builder_generate_sample, requires_full=True)
 
 
@@ -1311,29 +1440,18 @@ def cleanup():
     print(f"\n--- Cleanup ---")
     items = []
 
-    try:
-        delete(f"/api/scripts/{TEST_PREFIX}script")
-        items.append("test script")
-    except Exception:
-        pass
-
-    try:
-        delete(f"/api/dataset_builder/{TEST_PREFIX}builder_proj")
-        items.append("builder project")
-    except Exception:
-        pass
-
-    try:
-        delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
-        items.append("gen project")
-    except Exception:
-        pass
-
-    try:
-        delete(f"/api/lora/datasets/{TEST_PREFIX}dataset")
-        items.append("test dataset")
-    except Exception:
-        pass
+    simple_targets = [
+        (f"/api/scripts/{TEST_PREFIX}script", "test script"),
+        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project"),
+        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project"),
+        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset"),
+    ]
+    for url, label in simple_targets:
+        try:
+            delete(url)
+            items.append(label)
+        except Exception as e:
+            print(f"  [cleanup] failed to delete {label}: {e}")
 
     try:
         r = get("/api/voice_design/list")
@@ -1342,8 +1460,8 @@ def cleanup():
                 if v.get("id", "").startswith(TEST_PREFIX):
                     delete(f"/api/voice_design/{v['id']}")
                     items.append(f"voice {v['id']}")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [cleanup] failed to delete stray voice-design entries: {e}")
 
     if items:
         print(f"  Cleaned: {', '.join(items)}")

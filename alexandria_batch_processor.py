@@ -11,10 +11,13 @@ import shutil
 import argparse
 import subprocess
 import json
+import re
 import logging
 import torch
 from datetime import datetime, timedelta
 from pathlib import Path
+
+from gpu_stats import run_rocm_smi_json
 
 # Setup logging
 log_dir = "logs"
@@ -62,37 +65,18 @@ def get_gpu_stats():
         stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
 
         # Try to get utilization via rocm-smi for AMD GPUs
-        try:
-            result = subprocess.run(
-                ['/opt/rocm/bin/rocm-smi', '--showuse', '--json'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Filter out warning lines and parse JSON
-                json_lines = [line for line in result.stdout.split('\n') if line.strip().startswith('{')]
-                if json_lines:
-                    data = json.loads(json_lines[0])
-                    # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
-                    for card_key, card_data in data.items():
-                        gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                        if gpu_use_str != 'N/A':
-                            stats['utilization_percent'] = float(gpu_use_str)
-                        break  # Just get first GPU
-            else:
-                logger.debug(f"rocm-smi returned error: {result.returncode}")
-                stats['utilization_percent'] = None
-        except FileNotFoundError:
-            stats['utilization_percent'] = None
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError):
-            stats['utilization_percent'] = None
-        except Exception as e:
-            logger.debug(f"rocm-smi error: {e}")
-            stats['utilization_percent'] = None
+        data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
+        stats['utilization_percent'] = None
+        if data:
+            # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+            for card_key, card_data in data.items():
+                gpu_use_str = card_data.get('GPU use (%)', 'N/A')
+                if gpu_use_str != 'N/A':
+                    stats['utilization_percent'] = float(gpu_use_str)
+                break  # Just get first GPU
 
     except Exception as e:
-        logger.debug(f"Could not get GPU stats: {e}")
+        logger.warning(f"Could not get GPU stats: {e}")
         return None
 
     return stats
@@ -112,12 +96,19 @@ def log_gpu_stats(label=""):
         logger.info(f"  └─ GPU Utilization: (rocm-smi unavailable)")
 
 def format_duration(seconds):
-    """Format seconds as Xh Ym Zs or Ym Zs."""
-    hours = int(seconds // 3600)
-    mins = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
+    """Format seconds as Xh Ym (or smaller unit when applicable).
+
+    Byte-for-byte identical to alexandria_preparer_rocm_compatible.py's
+    version - this orchestrator launches that script as a subprocess per
+    book, so their log lines interleave and must format durations the same
+    way. See FIXED.md F-093.
+    """
+    seconds = max(0, int(seconds))
+    hours = seconds // 3600
+    mins = (seconds % 3600) // 60
+    secs = seconds % 60
     if hours > 0:
-        return f"{hours}h {mins}m {secs}s"
+        return f"{hours}h {mins}m"
     elif mins > 0:
         return f"{mins}m {secs}s"
     else:
@@ -279,6 +270,21 @@ class BatchProcessor:
     def validate_files(self, audio_files):
         """Validate all audio files and skip already-processed ones."""
         logger.info("▶ Validating input files...")
+
+        # Fail fast on a typo'd model path before doing any per-file
+        # validation work (or accumulating skip reasons that would otherwise
+        # never make it into batch_results_*.json - sys.exit(1) below skips
+        # print_summary entirely).
+        if not self.model_path or not os.path.exists(self.model_path):
+            logger.error(f"Model file not found: {self.model_path}")
+            logger.error("Cannot proceed without model")
+            sys.exit(1)
+
+        if self.fallback_model and not os.path.exists(self.fallback_model):
+            logger.error(f"Fallback model not found: {self.fallback_model}")
+            logger.error("Either fix the path or omit --fallback-model")
+            sys.exit(1)
+
         valid_files = []
 
         for audio_file in audio_files:
@@ -316,17 +322,6 @@ class BatchProcessor:
             file_size_mb = audio_path.stat().st_size / (1024 * 1024)
             logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
             valid_files.append(audio_file)
-
-        if not self.model_path or not os.path.exists(self.model_path):
-            logger.error(f"Model file not found: {self.model_path}")
-            logger.error("Cannot proceed without model")
-            sys.exit(1)
-
-        # Validate fallback model eagerly so we don't fail mid-batch if it's typo'd
-        if self.fallback_model and not os.path.exists(self.fallback_model):
-            logger.error(f"Fallback model not found: {self.fallback_model}")
-            logger.error("Either fix the path or omit --fallback-model")
-            sys.exit(1)
 
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
         if self.fallback_model:
@@ -726,8 +721,7 @@ def main():
         if not folder.is_dir():
             print(f"Error: --folder path is not a directory: {args.folder}", file=sys.stderr)
             sys.exit(1)
-        supported = {".wav", ".flac", ".ogg"}
-        found = sorted(str(p) for p in folder.iterdir() if p.suffix.lower() in supported)
+        found = sorted(str(p) for p in folder.iterdir() if p.suffix.lower() in BatchProcessor.SUPPORTED_FORMATS)
         if not found:
             print(f"Error: no supported audio files found in {args.folder}", file=sys.stderr)
             sys.exit(1)

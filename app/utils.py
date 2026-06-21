@@ -3,6 +3,184 @@ import json
 import time
 import tempfile
 import contextlib
+import re
+import subprocess
+import sys
+import logging
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+# --- GPU stats (rocm-smi) ---
+# Canonical implementation lives in gpu_stats.py at the repo root, shared
+# with the standalone alexandria_*.py scripts which can't import from
+# inside this package. Re-exported here so existing `from utils import
+# run_rocm_smi_json` call sites in app/ keep working unchanged.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from gpu_stats import run_rocm_smi_json, system_has_gpu  # noqa: F401
+
+
+# --- Path containment ---
+
+def is_path_inside(path: str, base_dir: str) -> bool:
+    """True if the realpath of `path` is base_dir itself or somewhere under it.
+
+    Canonical realpath-containment check, shared by every caller that needs
+    to confirm a path doesn't escape (or doesn't merely resolve inside) a
+    given directory - app.py's traversal/denylist guards and train_lora.py's
+    dataset-path guards previously each carried their own copy of this same
+    comparison.
+    """
+    base = os.path.realpath(base_dir)
+    target = os.path.realpath(path)
+    return target == base or target.startswith(base + os.sep)
+
+
+# --- Balanced-bracket text extraction ---
+
+def extract_balanced(text, open_char, close_char, search_from=0):
+    """Find the first `open_char ... close_char`-balanced span in `text`
+    starting the search at or after `search_from`, tracking string-escaping
+    so a quoted brace/bracket doesn't desync the depth count. Returns the
+    matched substring, or None if `open_char` never appears (at or after
+    `search_from`) or never balances back to depth 0.
+
+    Shared by clean_json_string ([...]) and extract_json_object ({...}) -
+    both need the same escape-aware bracket-matching, just for a different
+    delimiter pair.
+
+    `search_from` lets a caller retry past a span that turned out not to be
+    the real value (see extract_json_object) - it does NOT mean "assume
+    we're inside a string at this position"; in_string tracking still always
+    starts fresh at `open_char`'s position, same as before, since a caller
+    only ever retries from a point known to be outside any string (right
+    after a previous open_char that was itself found outside a string).
+
+    A backslash only escapes the next character while inside a string
+    (real JSON has no escape meaning outside one) - this is stricter than
+    clean_json_string's original bracket-loop, which treated any backslash
+    as an escape everywhere. That's intentional: it matches actual JSON
+    semantics, so a stray unescaped backslash in malformed LLM output
+    outside a string no longer causes a real closing bracket to be missed.
+    """
+    start = text.find(open_char, search_from)
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if ch == '\\':
+            if in_string:
+                escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == open_char:
+            depth += 1
+        elif ch == close_char:
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
+
+
+def extract_json_object(text):
+    """Extract the first JSON object from text using robust parsing.
+
+    Tries standard json.loads first, then falls back to escape-aware
+    brace-matching (extract_balanced) for free-form LLM output that wraps
+    the object in other text.
+
+    The first '{' in the text isn't necessarily the real object's start -
+    free-form LLM prose can contain an earlier, incidental balanced
+    brace-pair (e.g. "I'll use {category} mapping: {...}") that bracket-
+    matches cleanly but isn't JSON. If a candidate span fails to parse,
+    retry from just past that span's opening brace instead of giving up,
+    so a real object later in the text still gets found.
+    """
+    if not text:
+        return None
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    search_from = 0
+    while True:
+        start = text.find('{', search_from)
+        if start == -1:
+            return None
+        span = extract_balanced(text, '{', '}', search_from=start)
+        if span is None:
+            return None
+        try:
+            return json.loads(span)
+        except json.JSONDecodeError:
+            search_from = start + 1
+
+
+def warn_unparseable_llm_json(what: str, raw: str, fallback_action: str) -> None:
+    """Print a consistent warning when extract_json_object found no JSON
+    object in an LLM response, for CLI scripts (find_nicknames.py,
+    review_script.py) whose convention is print() rather than logging."""
+    print(f"  Warning: could not parse a JSON object from the LLM's {what} "
+          f"response ({len(raw)} chars); {fallback_action}.")
+
+
+# --- Filename Sanitization ---
+
+def secure_filename(filename: str) -> str:
+    """Sanitize a filename to prevent path-traversal attacks.
+
+    Removes path separators and null bytes, keeps only safe characters,
+    and caps length well under the ~255-byte filesystem component limit
+    (leaving room for a caller-appended suffix, e.g. "sample_001.wav").
+    Two different inputs that only differ after the cap get a short hash
+    of the full original appended, so truncation can't make them collide
+    on the same output.
+    """
+    if not filename:
+        return ""
+    for sep in ("/", "\\", "\0"):
+        filename = filename.replace(sep, "_")
+    filename = filename.lstrip(". ")
+    filename = re.sub(r"[^\w\-. ]", "_", filename)
+    if len(filename) > 150:
+        suffix = hashlib.sha1(filename.encode("utf-8")).hexdigest()[:8]
+        filename = filename[:150 - len(suffix) - 1] + "_" + suffix
+    if not filename:
+        return ""
+    return filename
+
+
+# --- Atomic JSON write (write-to-temp + rename) ---
+
+def safe_load_json(path, default=None):
+    """Load JSON from `path`, returning `default` if missing, empty, or corrupted."""
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Corrupted/unreadable JSON at {path}, using default: {e}")
+        return default
 
 
 def atomic_json_write(data, target_path, max_retries=5):
@@ -22,10 +200,18 @@ def atomic_json_write(data, target_path, max_retries=5):
                 os.replace(tmp_path, target_path)
                 return
             except OSError as e:
+                # ERROR_ACCESS_DENIED (5) / ERROR_SHARING_VIOLATION (32) are raw
+                # Windows error codes, which only ever show up on e.winerror -
+                # e.errno holds the CRT's translated POSIX-equivalent (EACCES=13
+                # for both), so checking e.errno here would never match. The
+                # string checks below already catch this in practice, but
+                # checking winerror directly doesn't depend on the exception's
+                # message text staying in this exact wording.
                 if attempt < max_retries - 1 and (
-                    e.errno == 5
+                    getattr(e, "winerror", None) in (5, 32)
                     or "Access is denied" in str(e)
                     or "being used by another process" in str(e)
+                    or "The process cannot access the file" in str(e)
                 ):
                     delay = 0.05 * (2 ** attempt)
                     time.sleep(delay)
@@ -50,9 +236,16 @@ def file_lock(target_path, timeout=10, stale_after=30):
     a saved cast to it) can silently lose one side's update.
 
     This is advisory only: if the lock can't be acquired within `timeout`
-    seconds, the caller proceeds anyway rather than failing the whole
-    operation. A lock file older than `stale_after` seconds is treated as
-    abandoned (e.g. left behind by a crashed process) and removed.
+    seconds, this raises `TimeoutError` so the caller can decide how to
+    handle contention (e.g. skip the operation, return a "busy" error, or
+    retry) rather than silently proceeding without the lock. A lock file
+    older than `stale_after` seconds is treated as abandoned (e.g. left
+    behind by a crashed process) and removed.
+    
+    Args:
+        target_path: Path to the file being protected
+        timeout: Maximum seconds to wait for lock acquisition (default: 10)
+        stale_after: Seconds after which a lock file is considered abandoned (default: 30)
     """
     lock_path = target_path + ".lock"
     deadline = time.time() + timeout
@@ -71,7 +264,7 @@ def file_lock(target_path, timeout=10, stale_after=30):
             except OSError:
                 pass
             if time.time() >= deadline:
-                break
+                raise TimeoutError(f"Could not acquire file lock on {lock_path} within {timeout} seconds.")
             time.sleep(0.05)
     try:
         yield

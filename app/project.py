@@ -8,18 +8,45 @@ import io
 import re
 import time
 import logging
-from utils import atomic_json_write
+import gc
+import uuid
+from utils import atomic_json_write, safe_load_json
 from tts import (
     TTSEngine,
     combine_audio_with_pauses,
     compute_timeline,
     sanitize_filename,
+    voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS
 )
 from pydub import AudioSegment
 
 MAX_CHUNK_CHARS = 500
+
+
+def _new_chunk_uid():
+    """Stable per-chunk id for audio filenames.
+
+    Unlike chunk['id'] (which is the list position and gets renumbered on every
+    insert/delete), this is assigned once and never changes, so a chunk's audio
+    filename can't collide with a neighbour's after the list shifts.
+    """
+    return uuid.uuid4().hex[:12]
+
+
+_OOM_MARKERS = (
+    "out of memory", "outofmemory", "cuda out of memory", "cuda error",
+    "hip out of memory", "hip error", "cublas_status_alloc_failed",
+    "cannot allocate memory", "alloc failed",
+)
+
+
+def _is_oom_failure(err) -> bool:
+    """True if an error message looks like a GPU/VRAM out-of-memory condition,
+    so the caller can step concurrency down and retry rather than give up."""
+    return any(marker in str(err).lower() for marker in _OOM_MARKERS)
+
 
 def get_speaker(entry):
     """Get speaker from entry, checking both 'speaker' and 'type' fields."""
@@ -102,20 +129,27 @@ class ProjectManager:
         os.makedirs(self.voicelines_dir, exist_ok=True)
 
         self.engine = None
-        self._chunks_lock = threading.Lock()  # Thread-safe file writes
+        self._chunks_lock = threading.Lock()  # Thread-safe chunks.json writes
+        self._config_cache = None
+        self._config_mtime = None
+
+    def _read_config(self):
+        """Load config.json, caching by mtime to avoid repeated disk reads/parses
+        across hot-path calls (get_engine, _load_tts_config, ...)."""
+        try:
+            mtime = os.path.getmtime(self.config_path)
+        except OSError:
+            mtime = None
+        if self._config_cache is None or mtime != self._config_mtime:
+            self._config_cache = safe_load_json(self.config_path, default={})
+            self._config_mtime = mtime
+        return self._config_cache
 
     def get_engine(self):
         if self.engine:
             return self.engine
 
-        # Load config
-        config = {}
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception:
-                pass
+        config = self._read_config()
 
         try:
             self.engine = TTSEngine(config)
@@ -127,20 +161,48 @@ class ProjectManager:
 
     def _load_tts_config(self):
         """Load TTS config section from config.json for pause defaults."""
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                return json.load(f).get("tts", {})
-        except Exception:
-            return {}
+        return self._read_config().get("tts", {})
 
     def load_chunks(self):
+        """Load chunks from disk, regenerating if missing or corrupted.
+        
+        Uses _chunks_lock to prevent race conditions with concurrent saves.
+        """
+        with self._chunks_lock:
+            return self._read_chunks()
+
+    def _read_chunks(self):
+        """Read chunks.json, regenerating from script if missing or corrupted.
+
+        Internal method - callers must hold _chunks_lock. Always returns a
+        list (possibly empty), never None.
+        """
+        chunks = safe_load_json(self.chunks_path)
+        if chunks is not None:
+            # Backfill stable uids for chunks saved before uid-based filenames.
+            # Assigned once and persisted so a chunk keeps the same audio file
+            # name across later inserts/deletes.
+            changed = False
+            for chunk in chunks:
+                if isinstance(chunk, dict) and not chunk.get("uid"):
+                    chunk["uid"] = _new_chunk_uid()
+                    changed = True
+            if changed:
+                atomic_json_write(chunks, self.chunks_path)
+            return chunks
         if os.path.exists(self.chunks_path):
+            # Back the corrupted file up rather than deleting it - regenerating
+            # resets every chunk to pending/no-audio, so keep a copy in case the
+            # user's generation progress can be salvaged from it.
+            backup = self.chunks_path + ".corrupt"
+            logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
             try:
-                with open(self.chunks_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                print(f"WARNING: chunks.json is corrupted ({e}). Regenerating from script...")
-                os.remove(self.chunks_path)
+                os.replace(self.chunks_path, backup)
+            except OSError:
+                try:
+                    os.remove(self.chunks_path)
+                except OSError:
+                    pass
 
         # If no chunks (or corrupted), generate from script
         if os.path.exists(self.script_path):
@@ -148,7 +210,7 @@ class ProjectManager:
                 with open(self.script_path, "r", encoding="utf-8") as f:
                     script = json.load(f)
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"WARNING: annotated_script.json is also corrupted ({e}). Starting with empty chunks.")
+                logger.warning(f"annotated_script.json is also corrupted ({e}). Starting with empty chunks.")
                 return []
 
             chunks = group_into_chunks(script)
@@ -156,10 +218,11 @@ class ProjectManager:
             # Initialize chunk status
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
-                chunk["status"] = "pending" # pending, generating, done, error
+                chunk["uid"] = _new_chunk_uid()
+                chunk["status"] = "pending"  # pending, generating, done, error
                 chunk["audio_path"] = None
 
-            self.save_chunks(chunks)
+            atomic_json_write(chunks, self.chunks_path)
             return chunks
 
         return []
@@ -174,7 +237,7 @@ class ProjectManager:
             return speaker
         name = speaker
         seen = set()
-        for _ in range(8):
+        for _ in range(16):  # Increased from 8 to handle longer alias chains
             if name in seen:
                 logger.warning(f"Alias cycle detected for speaker '{speaker}': chain visited {seen}")
                 break
@@ -188,37 +251,35 @@ class ProjectManager:
                 break
             # Continue resolution
             name = alias
+        else:
+            # Loop completed without break - chain exceeded limit
+            logger.warning(f"Alias chain for '{speaker}' exceeded 16 iterations; using last resolved name '{name}'")
         return name
 
     def save_chunks(self, chunks):
         with self._chunks_lock:
             atomic_json_write(chunks, self.chunks_path)
 
-    def _update_chunk_fields(self, index, **fields):
-        """Atomically update fields on a single chunk (thread-safe read-modify-write).
+    def _modify_chunk(self, index, mutator):
+        """Atomically apply `mutator(chunk)` to a single chunk (thread-safe read-modify-write).
 
         Unlike load_chunks() + modify + save_chunks(), this holds the lock for the
         entire read-modify-write cycle, preventing concurrent threads from
         overwriting each other's updates.
         """
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
-            chunks[index].update(fields)
+            chunk = chunks[index]
+            mutator(chunk)
             atomic_json_write(chunks, self.chunks_path)
-            return chunks[index]
+            return chunk
 
     def insert_chunk(self, after_index):
         """Insert an empty chunk after the given index. Returns the new chunk list."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= after_index < len(chunks)):
                 return None
 
@@ -226,6 +287,7 @@ class ProjectManager:
             source = chunks[after_index]
             new_chunk = {
                 "id": after_index + 1,
+                "uid": _new_chunk_uid(),
                 "speaker": source.get("speaker", "NARRATOR"),
                 "text": "",
                 "instruct": "",
@@ -244,10 +306,7 @@ class ProjectManager:
     def delete_chunk(self, index):
         """Delete a chunk at the given index. Returns (deleted_chunk, updated_chunks) or None."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
             if len(chunks) <= 1:
@@ -265,12 +324,11 @@ class ProjectManager:
     def restore_chunk(self, at_index, chunk_data):
         """Re-insert a chunk at a specific index. Returns the updated chunk list."""
         with self._chunks_lock:
-            if not os.path.exists(self.chunks_path):
-                return None
-            with open(self.chunks_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks = self._read_chunks()
 
             at_index = max(0, min(at_index, len(chunks)))
+            if isinstance(chunk_data, dict):
+                chunk_data.setdefault("uid", _new_chunk_uid())
             chunks.insert(at_index, chunk_data)
 
             # Re-number all IDs
@@ -281,10 +339,8 @@ class ProjectManager:
             return chunks
 
     def update_chunk(self, index, data):
-        chunks = self.load_chunks()
-        if 0 <= index < len(chunks):
-            chunk = chunks[index]
-            # Update fields
+        """Thread-safe chunk update. See _modify_chunk."""
+        def mutator(chunk):
             if "text" in data: chunk["text"] = data["text"]
             if "instruct" in data: chunk["instruct"] = data["instruct"]
             if "speaker" in data: chunk["speaker"] = data["speaker"]
@@ -300,9 +356,18 @@ class ProjectManager:
             if "text" in data or "instruct" in data or "speaker" in data:
                 chunk["status"] = "pending"
 
-            self.save_chunks(chunks)
-            return chunk
-        return None
+        return self._modify_chunk(index, mutator)
+
+    def _update_chunk_fields(self, index, **kwargs):
+        """Atomically set arbitrary fields on a chunk (status, audio_path, error, etc.).
+
+        Unlike update_chunk, this applies the given fields directly with no
+        special-casing or status side-effects. See _modify_chunk.
+        """
+        def mutator(chunk):
+            chunk.update(kwargs)
+
+        return self._modify_chunk(index, mutator)
 
     def generate_chunk_audio(self, index):
         chunks = self.load_chunks()
@@ -312,17 +377,17 @@ class ProjectManager:
         chunk = chunks[index]
         self._update_chunk_fields(index, status="generating")
 
+        temp_path = None
         try:
             engine = self.get_engine()
             if not engine:
                 self._update_chunk_fields(index, status="error")
                 return False, "TTS engine not initialized"
 
-            # Load voice config
-            voice_config = {}
-            if os.path.exists(self.voice_config_path):
-                with open(self.voice_config_path, "r", encoding="utf-8") as f:
-                    voice_config = json.load(f)
+            # atomic_json_write's write-temp+rename makes plain reads safe even
+            # while app.py's voice_library endpoints hold file_lock(voice_config_path)
+            # for a read-modify-write — no extra locking needed here.
+            voice_config = safe_load_json(self.voice_config_path, default={})
 
             speaker = chunk["speaker"]
             # Resolve aliases to canonical speaker used for TTS
@@ -336,7 +401,9 @@ class ProjectManager:
             print(f"Generating chunk {index}: speaker={speaker}, instruct='{instruct}', text='{text[:50]}...'")
 
             # Generate to temp file (unique per chunk for parallel processing)
-            temp_path = os.path.join(self.root_dir, f"temp_chunk_{index}.wav")
+            import tempfile
+            fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
+            os.close(fd)  # Close the file descriptor, we'll write via TTS engine
 
             # Pass canonical speaker to the TTS engine so it uses the aliased config
             success = engine.generate_voice(text, instruct, speaker_to_use, voice_config, temp_path)
@@ -349,56 +416,15 @@ class ProjectManager:
 
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
-                # Try to convert to mp3, fallback to wav if ffmpeg missing
-                filename_base = f"voiceline_{index+1:04d}_{sanitize_filename(speaker_to_use)}"
-                audio_path = None
+                # Try to convert to mp3, fallback to wav if ffmpeg missing.
+                # Name by stable uid (not list position) so a later insert/delete
+                # can't make this file collide with another chunk's audio.
+                filename_base = f"voiceline_{chunk.get('uid') or f'{index+1:04d}'}_{sanitize_filename(speaker_to_use)}"
 
-                try:
-                    segment = AudioSegment.from_wav(temp_path)
-
-                    if len(segment) == 0:
-                         self._update_chunk_fields(index, status="error")
-                         return False, "Generated audio has 0 duration"
-
-                    mp3_filename = f"{filename_base}.mp3"
-                    mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-
-                    # This might fail if ffmpeg is missing or lacks MP3 encoder
-                    segment.export(mp3_filepath, format="mp3")
-
-                    # Validate: conda ffmpeg often lacks libmp3lame, producing
-                    # a tiny (~428 byte) header-only file without raising an error
-                    mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
-                    if mp3_size < 1024:
-                        print(f"MP3 export produced invalid file ({mp3_size} bytes) — ffmpeg likely lacks MP3 encoder (libmp3lame). Falling back to WAV.")
-                        os.remove(mp3_filepath)
-                        raise RuntimeError("MP3 export produced invalid file")
-
-                    audio_path = f"voicelines/{mp3_filename}"
-
-                except Exception as e:
-                    if "invalid file" not in str(e).lower():
-                        print(f"MP3 conversion failed (ffmpeg missing?): {e}")
-                    # Fallback: copy WAV
-                    wav_filename = f"{filename_base}.wav"
-                    wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
-                    shutil.copy(temp_path, wav_filepath)
-
-                    audio_path = f"voicelines/{wav_filename}"
-
+                # Shared MP3-export-with-WAV-fallback (raises on 0-duration audio,
+                # caught by the outer handler below).
+                audio_path = self._export_chunk_audio(temp_path, filename_base)
                 self._update_chunk_fields(index, status="done", audio_path=audio_path)
-
-                # Cleanup with retry (may be locked by pydub/ffmpeg on Windows)
-                if os.path.exists(temp_path):
-                    for attempt in range(3):
-                        try:
-                            os.remove(temp_path)
-                            break
-                        except OSError:
-                            if attempt < 2:
-                                time.sleep(0.1 * (attempt + 1))
-                            else:
-                                print(f"Warning: Could not delete temp file {temp_path}")
 
                 return True, audio_path
             else:
@@ -411,6 +437,11 @@ class ProjectManager:
             except Exception as update_err:
                 print(f"Warning: Failed to update chunk {index} status to error: {update_err}")
             return False, str(e)
+        finally:
+            # Cleanup runs on every exit path - success, early validation returns,
+            # and exceptions - so the temp wav never leaks.
+            if temp_path:
+                self._remove_temp_file(temp_path)
 
     def _load_pause_defaults(self):
         """Return (pause_between_speakers_ms, pause_same_speaker_ms) from config."""
@@ -421,25 +452,35 @@ class ProjectManager:
         )
 
     def _load_chunks_with_audio(self):
-        """Load chunks and pair each with its AudioSegment. Returns list of (chunk, segment)."""
+        """Load chunks and pair each with its AudioSegment.
+
+        Returns (result, skipped_count): result is the list of (chunk, segment)
+        pairs that loaded successfully; skipped_count is how many chunks were
+        dropped (missing audio_path, missing file, or a failed audio load) so
+        callers can report a partial export instead of a silent blanket success.
+        """
         chunks = self.load_chunks()
         result = []
+        skipped = 0
         for chunk in chunks:
             path = chunk.get("audio_path")
             if not path:
+                skipped += 1
                 continue
             full_path = os.path.join(self.root_dir, path)
             if not os.path.exists(full_path):
+                skipped += 1
                 continue
             try:
                 segment = AudioSegment.from_file(full_path)
                 result.append((chunk, segment))
             except Exception as e:
                 print(f"Error loading audio segment {path}: {e}")
-        return result
+                skipped += 1
+        return result, skipped
 
     def merge_audio(self):
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -458,12 +499,14 @@ class ProjectManager:
         output_path = os.path.join(self.root_dir, output_filename)
         final_audio.export(output_path, format="mp3")
 
+        if skipped:
+            return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
 
     def export_audacity(self):
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -521,6 +564,9 @@ class ProjectManager:
             end_sec = (start_ms + len(segment)) / 1000.0
             text_preview = chunk.get("text", "")[:80]
             label = f"[{chunk['speaker']}] {text_preview}"
+            # Audacity labels are tab-separated, one per line - a tab or newline
+            # inside the text would add a phantom column or split the row.
+            label = label.replace("\t", " ").replace("\r", " ").replace("\n", " ")
             label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
         labels_content = "\n".join(label_lines) + "\n"
 
@@ -536,6 +582,8 @@ class ProjectManager:
                 speaker_tracks[speaker].export(wav_buffer, format="wav")
                 zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
 
+        if skipped:
+            return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, zip_path
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None):
@@ -551,7 +599,7 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
 
@@ -634,6 +682,8 @@ class ProjectManager:
                     except OSError:
                         pass
 
+        if skipped:
+            return True, f"audiobook.m4b ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, "audiobook.m4b"
 
     @staticmethod
@@ -671,10 +721,15 @@ class ProjectManager:
         heading_indices = []
         for i, (chunk, segment, start_ms) in enumerate(timeline):
             text = chunk.get("text", "").strip()
-            # Short structural text (likely a heading) or starts with heading keyword
+            # Starts with a heading keyword, or short structural text in its
+            # own right (likely a stylized chapter title with no keyword,
+            # e.g. "The Awakening") - the second check used to also require
+            # self._HEADING_RE.search(text), which is redundant with (and
+            # since _HEADING_RE is ^-anchored, can never succeed when) the
+            # first check already failed, making this branch unreachable.
             if self._HEADING_RE.match(text):
                 heading_indices.append(i)
-            elif len(text) < 80 and '"' not in text and text and self._HEADING_RE.search(text):
+            elif len(text) < 80 and '"' not in text and text:
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk
@@ -728,6 +783,7 @@ class ProjectManager:
             dict with 'completed', 'failed', and 'cancelled' keys
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import gc
 
         results = {"completed": [], "failed": [], "cancelled": 0}
 
@@ -741,48 +797,86 @@ class ProjectManager:
         if total == 0:
             return results
 
-        print(f"Starting parallel generation of {total} chunks with {max_workers} workers...")
+        all_indices = list(indices)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(self.generate_chunk_audio, idx): idx
-                for idx in indices
-            }
+        def _run_round(round_indices, workers):
+            """One pass at `workers` concurrency.
 
-            cancelled = False
-            for future in as_completed(futures):
-                if cancel_check and cancel_check():
-                    cancelled = True
-                    print("[CANCEL] Cancellation requested — stopping parallel generation")
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    break
+            Returns (completed, oom_failed, hard_failed, cancelled). OOM failures
+            are kept separate so the caller can step concurrency down and retry
+            just those, while hard failures (bad text, missing engine) are final.
+            """
+            completed, oom_failed, hard_failed = [], [], []
+            was_cancelled = False
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {executor.submit(self.generate_chunk_audio, idx): idx for idx in round_indices}
+                for future in as_completed(futures):
+                    if cancel_check and cancel_check():
+                        was_cancelled = True
+                        print("[CANCEL] Cancellation requested — stopping parallel generation")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    idx = futures[future]
+                    try:
+                        success, msg = future.result()
+                        if success:
+                            completed.append(idx)
+                            print(f"Chunk {idx} completed: {msg}")
+                        elif _is_oom_failure(msg):
+                            oom_failed.append((idx, msg))
+                            print(f"Chunk {idx} failed (VRAM): {msg}")
+                        else:
+                            hard_failed.append((idx, msg))
+                            print(f"Chunk {idx} failed: {msg}")
+                    except Exception as e:
+                        (oom_failed if _is_oom_failure(e) else hard_failed).append((idx, str(e)))
+                        print(f"Chunk {idx} error: {e}")
+                    if progress_callback:
+                        # oom_failed chunks aren't final yet (they get retried
+                        # next round at a lower worker count), but they ARE
+                        # accounted for right now - count them alongside
+                        # completed/hard_failed so the running total this
+                        # round doesn't look like it's stalled or losing track
+                        # of in-flight work.
+                        progress_callback(len(results["completed"]) + len(completed),
+                                          len(results["failed"]) + len(hard_failed) + len(oom_failed), total)
+            return completed, oom_failed, hard_failed, was_cancelled
 
-                idx = futures[future]
-                try:
-                    success, msg = future.result()
-                    if success:
-                        results["completed"].append(idx)
-                        print(f"Chunk {idx} completed: {msg}")
-                    else:
-                        results["failed"].append((idx, msg))
-                        print(f"Chunk {idx} failed: {msg}")
-                except Exception as e:
-                    results["failed"].append((idx, str(e)))
-                    print(f"Chunk {idx} error: {e}")
+        # Start at the configured worker count and step down one at a time only
+        # when a round hits VRAM OOM, retrying just the OOM-failed chunks, until
+        # they succeed or we're down to a single worker.
+        workers = max(1, max_workers)
+        pending = list(all_indices)
+        cancelled = False
+        print(f"Starting parallel generation of {total} chunks with {workers} workers...")
+        while pending:
+            completed, oom_failed, hard_failed, was_cancelled = _run_round(pending, workers)
+            results["completed"].extend(completed)
+            results["failed"].extend(hard_failed)
+            if was_cancelled:
+                cancelled = True
+                break
+            if oom_failed and workers > 1:
+                workers -= 1
+                pending = [idx for idx, _ in oom_failed]
+                print(f"[VRAM] Out-of-memory on {len(pending)} chunk(s) — stepping TTS "
+                      f"workers down to {workers} and retrying.")
+                gc.collect()
+                continue
+            # workers == 1 (or no OOM left): remaining OOM failures are now final.
+            results["failed"].extend(oom_failed)
+            break
 
-                if progress_callback:
-                    progress_callback(len(results["completed"]), len(results["failed"]), total)
-
-            # Reset remaining "generating" chunks to "pending"
-            if cancelled:
-                done_indices = set(results["completed"]) | {idx for idx, _ in results["failed"]}
-                chunks = self.load_chunks()
-                if chunks:
-                    for idx in indices:
-                        if idx not in done_indices and 0 <= idx < len(chunks) and chunks[idx].get("status") == "generating":
-                            chunks[idx]["status"] = "pending"
-                            results["cancelled"] += 1
-                    self.save_chunks(chunks)
+        # Reset remaining "generating" chunks to "pending" on cancel.
+        if cancelled:
+            done_indices = set(results["completed"]) | {idx for idx, _ in results["failed"]}
+            chunks = self.load_chunks()
+            if chunks:
+                for idx in all_indices:
+                    if idx not in done_indices and 0 <= idx < len(chunks) and chunks[idx].get("status") == "generating":
+                        chunks[idx]["status"] = "pending"
+                        results["cancelled"] += 1
+                self.save_chunks(chunks)
 
         print(f"Parallel generation complete: {len(results['completed'])} succeeded, "
               f"{len(results['failed'])} failed, {results['cancelled']} cancelled")
@@ -810,14 +904,14 @@ class ProjectManager:
             # Resolve alias before grouping so alias groups collate with their canonical speaker
             canonical = self._resolve_alias(speaker, voice_config)
             voice_data = voice_config.get(canonical, {})
-            voice_type = voice_data.get("type", "custom")
+            category = voice_category(voice_data)
 
-            if voice_type == "clone":
+            if category == "clone":
                 key = f"clone:{canonical}"
-            elif voice_type in ("lora", "builtin_lora"):
+            elif category == "lora":
                 adapter_id = voice_data.get("adapter_id", "")
                 key = f"lora:{adapter_id}"
-            elif voice_type == "design":
+            elif category == "design":
                 key = "design"
             else:
                 key = "custom"
@@ -830,6 +924,105 @@ class ProjectManager:
             reordered.extend(group_indices)
 
         return reordered
+
+    def _export_chunk_audio(self, temp_path, filename_base):
+        """Convert a temp WAV to MP3, falling back to a copied WAV when ffmpeg
+        lacks an MP3 encoder. Returns the relative audio_path (under voicelines/).
+        Raises ValueError if the source audio has zero duration.
+        """
+        segment = AudioSegment.from_file(temp_path)
+        if len(segment) == 0:
+            raise ValueError("Audio has 0 duration")
+
+        try:
+            mp3_filename = f"{filename_base}.mp3"
+            mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
+            segment.export(mp3_filepath, format="mp3")
+
+            # Validate: conda ffmpeg often lacks libmp3lame, producing a tiny
+            # (~428 byte) header-only file without raising an error.
+            mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
+            if mp3_size < 1024:
+                print(f"MP3 export produced invalid file ({mp3_size} bytes) — ffmpeg likely "
+                      f"lacks MP3 encoder (libmp3lame). Falling back to WAV.")
+                os.remove(mp3_filepath)
+                raise RuntimeError("MP3 export produced invalid file")
+            return f"voicelines/{mp3_filename}"
+
+        except Exception as e:
+            if "invalid file" not in str(e).lower():
+                print(f"MP3 conversion failed: {e}")
+            wav_filename = f"{filename_base}.wav"
+            wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
+            shutil.copy(temp_path, wav_filepath)
+            return f"voicelines/{wav_filename}"
+
+    def _remove_temp_file(self, temp_path):
+        """Best-effort delete of a temp batch WAV, retrying briefly on transient locks."""
+        if not os.path.exists(temp_path):
+            return
+        for attempt in range(3):
+            try:
+                os.remove(temp_path)
+                return
+            except OSError:
+                if attempt < 2:
+                    time.sleep(0.1 * (attempt + 1))
+                else:
+                    print(f"Warning: Could not delete temp file {temp_path}")
+
+    def _finalize_completed_chunk(self, idx, chunks):
+        """Convert one completed chunk's temp audio to its final file and
+        update its status in `chunks` (in place - chunks is this whole
+        batch's load-mutate-save accumulator, saved once by the caller).
+
+        Returns ("completed", idx, audio_path) or ("failed", idx, error_msg)
+        for the caller to fold into its own results dict.
+        """
+        if not (0 <= idx < len(chunks)):
+            print(f"Chunk {idx} skipped: index out of range (chunks changed during generation?)")
+            return "failed", idx, "Index out of range after reload"
+
+        temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
+        if not os.path.exists(temp_path):
+            chunks[idx]["status"] = "error"
+            return "failed", idx, "Temp audio file not found"
+
+        try:
+            chunk = chunks[idx]
+            speaker = chunk.get("speaker", "unknown")
+            # Stable uid (not list position) so the file can't collide with a
+            # neighbour's after an insert/delete shifts indices.
+            filename_base = f"voiceline_{chunk.get('uid') or f'{idx+1:04d}'}_{sanitize_filename(speaker)}"
+            chunks[idx]["audio_path"] = self._export_chunk_audio(temp_path, filename_base)
+            chunks[idx]["status"] = "done"
+            print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
+            self._remove_temp_file(temp_path)
+            return "completed", idx, chunks[idx]["audio_path"]
+        except Exception as e:
+            print(f"Error processing chunk {idx}: {e}")
+            chunks[idx]["status"] = "error"
+            return "failed", idx, str(e)
+
+    def _record_batch_failures(self, batch_failed, chunks, current_batch_size):
+        """Split a batch's failures into retryable OOM indices and hard
+        failures (status=error, set in `chunks` in place - see
+        _finalize_completed_chunk's docstring).
+
+        Returns (oom_failed_indices, hard_failure_tuples) for the caller to
+        retry/fold into its own results dict.
+        """
+        oom_failed = []
+        hard_failures = []
+        for idx, error in batch_failed:
+            if _is_oom_failure(error) and current_batch_size > 1:
+                # Retryable at a smaller size - don't mark as error yet.
+                oom_failed.append(idx)
+                continue
+            if 0 <= idx < len(chunks):
+                chunks[idx]["status"] = "error"
+            hard_failures.append((idx, error))
+        return oom_failed, hard_failures
 
     def generate_chunks_batch(self, indices, batch_seed=-1, batch_size=4, progress_callback=None,
                                batch_group_by_type=False, cancel_check=None):
@@ -863,10 +1056,11 @@ class ProjectManager:
 
         print(f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed}, "
               f"group_by_type={batch_group_by_type})...")
-        voice_config = {}
-        if os.path.exists(self.voice_config_path):
-            with open(self.voice_config_path, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
+        
+        # atomic_json_write's write-temp+rename makes plain reads safe even
+        # while app.py's voice_library endpoints hold file_lock(voice_config_path)
+        # for a read-modify-write — no extra locking needed here.
+        voice_config = safe_load_json(self.voice_config_path, default={})
 
         # Get TTS engine
         engine = self.get_engine()
@@ -887,18 +1081,23 @@ class ProjectManager:
         if batch_group_by_type:
             indices = self._group_indices_by_voice_type(indices, chunks, voice_config)
 
-        # Split indices into batches
-        batches = [indices[i:i + batch_size] for i in range(0, len(indices), batch_size)]
-        print(f"Processing {len(batches)} batches...")
-
+        # Process indices in batches, starting at the configured size and
+        # stepping the size down only when a batch hits VRAM OOM (retrying just
+        # the OOM-failed chunks at the smaller size), down to 1.
+        pending = list(indices)
+        current_batch_size = max(1, batch_size)
+        batch_num = 0
         cancelled = False
-        for batch_num, batch_indices in enumerate(batches):
+        while pending:
             if cancel_check and cancel_check():
                 cancelled = True
                 print(f"[CANCEL] Cancellation requested before batch {batch_num + 1}")
                 break
 
-            print(f"Batch {batch_num + 1}/{len(batches)}: {len(batch_indices)} chunks")
+            batch_indices = pending[:current_batch_size]
+            pending = pending[current_batch_size:]
+            batch_num += 1
+            print(f"Batch {batch_num} ({len(batch_indices)} chunks, size={current_batch_size}, {len(pending)} queued)")
 
             # Build batch request data
             batch_chunks = []
@@ -922,78 +1121,24 @@ class ProjectManager:
             chunks = self.load_chunks()  # Reload for each batch
 
             for idx in batch_results["completed"]:
-                if not (0 <= idx < len(chunks)):
-                    print(f"Chunk {idx} skipped: index out of range (chunks changed during generation?)")
-                    results["failed"].append((idx, "Index out of range after reload"))
-                    continue
+                outcome, out_idx, payload = self._finalize_completed_chunk(idx, chunks)
+                if outcome == "completed":
+                    results["completed"].append(out_idx)
+                else:
+                    results["failed"].append((out_idx, payload))
 
-                temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
-
-                if not os.path.exists(temp_path):
-                    results["failed"].append((idx, "Temp audio file not found"))
-                    chunks[idx]["status"] = "error"
-                    continue
-
-                try:
-                    chunk = chunks[idx]
-                    speaker = chunk.get("speaker", "unknown")
-                    filename_base = f"voiceline_{idx+1:04d}_{sanitize_filename(speaker)}"
-
-                    try:
-                        segment = AudioSegment.from_file(temp_path)
-                        if len(segment) == 0:
-                            results["failed"].append((idx, "Audio has 0 duration"))
-                            chunks[idx]["status"] = "error"
-                            continue
-
-                        mp3_filename = f"{filename_base}.mp3"
-                        mp3_filepath = os.path.join(self.voicelines_dir, mp3_filename)
-                        segment.export(mp3_filepath, format="mp3")
-
-                        # Validate: conda ffmpeg often lacks libmp3lame, producing
-                        # a tiny (~428 byte) header-only file without raising an error
-                        mp3_size = os.path.getsize(mp3_filepath) if os.path.exists(mp3_filepath) else 0
-                        if mp3_size < 1024:
-                            print(f"MP3 export produced invalid file ({mp3_size} bytes) for chunk {idx} — ffmpeg likely lacks MP3 encoder (libmp3lame). Falling back to WAV.")
-                            os.remove(mp3_filepath)
-                            raise RuntimeError("MP3 export produced invalid file")
-
-                        chunks[idx]["audio_path"] = f"voicelines/{mp3_filename}"
-
-                    except Exception as e:
-                        if "invalid file" not in str(e).lower():
-                            print(f"MP3 conversion failed for chunk {idx}: {e}")
-                        wav_filename = f"{filename_base}.wav"
-                        wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
-                        shutil.copy(temp_path, wav_filepath)
-                        chunks[idx]["audio_path"] = f"voicelines/{wav_filename}"
-
-                    chunks[idx]["status"] = "done"
-                    results["completed"].append(idx)
-                    print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
-
-                    if os.path.exists(temp_path):
-                        for attempt in range(3):
-                            try:
-                                os.remove(temp_path)
-                                break
-                            except OSError:
-                                if attempt < 2:
-                                    time.sleep(0.1 * (attempt + 1))
-                                else:
-                                    print(f"Warning: Could not delete temp file {temp_path}")
-
-                except Exception as e:
-                    print(f"Error processing chunk {idx}: {e}")
-                    results["failed"].append((idx, str(e)))
-                    chunks[idx]["status"] = "error"
-
-            for idx, error in batch_results["failed"]:
-                if 0 <= idx < len(chunks):
-                    chunks[idx]["status"] = "error"
-                results["failed"].append((idx, error))
+            oom_failed, hard_failures = self._record_batch_failures(
+                batch_results["failed"], chunks, current_batch_size)
+            results["failed"].extend(hard_failures)
 
             self.save_chunks(chunks)
+
+            if oom_failed:
+                gc.collect()
+                current_batch_size = max(1, current_batch_size - 1)
+                pending = oom_failed + pending  # retry the OOM chunks first
+                print(f"[VRAM] Out-of-memory on {len(oom_failed)} chunk(s) — stepping TTS "
+                      f"batch size down to {current_batch_size} and retrying.")
 
             if progress_callback:
                 progress_callback(len(results["completed"]), len(results["failed"]), total)
