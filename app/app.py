@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json
+from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -42,6 +42,15 @@ from review_script import clear_checkpoint, _checkpoint_path
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AlexandriaUI")
+
+
+def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> None:
+    """Log a consistent warning for a corrupted/unreadable JSON file that's
+    falling back to some default. Shared by every site that catches a JSON
+    parse failure on a config/state/manifest file - keeps the message format
+    in one place instead of over a dozen independently-written copies."""
+    logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
+
 
 app = FastAPI(title="Alexandria Audiobook")
 
@@ -1042,7 +1051,8 @@ def _extract_diff_highlights(lines: List[str]) -> dict:
                     "text_rewrites": data.get("text_rewrites", []),
                     "speaker_changes": data.get("speaker_changes", []),
                 }
-            except (json.JSONDecodeError, AttributeError):
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Malformed DIFF_PREVIEW_JSON line, returning empty diff preview: {e}")
                 break
     return {"text_rewrites": [], "speaker_changes": []}
 
@@ -1822,7 +1832,7 @@ async def get_config():
             if input_path and os.path.exists(input_path):
                 config["current_file"] = os.path.basename(input_path)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted state at {state_path}, ignoring current_file: {e}")
+            _warn_corrupted_json("state", state_path, "ignoring current_file", e)
 
     # Precomputed drift-aware answer to "is the active LLM endpoint remote?"
     # so the frontend doesn't have to re-derive it from llm_mode alone (which
@@ -2113,7 +2123,7 @@ async def upload_file(file: UploadFile = File(...)):
             try:
                 state = json.load(f)
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Corrupted state at {state_path}, overwriting with new data: {e}")
+                _warn_corrupted_json("state", state_path, "overwriting with new data", e)
 
     state["input_file_path"] = file_path
     atomic_json_write(state, state_path)
@@ -2231,7 +2241,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
             total_entries = len(json.load(f))
     except (json.JSONDecodeError, ValueError, OSError) as e:
-        logger.warning(f"Corrupted script at {SCRIPT_PATH}, estimated_calls will read 0: {e}")
+        _warn_corrupted_json("script", SCRIPT_PATH, "estimated_calls will read 0", e)
         total_entries = 0
 
     review_batch_size = 25
@@ -2241,7 +2251,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
                 cfg = json.load(f)
                 review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
         except (json.JSONDecodeError, ValueError, TypeError, OSError) as e:
-            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default review_batch_size: {e}")
+            _warn_corrupted_json("config", CONFIG_PATH, "using default review_batch_size", e)
             review_batch_size = 25
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
@@ -2750,7 +2760,7 @@ async def get_voices():
                     voices_set.add(speaker)
             voices_list = sorted(voices_set)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted script at {SCRIPT_PATH}, returning empty voice list: {e}")
+            _warn_corrupted_json("script", SCRIPT_PATH, "returning empty voice list", e)
 
     if not voices_list:
         return []
@@ -2762,7 +2772,7 @@ async def get_voices():
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, ignoring: {e}")
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
             voice_config = {}
 
     missing_speakers = {voice_name for voice_name in voices_list if voice_name not in voice_config}
@@ -2836,7 +2846,7 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
                     try:
                         current_config = json.load(f)
                     except (json.JSONDecodeError, ValueError) as e:
-                        logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, overwriting with new data: {e}")
+                        _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "overwriting with new data", e)
 
             # Update current config with new data
             for voice_name, config in config_data.items():
@@ -2996,7 +3006,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, treating as empty: {e}")
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "treating as empty", e)
             voice_config = {}
 
     candidates = _build_lora_candidates()
@@ -3057,8 +3067,9 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             timeout=120,  # Hard timeout on the actual API call to prevent hanging
         )
         raw = response.choices[0].message.content or ""
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        parsed = json.loads(m.group(0)) if m else {}
+        parsed = extract_json_object(raw)
+        if parsed is None:
+            raise ValueError(f"Could not parse a JSON object from the LLM's casting response ({len(raw)} chars)")
 
         for name in characters:
             pick = parsed.get(name) if isinstance(parsed, dict) else None
@@ -3302,7 +3313,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
                 cfg = json.load(f)
                 workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default worker count: {e}")
+            _warn_corrupted_json("config", CONFIG_PATH, "using default worker count", e)
 
     indices = request.indices
     total = len(indices)
@@ -3369,7 +3380,7 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
                 batch_size = max(1, tts_cfg.get("parallel_workers", 4))
                 batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted config at {CONFIG_PATH}, using default batch settings: {e}")
+            _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
 
     indices = request.indices
     total = len(indices)
@@ -3700,7 +3711,7 @@ def _load_voice_library() -> dict:
                 lib["shared"] = data.get("shared", {}) or {}
                 lib["casts"] = data.get("casts", {}) or {}
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted voice library at {VOICE_LIBRARY_PATH}, resetting to empty: {e}")
+            _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
     return lib
 
 
@@ -3921,7 +3932,7 @@ async def voice_library_save(request: LibrarySaveRequest):
             with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
                 voice_config = json.load(f)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted voice config at {VOICE_CONFIG_PATH}, ignoring: {e}")
+            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "ignoring", e)
             voice_config = {}
 
     counts = _script_line_counts()
@@ -4073,7 +4084,7 @@ def _load_manifest(path):
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Corrupted manifest at {path}, returning empty list: {e}")
+            _warn_corrupted_json("manifest", path, "returning empty list", e)
     return []
 
 def _save_manifest(path, manifest):
@@ -5385,7 +5396,7 @@ def _load_voicelab_config() -> dict:
             if isinstance(data, dict):
                 cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
         except (json.JSONDecodeError, ValueError, OSError) as e:
-            logger.warning(f"Corrupted voicelab config at {VOICELAB_CONFIG_PATH}, using defaults: {e}")
+            _warn_corrupted_json("voicelab config", VOICELAB_CONFIG_PATH, "using defaults", e)
     return cfg
 
 
@@ -5580,9 +5591,9 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
 
     # Validate prerequisites up front with actionable errors
     needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
-    if needs_rocm and not os.path.isfile(cfg["rocm_python"]):
+    if needs_rocm and not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
         raise HTTPException(status_code=400,
-                            detail=f"ROCm interpreter not found: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+                            detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
     if needs_rocm:
         _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
     profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
