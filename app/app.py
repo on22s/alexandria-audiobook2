@@ -4485,22 +4485,29 @@ async def lora_test_model(request: LoraTestRequest):
         adapter_dir = os.path.join(LORA_MODELS_DIR, request.adapter_id)
         audio_url_prefix = f"/lora_models/{request.adapter_id}"
 
-    if not os.path.isdir(adapter_dir) and is_builtin:
-        try:
-            download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
-            adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
-        except Exception as e:
-            logger.error(f"Auto-download failed for {request.adapter_id}: {e}")
-            raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
-    elif not os.path.isdir(adapter_dir):
+    if not os.path.isdir(adapter_dir) and not is_builtin:
         raise HTTPException(status_code=404, detail="Adapter files not found")
 
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-
+    # Claim the GPU slot now, before the possible adapter download and the
+    # engine load below - both can take real time and the engine load
+    # allocates VRAM. Claiming only after them (the old order) left a window
+    # where two concurrent /api/lora/test (or .../preview, which shares this
+    # slot) requests could both pass check_global_gpu_lock above and both
+    # start that slow/VRAM work before either's claim landed.
     claim_gpu_task("lora_test")
     try:
+        if not os.path.isdir(adapter_dir) and is_builtin:
+            try:
+                download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
+                adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
+            except Exception as e:
+                logger.error(f"Auto-download failed for {request.adapter_id}: {e}")
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         output_filename = f"test_{request.adapter_id}_{int(time.time())}.wav"
         output_path = os.path.join(adapter_dir, output_filename)
 
@@ -4522,6 +4529,8 @@ async def lora_test_model(request: LoraTestRequest):
             "status": "ok",
             "audio_url": f"{audio_url_prefix}/{output_filename}",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"LoRA test generation failed: {e}")
         raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.")
@@ -4570,12 +4579,16 @@ async def lora_preview(adapter_id: str):
     # /api/lora/test since both are "try out this adapter" operations that
     # shouldn't run concurrently with each other either. See F-040.
     check_global_gpu_lock("lora_test")
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-
+    # Claim immediately after the check (not after get_engine()) - the engine
+    # load below allocates VRAM, so the claim has to land before it starts,
+    # not after, or two concurrent preview/test requests can both pass the
+    # check above and both begin loading the model.
     claim_gpu_task("lora_test")
     try:
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+
         voice_data = {
             "type": "lora",
             "adapter_id": adapter_id,
@@ -4590,6 +4603,8 @@ async def lora_preview(adapter_id: str):
             output_path=preview_path,
         )
         return {"status": "generated", "audio_url": f"{url_prefix}/preview_sample.wav"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"LoRA preview generation failed: {e}")
         raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.")
