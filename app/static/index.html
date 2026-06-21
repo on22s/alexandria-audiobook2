@@ -5722,7 +5722,9 @@
                         description: document.getElementById('dsb-description').value,
                         global_seed: document.getElementById('dsb-global-seed').value,
                     });
-                } catch (e) { console.error('Failed to save meta:', e); }
+                } catch (e) {
+                    showToast('Failed to save meta: ' + (e.message || 'unknown error'), 'warning');
+                }
             }, 500);
         }
 
@@ -5735,7 +5737,9 @@
                         name: dsbCurrentProject,
                         rows: dsbRows.map(r => ({ emotion: r.emotion || '', text: (r.text || '').trim(), seed: r.seed ?? '' })),
                     });
-                } catch (e) { console.error('Failed to save rows:', e); }
+                } catch (e) {
+                    showToast('Failed to save rows: ' + (e.message || 'unknown error'), 'warning');
+                }
             }, 500);
         }
 
@@ -6019,11 +6023,7 @@
             dsbRenderTable();
         }
 
-        window.dsbCancel = async () => {
-            try {
-                await API.post('/api/dataset_builder/cancel', {});
-            } catch (e) { console.error('Cancel error:', e); }
-        };
+        window.dsbCancel = () => cancelTask('/api/dataset_builder/cancel');
 
         // Import / Export
         window.dsbImport = (event) => {
