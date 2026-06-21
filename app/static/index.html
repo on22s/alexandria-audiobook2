@@ -4818,7 +4818,11 @@
                 } catch (e) {
                     consecutiveErrors++;
                     console.error(`Poll error (${key}):`, e);
-                    if (consecutiveErrors === MAX_SILENT_ERRORS) {
+                    // Re-toast every MAX_SILENT_ERRORS failures, not just the
+                    // first time the threshold is crossed - a permanently
+                    // broken endpoint would otherwise warn once and then go
+                    // silent for the rest of the failure streak.
+                    if (consecutiveErrors % MAX_SILENT_ERRORS === 0) {
                         showToast(`Having trouble reaching the server for "${key}" status updates — still retrying...`, 'warning');
                     }
                 }
