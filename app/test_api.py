@@ -131,6 +131,10 @@ def test_save_config_roundtrip():
     # Build test config with modified language
     test_config = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": {**original.get("tts", {}), "language": "_test_roundtrip_lang"},
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -168,6 +172,10 @@ def test_save_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -184,6 +192,10 @@ def test_save_pause_config_roundtrip():
     # Save with custom pause values
     test_config = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": {
             **original.get("tts", {}),
             "pause_between_speakers_ms": 1000,
@@ -212,6 +224,10 @@ def test_save_pause_config_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -245,6 +261,10 @@ def test_save_review_prompts_roundtrip():
     # Save config with custom review prompts
     test_config = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -269,6 +289,10 @@ def test_save_review_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
@@ -285,6 +309,10 @@ def test_save_persona_prompts_roundtrip():
     # Save config with custom persona prompts
     test_config = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": {
             **(original.get("prompts") or {}),
@@ -312,6 +340,10 @@ def test_save_persona_prompts_roundtrip():
     # Restore original
     restore = {
         "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
         "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
         "prompts": original.get("prompts"),
         "generation": original.get("generation"),
