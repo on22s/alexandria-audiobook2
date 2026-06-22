@@ -171,8 +171,22 @@ def _verify_remote_endpoint(base_url, timeout=10):
         return False, str(e)
 
 
-def _ssh_run(ssh_alias, remote_cmd, timeout, connect_timeout=10):
-    """Run remote_cmd on ssh_alias via `bash -lc`, returning the CompletedProcess.
+def _validate_thunder_target(target):
+    """Raise OSError if a resolved Thunder target dict is missing a required
+    field - mirrors _validate_ssh_alias's contract (raises OSError, which
+    every SSH-driving caller in this module already catches)."""
+    if not target.get("ip") or not target.get("ssh_port") or not target.get("key_path"):
+        raise OSError(f"Incomplete Thunder SSH target: {target!r}")
+
+
+def _ssh_run(ssh_target, remote_cmd, timeout, connect_timeout=10):
+    """Run remote_cmd via `bash -lc`, returning the CompletedProcess.
+
+    ssh_target is either a literal ~/.ssh/config alias (str, today's
+    behavior, unchanged) or a resolved Thunder target dict from
+    resolve_thunder_target/_resolve_ssh_target - in which case this connects
+    directly with -i/-p, bypassing ~/.ssh/config entirely. That's what makes
+    the Thunder path immune to a stale `tnr connect` cache.
 
     Shared by every remote helper below instead of each one re-building its
     own ssh argv list. Pre-quoting remote_cmd into a single argv element
@@ -182,12 +196,17 @@ def _ssh_run(ssh_alias, remote_cmd, timeout, connect_timeout=10):
     elements would let that join split remote_cmd's own `;`-separated
     statements apart, breaking any command after the first.
     """
-    _validate_ssh_alias(ssh_alias)
-    return subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={connect_timeout}",
-         ssh_alias, "bash -lc " + shlex.quote(remote_cmd)],
-        capture_output=True, text=True, timeout=timeout,
-    )
+    if isinstance(ssh_target, dict):
+        _validate_thunder_target(ssh_target)
+        argv = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+                "-o", f"ConnectTimeout={connect_timeout}",
+                "-i", ssh_target["key_path"], "-p", str(ssh_target["ssh_port"]),
+                f"ubuntu@{ssh_target['ip']}", "bash -lc " + shlex.quote(remote_cmd)]
+    else:
+        _validate_ssh_alias(ssh_target)
+        argv = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={connect_timeout}",
+                ssh_target, "bash -lc " + shlex.quote(remote_cmd)]
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
 
 
 def _parse_lms_ps_output(stdout, model_name, ideal_settings):
@@ -267,7 +286,7 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
                 "parallel": None, "optimized": False}
 
     try:
-        result = _ssh_run(ssh_alias, "lms ps --json", timeout=timeout, connect_timeout=10)
+        result = _ssh_run(_resolve_ssh_target(ssh_alias), "lms ps --json", timeout=timeout, connect_timeout=10)
     except (subprocess.TimeoutExpired, OSError):
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
@@ -339,7 +358,7 @@ def get_remote_gpu_name_and_backend(ssh_alias):
 
     def _run(argv):
         remote_cmd = " ".join(shlex.quote(a) for a in argv)
-        return _ssh_run(ssh_alias, remote_cmd, timeout=15, connect_timeout=10)
+        return _ssh_run(_resolve_ssh_target(ssh_alias), remote_cmd, timeout=15, connect_timeout=10)
 
     return _gpu_name_from_probes(_run)
 
