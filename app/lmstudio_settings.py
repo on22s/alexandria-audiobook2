@@ -416,12 +416,31 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
 
 
 def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
-    """Reload model_name on a remote LM Studio host via SSH (`lms` over `tnr-N`).
+    """Reload model_name on a remote LM Studio host over SSH.
 
-    Returns (success, message). The forwarded OpenAI /v1 port can't change load
-    settings, so we drive the remote `lms` CLI directly. Never raises. Unlike
-    apply_lmstudio_settings, this intentionally does not pass `--ttl` - that's
-    today's existing remote semantics, not an oversight.
+    If ssh_alias looks like 'tnr-<id>', resolves the CURRENT live Thunder
+    instance via resolve_thunder_target and connects directly - this also
+    starts the LM Studio server itself (--bind 0.0.0.0, required for
+    Thunder's port-forward to see it; confirmed idempotent and
+    self-correcting even if already running on the wrong bind) and verifies
+    the public HTTPS endpoint is reachable afterward, since SSH succeeding
+    doesn't guarantee that. Any other ssh_alias is used as a literal
+    ~/.ssh/config alias exactly as before - no server-start, no resolution,
+    no behavior change, so generic (non-Thunder) remote endpoints are
+    unaffected.
+
+    Returns (ok, message, base_url, log_kind):
+    - base_url is the freshly computed Thunder URL whenever resolution
+      succeeded (regardless of whether the rest of the call did), else None.
+    - log_kind tells callers which diagnostic-log bucket a failure belongs
+      to: "thunder_resolve" (couldn't resolve the instance at all),
+      "optimize" (resolved fine, ssh/lms itself failed), "optimize_verify"
+      (ssh/lms succeeded, public endpoint still unreachable), or None on
+      success.
+
+    Never raises. Unlike apply_lmstudio_settings, this intentionally does
+    not pass `--ttl` - that's today's existing remote semantics, not an
+    oversight.
     """
     settings = REMOTE_IDEAL_SETTINGS if ideal else REMOTE_DEFAULT_SETTINGS
     # model_name is shlex.quote()'d (not hand-wrapped in '...') since it comes
@@ -430,20 +449,57 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
     # intended argument and inject additional shell commands once bash -lc
     # evaluates remote_cmd on the remote host.
     quoted_model = shlex.quote(model_name)
-    remote_cmd = (
-        f"lms unload {quoted_model} >/dev/null 2>&1; "
-        f"lms load {quoted_model} --context-length {settings['context_length']} "
-        f"--parallel {settings['parallel']} --gpu max --identifier {quoted_model} -y"
-    )
+
+    target, resolve_error = resolve_thunder_target(ssh_alias)
+    if target is None and resolve_error is not None:
+        instance_id, detail = resolve_error
+        return (False,
+                f"Could not resolve Thunder instance '{instance_id}': {detail.splitlines()[0]}",
+                None, "thunder_resolve")
+
+    if target is not None:
+        ssh_target = target
+        where = f"{target['ip']}:{target['ssh_port']} (uuid={target['uuid']})"
+        remote_cmd = (
+            f"lms server start --port {target['http_port']} --bind 0.0.0.0 --cors >/dev/null 2>&1; "
+            f"lms unload {quoted_model} >/dev/null 2>&1; "
+            f"lms load {quoted_model} --context-length {settings['context_length']} "
+            f"--parallel {settings['parallel']} --gpu max --identifier {quoted_model} -y"
+        )
+    else:
+        ssh_target = ssh_alias
+        where = ssh_alias
+        remote_cmd = (
+            f"lms unload {quoted_model} >/dev/null 2>&1; "
+            f"lms load {quoted_model} --context-length {settings['context_length']} "
+            f"--parallel {settings['parallel']} --gpu max --identifier {quoted_model} -y"
+        )
+
     try:
-        result = _ssh_run(ssh_alias, remote_cmd, timeout=200, connect_timeout=15)
+        result = _ssh_run(ssh_target, remote_cmd, timeout=200, connect_timeout=15)
     except (subprocess.TimeoutExpired, OSError) as e:
-        return False, f"SSH to '{ssh_alias}' failed: {e}"
+        return False, f"SSH to '{where}' failed: {e}", None, "optimize"
     if result.returncode != 0:
-        return False, (result.stderr.strip() or result.stdout.strip()
-                       or f"ssh exited {result.returncode}")
+        detail = result.stderr.strip() or result.stdout.strip() or f"ssh exited {result.returncode}"
+        return False, f"[{where}] {detail}", None, "optimize"
+
     label = f"best ({REMOTE_IDEAL_SETTINGS['context_length']} ctx)" if ideal else "default"
-    return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
+
+    if target is None:
+        return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings", None, None
+
+    new_base_url = f"https://{target['uuid']}-{target['http_port']}.thundercompute.net/v1"
+    verified, verify_detail = _verify_remote_endpoint(new_base_url)
+    if not verified:
+        return (False,
+                f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' "
+                f"({target['uuid']}), but the public endpoint {new_base_url} is still "
+                f"unreachable: {verify_detail}",
+                new_base_url, "optimize_verify")
+
+    return (True,
+            f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' with {label} settings",
+            new_base_url, None)
 
 
 def get_current_status(llm_mode, base_url, model_name, ssh_alias=None):
