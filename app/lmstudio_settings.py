@@ -84,9 +84,8 @@ def resolve_thunder_target(ssh_alias):
 
     Returns (target, error):
     - (dict, None) on success - dict has "instance_id", "uuid", "ip",
-      "ssh_port", "http_port" (always 1234, the fixed convention this
-      codebase already uses everywhere for the LM Studio endpoint, e.g.
-      _validate_local_llm_base_url's allowlist), and "key_path"
+      "ssh_port", "http_port" (always 1234 - LM Studio's default server
+      port, also llm_bench.py's --base-url default), and "key_path"
       (~/.thunder/keys/<uuid> - confirmed present for every instance ever
       created).
     - (None, None) if ssh_alias doesn't match the tnr-<id> pattern at all -
