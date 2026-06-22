@@ -366,11 +366,14 @@ def get_remote_gpu_name_and_backend(ssh_alias):
 def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
     """Reload model_name with either the VRAM-safe (ideal) or default settings.
 
-    Best-effort: returns (success, message). Never raises.
+    Best-effort: returns (success, message, None, None) - the last two slots
+    exist only so callers can unpack apply_lmstudio_settings and
+    apply_remote_lmstudio_settings identically; local mode never resolves a
+    Thunder URL or distinct log kind. Never raises.
     """
     lms = find_lms_binary()
     if not lms:
-        return False, "lms CLI not found on PATH"
+        return False, "lms CLI not found on PATH", None, None
 
     settings = IDEAL_SETTINGS if ideal else DEFAULT_SETTINGS
 
@@ -399,17 +402,17 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
             capture_output=True, text=True, timeout=180
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
-        return False, f"Failed to run lms load: {e}"
+        return False, f"Failed to run lms load: {e}", None, None
 
     if result.returncode != 0:
         msg = result.stderr.strip() or result.stdout.strip() or "lms load failed"
         if unload_failed:
             msg += (" (unloading the previously-loaded model also failed - "
                     "it may still be running with different settings)")
-        return False, msg
+        return False, msg, None, None
 
     label = "VRAM-safe" if ideal else "default"
-    return True, f"Reloaded {model_name} with {label} settings"
+    return True, f"Reloaded {model_name} with {label} settings", None, None
 
 
 def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
