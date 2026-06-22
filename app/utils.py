@@ -1,5 +1,7 @@
+import errno
 import os
 import json
+import shutil
 import time
 import tempfile
 import contextlib
@@ -205,7 +207,10 @@ def atomic_json_write(data, target_path, max_retries=5):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
-    (Access is denied / file in use errors).
+    (Access is denied / file in use errors).  On cross-device paths (e.g.
+    Linux bind mounts or NAS shares) os.replace raises EXDEV; in that case
+    the function falls back to shutil.move (copy + delete) so the write
+    succeeds rather than raising an unhandled OSError.
     """
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
@@ -218,6 +223,12 @@ def atomic_json_write(data, target_path, max_retries=5):
                 os.replace(tmp_path, target_path)
                 return
             except OSError as e:
+                if e.errno == errno.EXDEV:
+                    # Cross-device rename is not supported by the kernel.
+                    # shutil.move falls back to copy+delete, which is not
+                    # atomic but avoids a hard failure.
+                    shutil.move(tmp_path, target_path)
+                    return
                 # ERROR_ACCESS_DENIED (5) / ERROR_SHARING_VIOLATION (32) are raw
                 # Windows error codes, which only ever show up on e.winerror -
                 # e.errno holds the CRT's translated POSIX-equivalent (EACCES=13
