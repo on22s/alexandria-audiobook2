@@ -174,6 +174,21 @@ def _get_torch():
 _gpu_stats_cache = {"data": None, "timestamp": 0}
 _GPU_STATS_CACHE_TTL = 5  # seconds
 
+def _rocm_smi_utilization(card_data: dict) -> Optional[float]:
+    """Parse a rocm-smi card's utilization percent from whichever of the 3
+    known key-name variants it reports under, or None if absent/unparseable.
+    Shared by _gpu_stats_via_rocm_smi and get_gpu_stats - both used to scan
+    this same 3-variant list independently."""
+    for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
+        v = card_data.get(key)
+        if v not in (None, "N/A"):
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
 def _gpu_stats_via_rocm_smi():
     """VRAM/util from rocm-smi when torch can't see the GPU (e.g. a CUDA-only
     torch build on an AMD box). Returns the same dict shape as get_gpu_stats(),
@@ -198,15 +213,7 @@ def _gpu_stats_via_rocm_smi():
             continue
         stats = {"allocated_gb": used, "reserved_gb": used, "total_gb": total,
                  "allocated_percent": used / total * 100,
-                 "utilization_percent": None}
-        for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
-            v = card_data.get(key)
-            if v not in (None, "N/A"):
-                try:
-                    stats["utilization_percent"] = float(v)
-                    break
-                except (ValueError, TypeError):
-                    pass
+                 "utilization_percent": _rocm_smi_utilization(card_data)}
         return stats
     return None
 
@@ -249,22 +256,15 @@ def get_gpu_stats():
 
         # Try to get utilization via rocm-smi for AMD GPUs
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+        stats['utilization_percent'] = None
         if data is not None:
             for card_key, card_data in data.items():
                 if not isinstance(card_data, dict):
                     continue
-                for key in ('GPU use (%)', 'GPU Use (%)', 'GPU Activity'):
-                    gpu_use_str = card_data.get(key)
-                    if gpu_use_str is not None and gpu_use_str != 'N/A':
-                        try:
-                            stats['utilization_percent'] = float(gpu_use_str)
-                            break
-                        except (ValueError, TypeError):
-                            continue
+                stats['utilization_percent'] = _rocm_smi_utilization(card_data)
                 break
         else:
             logger.debug("GPU stats: Failed to get utilization via rocm-smi")
-            stats['utilization_percent'] = None
 
     except Exception as e:
         logger.debug(f"Could not get GPU stats: {e}")
@@ -2084,6 +2084,45 @@ def _validate_voicelab_path(path: str, what: str) -> None:
                        f"uploaded/generated content, not trusted pipeline code.")
 
 
+def _revalidate_voicelab_paths(*path_label_pairs: Tuple[Optional[str], str]) -> Optional[HTTPException]:
+    """Run _validate_voicelab_path on each (path, label) pair, skipping falsy
+    paths, and return the first HTTPException raised (or None if all pass).
+
+    Every caller of this is a background_tasks.add_task closure re-checking
+    a value that was already validated synchronously before the task was
+    scheduled - the deferral until after the HTTP response is sent leaves a
+    window where the on-disk target could be repointed in between. Shared
+    here specifically because preparer_start, preparer_batch_start, and
+    voicelab_start each used to hand-roll this same try/except, and one of
+    those three copies (preparer_batch_start) silently covered less than
+    its own comment claimed - one canonical implementation can't drift out
+    of sync with itself the way three independent copies already did.
+    Callers still apply their own state-dict's abort contract (which fields
+    to set, return vs. break a loop) since those genuinely differ.
+    """
+    for path, label in path_label_pairs:
+        if path:
+            try:
+                _validate_voicelab_path(path, label)
+            except HTTPException as e:
+                return e
+    return None
+
+
+def _require_safe_filename(raw_name: str, detail: str) -> str:
+    """secure_filename(raw_name), raising HTTPException 400 with `detail` if
+    it sanitizes to empty. Factors out the same 2-line sanitize-or-reject
+    pattern repeated across the many endpoints below that take a
+    user-supplied name/filename and reject the request outright if it's
+    invalid (loops that skip/log a single bad item instead of rejecting the
+    whole request build the same check inline, since their failure handling
+    differs per call site)."""
+    safe = secure_filename(raw_name)
+    if not safe:
+        raise HTTPException(status_code=400, detail=detail)
+    return safe
+
+
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
     """zipfile.extractall, but reject members that would escape dest_dir
     (Zip-Slip path traversal via '../' entries or absolute paths)."""
@@ -2103,9 +2142,7 @@ def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     # Validate and sanitize filename to prevent path traversal
-    safe_name = secure_filename(file.filename or "")
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid or empty filename")
+    safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
     file_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name)
     async with aiofiles.open(file_path, 'wb') as out_file:
         content = await file.read()
@@ -3627,9 +3664,7 @@ async def save_script(request: ScriptSaveRequest):
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
 
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid script name.")
+    safe_name = _require_safe_filename(request.name, "Invalid script name.")
 
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     shutil.copy2(SCRIPT_PATH, dest)
@@ -3649,9 +3684,7 @@ async def load_script(request: ScriptLoadRequest):
     if process_state["audio"]["running"]:
         raise HTTPException(status_code=409, detail="Cannot load a script while audio generation is running.")
 
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid script name.")
+    safe_name = _require_safe_filename(request.name, "Invalid script name.")
 
     src = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     if not os.path.exists(src):
@@ -3673,9 +3706,7 @@ async def load_script(request: ScriptLoadRequest):
 @app.delete("/api/scripts/{name}")
 async def delete_script(name: str):
     """Delete a saved script."""
-    safe_name = secure_filename(name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid script name.")
+    safe_name = _require_safe_filename(name, "Invalid script name.")
 
     filepath = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     if not os.path.exists(filepath):
@@ -4144,9 +4175,7 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
     if not os.path.exists(preview_path):
         raise HTTPException(status_code=404, detail="Preview file not found")
 
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid voice name")
+    safe_name = _require_safe_filename(request.name, "Invalid voice name")
 
     # Generate unique ID
     voice_id = f"{safe_name}_{int(time.time())}"
@@ -4212,9 +4241,7 @@ async def clone_voices_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
 
     base_name = os.path.splitext(file.filename)[0]
-    safe_name = secure_filename(base_name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+    safe_name = _require_safe_filename(base_name, "Invalid filename")
 
     voice_id = f"{safe_name}_{int(time.time())}"
     dest_filename = f"{voice_id}{ext}"
@@ -4414,9 +4441,7 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
         raise HTTPException(status_code=400, detail=f"Dataset '{request.dataset_id}' not found")
 
     # Build output directory
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid adapter name")
+    safe_name = _require_safe_filename(request.name, "Invalid adapter name")
 
     adapter_id = f"{safe_name}_{int(time.time())}"
     output_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
@@ -4748,9 +4773,7 @@ async def dataset_builder_list():
 @app.post("/api/dataset_builder/create")
 async def dataset_builder_create(request: DatasetBuilderCreateRequest):
     """Create a new dataset builder project."""
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if os.path.exists(work_dir):
         raise HTTPException(status_code=400, detail=f"Project '{safe_name}' already exists")
@@ -4760,9 +4783,7 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
 @app.post("/api/dataset_builder/update_meta")
 async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
     """Update project description and global seed without touching samples."""
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -4775,9 +4796,7 @@ async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
 @app.post("/api/dataset_builder/update_rows")
 async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
     """Update row definitions, preserving existing generation status/audio."""
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -4807,9 +4826,7 @@ async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
 @app.post("/api/dataset_builder/generate_sample")
 async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     """Generate a single dataset sample using VoiceDesign."""
-    safe_name = secure_filename(request.dataset_name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.dataset_name, "Invalid dataset name")
 
     # Same "dataset_builder" slot as the sibling /generate_batch route -
     # fail fast before any setup work below. See F-043.
@@ -4882,9 +4899,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     if not request.samples or len(request.samples) == 0:
         raise HTTPException(status_code=400, detail="No samples provided")
 
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.name, "Invalid dataset name")
 
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     os.makedirs(work_dir, exist_ok=True)
@@ -5014,9 +5029,7 @@ async def dataset_builder_cancel():
 @app.get("/api/dataset_builder/status/{name}")
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
-    safe_name = secure_filename(name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(name, "Invalid dataset name")
     state = _load_builder_state(safe_name)
     return {
         "description": state.get("description", ""),
@@ -5029,9 +5042,7 @@ async def dataset_builder_status(name: str):
 @app.post("/api/dataset_builder/save")
 async def dataset_builder_save(request: DatasetSaveRequest):
     """Finalize dataset builder project as a training dataset."""
-    safe_name = secure_filename(request.name)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    safe_name = _require_safe_filename(request.name, "Invalid dataset name")
 
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     if not os.path.exists(work_dir):
@@ -5200,16 +5211,14 @@ async def preparer_start(
         # HTTP response is sent, leaving a window where rocm_python (or a
         # model/fallback_model/llm_model_path pointed inside an
         # upload/generated-content directory) could be repointed before the
-        # subprocess below actually starts. Mirrors voicelab_start's same
-        # re-validation for the identical reason.
-        try:
-            _validate_voicelab_path(interpreter, "rocm_python")
-            for label, value in (("model", config.model),
-                                 ("fallback_model", config.fallback_model),
-                                 ("llm_model_path", config.llm_model_path)):
-                if value:
-                    _validate_voicelab_path(value, label)
-        except HTTPException as e:
+        # subprocess below actually starts.
+        e = _revalidate_voicelab_paths(
+            (interpreter, "rocm_python"),
+            (config.model, "model"),
+            (config.fallback_model, "fallback_model"),
+            (config.llm_model_path, "llm_model_path"),
+        )
+        if e:
             state["status"] = "failed"
             state["running"] = False
             state["logs"].append(f"Aborted: {e.detail}")
@@ -5361,9 +5370,8 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
             # A single pre-loop check (the original version of this fix) left
             # tasks 2..N unprotected against a config change made after task 1
             # had already started - exactly the race this exists to close.
-            try:
-                _validate_voicelab_path(interpreter, "rocm_python")
-            except HTTPException as e:
+            e = _revalidate_voicelab_paths((interpreter, "rocm_python"))
+            if e:
                 state["logs"].append(f"Aborted: {e.detail}")
                 state["tasks"][i]["status"] = "failed"
                 break
@@ -5722,14 +5730,12 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         # HTTP response is sent, leaving a window where a path that passed the
         # checks above (e.g. a symlink) could be repointed before the
         # subprocess below actually starts.
-        try:
-            if needs_rocm:
-                _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
-            if "profile" in request.stages and profiler_model:
-                _validate_voicelab_path(profiler_model, "profiler_model")
-            if "train" in request.stages or "profile" in request.stages:
-                _validate_voicelab_path(cfg["pipeline_repo"], "pipeline_repo")
-        except HTTPException as e:
+        e = _revalidate_voicelab_paths(
+            (cfg["rocm_python"] if needs_rocm else None, "rocm_python"),
+            (profiler_model if ("profile" in request.stages and profiler_model) else None, "profiler_model"),
+            (cfg["pipeline_repo"] if ("train" in request.stages or "profile" in request.stages) else None, "pipeline_repo"),
+        )
+        if e:
             state["status"] = "failed"
             state["running"] = False
             state["logs"].append(f"Aborted: {e.detail}")

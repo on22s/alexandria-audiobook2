@@ -263,10 +263,18 @@ def get_gpu_stats():
         stats['reserved_gb'] = reserved
         stats['total_gb'] = total
         stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+    except Exception as e:
+        logger.debug(f"Could not get GPU memory stats: {e}")
+        return None
 
-        # Try to get utilization via rocm-smi for AMD GPUs
+    # Utilization via rocm-smi is a separate, independent try - an odd/
+    # unparseable value here (a driver returning something other than a
+    # clean "N/A" or float) used to fall into the same except as the memory
+    # stats above and discard them too, when the memory stats had already
+    # been computed successfully and only utilization needs to degrade.
+    stats['utilization_percent'] = None
+    try:
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
-        stats['utilization_percent'] = None
         if data:
             # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
             for card_key, card_data in data.items():
@@ -276,10 +284,8 @@ def get_gpu_stats():
                 break  # Just get first GPU
         else:
             logger.debug("rocm-smi unavailable or returned no parseable JSON")
-
     except Exception as e:
-        logger.debug(f"Could not get GPU stats: {e}")
-        return None
+        logger.debug(f"Could not get GPU utilization via rocm-smi: {e}")
 
     return stats
 
