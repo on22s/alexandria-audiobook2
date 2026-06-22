@@ -13,8 +13,29 @@ import os
 import platform
 import shutil
 import subprocess
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def rocm_smi_utilization(card_data: dict) -> Optional[float]:
+    """Parse a rocm-smi card's utilization percent from whichever of the 3
+    known key-name variants it reports under, or None if absent/unparseable.
+
+    Shared between app/app.py (both _gpu_stats_via_rocm_smi and
+    get_gpu_stats) and alexandria_preparer_rocm_compatible.py's own
+    get_gpu_stats - the preparer's copy used to check only one of the 3
+    variants ("GPU use (%)"), silently drifting from the app's broader
+    check until consolidated here.
+    """
+    for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
+        v = card_data.get(key)
+        if v not in (None, "N/A"):
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                pass
+    return None
 
 
 OOM_MARKERS = (

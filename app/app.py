@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, system_has_gpu
+from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -174,21 +174,6 @@ def _get_torch():
 _gpu_stats_cache = {"data": None, "timestamp": 0}
 _GPU_STATS_CACHE_TTL = 5  # seconds
 
-def _rocm_smi_utilization(card_data: dict) -> Optional[float]:
-    """Parse a rocm-smi card's utilization percent from whichever of the 3
-    known key-name variants it reports under, or None if absent/unparseable.
-    Shared by _gpu_stats_via_rocm_smi and get_gpu_stats - both used to scan
-    this same 3-variant list independently."""
-    for key in ("GPU use (%)", "GPU Use (%)", "GPU Activity"):
-        v = card_data.get(key)
-        if v not in (None, "N/A"):
-            try:
-                return float(v)
-            except (ValueError, TypeError):
-                pass
-    return None
-
-
 def _gpu_stats_via_rocm_smi():
     """VRAM/util from rocm-smi when torch can't see the GPU (e.g. a CUDA-only
     torch build on an AMD box). Returns the same dict shape as get_gpu_stats(),
@@ -253,10 +238,19 @@ def get_gpu_stats():
         stats['reserved_gb'] = reserved
         stats['total_gb'] = total
         stats['allocated_percent'] = allocated / total * 100
+    except Exception as e:
+        logger.debug(f"Could not get GPU memory stats: {e}")
+        _gpu_stats_cache["data"] = None
+        _gpu_stats_cache["timestamp"] = now
+        return None
 
-        # Try to get utilization via rocm-smi for AMD GPUs
+    # Utilization via rocm-smi is a separate, independent try - same reason
+    # as alexandria_preparer_rocm_compatible.py's twin get_gpu_stats(): an
+    # odd/unparseable value here shouldn't discard the memory stats already
+    # computed successfully above.
+    stats['utilization_percent'] = None
+    try:
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
-        stats['utilization_percent'] = None
         if data is not None:
             for card_key, card_data in data.items():
                 if not isinstance(card_data, dict):
@@ -265,12 +259,8 @@ def get_gpu_stats():
                 break
         else:
             logger.debug("GPU stats: Failed to get utilization via rocm-smi")
-
     except Exception as e:
-        logger.debug(f"Could not get GPU stats: {e}")
-        _gpu_stats_cache["data"] = None
-        _gpu_stats_cache["timestamp"] = now
-        return None
+        logger.debug(f"Could not get GPU utilization via rocm-smi: {e}")
 
     # Cache the result
     _gpu_stats_cache["data"] = stats

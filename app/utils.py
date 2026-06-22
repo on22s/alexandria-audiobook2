@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # inside this package. Re-exported here so existing `from utils import
 # run_rocm_smi_json` call sites in app/ keep working unchanged.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from gpu_stats import run_rocm_smi_json, system_has_gpu, is_oom_failure  # noqa: F401
+from gpu_stats import run_rocm_smi_json, system_has_gpu, is_oom_failure, rocm_smi_utilization  # noqa: F401
 
 
 # --- Path containment ---
@@ -224,11 +224,30 @@ def atomic_json_write(data, target_path, max_retries=5):
                 return
             except OSError as e:
                 if e.errno == errno.EXDEV:
-                    # Cross-device rename is not supported by the kernel.
-                    # shutil.move falls back to copy+delete, which is not
-                    # atomic but avoids a hard failure.
-                    shutil.move(tmp_path, target_path)
-                    return
+                    # Cross-device rename is not supported by the kernel, so
+                    # os.replace can't be used across filesystems - fall
+                    # back to copy+delete, which is not atomic but avoids a
+                    # hard failure. Refuse if target_path is already a
+                    # symlink: unlike os.replace (which atomically retargets
+                    # the symlink itself), shutil.move's copy step follows a
+                    # symlink and writes through to whatever it points at -
+                    # not a complete guarantee against a same-instant TOCTOU
+                    # swap, but a real mitigation against a symlink already
+                    # sitting there.
+                    if os.path.islink(target_path):
+                        raise OSError(
+                            f"Refusing cross-device fallback write through a symlink at {target_path}"
+                        ) from e
+                    try:
+                        shutil.move(tmp_path, target_path)
+                        return
+                    except OSError as move_err:
+                        # Let the same retry/backoff check below apply to a
+                        # transient failure during the fallback copy too
+                        # (e.g. destination momentarily locked) - tmp_path
+                        # is untouched unless copy_function fully succeeded,
+                        # so retrying shutil.move again is safe.
+                        e = move_err
                 # ERROR_ACCESS_DENIED (5) / ERROR_SHARING_VIOLATION (32) are raw
                 # Windows error codes, which only ever show up on e.winerror -
                 # e.errno holds the CRT's translated POSIX-equivalent (EACCES=13

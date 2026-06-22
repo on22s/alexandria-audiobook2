@@ -421,7 +421,19 @@ class TTSEngine:
                         ov = object.__getattribute__(self, "_ov")
                         if name in ov:
                             return ov[name]
-                        return getattr(object.__getattribute__(self, "_orig"), name)
+                        try:
+                            return getattr(object.__getattribute__(self, "_orig"), name)
+                        except RuntimeError:
+                            # Some ROCm/driver combos raise RuntimeError (not
+                            # AttributeError) for certain C-extension device
+                            # property fields. The SimpleNamespace this proxy
+                            # replaced caught (AttributeError, RuntimeError)
+                            # per-attribute and just omitted that attribute -
+                            # re-raise as AttributeError so callers using
+                            # getattr(obj, name, default)/hasattr still get
+                            # that same "not available" signal instead of an
+                            # unhandled RuntimeError propagating through.
+                            raise AttributeError(name)
 
                     def __repr__(self):
                         return repr(object.__getattribute__(self, "_orig"))

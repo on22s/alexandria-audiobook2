@@ -15,7 +15,7 @@ import os
 import sys
 import tempfile
 
-from gpu_stats import run_rocm_smi_json, system_has_gpu
+from gpu_stats import run_rocm_smi_json, system_has_gpu, rocm_smi_utilization
 
 _gpu_mismatch_warned = False
 
@@ -276,11 +276,12 @@ def get_gpu_stats():
     try:
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi")
         if data:
-            # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
+            # rocm-smi format: {"card0": {"GPU use (%)": "value"}} - key name
+            # varies by rocm-smi version, hence the shared helper.
             for card_key, card_data in data.items():
-                gpu_use_str = card_data.get('GPU use (%)', 'N/A')
-                if gpu_use_str != 'N/A':
-                    stats['utilization_percent'] = float(gpu_use_str)
+                if not isinstance(card_data, dict):
+                    continue
+                stats['utilization_percent'] = rocm_smi_utilization(card_data)
                 break  # Just get first GPU
         else:
             logger.debug("rocm-smi unavailable or returned no parseable JSON")
