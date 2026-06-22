@@ -522,15 +522,20 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     Shared by review_script.py and find_nicknames.py instead of each
     hand-rolling its own copy of this branch.
 
-    Returns (is_remote, status, message). status always has the
-    {available, loaded, context_length, parallel, optimized} shape. Never
-    raises - every call it makes is itself best-effort/non-raising.
+    Returns (is_remote, status, message, base_url). status always has the
+    {available, loaded, context_length, parallel, optimized} shape.
+    base_url is the (possibly-healed) URL callers should actually use and
+    persist for this run - unchanged from the input unless a Thunder
+    instance was resolved and its computed URL differs (never silently
+    substitutes a broken URL for one that was working). Never raises -
+    every call it makes is itself best-effort/non-raising.
     """
     is_remote = is_remote_llm(llm_mode, base_url)
 
     if is_remote and not ssh_alias:
         return (True, get_remote_lmstudio_status(None, model_name),
-                "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.")
+                "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.",
+                base_url)
 
     if is_remote:
         get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias)
@@ -550,14 +555,18 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
 
     status = get_status()
     if status["loaded"] and status["optimized"]:
-        return is_remote, status, f"{label}: {model_name} already loaded with ideal settings."
+        return is_remote, status, f"{label}: {model_name} already loaded with ideal settings.", base_url
 
-    ok, msg = apply_settings()
+    ok, msg, healed_url, _log_kind = apply_settings()
+    resolved_base_url = healed_url or base_url
     status = get_status()
     if ok:
-        return is_remote, status, f"{label}: {msg}"
+        return is_remote, status, f"{label}: {msg}", resolved_base_url
     if status["loaded"] and status["optimized"]:
         return (is_remote, status,
                 f"{label}: could not reload ({msg}), but {model_name} is "
-                f"already loaded with ideal settings - continuing.")
-    return is_remote, status, f"{label}: WARNING - could not apply ideal settings ({msg}). {ok_warning}"
+                f"already loaded with ideal settings - continuing.",
+                resolved_base_url)
+    return (is_remote, status,
+            f"{label}: WARNING - could not apply ideal settings ({msg}). {ok_warning}",
+            resolved_base_url)
