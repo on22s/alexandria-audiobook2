@@ -12,10 +12,14 @@ managed over SSH instead of the local `lms` CLI (see apply_remote_lmstudio_setti
 """
 
 import json
+import os
+import re
 import shlex
 import shutil
 import subprocess
 from urllib.parse import urlparse
+
+import requests
 
 from utils import run_rocm_smi_json
 
@@ -65,6 +69,107 @@ def _validate_ssh_alias(ssh_alias):
     """
     if not ssh_alias or ssh_alias.startswith("-"):
         raise OSError(f"Invalid SSH host alias: {ssh_alias!r}")
+
+
+_TNR_ALIAS_RE = re.compile(r"^tnr-(\d+)$")
+
+
+def resolve_thunder_target(ssh_alias):
+    """If ssh_alias looks like 'tnr-<id>' (the alias `tnr connect <id>`
+    creates in ~/.ssh/config), resolve the CURRENT live connection info for
+    that Thunder instance via `tnr status --json` instead of trusting the
+    possibly-stale ~/.ssh/config entry it points at - that file only updates
+    when `tnr connect` is run again, which always drops into an interactive
+    shell (there's no non-interactive "just refresh the config" mode).
+
+    Returns (target, error):
+    - (dict, None) on success - dict has "instance_id", "uuid", "ip",
+      "ssh_port", "http_port" (always 1234, the fixed convention this
+      codebase already uses everywhere for the LM Studio endpoint, e.g.
+      _validate_local_llm_base_url's allowlist), and "key_path"
+      (~/.thunder/keys/<uuid> - confirmed present for every instance ever
+      created).
+    - (None, None) if ssh_alias doesn't match the tnr-<id> pattern at all -
+      caller should fall back to using ssh_alias as a literal SSH alias,
+      completely unchanged from today's behavior (generic, non-Thunder
+      remote endpoints are never affected by this function).
+    - (None, (instance_id, detail)) if it DID look like a Thunder alias but
+      resolution itself failed (tnr missing, bad JSON, instance not
+      running) - detail is the raw diagnostic text for the caller to log.
+
+    Never raises.
+    """
+    match = _TNR_ALIAS_RE.match(ssh_alias or "")
+    if not match:
+        return None, None
+    instance_id = match.group(1)
+
+    tnr_path = shutil.which("tnr")
+    if not tnr_path:
+        return None, (instance_id, "`tnr` CLI not found on PATH")
+
+    try:
+        result = subprocess.run([tnr_path, "status", "--json"],
+                                 capture_output=True, text=True, timeout=20)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return None, (instance_id, f"`tnr status --json` failed to run: {e}")
+
+    if result.returncode != 0:
+        return None, (instance_id,
+                       f"`tnr status --json` exited {result.returncode}\n"
+                       f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+
+    try:
+        instances = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError) as e:
+        return None, (instance_id,
+                       f"could not parse `tnr status --json` output: {e}\n"
+                       f"raw stdout:\n{result.stdout}")
+
+    for inst in instances:
+        if str(inst.get("id")) == instance_id:
+            uuid = inst.get("uuid")
+            return {
+                "instance_id": instance_id,
+                "uuid": uuid,
+                "ip": inst.get("ip"),
+                "ssh_port": inst.get("port"),
+                "http_port": 1234,
+                "key_path": os.path.expanduser(f"~/.thunder/keys/{uuid}"),
+            }, None
+
+    return None, (instance_id,
+                  f"no running instance with id '{instance_id}' in "
+                  f"`tnr status --json` output:\n{result.stdout}")
+
+
+def _resolve_ssh_target(ssh_alias):
+    """Single dispatch point: every SSH-driving function in this module
+    calls this instead of deciding for itself whether/how to resolve a
+    Thunder alias, so the resolution behavior can never drift between
+    callers (the exact bug class Rule 15 in this project's CLAUDE.md warns
+    about - this module already had one drift incident over is_remote_llm).
+    Returns a Thunder target dict if ssh_alias resolves live, else
+    ssh_alias unchanged (literal-alias fallback). Never raises.
+    """
+    target, _resolve_error = resolve_thunder_target(ssh_alias)
+    return target if target is not None else ssh_alias
+
+
+def _verify_remote_endpoint(base_url, timeout=10):
+    """GET {base_url}/models to confirm the forwarded HTTPS endpoint is
+    actually reachable - SSH/lms succeeding doesn't guarantee Thunder's port
+    forward has finished propagating (this is the exact failure mode found
+    live: SSH-driven reload succeeded while the public endpoint still showed
+    "Nothing running here"). Returns (ok, detail). Never raises.
+    """
+    try:
+        resp = requests.get(f"{base_url.rstrip('/')}/models", timeout=timeout)
+        if resp.status_code == 200:
+            return True, None
+        return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
+    except requests.RequestException as e:
+        return False, str(e)
 
 
 def _ssh_run(ssh_alias, remote_cmd, timeout, connect_timeout=10):
