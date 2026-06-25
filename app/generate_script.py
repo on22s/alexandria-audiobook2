@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+from utils import atomic_json_write
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
@@ -534,9 +535,8 @@ def main():
         print("Error: No script entries generated")
         sys.exit(1)
 
-    # Save as JSON
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(all_entries, f, indent=2, ensure_ascii=False)
+    # Save as JSON (atomic write so a crash/kill mid-write can't corrupt the book)
+    atomic_json_write(all_entries, output_path)
 
     # Only clear chunks when writing to the default annotated_script.json location
     if args.output is None:

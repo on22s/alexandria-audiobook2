@@ -558,7 +558,16 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
         return is_remote, status, f"{label}: {model_name} already loaded with ideal settings.", base_url
 
     ok, msg, healed_url, _log_kind = apply_settings()
-    resolved_base_url = healed_url or base_url
+    # Only adopt a different base_url when the heal SUCCEEDED end-to-end
+    # (which, for the remote path, includes _verify_remote_endpoint). On a
+    # verify failure apply_remote_lmstudio_settings still returns the resolved
+    # Thunder URL (non-None) so the optimize route can record it, but its
+    # public forward isn't reachable yet - switching this run's live client to
+    # it would just run against a dead endpoint AND overwrite a possibly-working
+    # URL, violating this function's "never silently substitutes a broken URL"
+    # contract. The ssh_alias-based heal re-resolves next run regardless, so
+    # keeping the prior base_url here loses nothing.
+    resolved_base_url = healed_url if (ok and healed_url) else base_url
     status = get_status()
     if ok:
         return is_remote, status, f"{label}: {msg}", resolved_base_url
