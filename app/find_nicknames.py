@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, OpenAIError
 from utils import safe_load_json, atomic_json_write
 from llm_bench import get_cached_or_benchmarked_concurrency
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import ensure_ideal_settings, get_base_url_config_sections
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
@@ -329,9 +329,8 @@ def main():
     if healed_base_url != base_url:
         print(f"Base URL healed: {base_url} -> {healed_base_url}")
         base_url = healed_base_url
-        config.setdefault("llm_remote", {})["base_url"] = base_url
-        if is_remote:
-            config.setdefault("llm", {})["base_url"] = base_url
+        for section in get_base_url_config_sections(is_remote):
+            config.setdefault(section, {})["base_url"] = base_url
         atomic_json_write(config, config_path)
 
     client = OpenAI(base_url=base_url or "http://localhost:11434/v1",

@@ -36,7 +36,7 @@ from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status)
+                               get_current_status, get_base_url_config_sections)
 from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
@@ -1620,9 +1620,10 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
 
     if base_url and base_url != full_cfg.get("llm_remote", {}).get("base_url"):
-        full_cfg.setdefault("llm_remote", {})["base_url"] = base_url
-        if is_remote_llm(full_cfg.get("llm_mode", "local"), full_cfg.get("llm", {}).get("base_url", "")):
-            full_cfg.setdefault("llm", {})["base_url"] = base_url
+        sections = get_base_url_config_sections(
+            is_remote_llm(full_cfg.get("llm_mode", "local"), full_cfg.get("llm", {}).get("base_url", "")))
+        for section in sections:
+            full_cfg.setdefault(section, {})["base_url"] = base_url
         if ok:
             # Re-parses the uuid from the URL instead of threading target['uuid']
             # through 3 more return signatures - safe because every uuid this

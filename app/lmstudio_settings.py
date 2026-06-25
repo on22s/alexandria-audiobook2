@@ -56,6 +56,15 @@ def is_remote_llm(llm_mode, base_url):
     return llm_mode == "remote" or not is_local_llm_endpoint(base_url)
 
 
+def get_base_url_config_sections(is_remote):
+    """Config sections that should receive a healed base_url: always
+    'llm_remote', plus 'llm' when the active endpoint is remote. Single source
+    so the three persist sites (review_script.py, find_nicknames.py, app.py's
+    optimize route) can't drift on which sections to update.
+    """
+    return ["llm_remote", "llm"] if is_remote else ["llm_remote"]
+
+
 def find_lms_binary():
     """Return the path to the `lms` CLI, or None if it isn't available."""
     return shutil.which("lms")
