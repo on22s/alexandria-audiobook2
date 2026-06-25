@@ -4787,7 +4787,10 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
-    work_dir = os.path.join(DATASET_BUILDER_DIR, request.dataset_name)
+    safe_name = secure_filename(safe_name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid dataset name")
+    work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     os.makedirs(work_dir, exist_ok=True)
 
     try:
@@ -4803,8 +4806,8 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
 
         # Update state (cache-bust URL so browser loads fresh audio on regen)
         cache_bust = int(time.time())
-        audio_url = f"/dataset_builder/{request.dataset_name}/{dest_filename}?t={cache_bust}"
-        state = _load_builder_state(request.dataset_name)
+        audio_url = f"/dataset_builder/{safe_name}/{dest_filename}?t={cache_bust}"
+        state = _load_builder_state(safe_name)
         samples = state.get("samples", [])
         # Ensure list is large enough
         while len(samples) <= request.sample_index:
@@ -4818,7 +4821,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
             "description": request.description,
         }
         state["samples"] = samples
-        _save_builder_state(request.dataset_name, state)
+        _save_builder_state(safe_name, state)
 
         return {
             "status": "done",
@@ -4828,13 +4831,13 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     except Exception as e:
         logger.error(f"Dataset builder sample generation failed: {e}")
         # Mark as error in state
-        state = _load_builder_state(request.dataset_name)
+        state = _load_builder_state(safe_name)
         samples = state.get("samples", [])
         while len(samples) <= request.sample_index:
             samples.append({"status": "pending"})
         samples[request.sample_index] = {"status": "error", "error": str(e)}
         state["samples"] = samples
-        _save_builder_state(request.dataset_name, state)
+        _save_builder_state(safe_name, state)
         raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.")
 
 @app.post("/api/dataset_builder/generate_batch")
