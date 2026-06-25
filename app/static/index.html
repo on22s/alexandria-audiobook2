@@ -535,7 +535,7 @@
                         <div class="mb-3" id="llm-ssh-group" style="display:none;">
                             <label class="form-label">Remote SSH host alias</label>
                             <input type="text" class="form-control" id="llm-ssh" placeholder="tnr-0">
-                            <div class="form-text">Only used by the "Optimize" button to reconfigure the remote LM Studio over SSH. Run <code>tnr connect &lt;id&gt;</code> once first so the alias exists.</div>
+                            <div class="form-text">Only used by the "Optimize" button to reconfigure the remote LM Studio over SSH. A <code>tnr-&lt;id&gt;</code> value (e.g. <code>tnr-0</code>) is resolved live against Thunder each time - no need to re-run <code>tnr connect</code> after recreating the instance. Any other value is used as a literal SSH alias from <code>~/.ssh/config</code>.</div>
                         </div>
                         <div class="mb-3">
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="llm-test-btn" onclick="testLlmConnection()">
@@ -6116,8 +6116,14 @@
             badge.textContent = 'Applying...';
             badge.className = 'badge bg-secondary';
             try {
-                await API.post('/api/lmstudio/optimize', { enable });
-                showToast(enable ? 'LM Studio set to VRAM-safe settings' : 'LM Studio reset to default settings', 'success');
+                const result = await API.post('/api/lmstudio/optimize', { enable });
+                const urlField = document.getElementById('llm-url');
+                if (result.base_url && urlField && urlField.value !== result.base_url) {
+                    urlField.value = result.base_url;
+                    showToast(`LM Studio updated; Base URL auto-synced to ${result.base_url}`, 'success');
+                } else {
+                    showToast(enable ? 'LM Studio set to VRAM-safe settings' : 'LM Studio reset to default settings', 'success');
+                }
             } catch (e) {
                 showToast('Failed to update LM Studio settings: ' + (e.message || 'unknown error'), 'error');
                 toggle.checked = !enable;
