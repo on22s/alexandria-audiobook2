@@ -4787,7 +4787,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
-    safe_name = secure_filename(safe_name)
+    safe_name = secure_filename(request.dataset_name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
