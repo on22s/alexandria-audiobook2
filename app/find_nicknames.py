@@ -311,8 +311,6 @@ def main():
     config = safe_load_json(config_path, default={})
     llm = config.get("llm", {})
     base_url = llm.get("base_url", "")
-    client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
-                    api_key=llm.get("api_key", "local"))
     model_name = llm.get("model_name", "local-model")
     llm_mode = config.get("llm_mode", "local")
     print(f"Using model: {model_name}")
@@ -322,10 +320,22 @@ def main():
     # where LM Studio (local or the remote Thunder instance) was restarted
     # since the last run. config["llm"] never actually stores a
     # context_length, so this replaces a previous hardcoded 8192 guess that
-    # was disconnected from whatever was really loaded.
-    is_remote, status, heal_msg = ensure_ideal_settings(
+    # was disconnected from whatever was really loaded. Also covers a
+    # recreated Thunder instance: the healed base_url below may differ from
+    # what was just loaded from config.
+    is_remote, status, heal_msg, healed_base_url = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
+    if healed_base_url != base_url:
+        print(f"Base URL healed: {base_url} -> {healed_base_url}")
+        base_url = healed_base_url
+        config.setdefault("llm_remote", {})["base_url"] = base_url
+        if is_remote:
+            config.setdefault("llm", {})["base_url"] = base_url
+        atomic_json_write(config, config_path)
+
+    client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
+                    api_key=llm.get("api_key", "local"))
 
     if status.get("loaded") and status.get("context_length"):
         context_length = status["context_length"]
