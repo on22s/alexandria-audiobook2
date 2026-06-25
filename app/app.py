@@ -3543,14 +3543,19 @@ async def save_script(request: ScriptSaveRequest):
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid script name.")
 
-    dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    # Claim a non-colliding path so saving a name that sanitizes to an existing
+    # file (or re-saving the same name) auto-numbers instead of silently
+    # overwriting another saved book. Derive the companion voice_config name
+    # from the claimed stem so the two never mismatch.
+    dest = _claim_unique_path(SCRIPTS_DIR, f"{safe_name}.json")
+    claimed_name = os.path.splitext(os.path.basename(dest))[0]
     shutil.copy2(SCRIPT_PATH, dest)
 
     if os.path.exists(VOICE_CONFIG_PATH):
-        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json"))
+        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{claimed_name}.voice_config.json"))
 
-    logger.info(f"Script saved as '{safe_name}'")
-    return {"status": "saved", "name": safe_name}
+    logger.info(f"Script saved as '{claimed_name}'")
+    return {"status": "saved", "name": claimed_name}
 
 class ScriptLoadRequest(BaseModel):
     name: str
