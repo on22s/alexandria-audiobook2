@@ -820,9 +820,16 @@ def main():
     # managed elsewhere; the local `lms` CLI and the local-GPU VRAM watchdog
     # don't apply, so skip them entirely when the endpoint isn't local.
     llm_mode = config.get("llm_mode", "local")
-    is_remote, lm_status, heal_msg = ensure_ideal_settings(
+    is_remote, lm_status, heal_msg, healed_base_url = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
+    if healed_base_url != base_url:
+        print(f"Base URL healed: {base_url} -> {healed_base_url}")
+        base_url = healed_base_url
+        config.setdefault("llm_remote", {})["base_url"] = base_url
+        if is_remote:
+            config.setdefault("llm", {})["base_url"] = base_url
+        atomic_json_write(config, config_path)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
