@@ -1590,7 +1590,10 @@ def _log_llm_failure(kind: str, detail: str) -> str:
 async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     """Toggle the loaded model between VRAM-safe/best settings and LM Studio's
     defaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.
-    LM Studio on Thunder) are driven over SSH via the configured host alias."""
+    LM Studio on Thunder) are driven over SSH via the configured host alias -
+    a `tnr-<id>`-shaped alias is resolved live each call (see
+    lmstudio_settings.resolve_thunder_target), so this self-heals across
+    Thunder instance recreation without needing `tnr connect` re-run."""
     full_cfg = safe_load_json(CONFIG_PATH, default={})
     cfg = full_cfg.get("llm", {})
     model_name = cfg.get("model_name")
@@ -1598,7 +1601,8 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         raise HTTPException(status_code=400, detail="No LLM model configured")
 
     if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
-        ok, msg = await asyncio.to_thread(apply_lmstudio_settings, model_name, ideal=req.enable)
+        ok, msg, _base_url, _log_kind = await asyncio.to_thread(
+            apply_lmstudio_settings, model_name, ideal=req.enable)
         if not ok:
             raise HTTPException(status_code=502, detail=msg)
         status = await asyncio.to_thread(get_lmstudio_status, model_name)
@@ -1612,11 +1616,29 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         raise HTTPException(status_code=400, detail=(
             "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
             "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-    ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+    ok, msg, base_url, log_kind = await asyncio.to_thread(
+        apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+
+    if base_url and base_url != full_cfg.get("llm_remote", {}).get("base_url"):
+        full_cfg.setdefault("llm_remote", {})["base_url"] = base_url
+        if is_remote_llm(full_cfg.get("llm_mode", "local"), full_cfg.get("llm", {}).get("base_url", "")):
+            full_cfg.setdefault("llm", {})["base_url"] = base_url
+        if ok:
+            # Re-parses the uuid from the URL instead of threading target['uuid']
+            # through 3 more return signatures - safe because every uuid this
+            # session observed (kwalnfcc, vf8oc702, 6m2m2saq) is hyphen-free and
+            # new_base_url's shape is fixed at "https://<uuid>-<port>....".
+            full_cfg["llm_remote"]["last_synced"] = {
+                "uuid": base_url.split("//")[1].split("-")[0],
+                "base_url": base_url,
+                "timestamp": datetime.now().isoformat(),
+            }
+        atomic_json_write(full_cfg, CONFIG_PATH)
+
     if not ok:
-        log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
+        log_path = _log_llm_failure(log_kind or "optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
         raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
-    return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable}
+    return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable, "base_url": base_url}
 
 
 def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
