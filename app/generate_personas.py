@@ -310,15 +310,19 @@ def _as_list(value):
 
 
 def _unique_extend(existing, values, limit=80):
-    seen = {str(v).strip().lower() for v in existing if str(v).strip()}
+    """Return a new list: `existing` plus the unique items from `values`
+    (case-insensitive dedup), capped at `limit`. Does not mutate `existing`.
+    """
+    result = list(existing)
+    seen = {str(v).strip().lower() for v in result if str(v).strip()}
     for value in _as_list(values):
         key = value.lower()
         if key not in seen:
-            existing.append(value)
+            result.append(value)
             seen.add(key)
-        if len(existing) >= limit:
+        if len(result) >= limit:
             break
-    return existing
+    return result
 
 
 def _entry_speaker(entry):
@@ -625,10 +629,15 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
         _append_character_ref(ref_dir, canonical_speaker, batch_number, character)
 
 
-def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
+def _compile_persona(client, model_name, engine, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt):
     """Compile one speaker's accumulated reference data into a final persona
-    (description + ref_text) and generate its preview audio.
+    (description + ref_text). Returns (persona_ref, description, ref_text), or
+    None if compilation produced an empty description - the
+    caller is responsible for merging persona_ref into voice_config and
+    calling _save_generated_preview (this function used to do both itself,
+    mutating voice_config directly; moved to the caller so this function
+    doesn't take voice_config as a dual-purpose input/output parameter).
     """
     ref = _load_character_ref(ref_dir, speaker)
     if not ref.get("sample_lines"):
@@ -663,13 +672,10 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         ref_text = f"{speaker} speaks in a clear, natural voice."
     if not description:
         print(f"Warning: Empty compiled description for {speaker}, skipping")
-        return
+        return None
 
-    voice_entry = voice_config.get(speaker, {})
-    voice_entry["persona_ref"] = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace('\\\\', '/')
-    voice_config[speaker] = voice_entry
-    _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
-    time.sleep(0.5)
+    persona_ref = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace('\\\\', '/')
+    return persona_ref, description, ref_text
 
 
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None):
@@ -691,8 +697,16 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
     # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
     for speaker in selected_speakers:
-        _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
-                         speaker, samples, system_prompt, advanced_prompt)
+        result = _compile_persona(client, model_name, engine, root, ref_dir,
+                                   speaker, samples, system_prompt, advanced_prompt)
+        if result is None:
+            continue
+        persona_ref, description, ref_text = result
+        voice_entry = voice_config.get(speaker, {})
+        voice_entry["persona_ref"] = persona_ref
+        voice_config[speaker] = voice_entry
+        _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
+        time.sleep(0.5)
 
 
 # _atomic_json_write imported from utils
