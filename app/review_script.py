@@ -15,7 +15,7 @@ from generate_script import (
     clean_json_string, repair_json_array, salvage_json_entries,
     LLMGenParams, call_llm_for_entries,
 )
-from lmstudio_settings import ensure_ideal_settings, get_current_status, get_base_url_config_sections
+from lmstudio_settings import ensure_ideal_settings, get_current_status, persist_healed_base_url
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
 
 
@@ -826,9 +826,7 @@ def main():
     if healed_base_url != base_url:
         print(f"Base URL healed: {base_url} -> {healed_base_url}")
         base_url = healed_base_url
-        for section in get_base_url_config_sections(is_remote):
-            config.setdefault(section, {})["base_url"] = base_url
-        atomic_json_write(config, config_path)
+        persist_healed_base_url(config, config_path, is_remote, base_url)
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
