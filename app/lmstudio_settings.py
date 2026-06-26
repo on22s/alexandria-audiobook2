@@ -310,6 +310,45 @@ def _verify_remote_endpoint(base_url, model_name=None, timeout=10):
         return False, str(e)
 
 
+# The biggest real prompt the LLM workloads build is nickname discovery's
+# co-occurrence chunk (observed ~14k tokens). A served context >= this proves the
+# runtime didn't silently fall back to LM Studio's 4096 default - the failure mode
+# behind the nickname n_keep>=n_ctx error - while staying well under the requested
+# remote context (98304) so a correctly-loaded model never false-fails.
+_REMOTE_VERIFY_NEED_TOKENS = 16384
+
+
+def _verify_served_context(base_url, model_name, need_tokens=_REMOTE_VERIFY_NEED_TOKENS, timeout=60):
+    """Confirm the model actually SERVES a context >= need_tokens by sending a
+    need_tokens-sized probe through the public /v1 endpoint with max_tokens=1.
+
+    `lms ps`'s reported contextLength has been observed to overstate the real
+    n_ctx (a JIT/eviction reload at the 4096 default while the registry still
+    advertised the configured value), so this checks the truth the way the
+    workload will hit it instead of trusting the status flag. Returns
+    (ok, detail). Never raises.
+    """
+    filler = "the harbor lights fog pier coat wind truth liar calm sky bell buoy water cold "
+    approx_chars = int(need_tokens * 3.5)
+    prompt = (filler * (approx_chars // len(filler) + 1))[:approx_chars]
+    try:
+        resp = requests.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json={"model": model_name,
+                  "messages": [{"role": "user", "content": prompt}],
+                  "max_tokens": 1, "temperature": 0},
+            timeout=timeout)
+        if resp.status_code == 200:
+            return True, None
+        body = resp.text[:300]
+        m = re.search(r"n_ctx:\s*(\d+)", body)
+        if m:
+            return False, f"served context only {m.group(1)} tokens (need >= {need_tokens})"
+        return False, f"HTTP {resp.status_code}: {body}"
+    except requests.RequestException as e:
+        return False, str(e)
+
+
 def _validate_thunder_target(target):
     """Raise OSError if a resolved Thunder target dict is missing a required
     field - mirrors _validate_ssh_alias's contract (raises OSError, which
@@ -660,6 +699,20 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, resolved=N
                            f"unreachable: {verify_detail}",
                            base_url=new_base_url, log_kind="optimize_verify", target=target)
 
+    # /models being reachable doesn't prove the model honors the context we just
+    # asked it to load - lms ps has been seen to report the configured value while
+    # the runtime silently fell back to 4096. Probe the real served context so an
+    # apply only reports success when the settings actually took effect (fail loud).
+    if ideal:
+        ctx_ok, ctx_detail = _verify_served_context(new_base_url, model_name)
+        if not ctx_ok:
+            return ApplyResult(False,
+                               f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' "
+                               f"({target['uuid']}), but it is not serving the requested context: "
+                               f"{ctx_detail}. The runtime likely fell back to its default - "
+                               f"try Optimize again.",
+                               base_url=new_base_url, log_kind="optimize_verify", target=target)
+
     return ApplyResult(True,
                        f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' with {label} settings",
                        base_url=new_base_url, target=target)
@@ -731,9 +784,17 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
                       "LM Studio and re-run.")
 
     status = get_status()
-    if status["loaded"] and status["optimized"]:
+    already_ideal = status["loaded"] and status["optimized"]
+    if is_remote and already_ideal:
+        # lms ps's "optimized" has been observed to lie (it reported context=98304
+        # while the runtime actually served n_ctx=4096 after a JIT/eviction reload),
+        # which let the corrective reload be skipped and broke nickname discovery.
+        # Confirm the served context for real before trusting it.
+        ctx_ok, _ = _verify_served_context(base_url, model_name)
+        already_ideal = ctx_ok
+    if already_ideal:
         return (is_remote, status,
-                f"{label}: {model_name} already loaded with ideal settings.",
+                f"{label}: {model_name} already loaded with ideal settings (context verified).",
                 HealOutcome(base_url, None, None))
 
     res = apply_settings()
