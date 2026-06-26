@@ -1839,7 +1839,7 @@
         // that, since there's no way for the app to check your actual Thunder
         // balance automatically. Local has no cloud cost, so it's a no-op there.
         async function confirmIfRemote(taskLabel) {
-            if (currentLlmMode !== 'remote') return true;
+            if (currentLlmMode !== 'remote') { return true; }
             return await showConfirm(
                 `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
                 `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
@@ -1848,7 +1848,7 @@
         }
 
         function escapeHtml(str) {
-            if (str == null) return '';
+            if (str == null) { return ''; }
             return String(str)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -1881,12 +1881,20 @@
             dataset_builder: 'Dataset builder batch',
         };
 
+        // Shared status->badge-color lookup for every task-list/poll renderer
+        // below (script batch, batch review, dataset preparer, voicelab) -
+        // one copy instead of N independently-maintained ones that can drift
+        // (this consolidation fixed exactly that: 3 of the 4 prior inline
+        // copies were missing the `incomplete` key this one already had).
+        const STATUS_BADGE_COLOURS = { pending: 'secondary', running: 'primary',
+            done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
+
         // Notify the user that a long-running job finished, but only if they've
         // navigated away from the tab (no point popping up a notification for
         // something they're already watching).
         function notifyJobDone(taskName, detail = '') {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            if (document.visibilityState === 'visible' && document.hasFocus()) return;
+            if (!('Notification' in window) || Notification.permission !== 'granted') { return; }
+            if (document.visibilityState === 'visible' && document.hasFocus()) { return; }
             const title = `${TASK_LABELS[taskName] || taskName} finished`;
             try {
                 new Notification(title, { body: detail || 'Switch back to Alexandria to see the results.', icon: '/favicon.ico' });
@@ -1976,11 +1984,11 @@
         // --- API Helpers ---
         const API = {
             _handleError: async (res) => {
-                if (res.ok) return;
+                if (res.ok) { return; }
                 let detail = res.statusText;
                 try {
                     const body = await res.json();
-                    if (body && body.detail) detail = body.detail;
+                    if (body && body.detail) { detail = body.detail; }
                 } catch (e) { /* non-JSON error body; fall back to statusText */ }
                 const err = new Error(detail);
                 err.status = res.status;
@@ -2098,9 +2106,9 @@
             }
 
             const parts = [tier];
-            if (gpuName) parts.push(gpuName);
-            if (ramGb) parts.push(`${Math.round(ramGb)} GB RAM`);
-            if (stats.cpu_count) parts.push(`${stats.cpu_count} CPU threads`);
+            if (gpuName) { parts.push(gpuName); }
+            if (ramGb) { parts.push(`${Math.round(ramGb)} GB RAM`); }
+            if (stats.cpu_count) { parts.push(`${stats.cpu_count} CPU threads`); }
             const summary = parts.join(' · ');
 
             return { settings, summary };
@@ -2145,7 +2153,7 @@
         // their Location change hasn't taken effect yet.
         function renderActiveLlmModeBadge() {
             const badge = document.getElementById('llm-active-mode-badge');
-            if (!badge) return;
+            if (!badge) { return; }
             badge.textContent = 'Active: ' + (savedLlmMode === 'remote' ? 'Remote (Thunder / network)' : 'Local');
         }
 
@@ -2454,7 +2462,7 @@
         document.getElementById('file-upload').addEventListener('change', async () => {
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
-            if (fileInput.files.length === 0) return;
+            if (fileInput.files.length === 0) { return; }
 
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
@@ -2493,7 +2501,7 @@
             try {
                 await API.post('/api/generate_script', {});
                 pollLogs('script', 'script-logs', () => {
-                    if (!scriptBatchPoller) genBtn.disabled = false;
+                    if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
                 });
@@ -2518,7 +2526,7 @@
         // calls the wrong endpoint.
         function _resetPauseBtn(btnId) {
             const btn = document.getElementById(btnId);
-            if (!btn) return;
+            if (!btn) { return; }
             btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
             btn.classList.remove('btn-outline-success');
             btn.classList.add('btn-outline-warning');
@@ -2546,7 +2554,7 @@
             // button to its "Pause"/btn-outline-warning appearance).
             return async () => {
                 const btn = document.getElementById(btnId);
-                if (btn.disabled) return;
+                if (btn.disabled) { return; }
                 const paused = btn.classList.contains('btn-outline-success');
                 btn.disabled = true;
                 try {
@@ -2631,7 +2639,7 @@
 
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch script generation'))) return;
+            if (!(await confirmIfRemote('this batch script generation'))) { return; }
 
             const btn = document.getElementById('btn-gen-script');
             const pauseBtn = document.getElementById('btn-pause-batch-script');
@@ -2666,16 +2674,16 @@
         }
 
         function _pollScriptBatchLogs() {
-            if (scriptBatchPoller) clearTimeout(scriptBatchPoller);
+            if (scriptBatchPoller) { clearTimeout(scriptBatchPoller); }
             const logEl = document.getElementById('script-logs');
             let offset = 0;
             const myGen = ++scriptBatchPollGen;
 
             const poll = async () => {
-                if (myGen !== scriptBatchPollGen) return;
+                if (myGen !== scriptBatchPollGen) { return; }
                 try {
                     const state = await API.get('/api/status/batch_script');
-                    if (myGen !== scriptBatchPollGen) return;
+                    if (myGen !== scriptBatchPollGen) { return; }
                     const newLines = state.logs.slice(offset);
                     offset = state.logs.length;
                     newLines.forEach(line => {
@@ -2688,9 +2696,8 @@
                     if (state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
-                            if (!el) return;
-                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                            if (!el) { return; }
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
                         });
                     }
 
@@ -2721,7 +2728,7 @@
         function _showReviewControls(show) {
             document.getElementById('btn-pause-review').style.display = show ? 'inline-block' : 'none';
             document.getElementById('btn-cancel-review').style.display = show ? 'inline-block' : 'none';
-            if (show) _resetPauseBtn('btn-pause-review');
+            if (show) { _resetPauseBtn('btn-pause-review'); }
         }
         function _disableReviewButtons(disabled) {
             document.getElementById('btn-review-script').disabled = disabled;
@@ -2793,7 +2800,7 @@
             document.getElementById('review-single-area').style.display = isBatch ? 'none' : 'block';
             document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
             document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
-            if (isBatch) loadReviewBatchScripts();
+            if (isBatch) { loadReviewBatchScripts(); }
         };
 
         // --- Shared helpers for saved-script checkbox pickers (Batch Review,
@@ -2844,7 +2851,7 @@
         // Sort `list` (array of {name, ...}) in place per the A→Z / Z→A / 1→10 /
         // 10→1 / Reverse sort buttons shared by the saved-script pickers.
         function _sortScriptList(list, mode) {
-            if (!list.length) return;
+            if (!list.length) { return; }
             const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
             const byNum  = (a, b) => _scriptVolumeNum(a.name) - _scriptVolumeNum(b.name) || byName(a, b);
             switch (mode) {
@@ -2884,7 +2891,7 @@
         async function startBatchReview() {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch review'))) return;
+            if (!(await confirmIfRemote('this batch review'))) { return; }
             reviewBatchSelected = names;
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
@@ -2953,7 +2960,7 @@
             let aliases = {};
             try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }
             const entries = Object.entries(aliases || {});
-            if (show) panel.style.display = 'block';
+            if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `
                 <div class="input-group input-group-sm mb-1 nick-alias-row">
                     <input type="text" class="form-control nick-alias" placeholder="alias / nickname" value="${escapeHtml(a)}">
@@ -2977,7 +2984,7 @@
         window.addAliasRow = () => {
             const rows = document.getElementById('nick-alias-rows');
             const placeholder = rows.querySelector('.text-muted');
-            if (placeholder) placeholder.remove();
+            if (placeholder) { placeholder.remove(); }
             const div = document.createElement('div');
             div.className = 'input-group input-group-sm mb-1 nick-alias-row';
             div.innerHTML = `
@@ -2993,7 +3000,7 @@
             document.querySelectorAll('#nick-alias-rows .nick-alias-row').forEach(row => {
                 const a = row.querySelector('.nick-alias').value.trim();
                 const c = row.querySelector('.nick-canonical').value.trim();
-                if (a && c) map[a] = c;
+                if (a && c) { map[a] = c; }
             });
             try {
                 const res = await API.post('/api/character_aliases', map);
@@ -3007,25 +3014,25 @@
         function _formatBookStats(s) {
             let txt = `${s.total_changes} changes: ${s.text_changed} text, ${s.speaker_changed} speaker, ` +
                       `${s.instruct_changed} instruct, +${s.entries_added}/-${s.entries_removed} entries`;
-            if (s.narrators_merged) txt += `, ${s.narrators_merged} narrators merged`;
-            if (s.speakers_merged) txt += `, ${s.speakers_merged} speakers merged`;
-            if (s.batches_failed) txt += `, ${s.batches_failed} batch(es) failed`;
-            if (s.batches_skipped_vram) txt += `, ${s.batches_skipped_vram} batch(es) skipped (VRAM)`;
+            if (s.narrators_merged) { txt += `, ${s.narrators_merged} narrators merged`; }
+            if (s.speakers_merged) { txt += `, ${s.speakers_merged} speakers merged`; }
+            if (s.batches_failed) { txt += `, ${s.batches_failed} batch(es) failed`; }
+            if (s.batches_skipped_vram) { txt += `, ${s.batches_skipped_vram} batch(es) skipped (VRAM)`; }
             return txt;
         }
 
         function _formatTotalsLine(label, t) {
-            if (!t || !t.books_done) return `${label}: no books finished yet`;
+            if (!t || !t.books_done) { return `${label}: no books finished yet`; }
             let txt = `${label}: ${t.books_done} book(s), ${t.total_changes} total change(s) ` +
                       `(${t.text_changed} text, ${t.speaker_changed} speaker, ${t.instruct_changed} instruct, ` +
                       `+${t.entries_added}/-${t.entries_removed} entries)`;
-            if (t.batches_failed) txt += ` — ${t.batches_failed} batch(es) failed`;
+            if (t.batches_failed) { txt += ` — ${t.batches_failed} batch(es) failed`; }
             return txt;
         }
 
         function _updateReviewBatchTotals(state) {
             const el = document.getElementById('review-batch-totals');
-            if (!el) return;
+            if (!el) { return; }
             const fwd = state.totals_fwd, bwd = state.totals_bwd;
             const aliasesBwd = state.aliases_bwd || [];
             if (!(fwd && fwd.books_done) && !(bwd && bwd.books_done) && !aliasesBwd.length) {
@@ -3051,19 +3058,18 @@
 
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
-            if (reviewBatchPoller) clearInterval(reviewBatchPoller);
+            if (reviewBatchPoller) { clearInterval(reviewBatchPoller); }
             reviewBatchPoller = setInterval(async () => {
                 try {
                     const state = await API.get('/api/status/batch_review');
                     if (logEl) { logEl.innerText = (state.logs || []).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
-                    const colours = { pending: 'secondary', running: 'primary', done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
                     (state.tasks || []).forEach(t => {
                         // Map by name (the list shows all scripts; only selected ones are tasks)
                         const cb = document.querySelector(`.review-batch-check[data-name="${CSS.escape(t.name)}"]`);
-                        if (!cb) return;
+                        if (!cb) { return; }
                         const el = document.getElementById(cb.id.replace('rb-check-', 'rb-status-'));
                         if (el) {
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
                             el.title = t.stats ? _formatBookStats(t.stats) : '';
                         }
                     });
@@ -3408,7 +3414,7 @@
                 let banner = card.querySelector('.voice-suggestion');
                 const sugg = window._voiceSuggestions[name];
                 if (!sugg) {
-                    if (banner) banner.remove();
+                    if (banner) { banner.remove(); }
                     return;
                 }
                 if (!banner) {
@@ -3430,9 +3436,9 @@
 
         function applyVoiceSuggestion(name) {
             const sugg = window._voiceSuggestions[name];
-            if (!sugg) return;
+            if (!sugg) { return; }
             const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
-            if (!card) return;
+            if (!card) { return; }
             const body = card.querySelector('.card-body');
 
             // Select the correct voice type radio and reveal its options
@@ -3457,7 +3463,7 @@
 
             // Remove the banner and clear from pending suggestions
             const banner = card.querySelector('.voice-suggestion');
-            if (banner) banner.remove();
+            if (banner) { banner.remove(); }
             delete window._voiceSuggestions[name];
             updateSuggestionToolbar();
             debouncedSaveVoices();
@@ -3492,7 +3498,7 @@
 
         function setCastStatus(html, isError) {
             const el = document.getElementById('cast-status');
-            if (el) el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html;
+            if (el) { el.innerHTML = isError ? `<i class="fas fa-times text-danger me-1"></i>${html}` : html; }
         }
 
         async function loadCastLibrary() {
@@ -3557,7 +3563,7 @@
 
         async function createCast() {
             const name = (prompt('Name this cast (e.g. the series title):') || '').trim();
-            if (!name) return;
+            if (!name) { return; }
             try {
                 await API.post('/api/voice_library/casts', { name });
                 window._selectedCast = name;
@@ -3567,8 +3573,8 @@
         }
 
         async function deleteCast() {
-            if (!window._selectedCast) return;
-            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) return;
+            if (!window._selectedCast) { return; }
+            if (!confirm(`Delete cast "${window._selectedCast}"? Shared characters (e.g. narrator) are kept.`)) { return; }
             try {
                 await API.del(`/api/voice_library/casts/${encodeURIComponent(window._selectedCast)}`);
                 window._selectedCast = '';
@@ -3586,7 +3592,7 @@
 
         // Save current-book characters into the selected cast
         function openCastSave() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             const chars = window._voiceLibrary.current_characters || [];
             if (!chars.length) {
@@ -3656,8 +3662,8 @@
                 const nc = res.saved.cast.length, ns = res.saved.shared.length;
                 const skipped = characters.length - nc - ns;
                 let msg = `Saved ${nc} to cast`;
-                if (ns) msg += `, ${ns} shared`;
-                if (skipped > 0) msg += ` (${skipped} skipped — not configured)`;
+                if (ns) { msg += `, ${ns} shared`; }
+                if (skipped > 0) { msg += ` (${skipped} skipped — not configured)`; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
             } catch (e) { setCastStatus(escapeHtml(e.message || String(e)), true); }
         }
@@ -3689,7 +3695,7 @@
 
         // Apply a cast to the current book (fuzzy match + confirm)
         async function openCastApply() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             panel.innerHTML = '<div class="small text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Matching characters...</div>';
             let res;
@@ -3724,7 +3730,7 @@
             document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
                 const char = cb.dataset.char;
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
-                if (sel && sel.value) mapping[char] = sel.value;
+                if (sel && sel.value) { mapping[char] = sel.value; }
             });
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
@@ -3738,7 +3744,7 @@
 
         // Render a saved-scripts checkbox picker into #cast-panel
         async function openCastApplyBulk() {
-            if (!window._selectedCast) return;
+            if (!window._selectedCast) { return; }
             const panel = document.getElementById('cast-panel');
             panel.innerHTML = `
                 <div class="border rounded p-2">
@@ -3830,7 +3836,7 @@
             document.querySelectorAll('.cast-apply-check:checked').forEach(cb => {
                 const char = cb.dataset.char;
                 const sel = document.querySelector(`.cast-apply-target[data-char="${CSS.escape(char)}"]`);
-                if (sel && sel.value) mapping[char] = sel.value;
+                if (sel && sel.value) { mapping[char] = sel.value; }
             });
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
@@ -3918,7 +3924,7 @@
             clearTimeout(_voiceSaveTimer);
             _voiceSaveTimer = setTimeout(async () => {
                 const cards = document.querySelectorAll('.voice-card');
-                if (cards.length === 0) return;
+                if (cards.length === 0) { return; }
                 try {
                     const config = collectVoiceConfig();
                     await API.post('/api/save_voice_config', config);
@@ -3960,7 +3966,7 @@
         function isAudioPlaying() {
             const audios = document.querySelectorAll('audio');
             for (const audio of audios) {
-                if (!audio.paused && !audio.ended) return true;
+                if (!audio.paused && !audio.ended) { return true; }
             }
             return false;
         }
@@ -3968,7 +3974,7 @@
         // Update only changed rows instead of full redraw
         function updateChunkRow(chunk) {
             const tr = document.querySelector(`tr[data-id="${chunk.id}"]`);
-            if (!tr) return false;
+            if (!tr) { return false; }
 
             const statusColor = chunk.status === 'done' ? 'success' :
                               chunk.status === 'generating' ? 'warning' :
@@ -4236,7 +4242,7 @@
                 const el = document.getElementById(toastId);
                 if (el) {
                     const toast = bootstrap.Toast.getInstance(el);
-                    if (toast) toast.hide();
+                    if (toast) { toast.hide(); }
                 }
 
                 _lastDeleted = null;
@@ -4249,7 +4255,7 @@
         };
 
         window.stopOthers = (id) => {
-            if (isPlayingSequence) return; // Sequence player handles its own logic
+            if (isPlayingSequence) { return; } // Sequence player handles its own logic
             document.querySelectorAll('audio').forEach(audio => {
                 if (audio.dataset.id != id) {
                     audio.pause();
@@ -4267,7 +4273,7 @@
             let currentIndex = 0;
 
             const playNext = () => {
-                if (!isPlayingSequence) return;
+                if (!isPlayingSequence) { return; }
                 
                 const audios = Array.from(document.querySelectorAll('.chunk-audio'));
 
@@ -4352,7 +4358,7 @@
         // Save all pending edits from a row before generation
         async function saveRowEdits(id) {
             const tr = document.querySelector(`tr[data-id="${id}"]`);
-            if (!tr) return;
+            if (!tr) { return; }
 
             const inputs = tr.querySelectorAll('input, textarea');
             const data = {};
@@ -4447,7 +4453,14 @@
             }
         };
 
-        window.renderAll = async (regenerateAll = false) => {
+        // Shared by renderAll/renderBatchFast below - identical except which
+        // API endpoint to call and (Rule 15: one source of dispatch instead
+        // of two copies that can drift). confirmRegen/logLabel preserve each
+        // caller's existing behavior exactly (renderAll already asked for
+        // regenerate-all confirmation, renderBatchFast never did - kept as-is,
+        // not "fixed", since changing that would be a behavior change outside
+        // this consolidation's scope).
+        async function _runBatchRender(endpoint, regenerateAll, { confirmRegen = false, logLabel } = {}) {
             isRenderingAll = true;
             document.getElementById('btn-batch-fast').style.display = 'none';
             document.getElementById('btn-regen-all').style.display = 'none';
@@ -4464,7 +4477,8 @@
                     return;
                 }
 
-                if (regenerateAll && !await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
+                if (confirmRegen && regenerateAll &&
+                    !await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`)) {
                     cancelRender(true);
                     return;
                 }
@@ -4483,9 +4497,8 @@
                     }
                 }
 
-                // Call batch endpoint for parallel processing
-                const response = await API.post('/api/generate_batch', { indices });
-                console.log(`Batch generation started: ${response.total_chunks} chunks with ${response.workers} workers`);
+                const response = await API.post(endpoint, { indices });
+                console.log(`${logLabel}: ${response.total_chunks} chunks`, response);
 
                 // Poll for completion
                 const pollInterval = setInterval(async () => {
@@ -4521,87 +4534,19 @@
                 }, 2000);
 
             } catch (e) {
-                console.error("Render All error:", e);
+                console.error(`${logLabel} error:`, e);
                 showToast("Error during batch rendering: " + e.message, 'error');
                 cancelRender(true);
             }
-        };
+        }
 
-        window.renderBatchFast = async (regenerateAll = false) => {
-            isRenderingAll = true;
-            document.getElementById('btn-batch-fast').style.display = 'none';
-            document.getElementById('btn-regen-all').style.display = 'none';
-            document.getElementById('btn-cancel-render').style.display = 'inline-block';
-
-            try {
-                const chunks = await API.get('/api/chunks');
-                const toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
-                    .filter(c => c.text && c.text.trim());
-
-                if (toProcess.length === 0) {
-                    showToast("No non-empty chunks to render!", 'warning');
-                    cancelRender(true);
-                    return;
-                }
-
-                // Mark all chunks as generating in UI
-                const indices = toProcess.map(c => c.id);
-                for (const id of indices) {
-                    const tr = document.querySelector(`tr[data-id="${id}"]`);
-                    if (tr) {
-                        tr.classList.add('table-info');
-                        const badge = tr.querySelector('.badge');
-                        if (badge) {
-                            badge.className = 'badge bg-warning';
-                            badge.innerText = 'generating';
-                        }
-                    }
-                }
-
-                // Call fast batch endpoint (requires custom Qwen3-TTS)
-                const response = await API.post('/api/generate_batch_fast', { indices });
-                console.log(`Fast batch started: ${response.total_chunks} chunks (batch_size=${response.batch_size}, seed=${response.batch_seed})`);
-
-                // Poll for completion
-                const pollInterval = setInterval(async () => {
-                    if (!isRenderingAll) {
-                        clearInterval(pollInterval);
-                        return;
-                    }
-
-                    try {
-                        await loadChunks(false);
-                        const updated = await API.get('/api/chunks');
-                        const stillGenerating = updated.filter(c =>
-                            indices.includes(c.id) && c.status === 'generating'
-                        );
-
-                        if (stillGenerating.length === 0) {
-                            clearInterval(pollInterval);
-                            document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
-                            cancelRender(true);
-                            await loadChunks(false);
-
-                            const completed = updated.filter(c => indices.includes(c.id) && c.status === 'done').length;
-                            const failed = updated.filter(c => indices.includes(c.id) && c.status === 'error').length;
-                            if (failed > 0) {
-                                showToast(`Batch complete: ${completed} succeeded, ${failed} failed`, 'warning');
-                            }
-                        }
-                    } catch (e) {
-                        console.error("Polling error", e);
-                    }
-                }, 2000);
-
-            } catch (e) {
-                console.error("Batch Fast error:", e);
-                showToast("Error during batch rendering: " + e.message, 'error');
-                cancelRender(true);
-            }
-        };
+        window.renderAll = (regenerateAll = false) =>
+            _runBatchRender('/api/generate_batch', regenerateAll, { confirmRegen: true, logLabel: 'Render All' });
+        window.renderBatchFast = (regenerateAll = false) =>
+            _runBatchRender('/api/generate_batch_fast', regenerateAll, { confirmRegen: false, logLabel: 'Batch Fast' });
 
         document.getElementById('btn-merge').addEventListener('click', async () => {
-             if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) return;
+             if (!await showConfirm("Merge all valid audio chunks into final audiobook?")) { return; }
 
              try {
                  await API.post('/api/merge', {});
@@ -4656,12 +4601,12 @@
         document.getElementById('m4b-cover-input').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             const statusEl = document.getElementById('m4b-cover-status');
-            if (!file) return;
+            if (!file) { return; }
             const formData = new FormData();
             formData.append('file', file);
             try {
                 const resp = await fetch('/api/m4b_cover', { method: 'POST', body: formData });
-                if (!resp.ok) throw new Error((await resp.json()).detail || resp.statusText);
+                if (!resp.ok) { throw new Error((await resp.json()).detail || resp.statusText); }
                 statusEl.textContent = 'Uploaded';
                 statusEl.className = 'small text-success';
             } catch (err) {
@@ -4721,16 +4666,16 @@
             const myGen = (_pollLogsGen[taskName] = (_pollLogsGen[taskName] || 0) + 1);
 
             const poll = async () => {
-                if (myGen !== _pollLogsGen[taskName]) return;
+                if (myGen !== _pollLogsGen[taskName]) { return; }
                 try {
                     const status = await API.get(`/api/status/${taskName}`);
-                    if (myGen !== _pollLogsGen[taskName]) return;
+                    if (myGen !== _pollLogsGen[taskName]) { return; }
                     el.innerText = status.logs.join('\n');
                     el.scrollTop = el.scrollHeight;
 
                     if (!status.running) {
                         notifyJobDone(taskName);
-                        if (onDone) onDone(status);
+                        if (onDone) { onDone(status); }
                         if (taskName === 'audio' && status.logs.some(l => l.includes("complete"))) {
                             // Load audio player
                             const audio = document.getElementById('main-audio');
@@ -4742,7 +4687,7 @@
                         if ((taskName === 'script' || taskName === 'review') && status.logs.some(l => l.includes("completed successfully"))) {
                             // Clear cached chunks table so next load shows fresh data
                             const tbody = document.getElementById('chunks-table-body');
-                            if (tbody) tbody.innerHTML = '';
+                            if (tbody) { tbody.innerHTML = ''; }
                             // If editor tab is visible, refresh immediately
                             if (document.getElementById('editor-tab').style.display !== 'none') {
                                 loadChunks();
@@ -4818,7 +4763,7 @@
         }
 
         async function loadScript(name) {
-            if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`)) return;
+            if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`)) { return; }
             try {
                 const res = await fetch('/api/scripts/load', {
                     method: 'POST',
@@ -4842,7 +4787,7 @@
         }
 
         async function deleteScript(name) {
-            if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`)) return;
+            if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`)) { return; }
             try {
                 const res = await fetch(`/api/scripts/${encodeURIComponent(name)}`, {method: 'DELETE'});
                 if (!res.ok) {
@@ -4988,7 +4933,7 @@
         };
 
         window.deleteDesignedVoice = async (voiceId) => {
-            if (!await showConfirm('Delete this designed voice?')) return;
+            if (!await showConfirm('Delete this designed voice?')) { return; }
             try {
                 const res = await fetch(`/api/voice_design/${encodeURIComponent(voiceId)}`, {method: 'DELETE'});
                 if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
@@ -5098,8 +5043,8 @@
                     refAudio.value = '';
                     refText.value = '';
                 }
-                if (playBtn) playBtn.style.display = 'none';
-                if (deleteBtn) deleteBtn.style.display = 'none';
+                if (playBtn) { playBtn.style.display = 'none'; }
+                if (deleteBtn) { deleteBtn.style.display = 'none'; }
                 refAudio.focus();
                 return;
             }
@@ -5111,8 +5056,8 @@
                     refAudio.value = `clone_voices/${voice.filename}`;
                     refText.value = '';
                     refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'inline-block';
+                    if (playBtn) { playBtn.style.display = 'inline-block'; }
+                    if (deleteBtn) { deleteBtn.style.display = 'inline-block'; }
                 }
             } else if (val.startsWith('design:')) {
                 const voiceId = val.substring(7);
@@ -5121,8 +5066,8 @@
                     refAudio.value = `designed_voices/${voice.filename}`;
                     refText.value = voice.sample_text;
                     refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'none';
+                    if (playBtn) { playBtn.style.display = 'inline-block'; }
+                    if (deleteBtn) { deleteBtn.style.display = 'none'; }
                 }
             } else {
                 // Legacy: plain voice ID (backward compat with old designed voice values)
@@ -5131,8 +5076,8 @@
                     refAudio.value = `designed_voices/${voice.filename}`;
                     refText.value = voice.sample_text;
                     refAudio.readOnly = true;
-                    if (playBtn) playBtn.style.display = 'inline-block';
-                    if (deleteBtn) deleteBtn.style.display = 'none';
+                    if (playBtn) { playBtn.style.display = 'inline-block'; }
+                    if (deleteBtn) { deleteBtn.style.display = 'none'; }
                 }
             }
             debouncedSaveVoices();
@@ -5147,7 +5092,7 @@
 
         window.handleCloneVoiceUpload = async (input) => {
             const file = input.files[0];
-            if (!file) return;
+            if (!file) { return; }
             input.value = '';
 
             const formData = new FormData();
@@ -5178,11 +5123,11 @@
         };
 
         window.deleteCloneVoice = async (btn) => {
-            if (!await showConfirm('Delete this uploaded clone voice?')) return;
+            if (!await showConfirm('Delete this uploaded clone voice?')) { return; }
             const card = btn.closest('.card-body');
             const select = card.querySelector('.designed-voice-select');
             const val = select.value;
-            if (!val.startsWith('clone:')) return;
+            if (!val.startsWith('clone:')) { return; }
             const voiceId = val.substring(6);
 
             try {
@@ -5210,7 +5155,7 @@
                 const currentVal = selectEl.value;
                 selectEl.innerHTML = '<option value="">-- Select dataset --</option>' +
                     datasets.map(d => `<option value="${escapeHtml(d.dataset_id)}">${escapeHtml(d.dataset_id)} (${d.sample_count} samples)</option>`).join('');
-                if (currentVal) selectEl.value = currentVal;
+                if (currentVal) { selectEl.value = currentVal; }
 
                 // Update list
                 if (!datasets.length) {
@@ -5255,7 +5200,7 @@
         };
 
         window.deleteLoraDataset = async (datasetId) => {
-            if (!await showConfirm(`Delete dataset "${datasetId}"?`)) return;
+            if (!await showConfirm(`Delete dataset "${datasetId}"?`)) { return; }
             try {
                 const res = await fetch(`/api/lora/datasets/${encodeURIComponent(datasetId)}`, { method: 'DELETE' });
                 if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
@@ -5416,7 +5361,7 @@
                 dropdown.innerHTML = models.filter(m => m.downloaded !== false).map(m =>
                     `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
                 ).join('');
-                if (prevVal && models.some(m => m.id === prevVal)) dropdown.value = prevVal;
+                if (prevVal && models.some(m => m.id === prevVal)) { dropdown.value = prevVal; }
                 testForm.style.display = '';
             } catch (e) {
                 console.error('Failed to load LoRA models:', e);
@@ -5476,7 +5421,7 @@
         };
 
         window.deleteLoraModel = async (adapterId) => {
-            if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) return;
+            if (!await showConfirm('Delete this trained adapter? This cannot be undone.')) { return; }
             try {
                 const res = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}`, { method: 'DELETE' });
                 if (!res.ok) { const err = await res.json(); showToast(err.detail || 'Failed to delete.', 'error'); return; }
@@ -5559,7 +5504,7 @@
                     status: s.status || 'pending',
                     audio_url: s.audio_url || null,
                 }));
-                if (dsbRows.length === 0) dsbAddRow();
+                if (dsbRows.length === 0) { dsbAddRow(); }
                 dsbRenderTable();
                 // Resume polling if batch is running
                 if (result.running) {
@@ -5577,7 +5522,7 @@
 
         window.dsbCreateProject = async () => {
             const name = prompt('Dataset name:');
-            if (!name || !name.trim()) return;
+            if (!name || !name.trim()) { return; }
             try {
                 const result = await API.post('/api/dataset_builder/create', { name: name.trim() });
                 await dsbLoadProjects(result.name);
@@ -5587,8 +5532,8 @@
         };
 
         window.dsbDeleteProject = async () => {
-            if (!dsbCurrentProject) return;
-            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) return;
+            if (!dsbCurrentProject) { return; }
+            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`)) { return; }
             try {
                 await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
                 dsbCurrentProject = '';
@@ -5603,7 +5548,7 @@
         };
 
         function dsbSaveForm() {
-            if (!dsbCurrentProject) return;
+            if (!dsbCurrentProject) { return; }
             clearTimeout(dsbSaveMetaTimer);
             dsbSaveMetaTimer = setTimeout(async () => {
                 try {
@@ -5617,7 +5562,7 @@
         }
 
         function dsbSaveRows() {
-            if (!dsbCurrentProject) return;
+            if (!dsbCurrentProject) { return; }
             clearTimeout(dsbSaveRowsTimer);
             dsbSaveRowsTimer = setTimeout(async () => {
                 try {
@@ -5637,7 +5582,7 @@
             setTimeout(() => {
                 const rows = document.querySelectorAll('#dsb-table-body tr');
                 const last = rows[rows.length - 1];
-                if (last) last.querySelector('input')?.focus();
+                if (last) { last.querySelector('input')?.focus(); }
             }, 50);
         }
 
@@ -5696,11 +5641,11 @@
             // Targeted update: only re-render changed rows
             for (const i of changedIndices) {
                 const existing = tbody.children[i];
-                if (!existing) continue;
+                if (!existing) { continue; }
                 const row = dsbRows[i];
                 const oldStatus = existing.getAttribute('data-dsb-status');
                 const oldAudio = existing.getAttribute('data-dsb-audio');
-                if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) continue;
+                if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) { continue; }
                 const temp = document.createElement('tbody');
                 temp.innerHTML = dsbBuildRowHtml(row, i);
                 existing.replaceWith(temp.firstElementChild);
@@ -5718,7 +5663,7 @@
         window.dsbStopOthers = (index) => {
             document.querySelectorAll('#dsb-table-body audio').forEach(audio => {
                 const row = audio.closest('tr');
-                if (row && parseInt(row.getAttribute('data-dsb-idx')) !== index) audio.pause();
+                if (row && parseInt(row.getAttribute('data-dsb-idx')) !== index) { audio.pause(); }
             });
         };
 
@@ -5806,7 +5751,7 @@
                 : dsbRows.map((r, i) => i).filter(i => dsbRows[i].text.trim() && dsbRows[i].status !== 'done');
 
             if (indices.length === 0) { showToast('All samples are already generated.', 'warning'); return; }
-            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`)) return;
+            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`)) { return; }
 
             // Mark as generating
             indices.forEach(i => { dsbRows[i].status = 'generating'; });
@@ -5839,7 +5784,7 @@
         };
 
         function dsbStartPolling(name) {
-            if (dsbPolling) clearInterval(dsbPolling);
+            if (dsbPolling) { clearInterval(dsbPolling); }
             dsbPolling = setInterval(() => dsbPollStatus(name), 2000);
         }
 
@@ -5855,9 +5800,9 @@
                     if (i < dsbRows.length) {
                         const oldStatus = dsbRows[i].status;
                         const oldAudio = dsbRows[i].audio_url;
-                        if (s.status) dsbRows[i].status = s.status;
-                        if (s.audio_url) dsbRows[i].audio_url = s.audio_url;
-                        if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) changed.push(i);
+                        if (s.status) { dsbRows[i].status = s.status; }
+                        if (s.audio_url) { dsbRows[i].audio_url = s.audio_url; }
+                        if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) { changed.push(i); }
                     } else {
                         dsbRows.push({
                             emotion: s.description || '',
@@ -5905,7 +5850,7 @@
                     dsbPolling = null;
                 }
             } catch (e) {
-                if (!silent) console.error('Poll error:', e);
+                if (!silent) { console.error('Poll error:', e); }
                 // Status endpoint may 404 if no state.json yet — ignore silently
                 if (silent && dsbPolling) {
                     clearInterval(dsbPolling);
@@ -5932,12 +5877,12 @@
         // Import / Export
         window.dsbImport = (event) => {
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file) { return; }
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) throw new Error('Expected JSON array');
+                    if (!Array.isArray(data)) { throw new Error('Expected JSON array'); }
                     dsbRows = data.map(item => ({
                         emotion: item.emotion || item.instruct || '',
                         text: item.text || '',
@@ -5958,7 +5903,7 @@
         window.dsbExport = () => {
             const data = dsbRows.map(r => {
                 const entry = { emotion: r.emotion, text: r.text };
-                if (r.seed !== '' && r.seed !== undefined) entry.seed = parseInt(r.seed);
+                if (r.seed !== '' && r.seed !== undefined) { entry.seed = parseInt(r.seed); }
                 return entry;
             });
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -5981,7 +5926,7 @@
 
             const refIdx = parseInt(document.getElementById('dsb-ref-select').value) || 0;
 
-            if (!await showConfirm(`Save "${name}" as training dataset with ${doneSamples.length} samples?`)) return;
+            if (!await showConfirm(`Save "${name}" as training dataset with ${doneSamples.length} samples?`)) { return; }
 
             const statusEl = document.getElementById('dsb-save-status');
             statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
@@ -6037,11 +5982,11 @@
 
         // Format a duration in seconds as a short "1h 5m" / "5m 30s" / "30s" string.
         function formatDuration(seconds) {
-            if (seconds == null || !isFinite(seconds) || seconds < 0) return '--';
+            if (seconds == null || !isFinite(seconds) || seconds < 0) { return '--'; }
             seconds = Math.round(seconds);
-            if (seconds < 60) return `${seconds}s`;
+            if (seconds < 60) { return `${seconds}s`; }
             const m = Math.floor(seconds / 60);
-            if (seconds < 3600) return `${m}m ${seconds % 60}s`;
+            if (seconds < 3600) { return `${m}m ${seconds % 60}s`; }
             const h = Math.floor(seconds / 3600);
             return `${h}h ${Math.floor((seconds % 3600) / 60)}m`;
         }
@@ -6058,7 +6003,7 @@
                     return;
                 }
                 let text = eta.label;
-                if (eta.progress) text += ` — ${eta.progress}`;
+                if (eta.progress) { text += ` — ${eta.progress}`; }
                 if (eta.eta_seconds != null) {
                     text += ` (ETA ${formatDuration(eta.eta_seconds)})`;
                 } else if (eta.elapsed_seconds != null) {
@@ -6075,7 +6020,7 @@
         async function refreshLmStudioStatus() {
             const badge = document.getElementById('lmstudio-status-badge');
             const toggle = document.getElementById('lmstudio-optimize-toggle');
-            if (!badge || !toggle) return;
+            if (!badge || !toggle) { return; }
             try {
                 const status = await API.get('/api/lmstudio/status');
                 if (status.remote) {
@@ -6149,10 +6094,10 @@
             const running = Object.fromEntries(names.map((t, i) => [t, flags[i]]));
 
             const show = (id, disp = 'inline-block') => {
-                const el = document.getElementById(id); if (el) el.style.display = disp;
+                const el = document.getElementById(id); if (el) { el.style.display = disp; }
             };
             const disable = (id) => {
-                const el = document.getElementById(id); if (el) el.disabled = true;
+                const el = document.getElementById(id); if (el) { el.disabled = true; }
             };
 
             if (running.batch_script) {
@@ -6164,7 +6109,7 @@
                 show('btn-cancel-script'); show('btn-pause-script');
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) {
-                        const b = document.getElementById('btn-gen-script'); if (b) b.disabled = false;
+                        const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
                     }
                     show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
                 });
@@ -6182,7 +6127,7 @@
                 show('btn-pause-nick'); show('btn-cancel-nick');
                 pollLogs('nicknames', 'script-logs', async () => {
                     const btn = document.getElementById('btn-find-nicknames');
-                    if (btn) btn.disabled = false;
+                    if (btn) { btn.disabled = false; }
                     show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
                     await loadCharacterAliases(true);
                 });
@@ -6266,7 +6211,7 @@
 
             try {
                 const res = await fetch('/api/preparer/start', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                if (!res.ok) { throw new Error((await res.json()).detail || res.statusText); }
                 _pollPreparerLogs('preparer');
             } catch (e) {
                 showToast('Failed to start: ' + e.message, 'error');
@@ -6312,7 +6257,7 @@
         }
 
         function _pollPreparerLogs(taskName) {
-            if (prepPoller) clearInterval(prepPoller);
+            if (prepPoller) { clearInterval(prepPoller); }
             const logEl = document.getElementById('preparer-logs');
             let offset = 0;
 
@@ -6332,9 +6277,8 @@
                     if (taskName === 'batch_preparer' && state.tasks) {
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`prep-batch-status-${i}`);
-                            if (!el) return;
-                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                            if (!el) { return; }
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
                         });
                     }
 
@@ -6355,7 +6299,7 @@
         // List/download the dataset ZIPs produced by completed preparer runs.
         async function loadPreparerOutputs() {
             const el = document.getElementById('preparer-outputs');
-            if (!el) return;
+            if (!el) { return; }
             try {
                 const res = await API.get('/api/preparer/list');
                 const files = res.files || [];
@@ -6388,9 +6332,9 @@
 
         function _vlChk(id, ok) {
             const el = document.getElementById(id);
-            if (el) el.innerHTML = ok
+            if (el) { el.innerHTML = ok
                 ? '<i class="fas fa-check-circle text-success"></i>'
-                : '<i class="fas fa-times-circle text-danger"></i>';
+                : '<i class="fas fa-times-circle text-danger"></i>'; }
         }
 
         async function loadVoicelabConfig() {
@@ -6402,7 +6346,7 @@
                 document.getElementById('vl-profiler_model').value = c.profiler_model || '';
                 document.getElementById('vl-zips_dir_cfg').value = c.zips_dir || '';
                 const input = document.getElementById('vl-zips_dir');
-                if (!input.value) input.value = c.zips_dir || '';
+                if (!input.value) { input.value = c.zips_dir || ''; }
 
                 const ck = res.checks || {};
                 ['rocm_python','pipeline_repo','batch_train_lora','voice_profiler','profiler_model','zips_dir']
@@ -6452,14 +6396,14 @@
             document.getElementById('btn-vl-start').disabled = running;
             document.getElementById('btn-vl-pause').style.display = running ? 'inline-block' : 'none';
             document.getElementById('btn-vl-cancel').style.display = running ? 'inline-block' : 'none';
-            if (running) _resetPauseBtn('btn-vl-pause');
+            if (running) { _resetPauseBtn('btn-vl-pause'); }
         }
 
         window.startVoicelab = async () => {
             const stages = Array.from(document.querySelectorAll('.vl-stage:checked')).map(c => c.value);
             if (!stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
             if (stages.includes('name') && document.getElementById('vl-name-apply').checked
-                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) return;
+                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) { return; }
 
             const body = {
                 zips_dir: document.getElementById('vl-zips_dir').value.trim() || undefined,
@@ -6492,8 +6436,7 @@
         function pollVoicelab() {
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
-            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-            if (voicelabPoller) clearInterval(voicelabPoller);
+            if (voicelabPoller) { clearInterval(voicelabPoller); }
             voicelabPoller = setInterval(async () => {
                 try {
                     const s = await API.get('/api/status/voicelab');
@@ -6501,7 +6444,7 @@
                     if (s.tasks && s.tasks.length) {
                         progEl.style.display = 'flex';
                         progEl.innerHTML = s.tasks.map(t =>
-                            `<span class="badge bg-${colours[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
+                            `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
                     }
                     if (!s.running) {
                         clearInterval(voicelabPoller); voicelabPoller = null;
@@ -6520,7 +6463,7 @@
         // ── Reports ────────────────────────────────────────────────────
         async function loadReports() {
             const listEl = document.getElementById('reports-list');
-            if (!listEl) return;
+            if (!listEl) { return; }
             try {
                 const reports = await API.get('/api/reports');
                 if (!reports.length) {
@@ -6543,7 +6486,7 @@
 
         async function loadCheckpoints() {
             const listEl = document.getElementById('checkpoints-list');
-            if (!listEl) return;
+            if (!listEl) { return; }
             try {
                 const data = await API.get('/api/review/checkpoints');
                 const cps = data.checkpoints || [];
@@ -6592,7 +6535,7 @@
             contentEl.innerHTML = '<p class="text-muted">Loading…</p>';
             try {
                 const res = await fetch(`/api/reports/${encodeURIComponent(filename)}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) { throw new Error(`HTTP ${res.status}`); }
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
                 contentEl.innerHTML = DOMPurify.sanitize(html);
