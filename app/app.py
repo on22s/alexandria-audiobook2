@@ -1711,6 +1711,45 @@ async def read_favicon():
         return FileResponse(favicon_path, media_type="image/png")
     raise HTTPException(status_code=404, detail="Favicon not found")
 
+def _fill_missing_prompt_defaults(prompts: dict) -> None:
+    """Fill in any missing/empty prompt fields from the on-disk templates,
+    in place. Used by get_config()'s "need defaults" cases (no config.json
+    yet, prompts key entirely missing, prompts present but some fields
+    empty) so the system/review/persona default-loading logic - including
+    review/persona's RuntimeError handling for missing prompt-template
+    files, and skipping a loader entirely when nothing in its category is
+    missing - exists in exactly one place instead of three copies that can
+    drift out of sync with each other.
+    """
+    if not prompts.get("system_prompt") or not prompts.get("user_prompt"):
+        sys_prompt, usr_prompt = load_default_prompts()
+        if not prompts.get("system_prompt"):
+            prompts["system_prompt"] = sys_prompt
+        if not prompts.get("user_prompt"):
+            prompts["user_prompt"] = usr_prompt
+    if not prompts.get("review_system_prompt") or not prompts.get("review_user_prompt"):
+        try:
+            rev_sys, rev_usr = load_review_prompts()
+            if not prompts.get("review_system_prompt"):
+                prompts["review_system_prompt"] = rev_sys
+            if not prompts.get("review_user_prompt"):
+                prompts["review_user_prompt"] = rev_usr
+        except RuntimeError:
+            pass  # review_prompts.txt missing or malformed — leave fields empty
+    if not all(prompts.get(k) for k in
+               ("persona_system_prompt", "persona_user_prompt", "persona_advanced_prompt")):
+        try:
+            per_sys, per_usr, per_adv = load_persona_prompts()
+            if not prompts.get("persona_system_prompt"):
+                prompts["persona_system_prompt"] = per_sys
+            if not prompts.get("persona_user_prompt"):
+                prompts["persona_user_prompt"] = per_usr
+            if not prompts.get("persona_advanced_prompt"):
+                prompts["persona_advanced_prompt"] = per_adv
+        except RuntimeError:
+            pass
+
+
 @app.get("/api/config")
 async def get_config():
     default_config = {
@@ -1732,22 +1771,7 @@ async def get_config():
     }
 
     if not os.path.exists(CONFIG_PATH):
-        sys_prompt, usr_prompt = load_default_prompts()
-        default_config["prompts"]["system_prompt"] = sys_prompt
-        default_config["prompts"]["user_prompt"] = usr_prompt
-        try:
-            rev_sys, rev_usr = load_review_prompts()
-            default_config["prompts"]["review_system_prompt"] = rev_sys
-            default_config["prompts"]["review_user_prompt"] = rev_usr
-        except RuntimeError:
-            pass
-        try:
-            per_sys, per_usr, per_adv = load_persona_prompts()
-            default_config["prompts"]["persona_system_prompt"] = per_sys
-            default_config["prompts"]["persona_user_prompt"] = per_usr
-            default_config["prompts"]["persona_advanced_prompt"] = per_adv
-        except RuntimeError:
-            pass
+        _fill_missing_prompt_defaults(default_config["prompts"])
         config = default_config
     else:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -1757,49 +1781,8 @@ async def get_config():
     # null (config saved without a prompts field) the same as a missing key so
     # the dict-access branches below don't crash on None.
     if not config.get("prompts"):
-        sys_prompt, usr_prompt = load_default_prompts()
-        prompts = {"system_prompt": sys_prompt, "user_prompt": usr_prompt}
-        try:
-            rev_sys, rev_usr = load_review_prompts()
-            prompts["review_system_prompt"] = rev_sys
-            prompts["review_user_prompt"] = rev_usr
-        except RuntimeError:
-            pass
-        try:
-            per_sys, per_usr, per_adv = load_persona_prompts()
-            prompts["persona_system_prompt"] = per_sys
-            prompts["persona_user_prompt"] = per_usr
-            prompts["persona_advanced_prompt"] = per_adv
-        except RuntimeError:
-            pass
-        config["prompts"] = prompts
-    else:
-        if not config["prompts"].get("system_prompt") or not config["prompts"].get("user_prompt"):
-            sys_prompt, usr_prompt = load_default_prompts()
-            if not config["prompts"].get("system_prompt"):
-                config["prompts"]["system_prompt"] = sys_prompt
-            if not config["prompts"].get("user_prompt"):
-                config["prompts"]["user_prompt"] = usr_prompt
-        if not config["prompts"].get("review_system_prompt") or not config["prompts"].get("review_user_prompt"):
-            try:
-                rev_sys, rev_usr = load_review_prompts()
-                if not config["prompts"].get("review_system_prompt"):
-                    config["prompts"]["review_system_prompt"] = rev_sys
-                if not config["prompts"].get("review_user_prompt"):
-                    config["prompts"]["review_user_prompt"] = rev_usr
-            except RuntimeError:
-                pass  # review_prompts.txt missing or malformed — leave fields empty
-        if not config["prompts"].get("persona_system_prompt") or not config["prompts"].get("persona_user_prompt") or not config["prompts"].get("persona_advanced_prompt"):
-            try:
-                per_sys, per_usr, per_adv = load_persona_prompts()
-                if not config["prompts"].get("persona_system_prompt"):
-                    config["prompts"]["persona_system_prompt"] = per_sys
-                if not config["prompts"].get("persona_user_prompt"):
-                    config["prompts"]["persona_user_prompt"] = per_usr
-                if not config["prompts"].get("persona_advanced_prompt"):
-                    config["prompts"]["persona_advanced_prompt"] = per_adv
-            except RuntimeError:
-                pass
+        config["prompts"] = {}
+    _fill_missing_prompt_defaults(config["prompts"])
 
     # Local/Remote LLM toggle: ensure mode + both profiles are present so the UI
     # can populate the toggle. Migrate older config.json (only had `llm`) by
