@@ -6118,7 +6118,10 @@
             try {
                 const result = await API.post('/api/lmstudio/optimize', { enable });
                 const urlField = document.getElementById('llm-url');
-                if (result.base_url && urlField && urlField.value !== result.base_url) {
+                // Only sync the URL field when it's showing the remote profile -
+                // otherwise optimizing a remote endpoint while the form is on
+                // Local would overwrite the local URL with the remote one.
+                if (currentLlmMode === 'remote' && result.base_url && urlField && urlField.value !== result.base_url) {
                     urlField.value = result.base_url;
                     showToast(`LM Studio updated; Base URL auto-synced to ${result.base_url}`, 'success');
                 } else {
