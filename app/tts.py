@@ -698,7 +698,7 @@ class TTSEngine:
 
     # ── Clone prompt cache (local mode) ──────────────────────────
 
-    def _get_clone_prompt(self, speaker, voice_config):
+    def _get_or_create_clone_prompt(self, speaker, voice_config):
         """Get or create a cached voice clone prompt for a speaker."""
         voice_data = voice_config.get(speaker, {})
         ref_audio_path = voice_data.get("ref_audio")
@@ -1191,7 +1191,7 @@ class TTSEngine:
 
             print(f"TTS [local clone] generating for speaker='{speaker}', text='{text[:50]}...'")
 
-            prompt = self._get_clone_prompt(speaker, voice_config)
+            prompt = self._get_or_create_clone_prompt(speaker, voice_config)
             model = self._init_local_clone()
 
             if seed >= 0:
@@ -1401,7 +1401,7 @@ class TTSEngine:
 
         for speaker, group in speaker_groups.items():
             try:
-                prompt = self._get_clone_prompt(speaker, voice_config)
+                prompt = self._get_or_create_clone_prompt(speaker, voice_config)
             except Exception as e:
                 print(f"  Error building clone prompt for '{speaker}': {e}")
                 for chunk in group:
