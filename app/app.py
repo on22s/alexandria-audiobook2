@@ -36,7 +36,7 @@ from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status, persist_healed_base_url)
+                               get_current_status, persist_healed_base_url, decide_healed_urls)
 from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
@@ -1601,13 +1601,13 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         raise HTTPException(status_code=400, detail="No LLM model configured")
 
     if not is_remote_llm(full_cfg.get("llm_mode", "local"), cfg.get("base_url", "")):
-        ok, msg, _base_url, _log_kind = await asyncio.to_thread(
+        res = await asyncio.to_thread(
             apply_lmstudio_settings, model_name, ideal=req.enable)
-        if not ok:
-            raise HTTPException(status_code=502, detail=msg)
+        if not res.ok:
+            raise HTTPException(status_code=502, detail=res.message)
         status = await asyncio.to_thread(get_lmstudio_status, model_name)
         status["model"] = model_name
-        status["message"] = msg
+        status["message"] = res.message
         return status
 
     # Remote: needs the SSH host alias (e.g. "tnr-0" from `tnr connect`).
@@ -1616,34 +1616,26 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         raise HTTPException(status_code=400, detail=(
             "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
             "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-    ok, msg, base_url, log_kind = await asyncio.to_thread(
+    res = await asyncio.to_thread(
         apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
 
-    # Intentional divergence from ensure_ideal_settings (which never adopts a
-    # verify-failed URL): this route is user-initiated and only persists when
-    # base_url differs from the cached one - i.e. the old Thunder instance is
-    # gone - so recording the freshly-resolved URL even if its public forward
-    # isn't reachable *yet* is correct here: it's the new truth, and the next
-    # status/run re-resolves. Only last_synced is gated on ok.
-    if base_url and base_url != full_cfg.get("llm_remote", {}).get("base_url"):
-        if ok:
-            # Isolate the host's first label "<uuid>-<port>" and drop the
-            # trailing "-<port>" with rsplit, so a hyphenated uuid (a real
-            # uuid4) isn't truncated. base_url shape is fixed:
-            # "https://<uuid>-<port>.thundercompute.net/v1".
-            host_label = base_url.split("//", 1)[1].split("/", 1)[0].split(".", 1)[0]
-            full_cfg.setdefault("llm_remote", {})["last_synced"] = {
-                "uuid": host_label.rsplit("-", 1)[0],
-                "base_url": base_url,
-                "timestamp": datetime.now().isoformat(),
-            }
-        # We're past the local early-return, so this branch is provably remote.
-        persist_healed_base_url(full_cfg, CONFIG_PATH, True, base_url)
+    # decide_healed_urls is the single keep-persist policy shared with
+    # ensure_ideal_settings (so the two can't drift): persist a freshly-resolved
+    # URL that differs from the cached one even when verify failed - it's the new
+    # truth and the next run re-resolves. last_synced is recorded only on success
+    # (pass target only when ok), straight from the resolved Thunder target
+    # (uuid/ip/ssh_port) instead of reverse-parsing the URL. We're past the local
+    # early-return, so this branch is provably remote.
+    cached = full_cfg.get("llm_remote", {}).get("base_url")
+    persist_url, _ = decide_healed_urls(res.ok, res.base_url, cached)
+    if persist_url:
+        persist_healed_base_url(full_cfg, CONFIG_PATH, True, persist_url,
+                                target=res.target if res.ok else None)
 
-    if not ok:
-        log_path = _log_llm_failure(log_kind or "optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
-        raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
-    return {"model": model_name, "message": msg, "remote": True, "optimized": req.enable, "base_url": base_url}
+    if not res.ok:
+        log_path = _log_llm_failure(res.log_kind or "optimize", f"alias={ssh_alias} model={model_name}\n\n{res.message}")
+        raise HTTPException(status_code=502, detail=f"{res.message}" + (f" (log: {log_path})" if log_path else ""))
+    return {"model": model_name, "message": res.message, "remote": True, "optimized": req.enable, "base_url": res.base_url}
 
 
 def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
@@ -2000,11 +1992,13 @@ def _claim_unique_path(directory: str, filename: str, sibling_suffixes=()) -> st
     uploads of the same filename. Caps at 1000 attempts to prevent a DoS
     from a maliciously pre-populated directory.
 
-    sibling_suffixes: when given (e.g. (".voice_config.json",)), a candidate
-    stem is only accepted if none of {stem}{suffix} already exist either, so a
-    caller that writes companion files under the claimed stem can't clobber a
-    pre-existing orphan companion. Only the primary path is O_EXCL-claimed (the
-    companions aren't concurrently contended).
+    sibling_suffixes: when given (e.g. (".voice_config.json",)), each
+    {stem}{suffix} companion is O_EXCL-reserved too (an empty placeholder the
+    caller overwrites), so a concurrent claimant or out-of-band creator can't
+    slip a sibling in between this claim and the caller's companion write. If any
+    companion is already taken, the whole claim is released and the next
+    candidate tried. A caller that ends up not writing a companion should remove
+    the leftover placeholder.
     """
     existing = {e.name for e in os.scandir(directory) if e.is_file()}
     base, ext = os.path.splitext(filename)
@@ -2018,9 +2012,25 @@ def _claim_unique_path(directory: str, filename: str, sibling_suffixes=()) -> st
             try:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
                 os.close(fd)
-                return path
             except FileExistsError:
-                pass  # lost the race - fall through and try the next candidate
+                pass  # lost the race on the primary - try the next candidate
+            else:
+                # Primary claimed; now atomically reserve every companion too.
+                claimed = [path]
+                try:
+                    for suffix in sibling_suffixes:
+                        sib = os.path.join(directory, f"{stem}{suffix}")
+                        fd = os.open(sib, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                        os.close(fd)
+                        claimed.append(sib)
+                except FileExistsError:
+                    for p in claimed:  # a companion was taken - release the lot
+                        try:
+                            os.unlink(p)
+                        except OSError:
+                            pass
+                else:
+                    return path
         if counter > 1000:
             raise RuntimeError(f"Too many collisions for filename: {filename}")
         counter += 1
@@ -3566,8 +3576,16 @@ async def save_script(request: ScriptSaveRequest):
     claimed_name = os.path.splitext(os.path.basename(dest))[0]
     shutil.copy2(SCRIPT_PATH, dest)
 
+    companion = os.path.join(SCRIPTS_DIR, f"{claimed_name}.voice_config.json")
     if os.path.exists(VOICE_CONFIG_PATH):
-        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{claimed_name}.voice_config.json"))
+        shutil.copy2(VOICE_CONFIG_PATH, companion)
+    else:
+        # _claim_unique_path reserved an empty companion placeholder; with no
+        # voice_config to write, remove it so we don't leave an empty orphan.
+        try:
+            os.remove(companion)
+        except OSError:
+            pass
 
     logger.info(f"Script saved as '{claimed_name}'")
     return {"status": "saved", "name": claimed_name}
