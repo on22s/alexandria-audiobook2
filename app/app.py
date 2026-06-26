@@ -1197,13 +1197,20 @@ def _validate_local_llm_base_url(base_url: str) -> None:
         return
     if is_local_llm_endpoint(base_url):
         return
-    from urllib.parse import urlparse
-    hostname = (urlparse(base_url).hostname or "").lower()
     # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
     # that trusted remote host for running LM Studio on a Thunder GPU instance.
-    if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
+    if _is_thunder_host(base_url):
         return
     raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
+
+
+def _is_thunder_host(base_url: str) -> bool:
+    """True if base_url points at a Thunder Compute port-forward host
+    (*.thundercompute.net). Single source for the Thunder-host check shared by
+    base_url validation and the test-connection "server not serving" hint."""
+    from urllib.parse import urlparse
+    hostname = (urlparse(base_url).hostname or "").lower()
+    return hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net")
 
 
 # LLM client cache to avoid creating new HTTP sessions for every request.
@@ -1634,8 +1641,39 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
 
     if not res.ok:
         log_path = _log_llm_failure(res.log_kind or "optimize", f"alias={ssh_alias} model={model_name}\n\n{res.message}")
-        raise HTTPException(status_code=502, detail=f"{res.message}" + (f" (log: {log_path})" if log_path else ""))
+        detail = f"{res.message}" + (f" (log: {log_path})" if log_path else "")
+        hint = _ssh_key_hint(res.message, ssh_alias)
+        if hint:
+            detail += f" — {hint}"
+        raise HTTPException(status_code=502, detail=detail)
     return {"model": model_name, "message": res.message, "remote": True, "optimized": req.enable, "base_url": res.base_url}
+
+
+def _ssh_key_hint(error_text: str, ssh_alias: str) -> Optional[str]:
+    """If a remote optimize fails SSH auth (missing/wrong key - e.g. the Thunder
+    instance was recreated and `tnr connect` was never re-run, so no key exists
+    at the per-uuid path resolve_thunder_target expects), point the user at the
+    one command that restores access. Returns a one-line hint, else None."""
+    text = error_text or ""
+    if "Permission denied (publickey" not in text and "Identity file" not in text:
+        return None
+    m = re.match(r"tnr-(\d+)$", (ssh_alias or "").strip())
+    cmd = f"tnr connect {m.group(1)}" if m else "tnr connect <id>"
+    return (f"SSH key for this instance is missing - run `{cmd}` to restore access "
+            "(the instance was likely recreated), then click Optimize again.")
+
+
+def _thunder_not_serving_hint(base_url: str, error_text: str) -> Optional[str]:
+    """If a Thunder forwarding URL returns the proxy's "Nothing running here"
+    page, the instance is up but no LLM server is answering on the forwarded
+    port - not started, or bound to 127.0.0.1 so the forward can't see it. The
+    Optimize button SSHes in and runs `lms server start --bind 0.0.0.0`, which
+    fixes exactly this. Returns a one-line hint, else None."""
+    if _is_thunder_host(base_url) and "Nothing running here" in (error_text or ""):
+        return ('Remote instance is up but no LLM server is answering on it. '
+                'Click "Optimize" to start LM Studio on the remote box over SSH '
+                "(binds 0.0.0.0 so Thunder's port-forward can see it), then Test again.")
+    return None
 
 
 def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
@@ -1656,7 +1694,10 @@ def _run_llm_test(base_url: str, api_key: str, model_name: str) -> dict:
         models = [m.id for m in client.models.list().data]
     except Exception as e:
         detail = f"base_url={base_url}\nGET /models failed:\n{traceback.format_exc()}"
-        return {"ok": False, "step": "models", "error": str(e),
+        hint = _thunder_not_serving_hint(base_url, str(e))
+        return {"ok": False, "step": "models",
+                "error": "Endpoint reachable but no LLM server is running on it." if hint else str(e),
+                "hint": hint,
                 "log_file": _log_llm_failure("test", detail)}
     model_present = model_name in models if model_name else None
     # Step 2: tiny chat completion

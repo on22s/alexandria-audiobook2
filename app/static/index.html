@@ -659,12 +659,12 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Chunk Size (characters)</label>
                                     <input type="number" class="form-control" id="chunk-size" value="3000" min="500">
-                                    <div class="form-text">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
+                                    <div class="form-text" id="chunk-size-hint">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Max Tokens (response)</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
-                                    <div class="form-text">Maximum tokens for LLM response. Increase if output is being truncated.</div>
+                                    <div class="form-text" id="max-tokens-hint">Maximum tokens for LLM response. Increase if output is being truncated.</div>
                                 </div>
                             </div>
                             <h6 class="mb-3">LLM Sampling Parameters</h6>
@@ -2157,6 +2157,20 @@
             badge.textContent = 'Active: ' + (savedLlmMode === 'remote' ? 'Remote (Thunder / network)' : 'Local');
         }
 
+        // Paint the Chunk Size / Max Tokens helper text for the selected LLM
+        // location. Remote (context 98304 / parallel 2) has far more headroom than
+        // local (context 8192 / parallel 1), so the guidance differs. Hints only -
+        // this never changes the input values.
+        function renderLlmModeHints(mode) {
+            const isRemote = (mode === 'remote');
+            document.getElementById('chunk-size-hint').innerHTML = isRemote
+                ? 'Up to ~6000 verified safe (clean, no truncation on a real book). Remote runs context 98304 / parallel 2. Real chunks already use ~⅔ of the response cap — raise Max Tokens before going past 6000.'
+                : '≈3000 recommended — local LM Studio runs context 8192 / parallel 1 for VRAM safety. Smaller = more precise, larger = more context.';
+            document.getElementById('max-tokens-hint').innerHTML = isRemote
+                ? '4096 fits 6000-char chunks; raise toward 8000 if you push chunk size higher.'
+                : '4096 is ample for ~3000-char chunks. Raise only if you see truncation warnings in the logs.';
+        }
+
         function onLlmModeChange(isInit) {
             const newMode = document.getElementById('llm-mode').value;
             if (!isInit && newMode !== currentLlmMode) {
@@ -2167,6 +2181,7 @@
             document.getElementById('llm-ssh-group').style.display =
                 (newMode === 'remote') ? '' : 'none';
             document.getElementById('llm-test-result').innerHTML = '';
+            renderLlmModeHints(newMode);
         }
 
         async function testLlmConnection() {
@@ -2203,7 +2218,8 @@
                 } else {
                     out.className = 'ms-2 small text-danger';
                     const log = res.log_file ? ` (log: ${escapeHtml(res.log_file)})` : '';
-                    out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
+                    const hint = res.hint ? `<br><span class="text-warning">${escapeHtml(res.hint)}</span>` : '';
+                    out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}${hint}`;
                 }
             } catch (e) {
                 out.className = 'ms-2 small text-danger';

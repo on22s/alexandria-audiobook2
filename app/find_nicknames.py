@@ -63,6 +63,25 @@ def _prompt_char_budget(context_length, max_tokens, system_chars):
     return max(1000, int(input_tokens * _CHARS_PER_TOKEN) - system_chars)
 
 
+class _ContextTooSmall(Exception):
+    """Raised when the server's real context is smaller than the value we
+    budgeted chunks for (it reports the truth in a 400 even when `lms ps`
+    advertised a larger configured context)."""
+    def __init__(self, real_n_ctx):
+        self.real_n_ctx = real_n_ctx
+
+
+def _parse_real_n_ctx(error_text):
+    """If error_text is a context-overflow 400 (n_keep >= n_ctx), return the
+    server's real n_ctx; else None. The server reports the true context this way
+    even when `lms ps` advertises a larger configured value."""
+    text = error_text or ""
+    m = re.search(r"n_ctx:\s*(\d+)", text)
+    if m and "n_keep" in text:
+        return int(m.group(1))
+    return None
+
+
 def _entry_speaker(e):
     return (e.get("speaker") or e.get("type") or "").strip()
 
@@ -211,81 +230,96 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
     speaker_set = {sp.strip().lower() for sp in speakers}
     existing_aliases = {k: v for k, v in (existing_aliases or {}).items()
                         if k.strip().lower() in speaker_set}
-    budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
 
-    # Roster block (every speaker + scaled sample lines) goes in every call, so
-    # cap it at ~half the budget and leave the rest for a chunk of evidence.
-    roster_budget = int(budget * 0.5)
-    per_speaker = max(1, min(6, roster_budget // max(1, len(speakers)) // 140))
-    roster_lines = ["SPEAKER LABELS + SAMPLE LINES:"]
-    for sp in speakers:
-        roster_lines.append(f'- "{sp}": ' + " | ".join(samples[sp][:per_speaker]))
-    roster_block = "\n".join(roster_lines)
-    if len(roster_block) > budget:  # extreme cast - truncate roster as last resort
-        roster_block = roster_block[:budget]
+    def _run_pass(context_length, allow_resize):
+        budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
 
-    # Existing aliases are prepended to every chunk too (see loop below) - even
-    # filtered, count them against the budget as a backstop.
-    existing_block_chars = (len(json.dumps(existing_aliases, ensure_ascii=False)) + 40
-                            if existing_aliases else 0)
+        # Roster block (every speaker + scaled sample lines) goes in every call, so
+        # cap it at ~half the budget and leave the rest for a chunk of evidence.
+        roster_budget = int(budget * 0.5)
+        per_speaker = max(1, min(6, roster_budget // max(1, len(speakers)) // 140))
+        roster_lines = ["SPEAKER LABELS + SAMPLE LINES:"]
+        for sp in speakers:
+            roster_lines.append(f'- "{sp}": ' + " | ".join(samples[sp][:per_speaker]))
+        roster_block = "\n".join(roster_lines)
+        if len(roster_block) > budget:  # extreme cast - truncate roster as last resort
+            roster_block = roster_block[:budget]
 
-    evidence_budget = max(500, budget - len(roster_block) - existing_block_chars)
-    chunks = _chunk_evidence(cooccur, evidence_budget)
-    if len(chunks) > 1:
-        print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
-              f"context-safe chunk(s) for {context_length}-token model.")
+        # Existing aliases are prepended to every chunk too (see loop below) - even
+        # filtered, count them against the budget as a backstop.
+        existing_block_chars = (len(json.dumps(existing_aliases, ensure_ascii=False)) + 40
+                                if existing_aliases else 0)
 
-    def _process_chunk(item):
-        ci, ev_lines, accumulated_snapshot = item
-        parts = []
-        if accumulated_snapshot:
-            parts.append("EXISTING ALIASES (stay consistent):")
-            parts.append(json.dumps(accumulated_snapshot, ensure_ascii=False))
-            parts.append("")
-        parts.append(roster_block)
-        if ev_lines:
-            parts.append("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):")
-            parts.extend(ev_lines)
-        parts.append("\nReturn the JSON now.")
-        user_prompt = "\n".join(parts)
-
+        evidence_budget = max(500, budget - len(roster_block) - existing_block_chars)
+        chunks = _chunk_evidence(cooccur, evidence_budget)
         if len(chunks) > 1:
-            print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
-        t0 = time.time()
-        try:
-            resp = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            raw = resp.choices[0].message.content or ""
-            print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
-            return _parse_alias_response(raw, speakers)
-        except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
-            print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
-                  f"after {time.time() - t0:.1f}s: {e}")
-            return {}, {}
+            print(f"  Splitting {len(cooccur)} evidence passages into {len(chunks)} "
+                  f"context-safe chunk(s) for {context_length}-token model.")
 
-    all_aliases, all_evidence = {}, {}
-    indexed_chunks = list(enumerate(chunks))
-    for wave_start in range(0, len(indexed_chunks), concurrency):
-        wave = indexed_chunks[wave_start:wave_start + concurrency]
-        # Every chunk in this wave sees the same "aliases found so far" snapshot,
-        # taken before the wave starts - they can't see each other's results,
-        # only chunks from earlier, already-finished waves.
-        snapshot = {**existing_aliases, **all_aliases}
-        wave_items = [(ci, ev_lines, snapshot) for ci, ev_lines in wave]
-        with ThreadPoolExecutor(max_workers=len(wave_items)) as executor:
-            results = list(executor.map(_process_chunk, wave_items))
-        for aliases, evidence in results:
-            all_aliases.update(aliases)
-            all_evidence.update(evidence)
+        def _process_chunk(item):
+            ci, ev_lines, accumulated_snapshot = item
+            parts = []
+            if accumulated_snapshot:
+                parts.append("EXISTING ALIASES (stay consistent):")
+                parts.append(json.dumps(accumulated_snapshot, ensure_ascii=False))
+                parts.append("")
+            parts.append(roster_block)
+            if ev_lines:
+                parts.append("\nCONTEXT PASSAGES (multiple names co-occur — alias evidence):")
+                parts.extend(ev_lines)
+            parts.append("\nReturn the JSON now.")
+            user_prompt = "\n".join(parts)
 
-    return all_aliases, all_evidence
+            if len(chunks) > 1:
+                print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
+            t0 = time.time()
+            try:
+                resp = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                raw = resp.choices[0].message.content or ""
+                print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
+                return _parse_alias_response(raw, speakers)
+            except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
+                # The server reports its real context in a 400 even when `lms ps`
+                # advertised a larger one - re-chunk against the truth and retry.
+                if allow_resize:
+                    real = _parse_real_n_ctx(str(e))
+                    if real is not None and real < context_length:
+                        raise _ContextTooSmall(real)
+                print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
+                      f"after {time.time() - t0:.1f}s: {e}")
+                return {}, {}
+
+        all_aliases, all_evidence = {}, {}
+        indexed_chunks = list(enumerate(chunks))
+        for wave_start in range(0, len(indexed_chunks), concurrency):
+            wave = indexed_chunks[wave_start:wave_start + concurrency]
+            # Every chunk in this wave sees the same "aliases found so far" snapshot,
+            # taken before the wave starts - they can't see each other's results,
+            # only chunks from earlier, already-finished waves.
+            snapshot = {**existing_aliases, **all_aliases}
+            wave_items = [(ci, ev_lines, snapshot) for ci, ev_lines in wave]
+            with ThreadPoolExecutor(max_workers=len(wave_items)) as executor:
+                results = list(executor.map(_process_chunk, wave_items))
+            for aliases, evidence in results:
+                all_aliases.update(aliases)
+                all_evidence.update(evidence)
+
+        return all_aliases, all_evidence
+
+    try:
+        return _run_pass(context_length, allow_resize=True)
+    except _ContextTooSmall as e:
+        print(f"  Reported context {context_length} but server actually serves "
+              f"{e.real_n_ctx}; re-chunking evidence to fit and retrying once.")
+        return _run_pass(e.real_n_ctx, allow_resize=False)
 
 
 def main():
