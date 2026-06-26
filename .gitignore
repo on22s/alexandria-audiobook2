@@ -148,3 +148,8 @@ pr_body.txt
 pr_body2.txt
 dedup_analysis/
 tone_analysis_output/
+
+# Review / tooling scratch artifacts
+CODE_REVIEW.md
+*.skill
+docs/superpowers/
