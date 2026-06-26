@@ -36,7 +36,7 @@ from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status, get_base_url_config_sections)
+                               get_current_status, persist_healed_base_url)
 from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
@@ -1619,22 +1619,26 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     ok, msg, base_url, log_kind = await asyncio.to_thread(
         apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
 
+    # Intentional divergence from ensure_ideal_settings (which never adopts a
+    # verify-failed URL): this route is user-initiated and only persists when
+    # base_url differs from the cached one - i.e. the old Thunder instance is
+    # gone - so recording the freshly-resolved URL even if its public forward
+    # isn't reachable *yet* is correct here: it's the new truth, and the next
+    # status/run re-resolves. Only last_synced is gated on ok.
     if base_url and base_url != full_cfg.get("llm_remote", {}).get("base_url"):
-        sections = get_base_url_config_sections(
-            is_remote_llm(full_cfg.get("llm_mode", "local"), full_cfg.get("llm", {}).get("base_url", "")))
-        for section in sections:
-            full_cfg.setdefault(section, {})["base_url"] = base_url
         if ok:
-            # Re-parses the uuid from the URL instead of threading target['uuid']
-            # through 3 more return signatures - safe because every uuid this
-            # session observed (kwalnfcc, vf8oc702, 6m2m2saq) is hyphen-free and
-            # new_base_url's shape is fixed at "https://<uuid>-<port>....".
-            full_cfg["llm_remote"]["last_synced"] = {
-                "uuid": base_url.split("//")[1].split("-")[0],
+            # Isolate the host's first label "<uuid>-<port>" and drop the
+            # trailing "-<port>" with rsplit, so a hyphenated uuid (a real
+            # uuid4) isn't truncated. base_url shape is fixed:
+            # "https://<uuid>-<port>.thundercompute.net/v1".
+            host_label = base_url.split("//", 1)[1].split("/", 1)[0].split(".", 1)[0]
+            full_cfg.setdefault("llm_remote", {})["last_synced"] = {
+                "uuid": host_label.rsplit("-", 1)[0],
                 "base_url": base_url,
                 "timestamp": datetime.now().isoformat(),
             }
-        atomic_json_write(full_cfg, CONFIG_PATH)
+        # We're past the local early-return, so this branch is provably remote.
+        persist_healed_base_url(full_cfg, CONFIG_PATH, True, base_url)
 
     if not ok:
         log_path = _log_llm_failure(log_kind or "optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
@@ -1986,7 +1990,7 @@ def extract_epub_text(epub_path: str) -> str:
     return '\n\n'.join(chapters)
 
 
-def _claim_unique_path(directory: str, filename: str) -> str:
+def _claim_unique_path(directory: str, filename: str, sibling_suffixes=()) -> str:
     """Atomically reserve a unique path in directory for filename, returning the
     path to a newly-created empty file the caller should now write/truncate into.
 
@@ -1995,13 +1999,21 @@ def _claim_unique_path(directory: str, filename: str) -> str:
     closing the TOCTOU race a scan-then-write approach has under concurrent
     uploads of the same filename. Caps at 1000 attempts to prevent a DoS
     from a maliciously pre-populated directory.
+
+    sibling_suffixes: when given (e.g. (".voice_config.json",)), a candidate
+    stem is only accepted if none of {stem}{suffix} already exist either, so a
+    caller that writes companion files under the claimed stem can't clobber a
+    pre-existing orphan companion. Only the primary path is O_EXCL-claimed (the
+    companions aren't concurrently contended).
     """
     existing = {e.name for e in os.scandir(directory) if e.is_file()}
     base, ext = os.path.splitext(filename)
     candidate = filename
     counter = 1
     while True:
-        if candidate not in existing:
+        stem = os.path.splitext(candidate)[0]
+        siblings_clear = all(f"{stem}{s}" not in existing for s in sibling_suffixes)
+        if candidate not in existing and siblings_clear:
             path = os.path.join(directory, candidate)
             try:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
@@ -3547,8 +3559,10 @@ async def save_script(request: ScriptSaveRequest):
     # Claim a non-colliding path so saving a name that sanitizes to an existing
     # file (or re-saving the same name) auto-numbers instead of silently
     # overwriting another saved book. Derive the companion voice_config name
-    # from the claimed stem so the two never mismatch.
-    dest = _claim_unique_path(SCRIPTS_DIR, f"{safe_name}.json")
+    # from the claimed stem so the two never mismatch, and avoid a stem whose
+    # companion already exists as an orphan (else the copy below clobbers it).
+    dest = _claim_unique_path(SCRIPTS_DIR, f"{safe_name}.json",
+                              sibling_suffixes=(".voice_config.json",))
     claimed_name = os.path.splitext(os.path.basename(dest))[0]
     shutil.copy2(SCRIPT_PATH, dest)
 
@@ -4687,6 +4701,10 @@ async def lora_preview(adapter_id: str):
 
 def _load_builder_state(name):
     """Load project state from dataset builder working directory."""
+    # Sanitize the name into the path here too (defense-in-depth): callers pass
+    # an already-secured name, and secure_filename is idempotent on those, so
+    # this only hardens any future/raw caller against `..` traversal.
+    name = secure_filename(name)
     state_path = os.path.join(DATASET_BUILDER_DIR, name, "state.json")
     if os.path.exists(state_path):
         try:
@@ -4705,6 +4723,7 @@ def _load_builder_state(name):
 
 def _save_builder_state(name, state):
     """Save per-sample state to dataset builder working directory atomically."""
+    name = secure_filename(name)  # defense-in-depth; idempotent on secured names
     work_dir = os.path.join(DATASET_BUILDER_DIR, name)
     os.makedirs(work_dir, exist_ok=True)
     atomic_json_write(state, os.path.join(work_dir, "state.json"))
