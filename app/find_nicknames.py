@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, OpenAIError
 from utils import safe_load_json, atomic_json_write
 from llm_bench import get_cached_or_benchmarked_concurrency
-from lmstudio_settings import ensure_ideal_settings, persist_healed_base_url
+from lmstudio_settings import ensure_ideal_settings, persist_healed_base_url, resolve_client_base_url
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
@@ -323,15 +323,16 @@ def main():
     # was disconnected from whatever was really loaded. Also covers a
     # recreated Thunder instance: the healed base_url below may differ from
     # what was just loaded from config.
-    is_remote, status, heal_msg, healed_base_url = ensure_ideal_settings(
+    is_remote, status, heal_msg, heal = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
-    if healed_base_url != base_url:
-        print(f"Base URL healed: {base_url} -> {healed_base_url}")
-        base_url = healed_base_url
-        persist_healed_base_url(config, config_path, is_remote, base_url)
+    if heal.adopt_url != base_url:
+        print(f"Base URL healed: {base_url} -> {heal.adopt_url}")
+        base_url = heal.adopt_url
+    if heal.persist_url:
+        persist_healed_base_url(config, config_path, is_remote, heal.persist_url, target=heal.target)
 
-    client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
+    client = OpenAI(base_url=resolve_client_base_url(base_url, is_remote),
                     api_key=llm.get("api_key", "local"))
 
     if status.get("loaded") and status.get("context_length"):

@@ -17,11 +17,48 @@ import re
 import shlex
 import shutil
 import subprocess
+from collections import namedtuple
+from dataclasses import dataclass
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
 
 from utils import run_rocm_smi_json, atomic_json_write
+
+
+@dataclass
+class ApplyResult:
+    """Result of an apply_*_lmstudio_settings call. Only the remote variant (a
+    resolved Thunder reload) populates base_url/log_kind/target; local applies
+    leave them None. A named result lets both variants be unpacked identically
+    without trailing positional dead slots.
+
+    - base_url: the freshly computed Thunder URL whenever resolution succeeded
+      (regardless of whether verify did), else None.
+    - log_kind: which diagnostic-log bucket a failure belongs to
+      ("thunder_resolve" / "optimize" / "optimize_verify"), or None on success.
+    - target: the resolved Thunder target dict (uuid/ip/ssh_port/...) used for
+      the reload, so callers can record last_synced without reverse-parsing the
+      URL. None for the literal-alias and local paths.
+    """
+    ok: bool
+    message: str
+    base_url: Optional[str] = None
+    log_kind: Optional[str] = None
+    target: Optional[dict] = None
+
+
+# What a (verify-ok?, freshly-resolved url) pair means for the two distinct
+# outputs the heal sites need: what to PERSIST to config vs. what a live client
+# should ADOPT this run. Returned by decide_healed_urls so the optimize route
+# and ensure_ideal_settings can't drift on that policy (Rule 15).
+HealUrls = namedtuple("HealUrls", ["persist_url", "adopt_url"])
+
+# ensure_ideal_settings' heal outcome handed to its callers: the url to use for
+# this run's client (adopt_url), the url to persist (persist_url, None when
+# unchanged), and the resolved Thunder target for last_synced (None locally).
+HealOutcome = namedtuple("HealOutcome", ["adopt_url", "persist_url", "target"])
 
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
@@ -73,7 +110,7 @@ def get_base_url_config_sections(is_remote):
     return ["llm_remote", "llm"] if is_remote else ["llm_remote"]
 
 
-def persist_healed_base_url(config, config_path, is_remote, base_url):
+def persist_healed_base_url(config, config_path, is_remote, base_url, target=None):
     """Write base_url into every config section that should track it (see
     get_base_url_config_sections) and atomically save config to config_path.
 
@@ -83,10 +120,59 @@ def persist_healed_base_url(config, config_path, is_remote, base_url):
     file is written. Mutates the passed-in config dict (the caller's own local
     copy) then writes it - a load/mutate/save of one local value, not a
     cross-function output parameter.
+
+    `target`: when given (the resolved Thunder target dict for the heal that
+    produced base_url), also records llm_remote.last_synced with the structured
+    uuid/ip/ssh_port straight from the target - the single writer of that field,
+    so no caller has to reverse-parse them out of the URL string. Omit it (None)
+    to update base_url only (the literal-alias / verify-failed cases).
     """
+    from datetime import datetime
     for section in get_base_url_config_sections(is_remote):
         config.setdefault(section, {})["base_url"] = base_url
+    if target is not None:
+        config.setdefault("llm_remote", {})["last_synced"] = {
+            "uuid": target.get("uuid"),
+            "ip": target.get("ip"),
+            "ssh_port": target.get("ssh_port"),
+            "base_url": base_url,
+            "timestamp": datetime.now().isoformat(),
+        }
     atomic_json_write(config, config_path)
+
+
+def decide_healed_urls(ok, resolved_base_url, cached_base_url):
+    """The single policy for what a (verify-ok?, freshly-resolved url) pair means,
+    shared by app.py's optimize route and ensure_ideal_settings so the two can't
+    drift (Rule 15). Returns HealUrls(persist_url, adopt_url):
+
+    - persist_url: the url to write to config, or None to leave config alone.
+      A freshly-resolved url that differs from the cached one is persisted even
+      when verify failed - it's the new truth (the old instance/forward is gone),
+      and the next run re-resolves/heals from it. None when nothing changed.
+    - adopt_url: the url a live client should use THIS run. Only a verify-OK url
+      is adopted; on failure the caller keeps the cached/old url rather than
+      switching this run onto an endpoint that isn't reachable yet.
+    """
+    persist_url = resolved_base_url if (resolved_base_url and resolved_base_url != cached_base_url) else None
+    adopt_url = resolved_base_url if ok else cached_base_url
+    return HealUrls(persist_url, adopt_url)
+
+
+def resolve_client_base_url(base_url, is_remote):
+    """Resolve the base_url an OpenAI-compatible client should connect to.
+    Single source so the LLM subprocess scripts (find_nicknames.py,
+    review_script.py, generate_script.py) can't drift on the empty-url policy.
+
+    Raises ValueError when is_remote but no base_url resolved - a remote run with
+    an empty url must fail loudly, NOT silently fall back to a local endpoint
+    (that's how a remote job ends up hitting a local Ollama on :11434). Returns
+    base_url or the local default only for the local case.
+    """
+    if is_remote and not base_url:
+        raise ValueError("remote LLM selected but no base_url resolved "
+                         "(refusing to fall back to a local endpoint)")
+    return base_url or "http://localhost:11434/v1"
 
 
 def find_lms_binary():
@@ -158,8 +244,13 @@ def resolve_thunder_target(ssh_alias):
                        f"could not parse `tnr status --json` output: {e}\n"
                        f"raw stdout:\n{result.stdout}")
 
+    if not isinstance(instances, list):
+        return None, (instance_id,
+                       f"unexpected `tnr status --json` shape (expected a list, got "
+                       f"{type(instances).__name__}):\n{result.stdout}")
+
     for inst in instances:
-        if str(inst.get("id")) == instance_id:
+        if isinstance(inst, dict) and str(inst.get("id")) == instance_id:
             uuid = inst.get("uuid")
             return {
                 "instance_id": instance_id,
@@ -408,14 +499,24 @@ def get_gpu_name_and_backend():
     return _gpu_name_from_probes(lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=5))
 
 
-def get_remote_gpu_name_and_backend(ssh_alias):
-    """Same as get_gpu_name_and_backend, but probes a remote host over SSH."""
+def get_remote_gpu_name_and_backend(ssh_alias, resolved_target=None):
+    """Same as get_gpu_name_and_backend, but probes a remote host over SSH.
+
+    `resolved_target`: an already-resolved target (the dict-or-alias that
+    _resolve_ssh_target returns) when the caller resolved once and is threading
+    it in - same pattern as get_remote_lmstudio_status. Left None means resolve
+    here, but only ONCE: _gpu_name_from_probes runs up to two probes
+    (nvidia-smi, then rocm-smi), and resolving per probe would re-run
+    `tnr status --json` for each. Resolve up front and reuse for every probe.
+    """
     if not ssh_alias:
         return None, None
 
+    ssh_target = resolved_target if resolved_target is not None else _resolve_ssh_target(ssh_alias)
+
     def _run(argv):
         remote_cmd = " ".join(shlex.quote(a) for a in argv)
-        return _ssh_run(_resolve_ssh_target(ssh_alias), remote_cmd, timeout=15, connect_timeout=10)
+        return _ssh_run(ssh_target, remote_cmd, timeout=15, connect_timeout=10)
 
     return _gpu_name_from_probes(_run)
 
@@ -423,14 +524,14 @@ def get_remote_gpu_name_and_backend(ssh_alias):
 def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
     """Reload model_name with either the VRAM-safe (ideal) or default settings.
 
-    Best-effort: returns (success, message, None, None) - the last two slots
-    exist only so callers can unpack apply_lmstudio_settings and
-    apply_remote_lmstudio_settings identically; local mode never resolves a
-    Thunder URL or distinct log kind. Never raises.
+    Best-effort: returns an ApplyResult; local mode never resolves a Thunder URL,
+    log kind, or target, so those fields stay None (the result type is shared
+    with apply_remote_lmstudio_settings so callers unpack both identically).
+    Never raises.
     """
     lms = find_lms_binary()
     if not lms:
-        return False, "lms CLI not found on PATH", None, None
+        return ApplyResult(False, "lms CLI not found on PATH")
 
     settings = IDEAL_SETTINGS if ideal else DEFAULT_SETTINGS
 
@@ -459,17 +560,17 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
             capture_output=True, text=True, timeout=180
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
-        return False, f"Failed to run lms load: {e}", None, None
+        return ApplyResult(False, f"Failed to run lms load: {e}")
 
     if result.returncode != 0:
         msg = result.stderr.strip() or result.stdout.strip() or "lms load failed"
         if unload_failed:
             msg += (" (unloading the previously-loaded model also failed - "
                     "it may still be running with different settings)")
-        return False, msg, None, None
+        return ApplyResult(False, msg)
 
     label = "VRAM-safe" if ideal else "default"
-    return True, f"Reloaded {model_name} with {label} settings", None, None
+    return ApplyResult(True, f"Reloaded {model_name} with {label} settings")
 
 
 def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, resolved=None):
@@ -486,14 +587,12 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, resolved=N
     no behavior change, so generic (non-Thunder) remote endpoints are
     unaffected.
 
-    Returns (ok, message, base_url, log_kind):
-    - base_url is the freshly computed Thunder URL whenever resolution
-      succeeded (regardless of whether the rest of the call did), else None.
-    - log_kind tells callers which diagnostic-log bucket a failure belongs
-      to: "thunder_resolve" (couldn't resolve the instance at all),
-      "optimize" (resolved fine, ssh/lms itself failed), "optimize_verify"
-      (ssh/lms succeeded, public endpoint still unreachable), or None on
-      success.
+    Returns an ApplyResult: base_url is the freshly computed Thunder URL
+    whenever resolution succeeded (regardless of whether the rest of the call
+    did), else None; log_kind names the diagnostic-log bucket of a failure
+    ("thunder_resolve" / "optimize" / "optimize_verify", None on success);
+    target is the resolved Thunder target dict (None for the literal-alias
+    path) so the caller records last_synced without reverse-parsing the URL.
 
     Never raises. Unlike apply_lmstudio_settings, this intentionally does
     not pass `--ttl` - that's today's existing remote semantics, not an
@@ -516,9 +615,9 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, resolved=N
     target, resolve_error = resolve_thunder_target(ssh_alias) if resolved is None else resolved
     if target is None and resolve_error is not None:
         instance_id, detail = resolve_error
-        return (False,
-                f"Could not resolve Thunder instance '{instance_id}': {detail.splitlines()[0]}",
-                None, "thunder_resolve")
+        return ApplyResult(False,
+                           f"Could not resolve Thunder instance '{instance_id}': {detail.splitlines()[0]}",
+                           log_kind="thunder_resolve")
 
     # Shared unload+reload tail. The Thunder branch additionally (re)starts the
     # server bound to 0.0.0.0 first, so Thunder's port-forward can see it.
@@ -542,28 +641,28 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, resolved=N
     try:
         result = _ssh_run(ssh_target, remote_cmd, timeout=200, connect_timeout=15)
     except (subprocess.TimeoutExpired, OSError) as e:
-        return False, f"SSH to '{where}' failed: {e}", None, "optimize"
+        return ApplyResult(False, f"SSH to '{where}' failed: {e}", log_kind="optimize")
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or f"ssh exited {result.returncode}"
-        return False, f"[{where}] {detail}", None, "optimize"
+        return ApplyResult(False, f"[{where}] {detail}", log_kind="optimize")
 
     label = f"best ({REMOTE_IDEAL_SETTINGS['context_length']} ctx)" if ideal else "default"
 
     if target is None:
-        return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings", None, None
+        return ApplyResult(True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings")
 
     new_base_url = f"https://{target['uuid']}-{target['http_port']}.thundercompute.net/v1"
     verified, verify_detail = _verify_remote_endpoint(new_base_url, model_name=model_name)
     if not verified:
-        return (False,
-                f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' "
-                f"({target['uuid']}), but the public endpoint {new_base_url} is still "
-                f"unreachable: {verify_detail}",
-                new_base_url, "optimize_verify")
+        return ApplyResult(False,
+                           f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' "
+                           f"({target['uuid']}), but the public endpoint {new_base_url} is still "
+                           f"unreachable: {verify_detail}",
+                           base_url=new_base_url, log_kind="optimize_verify", target=target)
 
-    return (True,
-            f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' with {label} settings",
-            new_base_url, None)
+    return ApplyResult(True,
+                       f"Reloaded {model_name} on Thunder instance '{target['instance_id']}' with {label} settings",
+                       base_url=new_base_url, target=target)
 
 
 def get_current_status(llm_mode, base_url, model_name, ssh_alias=None):
@@ -586,20 +685,25 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     Shared by review_script.py and find_nicknames.py instead of each
     hand-rolling its own copy of this branch.
 
-    Returns (is_remote, status, message, base_url). status always has the
-    {available, loaded, context_length, parallel, optimized} shape.
-    base_url is the (possibly-healed) URL callers should actually use and
-    persist for this run - unchanged from the input unless a Thunder
-    instance was resolved and its computed URL differs (never silently
-    substitutes a broken URL for one that was working). Never raises -
-    every call it makes is itself best-effort/non-raising.
+    Returns (is_remote, status, message, heal). status always has the
+    {available, loaded, context_length, parallel, optimized} shape. `heal` is a
+    HealOutcome(adopt_url, persist_url, target):
+    - adopt_url: the URL this run's live client should use - the input base_url
+      unless a Thunder reload verified end-to-end and produced a different URL
+      (never silently substitutes a not-yet-reachable URL for a working one).
+    - persist_url: the URL to write to config (None when unchanged); follows the
+      shared decide_healed_urls keep-persist policy so callers persist
+      consistently with the optimize route.
+    - target: the resolved Thunder target dict to record in last_synced on a
+      successful heal, else None. Never raises - every call it makes is itself
+      best-effort/non-raising.
     """
     is_remote = is_remote_llm(llm_mode, base_url)
 
     if is_remote and not ssh_alias:
         return (True, get_remote_lmstudio_status(None, model_name),
                 "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.",
-                base_url)
+                HealOutcome(base_url, None, None))
 
     if is_remote:
         # Resolve the Thunder instance ONCE here and thread the result through
@@ -628,27 +732,27 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
 
     status = get_status()
     if status["loaded"] and status["optimized"]:
-        return is_remote, status, f"{label}: {model_name} already loaded with ideal settings.", base_url
+        return (is_remote, status,
+                f"{label}: {model_name} already loaded with ideal settings.",
+                HealOutcome(base_url, None, None))
 
-    ok, msg, healed_url, _log_kind = apply_settings()
-    # Only adopt a different base_url when the heal SUCCEEDED end-to-end
-    # (which, for the remote path, includes _verify_remote_endpoint). On a
-    # verify failure apply_remote_lmstudio_settings still returns the resolved
-    # Thunder URL (non-None) so the optimize route can record it, but its
-    # public forward isn't reachable yet - switching this run's live client to
-    # it would just run against a dead endpoint AND overwrite a possibly-working
-    # URL, violating this function's "never silently substitutes a broken URL"
-    # contract. The ssh_alias-based heal re-resolves next run regardless, so
-    # keeping the prior base_url here loses nothing.
-    resolved_base_url = healed_url if (ok and healed_url) else base_url
+    res = apply_settings()
+    # decide_healed_urls is the single shared policy (Rule 15), also used by the
+    # optimize route: persist_url is what to write to config (the new truth even
+    # if verify failed - the next run re-resolves from it), adopt_url is what
+    # THIS run's live client uses (only a verify-OK URL; on failure we keep the
+    # prior base_url rather than switch onto a not-yet-reachable endpoint).
+    # target is recorded in last_synced only on a successful heal.
+    persist_url, adopt_url = decide_healed_urls(res.ok, res.base_url, base_url)
+    heal = HealOutcome(adopt_url, persist_url, res.target if res.ok else None)
     status = get_status()
-    if ok:
-        return is_remote, status, f"{label}: {msg}", resolved_base_url
+    if res.ok:
+        return is_remote, status, f"{label}: {res.message}", heal
     if status["loaded"] and status["optimized"]:
         return (is_remote, status,
-                f"{label}: could not reload ({msg}), but {model_name} is "
+                f"{label}: could not reload ({res.message}), but {model_name} is "
                 f"already loaded with ideal settings - continuing.",
-                resolved_base_url)
+                heal)
     return (is_remote, status,
-            f"{label}: WARNING - could not apply ideal settings ({msg}). {ok_warning}",
-            resolved_base_url)
+            f"{label}: WARNING - could not apply ideal settings ({res.message}). {ok_warning}",
+            heal)

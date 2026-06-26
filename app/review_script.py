@@ -15,7 +15,8 @@ from generate_script import (
     clean_json_string, repair_json_array, salvage_json_entries,
     LLMGenParams, call_llm_for_entries,
 )
-from lmstudio_settings import ensure_ideal_settings, get_current_status, persist_healed_base_url
+from lmstudio_settings import (ensure_ideal_settings, get_current_status,
+                               persist_healed_base_url, resolve_client_base_url)
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
 
 
@@ -820,15 +821,16 @@ def main():
     # managed elsewhere; the local `lms` CLI and the local-GPU VRAM watchdog
     # don't apply, so skip them entirely when the endpoint isn't local.
     llm_mode = config.get("llm_mode", "local")
-    is_remote, lm_status, heal_msg, healed_base_url = ensure_ideal_settings(
+    is_remote, lm_status, heal_msg, heal = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
-    if healed_base_url != base_url:
-        print(f"Base URL healed: {base_url} -> {healed_base_url}")
-        base_url = healed_base_url
-        persist_healed_base_url(config, config_path, is_remote, base_url)
+    if heal.adopt_url != base_url:
+        print(f"Base URL healed: {base_url} -> {heal.adopt_url}")
+        base_url = heal.adopt_url
+    if heal.persist_url:
+        persist_healed_base_url(config, config_path, is_remote, heal.persist_url, target=heal.target)
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=resolve_client_base_url(base_url, is_remote), api_key=api_key)
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
