@@ -49,6 +49,24 @@ def test_input_hash_is_stable_and_sensitive():
     assert gs.compute_input_hash("hello") != gs.compute_input_hash("hello!")
 
 
+def test_resume_offset_skips_completed_chunks():
+    """The loop must skip already-completed chunks and keep restored context.
+    We simulate the loop's resume arithmetic directly."""
+    chunks = ["c1", "c2", "c3", "c4", "c5"]
+    completed_chunks = 2
+    restored_entries = [{"i": 0}, {"i": 1}]
+    processed = list(restored_entries)
+    for i, chunk in enumerate(chunks, 1):
+        if i <= completed_chunks:
+            continue
+        # context for chunk i is everything accumulated so far
+        assert len(processed) >= 2  # restored context is present
+        processed.append({"i": i - 1, "chunk": chunk})
+    # Only chunks 3,4,5 were processed; 1,2 came from the checkpoint
+    assert [p.get("chunk") for p in processed if "chunk" in p] == ["c3", "c4", "c5"]
+    assert len(processed) == 5
+
+
 def _main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

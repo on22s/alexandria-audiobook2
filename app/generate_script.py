@@ -475,6 +475,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
     parser.add_argument("--output", default=None, help="Output JSON path (default: ../annotated_script.json)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from a saved checkpoint if one matches this source.")
     args = parser.parse_args()
 
     input_file_path = args.input_file
@@ -547,7 +549,20 @@ def main():
 
     output_path = args.output or os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
 
+    input_hash = compute_input_hash(book_content)
     all_entries = []
+    completed_chunks = 0
+    if args.resume:
+        ckpt = load_script_checkpoint(output_path, total_chunks, chunk_size, input_hash)
+        if ckpt:
+            all_entries = ckpt["all_entries"]
+            completed_chunks = ckpt["completed_chunks"]
+            print(f"Resuming from checkpoint: {completed_chunks}/{total_chunks} chunks already done.")
+        else:
+            print("No usable checkpoint - starting fresh.")
+    else:
+        clear_script_checkpoint(output_path)
+
     chunk_times = []
     start_time = time.monotonic()
 
@@ -565,6 +580,8 @@ def main():
     )
 
     for i, chunk in enumerate(chunks, 1):
+        if i <= completed_chunks:
+            continue
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
         chunk_start = time.monotonic()
@@ -577,6 +594,8 @@ def main():
         chunk_times.append(chunk_elapsed)
 
         all_entries.extend(entries)
+        save_script_checkpoint(output_path, i, total_chunks, chunk_size,
+                               input_hash, all_entries)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
 
         remaining = total_chunks - i
@@ -598,6 +617,7 @@ def main():
 
     # Save as JSON (atomic write so a crash/kill mid-write can't corrupt the book)
     atomic_json_write(all_entries, output_path)
+    clear_script_checkpoint(output_path)
 
     # Only clear chunks when writing to the default annotated_script.json location
     if args.output is None:
