@@ -67,6 +67,20 @@ def test_resume_offset_skips_completed_chunks():
     assert len(processed) == 5
 
 
+def test_batch_state_roundtrip():
+    import json as _json
+    from utils import atomic_json_write
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, ".batch_script_state.json")
+        files = [{"filename": "a.txt", "status": "done"},
+                 {"filename": "b.txt", "status": "pending"}]
+        atomic_json_write({"files": files, "current_idx": 1}, path)
+        loaded = _json.load(open(path))
+        done = [f for f in loaded["files"] if f["status"] == "done"]
+        assert [f["filename"] for f in done] == ["a.txt"]
+        assert loaded["current_idx"] == 1
+
+
 def _main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

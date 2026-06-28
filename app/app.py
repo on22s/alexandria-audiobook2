@@ -55,6 +55,8 @@ AUDIOBOOK_PATH = os.path.join(ROOT_DIR, "cloned_audiobook.mp3")
 M4B_PATH = os.path.join(ROOT_DIR, "audiobook.m4b")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
+BATCH_SCRIPT_STATE_PATH = os.path.join(SCRIPTS_DIR, ".batch_script_state.json")
+BATCH_REVIEW_STATE_PATH = os.path.join(SCRIPTS_DIR, ".batch_review_state.json")
 CHUNKS_PATH = os.path.join(ROOT_DIR, "chunks.json")
 VOICE_LIBRARY_PATH = os.path.join(ROOT_DIR, "voice_library.json")
 CHARACTER_ALIASES_PATH = os.path.join(ROOT_DIR, "character_aliases.json")
@@ -2621,6 +2623,37 @@ class BatchScriptTask(BaseModel):
 
 class BatchScriptRequest(BaseModel):
     tasks: List[BatchScriptTask]
+    resume: bool = False
+
+
+def _save_batch_script_state(state: dict) -> None:
+    try:
+        atomic_json_write({
+            "files": [dict(t) for t in state.get("tasks", [])],
+            "current_idx": state.get("current_task_idx", 0),
+        }, BATCH_SCRIPT_STATE_PATH)
+    except OSError as e:
+        state["logs"].append(f"WARNING: could not save batch state: {e}")
+
+
+def _clear_batch_script_state(tasks) -> None:
+    """Fresh start: drop the batch plan and every per-file script checkpoint."""
+    if os.path.exists(BATCH_SCRIPT_STATE_PATH):
+        try:
+            os.remove(BATCH_SCRIPT_STATE_PATH)
+        except OSError:
+            pass
+    for t in tasks:
+        stem = secure_filename(os.path.splitext(t.filename)[0]) or ""
+        if not stem:
+            continue
+        ckpt = os.path.join(SCRIPTS_DIR, f"{stem}.json.script_checkpoint.json")
+        if os.path.exists(ckpt):
+            try:
+                os.remove(ckpt)
+            except OSError:
+                pass
+
 
 @app.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
@@ -2629,11 +2662,24 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
     if not request.tasks:
         raise HTTPException(status_code=400, detail="No files provided.")
 
+    resume = bool(request.resume)
+    done_filenames = set()
+    if resume:
+        prev = safe_load_json(BATCH_SCRIPT_STATE_PATH)
+        if isinstance(prev, dict):
+            done_filenames = {f["filename"] for f in prev.get("files", [])
+                              if isinstance(f, dict) and f.get("status") == "done"}
+    else:
+        _clear_batch_script_state(request.tasks)
+
     def _run():
         state = process_state["batch_script"]
         _init_batch_state(state,
                           [f"Starting batch of {len(request.tasks)} file(s)..."],
-                          [{"filename": t.filename, "status": "pending"} for t in request.tasks])
+                          [{"filename": t.filename,
+                            "status": "done" if t.filename in done_filenames else "pending"}
+                           for t in request.tasks])
+        _save_batch_script_state(state)
 
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_script")
@@ -2644,6 +2690,9 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 break
 
             state["current_task_idx"] = i
+            if state["tasks"][i]["status"] == "done":
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — already done: {task.filename}")
+                continue
             state["tasks"][i]["status"] = "running"
 
             # Resolve upload path — handle epub→txt conversion
@@ -2651,6 +2700,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             if not safe_filename:
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — invalid filename: {task.filename}")
                 state["tasks"][i]["status"] = "failed"
+                _save_batch_script_state(state)
                 continue
             input_path = os.path.join(UPLOADS_DIR, safe_filename)
             if not os.path.exists(input_path):
@@ -2662,6 +2712,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             if not os.path.exists(input_path):
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — file not found: {task.filename}")
                 state["tasks"][i]["status"] = "failed"
+                _save_batch_script_state(state)
                 continue
 
             stem = os.path.splitext(os.path.basename(input_path))[0]
@@ -2676,10 +2727,13 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 input_path,
                 "--output", output_path,
             ]
+            if resume:
+                cmd.append("--resume")
             rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"
+                _save_batch_script_state(state)
                 break
             elif rc == 0:
                 state["tasks"][i]["status"] = "done"
@@ -2688,13 +2742,29 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             else:
                 state["tasks"][i]["status"] = "failed"
                 state["logs"].append(f"[{i+1}] Failed (exit {rc}): {task.filename}")
+            _save_batch_script_state(state)
 
         state["running"] = False
+        if not state["cancel"]:
+            _clear_batch_script_state(request.tasks)
         state["logs"].append("Batch script generation finished.")
 
     claim_gpu_task("batch_script")
     background_tasks.add_task(_run)
-    return {"status": "started", "task_count": len(request.tasks)}
+    return {"status": "started", "task_count": len(request.tasks), "resume": resume}
+
+
+@app.get("/api/generate_script/batch/checkpoint")
+async def generate_script_batch_checkpoint():
+    """Detect an unfinished batch generation (read-only)."""
+    prev = safe_load_json(BATCH_SCRIPT_STATE_PATH)
+    if not isinstance(prev, dict) or not prev.get("files"):
+        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+    files = prev["files"]
+    done = sum(1 for f in files if f.get("status") == "done")
+    total = len(files)
+    return {"exists": done < total, "done": done, "total": total,
+            "label": f"{done}/{total} files", "mode": {"files": files}}
 
 
 @app.post("/api/generate_script/batch/cancel")
