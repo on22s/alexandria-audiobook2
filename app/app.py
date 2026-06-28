@@ -2243,6 +2243,8 @@ async def review_script(background_tasks: BackgroundTasks, request: Optional[Rev
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
     check_global_gpu_lock("review")
+    if not request.resume:
+        clear_checkpoint(SCRIPT_PATH)
 
     cmd = [sys.executable, "-u", "review_script.py"]
     if request.dedupe_speakers:
@@ -2258,6 +2260,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
     check_global_gpu_lock("review")
+    if not request.resume:
+        clear_checkpoint(SCRIPT_PATH)
 
     window_size = max(1, min(int(request.window_size or 4), 12))
     total_entries = 0
@@ -2314,6 +2318,16 @@ async def review_script_pause():
 async def review_script_resume():
     return _resume_task("review", "No script review is currently running.",
                          "Script review")
+
+
+@app.get("/api/review_script/checkpoint")
+async def review_script_checkpoint():
+    """Detect an unfinished single-book review (read-only)."""
+    s = _summarize_review_checkpoint(SCRIPT_PATH + ".review_checkpoint.json")
+    if not s:
+        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+    return {"exists": True, "done": s["completed_batches"], "total": s["total_batches"],
+            "label": f"{s['completed_batches']}/{s['total_batches']} batches", "mode": {}}
 
 
 @app.post("/api/find_nicknames")
