@@ -23,6 +23,10 @@ voices.json
 annotated_script.json
 annotated_script.txt
 *.review_checkpoint.json
+# Resume checkpoints / batch plans (generated at run time)
+*.script_checkpoint.json
+scripts/.batch_script_state.json
+scripts/.batch_review_state.json
 cloned_audiobook.mp3
 audacity_export.zip
 audiobook.m4b
