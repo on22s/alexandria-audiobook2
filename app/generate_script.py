@@ -4,10 +4,71 @@ import sys
 import json
 import re
 import time
+import hashlib
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from utils import atomic_json_write
+
+
+def _script_checkpoint_path(output_path):
+    return output_path + ".script_checkpoint.json"
+
+
+def compute_input_hash(book_content):
+    """Stable hash of the (mojibake-fixed) source text. A changed source means
+    the chunk split would differ, so a checkpoint with a different hash must not
+    be resumed."""
+    return hashlib.sha256(book_content.encode("utf-8")).hexdigest()
+
+
+def save_script_checkpoint(output_path, completed_chunks, total_chunks,
+                           chunk_size, input_hash, all_entries):
+    data = {
+        "completed_chunks": completed_chunks,
+        "total_chunks": total_chunks,
+        "chunk_size": chunk_size,
+        "input_hash": input_hash,
+        "all_entries": all_entries,
+    }
+    try:
+        atomic_json_write(data, _script_checkpoint_path(output_path))
+    except OSError as e:
+        # Mirror review_script.py: never crash generation over a checkpoint
+        # write failure (disk full, permissions) — just warn.
+        print(f"WARNING: Failed to save script checkpoint: {e}. "
+              f"Generation will continue but resume may not work.")
+
+
+def load_script_checkpoint(output_path, total_chunks, chunk_size, input_hash):
+    """Return the checkpoint dict only if it matches this run's split exactly;
+    otherwise None (caller starts fresh)."""
+    path = _script_checkpoint_path(output_path)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    if (data.get("total_chunks") != total_chunks or
+            data.get("chunk_size") != chunk_size or
+            data.get("input_hash") != input_hash):
+        print("Found a script checkpoint but the source/split changed - starting fresh.")
+        return None
+    if not isinstance(data.get("all_entries"), list):
+        return None
+    return data
+
+
+def clear_script_checkpoint(output_path):
+    path = _script_checkpoint_path(output_path)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError as e:
+            print(f"WARNING: Failed to clear script checkpoint {path}: {e}.")
+
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
