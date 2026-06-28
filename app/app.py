@@ -474,12 +474,17 @@ class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
     rows: List[dict]  # [{emotion, text, seed}]
 
+class GenerateScriptRequest(BaseModel):
+    resume: bool = False
+
 class ReviewRequest(BaseModel):
     dedupe_speakers: bool = True
+    resume: bool = False
 
 class ContextualReviewRequest(BaseModel):
     window_size: int = 4
     dedupe_speakers: bool = True
+    resume: bool = False
 
 class BatchReviewRequest(BaseModel):
     script_names: List[str]            # names from the Scripts library (without .json)
@@ -2135,7 +2140,10 @@ async def upload_file(file: UploadFile = File(...)):
     return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
 
 @app.post("/api/generate_script")
-async def generate_script(background_tasks: BackgroundTasks):
+async def generate_script(background_tasks: BackgroundTasks,
+                          request: Optional[GenerateScriptRequest] = None):
+    if request is None:
+        request = GenerateScriptRequest()
     # Get input file from state.json
     state_path = os.path.join(ROOT_DIR, "state.json")
     if not os.path.exists(state_path):
@@ -2150,9 +2158,19 @@ async def generate_script(background_tasks: BackgroundTasks):
 
     check_global_gpu_lock("script")
 
+    cmd = [sys.executable, "-u", "generate_script.py", input_file]
+    if request.resume:
+        cmd.append("--resume")
     claim_gpu_task("script")
-    background_tasks.add_task(run_process, [sys.executable, "-u", "generate_script.py", input_file], "script")
-    return {"status": "started"}
+    background_tasks.add_task(run_process, cmd, "script")
+    return {"status": "started", "resume": request.resume}
+
+
+@app.get("/api/generate_script/checkpoint")
+async def generate_script_checkpoint():
+    """Detect an unfinished single-script generation (read-only)."""
+    s = _summarize_script_checkpoint(SCRIPT_PATH + ".script_checkpoint.json")
+    return s or {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
 
 @app.post("/api/generate_script/cancel")
 async def generate_script_cancel():
@@ -3470,6 +3488,23 @@ async def get_report(filename: str):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     return PlainTextResponse(content, media_type="text/markdown")
+
+
+def _summarize_script_checkpoint(path: str) -> Optional[dict]:
+    """Uniform detect descriptor for a *.script_checkpoint.json. None if unusable."""
+    data = safe_load_json(path)
+    if not isinstance(data, dict) or "completed_chunks" not in data:
+        return None
+    done = data.get("completed_chunks", 0) or 0
+    total = data.get("total_chunks", 0) or 0
+    return {
+        "exists": True,
+        "done": done,
+        "total": total,
+        "label": f"{done}/{total} chunks",
+        "mode": {},
+        "mtime": os.path.getmtime(path) if os.path.exists(path) else None,
+    }
 
 
 def _summarize_review_checkpoint(path: str) -> Optional[dict]:
