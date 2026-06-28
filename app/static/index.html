@@ -1847,6 +1847,54 @@
             );
         }
 
+        // Three-way prompt for resumable tasks. Returns 'resume' | 'fresh' | null
+        // (null = user cancelled the launch). Dismissing the dialog never discards
+        // saved progress. Single source so the four Start buttons cannot drift (Rule 15).
+        async function confirmResumeOrFresh(detectUrl) {
+            let info;
+            try {
+                info = await API.get(detectUrl);
+            } catch (e) {
+                return 'fresh'; // detect failed — behave like a normal clean start
+            }
+            if (!info || !info.exists) {
+                return 'fresh';
+            }
+            const label = info.label || (info.done + '/' + info.total);
+            return await new Promise((resolve) => {
+                const el = document.createElement('div');
+                el.className = 'modal fade';
+                el.innerHTML =
+                    '<div class="modal-dialog"><div class="modal-content">' +
+                    '<div class="modal-header"><h5 class="modal-title">Unfinished run found</h5>' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                    '<div class="modal-body"></div>' +
+                    '<div class="modal-footer">' +
+                    '<button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>' +
+                    '<button type="button" class="btn btn-outline-danger" data-act="fresh">Start fresh</button>' +
+                    '<button type="button" class="btn btn-primary" data-act="resume">Resume</button>' +
+                    '</div></div></div>';
+                el.querySelector('.modal-body').textContent =
+                    'An unfinished run was found (' + label + '). Resume where it left off, ' +
+                    'or start fresh (discards saved progress)?';
+                document.body.appendChild(el);
+                const modal = new bootstrap.Modal(el);
+                let choice = null;
+                el.querySelectorAll('[data-act]').forEach((b) => {
+                    b.addEventListener('click', () => {
+                        const act = b.getAttribute('data-act');
+                        choice = (act === 'cancel') ? null : act;
+                        modal.hide();
+                    });
+                });
+                el.addEventListener('hidden.bs.modal', () => {
+                    el.remove();
+                    resolve(choice);
+                });
+                modal.show();
+            });
+        }
+
         function escapeHtml(str) {
             if (str == null) { return ''; }
             return String(str)
@@ -2503,6 +2551,9 @@
                 return;
             }
 
+            const scriptResumeChoice = await confirmResumeOrFresh('/api/generate_script/checkpoint');
+            if (scriptResumeChoice === null) { return; }
+
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
             const pauseBtn = document.getElementById('btn-pause-script');
@@ -2515,7 +2566,7 @@
             _resetPauseBtn('btn-pause-script');
 
             try {
-                await API.post('/api/generate_script', {});
+                await API.post('/api/generate_script', { resume: scriptResumeChoice === 'resume' });
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
@@ -2656,6 +2707,8 @@
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
             if (!(await confirmIfRemote('this batch script generation'))) { return; }
+            const batchScriptResumeChoice = await confirmResumeOrFresh('/api/generate_script/batch/checkpoint');
+            if (batchScriptResumeChoice === null) { return; }
 
             const btn = document.getElementById('btn-gen-script');
             const pauseBtn = document.getElementById('btn-pause-batch-script');
@@ -2679,7 +2732,7 @@
                 }));
 
                 statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
-                await API.post('/api/generate_script/batch/start', { tasks });
+                await API.post('/api/generate_script/batch/start', { tasks, resume: batchScriptResumeChoice === 'resume' });
                 _pollScriptBatchLogs();
             } catch (e) {
                 showToast('Failed to start batch: ' + e.message, 'error');
@@ -2756,10 +2809,12 @@
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
+            const reviewResumeChoice = await confirmResumeOrFresh('/api/review_script/checkpoint');
+            if (reviewResumeChoice === null) { return; }
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe() });
+                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe(), resume: reviewResumeChoice === 'resume' });
                 pollLogs('review', 'script-logs', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
@@ -2768,12 +2823,14 @@
         });
 
         document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
+            const ctxReviewResumeChoice = await confirmResumeOrFresh('/api/review_script/checkpoint');
+            if (ctxReviewResumeChoice === null) { return; }
             try {
                 const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
                 const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe() });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe(), resume: ctxReviewResumeChoice === 'resume' });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -2908,6 +2965,8 @@
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
             if (!(await confirmIfRemote('this batch review'))) { return; }
+            const batchReviewResumeChoice = await confirmResumeOrFresh('/api/review_script/batch/checkpoint');
+            if (batchReviewResumeChoice === null) { return; }
             reviewBatchSelected = names;
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
@@ -2930,6 +2989,7 @@
                     dedupe_speakers: _reviewDedupe(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
+                    resume: batchReviewResumeChoice === 'resume',
                 });
                 pollReviewBatch();
             } catch (e) {
