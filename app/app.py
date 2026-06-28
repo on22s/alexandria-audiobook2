@@ -495,6 +495,7 @@ class BatchReviewRequest(BaseModel):
     find_nicknames: bool = True        # run nickname discovery per book first, into the shared series alias file
     bidirectional: bool = False        # after the forward pass, re-scan in reverse so early books get
                                        # discovery seeded with full-series hindsight (requires find_nicknames)
+    resume: bool = False               # continue an interrupted batch from its saved pass/order plan
 
 class GeneratePersonasRequest(BaseModel):
     advanced: bool = False
@@ -2382,6 +2383,36 @@ async def save_character_aliases(aliases: Dict[str, str]):
     return {"status": "saved", "count": len(cleaned)}
 
 
+def _save_batch_review_state(state: dict, names: list, settings: dict) -> None:
+    try:
+        atomic_json_write({
+            "names": names,
+            "current_pass": state.get("current_pass"),
+            "current_task_idx": state.get("current_task_idx", 0),
+            "bidirectional": settings.get("bidirectional", False),
+            "window": settings.get("window", 0),
+            "dedupe": settings.get("dedupe", False),
+            "discover": settings.get("discover", False),
+            "tasks": [dict(t) for t in state.get("tasks", [])],
+        }, BATCH_REVIEW_STATE_PATH)
+    except OSError as e:
+        state["logs"].append(f"WARNING: could not save batch review state: {e}")
+
+
+def _clear_batch_review_state(names: list) -> None:
+    """Fresh start: drop the plan and every per-book review checkpoint."""
+    if os.path.exists(BATCH_REVIEW_STATE_PATH):
+        try:
+            os.remove(BATCH_REVIEW_STATE_PATH)
+        except OSError:
+            pass
+    for name in names:
+        safe = secure_filename(name)
+        if not safe:
+            continue
+        clear_checkpoint(os.path.join(SCRIPTS_DIR, f"{safe}.json"))
+
+
 @app.post("/api/review_script/batch/start")
 async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
     """Review multiple saved scripts from the Scripts library, in place.
@@ -2399,6 +2430,21 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
     names = request.script_names
     total = len(names)
+
+    resume = bool(request.resume)
+    resume_pass = "fwd"
+    resume_idx = 0
+    if resume:
+        prev = safe_load_json(BATCH_REVIEW_STATE_PATH)
+        if isinstance(prev, dict) and prev.get("names") == names:
+            resume_pass = prev.get("current_pass") or "fwd"
+            resume_idx = prev.get("current_task_idx", 0) or 0
+        else:
+            resume = False  # plan changed (different books/order) -> fresh
+    if not resume:
+        _clear_batch_review_state(names)
+    settings = {"bidirectional": bidirectional, "window": window,
+                "dedupe": dedupe, "discover": discover}
 
     def _run():
         state = process_state["batch_review"]
@@ -2424,6 +2470,9 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             state["current_task_idx"] = i
             orig_status = state["tasks"][i].get("status")
             state["tasks"][i]["status"] = "running"
+            # Persist position before the (long) per-book work so a power outage
+            # mid-book leaves an accurate pass + index for resume.
+            _save_batch_review_state(state, names, settings)
 
             safe_name = secure_filename(name)
             if not safe_name:
@@ -2476,6 +2525,11 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # checkpoint isn't valid for the backward pass - reusing it would
                     # silently splice forward-pass output into the backward result.
                     should_clear = True
+
+            # On a resumed batch, the one book that was interrupted mid-review keeps
+            # its checkpoint so review_script.py continues it from the saved batch.
+            if resume and state.get("current_pass") == resume_pass and i == resume_idx:
+                should_clear = False
 
             if should_clear:
                 clear_checkpoint(script_path)
@@ -2552,27 +2606,34 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
             return True
 
-        # Forward pass (reading order)
+        # Forward pass (reading order). Skipped entirely if resuming directly into
+        # the backward pass (forward was already complete before the interruption).
         state["current_pass"] = "fwd"
-        if bidirectional:
-            state["logs"].append("=== Forward pass (reading order) ===")
-        for i, name in enumerate(names):
-            if state["cancel"]:
-                state["logs"].append("Batch review cancelled.")
-                break
-            if not _process_book(i, name, tag=" [fwd]" if bidirectional else ""):
-                break
+        _save_batch_review_state(state, names, settings)
+        if resume_pass == "fwd":
+            if bidirectional:
+                state["logs"].append("=== Forward pass (reading order) ===")
+            for i, name in enumerate(names):
+                if i < resume_idx:
+                    continue
+                if state["cancel"]:
+                    state["logs"].append("Batch review cancelled.")
+                    break
+                if not _process_book(i, name, tag=" [fwd]" if bidirectional else ""):
+                    break
 
-        state["logs"].append(_format_pass_summary(
-            "Forward pass" if bidirectional else "Batch review",
-            state["totals_fwd"], state["aliases_fwd"], show_aliases=discover))
+            state["logs"].append(_format_pass_summary(
+                "Forward pass" if bidirectional else "Batch review",
+                state["totals_fwd"], state["aliases_fwd"], show_aliases=discover))
 
         # Backward pass — re-scan from the end so early books get discovery seeded with the
         # now-complete series registry (catches references that only resolve later in the series).
         if bidirectional and not state["cancel"]:
             state["logs"].append("=== Backward pass (hindsight: re-scanning from the end) ===")
             state["current_pass"] = "bwd"
-            for i in range(total - 1, -1, -1):
+            _save_batch_review_state(state, names, settings)
+            bwd_start = resume_idx if resume_pass == "bwd" else total - 1
+            for i in range(bwd_start, -1, -1):
                 if state["cancel"]:
                     state["logs"].append("Batch review cancelled.")
                     break
@@ -2591,11 +2652,36 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
 
         state["running"] = False
+        if not state["cancel"]:
+            _clear_batch_review_state(names)
         state["logs"].append("Batch review finished.")
 
     claim_gpu_task("batch_review")
     background_tasks.add_task(_run)
-    return {"status": "started", "task_count": total, "bidirectional": bidirectional}
+    return {"status": "started", "task_count": total, "bidirectional": bidirectional, "resume": resume}
+
+
+@app.get("/api/review_script/batch/checkpoint")
+async def review_script_batch_checkpoint():
+    """Detect an unfinished batch review and report its pass/order plan (read-only)."""
+    prev = safe_load_json(BATCH_REVIEW_STATE_PATH)
+    if not isinstance(prev, dict) or not prev.get("names"):
+        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+    tasks = prev.get("tasks", [])
+    done = sum(1 for t in tasks if t.get("status") == "done")
+    total = len(prev["names"])
+    pass_label = "backward" if prev.get("current_pass") == "bwd" else "forward"
+    kind = "front-to-back" if prev.get("bidirectional") else "forward-only"
+    return {
+        "exists": True, "done": done, "total": total,
+        "label": f"{kind}, {pass_label} pass, {done}/{total} books",
+        "mode": {
+            "bidirectional": prev.get("bidirectional", False),
+            "current_pass": prev.get("current_pass"),
+            "current_task_idx": prev.get("current_task_idx", 0),
+            "names": prev["names"], "tasks": tasks,
+        },
+    }
 
 
 def _batch_cancel_helper(state_key: str):
