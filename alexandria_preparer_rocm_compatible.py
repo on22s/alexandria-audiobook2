@@ -400,6 +400,13 @@ def validate_inputs(args):
                          f"(model/source paths are resolved relative to the "
                          f"working dir, not the script's location).")
 
+    if args.skip_annotation:
+        # Fail fast: the annotate phase only errors "not yet implemented", but in
+        # orchestrator mode it does so AFTER the full ASR (+enrich) phases have
+        # already run — wasting hours. Reject up front until it's implemented.
+        logger.error("--skip-annotation is not yet implemented; omit it to run the full pipeline.")
+        sys.exit(1)
+
     if not os.path.exists(args.audio):
         _missing_path_hint("--audio", args.audio)
         sys.exit(1)
@@ -1454,6 +1461,22 @@ def _write_source_marker(temp_dir, audio_source_path):
     marker_path = os.path.join(temp_dir, ".source")
     with open(marker_path, "w", encoding="utf-8") as f:
         f.write(os.path.abspath(audio_source_path))
+        # fsync so a crash right after a wipe can't leave the marker absent, which
+        # would make the next --resume re-wipe a freshly-written checkpoint.
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _atomic_write_json(obj, path, **dump_kwargs):
+    """Write JSON to a temp file (fsync'd) then os.replace into place, so a crash
+    or power loss can't leave a truncated file that a later --resume would trust
+    as a complete resumable artifact."""
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, **dump_kwargs)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 
 def _load_llm(model_path):
@@ -2177,6 +2200,24 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         json.dump({
                             "segment_idx": segment_idx,
                             "reason": reason_rejected,
+                            "text": text,
+                            "start": current_start,
+                            "end": chunk_end_time,
+                            "duration": chunk_duration
+                        }, rf)
+                        rf.write("\n")
+
+                # A too-short chunk (below the hard 1.0s floor) that wasn't already
+                # dropped would otherwise fall through the keep-gate below and
+                # vanish with no rejected_chunks.jsonl row and no counter — unlike
+                # every other drop path. Record it so the loss is visible in stats.
+                if chunk_words and not drop_chunk and 0 < chunk_duration < 1.0:
+                    stats.setdefault('dropped_short', 0)
+                    stats['dropped_short'] += 1
+                    with open(os.path.join(temp_dir, "rejected_chunks.jsonl"), "a", encoding="utf-8") as rf:
+                        json.dump({
+                            "segment_idx": segment_idx,
+                            "reason": "below_hard_floor_1.0s",
                             "text": text,
                             "start": current_start,
                             "end": chunk_end_time,
@@ -3137,12 +3178,11 @@ def main():
 
             # Save ASR results for next phase
             logger.info(f"▶ Saving ASR segments to {asr_output_path}...")
-            with open(asr_output_path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "detected_lang": detected_lang,
-                    "word_segments": word_segments,
-                    "audio_duration": duration_secs
-                }, f)
+            _atomic_write_json({
+                "detected_lang": detected_lang,
+                "word_segments": word_segments,
+                "audio_duration": duration_secs
+            }, asr_output_path)
 
             del audio_16k
             clear_vram()
@@ -3216,8 +3256,7 @@ def main():
             
             # Save chunks for llm_enricher.py
             asr_chunks_path = os.path.join("dataset_temp", "asr_chunks_for_enrich.json")
-            with open(asr_chunks_path, "w", encoding="utf-8") as f:
-                json.dump(chunks, f, indent=2)
+            _atomic_write_json(chunks, asr_chunks_path, indent=2)
 
             # Build command for llm_enricher.py
             enrich_cmd = [sys.executable, "llm_enricher.py",
