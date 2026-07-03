@@ -1823,8 +1823,12 @@ async def get_config():
         _fill_missing_prompt_defaults(default_config["prompts"])
         config = default_config
     else:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        # safe_load_json returns the default (instead of raising) if config.json is
+        # corrupt or partially written, so the Setup tab still loads to fix it.
+        config = safe_load_json(CONFIG_PATH, default=None)
+        if not isinstance(config, dict):
+            _fill_missing_prompt_defaults(default_config["prompts"])
+            config = default_config
 
     # Ensure prompts section exists with defaults from file. Treat an explicit
     # null (config saved without a prompts field) the same as a missing key so
@@ -2152,9 +2156,10 @@ async def generate_script(background_tasks: BackgroundTasks,
     if not os.path.exists(state_path):
         raise HTTPException(status_code=400, detail="No input file selected")
 
-    with open(state_path, "r", encoding="utf-8") as f:
-        state = json.load(f)
-        input_file = state.get("input_file_path")
+    # safe_load_json so a corrupt/partial state.json returns a clean 400 (below)
+    # rather than a raw 500 JSONDecodeError.
+    state = safe_load_json(state_path, default={})
+    input_file = state.get("input_file_path") if isinstance(state, dict) else None
 
     if not input_file:
          raise HTTPException(status_code=400, detail="No input file found in state")
@@ -3851,8 +3856,14 @@ class ScriptLoadRequest(BaseModel):
 @app.post("/api/scripts/load")
 async def load_script(request: ScriptLoadRequest):
     """Load a saved script, replacing the current annotated_script.json and chunks."""
-    if process_state["audio"]["running"]:
-        raise HTTPException(status_code=409, detail="Cannot load a script while audio generation is running.")
+    # Block while ANY task that writes annotated_script.json is running — not just
+    # audio. A single script-generation or review run finishes by writing
+    # SCRIPT_PATH, and would silently overwrite the book we're loading here.
+    busy = [k for k in ("audio", "script", "review")
+            if process_state.get(k, {}).get("running")]
+    if busy:
+        raise HTTPException(status_code=409,
+            detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
 
     safe_name = secure_filename(request.name)
     if not safe_name:
@@ -3893,6 +3904,10 @@ async def delete_script(name: str):
     checkpoint = _checkpoint_path(filepath)
     if os.path.exists(checkpoint):
         os.remove(checkpoint)
+    # Also clear the script-generation checkpoint sidecars
+    # ({name}.json.script_checkpoint.json / .jsonl) — _checkpoint_path only
+    # covers the review checkpoint, so these would otherwise orphan on disk.
+    clear_script_checkpoint(filepath)
 
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}
@@ -4316,6 +4331,9 @@ def _save_manifest(path, manifest):
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):
     """Generate a preview voice from a text description."""
+    # Reject if another GPU task is running: get_engine() re-initializes the full
+    # TTS model, which alongside e.g. a LoRA-training subprocess can OOM the GPU.
+    check_global_gpu_lock("voice_design")
     engine = project_manager.get_engine()
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
@@ -4407,11 +4425,12 @@ async def clone_voices_list():
 @app.post("/api/clone_voices/upload")
 async def clone_voices_upload(file: UploadFile = File(...)):
     """Upload an audio file for voice cloning."""
-    ext = os.path.splitext(file.filename)[1].lower()
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTS:
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
 
-    base_name = os.path.splitext(file.filename)[0]
+    base_name = os.path.splitext(filename)[0]
     safe_name = secure_filename(base_name)
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -4475,11 +4494,11 @@ def _load_builtin_lora_manifest():
 @app.post("/api/lora/upload_dataset")
 async def lora_upload_dataset(file: UploadFile = File(...)):
     """Upload a ZIP containing WAV files and metadata.jsonl."""
-    if not file.filename.endswith(".zip"):
+    if not (file.filename or "").endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a .zip archive")
 
     # Derive dataset name from ZIP filename
-    base_name = os.path.splitext(file.filename)[0]
+    base_name = os.path.splitext(file.filename or "")[0]
     dataset_name = secure_filename(base_name)
     if not dataset_name:
         raise HTTPException(status_code=400, detail="Invalid dataset name from filename")
@@ -4490,6 +4509,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
 
     # Save ZIP temporarily, then extract
     tmp_path = os.path.join(LORA_DATASETS_DIR, f"_tmp_{dataset_name}.zip")
+    success = False
     try:
         async with aiofiles.open(tmp_path, "wb") as out_file:
             content = await file.read()
@@ -4553,11 +4573,17 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
         else:
             logger.info(f"LoRA dataset '{dataset_name}': all {sample_count} audio files present in ZIP")
 
+        success = True
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
 
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+        if not success and os.path.exists(dataset_dir):
+            # A corrupt/zip-slip upload created dataset_dir but never produced a
+            # valid dataset — remove the phantom so it isn't listed empty and
+            # doesn't block re-uploading the fixed zip under the same name.
+            shutil.rmtree(dataset_dir, ignore_errors=True)
 
 @app.post("/api/lora/generate_dataset")
 async def lora_generate_dataset(request: LoraGenerateDatasetRequest, background_tasks: BackgroundTasks):
@@ -4855,6 +4881,8 @@ async def lora_download_builtin(adapter_id: str):
 @app.post("/api/lora/test")
 async def lora_test_model(request: LoraTestRequest):
     """Generate test audio using a LoRA adapter (built-in or user-trained)."""
+    # Reject if another GPU task is running (this re-inits the TTS model → OOM risk).
+    check_global_gpu_lock("lora_test")
     # Check both manifests
     builtin = _load_builtin_lora_manifest()
     user_trained = _load_manifest(LORA_MODELS_MANIFEST)
@@ -5082,6 +5110,12 @@ async def dataset_builder_update_rows(request: DatasetBuilderUpdateRowsRequest):
 @app.post("/api/dataset_builder/generate_sample")
 async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     """Generate a single dataset sample using VoiceDesign."""
+    # A negative index would format an odd filename and (because the grow-loop
+    # below never runs for it) silently overwrite the LAST row's state.
+    if request.sample_index < 0:
+        raise HTTPException(status_code=400, detail="sample_index must be >= 0")
+    # Reject if another GPU task is running (avoids concurrent-VRAM OOM).
+    check_global_gpu_lock("dataset_builder")
     engine = project_manager.get_engine()
     if not engine:
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
