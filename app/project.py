@@ -451,27 +451,42 @@ class ProjectManager:
         )
 
     def _load_chunks_with_audio(self):
-        """Load chunks and pair each with its AudioSegment. Returns list of (chunk, segment)."""
+        """Load chunks and pair each with its AudioSegment.
+
+        Returns (pairs, skipped_done) where pairs is a list of (chunk, segment)
+        and skipped_done is the count of chunks marked 'done' whose audio was
+        missing or undecodable — i.e. real holes an export would otherwise ship
+        silently. Chunks with no audio_path (never generated) are not counted.
+        """
         chunks = self.load_chunks()
         result = []
+        skipped_done = 0
         for chunk in chunks:
             path = chunk.get("audio_path")
             if not path:
                 continue
             full_path = os.path.join(self.root_dir, path)
             if not os.path.exists(full_path):
+                if chunk.get("status") == "done":
+                    print(f"WARNING: completed chunk audio missing, omitted from export: {path}")
+                    skipped_done += 1
                 continue
             try:
                 segment = AudioSegment.from_file(full_path)
                 result.append((chunk, segment))
             except Exception as e:
                 print(f"Error loading audio segment {path}: {e}")
-        return result
+                if chunk.get("status") == "done":
+                    skipped_done += 1
+        return result, skipped_done
 
     def merge_audio(self):
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped_done = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
+        if skipped_done:
+            print(f"WARNING: {skipped_done} completed chunk(s) had missing/undecodable "
+                  f"audio and were omitted from this export.")
 
         pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
         timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
@@ -488,14 +503,33 @@ class ProjectManager:
         output_path = os.path.join(self.root_dir, output_filename)
         final_audio.export(output_path, format="mp3")
 
+        # An ffmpeg without libmp3lame silently produces a tiny (~428 byte)
+        # header-only file (same failure _export_chunk_audio guards per-chunk).
+        # Fall back to WAV rather than reporting success for an unplayable file.
+        mp3_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        if mp3_size < 1024:
+            print(f"WARNING: MP3 export produced an invalid file ({mp3_size} bytes) — "
+                  f"ffmpeg likely lacks libmp3lame. Falling back to WAV.")
+            wav_filename = "cloned_audiobook.wav"
+            final_audio.export(os.path.join(self.root_dir, wav_filename), format="wav")
+            try:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+            except OSError:
+                pass
+            return True, wav_filename
+
         return True, output_filename
 
     def export_audacity(self):
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped_done = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
+        if skipped_done:
+            print(f"WARNING: {skipped_done} completed chunk(s) had missing/undecodable "
+                  f"audio and were omitted from this export.")
 
         # Phase 1 — Compute timeline
         pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
@@ -584,9 +618,12 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
-        chunks_with_audio = self._load_chunks_with_audio()
+        chunks_with_audio, skipped_done = self._load_chunks_with_audio()
         if not chunks_with_audio:
             return False, "No audio segments found"
+        if skipped_done:
+            print(f"WARNING: {skipped_done} completed chunk(s) had missing/undecodable "
+                  f"audio and were omitted from this export.")
 
         # Phase 1 — Compute timeline
         pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
@@ -654,7 +691,15 @@ class ProjectManager:
                 "-movflags", "+faststart",
                 output_path
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            # Scale the timeout to the book length (~1s wall per audio-second,
+            # 10-minute floor) plus the +faststart rewrite, so a long audiobook
+            # doesn't get killed mid-encode; keep a bound (Rule 9) rather than
+            # removing it.
+            encode_timeout = max(600, len(final_audio) // 1000 * 2)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=encode_timeout)
+            except subprocess.TimeoutExpired:
+                return False, f"M4B encode exceeded {encode_timeout}s and was stopped"
             if result.returncode != 0:
                 print(f"FFmpeg stderr: {result.stderr[-500:]}")
                 return False, f"FFmpeg failed (exit {result.returncode})"
@@ -923,6 +968,15 @@ class ProjectManager:
         except Exception as e:
             if "invalid file" not in str(e).lower():
                 print(f"MP3 conversion failed: {e}")
+            # segment.export() creates the .mp3 before ffmpeg runs, so a raise can
+            # leave a partial file behind (the tiny-file branch above already
+            # removed it in that case). Best-effort clean it up before the WAV
+            # fallback so voicelines/ isn't left with an invalid orphan .mp3.
+            try:
+                if os.path.exists(mp3_filepath):
+                    os.remove(mp3_filepath)
+            except OSError:
+                pass
             wav_filename = f"{filename_base}.wav"
             wav_filepath = os.path.join(self.voicelines_dir, wav_filename)
             shutil.copy(temp_path, wav_filepath)
@@ -967,11 +1021,14 @@ class ProjectManager:
             chunks[idx]["status"] = "done"
             results["completed"].append(idx)
             print(f"Chunk {idx} completed: {chunks[idx]['audio_path']}")
-            self._remove_temp_file(temp_path)
         except Exception as e:
             print(f"Error processing chunk {idx}: {e}")
             results["failed"].append((idx, str(e)))
             chunks[idx]["status"] = "error"
+        finally:
+            # Always remove the temp WAV — on the error path too — so an export
+            # failure doesn't leak temp_batch_{idx}.wav into the project root.
+            self._remove_temp_file(temp_path)
 
     def _record_batch_failures(self, batch_failed, chunks, results, current_batch_size):
         """Split a batch's failures into retryable OOM indices (returned for retry
@@ -1079,7 +1136,15 @@ class ProjectManager:
                     })
 
             # Call batch TTS with single seed
-            batch_results = engine.generate_batch(batch_chunks, voice_config, self.root_dir, batch_seed)
+            try:
+                batch_results = engine.generate_batch(batch_chunks, voice_config, self.root_dir, batch_seed)
+            except Exception as e:
+                # Don't let a batch-level engine failure escape the loop — that
+                # would skip the generating->pending reset below and leave every
+                # in-flight chunk stuck at 'generating'. Stop here; the reset then
+                # returns the unfinished chunks to 'pending' (retryable).
+                print(f"[ERROR] Batch generation crashed: {e} — stopping; unfinished chunks reset to pending.")
+                break
 
             # Process completed chunks - convert to MP3 and update status
             chunks = self.load_chunks()  # Reload for each batch
