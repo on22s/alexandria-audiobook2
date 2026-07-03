@@ -48,8 +48,18 @@ def secure_filename(filename: str) -> str:
         filename = filename.replace(sep, "_")
     filename = filename.lstrip(". ")
     filename = re.sub(r"[^\w\-. ]", "_", filename)
+    # Windows: trailing dots/spaces are illegal and silently stripped by the OS.
+    filename = filename.rstrip(". ")
     if not filename:
         return ""
+    # Windows reserved device names are unusable even with an extension
+    # (CON.txt still maps to the console device). Prefix them so the sanitized
+    # name is a normal file on every platform.
+    _WIN_RESERVED = {"CON", "PRN", "AUX", "NUL",
+                     *(f"COM{i}" for i in range(1, 10)),
+                     *(f"LPT{i}" for i in range(1, 10))}
+    if filename.split(".")[0].upper() in _WIN_RESERVED:
+        filename = "_" + filename
     return filename
 
 
@@ -85,6 +95,12 @@ def atomic_json_write(data, target_path, max_retries=5):
             pass
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+            # Flush to disk before the rename. os.replace is atomic against a
+            # process crash, but NOT against power loss with unflushed data —
+            # which is exactly the case the checkpoint-resume feature must survive
+            # (a truncated/empty target would otherwise read back as "no state").
+            f.flush()
+            os.fsync(f.fileno())
 
         for attempt in range(max_retries):
             try:

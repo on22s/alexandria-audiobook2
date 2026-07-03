@@ -901,7 +901,8 @@ def estimate_alignment_quality(
     start_entry_idx: int = 0,
 ) -> tuple:
     """Pre-scan the first ~max_samples entries to estimate how well the audio
-    aligns with the chosen source. Returns (avg_ratio, n_sampled, n_below_60).
+    aligns with the chosen source. Returns
+    (avg_ratio, n_sampled, n_below_60, n_review_needed).
 
     A low average (< ~0.70) usually means the audiobook was narrated from a
     different translation/edition than the EPUB you provided — different

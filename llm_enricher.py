@@ -138,6 +138,7 @@ def main():
         exit(1)
 
     enriched_data = []
+    failed = 0
     for i, chunk in enumerate(transcript_data):
         try:
             enriched_chunk = enricher.enrich_transcript_chunk(chunk)
@@ -146,6 +147,11 @@ def main():
             logger.error(f"Error processing chunk {i}: {e}")
             logger.debug(traceback.format_exc())
             enriched_data.append(chunk)
+            failed += 1
+
+    total = len(transcript_data)
+    logger.info(f"Enrichment: {total - failed}/{total} chunks processed, "
+                f"{failed} passed through on error.")
 
     try:
         with open(args.output_file, 'w') as f:
@@ -153,6 +159,13 @@ def main():
         logger.info(f"Enriched transcript saved to: {args.output_file}")
     except IOError as e:
         logger.error(f"Failed to write output file {args.output_file}: {e}")
+        exit(1)
+
+    # Fail loud if nothing was enriched — otherwise the preparer subprocess sees
+    # rc=0 and a valid-looking JSON file and can't distinguish total degradation
+    # (e.g. the LLM was down for every chunk) from a genuinely enriched result.
+    if total and failed == total:
+        logger.error("Every chunk failed enrichment — the output is unenriched.")
         exit(1)
 
 if __name__ == "__main__":

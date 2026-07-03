@@ -480,6 +480,14 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
             # Bail rather than register a voice whose ref_audio points at a file
             # we failed to write - the TTS engine would crash on the missing file.
             return False
+        # Remove the engine's source preview (under designed_voices/previews/) now
+        # that it's copied to its final name, so it doesn't accumulate an orphaned
+        # duplicate per persona per run.
+        try:
+            if os.path.abspath(wav_path) != os.path.abspath(dest_path):
+                os.remove(wav_path)
+        except OSError:
+            pass
 
         voice_entry = voice_config.get(speaker, {})
         voice_entry.update({
@@ -782,7 +790,10 @@ def main():
             _atomic_json_write(voice_config, voice_config_path)
             print(f"Updated voice_config saved to {voice_config_path}")
         except Exception as e:
+            # The one write that persists every persona failed — fail loud rather
+            # than exit 0 with the output lost.
             print(f"Failed to save voice_config.json: {e}")
+            sys.exit(1)
         return
 
     print(f"Processing {len(selected_speakers)} speakers")
@@ -867,6 +878,7 @@ def main():
     unique_speakers = [s for s in remaining_speakers if s not in resolved_aliases]
     print(f"Generating personas for {len(unique_speakers)} unique speakers...")
 
+    failed_speakers = 0
     for speaker in unique_speakers:
         lines = samples.get(speaker, [])
         try:
@@ -912,19 +924,30 @@ def main():
                 ref_text = pick_ref_text(lines)
 
             # Generate and save voice preview
-            _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
+            if not _save_generated_preview(root, engine, voice_config, speaker, description, ref_text):
+                failed_speakers += 1
 
             time.sleep(0.5)
 
         except Exception as e:
             print(f"Unhandled error for {speaker}: {e}")
+            failed_speakers += 1
 
     # Persist voice_config
     try:
         _atomic_json_write(voice_config, voice_config_path)
         print(f"Updated voice_config saved to {voice_config_path}")
     except Exception as e:
+        # The one write that persists every persona failed — don't let the task
+        # be recorded as "completed successfully" with its output lost.
         print(f"Failed to save voice_config.json: {e}")
+        sys.exit(1)
+
+    # Fail loud if any speaker couldn't be personified/previewed, so a run where
+    # (e.g.) the LLM or TTS was down isn't reported as a clean success.
+    if failed_speakers:
+        print(f"Persona generation completed with {failed_speakers} failed speaker(s).")
+        sys.exit(1)
 
 
 if __name__ == '__main__':

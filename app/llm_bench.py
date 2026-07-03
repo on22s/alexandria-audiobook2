@@ -178,6 +178,17 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     profile = config.get(profile_key) or {}
     if profile.get("concurrency_for") == cache_key and profile.get("concurrency"):
         concurrency = profile["concurrency"]
+        # If the caller already fetched a fresh status (no extra SSH cost), clamp
+        # a stale cached concurrency>1 to the server's current parallel: it may
+        # have been reloaded with parallel=1 (the VRAM-safe default) since we
+        # cached, and firing N requests at a 1-slot server is slower (and has
+        # crashed at high N on the A6000). Don't add an SSH call just for this.
+        if status is not None and status.get("available"):
+            server_parallel = status.get("parallel") or 1
+            if server_parallel < concurrency:
+                print(f"  Cached concurrency={concurrency} exceeds current server "
+                      f"parallel={server_parallel}; clamping to {server_parallel}.")
+                concurrency = server_parallel
         print(f"  Using cached concurrency={concurrency} for {base_url}::{model_name}")
         return concurrency
 
@@ -222,8 +233,12 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
             profile["concurrency_for"] = cache_key
             config[profile_key] = profile
             atomic_json_write(config, config_path)
-    except (OSError, TimeoutError):
-        pass  # best-effort cache write; the benchmarked value is still used this run
+    except (OSError, TimeoutError) as e:
+        # best-effort cache write; the benchmarked value is still used this run,
+        # but surface the failure — a persistently unwritable config.json forces a
+        # fresh multi-minute benchmark on every book of a batch with no visible cause.
+        print(f"  WARNING: could not persist concurrency cache ({e}); "
+              f"will re-benchmark on the next run.")
 
     return concurrency
 

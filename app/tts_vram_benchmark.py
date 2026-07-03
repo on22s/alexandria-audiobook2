@@ -10,7 +10,7 @@ Usage (from the app/ directory):
 
 Outputs:
     benchmark_results.json  — raw per-run results
-    benchmark_summary.txt   — tier table ready for copy-paste into _computeAutoSettings
+    (the tier table for _computeAutoSettings is printed to stdout by print_summary)
 """
 
 import argparse
