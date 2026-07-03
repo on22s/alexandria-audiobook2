@@ -2656,8 +2656,23 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             _clear_batch_review_state(names)
         state["logs"].append("Batch review finished.")
 
+    def _run_guarded():
+        # Guarantee the GPU lock is released even if _run raises before reaching
+        # its own cleanup — otherwise process_state stays running=True and every
+        # later GPU task is rejected until restart. Mirrors run_process's finally.
+        # On an unexpected crash the checkpoint is deliberately left intact (the
+        # non-cancel clear lives inside _run's success path), so the batch stays
+        # resumable.
+        try:
+            _run()
+        except Exception as e:
+            logger.exception(f"batch_review task crashed: {e}")
+            process_state["batch_review"]["logs"].append(f"Batch review error: {e}")
+        finally:
+            process_state["batch_review"]["running"] = False
+
     claim_gpu_task("batch_review")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_guarded)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional, "resume": resume}
 
 
@@ -2849,8 +2864,19 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             _clear_batch_script_state(request.tasks)
         state["logs"].append("Batch script generation finished.")
 
+    def _run_guarded():
+        # Release the GPU lock even if _run raises before its own cleanup (see
+        # batch_review for rationale); crash leaves the checkpoint intact.
+        try:
+            _run()
+        except Exception as e:
+            logger.exception(f"batch_script task crashed: {e}")
+            process_state["batch_script"]["logs"].append(f"Batch script error: {e}")
+        finally:
+            process_state["batch_script"]["running"] = False
+
     claim_gpu_task("batch_script")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_guarded)
     return {"status": "started", "task_count": len(request.tasks), "resume": resume}
 
 
@@ -5131,6 +5157,11 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
 
     # Determine which indices to generate
     if request.indices is not None:
+        # Validate client-supplied indices up front: an out-of-range value would
+        # raise inside the background thread (samples_snapshot[idx]) and, without
+        # the guard below, wedge the GPU lock.
+        if any(not (0 <= i < len(request.samples)) for i in request.indices):
+            raise HTTPException(status_code=400, detail="indices out of range for samples")
         to_generate = request.indices
     else:
         to_generate = list(range(len(request.samples)))
@@ -5217,8 +5248,20 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
         )
         process_state["dataset_builder"]["running"] = False
 
+    def _task_guarded():
+        # Release the GPU lock even if task() raises before its own cleanup —
+        # otherwise process_state stays running=True and blocks every later GPU
+        # task until restart. Mirrors run_process's finally.
+        try:
+            task()
+        except Exception as e:
+            logger.exception(f"dataset_builder task crashed: {e}")
+            process_state["dataset_builder"]["logs"].append(f"[ERROR] {e}")
+        finally:
+            process_state["dataset_builder"]["running"] = False
+
     claim_gpu_task("dataset_builder")
-    threading.Thread(target=task, daemon=True).start()
+    threading.Thread(target=_task_guarded, daemon=True).start()
     return {"status": "started", "dataset_name": safe_name, "total": total}
 
 @app.post("/api/dataset_builder/cancel")
@@ -5417,8 +5460,21 @@ async def preparer_start(
         state["running"] = False
         state["process"] = None
 
+    def _run_guarded():
+        # Release the GPU lock even if _run raises before its own cleanup (e.g.
+        # Popen fails to spawn the interpreter) — otherwise the lock stays held.
+        try:
+            _run()
+        except Exception as e:
+            logger.exception(f"preparer task crashed: {e}")
+            process_state["preparer"]["logs"].append(f"Preparer error: {e}")
+            process_state["preparer"]["status"] = "failed"
+        finally:
+            process_state["preparer"]["running"] = False
+            process_state["preparer"]["process"] = None
+
     claim_gpu_task("preparer")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_guarded)
     return {"status": "started"}
 
 
@@ -5557,8 +5613,18 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         state["running"] = False
         state["logs"].append("Batch processing finished.")
 
+    def _run_guarded():
+        # Release the GPU lock even if _run raises before its own cleanup.
+        try:
+            _run()
+        except Exception as e:
+            logger.exception(f"batch_preparer task crashed: {e}")
+            process_state["batch_preparer"]["logs"].append(f"Batch preparer error: {e}")
+        finally:
+            process_state["batch_preparer"]["running"] = False
+
     claim_gpu_task("batch_preparer")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_guarded)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
