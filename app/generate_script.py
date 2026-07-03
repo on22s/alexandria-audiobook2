@@ -151,8 +151,18 @@ def repair_json_array(json_text):
         return None
 
     def _filter_entries(lst):
-        """Keep only dict entries; LLMs sometimes emit bare strings in the array."""
-        filtered = [e for e in lst if isinstance(e, dict)]
+        """Keep only dict entries, and ensure each has a string 'text'. LLMs
+        sometimes emit bare strings (dropped here) or a dict with a non-string
+        'text' (e.g. "text": null), which would later crash normalize/text-loss
+        checks that call .lower()/.strip(). Coerce a non-string text rather than
+        dropping the entry so no content is lost."""
+        filtered = []
+        for e in lst:
+            if not isinstance(e, dict):
+                continue
+            if not isinstance(e.get("text"), str):
+                e = {**e, "text": "" if e.get("text") is None else str(e.get("text"))}
+            filtered.append(e)
         if len(filtered) < len(lst):
             print(f"  Warning: Dropped {len(lst) - len(filtered)} non-object entries from LLM JSON array")
         return filtered if filtered else None

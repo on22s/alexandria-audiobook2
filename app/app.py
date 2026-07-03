@@ -2104,10 +2104,28 @@ async def upload_file(file: UploadFile = File(...)):
     safe_name = secure_filename(file.filename or "")
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid or empty filename")
+    # Only accept the book formats the app can actually process.
+    if os.path.splitext(safe_name)[1].lower() not in (".txt", ".epub"):
+        raise HTTPException(status_code=400, detail="Unsupported file type. Allowed: .txt, .epub")
     file_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await file.read()
-        await out_file.write(content)
+    # Stream to disk in chunks with a size cap instead of reading the whole file
+    # into memory (an accidental multi-GB upload would otherwise OOM the server).
+    _MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+    total = 0
+    try:
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > _MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File too large (max 100 MB)")
+                await out_file.write(chunk)
+    except HTTPException:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except OSError:
+            pass
+        raise
 
     # Convert EPUB to plain text
     if file_path.lower().endswith('.epub'):
@@ -4328,6 +4346,23 @@ def _save_manifest(path, manifest):
     """Write a JSON manifest file."""
     atomic_json_write(manifest, path)
 
+def _prune_dir_to_recent(dir_path, keep=100, suffix=""):
+    """Keep only the `keep` most-recently-modified files (optionally matching
+    `suffix`) in dir_path, deleting older ones. Best-effort (ignores errors)."""
+    try:
+        entries = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
+                   if f.endswith(suffix) and os.path.isfile(os.path.join(dir_path, f))]
+    except OSError:
+        return
+    if len(entries) <= keep:
+        return
+    entries.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    for p in entries[keep:]:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):
     """Generate a preview voice from a text description."""
@@ -4346,6 +4381,9 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
         )
         # Return relative URL for the static mount
         filename = os.path.basename(wav_path)
+        # Cap the previews dir so throwaway preview WAVs don't accumulate forever
+        # (voice_design_save copies the chosen one out; the rest are disposable).
+        _prune_dir_to_recent(os.path.dirname(wav_path), keep=100, suffix=".wav")
         return {"status": "ok", "audio_url": f"/designed_voices/previews/{filename}"}
     except Exception as e:
         logger.error(f"Voice design preview failed: {e}")
@@ -4914,7 +4952,11 @@ async def lora_test_model(request: LoraTestRequest):
         raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
     try:
-        output_filename = f"test_{request.adapter_id}_{int(time.time())}.wav"
+        # Fixed filename (overwritten each run) instead of a timestamped one, so
+        # test audio doesn't accumulate as test_*.wav in the adapter dir forever
+        # (builtin adapter dirs are never deletable). A cache-bust query on the
+        # URL below keeps the browser from serving a stale preview.
+        output_filename = "test_sample.wav"
         output_path = os.path.join(adapter_dir, output_filename)
 
         voice_data = {
@@ -4933,7 +4975,7 @@ async def lora_test_model(request: LoraTestRequest):
 
         return {
             "status": "ok",
-            "audio_url": f"{audio_url_prefix}/{output_filename}",
+            "audio_url": f"{audio_url_prefix}/{output_filename}?t={int(time.time())}",
         }
     except Exception as e:
         logger.error(f"LoRA test generation failed: {e}")
@@ -4944,6 +4986,7 @@ LORA_PREVIEW_TEXT = "The ancient library stood at the crossroads of two forgotte
 @app.post("/api/lora/preview/{adapter_id}")
 async def lora_preview(adapter_id: str):
     """Generate or return cached preview audio for a LoRA adapter."""
+    check_global_gpu_lock("lora_preview")
     builtin = _load_builtin_lora_manifest()
     user_trained = _load_manifest(LORA_MODELS_MANIFEST)
     all_adapters = builtin + user_trained
@@ -5345,6 +5388,20 @@ async def dataset_builder_save(request: DatasetSaveRequest):
         ref_idx = done_samples[0][0]
         ref_sample = done_samples[0][1]
 
+    # Resolve the ref sample's audio up front: if the chosen sample's WAV is
+    # missing on disk, fall back to the first completed sample whose WAV exists
+    # (400 if none), so the saved metadata never points ref.wav at a file that
+    # was never written (which would fail LoRA training later).
+    ref_src = os.path.join(work_dir, f"sample_{ref_idx:03d}.wav")
+    if not os.path.exists(ref_src):
+        for _i, _s in done_samples:
+            _cand = os.path.join(work_dir, f"sample_{_i:03d}.wav")
+            if os.path.exists(_cand):
+                ref_idx, ref_sample, ref_src = _i, _s, _cand
+                break
+    if not os.path.exists(ref_src):
+        raise HTTPException(status_code=400, detail="No completed sample has audio on disk to use as ref.wav")
+
     # Create training dataset directory
     dataset_dir = os.path.join(LORA_DATASETS_DIR, safe_name)
     if os.path.exists(dataset_dir):
@@ -5457,6 +5514,14 @@ async def preparer_start(
     output_filename = secure_filename(config.output_filename)
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
+    # Uniquify with a counter so re-running with the same output name doesn't
+    # silently overwrite a prior (hours-long, GPU-expensive) dataset — matching
+    # the batch preparer's behavior.
+    _stem, _ext = os.path.splitext(output_filename)
+    _n = 1
+    while os.path.exists(os.path.join(PREPARER_OUTPUT_DIR, output_filename)):
+        output_filename = f"{_stem}_{_n}{_ext}"
+        _n += 1
     audio_path = os.path.join(UPLOADS_DIR, audio_filename)
     async with aiofiles.open(audio_path, "wb") as f:
         while chunk := await audio_file.read(1024 * 1024):
