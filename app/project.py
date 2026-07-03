@@ -704,10 +704,9 @@ class ProjectManager:
         heading_indices = []
         for i, (chunk, segment, start_ms) in enumerate(timeline):
             text = chunk.get("text", "").strip()
-            # Short structural text (likely a heading) or starts with heading keyword
+            # Starts with a heading keyword (Chapter, Part, ...). _HEADING_RE is
+            # start-anchored and not MULTILINE, so .match covers all cases here.
             if self._HEADING_RE.match(text):
-                heading_indices.append(i)
-            elif len(text) < 80 and '"' not in text and text and self._HEADING_RE.search(text):
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk

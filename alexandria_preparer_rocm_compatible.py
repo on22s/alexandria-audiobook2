@@ -644,52 +644,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         logger.debug(traceback.format_exc())
         raise
 
-def transcribe_with_whisper_v3(audio_16k: np.ndarray, device: str) -> tuple:
-    """Use OpenAI Whisper-large-v3 (best model, CPU stable)."""
-    if not TRANSFORMERS_WHISPER_AVAILABLE:
-        raise ImportError("Transformers not available")
-
-    logger.info("Starting Whisper-large-v3 transcription...")
-
-    try:
-        # Use CPU to avoid CUDA/ROCm issues, v3 is fast enough
-        pipe_device = -1
-        logger.debug(f"Loading Whisper-large-v3 pipeline (device=CPU)...")
-
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
-            device=pipe_device,
-            return_timestamps="word"
-        )
-        logger.info("✓ Whisper-large-v3 pipeline loaded")
-
-        logger.info("Transcribing audio with Whisper-v3...")
-        result = pipe(audio_16k, return_timestamps="word")
-
-        word_segments = []
-        if "chunks" in result:
-            for chunk in result["chunks"]:
-                if "timestamp" in chunk and chunk["timestamp"]:
-                    start, end = chunk["timestamp"]
-                    if start is not None and end is not None:
-                        word_segments.append({
-                            "word": chunk["text"].strip(),
-                            "start": start,
-                            "end": end
-                        })
-
-        del pipe
-        clear_vram()
-
-        logger.info(f"✓ Whisper-v3 complete: {len(word_segments)} words transcribed")
-        return word_segments, "en"
-
-    except Exception as e:
-        logger.error(f"Whisper-v3 failed: {e}")
-        logger.debug(traceback.format_exc())
-        raise
-
 def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str = "en") -> tuple:
     """Use Insanely Fast Whisper ROCm (optimized for AMD GPUs)."""
     if not INSANELY_FAST_WHISPER_AVAILABLE:
@@ -1451,18 +1405,24 @@ def _sweep_orphan_wavs(temp_dir, next_segment_idx):
     return removed
 
 
-def _wipe_temp_dir(temp_dir):
-    """Remove all preparer-generated files from temp_dir but keep the directory itself."""
+def _wipe_temp_dir(temp_dir, keep_protected=True):
+    """Remove all preparer-generated files from temp_dir but keep the directory itself.
+
+    keep_protected=True (default) preserves the cross-phase intermediates so a
+    same-source resume can reuse them. Pass keep_protected=False to also remove
+    them — required when temp_dir belongs to a DIFFERENT audio source, so a
+    resume can't splice another book's ASR/enrichment/diarization into this run.
+    """
     if not os.path.exists(temp_dir):
         return
-    # Protect intermediate files used across phases
+    # Intermediate files reused across phases (ASR -> enrich -> annotate).
     protected = {
         "asr_segments.json",       # ASR phase output
         "audio_24k_scratch.wav",   # Audio scratch file
         "enriched_segments.json",  # LLM enrichment output
         "asr_chunks_for_enrich.json",  # Enrichment input chunks
         "diarization.json",        # Speaker diarization output
-    }
+    } if keep_protected else set()
     for name in os.listdir(temp_dir):
         if name in protected:
             continue
@@ -2229,9 +2189,6 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     ctx = " ".join(list(context)[-2:]) if context else ""
 
                     if batch_size > 1:
-                        # Snap timing when first item enters a fresh batch buffer
-                        if not batch_buffer:
-                            batch_start_t0 = time.monotonic()
                         # Collect into batch buffer
                         batch_buffer.append({
                             "segment_idx": segment_idx,
@@ -2998,7 +2955,27 @@ def main():
         logger.info("=" * 70)
         logger.info("Alexandria Master Preparer - Phase Orchestrator (ROCm Isolation)")
         logger.info("=" * 70)
-        
+
+        # Cross-book contamination guard. dataset_temp holds ASR/enrichment/
+        # diarization intermediates from a previous run; the phase skips below
+        # reuse them on mere file existence. If those intermediates belong to a
+        # DIFFERENT audio source (or carry no source marker), a --resume here
+        # would splice another book's transcript/speakers against this audio.
+        # Only reuse them when the source marker matches this run's --audio;
+        # otherwise wipe ALL of them (including the normally-protected cross-phase
+        # files) so every phase re-runs for the correct book, then stamp the dir
+        # for this source. The batch processor relies on this check to isolate
+        # books that share the working directory.
+        orch_temp = "dataset_temp"
+        if os.path.exists(orch_temp) and not _check_source_marker(orch_temp, args.audio):
+            if args.resume:
+                logger.warning("▶ dataset_temp/ belongs to a different audio source "
+                               "(or has no marker) — ignoring its intermediates and "
+                               "re-running every phase for this book.")
+            _wipe_temp_dir(orch_temp, keep_protected=False)
+        os.makedirs(orch_temp, exist_ok=True)
+        _write_source_marker(orch_temp, args.audio)
+
         # 1. Run ASR Phase (if not already completed and resuming)
         asr_output_path = args.asr_output or os.path.join("dataset_temp", "asr_segments.json")
         should_run_asr = True

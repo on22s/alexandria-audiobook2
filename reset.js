@@ -12,11 +12,6 @@ module.exports = {
   }, {
     method: "fs.rm",
     params: {
-      path: "voices.json"
-    }
-  }, {
-    method: "fs.rm",
-    params: {
       path: "voice_config.json"
     }
   }, {

@@ -133,7 +133,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
     print(f"[DATA] Using reference audio: {os.path.basename(ref_audio_path)}", flush=True)
 
-    ref_audio, ref_sr = librosa.load(ref_audio_path, sr=24000, mono=True)
+    ref_audio, _ = librosa.load(ref_audio_path, sr=24000, mono=True)
     ref_audio = ref_audio.astype(np.float32)
 
     with torch.no_grad():
@@ -467,6 +467,10 @@ def train(args):
     # This protects against overshooting when early stopping is enabled.
     GARBLE_FLOOR = 4.1  # Empirical threshold: below this, audio quality degrades significantly
     safe_best_loss = float("inf")
+    # Whether an in-loop best/safe checkpoint was written to output_dir. Guards the
+    # final save from clobbering it with the last epoch's (possibly worse or
+    # garbling) weights.
+    checkpoint_saved = False
     training_start = time.time()
     
     # Set random seed for reproducible shuffling if provided
@@ -593,12 +597,14 @@ def train(args):
                 safe_best_loss = avg_loss
                 best_loss = avg_loss
                 peft_talker.save_pretrained(args.output_dir)
+                checkpoint_saved = True
                 print(f"[TRAIN] Safe checkpoint saved (loss={avg_loss:.4f})", flush=True)
         else:
             # Original behaviour: save unconditionally when loss improves
             if avg_loss < best_loss:
                 best_loss = avg_loss
                 peft_talker.save_pretrained(args.output_dir)
+                checkpoint_saved = True
                 print(f"[TRAIN] Best adapter saved (loss={best_loss:.4f})", flush=True)
 
         zone = ""
@@ -620,8 +626,16 @@ def train(args):
     # ── Final save ──
     training_time = time.time() - training_start
 
-    # Always save final adapter (overwrites best if last epoch is better)
-    peft_talker.save_pretrained(args.output_dir)
+    # Final save: only a FALLBACK for the case where no in-loop checkpoint was
+    # ever written (e.g. target-loss mode where every epoch stayed below the
+    # garble floor, so the safe-checkpoint condition never fired). When an
+    # improving best/safe checkpoint already exists on disk, keep it — the last
+    # epoch's current weights may be worse (or garbling), and overwriting them
+    # here is exactly what defeats the --target_loss safe-checkpoint guarantee.
+    if not checkpoint_saved:
+        peft_talker.save_pretrained(args.output_dir)
+        print(f"[TRAIN] No improving checkpoint during training; saved final "
+              f"epoch (loss={avg_loss:.4f}) as a fallback.", flush=True)
 
     # Copy reference audio as ref_sample.wav for inference
     ref_dest = os.path.join(args.output_dir, "ref_sample.wav")

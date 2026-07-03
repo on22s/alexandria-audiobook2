@@ -189,11 +189,17 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
 
     data.setdefault("batch_lengths", [])
     data.setdefault("failed_batches", [])
+    # Older checkpoints (pre input-space resume) won't have this; an empty list
+    # makes _load_resume_state fall back to the previous len(all_corrected)
+    # behavior, which is correct for the clean-resume-against-output case they
+    # were written for.
+    data.setdefault("input_batch_lengths", [])
     data.setdefault("total_stats", {})
     data["total_stats"].setdefault("batches_skipped_vram", 0)
 
     failed_batches = sorted(data["failed_batches"])
     batch_lengths = data["batch_lengths"]
+    input_batch_lengths = data["input_batch_lengths"]
     completed_batches = data["completed_batches"]
     if failed_batches and len(batch_lengths) == completed_batches:
         retry_from = failed_batches[0]
@@ -206,6 +212,9 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
         data["all_corrected"] = all_corrected
         data["completed_batches"] = keep_count
         data["batch_lengths"] = batch_lengths[:keep_count]
+        # Keep input_batch_lengths in lock-step so the resumed input offset
+        # (sum of input lengths) rewinds to the same kept batches.
+        data["input_batch_lengths"] = input_batch_lengths[:keep_count]
         data["previous_tail"] = all_corrected[-2:] if all_corrected else None
         data["total_stats"]["batches_failed"] = max(
             0, data["total_stats"].get("batches_failed", 0) - len(failed_batches))
@@ -219,7 +228,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
 
 def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                      context_window, all_corrected, total_stats, previous_tail,
-                     batch_lengths, failed_batches):
+                     batch_lengths, failed_batches, input_batch_lengths=None):
     path = _checkpoint_path(output_path)
     data = {
         "completed_batches": completed_batches,
@@ -231,6 +240,12 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "previous_tail": previous_tail,
         "batch_lengths": batch_lengths,
         "failed_batches": failed_batches,
+        # Per-batch INPUT entry counts (parallel to batch_lengths, which are
+        # OUTPUT counts). Summed on resume to recover how many ORIGINAL input
+        # entries were consumed — needed when a run is resumed against the
+        # original input (e.g. after a hard kill that never rewrote the output),
+        # where len(all_corrected) (output space) would slice at the wrong point.
+        "input_batch_lengths": input_batch_lengths if input_batch_lengths is not None else [],
     }
     # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
     try:
@@ -259,18 +274,24 @@ def clear_checkpoint(output_path):
 
 
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
-                        all_corrected, total_stats):
+                        all_corrected, total_stats, entries):
     """Load a checkpoint (if any) and compute where this run should resume from.
 
     Shared by main()'s contextual and non-contextual review loops, which
     otherwise duplicate this checkpoint-load + resume_offset bookkeeping.
 
+    `entries` is the current on-disk script being reviewed; it's inspected to
+    decide whether the resume offset is in output space or input space (see
+    below).
+
     Returns (all_corrected, total_stats, previous_tail, completed_batches,
-    batch_lengths, failed_batches, resume_offset, checkpoint).
+    batch_lengths, input_batch_lengths, failed_batches, resume_offset,
+    checkpoint).
     """
     previous_tail = None
     completed_batches = 0
     batch_lengths = []
+    input_batch_lengths = []
     failed_batches = []
     checkpoint = load_checkpoint(output_path, total_batches_estimate, batch_size, context_window)
     if checkpoint:
@@ -279,16 +300,26 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
         total_stats = checkpoint["total_stats"]
         previous_tail = checkpoint["previous_tail"]
         batch_lengths = checkpoint["batch_lengths"]
+        input_batch_lengths = checkpoint["input_batch_lengths"]
         failed_batches = checkpoint["failed_batches"]
 
-    # Resume from where `all_corrected` actually leaves off, not from
-    # `completed_batches * batch_size` - earlier batches may have
-    # added/removed entries, so those two can diverge. `entries` is the
-    # previous run's output (all_corrected + unreviewed remainder), so
-    # `entries[:resume_offset] == all_corrected`.
+    # Where to resume slicing `entries`. Two cases produce different `entries`:
+    #  - Clean resume: the previous run wrote its output (all_corrected +
+    #    unreviewed remainder) back to the file, so `entries[:len(all_corrected)]
+    #    == all_corrected` and we continue at len(all_corrected) (output space).
+    #  - Hard kill / power loss: the output was never rewritten, so `entries` is
+    #    still the ORIGINAL input. len(all_corrected) counts CORRECTED entries,
+    #    which diverges from input once review split/merged entries, so we must
+    #    instead continue at the number of INPUT entries already consumed
+    #    (sum of the per-batch input lengths).
+    # These coincide when review changed no entry counts; when they differ, the
+    # prefix comparison tells the two apart. Older checkpoints have no
+    # input_batch_lengths, so they keep the original output-space behavior.
     resume_offset = len(all_corrected)
+    if checkpoint and input_batch_lengths and entries[:len(all_corrected)] != all_corrected:
+        resume_offset = sum(input_batch_lengths)
     return (all_corrected, total_stats, previous_tail, completed_batches,
-            batch_lengths, failed_batches, resume_offset, checkpoint)
+            batch_lengths, input_batch_lengths, failed_batches, resume_offset, checkpoint)
 
 
 # ── Speaker de-duplication (merge aliases that are the same character) ──────────
@@ -646,8 +677,6 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_b
     [threshold, upper_bound]. If upper_bound is None, it defaults to
     1.0 + (1.0 - threshold), i.e. symmetric around 1.0.
     """
-    import re
-    
     orig_words = []
     for e in original_entries:
         # Use regex split to handle all Unicode whitespace properly
@@ -870,9 +899,9 @@ def main():
         print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
 
         (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
-         failed_batches, resume_offset, checkpoint) = _load_resume_state(
+         input_batch_lengths, failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
-            all_corrected, total_stats)
+            all_corrected, total_stats, entries)
         num_remaining_batches = len(range(resume_offset, len(entries), batch_size))
         total_batches = max(1, completed_batches + num_remaining_batches)
         if checkpoint:
@@ -919,10 +948,11 @@ def main():
                 total_stats["batches_failed"] += 1
                 previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 batch_lengths.append(len(batch))
+                input_batch_lengths.append(len(batch))
                 failed_batches.append(batch_index)
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
+                                batch_lengths, failed_batches, input_batch_lengths)
                 continue
 
             passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
@@ -934,10 +964,11 @@ def main():
                 total_stats["batches_failed"] += 1
                 previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 batch_lengths.append(len(batch))
+                input_batch_lengths.append(len(batch))
                 failed_batches.append(batch_index)
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
+                                batch_lengths, failed_batches, input_batch_lengths)
                 continue
 
             stats = diff_entries(batch, corrected, highlight_pool)
@@ -967,17 +998,18 @@ def main():
             all_corrected.extend(corrected)
             previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
             batch_lengths.append(len(corrected))
+            input_batch_lengths.append(len(batch))
             save_checkpoint(output_path, batch_index, total_batches, batch_size,
                             args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches)
+                            batch_lengths, failed_batches, input_batch_lengths)
     else:
         total_batches_estimate = (len(entries) + batch_size - 1) // batch_size if entries else 0
         print(f"Split into {total_batches_estimate} batches of ~{batch_size} entries")
 
         (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
-         failed_batches, resume_offset, checkpoint) = _load_resume_state(
+         input_batch_lengths, failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
-            all_corrected, total_stats)
+            all_corrected, total_stats, entries)
         remaining_entries = entries[resume_offset:]
         remaining_batches = [remaining_entries[i:i + batch_size] for i in range(0, len(remaining_entries), batch_size)]
         total_batches = completed_batches + len(remaining_batches)
@@ -1026,8 +1058,18 @@ def main():
             with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
                 wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
 
+            # Once any batch in this wave is VRAM-skipped, treat that batch AND
+            # every later-index batch in the wave as unreviewed — discarding any
+            # that happened to finish — so the written output and checkpoint stay
+            # in narrative order (a later batch's corrections must never be
+            # appended before an earlier, skipped one). wave_indices/wave_batches
+            # are ascending, so this loop processes batches in order.
+            wave_stopped = False
+            wave_skipped = 0
             for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
-                if corrected == "VRAM_SKIP":
+                if wave_stopped or corrected == "VRAM_SKIP":
+                    wave_stopped = True
+                    wave_skipped += 1
                     unreviewed_remainder.extend(batch)
                     continue
 
@@ -1037,10 +1079,11 @@ def main():
                     total_stats["batches_failed"] += 1
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
+                    input_batch_lengths.append(len(batch))
                     failed_batches.append(i)
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches)
+                                    batch_lengths, failed_batches, input_batch_lengths)
                     continue
 
                 # Text-loss safety check (same bounds as contextual mode for consistency)
@@ -1053,10 +1096,11 @@ def main():
                     total_stats["batches_failed"] += 1
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
+                    input_batch_lengths.append(len(batch))
                     failed_batches.append(i)
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches)
+                                    batch_lengths, failed_batches, input_batch_lengths)
                     continue
 
                 # Diff stats
@@ -1087,16 +1131,16 @@ def main():
                 all_corrected.extend(corrected)
                 previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
                 batch_lengths.append(len(corrected))
+                input_batch_lengths.append(len(batch))
                 save_checkpoint(output_path, i, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches)
+                                batch_lengths, failed_batches, input_batch_lengths)
 
             if vram_abort.is_set():
-                # Some batches in this wave may have already succeeded before
-                # the abort was detected (kept above, in all_corrected) -
-                # only the genuinely-skipped ones and every later, untried
-                # wave count as unreviewed.
-                skipped_count = sum(1 for r in wave_results if r == "VRAM_SKIP")
+                # Everything routed to unreviewed above (the first skipped batch
+                # and every later one in this wave), plus every later, untried
+                # wave, counts as unreviewed.
+                skipped_count = wave_skipped
                 for remaining in remaining_batches[wave_start + len(wave_batches):]:
                     unreviewed_remainder.extend(remaining)
                     skipped_count += 1
@@ -1105,14 +1149,20 @@ def main():
                 break
 
     # Post-processing: merge consecutive NARRATOR entries with same instruct.
-    # This is purely local (no LLM calls), so it's safe to run on the
-    # successfully-reviewed entries even after a VRAM abort - only the
-    # unreviewed_remainder (entries that never went through review) is left
-    # untouched and appended below.
+    # Deferred on a VRAM abort: the per-batch checkpoint stored the UNMERGED
+    # all_corrected, so merging here (which shrinks all_corrected) would make the
+    # written output's prefix no longer equal the checkpoint. A resume slices the
+    # input at resume_offset = len(all_corrected); if the on-disk prefix is
+    # shorter than that, the resume skips past unreviewed entries and silently
+    # drops them. So we only merge on a clean, fully-reviewed completion (mirrors
+    # the dedupe_speakers skip below).
     merge_narrators_enabled = generation_config.get("merge_narrators", False)
     narrator_merges = 0
     speakers_merged = 0
-    if merge_narrators_enabled:
+    if merge_narrators_enabled and vram_aborted:
+        print("\nNarrator merging: deferred (stopped early due to low GPU VRAM; "
+              "will merge once the review finishes on a later run).")
+    elif merge_narrators_enabled:
         pre_merge_count = len(all_corrected)
         all_corrected, narrator_merges = merge_consecutive_narrators(all_corrected, max_merged_length=800)
         if narrator_merges > 0:

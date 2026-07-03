@@ -10,6 +10,7 @@ Usage:
 import argparse
 import io
 import json
+import os
 import sys
 import time
 import requests
@@ -121,6 +122,37 @@ def test_get_config():
     assert_key(data, "current_file")
 
 
+def _restore_config(original):
+    """Re-post a captured /api/config snapshot. One restore path shared by the
+    config-mutating tests instead of a copy per test."""
+    post("/api/config", json={
+        "llm": original["llm"],
+        "llm_mode": original.get("llm_mode"),
+        "llm_local": original.get("llm_local"),
+        "llm_remote": original.get("llm_remote"),
+        "llm_remote_ssh": original.get("llm_remote_ssh"),
+        "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
+        "prompts": original.get("prompts"),
+        "generation": original.get("generation"),
+    })
+
+
+def restores_config(fn):
+    """Guarantee a config-mutating test restores the server's real config even if
+    an assertion fails mid-test (an inline restore at the end is skipped on
+    failure, leaving the live config.json polluted with test values)."""
+    def wrapper():
+        snapshot = get("/api/config").json()
+        try:
+            return fn()
+        finally:
+            _restore_config(snapshot)
+    wrapper.__name__ = fn.__name__
+    wrapper.__doc__ = fn.__doc__
+    return wrapper
+
+
+@restores_config
 def test_save_config_roundtrip():
     # Read original
     r = get("/api/config")
@@ -168,21 +200,10 @@ def test_save_config_roundtrip():
     if original.get("prompts", {}).get("persona_system_prompt"):
         if not readback_prompts.get("persona_system_prompt"):
             raise TestFailure("Config round-trip failed: persona_system_prompt dropped")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        "llm_mode": original.get("llm_mode"),
-        "llm_local": original.get("llm_local"),
-        "llm_remote": original.get("llm_remote"),
-        "llm_remote_ssh": original.get("llm_remote_ssh"),
-        "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    # Restore is handled by @restores_config.
 
 
+@restores_config
 def test_save_pause_config_roundtrip():
     # Read original
     r = get("/api/config")
@@ -220,19 +241,7 @@ def test_save_pause_config_roundtrip():
         raise TestFailure(f"pause_between_speakers_ms not persisted: {tts.get('pause_between_speakers_ms')}")
     if tts.get("pause_same_speaker_ms") != 400:
         raise TestFailure(f"pause_same_speaker_ms not persisted: {tts.get('pause_same_speaker_ms')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        "llm_mode": original.get("llm_mode"),
-        "llm_local": original.get("llm_local"),
-        "llm_remote": original.get("llm_remote"),
-        "llm_remote_ssh": original.get("llm_remote_ssh"),
-        "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    # Restore is handled by @restores_config.
 
 
 def test_pause_config_defaults():
@@ -252,6 +261,7 @@ def test_pause_config_defaults():
         raise TestFailure(f"Invalid pause_same_speaker_ms: {pause_same}")
 
 
+@restores_config
 def test_save_review_prompts_roundtrip():
     # Read current config
     r = get("/api/config")
@@ -285,21 +295,10 @@ def test_save_review_prompts_roundtrip():
         raise TestFailure(f"review_system_prompt not persisted: {prompts.get('review_system_prompt')}")
     if prompts.get("review_user_prompt") != f"{TEST_PREFIX}review_usr":
         raise TestFailure(f"review_user_prompt not persisted: {prompts.get('review_user_prompt')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        "llm_mode": original.get("llm_mode"),
-        "llm_local": original.get("llm_local"),
-        "llm_remote": original.get("llm_remote"),
-        "llm_remote_ssh": original.get("llm_remote_ssh"),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    # Restore is handled by @restores_config.
 
 
+@restores_config
 def test_save_persona_prompts_roundtrip():
     # Read current config
     r = get("/api/config")
@@ -336,19 +335,7 @@ def test_save_persona_prompts_roundtrip():
         raise TestFailure(f"persona_user_prompt not persisted: {prompts.get('persona_user_prompt')}")
     if prompts.get("persona_advanced_prompt") != f"{TEST_PREFIX}persona_adv":
         raise TestFailure(f"persona_advanced_prompt not persisted: {prompts.get('persona_advanced_prompt')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        "llm_mode": original.get("llm_mode"),
-        "llm_local": original.get("llm_local"),
-        "llm_remote": original.get("llm_remote"),
-        "llm_remote_ssh": original.get("llm_remote_ssh"),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    # Restore is handled by @restores_config.
 
 
 def test_get_default_prompts():
@@ -516,18 +503,19 @@ def test_update_chunk():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
 
-    r = post("/api/chunks/0", json={
-        "text": f"{TEST_PREFIX}updated_text",
-        "instruct": f"{TEST_PREFIX}instruct"
-    })
-    assert_status(r, 200)
-    data = r.json()
-    if data.get("text") != f"{TEST_PREFIX}updated_text":
-        raise TestFailure(f"Chunk text not updated: {data.get('text')}")
-
-    # Restore original
-    orig = shared.get("chunk0_original", {})
-    post("/api/chunks/0", json=orig)
+    try:
+        r = post("/api/chunks/0", json={
+            "text": f"{TEST_PREFIX}updated_text",
+            "instruct": f"{TEST_PREFIX}instruct"
+        })
+        assert_status(r, 200)
+        data = r.json()
+        if data.get("text") != f"{TEST_PREFIX}updated_text":
+            raise TestFailure(f"Chunk text not updated: {data.get('text')}")
+    finally:
+        # Always restore chunk 0, even if an assertion above fails, so a failed
+        # run doesn't leave the real chunks.json with test text.
+        post("/api/chunks/0", json=shared.get("chunk0_original", {}))
 
 
 def test_update_chunk_pause_after():
@@ -1374,6 +1362,27 @@ def cleanup():
                 if v.get("id", "").startswith(TEST_PREFIX):
                     delete(f"/api/voice_design/{v['id']}")
                     items.append(f"voice {v['id']}")
+    except Exception:
+        pass
+
+    # save_voice_config MERGES (there's no API to delete a voice entry), so
+    # test_save_voice_config's throwaway `_test_`-prefixed key would otherwise
+    # persist in the real voice_config.json. Best-effort strip it from the local
+    # file — safe even for a --url run against another host, since a real config
+    # has no _test_-prefixed keys to remove.
+    try:
+        vc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "voice_config.json")
+        if os.path.exists(vc_path):
+            with open(vc_path, "r", encoding="utf-8") as f:
+                vc = json.load(f)
+            if isinstance(vc, dict):
+                stripped = {k: v for k, v in vc.items() if not k.startswith(TEST_PREFIX)}
+                if len(stripped) != len(vc):
+                    tmp = vc_path + ".tmp"
+                    with open(tmp, "w", encoding="utf-8") as f:
+                        json.dump(stripped, f, indent=2, ensure_ascii=False)
+                    os.replace(tmp, vc_path)
+                    items.append("test voice_config keys")
     except Exception:
         pass
 

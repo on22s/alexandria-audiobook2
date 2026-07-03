@@ -343,7 +343,10 @@ def run_analyze(model, device, deduped_root, output_dir):
         all_prosody   = cache_data.get("prosody", {})
         all_wav_names = cache_data.get("wav_names", {})
     else:
-        all_embs = all_prosody = all_wav_names = {}
+        # Three independent dicts — `a = b = c = {}` would alias all three to one
+        # dict, so the per-group writes below (embeddings/prosody/wav_names) would
+        # clobber each other and corrupt the cache.
+        all_embs, all_prosody, all_wav_names = {}, {}, {}
 
     # Extract missing groups
     for group_name, zip_paths in zip_groups.items():

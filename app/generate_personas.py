@@ -5,7 +5,6 @@ import time
 import re
 import argparse
 import shutil
-import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
@@ -280,25 +279,6 @@ def pick_ref_text(lines):
         if ln and len(ln.strip()) >= 12:
             return ln.strip()
     return next((ln.strip() for ln in lines if ln and ln.strip()), "")
-
-
-def parse_alias_decision(text):
-    parsed = extract_json_object(text)
-    if not parsed:
-        return {
-            "is_alias": False,
-            "alias_of": "",
-            "description": "",
-            "ref_text": "",
-            "reason": "unparseable"
-        }
-    return {
-        "is_alias": bool(parsed.get("is_alias", False)),
-        "alias_of": str(parsed.get("alias_of", "") or "").strip(),
-        "description": str(parsed.get("description", "") or "").strip(),
-        "ref_text": str(parsed.get("ref_text", "") or "").strip(),
-        "reason": str(parsed.get("reason", "") or "").strip()
-    }
 
 
 def _as_list(value):
@@ -629,7 +609,7 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
         _append_character_ref(ref_dir, canonical_speaker, batch_number, character)
 
 
-def _compile_persona(client, model_name, engine, root, ref_dir, speaker,
+def _compile_persona(client, model_name, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text). Returns (persona_ref, description, ref_text), or
@@ -697,7 +677,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
     # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
     for speaker in selected_speakers:
-        result = _compile_persona(client, model_name, engine, root, ref_dir,
+        result = _compile_persona(client, model_name, root, ref_dir,
                                    speaker, samples, system_prompt, advanced_prompt)
         if result is None:
             continue
@@ -736,14 +716,11 @@ def main():
 
     # Collect sample lines per speaker + first-appearance narrator context
     samples = {}
-    first_index = {}
-    for i, entry in enumerate(script):
+    for entry in script:
         speaker = _entry_speaker(entry)
         if not speaker:
             continue
         samples.setdefault(speaker, []).append(entry.get("text", "").strip())
-        if speaker not in first_index:
-            first_index[speaker] = i
 
     narrator_context = {}
     window = max(1, int(args.narration_window or 4))

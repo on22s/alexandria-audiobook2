@@ -494,7 +494,6 @@ def run(
 ):
     total    = len(entries)
     auto_ct  = 0
-    review_ct = 0
 
     print(f"\n{BOLD}Alexandria Compare{RESET}")
     print(f"  Entries      : {total}")
@@ -598,7 +597,6 @@ def run(
             continue
 
         # ── Show for review ───────────────────────────────────────────────────
-        review_ct += 1
         a_col, b_col = color_diff(chunk_words, orig_span_words)
 
         # Build the merge preview: source words with LLM markers re-applied.
