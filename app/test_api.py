@@ -1327,6 +1327,36 @@ def run_all_tests():
 
 # ── Cleanup ──────────────────────────────────────────────────
 
+def test_checkpoint_detect_endpoints_shape():
+    """Read-only smoke test of the resume-detect GETs (previously untested): each
+    returns the uniform _detect_descriptor shape (exists/done/total/label)."""
+    for path in ("/api/generate_script/checkpoint",
+                 "/api/generate_script/batch/checkpoint",
+                 "/api/review_script/checkpoint?context_window=0",
+                 "/api/review_script/batch/checkpoint"):
+        r = get(path)
+        assert_status(r, 200, msg=path)
+        data = r.json()
+        for key in ("exists", "done", "total", "label"):
+            assert_key(data, key)
+        if not isinstance(data["exists"], bool):
+            raise TestFailure(f"{path}: 'exists' should be bool, got {data['exists']!r}")
+
+
+def test_readonly_subsystem_smoke():
+    """Read-only smoke test of subsystems that previously had zero API coverage:
+    the reusable-cast voice library and the generic status/ETA endpoint."""
+    r = get("/api/voice_library")
+    assert_status(r, 200)
+    if not isinstance(r.json(), (list, dict)):
+        raise TestFailure("/api/voice_library did not return a list/dict")
+
+    r = get("/api/status/eta")
+    assert_status(r, 200)
+    if not isinstance(r.json(), dict):
+        raise TestFailure("/api/status/eta did not return a dict")
+
+
 def cleanup():
     print(f"\n--- Cleanup ---")
     items = []
