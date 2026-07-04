@@ -708,10 +708,12 @@ class TTSEngine:
         if not os.path.exists(ref_audio_path):
             raise FileNotFoundError(f"Reference audio not found for '{speaker}': {ref_audio_path}")
 
-        # Check cache — invalidate if ref_audio changed
+        # Check cache — invalidate if ref_audio OR ref_text changed (ref_text is
+        # baked into the prompt below, so editing a transcript with the same audio
+        # must rebuild, not serve the stale prompt).
         if speaker in self._clone_prompt_cache:
-            cached_path, cached_prompt = self._clone_prompt_cache[speaker]
-            if cached_path == ref_audio_path:
+            (cached_path, cached_text), cached_prompt = self._clone_prompt_cache[speaker]
+            if cached_path == ref_audio_path and cached_text == ref_text:
                 return cached_prompt
             print(f"Voice changed for '{speaker}', rebuilding clone prompt...")
 
@@ -728,7 +730,7 @@ class TTSEngine:
             ref_audio=(audio_array, sample_rate),
             ref_text=ref_text,
         )
-        self._clone_prompt_cache[speaker] = (ref_audio_path, prompt)
+        self._clone_prompt_cache[speaker] = ((ref_audio_path, ref_text), prompt)
         print(f"Clone prompt cached for '{speaker}'.")
         return prompt
 
@@ -829,6 +831,12 @@ class TTSEngine:
         The voice_data 'description' field provides the base voice identity,
         and the per-line instruct_text is appended for delivery/emotion direction.
         """
+        if self._mode != "local":
+            # generate_voice_design loads the local model unconditionally; in
+            # external mode that means a machine which can't host the model tries
+            # to download+load it (OOM/hang). Fail loud per chunk instead.
+            raise RuntimeError("Voice-design voices require local TTS mode; the "
+                               "external Gradio server can't generate them.")
         import shutil
 
         base_desc = (voice_data.get("description") or "").strip()
@@ -860,6 +868,12 @@ class TTSEngine:
 
         The LoRA weights refine voice identity beyond what the reference alone provides.
         """
+        if self._mode != "local":
+            # This loads the local base model + adapter unconditionally; in
+            # external mode fail loud per chunk rather than trying to load a model
+            # this machine may not be able to host.
+            raise RuntimeError("LoRA voices require local TTS mode; the external "
+                               "Gradio server can't generate them.")
         try:
             import torch
             import time
@@ -1306,7 +1320,11 @@ class TTSEngine:
                 if batch_seed >= 0:
                     torch.manual_seed(batch_seed)
 
-                torch.cuda.reset_peak_memory_stats()
+                # Guard CUDA-only calls — this path also runs in local CPU/MPS
+                # mode, where torch.cuda.* raises and would fail every sub-batch.
+                cuda_ok = torch.cuda.is_available()
+                if cuda_ok:
+                    torch.cuda.reset_peak_memory_stats()
                 t_start = time.time()
                 wavs_list, sr = model.generate_custom_voice(
                     text=sb_texts,
@@ -1317,7 +1335,7 @@ class TTSEngine:
                     max_new_tokens=2048,
                 )
                 gen_time = time.time() - t_start
-                peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                peak_gb = (torch.cuda.max_memory_allocated() / 1e9) if cuda_ok else 0.0
                 print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                 if wavs_list is None:

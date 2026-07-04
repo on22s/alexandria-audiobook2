@@ -235,7 +235,9 @@ def main():
     from tts import TTSEngine
     print("Initializing TTSEngine (local mode, compile_codec=False)...")
     snap_pre = vram_state()
-    engine = TTSEngine(tts_cfg)
+    # TTSEngine.__init__ reads config["tts"], so the tts settings must be wrapped —
+    # passing the inner dict silently drops every forced/loaded setting.
+    engine = TTSEngine({"tts": tts_cfg})
 
     # Force model load and capture footprint
     print("\nLoading model (this will show VRAM footprint)...")
