@@ -484,6 +484,12 @@ def train(args):
     base_talker = peft_talker.base_model.model  # original talker with LoRA layers
     transformer = base_talker.model  # Qwen3TTSTalkerModel
 
+    if args.epochs < 1:
+        # epochs<=0 would skip the loop entirely, save an untrained adapter, then
+        # NameError on avg_loss in the meta below. Fail fast with a clear message.
+        print(f"[ERROR] --epochs must be >= 1 (got {args.epochs}).", flush=True)
+        sys.exit(1)
+    avg_loss = float("nan")  # defined even if the loop somehow runs zero epochs
     for epoch in range(1, args.epochs + 1):
         epoch_loss = 0.0
         epoch_steps = 0
@@ -587,7 +593,15 @@ def train(args):
                   f"sub_loss={step_sub_loss:.4f} lr={args.lr:.2e}", flush=True)
 
         # Epoch summary
-        avg_loss = epoch_loss / max(epoch_steps, 1)
+        if epoch_steps == 0:
+            # Every sample this epoch was OOM-skipped; avg_loss would be a
+            # meaningless 0.0 that registers as a phantom "best" (default mode) or
+            # a false "overshot floor" early stop (target mode). Warn and skip this
+            # epoch's save/early-stop logic.
+            print(f"[TRAIN] WARNING: epoch {epoch} had no successful steps "
+                  f"(all OOM-skipped) — skipping save/early-stop for it.", flush=True)
+            continue
+        avg_loss = epoch_loss / epoch_steps
 
         # Safe checkpoint: save whenever loss improves and is still above garble floor.
         # This ensures we always have the best non-garbling checkpoint on disk,
