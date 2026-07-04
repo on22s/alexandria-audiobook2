@@ -500,12 +500,23 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     # already appears as a value, which is what existing_canonicals reads) and
     # only clutter the user-facing alias editor with "NAME -> NAME" rows.
     if registry_path:
-        for variant, canonical in clean_map.items():
-            registry[variant] = canonical
         try:
-            # Use file_lock to prevent concurrent writes from corrupting the registry
+            # Hold the lock across the whole read-modify-write. `registry` was read
+            # unlocked before the long LLM call above; a UI alias edit made in the
+            # meantime would be clobbered if we wrote that stale snapshot back. So
+            # re-load the current on-disk registry inside the lock and merge our new
+            # mappings onto it (last-writer-merges), like _remap_voice_config does.
             with file_lock(registry_path):
-                atomic_json_write(registry, registry_path)
+                current = {}
+                if os.path.exists(registry_path):
+                    try:
+                        with open(registry_path, "r", encoding="utf-8") as f:
+                            current = json.load(f) or {}
+                    except (OSError, ValueError):
+                        current = {}
+                for variant, canonical in clean_map.items():
+                    current[variant] = canonical
+                atomic_json_write(current, registry_path)
         except (OSError, TimeoutError) as e:
             print(f"  Warning: could not update alias registry: {e}")
 
@@ -1196,7 +1207,11 @@ def main():
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
-    if not vram_aborted:
+    # Keep the checkpoint when any batch failed, so a resume actually retries it
+    # (load_checkpoint's rewind is built exactly for this) — clearing it here
+    # would make the printed "(will retry on next resume)" a lie and permanently
+    # leave those batches' entries unreviewed.
+    if not vram_aborted and not failed_batches:
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the
