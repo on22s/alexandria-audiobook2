@@ -225,7 +225,9 @@ def get_gpu_stats():
         _gpu_stats_cache["timestamp"] = now
         return stats
 
-    stats = {}
+    # Seed utilization_percent so the returned shape always has the key, matching
+    # _gpu_stats_via_rocm_smi (the rocm-smi block below may not set it).
+    stats = {"utilization_percent": None}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
         allocated = torch.cuda.memory_allocated() / 1e9  # GB
@@ -701,10 +703,22 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
     # NOTE: do NOT bail out here if state["running"] is already True. GPU tasks
     # reserve their slot via claim_gpu_task() on the request thread (which sets
-    # running=True before this background task is scheduled), and the few
-    # non-GPU callers (e.g. nicknames) guard against double-starts at their own
-    # endpoint. A guard here would see claim_gpu_task's own reservation and
-    # abort every GPU task, deadlocking the queue.
+    # running=True before this background task is scheduled). Every current caller
+    # reserves that way, so a running-guard here would see that reservation and
+    # abort every task — deadlocking the queue. Do not add one.
+
+    # Honor a cancel queued during the pre-Popen window: claim_gpu_task set
+    # running=True on the request thread, and _cancel_task may have flagged
+    # cancel before this background task started. Clearing it below (as we do on
+    # a fresh start) would silently drop that cancel, which _cancel_task promises
+    # to honor. Bail out here instead — running=False releases the GPU slot.
+    if state.get("cancel"):
+        state["logs"] = [f"Task {task_name} cancelled before it started."]
+        if "status" in state: state["status"] = "cancelled"
+        if "cancel" in state: state["cancel"] = False
+        state["running"] = False
+        return
+
     state["running"] = True
     state["logs"] = []
     if "paused"      in state: state["paused"]      = False
@@ -935,7 +949,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                         pass
                     log_fh = None  # Stop trying to write to disk
 
-    reader.join()
+    reader.join(timeout=5)  # daemon thread — abandon a stuck reader (e.g. a
+                            # grandchild holding stdout) rather than hang the task
+                            # forever with running=True holding the GPU lock
     process.wait()
     if log_fh:
         try:
@@ -1258,9 +1274,10 @@ def _make_llm_client(timeout: float = 60):
     # Cache the client, bounding the cache size to avoid memory growth
     if len(_llm_client_cache) >= 10:
         oldest_key = next(iter(_llm_client_cache))
-        evicted = _llm_client_cache.pop(oldest_key, None)
-        if evicted is not None:
-            evicted.close()
+        # Don't close() the evicted client — a concurrent request may still be
+        # mid-call on it (its httpx pool would be torn down under them). Let GC
+        # close it once its last user releases it; the cache bound alone caps growth.
+        _llm_client_cache.pop(oldest_key, None)
     _llm_client_cache[config_key] = client
 
     return client, model_name
@@ -1899,6 +1916,21 @@ def _normalize_and_validate_llm(profile: "LLMConfig") -> None:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def _deep_merge(base, override):
+    """base updated with override; nested dicts are merged (not replaced) and a
+    None in override never wipes an existing value. Used so a config save keeps
+    operational keys the Pydantic models don't model."""
+    out = dict(base) if isinstance(base, dict) else {}
+    for k, v in (override or {}).items():
+        if v is None:
+            continue
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
 @app.post("/api/config")
 async def save_config(config: AppConfig):
     # Normalize/validate whichever profiles were sent. The local/remote profiles
@@ -1919,7 +1951,14 @@ async def save_config(config: AppConfig):
     config.llm = active.model_copy(deep=True)
     _normalize_and_validate_llm(config.llm)
 
-    atomic_json_write(config.model_dump(), CONFIG_PATH)
+    # Deep-merge over the existing file so operational keys the strict Pydantic
+    # models don't cover — the benchmarked concurrency cache in llm_local/
+    # llm_remote, llm_remote.last_synced, generation.review_batch_size — aren't
+    # silently dropped on every Setup save.
+    new_data = config.model_dump()
+    existing = safe_load_json(CONFIG_PATH, default={})
+    merged = _deep_merge(existing, new_data) if isinstance(existing, dict) else new_data
+    atomic_json_write(merged, CONFIG_PATH)
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
     return {"status": "saved"}
@@ -2239,7 +2278,9 @@ async def generate_script_checkpoint():
     chunk_size = _script_chunk_size()
     try:
         total_chunks, input_hash = compute_split_signature(input_file, chunk_size)
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError: a non-UTF8 source (load_book_content opens UTF-8);
+        # return "no resumable checkpoint" rather than 500ing the detect endpoint.
         return _detect_descriptor(False)
     if not script_checkpoint_matches(meta, total_chunks, chunk_size, input_hash):
         return _detect_descriptor(False)
@@ -2692,11 +2733,12 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             if state.get("bidirectional") and state.get("current_pass") == "bwd":
                 # Don't clear checkpoint during backward pass - preserve forward progress
                 should_clear = False
-                if orig_status == "incomplete":
-                    # The forward pass on this book was VRAM-aborted and left behind
-                    # its own partial checkpoint (forward-pass progress/aliases). That
-                    # checkpoint isn't valid for the backward pass - reusing it would
-                    # silently splice forward-pass output into the backward result.
+                if orig_status in ("incomplete", "failed"):
+                    # The forward pass on this book was VRAM-aborted (incomplete) or
+                    # crashed (failed) and left behind its own partial checkpoint
+                    # (forward-pass progress/aliases). That checkpoint isn't valid for
+                    # the backward pass - reusing it would silently splice forward-pass
+                    # output into the backward result.
                     should_clear = True
             elif resume and not state["tasks"][i].get("fwd_complete"):
                 # Forward / non-bidirectional resume: every book reaching here is
@@ -2884,9 +2926,13 @@ async def review_script_batch_checkpoint():
     kind = "front-to-back" if prev.get("bidirectional") else "forward-only"
     # exists == "there is unfinished work", consistent with the other three
     # detect endpoints (a completed-but-not-cleared plan is not resumable).
-    return _detect_descriptor(
-        done < total, done, total,
-        f"{kind}, {pass_label} pass, {done}/{total} books")
+    # Include the saved plan's `names` (in order) so a resuming frontend sends
+    # exactly them — the backend only honors a resume when names match the saved
+    # plan (list AND order), which a re-sorted/reloaded live selection wouldn't.
+    return {**_detect_descriptor(
+                done < total, done, total,
+                f"{kind}, {pass_label} pass, {done}/{total} books"),
+            "names": list(prev.get("names", []))}
 
 
 def _batch_cancel_helper(state_key: str):
@@ -3606,9 +3652,12 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks)
 
 @app.post("/api/merge")
 async def merge_audio_endpoint(background_tasks: BackgroundTasks):
-    # Reuse audio process state for merge if possible, or just background it
-    # For simplicity, we just background it and frontend will assume it works
-    # Or we can link it to process_state["audio"]
+    # Guard against starting a merge while audio generation (or another merge) is
+    # running — both use process_state["audio"], so a merge would clobber the
+    # generation's state and its early finally would release the GPU lock while
+    # TTS is still in flight (concurrent-VRAM OOM).
+    if process_state["audio"]["running"]:
+        raise HTTPException(status_code=400, detail="Audio generation or a merge is already running.")
 
     def task():
         process_state["audio"]["running"] = True
@@ -4007,7 +4056,8 @@ async def list_saved_scripts():
     Any new companion file type added later is safely excluded by this rule.
     """
     scripts = []
-    companion_suffixes = (".voice_config.json", ".review_checkpoint.json", ".checkpoint.jsonl")
+    companion_suffixes = (".voice_config.json", ".review_checkpoint.json",
+                          ".checkpoint.jsonl", ".script_checkpoint.json")
     for f in os.listdir(SCRIPTS_DIR):
         if not f.endswith(".json"):
             continue
@@ -5815,10 +5865,9 @@ async def preparer_list_outputs():
 @app.get("/api/preparer/download/{filename:path}")
 async def preparer_download(filename: str):
     """Download a generated dataset ZIP."""
-    root = os.path.realpath(PREPARER_OUTPUT_DIR)
-    file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
-    if not file_path.startswith(root + os.sep) and file_path != root:
-        raise HTTPException(status_code=400, detail="Invalid filename.")
+    # Reuse the shared containment helper instead of a second inline copy of the
+    # path-traversal check (Rule 15 — one place to harden).
+    file_path = _safe_subpath(PREPARER_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found.")
     return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))

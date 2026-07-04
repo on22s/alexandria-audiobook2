@@ -2998,11 +2998,20 @@
         };
 
         async function startBatchReview() {
-            const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
+            let names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
             if (!(await confirmIfRemote('this batch review'))) { return; }
             const batchReviewResume = await resumeOrAbort('/api/review_script/batch/checkpoint');
             if (batchReviewResume.aborted) { return; }
+            if (batchReviewResume.resume) {
+                // Use the saved plan's exact names+order — the backend only honors a
+                // resume when they match the saved plan, which the live checkbox
+                // selection (re-sorted or reset by a page reload) wouldn't.
+                try {
+                    const detect = await API.get('/api/review_script/batch/checkpoint');
+                    if (detect && detect.names && detect.names.length) { names = detect.names; }
+                } catch (e) { /* fall back to the live selection */ }
+            }
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
 
@@ -3018,7 +3027,7 @@
             statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting batch review…</span>';
 
             try {
-                await API.post('/api/review_script/batch/start', {
+                const startResp = await API.post('/api/review_script/batch/start', {
                     script_names: names,
                     context_window: contextWindow,
                     dedupe_speakers: _reviewDedupe(),
@@ -3026,6 +3035,9 @@
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
                     resume: batchReviewResume.resume,
                 });
+                if (batchReviewResume.resume && startResp && startResp.resume === false) {
+                    showToast('Could not resume the previous run (saved plan no longer matched) — started fresh.', 'warning');
+                }
                 pollReviewBatch();
             } catch (e) {
                 startBtn.disabled = false;
