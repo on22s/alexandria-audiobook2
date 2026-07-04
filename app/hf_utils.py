@@ -33,22 +33,33 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
         return _manifest_cache
 
     # Try remote
+    fetched_ok = False
     try:
         from huggingface_hub import hf_hub_download
         cached_path = hf_hub_download(repo_id=hf_repo, filename="manifest.json")
         with open(cached_path, "r", encoding="utf-8") as f:
             entries = json.load(f)
-        # Save local copy for offline fallback
-        os.makedirs(builtin_dir, exist_ok=True)
-        local_path = os.path.join(builtin_dir, "manifest.json")
-        _atomic_json_write(entries, local_path, max_retries=3)
+        fetched_ok = True
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning(f"Failed to fetch remote LoRA manifest, using local fallback: {e}")
         local_path = os.path.join(builtin_dir, "manifest.json")
         entries = safe_load_json(local_path, default=[])
 
-    _manifest_cache = entries
-    _manifest_cache_time = now
+    if fetched_ok:
+        # Save the local copy in its OWN try so a cache-write failure can't
+        # discard the manifest we just fetched successfully.
+        try:
+            os.makedirs(builtin_dir, exist_ok=True)
+            _atomic_json_write(entries, os.path.join(builtin_dir, "manifest.json"), max_retries=3)
+        except OSError as e:
+            logger.warning(f"Could not cache LoRA manifest locally: {e}")
+        _manifest_cache = entries
+        _manifest_cache_time = now
+    else:
+        # Negative-cache the fallback only briefly (~60s) so a transient outage
+        # doesn't hide builtin LoRAs for the full hour, without hammering HF.
+        _manifest_cache = entries
+        _manifest_cache_time = now - _MANIFEST_TTL + 60
     return entries
 
 
@@ -82,9 +93,19 @@ def download_builtin_adapter(adapter_id, builtin_dir, hf_repo=BUILTIN_LORA_HF_RE
                 repo_id=hf_repo,
                 filename=f"{hf_name}/{filename}",
             )
-            shutil.copy2(cached, local_path)
+            # Publish atomically (copy to a temp then os.replace) so an
+            # interrupted copy can't leave a truncated file that the
+            # existence-check above (and is_adapter_downloaded) then trust forever.
+            tmp = local_path + ".part"
+            shutil.copy2(cached, tmp)
+            os.replace(tmp, local_path)
             logger.info(f"Downloaded {hf_name}/{filename} -> {local_path}")
         except Exception as e:
+            try:
+                if os.path.exists(local_path + ".part"):
+                    os.remove(local_path + ".part")
+            except OSError:
+                pass
             if filename in REQUIRED_ADAPTER_FILES:
                 raise RuntimeError(
                     f"Failed to download {hf_name}/{filename} for {adapter_id}: {e}"
