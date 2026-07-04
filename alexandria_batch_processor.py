@@ -727,8 +727,10 @@ def main():
         if not folder.is_dir():
             print(f"Error: --folder path is not a directory: {args.folder}", file=sys.stderr)
             sys.exit(1)
-        supported = {".wav", ".flac", ".ogg"}
-        found = sorted(str(p) for p in folder.iterdir() if p.suffix.lower() in supported)
+        # Reuse the one supported-format set so --folder can't drift from the
+        # positional-args path (which accepts .mp3/.m4a too).
+        found = sorted(str(p) for p in folder.iterdir()
+                       if p.suffix.lower() in BatchProcessor.SUPPORTED_FORMATS)
         if not found:
             print(f"Error: no supported audio files found in {args.folder}", file=sys.stderr)
             sys.exit(1)

@@ -43,7 +43,7 @@ class LLMEnricher:
         prompt = self._create_prompt(chunk)
 
         try:
-            logger.info(f"Enriching chunk: {chunk.get('start', 'N/A'):.2f}s - {chunk.get('end', 'N/A'):.2f}s")
+            logger.info(f"Enriching chunk: {chunk.get('start', 0.0):.2f}s - {chunk.get('end', 0.0):.2f}s")
             output = self.llm(
                 prompt,
                 max_tokens=150,

@@ -26,5 +26,12 @@ def load_review_prompts():
     return parts[0].strip(), parts[1].strip()
 
 
-# Cached at import time — used by review_script.py (subprocess, fresh each run)
-REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = load_review_prompts()
+# Cached at import time — used by review_script.py (subprocess, fresh each run).
+# Guard the load so a missing/malformed review_prompts.txt can't crash importers
+# at module load: app.py imports load_review_prompts for the Setup tab and has its
+# own graceful fallback, and it must still start. review_script uses these as
+# fallbacks and can re-load via load_review_prompts() to surface a clear error.
+try:
+    REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = load_review_prompts()
+except RuntimeError:
+    REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = None, None

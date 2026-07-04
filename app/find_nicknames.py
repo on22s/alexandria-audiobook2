@@ -220,7 +220,9 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
     """
     speakers, samples, cooccur = collect_context(entries)
     if len(speakers) < 2:
-        return {}, {}
+        # Return the 3-tuple main() unpacks (aliases, evidence, ok) — a 2-tuple
+        # here crashes on any single-speaker/narrator-only book.
+        return {}, {}, True
 
     # Keep only registry entries this call could actually use: _parse_alias_response
     # discards any variant that isn't one of this book's speaker labels, so a variant

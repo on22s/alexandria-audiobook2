@@ -515,8 +515,10 @@ def run(
         entry = entries[idx]
         key = str(idx)
 
-        # Already decided in a prior session — restore cursor and skip display
-        if key in decisions:
+        # Already decided in a prior session — restore cursor and skip display.
+        # A 'skip' is NOT a decision (the tool tells the user it reappears next
+        # run), so fall through and re-show it rather than treating it as decided.
+        if key in decisions and decisions[key].get('action') != 'skip':
             if 'cursor_after' in decisions[key]:
                 cursor = decisions[key]['cursor_after']
             idx += 1

@@ -120,11 +120,13 @@ def to_words(text: str) -> list:
 # ── Source loaders ─────────────────────────────────────────────────────────────
 def load_epub(path: str) -> str:
     if not EPUB_AVAILABLE:
-        sys.exit(
-            "EPUB support requires:\n"
-            "  uv pip install ebooklib beautifulsoup4\n"
-            "or:\n"
-            "  pip install ebooklib beautifulsoup4"
+        # Raise instead of sys.exit(): this is a shared library function, and a
+        # preparer/compare process embedding it must be able to catch this rather
+        # than have the whole process hard-killed. The CLI __main__ path turns it
+        # into an exit code.
+        raise RuntimeError(
+            "EPUB support requires: uv pip install ebooklib beautifulsoup4 "
+            "(or pip install ebooklib beautifulsoup4)"
         )
     book = epub.read_epub(path)
     parts = []

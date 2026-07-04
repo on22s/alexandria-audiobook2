@@ -492,7 +492,7 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
         voice_entry = voice_config.get(speaker, {})
         voice_entry.update({
             "type": "clone",
-            "ref_audio": os.path.relpath(dest_path, root).replace('\\\\', '/'),
+            "ref_audio": os.path.relpath(dest_path, root).replace(os.sep, '/'),
             "ref_text": ref_text,
             "description": description,
             "character_style": description,
@@ -662,7 +662,7 @@ def _compile_persona(client, model_name, root, ref_dir, speaker,
         print(f"Warning: Empty compiled description for {speaker}, skipping")
         return None
 
-    persona_ref = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace('\\\\', '/')
+    persona_ref = os.path.relpath(_character_ref_path(ref_dir, speaker), root).replace(os.sep, '/')
     return persona_ref, description, ref_text
 
 

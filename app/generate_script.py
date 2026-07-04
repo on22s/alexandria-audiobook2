@@ -529,8 +529,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
         if attempt < max_retries:
             print("Retrying...")
+            continue  # honor the retry instead of preempting it with a partial salvage
 
-        # Last resort: extract individual valid entries with regex
+        # Final attempt only: last-resort regex salvage of individual entries, so
+        # both parse-failure paths follow one policy (Rule 10) — full retries first,
+        # partial salvage only when no attempts remain.
         salvaged_entries = salvage_json_entries(json_text)
         if salvaged_entries:
             print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")

@@ -25,6 +25,7 @@ def download_model():
 
     try:
         # Create directory if needed
+        existed_before = os.path.exists(model_path)
         os.makedirs(model_path, exist_ok=True)
 
         # Download model
@@ -61,6 +62,12 @@ def download_model():
         print(f"✗ ERROR: {e}")
         import traceback
         traceback.print_exc()
+        # If this run created the dir (or left it partial), remove it so the
+        # preparer's existence-only check doesn't prefer an empty/partial model
+        # over the HuggingFace fallback forever. Don't touch a pre-existing copy.
+        if not existed_before and os.path.exists(model_path):
+            import shutil
+            shutil.rmtree(model_path, ignore_errors=True)
         return 1
 
 if __name__ == "__main__":
