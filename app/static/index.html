@@ -1839,7 +1839,10 @@
         // that, since there's no way for the app to check your actual Thunder
         // balance automatically. Local has no cloud cost, so it's a no-op there.
         async function confirmIfRemote(taskLabel) {
-            if (currentLlmMode !== 'remote') { return true; }
+            // Gate on the SAVED mode (what the backend will actually run), not the
+            // live dropdown — otherwise flipping the selector without saving skips
+            // the cost warning (or fires it spuriously).
+            if (savedLlmMode !== 'remote') { return true; }
             return await showConfirm(
                 `This will run ${taskLabel} on your REMOTE LLM (Thunder) and will bill your ` +
                 `account by the hour while it's running. Continue on remote, or Cancel and switch ` +
@@ -2417,7 +2420,7 @@
                 // Show previously loaded file
                 if (config.current_file) {
                     document.getElementById('upload-status').innerHTML =
-                        `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${config.current_file}</span>`;
+                        `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${escapeHtml(config.current_file)}</span>`;
                 }
             } catch (e) {
                 console.error("Failed to load config", e);
@@ -3279,12 +3282,11 @@
                         }
                     }
                 } catch (e) {
-                    clearInterval(interval);
-                    showToast('Persona status poll failed: ' + e.message, 'error');
-                    statusSpan.innerText = '';
-                    if (cancelButton) {
-                        cancelButton.style.display = 'none';
-                    }
+                    // Keep polling through a transient hiccup (e.g. the server busy
+                    // with GPU work) instead of killing status/log updates and the
+                    // Cancel button while the run is still going — matches the other
+                    // pollers in this file.
+                    console.debug('persona status poll hiccup', e);
                 }
             }, 1500);
         }
@@ -3388,10 +3390,10 @@
                                             <select class="form-select designed-voice-select" onchange="onDesignedVoiceSelect(this)">
                                                 <option value="">-- Select voice or enter path manually --</option>
                                                 ${(window._cloneVoicesCache || []).length ? `<optgroup label="Uploaded Voices">
-                                                    ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${v.id}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${v.name}</option>`).join('')}
+                                                    ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${escapeHtml(v.id)}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
                                                 ${(window._designedVoicesCache || []).length ? `<optgroup label="Designed Voices">
-                                                    ${(window._designedVoicesCache || []).map(v => `<option value="design:${v.id}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${v.name}</option>`).join('')}
+                                                    ${(window._designedVoicesCache || []).map(v => `<option value="design:${escapeHtml(v.id)}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
                                                 <option value="__manual__" ${config.ref_audio && !(window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) && !(window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) && config.ref_audio ? 'selected' : ''}>Custom path...</option>
                                             </select>
@@ -3401,9 +3403,9 @@
                                             <input type="file" class="clone-voice-file-input" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
                                         </div>
                                     </div>
-                                    <input type="text" class="form-control ref-text mb-2" placeholder="Reference Text" value="${config.ref_text || ''}">
+                                    <input type="text" class="form-control ref-text mb-2" placeholder="Reference Text" value="${escapeHtml(config.ref_text || '')}">
                                     <div class="input-group">
-                                        <input type="text" class="form-control ref-audio" placeholder="Path to audio file" value="${config.ref_audio || ''}" ${config.ref_audio && ((window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) || (window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename))) ? 'readonly' : ''}>
+                                        <input type="text" class="form-control ref-audio" placeholder="Path to audio file" value="${escapeHtml(config.ref_audio || '')}" ${config.ref_audio && ((window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) || (window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename))) ? 'readonly' : ''}>
                                         <button class="btn btn-sm btn-outline-secondary clone-play-btn" onclick="playCloneVoice(this)" title="Play reference audio" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
                                         <button class="btn btn-sm btn-outline-danger clone-delete-btn" onclick="deleteCloneVoice(this)" title="Delete uploaded voice" style="display:${config.ref_audio && (window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
@@ -3415,18 +3417,18 @@
                                         <div class="col-md-6">
                                             <select class="form-select lora-adapter-select">
                                                 <option value="">-- Select trained adapter --</option>
-                                                ${(window._loraModelsCache || []).map(m => `<option value="${m.id}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control lora-character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${voiceType === 'lora' ? (config.character_style || '') : ''}">
+                                            <input type="text" class="form-control lora-character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
-                                    <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${config.description || ''}">
+                                    <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
                                     <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
                                     <div class="mt-2">
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="openVoiceDesignEditor(this)">
@@ -4323,7 +4325,7 @@
                     <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
                         <div class="d-flex">
                             <div class="toast-body text-dark">
-                                Line deleted (${data.deleted.speaker}: "${(data.deleted.text || '').substring(0, 40)}...")
+                                Line deleted (${escapeHtml(data.deleted.speaker)}: "${escapeHtml((data.deleted.text || '').substring(0, 40))}...")
                                 <a href="#" class="ms-2 fw-bold text-dark" onclick="event.preventDefault(); undoDeleteChunk('${toastId}');">Undo</a>
                             </div>
                             <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
@@ -5029,7 +5031,7 @@
                 const source = document.getElementById('design-source-name').value;
                 const selectedAlias = document.getElementById('design-alias-select').value;
                 if (source) {
-                    const card = document.querySelector(`.voice-card[data-voice="${source}"]`);
+                    const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(source)}"]`);
                     if (card) {
                         const aliasSel = card.querySelector('.alias-select');
                         if (aliasSel) {
@@ -5428,8 +5430,10 @@
                         }
                     }
                 } catch (e) {
-                    console.error('LoRA poll error:', e);
-                    clearInterval(interval);
+                    // Keep polling through a transient hiccup instead of freezing the
+                    // progress bar and leaving the train button disabled while training
+                    // is still running server-side.
+                    console.debug('LoRA poll hiccup:', e);
                 }
             }, 2000);
         }
@@ -6293,7 +6297,7 @@
             [...files].forEach((file, i) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${file.name}</td>
+                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(file.name)}</td>
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
