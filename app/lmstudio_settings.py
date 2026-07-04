@@ -340,6 +340,13 @@ def _configured_remote_hosts():
     return hosts
 
 
+def _is_thunder_host(host):
+    """A Thunder Compute port-forward host (thundercompute.net / *.thundercompute.net).
+    Single source for the Thunder-host check, shared with app.py (Rule 15)."""
+    host = (host or "").lower()
+    return host == "thundercompute.net" or host.endswith(".thundercompute.net")
+
+
 def _is_verifiable_probe_host(base_url):
     """True only for hosts this app is allowed to send the context probe to:
     local LM Studio, a Thunder Compute port-forward (*.thundercompute.net), or a
@@ -348,9 +355,7 @@ def _is_verifiable_probe_host(base_url):
     into an SSRF against an arbitrary host the user never configured (the
     LLM-client path is already gated; this raw POST must be too)."""
     host = (urlparse(base_url or "").hostname or "").lower()
-    if (host in _LOCAL_HOSTS
-            or host == "thundercompute.net"
-            or host.endswith(".thundercompute.net")):
+    if host in _LOCAL_HOSTS or _is_thunder_host(host):
         return True
     return host in _configured_remote_hosts()
 
@@ -365,6 +370,11 @@ def _verify_served_context(base_url, model_name, need_tokens=_REMOTE_VERIFY_NEED
     workload will hit it instead of trusting the status flag. Returns
     (ok, detail). Never raises.
     """
+    if not base_url:
+        # A None/empty base_url would reach base_url.rstrip() below and raise
+        # AttributeError (the ""-host also passes the local-host gate) — guard it
+        # so the "Never raises" contract holds when llm_mode/base_url have drifted.
+        return False, "no base_url configured"
     if not _is_verifiable_probe_host(base_url):
         return False, f"refusing to probe non-local/non-Thunder host: {base_url!r}"
     filler = "the harbor lights fog pier coat wind truth liar calm sky bell buoy water cold "
@@ -514,6 +524,13 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20, resolved_targe
     try:
         result = _ssh_run(ssh_target, "lms ps --json", timeout=timeout, connect_timeout=10)
     except (subprocess.TimeoutExpired, OSError):
+        return {"available": False, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False}
+
+    if result.returncode != 0:
+        # ssh exits non-zero (e.g. 255 on auth failure / connection refused) with
+        # empty stdout, which _parse_lms_ps_output would misread as available=True.
+        # Report unreachable so callers surface it instead of "loaded, not optimized".
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
@@ -848,7 +865,12 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     status = get_status()
     if res.ok:
         return is_remote, status, f"{label}: {res.message}", heal
-    if status["loaded"] and status["optimized"]:
+    # `lms ps`'s "optimized" flag has been observed to lie (it advertised the
+    # configured context while the runtime served n_ctx=4096 after a JIT reload),
+    # so on remote confirm the served context for real before continuing — the
+    # same guard the already-ideal path above uses.
+    ctx_ok = (not is_remote) or _verify_served_context(base_url, model_name)[0]
+    if status["loaded"] and status["optimized"] and ctx_ok:
         return (is_remote, status,
                 f"{label}: could not reload ({res.message}), but {model_name} is "
                 f"already loaded with ideal settings - continuing.",

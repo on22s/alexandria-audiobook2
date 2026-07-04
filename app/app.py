@@ -36,7 +36,8 @@ from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status, persist_healed_base_url, decide_healed_urls)
+                               get_current_status, persist_healed_base_url, decide_healed_urls,
+                               _is_thunder_host as _ls_is_thunder_host)
 from review_script import clear_checkpoint, _checkpoint_path
 from generate_script import (clear_script_checkpoint, script_checkpoint_matches,
                              compute_split_signature)
@@ -1215,12 +1216,11 @@ def _validate_local_llm_base_url(base_url: str) -> None:
 
 
 def _is_thunder_host(base_url: str) -> bool:
-    """True if base_url points at a Thunder Compute port-forward host
-    (*.thundercompute.net). Single source for the Thunder-host check shared by
-    base_url validation and the test-connection "server not serving" hint."""
+    """True if base_url points at a Thunder Compute port-forward host. Delegates
+    to lmstudio_settings._is_thunder_host so the host predicate has one source
+    (Rule 15) — this wrapper just adapts a full base_url to a hostname."""
     from urllib.parse import urlparse
-    hostname = (urlparse(base_url).hostname or "").lower()
-    return hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net")
+    return _ls_is_thunder_host(urlparse(base_url).hostname)
 
 
 # LLM client cache to avoid creating new HTTP sessions for every request.
