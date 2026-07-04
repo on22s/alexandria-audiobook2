@@ -5,6 +5,7 @@ import tempfile
 import contextlib
 import re
 import subprocess
+import uuid
 
 
 # --- GPU stats (rocm-smi) ---
@@ -148,18 +149,30 @@ def file_lock(target_path, timeout=10, stale_after=30):
         stale_after: Seconds after which a lock file is considered abandoned (default: 30)
     """
     lock_path = target_path + ".lock"
+    # Unique owner token written into the lock file, so reaping and release can
+    # tell OUR lock from one another process reaped-and-recreated.
+    my_token = f"{os.getpid()}-{uuid.uuid4().hex}".encode()
     deadline = time.time() + timeout
     acquired = False
     while True:
         try:
             fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
+            try:
+                os.write(fd, my_token)
+            finally:
+                os.close(fd)
             acquired = True
             break
         except FileExistsError:
             try:
                 if time.time() - os.path.getmtime(lock_path) > stale_after:
-                    os.remove(lock_path)
+                    # Claim the stale lock ATOMICALLY via rename before deleting.
+                    # If two waiters both judge it stale, only one rename succeeds;
+                    # the loser gets OSError and retries — so they can't both
+                    # delete it and each then acquire a fresh lock (double-hold).
+                    reaped = f"{lock_path}.reap.{os.getpid()}-{uuid.uuid4().hex}"
+                    os.rename(lock_path, reaped)
+                    os.remove(reaped)
                     continue
             except OSError:
                 pass
@@ -169,10 +182,15 @@ def file_lock(target_path, timeout=10, stale_after=30):
     try:
         yield
     finally:
-        # Only remove the lock file if we created it - a timed-out waiter that
-        # never acquired the lock must not delete another process's active lock.
+        # Only remove the lock if it STILL holds our token. If we held it past
+        # stale_after and a waiter reaped it (renaming it away and possibly
+        # recreating its own), the file is now either gone or someone else's —
+        # deleting it by path would break their mutual exclusion.
         if acquired:
             try:
-                os.remove(lock_path)
+                with open(lock_path, "rb") as f:
+                    still_ours = f.read() == my_token
+                if still_ours:
+                    os.remove(lock_path)
             except OSError:
                 pass
