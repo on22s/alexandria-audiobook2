@@ -577,6 +577,7 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
 
         word_segments = []
         chunk_times = deque(maxlen=10)  # rolling avg for ETA
+        prev_owned_end = 0.0  # for clamping owned regions to stay disjoint
 
         for chunk_idx, sample_start in enumerate(chunk_starts):
             if limit and chunk_idx >= limit:
@@ -610,6 +611,12 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
             is_last = (chunk_idx == num_chunks - 1)
             owned_start = chunk_offset_secs if is_first else chunk_offset_secs + half_overlap_secs
             owned_end = chunk_end_secs if is_last else chunk_end_secs - half_overlap_secs
+            # Clamp so this chunk's owned region can't overlap the previous one's.
+            # The appended tail chunk (start = len - chunk_length) isn't on the
+            # regular stride, so its region would otherwise re-own — and duplicate —
+            # words already emitted by the second-to-last chunk.
+            owned_start = max(owned_start, prev_owned_end)
+            prev_owned_end = max(prev_owned_end, owned_end)
 
             for wo in word_offsets:
                 word_start = chunk_offset_secs + wo["start_offset"] * time_per_frame
@@ -1638,14 +1645,20 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
 
         # If JSON parsing failed, try numbered format as fallback
         if not annotations:
-            lines = raw_output.split("\n")
-            for line in lines:
+            numbered = {}
+            for line in raw_output.split("\n"):
                 match = re.match(r"^\s*(\d+)[\.\)]\s*(.+)$", line)
                 if match:
                     num = int(match.group(1))
                     text = match.group(2).strip()
                     if 1 <= num <= len(batch_data):
-                        annotations.append(text)
+                        numbered[num] = text
+            # Reassemble in 1..N order (not encounter order): otherwise out-of-order
+            # LLM output ("2." before "1.") would be zipped against the wrong batch
+            # items. A missing/duplicated number leaves the count wrong and the
+            # guard below raises for a retry.
+            if len(numbered) == len(batch_data):
+                annotations = [numbered[i] for i in range(1, len(batch_data) + 1)]
 
         if len(annotations) != len(batch_data):
             raise ValueError(f"Expected {len(batch_data)} annotations, got {len(annotations)}. Output: {raw_output[:200]}")
@@ -3096,6 +3109,11 @@ def main():
     audio_24k_path = args.scratch_audio or os.path.join(temp_dir, "audio_24k_scratch.wav")
 
     audio_24k_scratch = audio_24k_path  # for the finally block cleanup
+    # Only delete the scratch WAV after a SUCCESSFUL annotate phase: the enrich
+    # phase must keep it (annotate re-uses it), and an interrupted/failed annotate
+    # must keep it so a --resume doesn't re-decode the whole book. Cleared in the
+    # except below; the orchestrator removes dataset_temp on overall success anyway.
+    _delete_scratch_on_exit = (args.phase == "annotate")
 
     try:
         if args.phase == "asr":
@@ -3332,9 +3350,11 @@ def main():
                     del audio_native, audio_24k
                 logger.info(f"  Scratch audio recreated: {audio_24k_path}")
 
-            # Check if enriched data exists (from LLM enrichment phase)
+            # Check if enriched data exists (from LLM enrichment phase). Only use
+            # it when THIS run actually requested enrichment — otherwise a leftover
+            # enriched_segments.json from a prior run silently changes the output.
             enriched_output_path = os.path.join("dataset_temp", "enriched_segments.json")
-            use_enriched = os.path.exists(enriched_output_path)
+            use_enriched = args.enrich_with_llm and os.path.exists(enriched_output_path)
 
             if use_enriched:
                 logger.info(f"▶ Loading enriched results from {enriched_output_path}...")
@@ -3359,10 +3379,11 @@ def main():
                     word_segments = asr_data["word_segments"]
                     detected_lang = asr_data["detected_lang"]
 
-            # Load diarization results if they exist
+            # Load diarization results only when THIS run requested --diarize, so a
+            # leftover diarization.json from a prior run doesn't change speaker labels.
             diarization_path = os.path.join(temp_dir, "diarization.json")
             speaker_segments = []
-            if os.path.exists(diarization_path):
+            if args.diarize and os.path.exists(diarization_path):
                 logger.info(f"▶ Loading diarization results from {diarization_path}...")
                 with open(diarization_path, "r") as f:
                     speaker_segments = json.load(f)
@@ -3446,12 +3467,12 @@ def main():
         logger.critical(f"Fatal error: {e}")
         logger.debug(traceback.format_exc())
         logger.info(f"Partial results preserved in dataset_temp/ - rerun with --resume to continue")
+        _delete_scratch_on_exit = False  # keep the scratch so --resume can reuse it
         return 1
     finally:
-        # Only clean up the scratch audio file after the final phase (annotation)
-        # or if we are not using the phase orchestration.
-        # Preserve it during the 'asr' phase so 'annotate' can use it.
-        if args.phase != "asr" and os.path.exists(audio_24k_scratch):
+        # Delete the scratch WAV only after a successful annotate phase (see the
+        # flag above) — not during enrich and not on an interrupted/failed run.
+        if _delete_scratch_on_exit and os.path.exists(audio_24k_scratch):
             try:
                 os.remove(audio_24k_scratch)
                 logger.debug(f"Removed scratch audio: {audio_24k_scratch}")
