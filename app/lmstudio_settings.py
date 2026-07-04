@@ -318,6 +318,43 @@ def _verify_remote_endpoint(base_url, model_name=None, timeout=10):
 _REMOTE_VERIFY_NEED_TOKENS = 16384
 
 
+def _configured_remote_hosts():
+    """Hosts of the remote LM Studio endpoints the user has explicitly configured
+    in config.json (llm_remote/llm base_url). Probing these is allowed even when
+    they aren't Thunder — the SSRF guard only needs to block hosts the user never
+    configured, not the user's own chosen endpoint."""
+    hosts = set()
+    cfg_path = os.path.join(os.path.dirname(__file__), "config.json")
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return hosts
+    if isinstance(cfg, dict):
+        for section in ("llm_remote", "llm"):
+            sec = cfg.get(section)
+            if isinstance(sec, dict):
+                host = (urlparse(sec.get("base_url") or "").hostname or "").lower()
+                if host:
+                    hosts.add(host)
+    return hosts
+
+
+def _is_verifiable_probe_host(base_url):
+    """True only for hosts this app is allowed to send the context probe to:
+    local LM Studio, a Thunder Compute port-forward (*.thundercompute.net), or a
+    remote endpoint the user has explicitly configured in config.json. Gates
+    _verify_served_context so a drifted/tampered base_url can't turn the probe
+    into an SSRF against an arbitrary host the user never configured (the
+    LLM-client path is already gated; this raw POST must be too)."""
+    host = (urlparse(base_url or "").hostname or "").lower()
+    if (host in _LOCAL_HOSTS
+            or host == "thundercompute.net"
+            or host.endswith(".thundercompute.net")):
+        return True
+    return host in _configured_remote_hosts()
+
+
 def _verify_served_context(base_url, model_name, need_tokens=_REMOTE_VERIFY_NEED_TOKENS, timeout=60):
     """Confirm the model actually SERVES a context >= need_tokens by sending a
     need_tokens-sized probe through the public /v1 endpoint with max_tokens=1.
@@ -328,6 +365,8 @@ def _verify_served_context(base_url, model_name, need_tokens=_REMOTE_VERIFY_NEED
     workload will hit it instead of trusting the status flag. Returns
     (ok, detail). Never raises.
     """
+    if not _is_verifiable_probe_host(base_url):
+        return False, f"refusing to probe non-local/non-Thunder host: {base_url!r}"
     filler = "the harbor lights fog pier coat wind truth liar calm sky bell buoy water cold "
     approx_chars = int(need_tokens * 3.5)
     prompt = (filler * (approx_chars // len(filler) + 1))[:approx_chars]

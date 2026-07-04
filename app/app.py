@@ -38,6 +38,8 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_current_status, persist_healed_base_url, decide_healed_urls)
 from review_script import clear_checkpoint, _checkpoint_path
+from generate_script import (clear_script_checkpoint, script_checkpoint_matches,
+                             compute_split_signature)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -2192,11 +2194,59 @@ async def generate_script(background_tasks: BackgroundTasks,
     return {"status": "started", "resume": request.resume}
 
 
+def _current_input_file() -> Optional[str]:
+    """The source path the next single-script run will use (from state.json)."""
+    state = safe_load_json(os.path.join(ROOT_DIR, "state.json"))
+    if isinstance(state, dict):
+        return state.get("input_file_path")
+    return None
+
+
+def _script_chunk_size() -> int:
+    """chunk_size the next generation run will use (same default as generate_script)."""
+    cfg = safe_load_json(CONFIG_PATH)
+    gen = (cfg or {}).get("generation") or {} if isinstance(cfg, dict) else {}
+    try:
+        return int(gen.get("chunk_size", 3000))
+    except (TypeError, ValueError):
+        return 3000
+
+
+def _review_batch_size() -> int:
+    """review_batch_size the next review run will use (same default/clamp as
+    review_script and the contextual endpoint). One source so detect and the
+    run agree on what the checkpoint must match (Rule 15)."""
+    cfg = safe_load_json(CONFIG_PATH)
+    gen = (cfg or {}).get("generation") or {} if isinstance(cfg, dict) else {}
+    try:
+        return max(1, int(gen.get("review_batch_size", 25)))
+    except (TypeError, ValueError):
+        return 25
+
+
 @app.get("/api/generate_script/checkpoint")
 async def generate_script_checkpoint():
-    """Detect an unfinished single-script generation (read-only)."""
-    s = _summarize_script_checkpoint(SCRIPT_PATH + ".script_checkpoint.json")
-    return s or {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+    """Detect an unfinished single-script generation (read-only). Only reports a
+    resume when the saved checkpoint matches what the next run would validate
+    against (same source, chunk_size, in-range progress); otherwise the worker
+    would silently start fresh, so the UI must offer a fresh start instead."""
+    meta = safe_load_json(SCRIPT_PATH + ".script_checkpoint.json")
+    if not isinstance(meta, dict) or "completed_chunks" not in meta:
+        return _detect_descriptor(False)
+    input_file = _current_input_file()
+    if not input_file or not os.path.exists(input_file):
+        return _detect_descriptor(False)
+    chunk_size = _script_chunk_size()
+    try:
+        total_chunks, input_hash = compute_split_signature(input_file, chunk_size)
+    except OSError:
+        return _detect_descriptor(False)
+    if not script_checkpoint_matches(meta, total_chunks, chunk_size, input_hash):
+        return _detect_descriptor(False)
+    done = meta["completed_chunks"]
+    if done >= total_chunks:
+        return _detect_descriptor(False)
+    return _detect_descriptor(True, done, total_chunks, f"{done}/{total_chunks} chunks")
 
 @app.post("/api/generate_script/cancel")
 async def generate_script_cancel():
@@ -2295,14 +2345,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
     except (json.JSONDecodeError, ValueError, OSError):
         total_entries = 0
 
-    review_batch_size = 25
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
-        except (json.JSONDecodeError, ValueError, TypeError, OSError):
-            review_batch_size = 25
+    review_batch_size = _review_batch_size()
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
     cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
@@ -2345,13 +2388,24 @@ async def review_script_resume():
 
 
 @app.get("/api/review_script/checkpoint")
-async def review_script_checkpoint():
-    """Detect an unfinished single-book review (read-only)."""
+async def review_script_checkpoint(context_window: int = 0):
+    """Detect an unfinished single-book review (read-only). Mode-aware: plain and
+    contextual review share one checkpoint file, but the worker's load_checkpoint
+    rejects a batch_size/context_window mismatch. So only report a resume when the
+    saved checkpoint matches what THIS run (plain if context_window=0, else
+    contextual) would use — otherwise the UI would promise a resume the worker
+    silently discards."""
     s = _summarize_review_checkpoint(SCRIPT_PATH + ".review_checkpoint.json")
     if not s:
-        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
-    return {"exists": True, "done": s["completed_batches"], "total": s["total_batches"],
-            "label": f"{s['completed_batches']}/{s['total_batches']} batches", "mode": {}}
+        return _detect_descriptor(False)
+    intended_window = max(0, min(int(context_window or 0), 12))
+    if (s.get("context_window") != intended_window or
+            s.get("batch_size") != _review_batch_size()):
+        return _detect_descriptor(False)
+    done, total = s["completed_batches"], s["total_batches"]
+    if done >= total:
+        return _detect_descriptor(False)
+    return _detect_descriptor(True, done, total, f"{done}/{total} batches")
 
 
 @app.post("/api/find_nicknames")
@@ -2406,20 +2460,73 @@ async def save_character_aliases(aliases: Dict[str, str]):
     return {"status": "saved", "count": len(cleaned)}
 
 
-def _save_batch_review_state(state: dict, names: list, settings: dict) -> None:
+def _save_state_file(state: dict, payload: dict, path: str, what: str) -> None:
+    """Atomically persist a batch resume plan, never crashing the run over a
+    write failure (disk full / permissions) — just warn into the live log.
+    Shared by the script and review batch savers so they can't drift (Rule 15)."""
     try:
-        atomic_json_write({
-            "names": names,
-            "current_pass": state.get("current_pass"),
-            "current_task_idx": state.get("current_task_idx", 0),
-            "bidirectional": settings.get("bidirectional", False),
-            "window": settings.get("window", 0),
-            "dedupe": settings.get("dedupe", False),
-            "discover": settings.get("discover", False),
-            "tasks": [dict(t) for t in state.get("tasks", [])],
-        }, BATCH_REVIEW_STATE_PATH)
+        atomic_json_write(payload, path)
     except OSError as e:
-        state["logs"].append(f"WARNING: could not save batch review state: {e}")
+        state["logs"].append(f"WARNING: could not save {what}: {e}")
+
+
+def _save_batch_review_state(state: dict, names: list, settings: dict) -> None:
+    _save_state_file(state, {
+        "names": names,
+        "current_pass": state.get("current_pass"),
+        "current_task_idx": state.get("current_task_idx", 0),
+        "bidirectional": settings.get("bidirectional", False),
+        "window": settings.get("window", 0),
+        "dedupe": settings.get("dedupe", False),
+        "discover": settings.get("discover", False),
+        "tasks": [dict(t) for t in state.get("tasks", [])],
+    }, BATCH_REVIEW_STATE_PATH, "batch review state")
+
+
+def _as_number(v):
+    """Coerce a persisted stat to a number; treat garbage (str/list/None/bool) as
+    0 so a corrupt or tampered state file can't crash or skew report totals."""
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
+def _restore_review_progress(state: dict, names: list) -> None:
+    """Rebuild the run-wide accumulators (pass totals, alias lists, diff pool)
+    from the per-book stats restored from a saved batch-review plan, so a resumed
+    run's summary/report reflects the work already done before the interruption
+    instead of starting from zero (and so skipped, already-done books aren't
+    reported as still pending)."""
+    for i, t in enumerate(state["tasks"]):
+        book = names[i] if i < len(names) else t.get("name", "")
+        # Only fold in a book whose script still exists on disk — one deleted
+        # between interruption and resume must not contribute stale stats to the
+        # report (the run would re-mark it failed anyway).
+        safe = secure_filename(book)
+        if not safe or not os.path.exists(os.path.join(SCRIPTS_DIR, f"{safe}.json")):
+            continue
+        for pass_key in ("fwd", "bwd"):
+            # Fold only genuinely-completed passes (the same flag the resume loop
+            # skips on) so an incomplete book queued for re-review isn't
+            # double-counted once it finishes.
+            if not t.get(f"{pass_key}_complete"):
+                continue
+            stats = t.get(f"stats_{pass_key}")
+            if not isinstance(stats, dict):
+                continue
+            totals = state[f"totals_{pass_key}"]
+            for key in totals:
+                if key != "books_done":
+                    totals[key] += _as_number(stats.get(key, 0))
+            totals["books_done"] += 1
+            diffs = t.get(f"diffs_{pass_key}") or {}
+            for item in diffs.get("text_rewrites", []):
+                state["diff_pool"]["text"].append({**item, "book": book})
+            for item in diffs.get("speaker_changes", []):
+                state["diff_pool"]["speaker"].append({**item, "book": book})
+        # aliases_found isn't pass-split; attribute it to whichever pass last
+        # completed this book (backward if it finished backward, else forward).
+        for a in t.get("aliases_found") or []:
+            bucket = state["aliases_bwd"] if t.get("bwd_complete") else state["aliases_fwd"]
+            bucket.append({**a, "book": book})
 
 
 def _clear_batch_review_state(names: list) -> None:
@@ -2455,15 +2562,41 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     total = len(names)
 
     resume = bool(request.resume)
-    resume_pass = "fwd"
-    resume_idx = 0
+    saved_tasks = None
     if resume:
         prev = safe_load_json(BATCH_REVIEW_STATE_PATH)
-        if isinstance(prev, dict) and prev.get("names") == names:
-            resume_pass = prev.get("current_pass") or "fwd"
-            resume_idx = prev.get("current_task_idx", 0) or 0
+        saved = prev.get("tasks") if isinstance(prev, dict) else None
+        # Strict validation: only resume a plan that structurally matches this
+        # request — same book list/order, a tasks list of dicts of the right
+        # length. ANY mismatch or corruption falls back to a clean fresh start
+        # with a loud log, never a silent skip/double-process (Rule 8).
+        valid = (
+            isinstance(prev, dict)
+            and isinstance(prev.get("names"), list)
+            and prev.get("names") == names
+            and isinstance(saved, list)
+            and len(saved) == total
+            and all(isinstance(t, dict) for t in saved)
+        )
+        if valid:
+            # Resume the saved plan with the SETTINGS it was started with, not
+            # whatever the current request/UI carries. A page reload resets the
+            # checkboxes; recomputing bidirectional/window/dedupe from the request
+            # would silently change passes and review books of one batch under two
+            # different parameter sets. (Where a resume picks up is derived from
+            # per-book fwd_complete/bwd_complete flags, not a saved cursor.)
+            bidirectional = bool(prev.get("bidirectional", False))
+            try:
+                window = max(0, min(int(prev.get("window", 0) or 0), 12))
+            except (TypeError, ValueError):
+                window = 0
+            dedupe = bool(prev.get("dedupe", False))
+            discover = bool(prev.get("discover", False))
+            saved_tasks = saved
         else:
-            resume = False  # plan changed (different books/order) -> fresh
+            print("Batch review: saved plan is missing, malformed, or does not "
+                  "match the current selection — starting fresh.")
+            resume = False  # plan changed / corrupt -> fresh
     if not resume:
         _clear_batch_review_state(names)
     settings = {"bidirectional": bidirectional, "window": window,
@@ -2472,15 +2605,23 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     def _run():
         state = process_state["batch_review"]
         prefix = "bidirectional " if bidirectional else ""
+        # On resume, restore the saved per-book statuses/stats so skipped books
+        # aren't reported as pending; otherwise start everything pending.
+        if resume and saved_tasks is not None:
+            init_tasks = [dict(t) for t in saved_tasks]
+        else:
+            init_tasks = [{"name": n, "status": "pending"} for n in names]
         _init_batch_state(state,
-                          [f"Starting {prefix}batch review of {total} script(s)..."],
-                          [{"name": n, "status": "pending"} for n in names])
+                          [f"{'Resuming' if resume else 'Starting'} {prefix}batch review of {total} script(s)..."],
+                          init_tasks)
         state["bidirectional"] = bidirectional
         state["totals_fwd"] = _new_review_totals()
         state["totals_bwd"] = _new_review_totals()
         state["aliases_fwd"] = []
         state["aliases_bwd"] = []
         state["diff_pool"] = {"text": [], "speaker": []}
+        if resume and saved_tasks is not None:
+            _restore_review_progress(state, names)
 
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_review")
@@ -2493,9 +2634,11 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             state["current_task_idx"] = i
             orig_status = state["tasks"][i].get("status")
             state["tasks"][i]["status"] = "running"
-            # Persist position before the (long) per-book work so a power outage
-            # mid-book leaves an accurate pass + index for resume.
-            _save_batch_review_state(state, names, settings)
+            # No positional save here: resume is derived from per-book completion
+            # flags, not a cursor, so a crash mid-book just leaves this book
+            # not-complete and it's re-reviewed. The caller persists full state
+            # AFTER each book (and at each pass start), so we avoid re-serializing
+            # every prior book's stats/diffs an extra time per book.
 
             safe_name = secure_filename(name)
             if not safe_name:
@@ -2520,10 +2663,17 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     "--aliases-file", registry_path,
                     "--append",
                 ]
-                _, nick_lines = _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+                nick_rc, nick_lines = _stream_subprocess_to_logs(nick_cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
                 if state.get("cancel"):
                     state["tasks"][i]["status"] = "cancelled"
                     return False
+                if nick_rc != 0:
+                    # find_nicknames now exits non-zero when evidence chunks fail
+                    # (incomplete discovery). The review still runs — discovery is
+                    # best-effort — but don't let the failure pass silently.
+                    state["logs"].append(
+                        f"[{i+1}]{tag} Warning: nickname discovery for '{name}' "
+                        f"was incomplete (exit {nick_rc}); some aliases may be missing.")
                 new_aliases = _extract_new_aliases(nick_lines)
                 if new_aliases:
                     state["tasks"][i]["aliases_found"] = new_aliases
@@ -2548,10 +2698,11 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # checkpoint isn't valid for the backward pass - reusing it would
                     # silently splice forward-pass output into the backward result.
                     should_clear = True
-
-            # On a resumed batch, the one book that was interrupted mid-review keeps
-            # its checkpoint so review_script.py continues it from the saved batch.
-            if resume and state.get("current_pass") == resume_pass and i == resume_idx:
+            elif resume and not state["tasks"][i].get("fwd_complete"):
+                # Forward / non-bidirectional resume: every book reaching here is
+                # not yet complete in this pass, so keep its per-book checkpoint and
+                # let review_script.py continue from where it was interrupted (a
+                # book with no valid checkpoint just starts fresh regardless).
                 should_clear = False
 
             if should_clear:
@@ -2589,6 +2740,10 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     state["tasks"][i]["status"] = "incomplete"
                 else:
                     state["tasks"][i]["status"] = "done"
+                    # Mark THIS pass complete so a resume skips it (and
+                    # _restore_review_progress folds its stats) — the resume point
+                    # is derived from real per-pass completion, not a cursor.
+                    state["tasks"][i][f"{pass_key}_complete"] = True
                 if stats:
                     state["tasks"][i][f"stats_{pass_key}"] = stats
                     # "stats" is the combined fwd+bwd total used by the per-book
@@ -2629,25 +2784,29 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
             return True
 
-        # Forward pass (reading order). Skipped entirely if resuming directly into
-        # the backward pass (forward was already complete before the interruption).
+        # Forward pass (reading order). Always scanned; books already COMPLETED
+        # forward (fwd_complete) are skipped, so an incomplete/failed book before
+        # the interruption point is re-reviewed instead of abandoned, and a
+        # corrupt/missing cursor can't skip un-done work. State is persisted after
+        # each book so the last book's completion survives a crash (no double
+        # review on resume).
         state["current_pass"] = "fwd"
         _save_batch_review_state(state, names, settings)
-        if resume_pass == "fwd":
-            if bidirectional:
-                state["logs"].append("=== Forward pass (reading order) ===")
-            for i, name in enumerate(names):
-                if i < resume_idx:
-                    continue
-                if state["cancel"]:
-                    state["logs"].append("Batch review cancelled.")
-                    break
-                if not _process_book(i, name, tag=" [fwd]" if bidirectional else ""):
-                    break
+        if bidirectional:
+            state["logs"].append("=== Forward pass (reading order) ===")
+        for i, name in enumerate(names):
+            if state["tasks"][i].get("fwd_complete"):
+                continue
+            if state["cancel"]:
+                state["logs"].append("Batch review cancelled.")
+                break
+            if not _process_book(i, name, tag=" [fwd]" if bidirectional else ""):
+                break
+            _save_batch_review_state(state, names, settings)
 
-            state["logs"].append(_format_pass_summary(
-                "Forward pass" if bidirectional else "Batch review",
-                state["totals_fwd"], state["aliases_fwd"], show_aliases=discover))
+        state["logs"].append(_format_pass_summary(
+            "Forward pass" if bidirectional else "Batch review",
+            state["totals_fwd"], state["aliases_fwd"], show_aliases=discover))
 
         # Backward pass — re-scan from the end so early books get discovery seeded with the
         # now-complete series registry (catches references that only resolve later in the series).
@@ -2655,13 +2814,15 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             state["logs"].append("=== Backward pass (hindsight: re-scanning from the end) ===")
             state["current_pass"] = "bwd"
             _save_batch_review_state(state, names, settings)
-            bwd_start = resume_idx if resume_pass == "bwd" else total - 1
-            for i in range(bwd_start, -1, -1):
+            for i in range(total - 1, -1, -1):
+                if state["tasks"][i].get("bwd_complete"):
+                    continue
                 if state["cancel"]:
                     state["logs"].append("Batch review cancelled.")
                     break
                 if not _process_book(i, names[i], tag=" [bwd]"):
                     break
+                _save_batch_review_state(state, names, settings)
 
             state["logs"].append(_format_pass_summary(
                 "Backward pass (hindsight)", state["totals_bwd"], state["aliases_bwd"], show_aliases=discover))
@@ -2704,22 +2865,28 @@ async def review_script_batch_checkpoint():
     """Detect an unfinished batch review and report its pass/order plan (read-only)."""
     prev = safe_load_json(BATCH_REVIEW_STATE_PATH)
     if not isinstance(prev, dict) or not prev.get("names"):
-        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+        return _detect_descriptor(False)
     tasks = prev.get("tasks", [])
-    done = sum(1 for t in tasks if t.get("status") == "done")
+    # A book is fully done only when every requested pass finished. Counting
+    # status=="done" is wrong for bidirectional runs: _process_book sets
+    # status="done" per pass (line ~2719), so after a completed forward pass
+    # every book already reads "done" and an interrupted backward pass would
+    # report done==total and never be offered for resume. Derive completion from
+    # the same per-pass flags the resume loop skips on (fwd_complete/bwd_complete,
+    # set at ~2723 and cleared implicitly on a VRAM-abort "incomplete").
+    bidirectional = bool(prev.get("bidirectional"))
+    if bidirectional:
+        done = sum(1 for t in tasks if t.get("fwd_complete") and t.get("bwd_complete"))
+    else:
+        done = sum(1 for t in tasks if t.get("fwd_complete"))
     total = len(prev["names"])
     pass_label = "backward" if prev.get("current_pass") == "bwd" else "forward"
     kind = "front-to-back" if prev.get("bidirectional") else "forward-only"
-    return {
-        "exists": True, "done": done, "total": total,
-        "label": f"{kind}, {pass_label} pass, {done}/{total} books",
-        "mode": {
-            "bidirectional": prev.get("bidirectional", False),
-            "current_pass": prev.get("current_pass"),
-            "current_task_idx": prev.get("current_task_idx", 0),
-            "names": prev["names"], "tasks": tasks,
-        },
-    }
+    # exists == "there is unfinished work", consistent with the other three
+    # detect endpoints (a completed-but-not-cleared plan is not resumable).
+    return _detect_descriptor(
+        done < total, done, total,
+        f"{kind}, {pass_label} pass, {done}/{total} books")
 
 
 def _batch_cancel_helper(state_key: str):
@@ -2765,13 +2932,34 @@ class BatchScriptRequest(BaseModel):
 
 
 def _save_batch_script_state(state: dict) -> None:
-    try:
-        atomic_json_write({
-            "files": [dict(t) for t in state.get("tasks", [])],
-            "current_idx": state.get("current_task_idx", 0),
-        }, BATCH_SCRIPT_STATE_PATH)
-    except OSError as e:
-        state["logs"].append(f"WARNING: could not save batch state: {e}")
+    # Resume keys off each file's saved status, so only the per-file list is
+    # persisted (no separate cursor field to drift out of sync with it).
+    _save_state_file(state, {"files": [dict(t) for t in state.get("tasks", [])]},
+                     BATCH_SCRIPT_STATE_PATH, "batch state")
+
+
+def _resolve_batch_script_paths(task_filename: str, idx: int = None):
+    """Resolve a batch task's upload input path and its Scripts-library output
+    path the SAME way the batch runner does (incl. epub→txt fallback and the
+    batch_N stem fallback), so checkpoint cleanup targets the exact file the run
+    created. Returns (input_path, output_path); input_path is None for an
+    unusable filename, output_path is None when no stem can be derived.
+    The returned input_path may not exist on disk (caller checks)."""
+    safe_filename = secure_filename(task_filename)
+    if not safe_filename:
+        return None, None
+    input_path = os.path.join(UPLOADS_DIR, safe_filename)
+    if not os.path.exists(input_path):
+        stem, ext = os.path.splitext(safe_filename)
+        if ext.lower() == ".epub":
+            txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
+            if os.path.exists(txt_path):
+                input_path = txt_path
+    stem = os.path.splitext(os.path.basename(input_path))[0]
+    safe_stem = secure_filename(stem) or (f"batch_{idx + 1}" if idx is not None else "")
+    if not safe_stem:
+        return input_path, None
+    return input_path, os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
 
 
 def _clear_batch_script_state(tasks) -> None:
@@ -2781,16 +2969,10 @@ def _clear_batch_script_state(tasks) -> None:
             os.remove(BATCH_SCRIPT_STATE_PATH)
         except OSError:
             pass
-    for t in tasks:
-        stem = secure_filename(os.path.splitext(t.filename)[0]) or ""
-        if not stem:
-            continue
-        ckpt = os.path.join(SCRIPTS_DIR, f"{stem}.json.script_checkpoint.json")
-        if os.path.exists(ckpt):
-            try:
-                os.remove(ckpt)
-            except OSError:
-                pass
+    for i, t in enumerate(tasks):
+        _, output_path = _resolve_batch_script_paths(t.filename, i)
+        if output_path:
+            clear_script_checkpoint(output_path)
 
 
 @app.post("/api/generate_script/batch/start")
@@ -2804,10 +2986,36 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
     done_filenames = set()
     if resume:
         prev = safe_load_json(BATCH_SCRIPT_STATE_PATH)
-        if isinstance(prev, dict):
-            done_filenames = {f["filename"] for f in prev.get("files", [])
-                              if isinstance(f, dict) and f.get("status") == "done"}
-    else:
+        saved_files = prev.get("files") if isinstance(prev, dict) else None
+        request_filenames = [t.filename for t in request.tasks]
+        # Plan-equality guard (mirrors batch review): only honor a resume when the
+        # saved plan is well-formed AND its file list matches this request's
+        # exactly. Otherwise a leftover plan could mark a *different* book "done"
+        # via a filename collision — start fresh instead (Rule 8).
+        valid = (
+            isinstance(saved_files, list)
+            and all(isinstance(f, dict) for f in saved_files)
+            and [f.get("filename") for f in saved_files] == request_filenames
+        )
+        if valid:
+            for f in saved_files:
+                if f.get("status") != "done":
+                    continue
+                # Only honor "done" if the generated script is still on disk —
+                # otherwise (output deleted) regenerate it instead of silently
+                # skipping a file with no result. secure_filename the saved value
+                # the SAME way the runner does, so a tampered saved_as can't
+                # escape SCRIPTS_DIR in this existence probe.
+                saved_as = secure_filename(f.get("saved_as") or "")
+                if not saved_as:
+                    continue
+                if os.path.exists(os.path.join(SCRIPTS_DIR, f"{saved_as}.json")):
+                    done_filenames.add(f.get("filename"))
+        else:
+            print("Batch script: saved plan is missing, malformed, or does not "
+                  "match the current selection — starting fresh.")
+            resume = False
+    if not resume:
         _clear_batch_script_state(request.tasks)
 
     def _run():
@@ -2833,29 +3041,22 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 continue
             state["tasks"][i]["status"] = "running"
 
-            # Resolve upload path — handle epub→txt conversion
-            safe_filename = secure_filename(task.filename)
-            if not safe_filename:
+            # Resolve upload + output paths (handles epub→txt) via the same helper
+            # _clear_batch_script_state uses, so a "start fresh" can't orphan the
+            # checkpoint this run will create.
+            input_path, output_path = _resolve_batch_script_paths(task.filename, i)
+            if input_path is None:
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — invalid filename: {task.filename}")
                 state["tasks"][i]["status"] = "failed"
                 _save_batch_script_state(state)
                 continue
-            input_path = os.path.join(UPLOADS_DIR, safe_filename)
-            if not os.path.exists(input_path):
-                stem, ext = os.path.splitext(safe_filename)
-                if ext.lower() == ".epub":
-                    txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
-                    if os.path.exists(txt_path):
-                        input_path = txt_path
             if not os.path.exists(input_path):
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — file not found: {task.filename}")
                 state["tasks"][i]["status"] = "failed"
                 _save_batch_script_state(state)
                 continue
 
-            stem = os.path.splitext(os.path.basename(input_path))[0]
-            safe_stem = secure_filename(stem) or f"batch_{i+1}"
-            output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
+            safe_stem = os.path.splitext(os.path.basename(output_path))[0]
 
             state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
 
@@ -2908,12 +3109,17 @@ async def generate_script_batch_checkpoint():
     """Detect an unfinished batch generation (read-only)."""
     prev = safe_load_json(BATCH_SCRIPT_STATE_PATH)
     if not isinstance(prev, dict) or not prev.get("files"):
-        return {"exists": False, "done": 0, "total": 0, "label": "", "mode": {}}
+        return _detect_descriptor(False)
     files = prev["files"]
     done = sum(1 for f in files if f.get("status") == "done")
     total = len(files)
-    return {"exists": done < total, "done": done, "total": total,
-            "label": f"{done}/{total} files", "mode": {"files": files}}
+    # Include the saved plan's original filenames so a resuming frontend can send
+    # them verbatim instead of re-uploading (a re-upload renames on collision, so
+    # the plan no longer matches and /batch/start silently downgrades to fresh).
+    # Extra key on top of the shared _detect_descriptor shape; other consumers
+    # ignore it.
+    return {**_detect_descriptor(done < total, done, total, f"{done}/{total} files"),
+            "files": [f.get("filename") for f in files]}
 
 
 @app.post("/api/generate_script/batch/cancel")
@@ -3709,21 +3915,13 @@ async def get_report(filename: str):
     return PlainTextResponse(content, media_type="text/markdown")
 
 
-def _summarize_script_checkpoint(path: str) -> Optional[dict]:
-    """Uniform detect descriptor for a *.script_checkpoint.json. None if unusable."""
-    data = safe_load_json(path)
-    if not isinstance(data, dict) or "completed_chunks" not in data:
-        return None
-    done = data.get("completed_chunks", 0) or 0
-    total = data.get("total_chunks", 0) or 0
-    return {
-        "exists": True,
-        "done": done,
-        "total": total,
-        "label": f"{done}/{total} chunks",
-        "mode": {},
-        "mtime": os.path.getmtime(path) if os.path.exists(path) else None,
-    }
+def _detect_descriptor(exists: bool, done: int = 0, total: int = 0,
+                       label: str = "") -> dict:
+    """The single shape every resume-detect endpoint returns, consumed uniformly
+    by the frontend's confirmResumeOrFresh (which reads only exists/done/total/
+    label). One source so the four detect endpoints (and their empty fallbacks)
+    can't drift on keys (Rule 15)."""
+    return {"exists": bool(exists), "done": done, "total": total, "label": label}
 
 
 def _summarize_review_checkpoint(path: str) -> Optional[dict]:
@@ -5426,10 +5624,9 @@ async def dataset_builder_save(request: DatasetSaveRequest):
                 "ref_audio": "ref.wav",
             }, ensure_ascii=False))
 
-        # Copy ref sample and save its text for correct clone prompt alignment
-        ref_src = os.path.join(work_dir, f"sample_{ref_idx:03d}.wav")
-        if os.path.exists(ref_src):
-            shutil.copy2(ref_src, os.path.join(dataset_dir, "ref.wav"))
+        # Copy ref sample (ref_src resolved above and known to exist) and save its
+        # text for correct clone prompt alignment.
+        shutil.copy2(ref_src, os.path.join(dataset_dir, "ref.wav"))
         ref_text = ref_sample.get("text", "")
         with open(os.path.join(dataset_dir, "ref_text.txt"), "w", encoding="utf-8") as f:
             f.write(ref_text)

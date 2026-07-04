@@ -25,6 +25,7 @@ annotated_script.txt
 *.review_checkpoint.json
 # Resume checkpoints / batch plans (generated at run time)
 *.script_checkpoint.json
+*.script_checkpoint.jsonl
 scripts/.batch_script_state.json
 scripts/.batch_review_state.json
 cloned_audiobook.mp3

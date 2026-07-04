@@ -1855,7 +1855,12 @@
             try {
                 info = await API.get(detectUrl);
             } catch (e) {
-                return 'fresh'; // detect failed — behave like a normal clean start
+                // Detect failed — we don't know whether saved progress exists, so
+                // abort rather than guess. Returning 'fresh' here would send the
+                // start request with resume:false and silently wipe a checkpoint
+                // on a transient blip (the exact data this feature protects).
+                showToast('Could not check for an unfinished run — please try again.', 'error');
+                return null;
             }
             if (!info || !info.exists) {
                 return 'fresh';
@@ -1893,6 +1898,15 @@
                 });
                 modal.show();
             });
+        }
+
+        // Thin wrapper over confirmResumeOrFresh for the Start buttons: returns
+        // { aborted, resume } so each caller drops the repeated `=== null` /
+        // `=== 'resume'` boilerplate. aborted is true for Cancel or a failed
+        // detect (nothing should start in either case).
+        async function resumeOrAbort(detectUrl) {
+            const choice = await confirmResumeOrFresh(detectUrl);
+            return { aborted: choice === null, resume: choice === 'resume' };
         }
 
         function escapeHtml(str) {
@@ -2551,8 +2565,8 @@
                 return;
             }
 
-            const scriptResumeChoice = await confirmResumeOrFresh('/api/generate_script/checkpoint');
-            if (scriptResumeChoice === null) { return; }
+            const scriptResume = await resumeOrAbort('/api/generate_script/checkpoint');
+            if (scriptResume.aborted) { return; }
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
@@ -2560,13 +2574,10 @@
             genBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
-            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
-            pauseBtn.classList.remove('btn-outline-success');
-            pauseBtn.classList.add('btn-outline-warning');
             _resetPauseBtn('btn-pause-script');
 
             try {
-                await API.post('/api/generate_script', { resume: scriptResumeChoice === 'resume' });
+                await API.post('/api/generate_script', { resume: scriptResume.resume });
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
@@ -2707,8 +2718,8 @@
         async function _startBatchScript() {
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
             if (!(await confirmIfRemote('this batch script generation'))) { return; }
-            const batchScriptResumeChoice = await confirmResumeOrFresh('/api/generate_script/batch/checkpoint');
-            if (batchScriptResumeChoice === null) { return; }
+            const batchScriptResume = await resumeOrAbort('/api/generate_script/batch/checkpoint');
+            if (batchScriptResume.aborted) { return; }
 
             const btn = document.getElementById('btn-gen-script');
             const pauseBtn = document.getElementById('btn-pause-batch-script');
@@ -2717,22 +2728,41 @@
             pauseBtn.style.display = 'inline-block';
             _resetPauseBtn('btn-pause-batch-script');
             document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
-            statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
             statusMsg.style.display = '';
 
             const logEl = document.getElementById('script-logs');
             logEl.innerHTML = '';
 
             try {
-                // Upload files in parallel; map preserves queue order for `tasks`.
-                const tasks = await Promise.all(scriptBatchQueue.map(async (item) => {
-                    const res = await API.upload(item.file);
-                    // Use stored_filename if provided (handles epub→txt), otherwise fall back
-                    return { filename: res.stored_filename || res.filename };
-                }));
+                let tasks;
+                let savedFiles = [];
+                if (batchScriptResume.resume) {
+                    // Reuse the saved plan's exact filenames instead of re-uploading:
+                    // a re-upload renames on collision, so the plan would no longer
+                    // match and /batch/start would silently restart from scratch.
+                    const detect = await API.get('/api/generate_script/batch/checkpoint');
+                    savedFiles = (detect && detect.files) || [];
+                }
+                if (batchScriptResume.resume && savedFiles.length) {
+                    tasks = savedFiles.map((fn) => ({ filename: fn }));
+                } else {
+                    // Fresh start (or a resume whose saved plan vanished): upload the
+                    // queued files. Map preserves queue order for `tasks`.
+                    statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
+                    tasks = await Promise.all(scriptBatchQueue.map(async (item) => {
+                        const res = await API.upload(item.file);
+                        // Use stored_filename if provided (handles epub→txt), otherwise fall back
+                        return { filename: res.stored_filename || res.filename };
+                    }));
+                }
 
                 statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
-                await API.post('/api/generate_script/batch/start', { tasks, resume: batchScriptResumeChoice === 'resume' });
+                const startResp = await API.post('/api/generate_script/batch/start', { tasks, resume: batchScriptResume.resume });
+                // Surface a silent downgrade: the user chose Resume but the backend
+                // couldn't match the saved plan and started fresh instead.
+                if (batchScriptResume.resume && startResp && startResp.resume === false) {
+                    showToast('Could not resume the previous run (saved plan no longer matched) — started fresh.', 'warning');
+                }
                 _pollScriptBatchLogs();
             } catch (e) {
                 showToast('Failed to start batch: ' + e.message, 'error');
@@ -2809,12 +2839,14 @@
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
-            const reviewResumeChoice = await confirmResumeOrFresh('/api/review_script/checkpoint');
-            if (reviewResumeChoice === null) { return; }
+            // Plain review runs with context_window=0 — tell detect so it only
+            // offers a resume the plain-review worker will actually honor.
+            const reviewResume = await resumeOrAbort('/api/review_script/checkpoint?context_window=0');
+            if (reviewResume.aborted) { return; }
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe(), resume: reviewResumeChoice === 'resume' });
+                await API.post('/api/review_script', { dedupe_speakers: _reviewDedupe(), resume: reviewResume.resume });
                 pollLogs('review', 'script-logs', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
@@ -2823,14 +2855,16 @@
         });
 
         document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
-            const ctxReviewResumeChoice = await confirmResumeOrFresh('/api/review_script/checkpoint');
-            if (ctxReviewResumeChoice === null) { return; }
+            // Compute the window BEFORE detect so it's mode-aware: a checkpoint
+            // saved under a different window (or plain review) isn't offered here.
+            const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
+            const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
+            const ctxReviewResume = await resumeOrAbort('/api/review_script/checkpoint?context_window=' + windowSize);
+            if (ctxReviewResume.aborted) { return; }
             try {
-                const rawWindow = parseInt(document.getElementById('review-context-window').value, 10);
-                const windowSize = Number.isFinite(rawWindow) ? Math.max(1, Math.min(rawWindow, 12)) : 4;
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe(), resume: ctxReviewResumeChoice === 'resume' });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _reviewDedupe(), resume: ctxReviewResume.resume });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -2865,7 +2899,6 @@
 
         // --- Batch review ---
         let reviewBatchPoller = null;
-        let reviewBatchSelected = [];
         let reviewBatchScripts = [];   // current saved-script list, kept so we can re-sort without refetching
 
         window.toggleReviewBatchMode = () => {
@@ -2965,9 +2998,8 @@
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
             if (!(await confirmIfRemote('this batch review'))) { return; }
-            const batchReviewResumeChoice = await confirmResumeOrFresh('/api/review_script/batch/checkpoint');
-            if (batchReviewResumeChoice === null) { return; }
-            reviewBatchSelected = names;
+            const batchReviewResume = await resumeOrAbort('/api/review_script/batch/checkpoint');
+            if (batchReviewResume.aborted) { return; }
             const rawWindow = parseInt(document.getElementById('review-batch-context-window').value, 10);
             const contextWindow = Number.isFinite(rawWindow) ? Math.max(0, Math.min(rawWindow, 12)) : 0;
 
@@ -2989,7 +3021,7 @@
                     dedupe_speakers: _reviewDedupe(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
-                    resume: batchReviewResumeChoice === 'resume',
+                    resume: batchReviewResume.resume,
                 });
                 pollReviewBatch();
             } catch (e) {
@@ -3033,8 +3065,17 @@
 
         async function loadCharacterAliases(show) {
             const panel = document.getElementById('nickname-aliases-panel');
-            let aliases = {};
-            try { aliases = await API.get('/api/character_aliases'); } catch (e) { aliases = {}; }
+            let aliases;
+            try {
+                aliases = await API.get('/api/character_aliases');
+            } catch (e) {
+                // Don't fall back to {} — rendering the empty editor would let one
+                // Save overwrite the real on-disk aliases with nothing. Surface the
+                // error and skip the editable UI instead.
+                if (show) { panel.style.display = 'block'; }
+                panel.innerHTML = `<div class="border rounded p-2 text-danger small">Could not load character aliases (${escapeHtml(e.message || 'request failed')}). Editor hidden to avoid overwriting saved aliases — reload to retry.</div>`;
+                return;
+            }
             const entries = Object.entries(aliases || {});
             if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `

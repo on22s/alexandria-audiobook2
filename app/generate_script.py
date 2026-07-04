@@ -8,11 +8,19 @@ import hashlib
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from utils import atomic_json_write
+from utils import atomic_json_write, safe_load_json, file_lock
 
 
 def _script_checkpoint_path(output_path):
+    """The tiny meta sidecar: {completed_chunks,total_chunks,chunk_size,input_hash}."""
     return output_path + ".script_checkpoint.json"
+
+
+def _script_checkpoint_entries_path(output_path):
+    """The append-only sidecar: one JSON line per completed chunk, each line the
+    list of entries that chunk produced. Kept separate from the meta so each
+    chunk is an O(1) append instead of re-serializing the whole growing script."""
+    return output_path + ".script_checkpoint.jsonl"
 
 
 def compute_input_hash(book_content):
@@ -22,52 +30,147 @@ def compute_input_hash(book_content):
     return hashlib.sha256(book_content.encode("utf-8")).hexdigest()
 
 
+def load_book_content(input_file_path):
+    """Read + mojibake-fix a source file exactly the way main() does, so the hash
+    and split are identical whether computed here or in the generation run."""
+    with open(input_file_path, "r", encoding="utf-8") as f:
+        return fix_mojibake(f.read())
+
+
+def compute_split_signature(input_file_path, chunk_size):
+    """(total_chunks, input_hash) for a source at the given chunk_size, computed
+    the same way main() does. Lets the detect endpoint predict exactly what a
+    resume would be validated against, so it never offers an unresumable run."""
+    content = load_book_content(input_file_path)
+    total_chunks = len(split_into_chunks(content, max_size=chunk_size))
+    return total_chunks, compute_input_hash(content)
+
+
+def script_checkpoint_matches(meta, total_chunks, chunk_size, input_hash):
+    """Acceptance predicate for a script checkpoint's meta, shared by
+    load_script_checkpoint and app.py's detect endpoint so the UI never offers a
+    resume the worker would reject (Rule 15). A checkpoint is resumable only when
+    the source/split is identical AND completed_chunks is a valid in-range int."""
+    if not isinstance(meta, dict):
+        return False
+    if (meta.get("total_chunks") != total_chunks or
+            meta.get("chunk_size") != chunk_size or
+            meta.get("input_hash") != input_hash):
+        return False
+    cc = meta.get("completed_chunks")
+    # bool is an int subclass — reject it explicitly so True/False can't pass.
+    if isinstance(cc, bool) or not isinstance(cc, int):
+        return False
+    return 0 <= cc <= total_chunks
+
+
 def save_script_checkpoint(output_path, completed_chunks, total_chunks,
-                           chunk_size, input_hash, all_entries):
-    data = {
+                           chunk_size, input_hash, new_entries):
+    """Persist progress after one chunk: append THIS chunk's entries as a single
+    JSON line, then rewrite the tiny meta. `new_entries` is only the current
+    chunk's entries, not the full accumulator — the whole point of the JSONL
+    sidecar is to avoid re-serializing every prior chunk on every save."""
+    meta = {
         "completed_chunks": completed_chunks,
         "total_chunks": total_chunks,
         "chunk_size": chunk_size,
         "input_hash": input_hash,
-        "all_entries": all_entries,
     }
+    entries_path = _script_checkpoint_entries_path(output_path)
     try:
-        atomic_json_write(data, _script_checkpoint_path(output_path))
-    except OSError as e:
+        # file_lock so a concurrent clear/read can't observe a torn append.
+        with file_lock(entries_path):
+            with open(entries_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(new_entries, ensure_ascii=False) + "\n")
+        # Meta is written AFTER the append and is the source of truth for how
+        # many lines count — a crash between the two just leaves one stale extra
+        # line, which load/resume ignores and truncates.
+        atomic_json_write(meta, _script_checkpoint_path(output_path))
+    except (OSError, TimeoutError) as e:
         # Mirror review_script.py: never crash generation over a checkpoint
         # write failure (disk full, permissions) — just warn.
         print(f"WARNING: Failed to save script checkpoint: {e}. "
               f"Generation will continue but resume may not work.")
 
 
-def load_script_checkpoint(output_path, total_chunks, chunk_size, input_hash):
-    """Return the checkpoint dict only if it matches this run's split exactly;
-    otherwise None (caller starts fresh)."""
-    path = _script_checkpoint_path(output_path)
-    if not os.path.exists(path):
+def _read_checkpoint_entries(output_path):
+    """Return the parsed per-chunk entry lists from the JSONL sidecar, or None if
+    any line is unreadable/malformed (treated as corrupt -> start fresh)."""
+    entries_path = _script_checkpoint_entries_path(output_path)
+    if not os.path.exists(entries_path):
         return None
+    lines = []
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+        with open(entries_path, "r", encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                chunk_entries = json.loads(raw)
+                if not isinstance(chunk_entries, list):
+                    return None
+                lines.append(chunk_entries)
+    except (json.JSONDecodeError, ValueError, OSError):
         return None
-    if (data.get("total_chunks") != total_chunks or
-            data.get("chunk_size") != chunk_size or
-            data.get("input_hash") != input_hash):
-        print("Found a script checkpoint but the source/split changed - starting fresh.")
+    return lines
+
+
+def load_script_checkpoint(output_path, total_chunks, chunk_size, input_hash):
+    """Return {completed_chunks, all_entries} only if the checkpoint matches this
+    run's split exactly and its entries sidecar is consistent; otherwise None
+    (caller starts fresh)."""
+    meta = safe_load_json(_script_checkpoint_path(output_path))
+    if meta is None:
         return None
-    if not isinstance(data.get("all_entries"), list):
+    if not script_checkpoint_matches(meta, total_chunks, chunk_size, input_hash):
+        print("Found a script checkpoint but the source/split changed or it was "
+              "malformed - starting fresh.")
         return None
-    return data
+    completed = meta["completed_chunks"]
+    per_chunk = _read_checkpoint_entries(output_path)
+    if per_chunk is None or len(per_chunk) < completed:
+        # Entries sidecar missing/corrupt or has fewer chunks than the meta
+        # claims -> can't trust the resume point.
+        print("Script checkpoint entries are missing or inconsistent - starting fresh.")
+        return None
+    # Meta's completed_chunks is authoritative: replay exactly that many lines,
+    # dropping any stale extra line from a crashed final append.
+    all_entries = []
+    for chunk_entries in per_chunk[:completed]:
+        all_entries.extend(chunk_entries)
+    return {"completed_chunks": completed, "all_entries": all_entries}
+
+
+def truncate_checkpoint_entries(output_path, completed_chunks):
+    """Rewrite the JSONL sidecar to exactly `completed_chunks` lines, dropping any
+    stale trailing line left by a crash between append and meta write. Called
+    once at resume so subsequent appends stay aligned with the meta count."""
+    per_chunk = _read_checkpoint_entries(output_path)
+    if per_chunk is None or len(per_chunk) <= completed_chunks:
+        return
+    entries_path = _script_checkpoint_entries_path(output_path)
+    try:
+        with file_lock(entries_path):
+            with open(entries_path, "w", encoding="utf-8") as f:
+                for chunk_entries in per_chunk[:completed_chunks]:
+                    f.write(json.dumps(chunk_entries, ensure_ascii=False) + "\n")
+    except (OSError, TimeoutError) as e:
+        print(f"WARNING: Failed to trim script checkpoint entries: {e}.")
 
 
 def clear_script_checkpoint(output_path):
-    path = _script_checkpoint_path(output_path)
-    if os.path.exists(path):
+    """Remove both checkpoint sidecars, coordinated by file_lock to avoid racing
+    a concurrent read/write (matches review_script.clear_checkpoint)."""
+    for path in (_script_checkpoint_path(output_path),
+                 _script_checkpoint_entries_path(output_path)):
+        if not os.path.exists(path):
+            continue
         try:
-            os.remove(path)
-        except OSError as e:
-            print(f"WARNING: Failed to clear script checkpoint {path}: {e}.")
+            with file_lock(path):
+                os.remove(path)
+        except (TimeoutError, OSError) as e:
+            if os.path.exists(path):
+                print(f"WARNING: Failed to clear script checkpoint {path}: {e}.")
 
 
 def clean_json_string(text):
@@ -496,11 +599,8 @@ def main():
         print(f"Error: Input file not found: {input_file_path}")
         sys.exit(1)
 
-    with open(input_file_path, 'r', encoding='utf-8') as f:
-        book_content = f.read()
-
-    # Fix encoding artifacts
-    book_content = fix_mojibake(book_content)
+    # Read + fix encoding artifacts (shared with the detect endpoint's signature)
+    book_content = load_book_content(input_file_path)
 
     print(f"Read {len(book_content)} characters")
 
@@ -567,8 +667,13 @@ def main():
         if ckpt:
             all_entries = ckpt["all_entries"]
             completed_chunks = ckpt["completed_chunks"]
+            # Drop any stale trailing line so subsequent appends stay aligned.
+            truncate_checkpoint_entries(output_path, completed_chunks)
             print(f"Resuming from checkpoint: {completed_chunks}/{total_chunks} chunks already done.")
         else:
+            # Clear any partial/stale sidecars so the fresh run doesn't append
+            # onto a checkpoint it just rejected.
+            clear_script_checkpoint(output_path)
             print("No usable checkpoint - starting fresh.")
     else:
         clear_script_checkpoint(output_path)
@@ -603,9 +708,20 @@ def main():
         chunk_elapsed = time.monotonic() - chunk_start
         chunk_times.append(chunk_elapsed)
 
+        if not entries:
+            # Every LLM attempt for this chunk failed. Do NOT checkpoint it as
+            # completed (which would make --resume skip it, dropping a chunk-sized
+            # hole in the book) and do not process later chunks past the gap. Stop
+            # with a non-zero exit so a --resume retries exactly this chunk (the
+            # checkpoint still points at the last fully-completed chunk, i-1).
+            print(f"  ERROR: chunk {i}/{total_chunks} produced no entries after all "
+                  f"retries — stopping so it can be retried on --resume.")
+            sys.exit(1)
+
         all_entries.extend(entries)
+        # Append only THIS chunk's entries (O(1)); the meta records progress.
         save_script_checkpoint(output_path, i, total_chunks, chunk_size,
-                               input_hash, all_entries)
+                               input_hash, entries)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
 
         remaining = total_chunks - i

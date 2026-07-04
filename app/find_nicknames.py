@@ -285,7 +285,8 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                 )
                 raw = resp.choices[0].message.content or ""
                 print(f"  Evidence chunk {ci + 1}/{len(chunks)} took {time.time() - t0:.1f}s")
-                return _parse_alias_response(raw, speakers)
+                aliases, evidence = _parse_alias_response(raw, speakers)
+                return aliases, evidence, True
             except (json.JSONDecodeError, AttributeError, IndexError, OpenAIError) as e:
                 # The server reports its real context in a 400 even when `lms ps`
                 # advertised a larger one - re-chunk against the truth and retry.
@@ -295,9 +296,10 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                         raise _ContextTooSmall(real)
                 print(f"Nickname discovery failed on chunk {ci + 1}/{len(chunks)} "
                       f"after {time.time() - t0:.1f}s: {e}")
-                return {}, {}
+                return {}, {}, False
 
         all_aliases, all_evidence = {}, {}
+        failures = 0
         indexed_chunks = list(enumerate(chunks))
         for wave_start in range(0, len(indexed_chunks), concurrency):
             wave = indexed_chunks[wave_start:wave_start + concurrency]
@@ -308,11 +310,23 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
             wave_items = [(ci, ev_lines, snapshot) for ci, ev_lines in wave]
             with ThreadPoolExecutor(max_workers=len(wave_items)) as executor:
                 results = list(executor.map(_process_chunk, wave_items))
-            for aliases, evidence in results:
+            for aliases, evidence, ok in results:
                 all_aliases.update(aliases)
                 all_evidence.update(evidence)
+                if not ok:
+                    failures += 1
 
-        return all_aliases, all_evidence
+        # Don't return empty/partial results as if discovery succeeded. On the
+        # final pass (allow_resize=False) a still-overflowing context can't be
+        # re-chunked away, so surface it loudly instead of silently dropping
+        # every alias (Rule 8: fail loud). `ok` (no failed chunks) is returned so
+        # the caller can exit non-zero rather than treat empty-as-success.
+        if failures:
+            print(f"WARNING: nickname discovery: {failures}/{len(chunks)} evidence "
+                  f"chunk(s) failed at {context_length}-token context; discovered "
+                  f"aliases may be incomplete.")
+
+        return all_aliases, all_evidence, failures == 0
 
     try:
         return _run_pass(context_length, allow_resize=True)
@@ -386,10 +400,10 @@ def main():
     if args.append:
         existing = safe_load_json(aliases_path, default={}) or {}
 
-    aliases, evidence = find_nicknames(client, model_name, entries,
-                                       existing_aliases=existing,
-                                       context_length=context_length,
-                                       concurrency=concurrency)
+    aliases, evidence, ok = find_nicknames(client, model_name, entries,
+                                            existing_aliases=existing,
+                                            context_length=context_length,
+                                            concurrency=concurrency)
 
     if aliases:
         print(f"\nFound {len(aliases)} nickname/alias mapping(s):")
@@ -399,10 +413,19 @@ def main():
     else:
         print("\nNo new nicknames found.")
 
+    # Persist whatever was discovered (partial results are still worth keeping)...
     merged = dict(existing)
     merged.update(aliases)
     atomic_json_write(merged, aliases_path)
     print(f"\nAlias file saved to: {aliases_path} ({len(merged)} total entries)")
+
+    # ...but if some evidence chunks failed, exit non-zero so a caller (e.g. the
+    # batch-review discovery step) treats this as incomplete rather than a clean
+    # success with silently-missing aliases (Rule 8).
+    if not ok:
+        print("ERROR: nickname discovery finished with failed chunks — results "
+              "are incomplete.")
+        sys.exit(1)
     print("Task find_nicknames completed successfully.")
 
 
