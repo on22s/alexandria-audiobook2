@@ -75,7 +75,13 @@ REMOTE_DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4}
 # THUNDER_LMS_PORT env var. `tnr status --json` exposes no port-mapping field
 # we can read, so deriving the forwarded port dynamically is deferred until it
 # does - this constant keeps the single assumed value in one named place.
-THUNDER_LMS_PORT = int(os.environ.get("THUNDER_LMS_PORT", "1234"))
+try:
+    THUNDER_LMS_PORT = int(os.environ.get("THUNDER_LMS_PORT", "1234"))
+except ValueError:
+    # A malformed env value must not crash every importer of this module (app.py
+    # imports it at startup). Name the offending setting and fall back.
+    print(f"WARNING: invalid THUNDER_LMS_PORT={os.environ.get('THUNDER_LMS_PORT')!r}; using 1234")
+    THUNDER_LMS_PORT = 1234
 
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
@@ -155,7 +161,11 @@ def decide_healed_urls(ok, resolved_base_url, cached_base_url):
       switching this run onto an endpoint that isn't reachable yet.
     """
     persist_url = resolved_base_url if (resolved_base_url and resolved_base_url != cached_base_url) else None
-    adopt_url = resolved_base_url if ok else cached_base_url
+    # Adopt only a verify-OK url that actually resolved. A successful apply that
+    # produced no url (every local heal, and the literal-alias remote heal) must
+    # NOT switch the live client onto None — that silently redirects local runs to
+    # the Ollama default and crashes remote runs in resolve_client_base_url.
+    adopt_url = resolved_base_url if (ok and resolved_base_url) else cached_base_url
     return HealUrls(persist_url, adopt_url)
 
 
@@ -640,7 +650,9 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
         unload_result = subprocess.run([lms, "unload", model_name], capture_output=True,
                                         text=True, timeout=60)
         unload_failed = unload_result.returncode != 0
-    except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
+        # subprocess.run without check=True never raises CalledProcessError, and
+        # FileNotFoundError is already an OSError — so only these two can occur.
         unload_failed = True
 
     try:
@@ -654,7 +666,7 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
              "-y"],
             capture_output=True, text=True, timeout=180
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, FileNotFoundError) as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
         return ApplyResult(False, f"Failed to run lms load: {e}")
 
     if result.returncode != 0:

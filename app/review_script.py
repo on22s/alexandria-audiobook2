@@ -11,13 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
-from generate_script import (
-    clean_json_string, repair_json_array, salvage_json_entries,
-    LLMGenParams, call_llm_for_entries,
-)
+from generate_script import LLMGenParams, call_llm_for_entries
 from lmstudio_settings import (ensure_ideal_settings, get_current_status,
                                persist_healed_base_url, resolve_client_base_url)
-from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json
+from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, de_generic_speakers
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -315,9 +312,19 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
     # These coincide when review changed no entry counts; when they differ, the
     # prefix comparison tells the two apart. Older checkpoints have no
     # input_batch_lengths, so they keep the original output-space behavior.
+    # Compare on the `text` field only, NOT full entries: de_generic_speakers()
+    # is applied to `entries` at load (main), renaming generic speaker labels, but
+    # the checkpoint's all_corrected was saved with the pre-rename labels. A full
+    # equality check would therefore falsely mismatch on a clean resume and slice
+    # at the wrong (input-space) offset. Text is untouched by de-genericization,
+    # so it still distinguishes a written-back output (clean resume) from the
+    # original input (hard kill).
     resume_offset = len(all_corrected)
-    if checkpoint and input_batch_lengths and entries[:len(all_corrected)] != all_corrected:
-        resume_offset = sum(input_batch_lengths)
+    if checkpoint and input_batch_lengths:
+        prefix_text = [e.get("text") for e in entries[:len(all_corrected)]]
+        corrected_text = [e.get("text") for e in all_corrected]
+        if prefix_text != corrected_text:
+            resume_offset = sum(input_batch_lengths)
     return (all_corrected, total_stats, previous_tail, completed_batches,
             batch_lengths, input_batch_lengths, failed_batches, resume_offset, checkpoint)
 
@@ -603,8 +610,10 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
             i += 1
             continue
 
-        # Start a narrator run — accumulate consecutive NARRATORs with same instruct
-        combined_text = entry["text"]
+        # Start a narrator run — accumulate consecutive NARRATORs with same instruct.
+        # Use .get to match the guards above — a hand-edited entry missing 'text'
+        # must not KeyError-crash post-processing after the whole review finished.
+        combined_text = entry.get("text", "")
         instruct = entry.get("instruct", "")
         run_count = 1
         j = i + 1
@@ -617,7 +626,7 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
                 break
             if _is_section_break(next_entry.get("text", "")):
                 break
-            candidate = combined_text + " " + next_entry["text"]
+            candidate = combined_text + " " + next_entry.get("text", "")
             if len(candidate) > max_merged_length:
                 break
             combined_text = candidate
@@ -794,17 +803,24 @@ def main():
     with open(script_path, "r", encoding="utf-8") as f:
         entries = json.load(f)
 
+    # Make generic speaker labels unique to this book on load, so an existing
+    # (e.g. pre-feature) script gets saved with suffixes. Reuse the same
+    # voice-config remap the dedupe path uses so a book's already-configured
+    # voices follow the rename instead of silently detaching.
+    book_id = os.path.splitext(os.path.basename(script_path))[0]
+    if book_id == "annotated_script":
+        book_id = "Book"
+    degeneric_map = de_generic_speakers(entries, book_id)
+    if degeneric_map and args.remap_voice_config:
+        moved = _remap_voice_config(args.remap_voice_config, degeneric_map)
+        if moved:
+            print(f"Remapped {moved} voice config entr(y/ies) for de-generic renames.")
+
     print(f"Loaded {len(entries)} script entries for review")
 
-    # Load source text if provided (mode 2 prep)
-    source_text = None
-    if args.source:
-        if os.path.exists(args.source):
-            with open(args.source, "r", encoding="utf-8") as f:
-                source_text = f.read()
-            print(f"Loaded source text: {len(source_text)} chars")
-        else:
-            print(f"Warning: Source file not found: {args.source}")
+    # NOTE: --source ("mode 2") is not implemented — review_batch is always called
+    # with source_context=None. The full-file read that used to live here was dead
+    # (its result was never consumed), so it's removed; the flag remains reserved.
 
     # Load config
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
@@ -875,6 +891,10 @@ def main():
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
         ssh_alias=config.get("llm_remote_ssh"), status=lm_status)
+    # Clamp defensively: a corrupt/hand-edited cached concurrency (negative or
+    # non-int) would make `range(0, n, wave_size)` empty and silently write an
+    # EMPTY reviewed script over the book, or crash on a non-int step.
+    wave_size = max(1, int(wave_size))
     if wave_size > 1:
         print(f"Using concurrency: {wave_size}")
 

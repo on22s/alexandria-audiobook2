@@ -8,7 +8,8 @@ import hashlib
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from utils import atomic_json_write, safe_load_json, file_lock
+from utils import atomic_json_write, safe_load_json, file_lock, de_generic_speakers
+from lmstudio_settings import is_remote_llm, resolve_client_base_url
 
 
 def _script_checkpoint_path(output_path):
@@ -64,6 +65,18 @@ def script_checkpoint_matches(meta, total_chunks, chunk_size, input_hash):
     return 0 <= cc <= total_chunks
 
 
+def iter_resumable_chunks(chunks, completed_chunks):
+    """Yield (1-based index, chunk) for each chunk AFTER completed_chunks.
+
+    Single source for the resume-skip decision so it can be unit-tested directly
+    instead of re-implemented in a test (the loop in main() uses this).
+    """
+    for i, chunk in enumerate(chunks, 1):
+        if i <= completed_chunks:
+            continue
+        yield i, chunk
+
+
 def save_script_checkpoint(output_path, completed_chunks, total_chunks,
                            chunk_size, input_hash, new_entries):
     """Persist progress after one chunk: append THIS chunk's entries as a single
@@ -101,16 +114,20 @@ def _read_checkpoint_entries(output_path):
         return None
     lines = []
     try:
-        with open(entries_path, "r", encoding="utf-8") as f:
-            for raw in f:
-                raw = raw.strip()
-                if not raw:
-                    continue
-                chunk_entries = json.loads(raw)
-                if not isinstance(chunk_entries, list):
-                    return None
-                lines.append(chunk_entries)
-    except (json.JSONDecodeError, ValueError, OSError):
+        # Hold the same lock save_script_checkpoint uses for its append, so a
+        # concurrent read can't observe a torn line (matches that function's
+        # "concurrent clear/read" comment — the read side was previously unlocked).
+        with file_lock(entries_path):
+            with open(entries_path, "r", encoding="utf-8") as f:
+                for raw in f:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    chunk_entries = json.loads(raw)
+                    if not isinstance(chunk_entries, list):
+                        return None
+                    lines.append(chunk_entries)
+    except (json.JSONDecodeError, ValueError, OSError, TimeoutError):
         return None
     return lines
 
@@ -210,7 +227,9 @@ def clean_json_string(text):
         if char == '\\':
             escape_next = True
             continue
-        if char == '"' and not escape_next:
+        if char == '"':
+            # escape_next is always False here — the `if escape_next: continue`
+            # above consumes escaped chars before this point.
             in_string = not in_string
             continue
         if in_string:
@@ -328,6 +347,16 @@ def repair_json_array(json_text):
 
     return None
 
+def _json_unescape(s):
+    """Decode JSON string escapes in a regex-captured fragment (\\\\, \\t, \\r,
+    \\uXXXX, ... — not just \\" and \\n). Falls back to the minimal handling if
+    the fragment isn't cleanly decodable on its own."""
+    try:
+        return json.loads('"' + s + '"')
+    except (json.JSONDecodeError, ValueError):
+        return s.replace('\\"', '"').replace('\\n', '\n')
+
+
 def salvage_json_entries(json_text):
     """Last resort: extract individual valid entries with regex."""
     entries = []
@@ -339,8 +368,8 @@ def salvage_json_entries(json_text):
         try:
             entry = {
                 "speaker": match.group(1),
-                "text": match.group(2).replace('\\"', '"').replace('\\n', '\n'),
-                "instruct": match.group(3).replace('\\"', '"').replace('\\n', '\n')
+                "text": _json_unescape(match.group(2)),
+                "instruct": _json_unescape(match.group(3))
             }
             entries.append(entry)
         except Exception:
@@ -497,7 +526,17 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f" | took {time.time() - t0:.1f}s")
 
             if finish_reason == "length":
+                # A truncated response loses the tail of the chunk. Accepting the
+                # partial JSON that parsed from it would checkpoint the chunk as
+                # complete and silently drop the missing text (which --resume then
+                # never retries). Treat it as a failed attempt instead.
                 print(f"  WARNING: Response was truncated (hit max_tokens={params.max_tokens}). Consider increasing max_tokens.")
+                if attempt < max_retries:
+                    print("  Retrying rather than checkpointing a truncated chunk...")
+                    continue
+                print("  ERROR: response still truncated on the final attempt — refusing the "
+                      "partial output so the chunk is retried on --resume.")
+                return []
 
         except Exception as e:
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
@@ -620,9 +659,17 @@ def main():
         print("Warning: config.json not found. Using defaults.")
 
     llm_config = config.get("llm", {})
-    base_url = llm_config.get("base_url", "http://localhost:11434/v1")
+    llm_mode = config.get("llm_mode", "local")
     api_key = llm_config.get("api_key", "local")
     model_name = llm_config.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
+
+    # Single source for the empty-url policy (Rule 15): a remote run with no
+    # resolved base_url must fail loudly rather than silently fall back to a
+    # local endpoint; local uses the default. Don't hand-roll the fallback here
+    # (that's the drift resolve_client_base_url's docstring warns about) — match
+    # review_script.py / find_nicknames.py.
+    is_remote = is_remote_llm(llm_mode, llm_config.get("base_url"))
+    base_url = resolve_client_base_url(llm_config.get("base_url"), is_remote)
 
     # Load custom prompts or use defaults
     prompts_config = config.get("prompts") or {}
@@ -697,9 +744,7 @@ def main():
         banned_tokens=banned_tokens,
     )
 
-    for i, chunk in enumerate(chunks, 1):
-        if i <= completed_chunks:
-            continue
+    for i, chunk in iter_resumable_chunks(chunks, completed_chunks):
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
         chunk_start = time.monotonic()
@@ -743,6 +788,14 @@ def main():
     if not all_entries:
         print("Error: No script entries generated")
         sys.exit(1)
+
+    # Make generic speaker labels (man/woman/guard/...) unique to this book so
+    # voices don't collide across books. Runs once here on the fully-assembled
+    # entries (including any resumed from checkpoint).
+    book_id = os.path.splitext(os.path.basename(output_path))[0]
+    if book_id == "annotated_script":
+        book_id = "Book"
+    de_generic_speakers(all_entries, book_id)
 
     # Save as JSON (atomic write so a crash/kill mid-write can't corrupt the book)
     atomic_json_write(all_entries, output_path)

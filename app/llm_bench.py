@@ -60,7 +60,14 @@ def _one_call(client, model, max_tokens, timeout):
         max_tokens=max_tokens,
         temperature=0.7,
     )
-    return resp.usage.completion_tokens, time.time() - t0
+    usage = getattr(resp, "usage", None)
+    completion = getattr(usage, "completion_tokens", None) if usage else None
+    if completion is not None:
+        return completion, time.time() - t0
+    # Some OpenAI-compatible servers omit `usage`; estimate from the reply length
+    # so the benchmark doesn't silently settle on concurrency=1 with no signal.
+    content = (resp.choices[0].message.content or "") if getattr(resp, "choices", None) else ""
+    return max(1, len(content) // 4), time.time() - t0
 
 
 def measure_throughput(client, model, concurrency, max_tokens=_BENCH_MAX_TOKENS, timeout=180):

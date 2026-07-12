@@ -18,7 +18,7 @@ import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, OpenAIError
-from utils import safe_load_json, atomic_json_write
+from utils import safe_load_json, atomic_json_write, de_generic_speakers
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, persist_healed_base_url, resolve_client_base_url
 
@@ -163,10 +163,11 @@ def _parse_alias_response(raw, speakers):
 
     label_by_norm = {sp.strip().lower(): sp for sp in speakers}
     aliases = {}
-    for variant, canonical in (raw_aliases or {}).items():
-        if not isinstance(variant, str) or not isinstance(canonical, str):
+    resolved_evidence = {}
+    for raw_variant, canonical in (raw_aliases or {}).items():
+        if not isinstance(raw_variant, str) or not isinstance(canonical, str):
             continue
-        variant, canonical = variant.strip(), canonical.strip()
+        variant, canonical = raw_variant.strip(), canonical.strip()
         if not variant or not canonical:
             continue
         actual_variant = label_by_norm.get(variant.lower())
@@ -182,7 +183,13 @@ def _parse_alias_response(raw, speakers):
             print(f"  [skip] '{actual_variant}' is a combined/group label")
             continue
         aliases[actual_variant] = canonical
-    return aliases, evidence
+        # Re-key evidence to the resolved label so main()'s `evidence.get(variant)`
+        # (variant = the resolved label) still finds it when the model emitted a
+        # different casing for the alias key.
+        ev = evidence.get(raw_variant) or evidence.get(variant)
+        if ev:
+            resolved_evidence[actual_variant] = ev
+    return aliases, resolved_evidence
 
 
 def _chunk_evidence(cooccur, evidence_budget):
@@ -234,7 +241,12 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                         if k.strip().lower() in speaker_set}
 
     def _run_pass(context_length, allow_resize):
-        budget = _prompt_char_budget(context_length, max_tokens, len(NICKNAME_SYSTEM_PROMPT))
+        # Clamp the completion size to the context. The retry pass runs with the
+        # server's REAL (often smaller) n_ctx; requesting the full max_tokens reply
+        # there would overflow every re-chunked prompt again, so the retry could
+        # never succeed.
+        eff_max_tokens = min(max_tokens, max(256, context_length // 2))
+        budget = _prompt_char_budget(context_length, eff_max_tokens, len(NICKNAME_SYSTEM_PROMPT))
 
         # Roster block (every speaker + scaled sample lines) goes in every call, so
         # cap it at ~half the budget and leave the rest for a chunk of evidence.
@@ -282,7 +294,7 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
                         {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
                         {"role": "user", "content": user_prompt},
                     ],
-                    max_tokens=max_tokens,
+                    max_tokens=eff_max_tokens,
                     temperature=temperature,
                 )
                 raw = resp.choices[0].message.content or ""
@@ -355,6 +367,13 @@ def main():
 
     with open(script_path, "r", encoding="utf-8") as f:
         entries = json.load(f)
+    # Apply the same generic-label suffixing in memory so alias evidence maps
+    # cleanly onto the suffixed names (only the alias file is written, not the
+    # script). No-op for scripts already suffixed at generation time.
+    book_id = os.path.splitext(os.path.basename(script_path))[0]
+    if book_id == "annotated_script":
+        book_id = "Book"
+    de_generic_speakers(entries, book_id)
     print(f"Scanning {len(entries)} entries for character nicknames...")
 
     config_path = os.path.join(base, "config.json")

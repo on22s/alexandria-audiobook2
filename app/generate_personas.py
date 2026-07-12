@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json
+from lmstudio_settings import ensure_ideal_settings, persist_healed_base_url, resolve_client_base_url
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 
 
@@ -668,6 +669,11 @@ def _compile_persona(client, model_name, root, ref_dir, speaker,
 
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None):
     ref_dir = os.path.join(root, "persona_refs")
+    # Start from a clean slate: _append_character_ref accumulates observations
+    # into existing {speaker}.json files, so refs from a previously-loaded book
+    # would otherwise leak into a same-named character's persona in this run.
+    if os.path.isdir(ref_dir):
+        shutil.rmtree(ref_dir, ignore_errors=True)
     os.makedirs(ref_dir, exist_ok=True)
 
     batches = list(_batch_entries(script, args.batch_size))
@@ -684,17 +690,24 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
 
     # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
+    failed = 0
     for speaker in selected_speakers:
         result = _compile_persona(client, model_name, root, ref_dir,
                                    speaker, samples, system_prompt, advanced_prompt)
         if result is None:
+            failed += 1
             continue
         persona_ref, description, ref_text = result
         voice_entry = voice_config.get(speaker, {})
         voice_entry["persona_ref"] = persona_ref
         voice_config[speaker] = voice_entry
-        _save_generated_preview(root, engine, voice_config, speaker, description, ref_text)
+        if not _save_generated_preview(root, engine, voice_config, speaker, description, ref_text):
+            failed += 1
         time.sleep(0.5)
+
+    # Report the failure count so main() can exit non-zero on total degradation
+    # (e.g. the LLM/TTS was down for every speaker) instead of recording success.
+    return failed
 
 
 # _atomic_json_write imported from utils
@@ -702,12 +715,12 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
 
 def main():
     parser = argparse.ArgumentParser(description="Generate personas for speakers in annotated script")
-    parser.add_argument("--new-only", action="store_true", help="Process only speakers missing from voice_config.json")
-    parser.add_argument("--alias-check", action="store_true", help="Use LLM + heuristics to decide alias_of vs truly new character")
+    parser.add_argument("--new-only", action="store_true", help="Process only speakers missing from voice_config.json (CLI only; not exposed in the UI)")
+    parser.add_argument("--alias-check", action="store_true", help="Use LLM + heuristics to decide alias_of vs truly new character (CLI only; not exposed in the UI)")
     parser.add_argument("--advanced", action="store_true", help="Batch the full script into per-character reference files before compiling voice personas")
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
-    parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist")
-    parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context")
+    parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist (CLI only; not exposed in the UI)")
+    parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context (CLI only; not exposed in the UI)")
     args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -739,11 +752,25 @@ def main():
     config = safe_load_json(app_config_path, default={})
 
     llm_cfg = config.get("llm", {})
-    base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
-    api_key = llm_cfg.get("api_key", "local")
+    llm_mode = config.get("llm_mode", "local")
+    base_url = llm_cfg.get("base_url")
     model_name = llm_cfg.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    # Heal the LLM endpoint before use, same as find_nicknames.py / review_script.py:
+    # ensure LM Studio is at ideal settings and re-resolve a recreated Thunder
+    # instance's base_url, rather than trusting a possibly-stale config value and
+    # silently degrading to fallback personas (Rule 15 — one heal policy).
+    is_remote, _status, heal_msg, heal = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
+    if heal.adopt_url != base_url:
+        print(f"Base URL healed: {base_url} -> {heal.adopt_url}")
+        base_url = heal.adopt_url
+    if heal.persist_url:
+        persist_healed_base_url(config, app_config_path, is_remote, heal.persist_url, target=heal.target)
+
+    client = OpenAI(base_url=resolve_client_base_url(base_url, is_remote),
+                    api_key=llm_cfg.get("api_key", "local"))
 
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}
@@ -773,7 +800,7 @@ def main():
         return
 
     if args.advanced:
-        run_advanced_persona_generation(
+        failed = run_advanced_persona_generation(
             script=script,
             selected_speakers=selected_speakers,
             samples=samples,
@@ -793,6 +820,12 @@ def main():
             # The one write that persists every persona failed — fail loud rather
             # than exit 0 with the output lost.
             print(f"Failed to save voice_config.json: {e}")
+            sys.exit(1)
+        if failed:
+            # A failed speaker leaves only a 'design'-type fallback stub (or
+            # nothing) — don't report success. Matches the basic path's
+            # `if failed_speakers: sys.exit(1)` below (Rule 15).
+            print(f"Advanced persona generation completed with {failed} failed speaker(s).")
             sys.exit(1)
         return
 
@@ -922,6 +955,11 @@ def main():
 
             if not ref_text:
                 ref_text = pick_ref_text(lines)
+            if not ref_text:
+                # Last-resort fallback (matches the advanced path) so a speaker
+                # whose sample lines are all empty still gets a valid ref_text
+                # instead of passing sample_text="" to the TTS engine.
+                ref_text = f"This is the voice of {speaker}."
 
             # Generate and save voice preview
             if not _save_generated_preview(root, engine, voice_config, speaker, description, ref_text):
