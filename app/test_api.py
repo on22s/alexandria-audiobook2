@@ -112,6 +112,19 @@ def wait_for_task(task, timeout=120, poll_interval=2):
     return False
 
 
+def wait_for_running(task, timeout=30, poll_interval=1):
+    """Poll /api/status/{task} until it reports running (the inverse of
+    wait_for_task), or timeout. Used to synchronize on a background GPU task
+    actually holding the lock before asserting a second task is blocked."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        if r.status_code == 200 and r.json().get("running"):
+            return True
+        time.sleep(poll_interval)
+    return False
+
+
 def get(path, **kwargs):
     return requests.get(f"{BASE_URL}{path}", timeout=30, **kwargs)
 
@@ -1155,6 +1168,35 @@ def test_get_audacity_export():
 
 # ── Section 14: Full Tests — Generation ─────────────────────
 
+def test_gpu_lock_mutual_exclusion():
+    """The global GPU lock (claim_gpu_task/check_global_gpu_lock) must reject a
+    second GPU task while one is running, reject a double-start of the same task,
+    and release the lock on cancel. This subsystem previously shipped a deadlock
+    and had no direct test coverage; this is the regression guard."""
+    r = post("/api/generate_script")
+    if r.status_code == 400:
+        raise TestFailure("SKIP: cannot start generate_script "
+                          "(no uploaded file, or a task is already running)")
+    assert_status(r, 200)
+    try:
+        if not wait_for_running("script"):
+            raise TestFailure("SKIP: generate_script never reported running "
+                              "(finished too fast to observe the lock)")
+        # A DIFFERENT GPU task must be rejected while 'script' holds the lock.
+        r2 = post("/api/review_script")
+        assert_status(r2, 400,
+                      "review_script must be blocked by the GPU lock while generate_script runs")
+        # The SAME task must not be double-started.
+        r3 = post("/api/generate_script")
+        assert_status(r3, 400, "generate_script must reject a second concurrent start")
+    finally:
+        post("/api/generate_script/cancel")
+        released = wait_for_task("script")
+    # Reached only when the try block passed; confirm the lock was released.
+    if not released:
+        raise TestFailure("GPU lock not released: generate_script still running after cancel")
+
+
 def test_generate_script():
     # Intentionally does not wait_for_task/verify output: script generation
     # and review are open-ended LLM passes over a whole book with no fixed
@@ -1418,6 +1460,7 @@ def run_all_tests():
     run_test("get_audacity_export", test_get_audacity_export)
 
     section("Generation (TTS/LLM)")
+    run_test("gpu_lock_mutual_exclusion", test_gpu_lock_mutual_exclusion, requires_full=True)
     run_test("generate_script", test_generate_script, requires_full=True)
     run_test("review_script", test_review_script, requires_full=True)
     run_test("generate_chunk", test_generate_chunk, requires_full=True)
