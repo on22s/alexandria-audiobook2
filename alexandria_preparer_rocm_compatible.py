@@ -426,14 +426,13 @@ def validate_inputs(args):
         sys.exit(1)
     logger.debug(f"Audio file exists: {args.audio}")
 
-    if not args.skip_annotation and not os.path.exists(args.model):
+    if not os.path.exists(args.model):
         _missing_path_hint("--model", args.model)
         sys.exit(1)
-    if not args.skip_annotation:
-        logger.debug(f"Model file exists: {args.model}")
+    logger.debug(f"Model file exists: {args.model}")
 
     # Validate fallback eagerly so we fail fast on a typo'd path
-    if not args.skip_annotation and args.fallback_model and not os.path.exists(args.fallback_model):
+    if args.fallback_model and not os.path.exists(args.fallback_model):
         _missing_path_hint("--fallback-model", args.fallback_model)
         logger.error("Either fix the path or omit --fallback-model")
         sys.exit(1)
@@ -1736,10 +1735,21 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
             "speaker": Counter(w.get("speaker", "UNKNOWN") for w in chunk_word_data).most_common(1)[0][0],
             "wav_path": wav_path,
         }
+        # Enrichment is chunk-level metadata copied onto each reconstructed
+        # word. Collapse it back to one value per saved audio chunk.
+        for key in ("speaker_attribution", "emotional_tone"):
+            value = next((w.get(key) for w in chunk_word_data
+                          if w.get(key) and w.get(key) != "N/A"), None)
+            if value:
+                entry[key] = value
+        enriched_style = next((w.get("narration_style") for w in chunk_word_data
+                               if w.get("narration_style") and w.get("narration_style") != "N/A"), None)
         if character:
             entry["character"] = character
         if narrator_style:
             entry["narrator_style"] = narrator_style
+        elif enriched_style:
+            entry["narrator_style"] = enriched_style
         if book_title:
             entry["book_title"] = book_title
         metadata.append(entry)
@@ -3038,8 +3048,13 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.skip_annotation and not args.model:
-        parser.error("--model required unless --skip-annotation")
+    if args.skip_annotation:
+        parser.error("--skip-annotation is not implemented; omit it and provide --model")
+    if args.auto_detect_speakers:
+        parser.error("--auto-detect-speakers is not implemented; use --diarize")
+
+    if not args.model:
+        parser.error("--model is required")
 
     if args.enrich_with_llm and not args.llm_model_path:
         parser.error("--llm-model-path is required when --enrich-with-llm is set.")
@@ -3310,6 +3325,12 @@ def main():
                          "--model-path", args.llm_model_path,
                          "--input-file", asr_chunks_path,
                          "--output-file", enriched_output_path]
+            if args.enrich_speaker_attribution:
+                enrich_cmd.append("--speaker-attribution")
+            if args.enrich_narration_style:
+                enrich_cmd.append("--narration-style")
+            if args.enrich_emotional_tone:
+                enrich_cmd.append("--emotional-tone")
 
             logger.info(f"▶ Running LLM enrichment: {' '.join(enrich_cmd)}")
             res = subprocess.run(enrich_cmd)
@@ -3453,30 +3474,26 @@ def main():
                         )
 
             progress.start("Annotate chunks")
-            if not args.skip_annotation:
-                metadata = annotate_chunks(
-                    word_segments,
-                    args.model,
-                    args.chunk_size,
-                    audio_24k_scratch,
-                    resume=args.resume,
-                    audio_source_path=args.audio,
-                    fallback_model_path=args.fallback_model,
-                    source_state=source_state,
-                    source_threshold=args.source_threshold,
-                    keep_unaligned=args.keep_unaligned,
-                    min_chunk_duration=args.min_chunk_duration,
-                    min_confidence=args.min_confidence,
-                    min_snr=args.min_snr,
-                    book_title=book_title,
-                    character=args.character,
-                    narrator_style=args.narrator_style,
-                    batch_size=args.batch_size,
-                )
-                logger.info(f"  Chunks annotated: {len(metadata)}")
-            else:
-                logger.error("--skip-annotation not yet implemented")
-                sys.exit(1)
+            metadata = annotate_chunks(
+                word_segments,
+                args.model,
+                args.chunk_size,
+                audio_24k_scratch,
+                resume=args.resume,
+                audio_source_path=args.audio,
+                fallback_model_path=args.fallback_model,
+                source_state=source_state,
+                source_threshold=args.source_threshold,
+                keep_unaligned=args.keep_unaligned,
+                min_chunk_duration=args.min_chunk_duration,
+                min_confidence=args.min_confidence,
+                min_snr=args.min_snr,
+                book_title=book_title,
+                character=args.character,
+                narrator_style=args.narrator_style,
+                batch_size=args.batch_size,
+            )
+            logger.info(f"  Chunks annotated: {len(metadata)}")
             progress.complete()
 
             progress.start("Create output dataset")

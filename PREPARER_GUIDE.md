@@ -256,7 +256,7 @@ This runs the **full 3-phase pipeline** (ASR → Enrich → Annotate). The enric
 
 ### Required
 - `--audio PATH` — Input audio file (.wav, .mp3, .m4a, .flac, .ogg)
-- `--model PATH` — Primary GGUF model path (omit only with `--skip-annotation`)
+- `--model PATH` — Primary GGUF model path (required)
 
 ### Optional
 - `--fallback-model PATH` — Backup GGUF model used if `--model` fails to load
@@ -264,7 +264,7 @@ This runs the **full 3-phase pipeline** (ASR → Enrich → Annotate). The enric
 - `--lang CODE` — Language code for transcription (default: `en`)
 - `--output PATH` — Output ZIP path (default: `alexandria_dataset.zip`)
 - `--resume` — Resume from existing `dataset_temp/` instead of starting over
-- `--skip-annotation` — Stop after transcription (not fully implemented)
+- `--skip-annotation` — Reserved; currently rejected because transcription-only export is not implemented
 
 ### LLM Pre-Processing (Enrichment)
 Add metadata to transcript chunks before annotation using a local GGUF LLM.

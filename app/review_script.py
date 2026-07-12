@@ -742,6 +742,9 @@ def main():
                         help="Path to a voice_config.json whose keys should follow renamed speakers")
     args = parser.parse_args()
 
+    if args.source:
+        parser.error("--source comparison mode is not implemented")
+
     # Locate the script to review (default: working annotated_script.json)
     default_script = os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
     script_path = args.input or default_script
@@ -754,16 +757,6 @@ def main():
         entries = json.load(f)
 
     print(f"Loaded {len(entries)} script entries for review")
-
-    # Load source text if provided (mode 2 prep)
-    source_text = None
-    if args.source:
-        if os.path.exists(args.source):
-            with open(args.source, "r", encoding="utf-8") as f:
-                source_text = f.read()
-            print(f"Loaded source text: {len(source_text)} chars")
-        else:
-            print(f"Warning: Source file not found: {args.source}")
 
     # Load config
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
