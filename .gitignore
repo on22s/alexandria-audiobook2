@@ -149,3 +149,12 @@ pr_body.txt
 pr_body2.txt
 dedup_analysis/
 tone_analysis_output/
+
+# Code-review / session artifacts (kept locally, not part of the app)
+CODEBASE_REVIEW_FINDINGS-*.md
+CODEBASE_REVIEW_PLAN.md
+CODE_REVIEW.md
+code-review-20.skill
+tododo.txt
+Screenshot_*.png
+docs/superpowers/
