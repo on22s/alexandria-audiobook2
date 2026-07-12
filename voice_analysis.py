@@ -248,18 +248,24 @@ def run_dedup(model, device, zips2_root, output_dir):
                     print(f"{marker}{val:>8.3f}", end="")
             print()
 
-        # Cluster identical voices
+        # Cluster identical voices via connected components over the
+        # >threshold adjacency (BFS). A single-seed pass would be non-transitive:
+        # if A~C and B~C but A≁C's seed, B could be split into its own cluster
+        # even though B and C are the same voice.
         visited, clusters = set(), []
         for i in range(n):
             if i in visited:
                 continue
-            cluster = [i]
+            comp, queue = [], [i]
             visited.add(i)
-            for j in range(i + 1, n):
-                if sim_matrix[i, j] > DEDUP_THRESHOLD:
-                    cluster.append(j)
-                    visited.add(j)
-            clusters.append(cluster)
+            while queue:
+                u = queue.pop()
+                comp.append(u)
+                for v in range(n):
+                    if v not in visited and sim_matrix[u, v] > DEDUP_THRESHOLD:
+                        visited.add(v)
+                        queue.append(v)
+            clusters.append(sorted(comp))
 
         print(f"\n  ── Dedup Clusters (threshold={DEDUP_THRESHOLD}) ──")
         for ci, cluster in enumerate(clusters):
@@ -329,7 +335,10 @@ def run_analyze(model, device, deduped_root, output_dir):
     for zp in sorted(deduped_root.glob("*.zip")):
         key = re.sub(r"[^a-z0-9]+", "_",
                      zp.stem.replace("-converted", "").strip().lower()).strip("_")
-        zip_groups[key] = [str(zp)]
+        # Append, don't assign: two zips that normalize to the same key (e.g.
+        # "Foo.zip" and "Foo-converted.zip") both belong to the group instead of
+        # the later one silently replacing the earlier.
+        zip_groups.setdefault(key, []).append(str(zp))
 
     if not zip_groups:
         print(f"No ZIPs found in {deduped_root}")
@@ -387,6 +396,11 @@ def run_analyze(model, device, deduped_root, output_dir):
             all_prosody[group_name]   = g_pros
             all_wav_names[group_name] = g_wavs
             print(f"  → {len(g_embs)} embeddings extracted")
+
+    if not all_embs:
+        print("\nNo embeddings extracted from any group — nothing to analyze "
+              "(check that the _deduped zips contain readable WAVs).")
+        return
 
     pickle.dump(
         {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
@@ -554,7 +568,10 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
     analyze_cache_file = analyze_dir / "embeddings_cache.pkl"
     analyzed_groups = set()
     if analyze_cache_file.exists():
-        analyzed_groups = set(pickle.load(open(analyze_cache_file, "rb")).keys())
+        # The cache is {"embeddings": {group: ...}, "prosody": ..., "wav_names": ...};
+        # the analyzed group names are the keys of "embeddings", NOT the cache's
+        # top-level structural keys (which would make every narrator read as PENDING).
+        analyzed_groups = set(pickle.load(open(analyze_cache_file, "rb")).get("embeddings", {}).keys())
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()

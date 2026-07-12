@@ -13,6 +13,7 @@ import argparse
 import subprocess
 import json
 import logging
+import threading
 import torch
 from datetime import datetime
 from pathlib import Path
@@ -52,15 +53,9 @@ def get_gpu_stats():
 
     stats = {}
     try:
-        # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = torch.cuda.memory_reserved() / 1e9    # GB
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
-
-        stats['allocated_gb'] = allocated
-        stats['reserved_gb'] = reserved
-        stats['total_gb'] = total
-        stats['allocated_percent'] = (allocated / total * 100) if total > 0 else 0
+        # NOTE: per-process torch memory stats were dropped here — the main script
+        # runs in a subprocess, so the parent always reads 0, and log_gpu_stats
+        # only ever logged utilization_percent anyway.
 
         # Try to get utilization via rocm-smi for AMD GPUs
         try:
@@ -182,7 +177,7 @@ def _find_source_for(audio_file, source_folder, fuzzy_threshold: float = 0.50):
          'audiobook', 'volume', publisher decorators, z-library cruft,
          and pure-digit tokens). Score every .epub/.txt in the folder by
          F1 token overlap. Return the highest-scoring candidate above
-         `fuzzy_threshold` (default 0.55).
+         `fuzzy_threshold` (default 0.50).
 
     So 'Michael Kramer The Hero of Ages-converted.wav' matches
     'Hero of Ages .epub' (shared title tokens: hero, of, ages) and beats
@@ -435,8 +430,25 @@ class BatchProcessor:
                 bufsize=1,  # Line-buffered
             )
 
-            # Stream output line by line in real-time
-            timeout_at = time.monotonic() + (3600 * 24)  # 24 hour timeout
+            # Stream output line by line in real-time. `for line in process.stdout`
+            # blocks on readline, so an inline deadline check can't fire while the
+            # child hangs silently (no output). Use a watchdog thread that kills
+            # the process at the deadline regardless of whether it's emitting.
+            timeout_secs = 3600 * 24  # 24 hour hard cap
+            deadline = time.monotonic() + timeout_secs
+            timed_out = threading.Event()
+
+            def _watchdog():
+                while process.poll() is None:
+                    if time.monotonic() > deadline:
+                        timed_out.set()
+                        process.kill()
+                        return
+                    time.sleep(5)
+
+            watchdog = threading.Thread(target=_watchdog, daemon=True)
+            watchdog.start()
+
             for line in process.stdout:
                 line = line.rstrip()
                 if line:
@@ -446,11 +458,9 @@ class BatchProcessor:
                     if len(last_stderr_lines) > 20:
                         last_stderr_lines.pop(0)
 
-                if time.monotonic() > timeout_at:
-                    process.kill()
-                    raise subprocess.TimeoutExpired(cmd, 3600 * 24)
-
             process.wait()
+            if timed_out.is_set():
+                raise subprocess.TimeoutExpired(cmd, timeout_secs)
             returncode = process.returncode
 
             logger.info("─" * 70 + " [subprocess output ends]")
@@ -522,6 +532,7 @@ class BatchProcessor:
             logger.error(f"✗ ERROR: {Path(audio_file).name} - {e}")
             if process:
                 process.kill()
+                process.wait()  # reap the killed child (mirrors the Timeout handler)
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": str(e)
@@ -537,11 +548,18 @@ class BatchProcessor:
         valid_files = self.validate_files(audio_files)
 
         if not valid_files:
-            if self.results["skipped"]:
+            # Only report success when EVERY skip was the already-processed case.
+            # A "File not found" / "Unsupported audio format" skip is a real
+            # failure and must return False so a wrapping script doesn't see rc=0
+            # having processed nothing.
+            all_already = bool(self.results["skipped"]) and all(
+                s.get("reason", "").startswith("Already processed")
+                for s in self.results["skipped"])
+            if all_already:
                 logger.info(f"All {len(self.results['skipped'])} files already processed (use --force to reprocess)")
                 self.print_summary()
                 return True
-            logger.error("No valid files to process")
+            logger.error("No valid files to process (see skipped/failed reasons above)")
             return False
 
         # Estimate disk space needs (~250MB per audiobook for dataset)

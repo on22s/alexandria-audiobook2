@@ -2029,12 +2029,17 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     f"cut={cut_strategy} carry_tail={trimmed_tail}"
                 )
 
+                # Always define these for the current chunk BEFORE the >=1.0s
+                # block: the rejected-chunk logging further down also runs for
+                # sub-1.0s chunks (outside that block), so leaving them unset
+                # NameErrors on the first sub-1s chunk and reads the previous
+                # chunk's values on later ones.
+                text = " ".join(chunk_words)
+                drop_chunk = False
+                reason_rejected = None
+
                 if chunk_words and chunk_duration >= 1.0:
                     chunk_t0 = time.monotonic()
-                    text = " ".join(chunk_words)
-
-                    drop_chunk = False
-                    reason_rejected = None
 
                     # 1. Quality Filtering: Check duration
                     if chunk_duration < min_chunk_duration:
@@ -2306,7 +2311,11 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                             batch_buffer.clear()
                             # IMPROVEMENT 1: Add timing/ETA logging for batch mode
                             completed = segment_idx + batch_size
-                            chunk_times.append(time.monotonic() - chunk_t0)
+                            # Divide by batch_size: this sample spans the whole
+                            # batch's LLM call, but the ETA below multiplies the
+                            # average by remaining CHUNKS — so store per-chunk time
+                            # to avoid inflating the ETA ~batch_size×.
+                            chunk_times.append((time.monotonic() - chunk_t0) / max(1, batch_size))
                             if (completed % 10) < batch_size:
                                 avg_chunk_s = sum(chunk_times) / len(chunk_times)
                                 elapsed_s = time.monotonic() - annotation_start_time

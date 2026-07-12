@@ -28,10 +28,7 @@ so all the fuzzy-alignment helpers below see the same lexicon without
 threading it through every call site. Empty lexicon == pre-feature behaviour.
 """
 
-import os
-import sys
 import re
-import json
 import difflib
 import functools
 from pathlib import Path

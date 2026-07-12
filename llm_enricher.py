@@ -53,13 +53,18 @@ class LLMEnricher:
 
             enriched_data = self._parse_llm_output(output['choices'][0]['text'])
 
-            chunk.update(enriched_data)
-            return chunk
+            # Return a new dict rather than mutating the caller's chunk in place
+            # (input arg is input-only; the enriched result is the return value).
+            return {**chunk, **enriched_data}
 
         except Exception as e:
+            # Re-raise so main()'s per-chunk handler counts this as a failure.
+            # It still appends the chunk unchanged (best-effort pass-through), but
+            # the failure count is what makes the "every chunk failed" fail-loud
+            # guard reachable — otherwise a total LLM outage exits rc=0.
             logger.error(f"Error during LLM enrichment for chunk {chunk.get('start', 'N/A')}: {e}")
             logger.debug(traceback.format_exc())
-            return chunk
+            raise
 
     def _create_prompt(self, chunk: Dict[str, Any]) -> str:
         """Creates a prompt for the LLM to extract metadata."""
