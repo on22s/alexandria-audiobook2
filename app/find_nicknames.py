@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json
 from llm_bench import get_cached_or_benchmarked_concurrency
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
@@ -255,13 +255,16 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
             print(f"  Evidence chunk {ci + 1}/{len(chunks)}...")
         t0 = time.time()
         try:
+            messages = [
+                {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+            effective_max = get_effective_max_tokens(
+                max_tokens, context_length, messages, hard_max=12000)
             resp = client.chat.completions.create(
                 model=model_name,
-                messages=[
-                    {"role": "system", "content": NICKNAME_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=max_tokens,
+                messages=messages,
+                max_tokens=effective_max,
                 temperature=temperature,
             )
             raw = resp.choices[0].message.content or ""
