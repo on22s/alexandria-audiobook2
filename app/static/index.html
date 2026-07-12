@@ -34,7 +34,9 @@
         html[data-theme="night"] {
             --bg-page:        #1a1d24;
             --bg-card:        #252a35;
+            --bg-card-rgb:    37,42,53;
             --bg-card-header: #2c3040;
+            --bg-card-header-rgb: 44,48,64;
             --bg-input:       #2c3040;
             --bg-navbar:      #111419;
             --bg-modal:       #252a35;
@@ -56,7 +58,9 @@
         html[data-theme="super-night"] {
             --bg-page:        #000000;
             --bg-card:        #111111;
+            --bg-card-rgb:    17,17,17;
             --bg-card-header: #181818;
+            --bg-card-header-rgb: 24,24,24;
             --bg-input:       #0f0f0f;
             --bg-navbar:      #000000;
             --bg-modal:       #111111;
@@ -311,6 +315,11 @@
                totals box) render as a near-white box with unreadable text. */
             --bs-secondary-bg: var(--bg-card-header);
             --bs-tertiary-bg: var(--bg-card);
+            /* The .bg-body-tertiary / .bg-body-secondary utility classes paint via
+               RGBA(var(--bs-*-bg-rgb), ...), so the non-rgb tokens above don't reach
+               them — set the -rgb triplets too or the box stays Bootstrap-default white. */
+            --bs-secondary-bg-rgb: var(--bg-card-header-rgb);
+            --bs-tertiary-bg-rgb: var(--bg-card-rgb);
             --bs-secondary-color: var(--text-muted);
             --bs-tertiary-color: var(--text-muted);
         }
@@ -451,7 +460,7 @@
         /* Anti-flash: apply saved theme before first paint */
         (function() {
             const t = localStorage.getItem('alex-theme');
-            if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
+            if (t && t !== 'light') { document.documentElement.setAttribute('data-theme', t); }
         })();
     </script>
 </head>
@@ -484,7 +493,7 @@
                         </button>
                     </li>
                     <li class="nav-item small d-flex align-items-center" title="System Status">
-                        <span id="sys-eta" class="text-light d-flex align-items-center me-3" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span id="sys-eta-val" style="font-family: monospace;"></span></span>
+                        <span id="sys-eta" class="text-light align-items-center me-3" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span id="sys-eta-val" style="font-family: monospace;"></span></span>
                         <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span id="sys-gpu-val" style="font-family: monospace;">N/A</span></span>
                         <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span id="sys-disk-val" style="font-family: monospace;">N/A</span></span>
                     </li>
@@ -1299,7 +1308,7 @@
                     </div>
 
                     <!-- Stage progress -->
-                    <div id="vl-stage-progress" class="d-flex gap-2 flex-wrap mb-2" style="display:none;"></div>
+                    <div id="vl-stage-progress" class="gap-2 flex-wrap mb-2" style="display:none;"></div>
                 </div>
             </div>
 
@@ -1407,6 +1416,9 @@
                         <div class="col-md-6 d-flex align-items-end">
                             <button class="btn btn-success btn-lg" id="btn-lora-train" onclick="startLoraTraining()">
                                 <i class="fas fa-dumbbell me-1"></i>Start Training
+                            </button>
+                            <button class="btn btn-danger btn-lg ms-2" id="btn-lora-cancel" onclick="cancelLoraTraining()" style="display:none;">
+                                <i class="fas fa-stop me-1"></i>Cancel
                             </button>
                             <span id="lora-train-status" class="ms-3 text-muted"></span>
                         </div>
@@ -1952,7 +1964,7 @@
         // (this consolidation fixed exactly that: 3 of the 4 prior inline
         // copies were missing the `incomplete` key this one already had).
         const STATUS_BADGE_COLOURS = { pending: 'secondary', running: 'primary',
-            done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
+            done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning', pass1: 'info' };
 
         // Notify the user that a long-running job finished, but only if they've
         // navigated away from the tab (no point popping up a notification for
@@ -2799,7 +2811,7 @@
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
                             if (!el) { return; }
-                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.status)}</span>`;
                         });
                     }
 
@@ -3201,7 +3213,7 @@
                         if (!cb) { return; }
                         const el = document.getElementById(cb.id.replace('rb-check-', 'rb-status-'));
                         if (el) {
-                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.status)}</span>`;
                             el.title = t.stats ? _formatBookStats(t.stats) : '';
                         }
                     });
@@ -4719,8 +4731,11 @@
                             }
                         }
                     } catch (e) {
-                        clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
+                        // Keep polling through a transient status hiccup — the
+                        // Audacity export is a NON_GPU task that legitimately runs
+                        // while the server is busy; killing the poller here means
+                        // the finished zip never auto-downloads.
+                        console.debug('audacity_export poll hiccup:', e);
                     }
                 }, 1000);
             } catch (e) {
@@ -4781,8 +4796,11 @@
                             }
                         }
                     } catch (e) {
-                        clearInterval(poll);
-                        statusEl.innerHTML = `<span class="text-danger">Poll error: ${escapeHtml(e.message)}</span>`;
+                        // Keep polling through a transient status hiccup — the M4B
+                        // export is a NON_GPU task that legitimately runs while the
+                        // server is busy; killing the poller here means the
+                        // finished m4b never auto-downloads.
+                        console.debug('m4b_export poll hiccup:', e);
                     }
                 }, 1000);
             } catch (e) {
@@ -5368,7 +5386,8 @@
                 const result = await API.post('/api/lora/train', request);
                 document.getElementById('lora-progress-section').style.display = 'block';
                 document.getElementById('lora-train-status').innerHTML = '<span class="text-info">Training in progress...</span>';
-                pollLoraTraining(request.epochs);
+                document.getElementById('btn-lora-cancel').style.display = 'inline-block';
+                pollLoraTraining();
             } catch (e) {
                 showToast('Failed to start training: ' + e.message, 'error');
                 btn.disabled = false;
@@ -5376,7 +5395,20 @@
             }
         };
 
-        function pollLoraTraining(totalEpochs) {
+        window.cancelLoraTraining = async () => {
+            const btn = document.getElementById('btn-lora-cancel');
+            if (btn) { btn.disabled = true; }
+            try {
+                await API.post('/api/lora/train/cancel', {});
+                document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Cancelling…</span>';
+            } catch (e) {
+                showToast('Cancel failed: ' + (e.message || e));
+            } finally {
+                if (btn) { btn.disabled = false; }
+            }
+        };
+
+        function pollLoraTraining() {
             const logsEl = document.getElementById('lora-train-logs');
             const progressBar = document.getElementById('lora-progress-bar');
             const epochDisplay = document.getElementById('lora-epoch-display');
@@ -5422,6 +5454,7 @@
                         notifyJobDone('lora_training');
                         const btn = document.getElementById('btn-lora-train');
                         btn.disabled = false;
+                        document.getElementById('btn-lora-cancel').style.display = 'none';
 
                         const isDone = status.logs.some(l => l.includes('[DONE]'));
                         const isError = status.logs.some(l => l.includes('[ERROR]'));
@@ -5470,7 +5503,7 @@
                             ${models.map(m => `
                                 <tr${m.builtin ? ' class="table-light"' : ''}>
                                     <td><strong>${escapeHtml(m.name)}</strong>${m.builtin ? ` <span class="badge bg-secondary">built-in</span>${m.downloaded === false ? ' <span class="badge bg-warning text-dark">not downloaded</span>' : ''}` : ''}</td>
-                                    <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
+                                    <td>${escapeHtml(m.dataset_id || '--')}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
                                     <td>${m.sample_count || '--'}</td>
@@ -5648,8 +5681,16 @@
                     document.getElementById('dsb-btn-cancel').style.display = '';
                 }
             } catch (e) {
+                // A transient status-GET failure must NOT destroy the saved
+                // project. Disarm dsbSaveRows (guarded on dsbCurrentProject)
+                // BEFORE clearing rows so its debounced POST can't overwrite the
+                // real samples on disk with an empty row, and do NOT dsbAddRow.
+                dsbCurrentProject = '';
                 dsbRows = [];
-                dsbAddRow();
+                dsbRenderTable();
+                document.getElementById('dsb-form-area').style.display = 'none';
+                document.getElementById('dsb-btn-delete-project').style.display = 'none';
+                showToast('Failed to load dataset "' + name + '": ' + (e.message || e));
             }
         }
 
@@ -5747,9 +5788,9 @@
 
             return `<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
                 <td class="text-center align-middle">${i + 1}</td>
-                <td><input type="text" class="form-control form-control-sm" value="${(row.emotion || '').replace(/"/g, '&quot;')}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
-                <td><textarea class="form-control form-control-sm" rows="2" onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${(row.text || '').replace(/</g, '&lt;')}</textarea></td>
-                <td><input type="number" class="form-control form-control-sm" value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
+                <td><input type="text" class="form-control form-control-sm" value="${escapeHtml(row.emotion || '')}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
+                <td><textarea class="form-control form-control-sm" rows="2" onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${escapeHtml(row.text || '')}</textarea></td>
+                <td><input type="number" class="form-control form-control-sm" value="${escapeHtml(row.seed ?? '')}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
                 <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span></td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
@@ -5827,7 +5868,7 @@
             const doneSamples = dsbRows.map((r, i) => ({ index: i, row: r })).filter(x => x.row.status === 'done');
             select.innerHTML = doneSamples.length === 0
                 ? '<option value="0">No completed samples yet</option>'
-                : doneSamples.map(x => `<option value="${x.index}">${x.index + 1}. ${(x.row.emotion || 'neutral').substring(0, 30)} - "${(x.row.text || '').substring(0, 40)}..."</option>`).join('');
+                : doneSamples.map(x => `<option value="${x.index}">${x.index + 1}. ${escapeHtml((x.row.emotion || 'neutral').substring(0, 30))} - "${escapeHtml((x.row.text || '').substring(0, 40))}..."</option>`).join('');
         }
 
         // Single sample generation
@@ -6220,7 +6261,7 @@
         // attach the first running one in priority order.
         async function reattachRunningPollers() {
             // Fetch all task statuses in parallel; each falls back to false on error.
-            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'voicelab'];
+            const names = ['batch_script', 'script', 'batch_review', 'review', 'nicknames', 'voicelab', 'lora_training'];
             const flags = await Promise.all(names.map(t =>
                 API.get(`/api/status/${t}`).then(r => r.running).catch(() => false)
             ));
@@ -6267,6 +6308,22 @@
             } else if (running.voicelab) {
                 _vlSetRunning(true);
                 pollVoicelab();
+            }
+
+            // lora_training has its OWN progress section/buttons (not the shared
+            // #script-logs window), so reattach it independently of the else-if
+            // chain above — a reload mid-training would otherwise blank the
+            // progress bar and re-enable Start (which then 400s on the GPU lock).
+            if (running.lora_training) {
+                const prog = document.getElementById('lora-progress-section');
+                if (prog) { prog.style.display = 'block'; }
+                const st = document.getElementById('lora-train-status');
+                if (st) { st.innerHTML = '<span class="text-info">Training in progress...</span>'; }
+                const startBtn = document.getElementById('btn-lora-train');
+                if (startBtn) { startBtn.disabled = true; }
+                const cancelBtn = document.getElementById('btn-lora-cancel');
+                if (cancelBtn) { cancelBtn.style.display = 'inline-block'; }
+                pollLoraTraining();
             }
         }
 
@@ -6411,7 +6468,7 @@
                         state.tasks.forEach((t, i) => {
                             const el = document.getElementById(`prep-batch-status-${i}`);
                             if (!el) { return; }
-                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${t.status}</span>`;
+                            el.innerHTML = `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.status)}</span>`;
                         });
                     }
 
@@ -6577,7 +6634,7 @@
                     if (s.tasks && s.tasks.length) {
                         progEl.style.display = 'flex';
                         progEl.innerHTML = s.tasks.map(t =>
-                            `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
+                            `<span class="badge bg-${STATUS_BADGE_COLOURS[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${escapeHtml(t.status)}</span>`).join('');
                     }
                     if (!s.running) {
                         clearInterval(voicelabPoller); voicelabPoller = null;
