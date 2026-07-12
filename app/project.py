@@ -591,17 +591,29 @@ class ProjectManager:
             label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
         labels_content = "\n".join(label_lines) + "\n"
 
-        # Phase 4 — Zip everything
+        # Phase 4 — Zip everything to a temp path, then atomically replace, so a
+        # failure mid-write can't leave a truncated zip that the download route
+        # serves as if valid (or clobber a previous good export with garbage).
         zip_path = os.path.join(self.root_dir, "audacity_export.zip")
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("project.lof", lof_content)
-            zf.writestr("labels.txt", labels_content)
+        tmp_zip = zip_path + ".tmp"
+        try:
+            with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("project.lof", lof_content)
+                zf.writestr("labels.txt", labels_content)
 
-            for speaker in speakers_ordered:
-                safe_name = sanitize_filename(speaker)
-                wav_buffer = io.BytesIO()
-                speaker_tracks[speaker].export(wav_buffer, format="wav")
-                zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
+                for speaker in speakers_ordered:
+                    safe_name = sanitize_filename(speaker)
+                    wav_buffer = io.BytesIO()
+                    speaker_tracks[speaker].export(wav_buffer, format="wav")
+                    zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
+            os.replace(tmp_zip, zip_path)
+        except BaseException:
+            try:
+                if os.path.exists(tmp_zip):
+                    os.remove(tmp_zip)
+            except OSError:
+                pass
+            raise
 
         return True, zip_path
 
@@ -696,6 +708,7 @@ class ProjectManager:
             # doesn't get killed mid-encode; keep a bound (Rule 9) rather than
             # removing it.
             encode_timeout = max(600, len(final_audio) // 1000 * 2)
+            encode_ok = False
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=encode_timeout)
             except subprocess.TimeoutExpired:
@@ -703,9 +716,16 @@ class ProjectManager:
             if result.returncode != 0:
                 print(f"FFmpeg stderr: {result.stderr[-500:]}")
                 return False, f"FFmpeg failed (exit {result.returncode})"
+            encode_ok = True
 
         finally:
-            for tmp in [temp_wav, meta_path]:
+            # On a timed-out/failed encode also delete the partial output .m4b —
+            # ffmpeg writes incrementally, and the download route serves the file
+            # purely on existence, so a partial file would be handed out as valid.
+            cleanup = [temp_wav, meta_path]
+            if not encode_ok:
+                cleanup.append(output_path)
+            for tmp in cleanup:
                 if os.path.exists(tmp):
                     try:
                         os.remove(tmp)
@@ -722,6 +742,7 @@ class ProjectManager:
         text = text.replace(";", "\\;")
         text = text.replace("#", "\\#")
         text = text.replace("\n", " ")
+        text = text.replace("\r", " ")  # CRLF (e.g. pasted description) would else corrupt the key=value line
         return text
 
     # Regex for detecting chapter/section headings in chunk text
@@ -1144,6 +1165,11 @@ class ProjectManager:
                 # in-flight chunk stuck at 'generating'. Stop here; the reset then
                 # returns the unfinished chunks to 'pending' (retryable).
                 print(f"[ERROR] Batch generation crashed: {e} — stopping; unfinished chunks reset to pending.")
+                # Best-effort: remove any temp_batch_*.wav the engine wrote for
+                # this batch before crashing, so they don't accumulate in the
+                # project root across runs.
+                for bc in batch_chunks:
+                    self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{bc['index']}.wav"))
                 break
 
             # Process completed chunks - convert to MP3 and update status
