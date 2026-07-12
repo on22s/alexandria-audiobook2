@@ -99,7 +99,7 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
             override = prev_chunk.get("pause_after")
             if override is not None:
                 gap = int(override)
-            elif chunk["speaker"] == prev_speaker:
+            elif chunk.get("speaker") == prev_speaker:
                 gap = same_speaker_pause_ms
             else:
                 gap = pause_ms
@@ -107,7 +107,7 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
 
         timeline.append((chunk, segment, cursor_ms))
         cursor_ms += len(segment)
-        prev_speaker = chunk["speaker"]
+        prev_speaker = chunk.get("speaker")
         prev_chunk = chunk
 
     return timeline
@@ -273,12 +273,19 @@ class TTSEngine:
 
         Returns list of (start, end) index tuples.
         """
-        if not self._sub_batch_enabled or len(texts) <= 1:
+        if len(texts) <= 1:
             return [(0, len(texts))]
 
         # Manual cap overrides VRAM estimate when set (take the stricter of the two)
         if self._sub_batch_max_items > 0:
             max_items = min(max_items, self._sub_batch_max_items) if max_items else self._sub_batch_max_items
+
+        if not self._sub_batch_enabled:
+            # Ratio-based splitting is disabled, but STILL honor the VRAM/manual
+            # item cap so a huge render isn't issued as one OOM-ing batch.
+            if max_items and max_items > 0 and len(texts) > max_items:
+                return [(s, min(s + max_items, len(texts))) for s in range(0, len(texts), max_items)]
+            return [(0, len(texts))]
 
         sub_batches = []
         batch_start = 0
@@ -835,6 +842,14 @@ class TTSEngine:
 
         wav_path, sr = self.generate_voice_design(description=description, sample_text=text)
         shutil.copy2(wav_path, output_path)
+        # Remove the throwaway preview WAV now that it's copied to output_path, so
+        # chunk/batch design-voice generation doesn't leak one preview per chunk
+        # into designed_voices/previews/ (only the Designer route caps that dir).
+        try:
+            if os.path.abspath(wav_path) != os.path.abspath(output_path):
+                os.remove(wav_path)
+        except OSError:
+            pass
         return True
 
     # ── LoRA voice generation ────────────────────────────────────
@@ -869,7 +884,10 @@ class TTSEngine:
                 if adapter_id.startswith("builtin_"):
                     print(f"Adapter {adapter_id} not downloaded, attempting auto-download...")
                     try:
-                        from hf_utils import download_builtin_adapter
+                        try:
+                            from .hf_utils import download_builtin_adapter
+                        except ImportError:
+                            from hf_utils import download_builtin_adapter
                         builtin_dir = os.path.dirname(adapter_path)
                         download_builtin_adapter(adapter_id, builtin_dir)
                     except Exception as e:
@@ -1015,7 +1033,7 @@ class TTSEngine:
         # Process clone voice chunks (batched by speaker in local mode)
         if clone_chunks:
             if self._mode == "local":
-                batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir)
+                batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
             else:
                 batch_results = {"completed": [], "failed": []}
                 for chunk in clone_chunks:
@@ -1038,7 +1056,7 @@ class TTSEngine:
         # Process LoRA voice chunks (batched by adapter in local mode)
         if lora_chunks:
             if self._mode == "local":
-                batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir)
+                batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
             else:
                 batch_results = {"completed": [], "failed": []}
                 for chunk in lora_chunks:
@@ -1348,7 +1366,7 @@ class TTSEngine:
 
         return results
 
-    def _local_batch_clone(self, chunks, voice_config, output_dir):
+    def _local_batch_clone(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Batch generate clone voices, grouped by speaker.
 
         Chunks sharing the same speaker (same reference audio) are batched
@@ -1418,6 +1436,10 @@ class TTSEngine:
                       f"({len(sb_texts[0])}-{len(sb_texts[-1])} chars/chunk)")
 
                 try:
+                    # Seed for reproducible batch output when batch_seed is set
+                    # (matches _local_batch_custom); otherwise random each run.
+                    if batch_seed >= 0:
+                        torch.manual_seed(batch_seed)
                     t_start = time.time()
                     wavs_list, sr = model.generate_voice_clone(
                         text=sb_texts,
@@ -1464,7 +1486,7 @@ class TTSEngine:
 
         return results
 
-    def _local_batch_lora(self, chunks, voice_config, output_dir):
+    def _local_batch_lora(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Batch generate LoRA voices, grouped by adapter.
 
         Chunks sharing the same adapter are batched together through
@@ -1505,10 +1527,25 @@ class TTSEngine:
         for adapter_path, group_entries in adapter_groups.items():
             group = [c for c, _ in group_entries]
             if not os.path.isdir(adapter_path):
-                print(f"  Error: adapter path not found: {adapter_path}")
-                for chunk in group:
-                    results["failed"].append((chunk["index"], f"Adapter not found: {adapter_path}"))
-                continue
+                # Auto-download built-in adapters from HF, mirroring the
+                # single-chunk generate_lora_voice path — otherwise a built-in
+                # LoRA voice that hasn't been fetched yet fails every chunk of a
+                # batch render while single-chunk regen of the same voice works.
+                adapter_id = os.path.basename(adapter_path)
+                downloaded = False
+                if adapter_id.startswith("builtin_"):
+                    print(f"  Adapter {adapter_id} not downloaded, attempting auto-download...")
+                    try:
+                        from hf_utils import download_builtin_adapter
+                        download_builtin_adapter(adapter_id, os.path.dirname(adapter_path))
+                        downloaded = os.path.isdir(adapter_path)
+                    except Exception as e:
+                        print(f"  Error: Auto-download failed for {adapter_id}: {e}")
+                if not downloaded:
+                    print(f"  Error: adapter path not found: {adapter_path}")
+                    for chunk in group:
+                        results["failed"].append((chunk["index"], f"Adapter not found: {adapter_path}"))
+                    continue
 
             # Load adapter and build/get clone prompt
             try:
@@ -1587,6 +1624,10 @@ class TTSEngine:
                       f"({len(sb_texts[0])}-{len(sb_texts[-1])} chars/chunk)")
 
                 try:
+                    # Seed for reproducible batch output when batch_seed is set
+                    # (matches _local_batch_custom); otherwise random each run.
+                    if batch_seed >= 0:
+                        torch.manual_seed(batch_seed)
                     # Build instruct_ids list for this sub-batch
                     instruct_ids = []
                     for inst, character_style in zip(sb_instructs, sb_character_styles):

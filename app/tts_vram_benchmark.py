@@ -21,7 +21,6 @@ import sys
 import tempfile
 import time
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_DIR  = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 
@@ -107,11 +106,13 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
         chunks = make_chunks(n_chunks_per_run)
 
         import torch
-        torch.cuda.reset_peak_memory_stats()
+        cuda_ok = torch.cuda.is_available()
+        if cuda_ok:
+            torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
         batch_results = engine.run_benchmark_batch(chunks, voice_config, output_dir)
         elapsed = time.time() - t0
-        peak_gb = torch.cuda.max_memory_allocated() / 1e9
+        peak_gb = (torch.cuda.max_memory_allocated() / 1e9) if cuda_ok else 0.0
 
         n_done = len(batch_results["completed"])
         n_fail = len(batch_results["failed"])
@@ -162,7 +163,7 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
 # Summary printer
 # ---------------------------------------------------------------------------
 
-def print_summary(pre_results, post_results, model_vram_gb, total_gb, args):
+def print_summary(pre_results, post_results, model_vram_gb, total_gb):
     print("\n" + "="*70)
     print("BENCHMARK SUMMARY")
     print(f"GPU: {gpu_name()}  |  Total VRAM: {total_gb:.1f} GB")
@@ -260,7 +261,7 @@ def main():
             print(f"\n--- Post-compile sweep ---")
             post_results = run_sweep(engine, voice_config, args.sizes, output_dir, args.chunks)
 
-    print_summary(pre_results, post_results, model_vram_gb, total_gb, args)
+    print_summary(pre_results, post_results, model_vram_gb, total_gb)
 
     # Save raw results
     output = {

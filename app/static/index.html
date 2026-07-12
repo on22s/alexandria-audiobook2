@@ -5706,9 +5706,17 @@
                     document.getElementById('dsb-btn-cancel').style.display = '';
                 }
             } catch (e) {
+                // A transient status-GET failure must NOT destroy the saved
+                // project. Disarm dsbSaveRows (guarded on dsbCurrentProject)
+                // BEFORE clearing rows so its debounced POST can't overwrite the
+                // real samples on disk with an empty row, and do NOT dsbAddRow.
                 console.error('Failed to load project:', e);
+                dsbCurrentProject = '';
                 dsbRows = [];
-                dsbAddRow();
+                dsbRenderTable();
+                document.getElementById('dsb-form-area').style.display = 'none';
+                document.getElementById('dsb-btn-delete-project').style.display = 'none';
+                showToast('Failed to load dataset "' + name + '": ' + (e.message || e));
             }
         }
 

@@ -366,6 +366,19 @@ def train(args):
     enable_rocm_optimizations()
 
     print(f"[TRAIN] Device: {device}, dtype: {dtype}", flush=True)
+
+    # Fail fast on non-positive hyperparameters before loading the model /
+    # tokenizing (same rationale as the --epochs guard below): lora_r <= 0
+    # ZeroDivisions at the alpha/r ratio, gradient_accumulation_steps <= 0
+    # ZeroDivisions deep in the training loop, and lora_alpha <= 0 is degenerate.
+    for _name, _val in (("--lora_r", args.lora_r),
+                        ("--lora_alpha", args.lora_alpha),
+                        ("--gradient_accumulation_steps", args.gradient_accumulation_steps),
+                        ("--batch_size", args.batch_size)):
+        if _val < 1:
+            print(f"[ERROR] {_name} must be >= 1 (got {_val}).", flush=True)
+            sys.exit(1)
+
     print(f"[TRAIN] Config: epochs={args.epochs}, lr={args.lr}, lora_r={args.lora_r}, "
           f"lora_alpha={args.lora_alpha}, grad_accum={args.gradient_accumulation_steps}", flush=True)
 
@@ -408,7 +421,7 @@ def train(args):
     print(f"[TRAIN]   grad_accum      : {args.gradient_accumulation_steps}  (effective batch: {effective_batch})", flush=True)
     print(f"[TRAIN]   max_audio_secs  : {args.max_audio_seconds}", flush=True)
     print(f"[TRAIN]   language        : {args.language}", flush=True)
-    if args.target_loss:
+    if args.target_loss is not None:
         print(f"[TRAIN]   early stop at  : {args.target_loss}  (saves best checkpoint >= 4.1)", flush=True)
     else:
         print(f"[TRAIN]   loss target     : 4.1–4.2  (stop ~4.15; below 4.1 = garble risk)", flush=True)
@@ -626,7 +639,7 @@ def train(args):
         zone = ""
         if avg_loss < GARBLE_FLOOR:
             zone = " [BELOW FLOOR — garble risk]"
-        elif args.target_loss and avg_loss <= args.target_loss:
+        elif args.target_loss is not None and avg_loss <= args.target_loss:
             zone = " [TARGET REACHED]"
         oom_note = f" oom_skips={epoch_oom_skips}" if epoch_oom_skips else ""
         print(f"[EPOCH] {epoch}/{args.epochs} avg_loss={avg_loss:.4f}{zone}{oom_note}", flush=True)
@@ -683,6 +696,12 @@ def train(args):
         print(f"[DATA] Using first sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
 
     # Save training metadata
+    def _json_safe(x):
+        # /api/lora/models serializes with allow_nan=False, so a NaN final_loss
+        # (an all-OOM-skipped run leaves avg_loss=NaN) or the initial inf best_loss
+        # would 500 the whole model listing. Coerce any non-finite value to None.
+        return x if isinstance(x, (int, float)) and float("-inf") < x < float("inf") else None
+
     meta = {
         "model_name": args.model_name,
         "epochs": args.epochs,
@@ -692,8 +711,8 @@ def train(args):
         "gradient_accumulation_steps": args.gradient_accumulation_steps,
         "batch_size": args.batch_size,
         "num_samples": len(samples),
-        "final_loss": avg_loss,
-        "best_loss": best_loss,
+        "final_loss": _json_safe(avg_loss),
+        "best_loss": _json_safe(best_loss),
         "training_time_seconds": round(training_time, 1),
         "oom_skips": total_oom_skips,
         "language": args.language,

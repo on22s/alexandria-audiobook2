@@ -26,5 +26,12 @@ def load_default_prompts():
     )
 
 
-# Cached at import time — used by generate_script.py (subprocess, fresh each run)
-DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT = load_default_prompts()
+# Cached at import time — used by generate_script.py (subprocess, fresh each run).
+# Guard the load so a missing/malformed default_prompts.txt can't crash importers
+# at module load: app.py imports this module for the Setup tab and must still
+# start. generate_script uses these as fallbacks (params/config prompts normally
+# override them) and fails loudly if it ends up with no usable prompt.
+try:
+    DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT = load_default_prompts()
+except RuntimeError:
+    DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT = None, None

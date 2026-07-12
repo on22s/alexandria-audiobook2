@@ -27,5 +27,11 @@ def load_persona_prompts():
     )
 
 
-# Cached at import time — used by generate_personas.py (subprocess, fresh each run)
-PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT = load_persona_prompts()
+# Cached at import time — used by generate_personas.py (subprocess, fresh each run).
+# Guard the load so a missing/malformed persona_prompts.txt can't crash importers
+# at module load: app.py imports load_persona_prompts for the Setup tab and must
+# still start. generate_personas falls back to these and fails loudly if unusable.
+try:
+    PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT = load_persona_prompts()
+except RuntimeError:
+    PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT = None, None, None

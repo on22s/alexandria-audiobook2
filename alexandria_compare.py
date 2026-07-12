@@ -105,12 +105,22 @@ def checkpoint_path(jsonl_path: str) -> Path:
 def load_checkpoint(jsonl_path: str) -> dict:
     cp = checkpoint_path(jsonl_path)
     if cp.exists():
-        return json.loads(cp.read_text())
+        try:
+            return json.loads(cp.read_text())
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            # Don't let a truncated/corrupt checkpoint crash the whole session
+            # (it's saved after every decision, so a crash mid-write is likely).
+            print(f"WARNING: checkpoint {cp.name} is unreadable ({e}); starting fresh.")
     return {"decisions": {}, "cursor": 0}
 
 def save_checkpoint(jsonl_path: str, decisions: dict, cursor: int):
     cp = checkpoint_path(jsonl_path)
-    cp.write_text(json.dumps({"decisions": decisions, "cursor": cursor}, indent=2))
+    # Write to a temp file then atomically rename, so a crash/kill mid-write
+    # can't leave a half-written checkpoint that bricks the next resume and
+    # loses hundreds of manual decisions.
+    tmp = cp.with_suffix(cp.suffix + ".tmp")
+    tmp.write_text(json.dumps({"decisions": decisions, "cursor": cursor}, indent=2))
+    tmp.replace(cp)
 
 # ── Review log ────────────────────────────────────────────────────────────────
 # Records every entry the user manually reviewed (auto-approved entries are
@@ -192,6 +202,9 @@ def parse_reset_spec(reset_entry: str, reset_from: int, reset_range: str,
     if reset_from is not None:
         if reset_from < 0:
             sys.exit(f"--reset-from: index must be ≥ 0, got {reset_from}")
+        if reset_from >= total_entries:
+            sys.exit(f"--reset-from: index {reset_from} is past the last entry "
+                     f"({total_entries - 1}); nothing to reset")
         for i in range(reset_from, total_entries):
             indices.add(i)
     if reset_range:
@@ -588,19 +601,23 @@ def run(
         # for script-improvement patterns. ('q' sys.exit()s above, so we only
         # log entries that actually produced a decision.)
         decided = decisions[key]
-        log_decision(log_path, {
-            'entry_idx':       idx,
-            'audio':           entry.get('audio_filepath'),
-            'start':           entry.get('start'),
-            'end':             entry.get('end'),
-            'ratio':           round(ratio, 4),
-            'action':          decided['action'],
-            'no_source_match': no_source_match,
-            'annotated':       chunk_text,
-            'original':        None if no_source_match else orig_span_display,
-            'merge_preview':   merge_preview,
-            'final_text':      decided['text'],
-        })
+        # Don't log a 'skip' — the entry is re-shown and re-decided on the next
+        # run, so logging it now leaves a duplicate/conflicting record for the
+        # same entry_idx (and inflates the "N manual decisions" count).
+        if decided['action'] != 'skip':
+            log_decision(log_path, {
+                'entry_idx':       idx,
+                'audio':           entry.get('audio_filepath'),
+                'start':           entry.get('start'),
+                'end':             entry.get('end'),
+                'ratio':           round(ratio, 4),
+                'action':          decided['action'],
+                'no_source_match': no_source_match,
+                'annotated':       chunk_text,
+                'original':        None if no_source_match else orig_span_display,
+                'merge_preview':   merge_preview,
+                'final_text':      decided['text'],
+            })
 
         cursor = new_cursor
         save_checkpoint(jsonl_path, decisions, cursor)
@@ -639,7 +656,8 @@ def run(
         print(f"  Checkpoint removed (all entries decided).")
 
     if log_path.exists():
-        n_logged = sum(1 for _ in open(log_path, encoding='utf-8'))
+        with open(log_path, encoding='utf-8') as _lf:
+            n_logged = sum(1 for _ in _lf)
         print(f"  Review log : {log_path} ({n_logged} manual decisions)")
 
 # ── Entry point ───────────────────────────────────────────────────────────────
