@@ -134,21 +134,16 @@ def test_compute_split_signature_matches_manual():
 
 
 def test_resume_offset_skips_completed_chunks():
-    """The loop must skip already-completed chunks and keep restored context.
-    We simulate the loop's resume arithmetic directly."""
+    """Exercise the REAL resume-skip decision (generate_script.iter_resumable_chunks),
+    not a hand-rolled copy of it, so an off-by-one regression in the actual loop
+    is caught. Chunks 1-2 are done → only 3,4,5 (1-based) should be yielded."""
+    from generate_script import iter_resumable_chunks
     chunks = ["c1", "c2", "c3", "c4", "c5"]
-    completed_chunks = 2
-    restored_entries = [{"i": 0}, {"i": 1}]
-    processed = list(restored_entries)
-    for i, chunk in enumerate(chunks, 1):
-        if i <= completed_chunks:
-            continue
-        # context for chunk i is everything accumulated so far
-        assert len(processed) >= 2  # restored context is present
-        processed.append({"i": i - 1, "chunk": chunk})
-    # Only chunks 3,4,5 were processed; 1,2 came from the checkpoint
-    assert [p.get("chunk") for p in processed if "chunk" in p] == ["c3", "c4", "c5"]
-    assert len(processed) == 5
+    yielded = list(iter_resumable_chunks(chunks, completed_chunks=2))
+    assert yielded == [(3, "c3"), (4, "c4"), (5, "c5")], yielded
+    # Boundary cases: nothing done → all yielded; all done → none.
+    assert [c for _, c in iter_resumable_chunks(chunks, 0)] == chunks
+    assert list(iter_resumable_chunks(chunks, len(chunks))) == []
 
 
 def test_batch_state_roundtrip():
@@ -198,7 +193,7 @@ def test_probe_host_gate_blocks_arbitrary_hosts():
     assert ok is False and "refusing" in detail
 
 
-def test_probe_gate_allows_configured_remote(monkeypatch=None):
+def test_probe_gate_allows_configured_remote():
     """A non-Thunder host the user configured in config.json is probe-allowed."""
     import lmstudio_settings as ls
     orig = ls._configured_remote_hosts

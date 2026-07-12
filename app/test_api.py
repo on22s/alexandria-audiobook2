@@ -89,6 +89,19 @@ def wait_for_task(task, timeout=120, poll_interval=2):
     return False
 
 
+def wait_for_running(task, timeout=30, poll_interval=1):
+    """Poll /api/status/{task} until it reports running (the inverse of
+    wait_for_task), or timeout. Used to synchronize on a background GPU task
+    actually holding the lock before asserting a second task is blocked."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = requests.get(f"{BASE_URL}/api/status/{task}", timeout=10)
+        if r.status_code == 200 and r.json().get("running"):
+            return True
+        time.sleep(poll_interval)
+    return False
+
+
 def get(path, **kwargs):
     return requests.get(f"{BASE_URL}{path}", timeout=30, **kwargs)
 
@@ -150,6 +163,49 @@ def restores_config(fn):
     wrapper.__name__ = fn.__name__
     wrapper.__doc__ = fn.__doc__
     return wrapper
+
+
+# On-disk files the suite can mutate that have NO config-style snapshot/restore
+# API. Snapshot their bytes before the run and restore in cleanup so the quick
+# suite can't permanently repoint the app's active book (state.json), --full
+# can't overwrite the user's annotated_script.json, and the alias test can't
+# wipe real character_aliases.json. Direct file access like cleanup()'s
+# voice_config strip — only meaningful for a localhost run (the default).
+_DISK_STATE_FILES = ("state.json", "annotated_script.json", "character_aliases.json")
+_disk_state_snapshot = {}
+
+
+def _root_path(name):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", name)
+
+
+def snapshot_disk_state():
+    for name in _DISK_STATE_FILES:
+        p = _root_path(name)
+        if os.path.exists(p):
+            try:
+                with open(p, "rb") as f:
+                    _disk_state_snapshot[name] = f.read()
+            except OSError:
+                pass  # unreadable (e.g. a remote --url run) → don't register → don't restore
+        else:
+            _disk_state_snapshot[name] = None  # absent now → restore back to absent
+
+
+def restore_disk_state():
+    for name, original in _disk_state_snapshot.items():
+        p = _root_path(name)
+        try:
+            if original is None:
+                if os.path.exists(p):
+                    os.remove(p)
+            else:
+                tmp = p + ".tmp"
+                with open(tmp, "wb") as f:
+                    f.write(original)
+                os.replace(tmp, p)
+        except OSError:
+            pass
 
 
 @restores_config
@@ -697,6 +753,11 @@ def test_status_known_tasks():
         "script", "audio", "audacity_export",
         "review", "lora_training", "dataset_gen", "dataset_builder",
         "preparer", "batch_preparer", "persona",
+        # Newer/riskier tasks that also have process_state entries — their status
+        # contract (esp. batch_review's extra per-task fields the UI polls) was
+        # previously untested.
+        "batch_review", "batch_script", "nicknames", "voicelab",
+        "m4b_export", "voices",
     ]
     for name in task_names:
         r = get(f"/api/status/{name}")
@@ -757,6 +818,12 @@ def test_batch_preparer_start_schema():
     # 200 = started (script present), 400 = already running, 503 = script absent
     if r.status_code not in (200, 400, 503):
         raise TestFailure(f"Unexpected status {r.status_code}: {r.text[:200]}")
+    # If it actually started a background job, cancel it here rather than relying
+    # on test order — otherwise a quick-mode run leaves a real batch_preparer task
+    # running (the bogus test.wav fails anyway) and pollutes the task list.
+    if r.status_code == 200:
+        post("/api/preparer/batch/cancel", json={})
+        wait_for_task("batch_preparer")
 
 
 def test_batch_preparer_cancel():
@@ -1069,6 +1136,35 @@ def test_get_audacity_export():
 
 # ── Section 14: Full Tests — Generation ─────────────────────
 
+def test_gpu_lock_mutual_exclusion():
+    """The global GPU lock (claim_gpu_task/check_global_gpu_lock) must reject a
+    second GPU task while one is running, reject a double-start of the same task,
+    and release the lock on cancel. This subsystem previously shipped a deadlock
+    and had zero test coverage; this is the regression guard."""
+    r = post("/api/generate_script")
+    if r.status_code == 400:
+        raise TestFailure("SKIP: cannot start generate_script "
+                          "(no uploaded file, or a task is already running)")
+    assert_status(r, 200)
+    try:
+        if not wait_for_running("script"):
+            raise TestFailure("SKIP: generate_script never reported running "
+                              "(finished too fast to observe the lock)")
+        # A DIFFERENT GPU task must be rejected while 'script' holds the lock.
+        r2 = post("/api/review_script")
+        assert_status(r2, 400,
+                      "review_script must be blocked by the GPU lock while generate_script runs")
+        # The SAME task must not be double-started.
+        r3 = post("/api/generate_script")
+        assert_status(r3, 400, "generate_script must reject a second concurrent start")
+    finally:
+        post("/api/generate_script/cancel")
+        released = wait_for_task("script")
+    # Reached only when the try block passed; confirm the lock was released.
+    if not released:
+        raise TestFailure("GPU lock not released: generate_script still running after cancel")
+
+
 def test_generate_script():
     r = post("/api/generate_script")
     if r.status_code == 400:
@@ -1077,6 +1173,11 @@ def test_generate_script():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    # Don't leave the GPU task running — it holds the global lock and would make
+    # every later generation test 400 → SKIP (a green run that tested nothing).
+    post("/api/generate_script/cancel")
+    if not wait_for_task("script"):
+        raise TestFailure("generate_script did not stop after cancel — GPU lock stuck")
 
 
 def test_review_script():
@@ -1089,6 +1190,10 @@ def test_review_script():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    # Release the GPU lock before later tests (see test_generate_script).
+    post("/api/review_script/cancel")
+    if not wait_for_task("review"):
+        raise TestFailure("review_script did not stop after cancel — GPU lock stuck")
 
 
 
@@ -1097,6 +1202,12 @@ def test_generate_chunk():
         raise TestFailure("SKIP: no chunks available")
     r = post("/api/chunks/0/generate")
     assert_status(r, 200)
+    if r.json().get("status") != "started":
+        raise TestFailure(f"Expected status=started, got {r.json()}")
+    # It now claims the shared 'audio' GPU slot — wait for it to finish so it
+    # releases the lock before the next test (rather than leaving it held).
+    if not wait_for_task("audio"):
+        raise TestFailure("single-chunk generation did not finish — 'audio' slot may be stuck")
 
 
 def test_generate_batch():
@@ -1109,6 +1220,10 @@ def test_generate_batch():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    # /api/generate_batch sets running=True only inside the background task, so
+    # wait until it's actually running BEFORE waiting for it to finish — else the
+    # first poll can see running=False and declare completion prematurely.
+    wait_for_running("audio")
     # Wait for batch to finish so subsequent tests don't conflict
     if not wait_for_task("audio", timeout=120):
         raise TestFailure("generate_batch did not complete within 120s")
@@ -1197,7 +1312,15 @@ def test_dataset_builder_generate_sample():
     })
     assert_status(r, 200)
     data = r.json()
-    assert_key(data, "status")
+    if data.get("status") != "done":
+        raise TestFailure(f"Expected status=done, got {data}")
+    # Confirm the sample was actually recorded in the project state, not just that
+    # the response carried a 'status' key.
+    s = get(f"/api/dataset_builder/status/{TEST_PREFIX}gen_proj")
+    assert_status(s, 200)
+    samples = s.json().get("samples", [])
+    if not samples or samples[0].get("status") != "done":
+        raise TestFailure(f"sample not recorded as done in project state: {samples}")
 
     # Cleanup
     delete(f"/api/dataset_builder/{TEST_PREFIX}gen_proj")
@@ -1309,6 +1432,7 @@ def run_all_tests():
     run_test("get_audacity_export", test_get_audacity_export)
 
     section("Generation (TTS/LLM)")
+    run_test("gpu_lock_mutual_exclusion", test_gpu_lock_mutual_exclusion, requires_full=True)
     run_test("generate_script", test_generate_script, requires_full=True)
     run_test("review_script", test_review_script, requires_full=True)
     run_test("generate_chunk", test_generate_chunk, requires_full=True)
@@ -1323,6 +1447,14 @@ def run_all_tests():
 
     section("Dataset Builder Generate (TTS)")
     run_test("dataset_builder_generate_sample", test_dataset_builder_generate_sample, requires_full=True)
+
+    section("Resume-detect / read-only smokes")
+    run_test("checkpoint_detect_endpoints_shape", test_checkpoint_detect_endpoints_shape)
+    run_test("readonly_subsystem_smoke", test_readonly_subsystem_smoke)
+    run_test("merge_requires_chunks", test_merge_requires_chunks)
+    run_test("m4b_cover_roundtrip", test_m4b_cover_roundtrip)
+    run_test("voice_library_and_nicknames", test_voice_library_and_nicknames)
+    run_test("batch_endpoints_reject_bad_body", test_batch_endpoints_reject_bad_body)
 
 
 # ── Cleanup ──────────────────────────────────────────────────
@@ -1357,9 +1489,103 @@ def test_readonly_subsystem_smoke():
         raise TestFailure("/api/status/eta did not return a dict")
 
 
+def test_merge_requires_chunks():
+    """Exercise the merge lifecycle + GPU-lock claim/release. With no generated
+    chunks the background merge fails fast; the point is that it claims and then
+    RELEASES the 'audio' slot and logs an outcome, rather than hanging or 500-ing.
+    (merge_audio only concatenates existing WAVs — no TTS/GPU model needed.)"""
+    r = post("/api/merge")
+    if r.status_code == 400:
+        raise TestFailure("SKIP: audio task already running")
+    assert_status(r, 200)
+    if not wait_for_task("audio", timeout=60):
+        raise TestFailure("merge never finished — 'audio' slot may be stuck")
+    r = get("/api/status/audio")
+    assert_status(r, 200)
+    logs = r.json().get("logs", [])
+    if not any("merge" in str(l).lower() for l in logs):
+        raise TestFailure(f"merge produced no recognizable log output: {logs}")
+
+
+def test_m4b_cover_roundtrip():
+    """POST/DELETE /api/m4b_cover: reject a non-image, and (only when no real
+    cover is present, to avoid clobbering the user's) round-trip a tiny PNG."""
+    files = {"file": (f"{TEST_PREFIX}cover.txt", io.BytesIO(b"not an image"), "text/plain")}
+    r = post("/api/m4b_cover", files=files)
+    assert_status(r, 400, "non-image cover must be rejected")
+
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    if os.path.exists(os.path.join(root, "m4b_cover.jpg")):
+        return  # a real cover exists — don't overwrite it; the 400 check above still ran
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000a49444154789c6360000002000154a24f8b0000000049454e44ae426082")
+    files = {"file": (f"{TEST_PREFIX}cover.png", io.BytesIO(png), "image/png")}
+    r = post("/api/m4b_cover", files=files)
+    assert_status(r, 200)
+    if r.json().get("status") != "uploaded":
+        raise TestFailure(f"unexpected upload response: {r.json()}")
+    r = delete("/api/m4b_cover")
+    assert_status(r, 200)
+
+
+def test_voice_library_and_nicknames():
+    """Cast create→list→delete round-trip, reserved-name rejection, and a
+    character_aliases POST→GET round-trip. character_aliases.json is snapshotted
+    on disk and restored in cleanup so this doesn't destroy the user's aliases."""
+    cast_name = f"{TEST_PREFIX}cast"
+    r = post("/api/voice_library/casts", json={"name": cast_name})
+    if r.status_code == 409:
+        delete(f"/api/voice_library/casts/{cast_name}")  # leftover from a prior run
+        r = post("/api/voice_library/casts", json={"name": cast_name})
+    assert_status(r, 200)
+    r = get("/api/voice_library")
+    assert_status(r, 200)
+    if cast_name not in [c.get("name") for c in r.json().get("casts", [])]:
+        raise TestFailure("created cast not listed by /api/voice_library")
+    r = post("/api/voice_library/casts", json={"name": "__shared__"})
+    assert_status(r, 400, "reserved cast name must be rejected")
+    r = delete(f"/api/voice_library/casts/{cast_name}")
+    assert_status(r, 200)
+
+    r = post("/api/character_aliases", json={f"{TEST_PREFIX}kenji": "Kenji Sato"})
+    assert_status(r, 200)
+    if r.json().get("status") != "saved":
+        raise TestFailure(f"unexpected save response: {r.json()}")
+    r = get("/api/character_aliases")
+    assert_status(r, 200)
+    if r.json().get(f"{TEST_PREFIX}kenji") != "Kenji Sato":
+        raise TestFailure("alias did not round-trip through GET")
+
+
+def test_batch_endpoints_reject_bad_body():
+    """Batch start endpoints must reject an invalid body with a 4xx and WITHOUT
+    leaving the task running (no GPU claim on the validation-failure path)."""
+    for path in ("/api/review_script/batch/start", "/api/generate_script/batch/start"):
+        r = post(path, json={})  # missing the required list field → 422 from pydantic
+        if r.status_code not in (400, 422):
+            raise TestFailure(f"{path}: expected 4xx for an empty body, got {r.status_code}")
+    r = post("/api/review_script/batch/start", json={"script_names": []})
+    assert_status(r, 400, "empty script_names should 400")
+    for task in ("batch_review", "batch_script"):
+        r = get(f"/api/status/{task}")
+        assert_status(r, 200)
+        if r.json().get("running"):
+            raise TestFailure(f"{task} left running after a rejected batch start")
+
+
 def cleanup():
     print(f"\n--- Cleanup ---")
     items = []
+
+    # Restore on-disk state files the suite can mutate (see snapshot_disk_state).
+    restore_disk_state()
+
+    try:
+        delete(f"/api/voice_library/casts/{TEST_PREFIX}cast")
+        items.append("test cast")
+    except Exception:
+        pass
 
     try:
         delete(f"/api/scripts/{TEST_PREFIX}script")
@@ -1416,6 +1642,20 @@ def cleanup():
     except Exception:
         pass
 
+    # Remove any _test_-prefixed files test_upload_file left in uploads/.
+    try:
+        up_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+        if os.path.isdir(up_dir):
+            for fn in os.listdir(up_dir):
+                if fn.startswith(TEST_PREFIX):
+                    try:
+                        os.remove(os.path.join(up_dir, fn))
+                        items.append(f"upload {fn}")
+                    except OSError:
+                        pass
+    except Exception:
+        pass
+
     if items:
         print(f"  Cleaned: {', '.join(items)}")
     else:
@@ -1440,6 +1680,11 @@ def main():
     print(f"Alexandria API Tests")
     print(f"Server: {BASE_URL}")
     print(f"Mode:   {'FULL (includes TTS/LLM tests)' if FULL_MODE else 'QUICK (no TTS/LLM)'}")
+
+    # Snapshot mutable on-disk state BEFORE any test runs so cleanup() can restore
+    # it (test_upload_file repoints state.json; --full generation overwrites
+    # annotated_script.json; the alias test rewrites character_aliases.json).
+    snapshot_disk_state()
 
     try:
         run_all_tests()
