@@ -3236,7 +3236,6 @@ async def merge_audio_endpoint(background_tasks: BackgroundTasks):
     # Or we can link it to process_state["audio"]
 
     def task():
-        process_state["audio"]["running"] = True
         process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = ["Starting merge..."]
         try:
@@ -3250,16 +3249,22 @@ async def merge_audio_endpoint(background_tasks: BackgroundTasks):
         finally:
             process_state["audio"]["running"] = False
 
+    # Claim the GPU/TTS slot atomically on the request thread: a merge shares
+    # process_state["audio"] with generation, so without this two rapid POSTs (or
+    # a merge started during generation) both pass and clobber each other, and a
+    # merge's early finally would free the lock while TTS is still in flight.
+    claim_gpu_task("audio")
     background_tasks.add_task(task)
     return {"status": "started"}
 
 @app.post("/api/export_audacity")
 async def export_audacity_endpoint(background_tasks: BackgroundTasks):
-    if process_state["audacity_export"]["running"]:
-        raise HTTPException(status_code=400, detail="Audacity export already running")
+    # Atomic check-and-set on the request thread (closes the double-start TOCTOU
+    # where two rapid POSTs both pass a plain running check before either sets it).
+    # audacity_export is a NON_GPU_TASK, so this only guards against self-double-start.
+    claim_gpu_task("audacity_export")
 
     def task():
-        process_state["audacity_export"]["running"] = True
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
         try:
             success, msg = project_manager.export_audacity()
@@ -3292,11 +3297,11 @@ class M4bExportRequest(BaseModel):
 
 @app.post("/api/merge_m4b")
 async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: BackgroundTasks):
-    if process_state["m4b_export"]["running"]:
-        raise HTTPException(status_code=400, detail="M4B export already running")
+    # Atomic check-and-set on the request thread (closes the double-start TOCTOU
+    # where two rapid POSTs both pass a plain running check before either sets it).
+    claim_gpu_task("m4b_export")
 
     def task():
-        process_state["m4b_export"]["running"] = True
         process_state["m4b_export"]["logs"] = ["Starting M4B export..."]
         try:
             meta = {
