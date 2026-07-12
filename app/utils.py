@@ -221,6 +221,17 @@ def atomic_json_write(data, target_path, max_retries=5):
         for attempt in range(max_retries):
             try:
                 os.replace(tmp_path, target_path)
+                # Also fsync the directory so the rename itself is durable across
+                # power loss (POSIX) — the file fsync above doesn't cover the
+                # directory entry. Best-effort; unsupported/needless on Windows.
+                try:
+                    dir_fd = os.open(os.path.dirname(target_path) or ".", os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
+                except (OSError, AttributeError):
+                    pass
                 return
             except OSError as e:
                 if e.errno == errno.EXDEV:
@@ -274,7 +285,7 @@ def atomic_json_write(data, target_path, max_retries=5):
 
 
 @contextlib.contextmanager
-def file_lock(target_path, timeout=10, stale_after=30):
+def file_lock(target_path, timeout=10, stale_after=120):
     """Advisory cross-process lock for read-modify-write access to target_path.
 
     Coordinates against a sibling `<target_path>.lock` marker file, created via
@@ -293,7 +304,9 @@ def file_lock(target_path, timeout=10, stale_after=30):
     Args:
         target_path: Path to the file being protected
         timeout: Maximum seconds to wait for lock acquisition (default: 10)
-        stale_after: Seconds after which a lock file is considered abandoned (default: 30)
+        stale_after: Seconds after which a lock file is considered abandoned
+            (default: 120 — kept well above any plausible critical-section
+            duration so a still-live holder isn't reaped and double-held)
     """
     lock_path = target_path + ".lock"
     deadline = time.time() + timeout
@@ -324,3 +337,57 @@ def file_lock(target_path, timeout=10, stale_after=30):
                 os.remove(lock_path)
             except OSError:
                 pass
+
+
+# --- Generic speaker de-collision ---
+
+# Common generic character labels that collide across books (a voice assigned to
+# "man" in one book would otherwise bleed into "man" in another).
+_GENERIC_SPEAKER_WORDS = {
+    "man", "woman", "old man", "young woman", "boy", "girl", "child", "person",
+    "someone", "stranger", "soldier", "guard", "voice", "villager", "crowd",
+    "villagers", "guards", "soldiers", "police", "officer", "doctor", "nurse",
+    "waiter", "driver", "maid", "servant", "priest",
+}
+
+
+def de_generic_speakers(entries, book_id):
+    """Rename generic speaker labels (e.g. 'man', 'woman') to be unique to the
+    book, e.g. 'Man Book', so voices don't collide across books. 'NARRATOR' is
+    always left untouched.
+
+    Mutates `entries` in place (matching review_script.dedupe_speakers) and
+    returns the rename mapping `{original_label: new_label}` (empty when nothing
+    changed), suitable for feeding into `_remap_voice_config`. Idempotent: a
+    label already suffixed with `book_id` is no longer a generic word, so a
+    second call is a no-op.
+    """
+    if not book_id or not entries:
+        return {}
+
+    renamed = {}
+    for e in entries:
+        for key in ("speaker", "type"):
+            if key in e and e[key]:
+                val = e[key].strip()
+                if not val or val.upper() == "NARRATOR":
+                    continue
+
+                # Strip a leading "the " only for the generic-word membership
+                # test; the rename keeps the original label's wording.
+                check_val = val.lower()
+                if check_val.startswith("the "):
+                    check_val = check_val[4:].strip()
+
+                if check_val in _GENERIC_SPEAKER_WORDS:
+                    if val not in renamed:
+                        capitalized = " ".join(w.capitalize() for w in val.split())
+                        renamed[val] = f"{capitalized} {book_id}"
+                    e[key] = renamed[val]
+
+    if renamed:
+        print(f"Made {len(renamed)} generic speaker label(s) unique to '{book_id}':")
+        for orig, new in renamed.items():
+            print(f"  '{orig}' -> '{new}'")
+
+    return renamed
