@@ -1516,6 +1516,9 @@
                             <button class="btn btn-success btn-lg" id="btn-lora-train" onclick="startLoraTraining()">
                                 <i class="fas fa-dumbbell me-1"></i>Start Training
                             </button>
+                            <button class="btn btn-danger btn-lg ms-2" id="btn-lora-cancel" style="display:none" onclick="cancelLoraTraining()">
+                                <i class="fas fa-stop me-1"></i>Cancel
+                            </button>
                             <span id="lora-train-status" class="ms-3 text-muted"></span>
                         </div>
                     </div>
@@ -5431,6 +5434,7 @@
 
             try {
                 const result = await API.post('/api/lora/train', request);
+                document.getElementById('btn-lora-cancel').style.display = 'inline-block';
                 document.getElementById('lora-progress-section').style.display = 'block';
                 document.getElementById('lora-train-status').innerHTML = '<span class="text-info">Training in progress...</span>';
                 pollLoraTraining(request.epochs);
@@ -5487,6 +5491,9 @@
                     notifyJobDone('lora_training');
                     const btn = document.getElementById('btn-lora-train');
                     btn.disabled = false;
+                    const cancelBtn = document.getElementById('btn-lora-cancel');
+                    cancelBtn.style.display = 'none';
+                    cancelBtn.disabled = false;
 
                     const isDone = status.logs.some(l => l.includes('[DONE]'));
                     const isError = status.logs.some(l => l.includes('[ERROR]'));
@@ -5508,6 +5515,18 @@
                 }
             });
         }
+
+        window.cancelLoraTraining = async () => {
+            const btn = document.getElementById('btn-lora-cancel');
+            btn.disabled = true;
+            try {
+                await API.post('/api/lora/train/cancel', {});
+                document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Cancellation requested…</span>';
+            } catch (e) {
+                btn.disabled = false;
+                showToast('Failed to cancel training: ' + e.message, 'error');
+            }
+        };
 
         async function loadLoraModels() {
             try {

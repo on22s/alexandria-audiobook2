@@ -509,7 +509,7 @@ process_state = {
                      "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
-    "lora_training": {"running": False, "logs": [], "cancel": False, "process": None, "pid": None, "paused": False, "start_time": None},
+    "lora_training": {"running": False, "logs": [], "cancel": False, "process": None, "pid": None, "start_time": None},
     "lora_test": {"running": False, "logs": []},
     "voice_design": {"running": False, "logs": []},
     "lmstudio_optimize": {"running": False, "logs": []},
