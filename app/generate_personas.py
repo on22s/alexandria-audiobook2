@@ -11,7 +11,7 @@ from openai import OpenAI
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 
 
 def normalize_speaker_name(name):
@@ -135,7 +135,7 @@ def _collect_narrator_context(script, speaker, window=4):
     return context_lines
 
 
-def _resolve_aliases_batch(client, model_name, speakers_info, existing_names):
+def _resolve_aliases_batch(client, model_name, speakers_info, existing_names, context_length=None):
     """Resolve aliases for all speakers in a single one-shot LLM call.
 
     speakers_info is a dict:
@@ -186,14 +186,17 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names):
     )
 
     try:
+        messages = [
+            {"role": "system", "content": "You are a precise casting director. You output ONLY valid JSON."},
+            {"role": "user", "content": prompt}
+        ]
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": "You are a precise casting director. You output ONLY valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages,
             temperature=0.1,
-            max_tokens=max(1500, len(speakers_info) * 80),
+            max_tokens=get_effective_max_tokens(
+                max(1500, len(speakers_info) * 80), context_length,
+                messages, hard_max=12000),
         )
         # Check if response has choices before accessing
         if not response.choices or len(response.choices) == 0:
@@ -499,19 +502,18 @@ def _parse_discovered_characters(parsed):
     return characters
 
 
-def _discover_batch_characters(client, model_name, prompt, batch, batch_number):
+def _discover_batch_characters(client, model_name, prompt, batch, batch_number, context_length=None):
     """Run one discovery LLM call for a batch, falling back to speaker stubs on
     an empty/unparseable response or an API error. Returns a list of characters.
     """
     try:
+        messages = [{"role": "system", "content": "You produce concise JSON only."},
+                    {"role": "user", "content": prompt}]
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": "You produce concise JSON only."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages,
             temperature=0.2,
-            max_tokens=4000,
+            max_tokens=get_effective_max_tokens(4000, context_length, messages, hard_max=16000),
         )
         raw_content = response.choices[0].message.content.strip()
         characters = _parse_discovered_characters(extract_json_object(raw_content))
@@ -546,7 +548,7 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 
 
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
-                     samples, system_prompt, advanced_prompt):
+                     samples, system_prompt, advanced_prompt, context_length=None):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio.
     """
@@ -559,14 +561,13 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     description = ""
     ref_text = ""
     try:
+        messages = [{"role": "system", "content": system_prompt or "You produce concise JSON only."},
+                    {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}]
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": system_prompt or "You produce concise JSON only."},
-                {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt)}
-            ],
+            messages=messages,
             temperature=0.25,
-            max_tokens=600,
+            max_tokens=get_effective_max_tokens(600, context_length, messages, hard_max=4000),
         )
         parsed = extract_json_object(response.choices[0].message.content.strip())
         if isinstance(parsed, dict):
@@ -592,7 +593,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     time.sleep(0.5)
 
 
-def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None):
+def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None):
     ref_dir = os.path.join(root, "persona_refs")
     os.makedirs(ref_dir, exist_ok=True)
 
@@ -605,14 +606,14 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
     for batch_number, (batch_start, batch) in enumerate(batches, start=1):
         prompt = _build_batch_discovery_prompt(batch_start, batch, selected_speakers)
         print(f"Advanced discovery batch {batch_number}/{len(batches)} ({len(batch)} entries)")
-        characters = _discover_batch_characters(client, model_name, prompt, batch, batch_number)
+        characters = _discover_batch_characters(client, model_name, prompt, batch, batch_number, context_length)
         _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_number)
 
     # Phase 2: compile each speaker's refs into a final persona + preview.
     print("Compiling character reference files into final voice personas.")
     for speaker in selected_speakers:
         _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
-                         speaker, samples, system_prompt, advanced_prompt)
+                         speaker, samples, system_prompt, advanced_prompt, context_length)
 
 
 # _atomic_json_write imported from utils
@@ -670,7 +671,7 @@ def main():
     # no VRAM watchdog or concurrency wave processing of its own (personas
     # are generated sequentially per speaker/batch), so only the self-heal
     # call applies here.
-    _, _, heal_msg = ensure_ideal_settings(
+    _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 
@@ -716,6 +717,7 @@ def main():
             args=args,
             system_prompt=persona_system,
             advanced_prompt=persona_advanced,
+            context_length=lm_status.get("context_length"),
         )
         try:
             _atomic_json_write(voice_config, voice_config_path)
@@ -771,7 +773,8 @@ def main():
             existing_configured = list(voice_config.keys()) + list(batch_mapping.values())
             
             print(f"Resolving alias batch {idx//chunk_size + 1} ({len(chunk)} speakers)...")
-            chunk_mapping = _resolve_aliases_batch(client, model_name, speakers_info, existing_configured)
+            chunk_mapping = _resolve_aliases_batch(client, model_name, speakers_info, existing_configured,
+                                                   lm_status.get("context_length"))
             batch_mapping.update(chunk_mapping)
 
         # Build case-insensitive normalized lookup mapping to survive LLM key casing changes
@@ -821,14 +824,16 @@ def main():
                 sample_lines=sample_text
             )
 
+            messages = [
+                {"role": "system", "content": persona_system},
+                {"role": "user", "content": user_prompt}
+            ]
             response = client.chat.completions.create(
                 model=model_name,
-                messages=[
-                    {"role": "system", "content": persona_system},
-                    {"role": "user", "content": user_prompt}
-                ],
+                messages=messages,
                 temperature=0.3,
-                max_tokens=400,
+                max_tokens=get_effective_max_tokens(
+                    400, lm_status.get("context_length"), messages, hard_max=3000),
             )
 
             text = response.choices[0].message.content.strip()

@@ -662,9 +662,9 @@
                                     <div class="form-text">Size of text chunks sent to LLM (characters). Smaller = more precise, larger = more context.</div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Max Tokens (response)</label>
+                                    <label class="form-label">Baseline Response Tokens</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
-                                    <div class="form-text">Maximum tokens for LLM response. Increase if output is being truncated.</div>
+                                    <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling.</div>
                                 </div>
                             </div>
                             <h6 class="mb-3">LLM Sampling Parameters</h6>
@@ -3433,7 +3433,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control lora-character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${voiceType === 'lora' ? (config.character_style || '') : ''}">
+                                            <input type="text" class="form-control lora-character-style" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                 </div>
@@ -3514,7 +3514,10 @@
             try {
                 // Make sure lora caches are fresh so we can resolve suggested adapters in the dropdowns
                 try { window._loraModelsCache = await API.get('/api/lora/models'); } catch (e) { console.debug('lora-models cache refresh failed', e); }
-                const res = await API.post('/api/suggest_voices', { only_unset: false });
+                const res = await API.post('/api/suggest_voices', {
+                    only_unset: false,
+                    cast: window._selectedCast || null,
+                });
                 window._voiceSuggestions = res.suggestions || {};
                 const n = Object.keys(window._voiceSuggestions).length;
                 if (n === 0) {
@@ -3554,22 +3557,33 @@
                     body.appendChild(banner);
                 }
                 const typeLabel = sugg.type === 'builtin_lora' ? 'Built-in' : 'LoRA';
+                const reuseText = sugg.reused
+                    ? `Reused by ${sugg.reuse_count_before} existing cast character${sugg.reuse_count_before !== 1 ? 's' : ''}`
+                    : 'Unused in this series cast';
                 banner.innerHTML = `
                     <div class="me-2 small">
                         <i class="fas fa-wand-magic-sparkles me-1"></i>
-                        <strong>Suggested ${typeLabel} voice:</strong> ${escapeHtml(sugg.adapter_name)}
+                        <span class="badge ${sugg.priority === 'major' ? 'bg-primary' : 'bg-secondary'} me-1">${escapeHtml((sugg.priority || 'minor').toUpperCase())}</span>
+                        <strong>${sugg.line_count || 0} lines · Suggested ${typeLabel} voice:</strong> ${escapeHtml(sugg.adapter_name)}
+                        <span class="d-block"><strong>Style:</strong> ${escapeHtml(sugg.character_style || '')}</span>
+                        <span class="d-block ${sugg.reused ? 'text-warning' : 'text-success'}">${escapeHtml(reuseText)}${sugg.forced_reuse ? ' (candidate pool exhausted)' : ''}</span>
                         ${sugg.reason ? `<span class="text-muted d-block">${escapeHtml(sugg.reason)}</span>` : ''}
                     </div>
                     <button class="btn btn-sm btn-success flex-shrink-0" data-voice="${escapeHtml(name)}" onclick="applyVoiceSuggestion(this.dataset.voice)"><i class="fas fa-check me-1"></i>Apply</button>
                 `;
             });
+            const container = document.getElementById('voices-list');
+            Array.from(container.querySelectorAll('.voice-card'))
+                .sort((a, b) => (window._voiceSuggestions[b.dataset.voice]?.line_count || window._lineCounts[b.dataset.voice] || 0)
+                               - (window._voiceSuggestions[a.dataset.voice]?.line_count || window._lineCounts[a.dataset.voice] || 0))
+                .forEach(card => container.appendChild(card));
         }
 
-        function applyVoiceSuggestion(name) {
+        function applySuggestionToCard(name) {
             const sugg = window._voiceSuggestions[name];
-            if (!sugg) { return; }
+            if (!sugg) { return false; }
             const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
-            if (!card) { return; }
+            if (!card) { return false; }
             const body = card.querySelector('.card-body');
 
             // Select the correct voice type radio and reveal its options
@@ -3592,16 +3606,44 @@
                 }
             }
 
+            const styleInput = body.querySelector(sugg.type === 'builtin_lora'
+                ? '.builtin-lora-style' : '.lora-character-style');
+            if (styleInput) { styleInput.value = sugg.character_style || ''; }
+
             // Remove the banner and clear from pending suggestions
             const banner = card.querySelector('.voice-suggestion');
             if (banner) { banner.remove(); }
             delete window._voiceSuggestions[name];
             updateSuggestionToolbar();
-            saveVoicesDebounced();
+            return true;
         }
 
-        function applyAllVoiceSuggestions() {
-            Object.keys(window._voiceSuggestions).forEach(name => applyVoiceSuggestion(name));
+        async function applyVoiceSuggestion(name) {
+            const sugg = window._voiceSuggestions[name];
+            if (!sugg) { return; }
+            try {
+                await API.post('/api/suggest_voices/apply', {
+                    character: name, cast: window._selectedCast || null, suggestion: sugg,
+                });
+                applySuggestionToCard(name);
+                await loadCastLibrary();
+            } catch (e) {
+                showToast('Failed to apply suggestion: ' + (e.message || String(e)), 'error');
+            }
+        }
+
+        async function applyAllVoiceSuggestions() {
+            const pending = { ...window._voiceSuggestions };
+            if (!Object.keys(pending).length) { return; }
+            try {
+                await API.post('/api/suggest_voices/apply_bulk', {
+                    cast: window._selectedCast || null, suggestions: pending,
+                });
+                Object.keys(pending).forEach(name => applySuggestionToCard(name));
+                await loadCastLibrary();
+            } catch (e) {
+                showToast('Failed to apply suggestions: ' + (e.message || String(e)), 'error');
+            }
         }
 
         function clearVoiceSuggestions() {
@@ -3662,6 +3704,7 @@
 
         function onCastChange() {
             window._selectedCast = document.getElementById('cast-select').value;
+            clearVoiceSuggestions();
             renderCastMembers();
         }
 
@@ -3675,10 +3718,13 @@
             }
             const memberRow = (m, castName) => `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2">
-                    <span class="small">${escapeHtml(m.name)} <span class="text-muted">(${escapeHtml(m.type || 'custom')}${m.line_count ? ', ' + m.line_count + ' lines' : ''})</span></span>
+                    <span class="small">${escapeHtml(m.name)}${m.generic && m.book_id ? ` — ${escapeHtml(m.book_id)}` : ''}
+                        <span class="text-muted">(${escapeHtml(m.type || 'custom')}${m.line_count ? ', ' + m.line_count + ' lines' : ''})</span>
+                        ${m.character_style ? `<span class="d-block text-muted">${escapeHtml(m.character_style)}</span>` : ''}</span>
                     <button class="btn btn-sm btn-link text-danger p-0" title="Remove from library" data-cast="${escapeHtml(castName)}" data-key="${escapeHtml(m.key)}" onclick="deleteCastMember(this.dataset.cast, this.dataset.key)"><i class="fas fa-times"></i></button>
                 </li>`;
             const members = (cast && cast.members) || [];
+            const usageRows = Object.entries((cast && cast.adapter_usage) || {}).sort((a, b) => b[1].character_count - a[1].character_count);
             panel.innerHTML = `
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -3690,6 +3736,12 @@
                         <ul class="list-group list-group-flush border rounded">${shared.length ? shared.map(m => memberRow(m, '__shared__')).join('') : '<li class="list-group-item small text-muted py-2 px-2">None yet — the narrator lands here automatically.</li>'}</ul>
                     </div>
                 </div>`;
+            if (usageRows.length) {
+                panel.innerHTML += `<div class="small fw-bold mt-2">LoRA reuse in this series</div>
+                    <ul class="list-group list-group-flush border rounded">${usageRows.map(([id, u]) =>
+                        `<li class="list-group-item py-1 px-2 small"><strong>${escapeHtml(id)}</strong> — ${u.character_count} character${u.character_count !== 1 ? 's' : ''}, ${u.total_lines} lines<br><span class="text-muted">${escapeHtml((u.characters || []).join(', '))}</span></li>`
+                    ).join('')}</ul>`;
+            }
         }
 
         async function createCast() {
@@ -4972,6 +5024,7 @@
                     return;
                 }
                 showToast(`Script "${name}" loaded.`, 'success');
+                clearVoiceSuggestions();
                 await loadChunks(true);
                 await loadVoices();
                 loadSavedScripts();

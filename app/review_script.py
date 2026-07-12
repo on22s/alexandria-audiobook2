@@ -12,7 +12,7 @@ from openai import OpenAI
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
-from lmstudio_settings import ensure_ideal_settings, get_current_status
+from lmstudio_settings import ensure_ideal_settings, get_current_status, get_effective_max_tokens
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json
 
 
@@ -342,7 +342,7 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
 
 
 def dedupe_speakers(client, model_name, entries, registry_path=None,
-                    max_tokens=2000, temperature=0.2):
+                    max_tokens=2000, temperature=0.2, context_length=None):
     """Ask the LLM to merge speaker labels that are the same character.
     Does not mutate `entries` - the caller applies the returned changes. If
     `registry_path` is given, the shared canonical names there are fed to the
@@ -407,13 +407,15 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     mapping = {}
     try:
+        messages = [
+            {"role": "system", "content": SPEAKER_DEDUPE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": SPEAKER_DEDUPE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=max_tokens,
+            messages=messages,
+            max_tokens=get_effective_max_tokens(
+                max_tokens, context_length, messages, hard_max=12000),
             temperature=temperature,
         )
         raw = response.choices[0].message.content or ""
@@ -816,6 +818,8 @@ def main():
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
+    gen_params.context_length = lm_status.get("context_length")
+    gen_params.hard_max_tokens = 32768
 
     client = OpenAI(base_url=base_url, api_key=api_key)
 
@@ -1118,7 +1122,8 @@ def main():
     elif args.dedupe_speakers:
         print("\nResolving character aliases (merging duplicate names)...")
         dedupe_map, speakers_merged, dedupe_changes = dedupe_speakers(
-            client, model_name, all_corrected, registry_path=args.alias_registry
+            client, model_name, all_corrected, registry_path=args.alias_registry,
+            context_length=lm_status.get("context_length")
         )
         for idx, key, new_value in dedupe_changes:
             all_corrected[idx][key] = new_value

@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 from utils import extract_balanced
 
 def clean_json_string(text):
@@ -229,6 +229,8 @@ class LLMGenParams:
     min_p: float = None
     presence_penalty: float = 0.0
     banned_tokens: list = None
+    context_length: int = None
+    hard_max_tokens: int = 16384
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
@@ -256,16 +258,20 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     for attempt in range(max_retries + 1):
         t0 = time.time()
         try:
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            effective_max = get_effective_max_tokens(
+                params.max_tokens, params.context_length, messages,
+                params.hard_max_tokens)
             response = client.chat.completions.create(
                 model=model_name,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                messages=messages,
                 temperature=params.temperature,
                 top_p=params.top_p,
                 presence_penalty=params.presence_penalty,
-                max_tokens=params.max_tokens,
+                max_tokens=effective_max,
                 extra_body={
                     k: v for k, v in {
                         "top_k": params.top_k,
@@ -300,7 +306,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f" | took {time.time() - t0:.1f}s")
 
             if finish_reason == "length":
-                print(f"  WARNING: Response was truncated (hit max_tokens={params.max_tokens}). Consider increasing max_tokens.")
+                print(f"  WARNING: Response was truncated (hit effective max_tokens={effective_max}). Consider optimizing LM Studio context.")
 
         except Exception as e:
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
@@ -456,7 +462,7 @@ def main():
     # no VRAM watchdog or concurrency wave processing of its own (chunks are
     # processed strictly sequentially), so only the self-heal call applies
     # here - is_remote/lm_status aren't needed for anything else in this file.
-    _, _, heal_msg = ensure_ideal_settings(
+    _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 
@@ -489,6 +495,7 @@ def main():
         min_p=min_p,
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
+        context_length=lm_status.get("context_length"),
     )
 
     for i, chunk in enumerate(chunks, 1):

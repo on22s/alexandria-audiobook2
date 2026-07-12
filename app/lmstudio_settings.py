@@ -31,6 +31,38 @@ DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
 REMOTE_IDEAL_SETTINGS = {"context_length": 98304, "parallel": 2}
 REMOTE_DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4}
 
+
+class TokenBudgetError(ValueError):
+    """The prompt and safety reserve do not fit the verified context."""
+
+
+def get_effective_max_tokens(fallback, context_length=None, messages=None,
+                             hard_max=None, reserve=512):
+    """Return a context-safe completion budget for a production LLM call.
+
+    ``fallback`` is the conservative allowance used when live model context is
+    unknown.  A verified larger context may raise it, but never beyond the
+    call-specific ``hard_max`` or the space left after prompt and reserve.
+    Character-based prompt estimation is deliberately conservative because
+    this helper must work without loading a model-specific tokenizer.
+    """
+    fallback = max(1, int(fallback))
+    hard_max = max(1, int(hard_max or fallback))
+    fallback = min(fallback, hard_max)
+    if not context_length:
+        return min(fallback, hard_max)
+    context_length = max(1, int(context_length))
+    prompt_chars = sum(len(str(message.get("content") or ""))
+                       for message in (messages or []))
+    prompt_tokens = (prompt_chars + 2) // 3
+    available = context_length - prompt_tokens - max(0, int(reserve))
+    if available < 1:
+        raise TokenBudgetError(
+            f"Prompt estimate ({prompt_tokens}) plus reserve ({reserve}) exceeds "
+            f"the loaded context ({context_length}). Reduce the input or increase LM Studio context.")
+    scaled_target = max(fallback, context_length // 4)
+    return max(1, min(hard_max, scaled_target, available))
+
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
 

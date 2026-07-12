@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization
+from utils import atomic_json_write, atomic_json_write_pair, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, is_generic_speaker, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -36,7 +36,7 @@ from persona_prompts import load_persona_prompts
 from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded, builtin_hf_name
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status)
+                               get_current_status, get_effective_max_tokens)
 from review_script import clear_checkpoint, _checkpoint_path
 
 # Setup logging
@@ -70,6 +70,35 @@ CHARACTER_ALIASES_PATH = os.path.join(ROOT_DIR, "character_aliases.json")
 REPORTS_DIR = os.path.join(ROOT_DIR, "reports")
 API_LOG_DIR = os.path.join(ROOT_DIR, "logs", "api")
 os.makedirs(API_LOG_DIR, exist_ok=True)
+
+
+def get_active_book_id() -> Optional[str]:
+    """Return the stable active-book id stored in state.json, if available."""
+    state = safe_load_json(os.path.join(ROOT_DIR, "state.json"), default={})
+    book_id = secure_filename(state.get("active_book_id") or "")
+    if book_id:
+        return book_id
+    input_path = state.get("input_file_path") or ""
+    stem = os.path.splitext(os.path.basename(input_path))[0]
+    return secure_filename(stem) or None
+
+
+def _save_active_book_id(book_id: str, input_path: Optional[str] = None) -> None:
+    state_path = os.path.join(ROOT_DIR, "state.json")
+    state = safe_load_json(state_path, default={})
+    state["active_book_id"] = secure_filename(book_id)
+    if input_path is not None:
+        state["input_file_path"] = input_path
+    atomic_json_write(state, state_path)
+
+
+def _saved_book_meta_path(name: str) -> str:
+    return os.path.join(SCRIPTS_DIR, f"{name}.meta.json")
+
+
+def _get_saved_book_id(name: str) -> str:
+    meta = safe_load_json(_saved_book_meta_path(name), default={})
+    return secure_filename(meta.get("book_id") or name)
 
 
 def _task_log_path(task_name: str) -> str:
@@ -344,6 +373,16 @@ class VoiceConfigItem(BaseModel):
 class SuggestVoicesRequest(BaseModel):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
     max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
+    cast: Optional[str] = None
+
+class VoiceSuggestionApplyRequest(BaseModel):
+    character: str
+    cast: Optional[str] = None
+    suggestion: Dict
+
+class VoiceSuggestionApplyBulkRequest(BaseModel):
+    cast: Optional[str] = None
+    suggestions: Dict[str, Dict]
 
 class CastCreateRequest(BaseModel):
     name: str
@@ -1297,13 +1336,21 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
     try:
         client, model_name = _make_llm_client(timeout=60)
 
+        messages = [
+            {"role": "system", "content": _REPORT_SUMMARY_SYSTEM_PROMPT},
+            {"role": "user", "content": markdown_body},
+        ]
+        full_cfg = safe_load_json(CONFIG_PATH, default={})
+        llm_cfg = full_cfg.get("llm") or {}
+        status = get_current_status(
+            full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
+            model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True)
         response = client.chat.completions.create(
             model=model_name,
-            messages=[
-                {"role": "system", "content": _REPORT_SUMMARY_SYSTEM_PROMPT},
-                {"role": "user", "content": markdown_body},
-            ],
+            messages=messages,
             temperature=0.4,
+            max_tokens=get_effective_max_tokens(
+                800, status.get("context_length"), messages, hard_max=4000),
         )
         text = (response.choices[0].message.content or "").strip()
         return text or None
@@ -2219,6 +2266,7 @@ async def upload_file(file: UploadFile = File(...)):
                 _warn_corrupted_json("state", state_path, "overwriting with new data", e)
 
     state["input_file_path"] = file_path
+    state["active_book_id"] = secure_filename(os.path.splitext(os.path.basename(file_path))[0])
     atomic_json_write(state, state_path)
 
     return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
@@ -3047,38 +3095,22 @@ def _build_lora_candidates():
     return candidates
 
 
-def _heuristic_match(char_profile, candidates, preferred_gender=None):
-    """Gender-filter then keyword-overlap rank. Returns (candidate, reason) or (None, reason).
-    `preferred_gender` (e.g. inferred from an explicit gender word in the character name)
-    overrides the pronoun-count guess when provided."""
-    if not candidates:
-        return None, "No downloaded LoRA voices available"
-    
-    # Determine gender: use preferred if known, otherwise infer from profile
-    cgender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(char_profile)
-    
-    # If still unknown after inference, skip gender filtering entirely
-    pool = candidates
-    if cgender != "unknown":
-        gender_match = [c for c in candidates if c["gender"] == cgender]
-        if gender_match:
-            pool = gender_match
-        else:
-            # No matches for inferred gender - fall back to all candidates
-            cgender = "unknown"
-    words = set(re.findall(r"[a-z]{4,}", char_profile.lower()))
-    best, best_score = None, -1
-    for c in pool:
-        cwords = set(re.findall(r"[a-z]{4,}", c["description"].lower()))
-        score = len(words & cwords)
-        if score > best_score:
-            best, best_score = c, score
-    if best is None:
-        return None, "No candidate after filtering"
-    reason = f"Heuristic match ({cgender or 'unknown'} gender)"
-    if best_score > 0:
-        reason += f", {best_score} description keyword(s) in common"
-    return best, reason
+def _select_representative_lines(lines: List[str], limit: int) -> List[str]:
+    """Sample dialogue across the whole book rather than only its beginning."""
+    if len(lines) <= limit:
+        return lines
+    if limit <= 1:
+        return [lines[0]]
+    indices = [round(i * (len(lines) - 1) / (limit - 1)) for i in range(limit)]
+    return [lines[i] for i in dict.fromkeys(indices)]
+
+
+def _rank_heuristic_candidates(profile: str, candidates: List[dict], preferred_gender=None) -> List[str]:
+    gender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(profile)
+    pool = [c for c in candidates if gender == "unknown" or c.get("gender") == gender] or candidates
+    words = set(re.findall(r"[a-z]{4,}", profile.lower()))
+    ranked = sorted(pool, key=lambda c: (-len(words & set(re.findall(r"[a-z]{4,}", c.get("description", "").lower()))), c["adapter_id"]))
+    return [c["adapter_id"] for c in ranked]
 
 
 @app.post("/api/suggest_voices")
@@ -3109,7 +3141,8 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     except (json.JSONDecodeError, ValueError):
         raise HTTPException(status_code=400, detail="Script is not valid JSON.")
 
-    # Collect per-character sample dialogue lines (in order, deduped)
+    # Collect every per-character dialogue line so counts are accurate; sample
+    # representative lines across the book only when building the prompt.
     samples = {}
     for entry in script:
         speaker = (entry.get("speaker") or entry.get("type") or "").strip()
@@ -3117,7 +3150,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         if not speaker or not text:
             continue
         lines = samples.setdefault(speaker, [])
-        if text not in lines and len(lines) < max(1, min(int(request.max_lines or 8), 30)):
+        if text not in lines:
             lines.append(text)
     if not samples:
         return {"method": "none", "suggestions": {}, "message": "No characters found in script."}
@@ -3136,9 +3169,20 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     if not candidates:
         raise HTTPException(status_code=400, detail="No downloaded LoRA voices available. Download a built-in voice or train an adapter first.")
 
-    # Build per-character profile text (persona description/style + sample lines)
+    line_limit = max(1, min(int(request.max_lines or 8), 30))
+    book_id = get_active_book_id()
+    lib = _load_voice_library()
+    cast_name = (request.cast or "").strip() or None
+    if cast_name and cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+    usage = get_cast_adapter_usage(lib, cast_name)
+    line_counts = _script_line_counts()
+
+    # Build profiles in importance order: narrator, then most dialogue lines.
     characters = {}
-    for speaker, lines in samples.items():
+    ordered_names = sorted(samples, key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
+    for speaker in ordered_names:
+        lines = samples[speaker]
         if request.only_unset:
             existing = voice_config.get(speaker, {})
             if voice_category(existing) == "lora" and existing.get("adapter_id"):
@@ -3146,13 +3190,48 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         cfg = voice_config.get(speaker, {})
         persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
         profile = " ".join(b for b in persona_bits if b)
-        characters[speaker] = {"profile": profile, "lines": lines}
+        count = line_counts.get(speaker, len(lines))
+        try:
+            member_key = get_cast_member_key(speaker, book_id)
+        except ValueError:
+            member_key = None
+        characters[speaker] = {
+            "profile": profile,
+            "lines": _select_representative_lines(lines, line_limit),
+            "line_count": count,
+            "priority": "major" if _norm_name(speaker) == "narrator" or count >= CAST_MAJOR_LINE_THRESHOLD else "minor",
+            "member_key": member_key,
+        }
 
     if not characters:
         return {"method": "none", "suggestions": {}, "message": "No characters to suggest (all already set)."}
 
+    # When only filling unset roles, already-configured current-book roles are
+    # fixed assignments and must contribute to reuse pressure unless the same
+    # identity is already represented in the selected cast.
+    if request.only_unset:
+        cast_members = (lib.get("casts", {}).get(cast_name, {}).get("members", {})
+                        if cast_name else {})
+        for name, cfg in voice_config.items():
+            adapter_id = (cfg or {}).get("adapter_id")
+            if not adapter_id or voice_category(cfg) != "lora":
+                continue
+            try:
+                key = get_cast_member_key(name, book_id)
+            except ValueError:
+                continue
+            if key in cast_members:
+                continue
+            item = usage.setdefault(adapter_id, {"character_count": 0, "total_lines": 0, "characters": []})
+            item["character_count"] += 1
+            item["total_lines"] += line_counts.get(name, 0)
+            item["characters"].append(name)
+
     cand_by_id = {c["adapter_id"]: c for c in candidates}
     suggestions = {}
+    rankings = {}
+    style_by_name = {}
+    reason_by_name = {}
     method = "heuristic"
     llm_warning = None
 
@@ -3163,50 +3242,90 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         client, model_name = _make_llm_client(timeout=120)
 
         voice_catalog = "\n".join(
-            f'- id="{c["adapter_id"]}" | name="{c["name"]}" | gender={c["gender"]} | description: {c["description"] or "(none)"}'
+            f'- id="{c["adapter_id"]}" | name="{c["name"][:50]}" | gender={c["gender"]} | series_use={usage.get(c["adapter_id"], {}).get("character_count", 0)} | description: {(c["description"] or "(none)")[:80]}'
             for c in candidates
-        )
-        char_block = "\n\n".join(
-            f'CHARACTER: {name}\nPersona/style: {info["profile"] or "(none)"}\nSample lines:\n'
-            + "\n".join(f'  - "{ln}"' for ln in info["lines"])
-            for name, info in characters.items()
         )
         system_prompt = (
             "You are a casting director matching narrated audiobook characters to available LoRA TTS voices. "
-            "For each character, pick the single best-fitting voice id from the catalog, considering gender, "
-            "age, timbre, and personality implied by the character's dialogue and persona. "
-            "Only choose from the provided voice ids. Respond with ONLY a JSON object mapping each character "
-            'name to {"adapter_id": "<id>", "reason": "<short reason>"}. No prose, no markdown.'
+            "For each character, rank up to three fitting voice ids and write concise TTS delivery guidance based only on the book text. "
+            "The style should describe cadence, energy, formality, confidence, and supported emotion; do not invent biography or accent. "
+            "Only use provided voice ids. Return every requested character in the structured response."
         )
-        user_prompt = f"AVAILABLE VOICES:\n{voice_catalog}\n\nCHARACTERS:\n{char_block}\n\nReturn the JSON object now."
-
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
+        casting_schema = {
+            "name": "audiobook_casting",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "characters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "ranked_adapter_ids": {
+                                    "type": "array", "items": {"type": "string"},
+                                    "minItems": 1, "maxItems": 3,
+                                },
+                                "character_style": {"type": "string"},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["name", "ranked_adapter_ids", "character_style", "reason"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["characters"],
+                "additionalProperties": False,
+            },
+        }
+        character_items = list(characters.items())
+        full_cfg = safe_load_json(CONFIG_PATH, default={})
+        llm_cfg = full_cfg.get("llm") or {}
+        status = get_current_status(
+            full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
+            model_name, (full_cfg.get("llm_remote_ssh") or "").strip(),
+            use_cache=True)
+        for start in range(0, len(character_items), 2):
+            batch = character_items[start:start + 2]
+            char_block = "\n\n".join(
+                f'CHARACTER: {name}\nLines: {info["line_count"]} ({info["priority"]})\nPersona/style: {(info["profile"] or "(none)")[:200]}\nSample lines:\n'
+                + "\n".join(f'  - "{ln[:140]}"' for ln in info["lines"])
+                for name, info in batch
+            )
+            user_prompt = f"AVAILABLE VOICES:\n{voice_catalog}\n\nCHARACTERS:\n{char_block}"
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            timeout=120,  # Hard timeout on the actual API call to prevent hanging
-        )
-        raw = response.choices[0].message.content or ""
-        parsed = extract_json_object(raw)
-        if parsed is None:
-            raise ValueError(f"Could not parse a JSON object from the LLM's casting response ({len(raw)} chars)")
-
-        for name in characters:
-            pick = parsed.get(name) if isinstance(parsed, dict) else None
-            if isinstance(pick, dict) and pick.get("adapter_id") in cand_by_id:
-                c = cand_by_id[pick["adapter_id"]]
-                suggestions[name] = {
-                    "adapter_id": c["adapter_id"],
-                    "adapter_name": c["name"],
-                    "type": c["type"],
-                    "reason": (pick.get("reason") or "").strip()[:240] or "LLM recommendation",
-                }
-        if suggestions:
-            llm_ok = True
-            method = "llm"
+            ]
+            effective_max = get_effective_max_tokens(
+                2600, status.get("context_length"), messages, hard_max=12000)
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                response_format={"type": "json_schema", "json_schema": casting_schema},
+                temperature=0.3,
+                max_tokens=effective_max,
+                timeout=120,
+            )
+            raw = response.choices[0].message.content or ""
+            parsed = extract_json_object(raw)
+            if parsed is None:
+                finish_reason = response.choices[0].finish_reason
+                logger.warning("Unparseable casting response (%s) preview: %s", finish_reason, raw[:500])
+                raise ValueError(f"Could not parse a JSON object from casting batch ({len(raw)} chars)")
+            parsed_items = parsed.get("characters", []) if isinstance(parsed, dict) else []
+            parsed_by_name = {
+                item.get("name"): item for item in parsed_items
+                if isinstance(item, dict) and isinstance(item.get("name"), str)
+            }
+            for name, _info in batch:
+                pick = parsed_by_name.get(name)
+                if isinstance(pick, dict):
+                    ranked = pick.get("ranked_adapter_ids") or ([pick.get("adapter_id")] if pick.get("adapter_id") else [])
+                    rankings[name] = list(dict.fromkeys(i for i in ranked if i in cand_by_id))
+                    style_by_name[name] = (pick.get("character_style") or "").strip()[:500]
+                    reason_by_name[name] = (pick.get("reason") or "").strip()[:240]
     except LLMConfigError as e:
         # Config issue (e.g. base_url rejected by _validate_local_llm_base_url) -
         # surface to the UI instead of silently falling back to heuristic.
@@ -3214,26 +3333,131 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     except Exception as e:
         logger.warning(f"LLM voice suggestion failed, falling back to heuristic: {e}")
 
-    # --- Heuristic fallback for any character the LLM didn't cover ---
+    if rankings:
+        llm_ok = True
+        method = "llm"
+
+    # Fill missing rankings/styles deterministically, then allocate in priority
+    # order while updating reuse counts after every new distinct character.
     for name, info in characters.items():
-        if name in suggestions:
-            continue
         profile_text = " ".join([name, info["profile"]] + info["lines"])
-        # An explicit gender word in the character's name/label is authoritative
-        name_gender = _infer_character_gender(name)
-        best, reason = _heuristic_match(profile_text, candidates, preferred_gender=name_gender)
-        if best:
-            suggestions[name] = {
-                "adapter_id": best["adapter_id"],
-                "adapter_name": best["name"],
-                "type": best["type"],
-                "reason": reason,
-            }
+        if not rankings.get(name):
+            rankings[name] = _rank_heuristic_candidates(profile_text, candidates, _infer_character_gender(name))
+        if not style_by_name.get(name):
+            style_by_name[name] = info["profile"] or "Natural delivery matching the character's dialogue and role in this book."
+        if not reason_by_name.get(name):
+            reason_by_name[name] = "Deterministic compatibility and series-diversity ranking"
+
+        existing_member = None
+        if cast_name and info["member_key"]:
+            existing_member = (lib["casts"][cast_name].get("members", {}).get(info["member_key"])
+                               or lib.get("shared", {}).get(info["member_key"]))
+        existing_adapter = ((existing_member or {}).get("config") or {}).get("adapter_id")
+        ranked = rankings[name] or list(cand_by_id)
+        if existing_adapter in cand_by_id:
+            chosen_id = existing_adapter
+            is_new_identity = False
+        else:
+            penalty = 100 if info["priority"] == "major" else 2
+            chosen_id = min(ranked, key=lambda adapter_id: ranked.index(adapter_id) * 10 + usage.get(adapter_id, {}).get("character_count", 0) * penalty)
+            is_new_identity = True
+        before = usage.get(chosen_id, {}).get("character_count", 0)
+        if is_new_identity:
+            usage.setdefault(chosen_id, {"character_count": 0, "total_lines": 0, "characters": []})
+            usage[chosen_id]["character_count"] += 1
+            usage[chosen_id]["total_lines"] += info["line_count"]
+            usage[chosen_id]["characters"].append(name)
+        chosen = cand_by_id[chosen_id]
+        suggestions[name] = {
+            "adapter_id": chosen_id, "adapter_name": chosen["name"], "type": chosen["type"],
+            "character_style": style_by_name[name], "reason": reason_by_name[name],
+            "line_count": info["line_count"], "priority": info["priority"], "book_id": book_id,
+            "cast_member_key": info["member_key"], "reuse_count_before": before,
+            "reuse_count_after": before + (1 if is_new_identity else 0),
+            "reused": before > 0 and is_new_identity,
+            "forced_reuse": info["priority"] == "major" and before > 0 and all(usage.get(i, {}).get("character_count", 0) > 0 for i in ranked),
+        }
 
     if not llm_ok and suggestions:
         method = "heuristic"
 
-    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates), "llm_warning": llm_warning}
+    return {"method": method, "suggestions": suggestions, "candidate_count": len(candidates),
+            "adapter_usage": usage, "book_id": book_id, "cast": cast_name,
+            "major_line_threshold": CAST_MAJOR_LINE_THRESHOLD, "llm_warning": llm_warning}
+
+
+def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[str]) -> dict:
+    candidates = {c["adapter_id"]: c for c in _build_lora_candidates()}
+    counts = _script_line_counts()
+    book_id = get_active_book_id()
+    if cast_name and not book_id:
+        raise HTTPException(status_code=400, detail="Active book identity is required to save suggestions to a cast.")
+
+    with file_lock(VOICE_LIBRARY_PATH), file_lock(VOICE_CONFIG_PATH):
+        voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
+        lib = _load_voice_library()
+        if cast_name and cast_name not in lib["casts"]:
+            raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+        usage = get_cast_adapter_usage(lib, cast_name)
+        applied = []
+        for character, suggestion in suggestions.items():
+            if character not in counts:
+                continue
+            suggestion_book_id = secure_filename(suggestion.get("book_id") or "")
+            if suggestion_book_id != secure_filename(book_id or ""):
+                raise HTTPException(status_code=409, detail=(
+                    f"Suggestion for '{character}' belongs to a different book. Generate suggestions again."))
+            adapter_id = suggestion.get("adapter_id")
+            candidate = candidates.get(adapter_id)
+            if not candidate:
+                raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
+            style = (suggestion.get("character_style") or "").strip()[:500]
+            cfg = dict(voice_config.get(character) or {})
+            cfg.update({
+                "type": candidate["type"], "adapter_id": adapter_id,
+                "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
+                                 else f"lora_models/{adapter_id}"),
+                "character_style": style, "seed": "-1",
+            })
+            voice_config[character] = cfg
+
+            if cast_name:
+                try:
+                    key = get_cast_member_key(character, book_id)
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+                members = get_cast_storage_pool(lib, cast_name, character)
+                casting = {
+                    "priority": suggestion.get("priority"),
+                    "suggestion_reason": (suggestion.get("reason") or "")[:240],
+                    "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
+                }
+                members[key] = _make_library_entry(
+                    character, cfg, counts[character], book_id, casting, members.get(key))
+                usage = get_cast_adapter_usage(lib, cast_name)
+            applied.append(character)
+
+        if cast_name:
+            atomic_json_write_pair(voice_config, VOICE_CONFIG_PATH,
+                                   lib, VOICE_LIBRARY_PATH)
+        else:
+            atomic_json_write(voice_config, VOICE_CONFIG_PATH)
+    return {"applied": applied, "count": len(applied), "cast": cast_name,
+            "book_id": book_id, "adapter_usage": get_cast_adapter_usage(lib, cast_name)}
+
+
+@app.post("/api/suggest_voices/apply")
+async def apply_voice_suggestion(request: VoiceSuggestionApplyRequest):
+    return await asyncio.to_thread(
+        _apply_voice_suggestions, {request.character: request.suggestion},
+        (request.cast or "").strip() or None)
+
+
+@app.post("/api/suggest_voices/apply_bulk")
+async def apply_voice_suggestions_bulk(request: VoiceSuggestionApplyBulkRequest):
+    return await asyncio.to_thread(
+        _apply_voice_suggestions, request.suggestions,
+        (request.cast or "").strip() or None)
 
 
 @app.get("/api/audiobook")
@@ -3700,11 +3924,10 @@ async def list_saved_scripts():
     """List all saved scripts in the scripts/ directory.
 
     Uses a whitelist approach: only includes .json files that do NOT end with
-    any known companion/internal suffix (voice_config, review_checkpoint, etc.).
-    Any new companion file type added later is safely excluded by this rule.
+    any known companion/internal suffix (voice_config, metadata, checkpoint, etc.).
     """
     scripts = []
-    companion_suffixes = (".voice_config.json", ".review_checkpoint.json", ".checkpoint.jsonl")
+    companion_suffixes = (".voice_config.json", ".meta.json", ".review_checkpoint.json", ".checkpoint.jsonl")
     for f in os.listdir(SCRIPTS_DIR):
         if not f.endswith(".json"):
             continue
@@ -3742,6 +3965,8 @@ async def save_script(request: ScriptSaveRequest):
 
     if os.path.exists(VOICE_CONFIG_PATH):
         shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json"))
+    atomic_json_write({"book_id": get_active_book_id() or safe_name},
+                      _saved_book_meta_path(safe_name))
 
     logger.info(f"Script saved as '{safe_name}'")
     return {"status": "saved", "name": safe_name}
@@ -3768,6 +3993,7 @@ async def load_script(request: ScriptLoadRequest):
         raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
 
     shutil.copy2(src, SCRIPT_PATH)
+    _save_active_book_id(_get_saved_book_id(safe_name), src)
 
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     if os.path.exists(companion):
@@ -3801,6 +4027,9 @@ async def delete_script(name: str):
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     if os.path.exists(companion):
         os.remove(companion)
+    meta_path = _saved_book_meta_path(safe_name)
+    if os.path.exists(meta_path):
+        os.remove(meta_path)
     checkpoint = _checkpoint_path(filepath)
     if os.path.exists(checkpoint):
         os.remove(checkpoint)
@@ -3813,11 +4042,53 @@ async def delete_script(name: str):
 # Character names that belong to the shared cross-series pool by default
 # (a series usually keeps the same narrator unless it explicitly uses a different one).
 SHARED_DEFAULT_NAMES = {"narrator"}
+CAST_MAJOR_LINE_THRESHOLD = 25
 
 
 def _norm_name(name: str) -> str:
     """Normalize a character name for matching: lowercase, trimmed, collapsed spaces."""
     return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def get_cast_member_key(name: str, book_id: Optional[str]) -> str:
+    """Return a cross-book key, scoping generic labels to one book."""
+    key = _norm_name(name)
+    if is_generic_speaker(name):
+        if not book_id:
+            raise ValueError(f"Book identity is required for generic character '{name}'.")
+        return f"{key}::{secure_filename(book_id)}"
+    return key
+
+
+def get_cast_storage_pool(lib: dict, cast_name: str, name: str,
+                          cast_specific: bool = False) -> dict:
+    """Return the single authoritative storage pool for a cast member."""
+    if _norm_name(name) in SHARED_DEFAULT_NAMES and not cast_specific:
+        return lib["shared"]
+    return lib["casts"][cast_name].setdefault("members", {})
+
+
+def get_cast_adapter_usage(lib: dict, cast_name: Optional[str]) -> dict:
+    """Derive LoRA usage from distinct stored cast-member identities."""
+    usage = {}
+    if not cast_name or cast_name not in lib.get("casts", {}):
+        return usage
+    members = list(lib.get("shared", {}).items())
+    members += list(lib["casts"][cast_name].get("members", {}).items())
+    for key, member in members:
+        cfg = member.get("config") or {}
+        adapter_id = cfg.get("adapter_id")
+        if not adapter_id:
+            continue
+        item = usage.setdefault(adapter_id, {"character_count": 0, "total_lines": 0, "characters": []})
+        item["character_count"] += 1
+        assignments = member.get("assignments") or {}
+        total_lines = sum(max(0, int(a.get("line_count", 0) or 0)) for a in assignments.values())
+        if not assignments:
+            total_lines = max(0, int(member.get("line_count", 0) or 0))
+        item["total_lines"] += total_lines
+        item["characters"].append(member.get("name", key))
+    return usage
 
 
 def _name_similarity(a: str, b: str) -> float:
@@ -3880,7 +4151,8 @@ def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     return counts
 
 
-def _cast_match_pool(lib: dict, cast_name: str) -> dict:
+def _cast_match_pool(lib: dict, cast_name: str, book_id: Optional[str] = None,
+                     include_all_generic: bool = False) -> dict:
     """Build the candidate pool for matching against a cast: shared first, cast
     members override on key collision (a cast-specific narrator beats the
     shared narrator = "different narrator")."""
@@ -3889,6 +4161,10 @@ def _cast_match_pool(lib: dict, cast_name: str) -> dict:
         pool[k] = {"key": k, "name": m.get("name", k), "source": "shared",
                    "type": (m.get("config") or {}).get("type")}
     for k, m in lib["casts"][cast_name].get("members", {}).items():
+        if m.get("generic") and not include_all_generic and m.get("book_id") != book_id:
+            continue
+        if is_generic_speaker(m.get("name", k)) and not m.get("book_id"):
+            continue  # legacy ambiguous generic entry
         pool[k] = {"key": k, "name": m.get("name", k), "source": "cast",
                    "type": (m.get("config") or {}).get("type")}
     return pool
@@ -3916,7 +4192,8 @@ def _build_match_proposals(counts: Dict[str, int], pool: dict) -> List[dict]:
 
 
 def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
-                         current_config: dict, chars: Optional[dict] = None) -> Tuple[dict, List[str]]:
+                         current_config: dict, chars: Optional[dict] = None,
+                         book_id: Optional[str] = None) -> Tuple[dict, List[str]]:
     """Apply a confirmed character -> library member mapping onto a voice_config
     dict, returning a new dict (current_config is not mutated) along with the
     list of characters that were actually applied.
@@ -3933,10 +4210,17 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
     for char, key in mapping.items():
         if chars is not None and char not in chars:
             continue
+        if book_id and is_generic_speaker(char):
+            scoped_key = get_cast_member_key(char, book_id)
+            if resolve_entry(scoped_key):
+                key = scoped_key
         entry = resolve_entry(key)
         if not entry:
             continue
         cfg = dict(entry.get("config") or {})
+        assignment = (entry.get("assignments") or {}).get(book_id or "", {})
+        if assignment.get("character_style"):
+            cfg["character_style"] = assignment["character_style"]
         cfg.pop("alias_of", None)
         # Preserve an existing alias_of on the current character (book-specific)
         if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
@@ -3947,7 +4231,8 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
 
 
 def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
-                                mapping: Dict[str, str], chars: Optional[dict] = None) -> List[str]:
+                                mapping: Dict[str, str], chars: Optional[dict] = None,
+                                book_id: Optional[str] = None) -> List[str]:
     """Load a voice_config.json (if present), apply the cast mapping under a file
     lock, write it back atomically if anything changed, and return the list of
     characters that were applied.
@@ -3958,22 +4243,40 @@ def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
     with file_lock(config_path):
         current_config = safe_load_json(config_path, default={})
 
-        current_config, applied = _apply_cast_mapping(lib, cast_name, mapping, current_config, chars=chars)
+        current_config, applied = _apply_cast_mapping(
+            lib, cast_name, mapping, current_config, chars=chars, book_id=book_id)
 
         if applied:
             atomic_json_write(current_config, config_path)
     return applied
 
 
-def _make_library_entry(display_name: str, config: dict, line_count: int) -> dict:
+def _make_library_entry(display_name: str, config: dict, line_count: int,
+                        book_id: Optional[str] = None, casting: Optional[dict] = None,
+                        existing: Optional[dict] = None) -> dict:
     cfg = dict(config or {})
     cfg.pop("alias_of", None)  # aliases are book-specific; don't carry across books
-    return {
+    entry = dict(existing or {})
+    assignments = dict(entry.get("assignments") or {})
+    if book_id:
+        assignments[book_id] = {
+            "line_count": line_count,
+            "character_style": cfg.get("character_style", ""),
+            "suggestion_reason": (casting or {}).get("suggestion_reason", ""),
+            "priority": (casting or {}).get("priority", "major" if line_count >= CAST_MAJOR_LINE_THRESHOLD else "minor"),
+            "reuse_count_when_assigned": (casting or {}).get("reuse_count_when_assigned", 0),
+            "assigned_at": time.time(),
+        }
+    entry.update({
         "name": display_name,
         "config": cfg,
         "line_count": line_count,
+        "generic": is_generic_speaker(display_name),
+        "book_id": book_id if is_generic_speaker(display_name) else None,
+        "assignments": assignments,
         "saved_at": time.time(),
-    }
+    })
+    return entry
 
 
 @app.get("/api/voice_library")
@@ -3985,14 +4288,19 @@ async def voice_library_get():
     casts = []
     for cast_name, cast in sorted(lib["casts"].items()):
         members = cast.get("members", {})
+        adapter_usage = get_cast_adapter_usage(lib, cast_name)
         casts.append({
             "name": cast_name,
             "member_count": len(members),
             "members": [
                 {"key": k, "name": m.get("name", k), "type": (m.get("config") or {}).get("type"),
-                 "line_count": m.get("line_count", 0)}
+                 "adapter_id": (m.get("config") or {}).get("adapter_id"),
+                 "character_style": (m.get("config") or {}).get("character_style", ""),
+                 "line_count": m.get("line_count", 0), "generic": bool(m.get("generic")),
+                 "book_id": m.get("book_id"), "assignments": m.get("assignments", {})}
                 for k, m in sorted(members.items())
             ],
+            "adapter_usage": adapter_usage,
         })
 
     shared = [
@@ -4006,7 +4314,8 @@ async def voice_library_get():
         for name in sorted(counts, key=lambda n: counts[n], reverse=True)
     ]
 
-    return {"casts": casts, "shared": shared, "current_characters": current_characters}
+    return {"casts": casts, "shared": shared, "current_characters": current_characters,
+            "active_book_id": get_active_book_id(), "major_line_threshold": CAST_MAJOR_LINE_THRESHOLD}
 
 
 @app.post("/api/voice_library/casts")
@@ -4070,6 +4379,7 @@ async def voice_library_save(request: LibrarySaveRequest):
             voice_config = {}
 
     counts = _script_line_counts()
+    book_id = get_active_book_id()
     shared_override = {_norm_name(n) for n in (request.shared or [])}
     cast_specific = {_norm_name(n) for n in (request.cast_specific or [])}
 
@@ -4078,16 +4388,24 @@ async def voice_library_save(request: LibrarySaveRequest):
         config = voice_config.get(char)
         if not config:
             continue  # nothing configured for this character; skip
-        key = _norm_name(char)
-        entry = _make_library_entry(char, config, counts.get(char, 0))
+        try:
+            key = get_cast_member_key(char, book_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         # Narrator (or explicitly flagged) goes to the shared cross-series pool,
         # unless this book uses a different narrator (forced cast-specific).
         is_shared = (key in SHARED_DEFAULT_NAMES or key in shared_override) and key not in cast_specific
         if is_shared:
-            lib["shared"][key] = entry
+            pool = get_cast_storage_pool(lib, cast_name, char)
+            entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
+                                        existing=pool.get(key))
+            pool[key] = entry
             saved["shared"].append(char)
         else:
-            lib["casts"][cast_name].setdefault("members", {})[key] = entry
+            members = lib["casts"][cast_name].setdefault("members", {})
+            entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
+                                        existing=members.get(key))
+            members[key] = entry
             saved["cast"].append(char)
 
     await _save_voice_library_async(lib)
@@ -4103,7 +4421,7 @@ async def voice_library_match(request: CastCreateRequest):
     if cast_name not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
 
-    pool = _cast_match_pool(lib, cast_name)
+    pool = _cast_match_pool(lib, cast_name, get_active_book_id())
 
     counts = _script_line_counts()
     if not counts:
@@ -4124,7 +4442,7 @@ async def voice_library_match_bulk(request: CastMatchBulkRequest):
     if cast_name not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
 
-    pool = _cast_match_pool(lib, cast_name)
+    pool = _cast_match_pool(lib, cast_name, include_all_generic=True)
 
     def _collect_counts():
         counts = {}
@@ -4162,7 +4480,8 @@ async def voice_library_apply(request: LibraryApplyRequest):
     # review's concurrent speaker-rename remap of the same file.
     try:
         applied = await asyncio.to_thread(
-            _apply_cast_to_config_file, VOICE_CONFIG_PATH, lib, cast_name, request.mapping)
+            _apply_cast_to_config_file, VOICE_CONFIG_PATH, lib, cast_name, request.mapping,
+            None, get_active_book_id())
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
 
@@ -4186,13 +4505,15 @@ async def voice_library_apply_bulk(request: LibraryApplyBulkRequest):
             if not safe_name:
                 results.append({"name": name, "applied": [], "count": 0, "error": "Invalid script name"})
                 continue
+            book_id = _get_saved_book_id(safe_name)
             chars = _script_line_counts(os.path.join(SCRIPTS_DIR, f"{safe_name}.json"))
 
             config_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
             # Hold the lock across the read-modify-write so this can't race a batch
             # review's concurrent speaker-rename remap of the same companion file.
             try:
-                applied = _apply_cast_to_config_file(config_path, lib, cast_name, request.mapping, chars=chars)
+                applied = _apply_cast_to_config_file(
+                    config_path, lib, cast_name, request.mapping, chars=chars, book_id=book_id)
             except TimeoutError as e:
                 results.append({"name": name, "applied": [], "count": 0, "error": str(e)})
                 continue

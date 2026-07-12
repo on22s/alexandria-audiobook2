@@ -284,6 +284,43 @@ def atomic_json_write(data, target_path, max_retries=5):
                 pass
 
 
+def atomic_json_write_pair(first_data, first_path, second_data, second_path):
+    """Replace two locked JSON files, rolling both back if replacement fails."""
+    staged, backups = [], []
+    try:
+        for data, path in ((first_data, first_path), (second_data, second_path)):
+            directory = os.path.dirname(os.path.abspath(path))
+            os.makedirs(directory, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(prefix=".pair-", suffix=".json", dir=directory)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=2, ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            staged.append(tmp)
+            backup = path + ".pair-backup"
+            existed = os.path.exists(path)
+            if existed:
+                shutil.copy2(path, backup)
+            backups.append((path, backup, existed))
+        for index, (_data, path) in enumerate(((first_data, first_path), (second_data, second_path))):
+            os.replace(staged[index], path)
+            staged[index] = None
+    except Exception:
+        for path, backup, existed in backups:
+            if existed and os.path.exists(backup):
+                os.replace(backup, path)
+            elif not existed and os.path.exists(path):
+                os.remove(path)
+        raise
+    finally:
+        for tmp in staged:
+            if tmp and os.path.exists(tmp):
+                os.remove(tmp)
+        for _path, backup, _existed in backups:
+            if os.path.exists(backup):
+                os.remove(backup)
+
+
 @contextlib.contextmanager
 def file_lock(target_path, timeout=10, stale_after=120):
     """Advisory cross-process lock for read-modify-write access to target_path.
@@ -351,6 +388,18 @@ _GENERIC_SPEAKER_WORDS = {
 }
 
 
+def is_generic_speaker(name):
+    """Return whether name is a book-local generic character label."""
+    value = (name or "").strip().lower()
+    if value.startswith("the "):
+        value = value[4:].strip()
+    # Annotation models commonly disambiguate incidental roles as "Man 1" or
+    # "Guard #2".  Only accept a numeric suffix on a known generic base so
+    # proper names containing digits are not accidentally scoped to one book.
+    value = re.sub(r"\s+#?\d+$", "", value).strip()
+    return value in _GENERIC_SPEAKER_WORDS
+
+
 def de_generic_speakers(entries, book_id):
     """Rename generic speaker labels (e.g. 'man', 'woman') to be unique to the
     book, e.g. 'Man Book', so voices don't collide across books. 'NARRATOR' is
@@ -375,11 +424,7 @@ def de_generic_speakers(entries, book_id):
 
                 # Strip a leading "the " only for the generic-word membership
                 # test; the rename keeps the original label's wording.
-                check_val = val.lower()
-                if check_val.startswith("the "):
-                    check_val = check_val[4:].strip()
-
-                if check_val in _GENERIC_SPEAKER_WORDS:
+                if is_generic_speaker(val):
                     if val not in renamed:
                         capitalized = " ".join(w.capitalize() for w in val.split())
                         renamed[val] = f"{capitalized} {book_id}"
