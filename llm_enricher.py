@@ -18,8 +18,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class LLMEnricher:
-    def __init__(self, model_path: str):
+    FIELD_LABELS = {
+        "speaker_attribution": "Speaker Attribution (e.g., main character, narrator, secondary character)",
+        "narration_style": "Narration Style (e.g., calm, energetic, sad, questioning)",
+        "emotional_tone": "Emotional Tone (e.g., happy, anxious, neutral, excited)",
+    }
+
+    def __init__(self, model_path: str, fields=None):
         self.model_path = model_path
+        self.fields = fields or list(self.FIELD_LABELS)
         self.llm = None
         try:
             # Build-level check, independent of any specific model load: does
@@ -71,7 +78,10 @@ class LLMEnricher:
                 temperature=0.7
             )
 
-            enriched_data = self._parse_llm_output(output['choices'][0]['text'])
+            parsed = self._parse_llm_output(output['choices'][0]['text'])
+            enriched_data = {key: parsed.get(key, "N/A") for key in self.fields}
+            if parsed.get("_enrichment_failed"):
+                enriched_data["_enrichment_failed"] = True
 
             return {**chunk, **enriched_data}
 
@@ -87,6 +97,9 @@ class LLMEnricher:
         start = chunk.get('start', 0.0)
         end = chunk.get('end', 0.0)
 
+        requested = "\n".join(f"- {self.FIELD_LABELS[key]}" for key in self.fields)
+        schema = ", ".join(f'"{key}"' for key in self.fields)
+        example = json.dumps({key: "N/A" for key in self.fields})
         prompt = f"""Analyze the following transcript segment and extract metadata:
 
 Transcript Segment:
@@ -97,14 +110,12 @@ Start Time: {start:.2f}s
 End Time: {end:.2f}s
 
 Extract the following metadata:
-- Speaker Attribution (e.g., "main character", "narrator", "secondary character")
-- Narration Style (e.g., "calm", "energetic", "sad", "questioning")
-- Emotional Tone (e.g., "happy", "anxious", "neutral", "excited")
+{requested}
 
-Provide the output as a JSON object with keys: "speaker_attribution", "narration_style", "emotional_tone". If any information cannot be determined, use 'N/A'.
+Provide the output as a JSON object with keys: {schema}. If any information cannot be determined, use 'N/A'.
 
 Example Output Format:
-{{"speaker_attribution": "main character", "narration_style": "calm", "emotional_tone": "neutral"}}
+{example}
 
 Output JSON: """
         return prompt
@@ -115,7 +126,7 @@ Output JSON: """
         json_match = re.search(r'```json\s*\n({.*?})\n\s*```', output_text, re.DOTALL)
         if not json_match:
             # Fallback to finding standalone JSON
-            json_match = re.search(r'(\{"speaker_attribution".*?\})', output_text, re.DOTALL)
+            json_match = re.search(r'(\{.*?\})', output_text, re.DOTALL)
         
         if json_match:
             try:
@@ -138,11 +149,19 @@ def main():
     parser.add_argument("--model-path", required=True, help="Path to the GGUF LLM model file.")
     parser.add_argument("--input-file", required=True, help="Path to the input JSON file containing transcript segments.")
     parser.add_argument("--output-file", required=True, help="Path to save the enriched transcript JSON file.")
+    parser.add_argument("--speaker-attribution", action="store_true")
+    parser.add_argument("--narration-style", action="store_true")
+    parser.add_argument("--emotional-tone", action="store_true")
 
     args = parser.parse_args()
 
     try:
-        enricher = LLMEnricher(args.model_path)
+        selected = [key for key, enabled in (
+            ("speaker_attribution", args.speaker_attribution),
+            ("narration_style", args.narration_style),
+            ("emotional_tone", args.emotional_tone),
+        ) if enabled]
+        enricher = LLMEnricher(args.model_path, selected or None)
     except Exception as e:
         logger.error(f"Exiting: Could not initialize LLMEnricher: {e}")
         exit(1)

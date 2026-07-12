@@ -1194,12 +1194,6 @@
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-3 d-flex align-items-end">
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="prep-skip-annotation">
-                                                    <label class="form-check-label" for="prep-skip-annotation">Skip LLM annotation</label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-3 d-flex align-items-end">
-                                                <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="prep-enrich-with-llm" onchange="document.getElementById('prep-enrich-options').style.display = this.checked ? '' : 'none';">
                                                     <label class="form-check-label" for="prep-enrich-with-llm">LLM enrichment</label>
                                                 </div>
@@ -6408,8 +6402,9 @@
                 source_threshold: getNumFieldValue('prep-source-threshold', 0.65),
                 keep_unaligned:  document.getElementById('prep-keep-unaligned').checked,
                 chunk_size:      getNumFieldValue('prep-chunk-size', 10),
+                min_chunk_duration: getNumFieldValue('prep-min-chunk-duration', 2),
                 resume:          document.getElementById('prep-resume').checked,
-                skip_annotation: document.getElementById('prep-skip-annotation').checked,
+                skip_annotation: false,
                 source_start:    document.getElementById('prep-source-start').value ? getNumFieldValue('prep-source-start', 0, true) : null,
                 source_start_text: document.getElementById('prep-source-start-text').value || null,
                 no_auto_anchor:  document.getElementById('prep-no-auto-anchor').checked,

@@ -3127,7 +3127,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         )
         char_block = "\n\n".join(
             f'CHARACTER: {name}\nPersona/style: {info["profile"] or "(none)"}\nSample lines:\n'
-            + "\n".join(f'  - "{ln}"' for ln in info["lines"][:8])
+            + "\n".join(f'  - "{ln}"' for ln in info["lines"])
             for name, info in characters.items()
         )
         system_prompt = (
@@ -3177,7 +3177,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     for name, info in characters.items():
         if name in suggestions:
             continue
-        profile_text = " ".join([name, info["profile"]] + info["lines"][:5])
+        profile_text = " ".join([name, info["profile"]] + info["lines"])
         # An explicit gender word in the character's name/label is authoritative
         name_gender = _infer_character_gender(name)
         best, reason = _heuristic_match(profile_text, candidates, preferred_gender=name_gender)
@@ -5215,13 +5215,22 @@ async def preparer_start(
 ):
     """Upload audio (and optionally a source EPUB/TXT) and run the preparer
     to generate a voice training dataset."""
-    interpreter = _resolve_preparer_interpreter()
-    check_global_gpu_lock("preparer")
-
     try:
         config = PreparerConfig(**json.loads(config_json))
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid config: {e}")
+    if config.skip_annotation:
+        raise HTTPException(status_code=400, detail="Skip annotation is not implemented.")
+    if config.enrich_with_llm:
+        if not config.llm_model_path:
+            raise HTTPException(status_code=400, detail="LLM model path is required for enrichment.")
+        if not any((config.enrich_speaker_attribution,
+                    config.enrich_narration_style,
+                    config.enrich_emotional_tone)):
+            raise HTTPException(status_code=400, detail="Select at least one enrichment category.")
+
+    interpreter = _resolve_preparer_interpreter()
+    check_global_gpu_lock("preparer")
 
     has_space, free_gb = check_disk_space(ROOT_DIR, 2.0)
     if not has_space:
@@ -5285,8 +5294,6 @@ async def preparer_start(
                "--batch-size", str(config.batch_size)]
         if config.resume:
             cmd.append("--resume")
-        if config.skip_annotation:
-            cmd.append("--skip-annotation")
         if config.model:
             cmd.extend(["--model", config.model])
         if config.fallback_model:
