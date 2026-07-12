@@ -570,17 +570,29 @@ class ProjectManager:
             label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
         labels_content = "\n".join(label_lines) + "\n"
 
-        # Phase 4 — Zip everything
+        # Phase 4 — Zip everything to a temp path, then atomically replace, so a
+        # failure mid-write can't leave a truncated zip the download route serves
+        # as valid (or clobber a previous good export with garbage).
         zip_path = os.path.join(self.root_dir, "audacity_export.zip")
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("project.lof", lof_content)
-            zf.writestr("labels.txt", labels_content)
+        tmp_zip = zip_path + ".tmp"
+        try:
+            with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("project.lof", lof_content)
+                zf.writestr("labels.txt", labels_content)
 
-            for speaker in speakers_ordered:
-                safe_name = sanitize_filename(speaker)
-                wav_buffer = io.BytesIO()
-                speaker_tracks[speaker].export(wav_buffer, format="wav")
-                zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
+                for speaker in speakers_ordered:
+                    safe_name = sanitize_filename(speaker)
+                    wav_buffer = io.BytesIO()
+                    speaker_tracks[speaker].export(wav_buffer, format="wav")
+                    zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
+            os.replace(tmp_zip, zip_path)
+        except BaseException:
+            try:
+                if os.path.exists(tmp_zip):
+                    os.remove(tmp_zip)
+            except OSError:
+                pass
+            raise
 
         if skipped:
             return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
@@ -626,6 +638,7 @@ class ProjectManager:
         meta_path = os.path.join(self.root_dir, "temp_m4b_meta.txt")
         output_path = os.path.join(self.root_dir, "audiobook.m4b")
 
+        encode_ok = False
         try:
             final_audio.export(temp_wav, format="wav")
 
@@ -673,9 +686,16 @@ class ProjectManager:
             if result.returncode != 0:
                 print(f"FFmpeg stderr: {result.stderr[-500:]}")
                 return False, f"FFmpeg failed (exit {result.returncode})"
+            encode_ok = True
 
         finally:
-            for tmp in [temp_wav, meta_path]:
+            # On a timed-out/failed encode also delete the partial output .m4b —
+            # ffmpeg writes incrementally and the download route serves the file
+            # purely on existence, so a partial file would be handed out as valid.
+            cleanup = [temp_wav, meta_path]
+            if not encode_ok:
+                cleanup.append(output_path)
+            for tmp in cleanup:
                 if os.path.exists(tmp):
                     try:
                         os.remove(tmp)
@@ -694,6 +714,7 @@ class ProjectManager:
         text = text.replace(";", "\\;")
         text = text.replace("#", "\\#")
         text = text.replace("\n", " ")
+        text = text.replace("\r", " ")  # CRLF (e.g. pasted description) would else corrupt the key=value line
         return text
 
     # Regex for detecting chapter/section headings in chunk text

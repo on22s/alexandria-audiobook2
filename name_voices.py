@@ -110,8 +110,16 @@ def _strip_suffix(slug: str) -> str:
 
 
 def _is_named(entry: dict) -> bool:
-    """An entry is 'named' once its id differs from the raw dataset stem."""
-    return bool(entry.get("dataset_id")) and entry.get("id") != entry.get("dataset_id")
+    """An entry is 'named' once its id differs from the raw dataset stem.
+
+    An entry with NO dataset_id is treated as named (conservative): we can't
+    tell it's unnamed, and re-renaming a shipped voice id other configs
+    reference is worse than skipping it. Use --overwrite to force.
+    """
+    ds = entry.get("dataset_id")
+    if not ds:
+        return True
+    return entry.get("id") != ds
 
 
 def _mean_f0(entry: dict):
@@ -202,8 +210,13 @@ def main():
         print("Nothing to name. (All profiled adapters already named; use --overwrite to redo.)")
         return 0
 
-    # Reserve the ids of everything we're NOT renaming, so we never collide with them.
-    untouched_ids = {e["id"] for e in manifest if e not in candidates}
+    # Reserve the ids of everything we're NOT renaming, so we never collide with
+    # them. Reserve by object identity (id()), not dict-equality `in candidates`:
+    # a non-candidate entry value-equal to a candidate would otherwise be dropped
+    # from the reserved set, and a manifest entry missing 'id' would KeyError.
+    candidate_ids = {id(e) for e in candidates}
+    untouched_ids = {e.get("id") for e in manifest
+                     if id(e) not in candidate_ids and e.get("id")}
     plan = assign_unique_names(candidates, reserved=untouched_ids)
 
     renames = [(e, new) for e, new in plan if e["id"] != new]

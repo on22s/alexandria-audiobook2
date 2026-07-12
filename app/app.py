@@ -33,7 +33,7 @@ from tts import voice_category
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
-from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded
+from hf_utils import fetch_builtin_manifest, download_builtin_adapter, is_adapter_downloaded, builtin_hf_name
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_current_status)
@@ -509,7 +509,7 @@ process_state = {
                      "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
-    "lora_training": {"running": False, "logs": []},
+    "lora_training": {"running": False, "logs": [], "cancel": False, "process": None, "pid": None, "paused": False, "start_time": None},
     "lora_test": {"running": False, "logs": []},
     "voice_design": {"running": False, "logs": []},
     "lmstudio_optimize": {"running": False, "logs": []},
@@ -3671,8 +3671,14 @@ class ScriptLoadRequest(BaseModel):
 @app.post("/api/scripts/load")
 async def load_script(request: ScriptLoadRequest):
     """Load a saved script, replacing the current annotated_script.json and chunks."""
-    if process_state["audio"]["running"]:
-        raise HTTPException(status_code=409, detail="Cannot load a script while audio generation is running.")
+    # Block while ANY task that writes annotated_script.json / voice_config.json
+    # is running — not just audio. A script/review/persona/nicknames run finishes
+    # by writing those files and would silently overwrite the book we load here.
+    busy = [k for k in ("audio", "script", "review", "persona", "nicknames")
+            if process_state.get(k, {}).get("running")]
+    if busy:
+        raise HTTPException(status_code=409,
+            detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
 
     safe_name = _require_safe_filename(request.name, "Invalid script name.")
 
@@ -3689,6 +3695,12 @@ async def load_script(request: ScriptLoadRequest):
     # Delete chunks so they regenerate from the loaded script
     if os.path.exists(CHUNKS_PATH):
         os.remove(CHUNKS_PATH)
+
+    # Clear any review checkpoint left over from the PREVIOUS active book. The
+    # checkpoint is keyed to SCRIPT_PATH, not to a book identity (load_checkpoint
+    # validates only batch_size/context_window), so a resume after this load would
+    # otherwise splice the old book's corrected entries into the one just loaded.
+    clear_checkpoint(SCRIPT_PATH)
 
     logger.info(f"Script '{request.name}' loaded")
     return {"status": "loaded", "name": request.name}
@@ -4420,6 +4432,15 @@ async def lora_delete_dataset(dataset_id: str):
     logger.info(f"LoRA dataset deleted: {dataset_id}")
     return {"status": "deleted", "dataset_id": dataset_id}
 
+@app.post("/api/lora/train/cancel")
+async def lora_cancel_training():
+    """Cancel a running LoRA training subprocess (it holds the global GPU lock for
+    hours, so without this the only way to stop it was killing the whole server)."""
+    return _cancel_task("lora_training",
+                        "No LoRA training is currently running.",
+                        "LoRA training already exited.")
+
+
 @app.post("/api/lora/train")
 async def lora_start_training(request: LoraTrainingRequest, background_tasks: BackgroundTasks):
     """Start LoRA training as a subprocess."""
@@ -4550,7 +4571,7 @@ async def lora_delete_model(adapter_id: str):
 async def lora_download_builtin(adapter_id: str):
     """Download a built-in LoRA adapter from HuggingFace."""
     manifest = fetch_builtin_manifest(BUILTIN_LORA_DIR)
-    hf_name = adapter_id.replace("builtin_", "", 1)
+    hf_name = builtin_hf_name(adapter_id)
     entry = next((e for e in manifest if e["id"] == hf_name or e["id"] == adapter_id), None)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Unknown built-in adapter: {adapter_id}")
