@@ -1022,7 +1022,9 @@ def main():
 
             for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
                 if corrected == "VRAM_SKIP":
-                    unreviewed_remainder.extend(batch)
+                    # Keep the skipped batch at its original position even if
+                    # concurrent workers acquired the VRAM lock out of order.
+                    all_corrected.extend(batch)
                     continue
 
                 if corrected is None:
@@ -1142,7 +1144,7 @@ def main():
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
-    if not vram_aborted:
+    if not vram_aborted and not failed_batches:
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the

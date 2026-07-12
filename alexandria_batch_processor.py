@@ -579,6 +579,7 @@ class BatchProcessor:
         except KeyboardInterrupt:
             logger.warning("\n⚠ Batch processing interrupted by user")
             logger.info("Completed files retained - rerun batch to resume from interruption point")
+            self.results["failed"].append({"file": "<interrupted>", "error": "user interrupted batch"})
 
         # Summary
         self.print_summary()

@@ -35,6 +35,7 @@ import re
 import shutil
 import sys
 import time
+import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_MODELS_DIR = os.path.join(SCRIPT_DIR, "lora_models")
@@ -261,8 +262,17 @@ def main():
         renamed += 1
         print(f"  renamed → {new}")
 
-    with open(args.manifest, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2, ensure_ascii=False)
+    manifest_dir = os.path.dirname(os.path.abspath(args.manifest))
+    fd, tmp_manifest = tempfile.mkstemp(prefix=".manifest_", suffix=".json", dir=manifest_dir)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_manifest, args.manifest)
+    finally:
+        if os.path.exists(tmp_manifest):
+            os.remove(tmp_manifest)
     print(f"\n✓ Renamed {renamed} adapter(s); manifest updated ({time.strftime('%H:%M:%S')}).")
     return 0
 

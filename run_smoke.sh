@@ -65,6 +65,10 @@ for pair in "${PAIRS[@]}"; do
         notify "Alexandria smoke aborted" "Stopped after $i/${#PAIRS[@]} books. See $OUT_DIR/"
         exit 130
     fi
+    if (( rc != 0 )); then
+        echo "Wrapper failed for book $i (exit $rc)." >&2
+        exit "$rc"
+    fi
 done
 
 elapsed=$(( $(date +%s) - start_epoch ))

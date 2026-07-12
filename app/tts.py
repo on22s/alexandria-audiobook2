@@ -1332,6 +1332,9 @@ class TTSEngine:
                         results["failed"].append((idx, "Batch returned None"))
                     continue
 
+                for idx in sb_indices[len(wavs_list):]:
+                    results["failed"].append((idx, "Batch returned no waveform for this chunk"))
+
                 sb_audio_duration = 0.0
                 for i, (wav, idx) in enumerate(zip(wavs_list, sb_indices)):
                     try:
@@ -1453,6 +1456,9 @@ class TTSEngine:
                         for idx in sb_indices:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
+
+                    for idx in sb_indices[len(wavs_list):]:
+                        results["failed"].append((idx, "Batch returned no waveform for this chunk"))
 
                     sb_audio_duration = 0.0
                     for wav, idx in zip(wavs_list, sb_indices):
@@ -1658,6 +1664,9 @@ class TTSEngine:
                         for idx in sb_indices:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
+
+                    for idx in sb_indices[len(wavs_list):]:
+                        results["failed"].append((idx, "Batch returned no waveform for this chunk"))
 
                     sb_audio_duration = 0.0
                     for wav, idx in zip(wavs_list, sb_indices):

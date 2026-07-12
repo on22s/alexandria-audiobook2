@@ -4340,17 +4340,24 @@
                 // Show toast with undo action
                 const toastId = 'toast-undo-' + Date.now();
                 const container = document.getElementById('toast-container');
-                container.insertAdjacentHTML('beforeend', `
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
                     <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
                         <div class="d-flex">
-                            <div class="toast-body text-dark">
-                                Line deleted (${data.deleted.speaker}: "${(data.deleted.text || '').substring(0, 40)}...")
-                                <a href="#" class="ms-2 fw-bold text-dark" onclick="event.preventDefault(); undoDeleteChunk('${toastId}');">Undo</a>
+                            <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
+                                <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
                             </div>
                             <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
                         </div>
-                    </div>`);
-                const el = document.getElementById(toastId);
+                    </div>`;
+                const el = wrapper.firstElementChild;
+                el.querySelector('.deleted-line-summary').textContent =
+                    `Line deleted (${data.deleted.speaker}: "${(data.deleted.text || '').substring(0, 40)}...")`;
+                el.querySelector('a').addEventListener('click', (event) => {
+                    event.preventDefault();
+                    undoDeleteChunk(toastId);
+                });
+                container.appendChild(el);
                 const toast = new bootstrap.Toast(el, { delay: 8000 });
                 toast.show();
                 el.addEventListener('hidden.bs.toast', () => { el.remove(); });

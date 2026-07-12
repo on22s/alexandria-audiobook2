@@ -500,6 +500,7 @@ def train(args):
         epoch_loss = 0.0
         epoch_steps = 0
         epoch_oom_skips = 0
+        gradients_since_step = 0
         optimizer.zero_grad()
 
         # Shuffle samples each epoch
@@ -556,6 +557,7 @@ def train(args):
                 # Scale for gradient accumulation
                 scaled_loss = total_loss / args.gradient_accumulation_steps
                 scaled_loss.backward()
+                gradients_since_step += 1
 
                 # Capture loss values before freeing tensors
                 step_loss = total_loss.item()
@@ -602,13 +604,14 @@ def train(args):
                 raise
 
             # Gradient accumulation step
-            if step_idx % args.gradient_accumulation_steps == 0 or step_idx == total_steps_per_epoch:
+            if gradients_since_step >= args.gradient_accumulation_steps or step_idx == total_steps_per_epoch:
                 torch.nn.utils.clip_grad_norm_(
                     [p for p in peft_talker.parameters() if p.requires_grad],
                     max_norm=1.0,
                 )
                 optimizer.step()
                 optimizer.zero_grad()
+                gradients_since_step = 0
 
                 if "cuda" in device:
                     torch.cuda.empty_cache()
@@ -617,8 +620,25 @@ def train(args):
                   f"loss={step_loss:.4f} talker_loss={step_talker_loss:.4f} "
                   f"sub_loss={step_sub_loss:.4f} lr={args.lr:.2e}", flush=True)
 
-        # Epoch summary
-        avg_loss = epoch_loss / max(epoch_steps, 1)
+        # Epoch summary. A zero-success epoch produced no training signal and
+        # must never publish an adapter as if it had reached zero loss.
+        if epoch_steps == 0:
+            raise RuntimeError(
+                f"Epoch {epoch} completed with zero successful samples "
+                f"({epoch_oom_skips} OOM-like skip(s)); refusing to save an untrained adapter."
+            )
+
+        # Flush gradients from a partial final accumulation window. An OOM on
+        # the final dataset item bypasses the in-loop boundary check above.
+        if gradients_since_step:
+            torch.nn.utils.clip_grad_norm_(
+                [p for p in peft_talker.parameters() if p.requires_grad],
+                max_norm=1.0,
+            )
+            optimizer.step()
+            optimizer.zero_grad()
+
+        avg_loss = epoch_loss / epoch_steps
 
         # Safe checkpoint: save whenever loss improves and is still above garble floor.
         # This ensures we always have the best non-garbling checkpoint on disk,

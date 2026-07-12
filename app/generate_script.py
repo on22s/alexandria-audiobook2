@@ -332,8 +332,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
         if attempt < max_retries:
             print("Retrying...")
+            continue
 
-        # Last resort: extract individual valid entries with regex
+        # Last resort after every full-response retry is exhausted.
         salvaged_entries = salvage_json_entries(json_text)
         if salvaged_entries:
             print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
@@ -501,6 +502,10 @@ def main():
         )
         chunk_elapsed = time.monotonic() - chunk_start
         chunk_times.append(chunk_elapsed)
+
+        if not entries:
+            print(f"Error: chunk {i}/{total_chunks} produced no entries; preserving existing output")
+            sys.exit(1)
 
         all_entries.extend(entries)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")

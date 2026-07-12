@@ -9,7 +9,7 @@ module.exports = {
         message: "python app.py",
         on: [{
           // Capture the URL when the server prints it
-          event: "/(http:\\/\\/[0-9.:]+)/",
+          event: "/(http:\\/\\/\\S+)/",
           done: true
         }]
       }

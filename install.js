@@ -36,7 +36,7 @@ module.exports = {
     params: {
       venv: "env",
       path: "app",
-      message: "uv pip freeze | grep -iE \"^(torch|torchvision|torchaudio|pytorch-triton)\" > torch-constraints.txt"
+      message: "python -c \"import importlib.metadata as m, pathlib; wanted={'torch','torchvision','torchaudio','pytorch-triton'}; rows=[f'{d.metadata[\\\"Name\\\"]}=={d.version}' for d in m.distributions() if d.metadata[\\\"Name\\\"].lower() in wanted]; pathlib.Path('torch-constraints.txt').write_text('\\n'.join(rows)+'\\n')\""
     }
   }, {
     method: "shell.run",

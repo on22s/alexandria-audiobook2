@@ -564,6 +564,8 @@ def claim_gpu_task(task_name: str):
     """
     with _gpu_lock:
         check_global_gpu_lock(task_name)
+        if "cancel" in process_state[task_name]:
+            process_state[task_name]["cancel"] = False
         process_state[task_name]["running"] = True
 
 def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
@@ -573,7 +575,6 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     generate_script_batch_start, and voicelab_start's background _run().
     """
     state["running"] = True
-    state["cancel"] = False
     state["paused"] = False
     state["start_time"] = time.time()
     state["_last_eta_fraction"] = 0.0
@@ -701,7 +702,6 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     if "return_code" in state: state["return_code"] = None
     if "process"     in state: state["process"]     = None
     if "pid"         in state: state["pid"]         = None
-    if "cancel"      in state: state["cancel"]      = False
     if "start_time"  in state: state["start_time"]  = time.time()
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
@@ -800,6 +800,24 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
     except (ProcessLookupError, OSError):
         raise HTTPException(status_code=400, detail=exited_msg)
     return {"status": "cancel signal sent", "pid": pid}
+
+
+def _run_claimed_background_task(task_name: str, callback) -> None:
+    """Run a claimed callback and always release its process-state slot."""
+    state = process_state[task_name]
+    try:
+        callback()
+    except Exception as e:
+        logger.exception("Background task %s failed: %s", task_name, e)
+        state.setdefault("logs", []).append(f"Error: {e}")
+        if "status" in state:
+            state["status"] = "failed"
+    finally:
+        if "process" in state:
+            state["process"] = None
+        if "pid" in state:
+            state["pid"] = None
+        state["running"] = False
 
 
 
@@ -2122,11 +2140,32 @@ def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
     # would otherwise mean one extra realpath syscall per ZIP entry. Inlined
     # rather than routed through is_path_inside for that reason.
     dest = os.path.realpath(dest_dir)
-    for member in zf.namelist():
-        target = os.path.realpath(os.path.join(dest_dir, member))
+    members = zf.infolist()
+    if len(members) > 100000:
+        raise HTTPException(status_code=400, detail="Archive contains too many files.")
+    if sum(member.file_size for member in members) > 20 * 1024**3:
+        raise HTTPException(status_code=400, detail="Archive expands beyond the 20 GB limit.")
+    for member in members:
+        target = os.path.realpath(os.path.join(dest_dir, member.filename))
         if target != dest and not target.startswith(dest + os.sep):
             raise HTTPException(status_code=400, detail="Archive contains an unsafe path.")
     zf.extractall(dest_dir)
+
+
+async def _save_upload_limited(file: UploadFile, path: str, max_bytes: int) -> None:
+    """Stream an upload to disk and remove it if it exceeds max_bytes."""
+    written = 0
+    try:
+        async with aiofiles.open(path, "wb") as out_file:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large.")
+                await out_file.write(chunk)
+    except Exception:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
 
 
 @app.post("/api/upload")
@@ -2134,9 +2173,7 @@ async def upload_file(file: UploadFile = File(...)):
     # Validate and sanitize filename to prevent path traversal
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
     file_path = await asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await file.read()
-        await out_file.write(content)
+    await _save_upload_limited(file, file_path, 512 * 1024**2)
 
     # Convert EPUB to plain text
     if file_path.lower().endswith('.epub'):
@@ -2616,7 +2653,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         state["logs"].append("Batch review finished.")
 
     claim_gpu_task("batch_review")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_claimed_background_task, "batch_review", _run)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 
@@ -2731,7 +2768,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         state["logs"].append("Batch script generation finished.")
 
     claim_gpu_task("batch_script")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_claimed_background_task, "batch_script", _run)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
@@ -3337,9 +3374,9 @@ async def upload_m4b_cover(file: UploadFile = File(...)):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     cover_path = os.path.join(ROOT_DIR, "m4b_cover.jpg")
-    content = await file.read()
-    with open(cover_path, "wb") as f:
-        f.write(content)
+    cover_tmp = cover_path + ".upload"
+    await _save_upload_limited(file, cover_tmp, 25 * 1024**2)
+    os.replace(cover_tmp, cover_path)
     return {"status": "uploaded", "path": cover_path}
 
 @app.delete("/api/m4b_cover")
@@ -3379,7 +3416,6 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
 
     def task():
         process_state["audio"]["running"] = True
-        process_state["audio"]["cancel"] = False
         process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = [
             f"Starting parallel generation of {total} chunks with {workers} workers..."
@@ -3445,7 +3481,6 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
 
     def task():
         process_state["audio"]["running"] = True
-        process_state["audio"]["cancel"] = False
         process_state["audio"]["start_time"] = time.time()
         process_state["audio"]["logs"] = [
             f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."
@@ -3696,6 +3731,8 @@ async def load_script(request: ScriptLoadRequest):
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     if os.path.exists(companion):
         shutil.copy2(companion, VOICE_CONFIG_PATH)
+    elif os.path.exists(VOICE_CONFIG_PATH):
+        os.remove(VOICE_CONFIG_PATH)
 
     # Delete chunks so they regenerate from the loaded script
     if os.path.exists(CHUNKS_PATH):
@@ -4254,9 +4291,7 @@ async def clone_voices_upload(file: UploadFile = File(...)):
     dest_filename = f"{voice_id}{ext}"
     dest_path = os.path.join(CLONE_VOICES_DIR, dest_filename)
 
-    async with aiofiles.open(dest_path, "wb") as out_file:
-        content = await file.read()
-        await out_file.write(content)
+    await _save_upload_limited(file, dest_path, 512 * 1024**2)
 
     manifest = _load_manifest(CLONE_VOICES_MANIFEST)
     manifest.append({
@@ -4325,9 +4360,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
     # Save ZIP temporarily, then extract
     tmp_path = os.path.join(LORA_DATASETS_DIR, f"_tmp_{dataset_name}.zip")
     try:
-        async with aiofiles.open(tmp_path, "wb") as out_file:
-            content = await file.read()
-            await out_file.write(content)
+        await _save_upload_limited(file, tmp_path, 4 * 1024**3)
 
         os.makedirs(dataset_dir, exist_ok=True)
         with zipfile.ZipFile(tmp_path, "r") as zf:
@@ -4397,7 +4430,10 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
             )
 
         return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
-
+    except Exception:
+        if os.path.isdir(dataset_dir):
+            shutil.rmtree(dataset_dir)
+        raise
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -4948,7 +4984,6 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     def task():
         process_state["dataset_builder"]["running"] = True
         process_state["dataset_builder"]["logs"] = []
-        process_state["dataset_builder"]["cancel"] = False
         # Wrapped in try/finally so ANY unexpected exception in this thread -
         # not just the ones already anticipated by the per-sample try/except
         # below - still releases the GPU lock. An uncaught exception in a
@@ -5217,7 +5252,6 @@ async def preparer_start(
         state = process_state["preparer"]
         state["running"] = True
         state["logs"] = []
-        state["cancel"] = False
         state["status"] = "running"
         state["output_file"] = None
         state["process"] = None
@@ -5297,7 +5331,7 @@ async def preparer_start(
         state["process"] = None
 
     claim_gpu_task("preparer")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_claimed_background_task, "preparer", _run)
     return {"status": "started"}
 
 
@@ -5364,7 +5398,6 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
     def _run():
         state = process_state["batch_preparer"]
         state["running"] = True
-        state["cancel"] = False
         state["logs"] = [f"Starting batch of {len(request.tasks)} tasks..."]
         state["tasks"] = [{"audio": t.audio_filename, "status": "pending"} for t in request.tasks]
         state["current_task_idx"] = -1
@@ -5451,7 +5484,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
         state["logs"].append("Batch processing finished.")
 
     claim_gpu_task("batch_preparer")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_claimed_background_task, "batch_preparer", _run)
     return {"status": "started", "task_count": len(request.tasks)}
 
 
@@ -5799,7 +5832,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             state["logs"].append("Voice Lab pipeline finished.")
 
     claim_gpu_task("voicelab")
-    background_tasks.add_task(_run)
+    background_tasks.add_task(_run_claimed_background_task, "voicelab", _run)
     return {"status": "started", "stages": request.stages, "zips_dir": zips_dir}
 
 
