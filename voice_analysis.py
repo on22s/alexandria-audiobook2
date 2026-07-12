@@ -378,7 +378,10 @@ def run_analyze(model, device, deduped_root, output_dir):
     zip_groups = {}
     for zp in sorted(deduped_root.glob("*.zip")):
         key = normalize_group_key(zp.stem)
-        zip_groups[key] = [str(zp)]
+        # Append, don't assign: two zips that normalize to the same key both
+        # belong to the group instead of the later one silently replacing the
+        # earlier (which would drop a zip from the analyze phase).
+        zip_groups.setdefault(key, []).append(str(zp))
 
     if not zip_groups:
         print(f"No ZIPs found in {deduped_root}")
@@ -447,6 +450,10 @@ def run_analyze(model, device, deduped_root, output_dir):
 
     group_names = sorted(all_embs.keys())
     n_groups    = len(group_names)
+    if n_groups == 0:
+        print("No embeddings extracted from any group — nothing to analyze "
+              "(check that the _deduped zips contain readable WAVs).")
+        return
     short_names = [n.replace("_", " ") for n in group_names]
     print(f"\n{'='*60}")
     print(f"Analyzing {n_groups} groups")
