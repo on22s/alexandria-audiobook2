@@ -772,7 +772,7 @@ def _resume_if_paused(state: dict, proc):
     """
     if proc is not None and state.get("paused") and sys.platform != "win32":
         try:
-            proc.send_signal(signal.SIGCONT)
+            _send_signal_tree(proc, signal.SIGCONT)
         except (ProcessLookupError, OSError):
             pass
         state["paused"] = False
@@ -793,10 +793,8 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
         state["cancel"] = True
         return {"status": "cancel queued"}
     try:
-        if proc is not None:
-            proc.terminate()
-        else:
-            os.kill(pid, signal.SIGTERM)
+        # Signal the whole group (grandchildren too); proc when we have it, else pid.
+        _send_signal_tree(proc if proc is not None else pid, signal.SIGTERM)
     except (ProcessLookupError, OSError):
         raise HTTPException(status_code=400, detail=exited_msg)
     return {"status": "cancel signal sent", "pid": pid}
@@ -821,7 +819,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
 
 
 
-def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None) -> Tuple[int, List[str]]:
+def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None, env: dict = None) -> Tuple[int, List[str]]:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
     Uses a reader thread + Queue so the drain loop can check state['cancel']
@@ -850,7 +848,12 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         stderr=subprocess.STDOUT,
         text=True,
         cwd=cwd,
-        env=os.environ.copy(),
+        env=env if env is not None else os.environ.copy(),
+        # Own process group (pgid == pid) so cancel/pause can signal the whole
+        # tree — grandchildren (e.g. Voice Lab's batch_train_lora → train_lora,
+        # or the profiler's llama child) would otherwise survive. POSIX-only;
+        # ignored on Windows.
+        start_new_session=True,
     )
 
     if "process" in state:
@@ -882,6 +885,18 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     max_idle_cycles = 600  # Max consecutive Empty polls before assuming reader died (600 * 0.2s = 120s)
     idle_cycles = 0
 
+    def _honor_cancel():
+        # Signal the whole process group once, so a cancel reaches grandchildren
+        # (the direct child's SIGTERM handler, if any, decides how to stop them).
+        nonlocal terminate_requested
+        if state.get("cancel") and not terminate_requested:
+            terminate_requested = True
+            try:
+                _send_signal_tree(process, signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                # Already exited — reader will deliver its None sentinel next.
+                pass
+
     while True:
         try:
             line = log_queue.get(timeout=0.2)  # Increased from 0.05 to reduce CPU spinning
@@ -901,16 +916,12 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                 # output) - keep waiting rather than dropping output that
                 # arrives later.
                 idle_cycles = 0
-            if state.get("cancel") and not terminate_requested:
-                terminate_requested = True
-                try:
-                    process.terminate()
-                except (ProcessLookupError, OSError):
-                    # Process already exited on its own - nothing to terminate.
-                    # Let the reader thread drain the rest of the output; the
-                    # real exit code below reflects how it actually finished.
-                    pass
+            _honor_cancel()
             continue
+        # Also honor cancel when output is flowing continuously — otherwise a
+        # chatty stage never reaches the Empty branch and can't be terminated
+        # until it happens to go quiet.
+        _honor_cancel()
         if line is None:
             break
         log_line = line.strip()
@@ -2236,16 +2247,46 @@ async def generate_script(background_tasks: BackgroundTasks):
 async def generate_script_cancel():
     return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
 
+def _send_signal_tree(proc_or_pid, sig) -> None:
+    """Send `sig` to the whole process group, so grandchildren are signalled too.
+
+    Every cancelable/pausable subprocess is started with start_new_session=True
+    (see _stream_subprocess_to_logs), which makes each the leader of its own
+    process group (pgid == pid). Signalling only the direct child (proc.terminate/
+    send_signal) misses grandchildren — e.g. Voice Lab's `train` stage runs
+    batch_train_lora.py which spawns train_lora.py, and profiling spawns a llama
+    process — so a cancel would leave the real GPU worker running orphaned and a
+    pause would freeze only the idle wrapper. Kill the group instead.
+
+    Accepts a Popen or a bare pid. Raises ProcessLookupError/OSError like
+    proc.send_signal so existing callers' handlers still catch an already-exited
+    process. Falls back to the direct process (Windows, or if the group can't be
+    resolved)."""
+    pid = proc_or_pid.pid if hasattr(proc_or_pid, "pid") else proc_or_pid
+    if sys.platform != "win32":
+        try:
+            os.killpg(os.getpgid(pid), sig)
+            return
+        except ProcessLookupError:
+            raise  # process/group already gone — let caller treat as exited
+        except OSError:
+            pass  # couldn't resolve/signal the group; fall back to direct
+    if hasattr(proc_or_pid, "send_signal"):
+        proc_or_pid.send_signal(sig)
+    else:
+        os.kill(pid, sig)
+
+
 def _posix_signal(proc, signame):
-    """Send a POSIX signal by name (e.g. "SIGSTOP"). Raises 501 on Windows,
-    where SIGSTOP/SIGCONT don't exist on the signal module — the name is
-    resolved here, after the platform check, so callers never reference the
-    constant directly and crash with AttributeError on Windows."""
+    """Send a POSIX signal by name (e.g. "SIGSTOP") to the process's whole group.
+    Raises 501 on Windows, where SIGSTOP/SIGCONT don't exist on the signal module
+    — the name is resolved here, after the platform check, so callers never
+    reference the constant directly and crash with AttributeError on Windows."""
     if sys.platform == "win32":
         raise HTTPException(status_code=501, detail="Pause/resume is not supported on Windows.")
     try:
         sig = getattr(signal, signame)
-        proc.send_signal(sig)
+        _send_signal_tree(proc, sig)
     except AttributeError:
         raise HTTPException(status_code=400, detail=f"Invalid signal name: {signame}")
     except (ProcessLookupError, OSError) as e:
@@ -2662,11 +2703,11 @@ def _batch_cancel_helper(state_key: str):
     state["cancel"] = True
     _resume_if_paused(state, state.get("process"))
 
-    # Also terminate the current subprocess if it's running
+    # Also terminate the current subprocess (whole group) if it's running
     proc = state.get("process")
     if proc and proc.poll() is None:
         try:
-            proc.terminate()
+            _send_signal_tree(proc, signal.SIGTERM)
         except (ProcessLookupError, OSError):
             pass
 
@@ -5544,6 +5585,22 @@ def _load_voicelab_config() -> dict:
     return cfg
 
 
+def _rocm_env(rocm_python: str) -> dict:
+    """Environment for the ROCm pipeline stages.
+
+    The web app runs inside its own venv (app/env), so os.environ has VIRTUAL_ENV
+    and a PATH that front-loads app/env/bin — which has no torch/librosa. The
+    dedup/train/profile stages run under a *different* interpreter (rocm_python);
+    without scrubbing, any bare `python`/`pip`/tool those scripts shell out to
+    would resolve back into app/env and import the wrong (torch-less) packages.
+    Drop VIRTUAL_ENV and front-load the ROCm interpreter's own bin dir instead."""
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    bin_dir = os.path.dirname(os.path.abspath(rocm_python))
+    env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+    return env
+
+
 class VoiceLabConfig(BaseModel):
     rocm_python: Optional[str] = None
     pipeline_repo: Optional[str] = None
@@ -5640,6 +5697,9 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
     if not root:
         raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
     root = _resolve_zips_dir(root)
+    # Don't enumerate the app's own upload/generated dirs (consistent with the
+    # exec-path guard); an external operator-chosen dataset folder is expected.
+    _validate_voicelab_path(root, "zips_dir")
     if not os.path.isdir(root):
         raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
 
@@ -5674,11 +5734,16 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
 
 
 def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
-    """Build the (stage_name, command, cwd) tuples for the requested stages."""
+    """Build the (stage_name, command, cwd, env) tuples for the requested stages.
+
+    env is a scrubbed ROCm environment for the stages run under rocm_python, and
+    None for the pure-stdlib `name` stage (which correctly runs under the web
+    app's own interpreter/env)."""
     rocm = cfg["rocm_python"]
     repo = cfg["pipeline_repo"]
     deduped_dir = os.path.join(zips_dir, "_deduped")
     profiler_model = (req.profiler_model or cfg["profiler_model"]).strip()
+    rocm_env = _rocm_env(rocm)
 
     steps = []
     if "dedup" in req.stages:
@@ -5686,7 +5751,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--phase", "dedup", "--zips2", zips_dir]
         if req.device:
             cmd += ["--device", req.device]
-        steps.append(("dedup", cmd, ROOT_DIR))
+        steps.append(("dedup", cmd, ROOT_DIR, rocm_env))
     if "train" in req.stages:
         cmd = [rocm, "-u", os.path.join(repo, "batch_train_lora.py"),
                "--zips_dir", deduped_dir,
@@ -5706,22 +5771,22 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--target_loss", str(req.target_loss),
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
-        steps.append(("train", cmd, repo))
+        steps.append(("train", cmd, repo, rocm_env))
     if "profile" in req.stages:
         cmd = [rocm, "-u", os.path.join(repo, "voice_profiler.py"),
                "--manifest", LORA_MODELS_MANIFEST]
         if profiler_model:
             cmd += ["--model", profiler_model]
-        steps.append(("profile", cmd, repo))
+        steps.append(("profile", cmd, repo, rocm_env))
     if "name" in req.stages:
-        # Pure stdlib — safe to run under the web app's own interpreter
+        # Pure stdlib — safe to run under the web app's own interpreter/env
         cmd = [sys.executable, "-u", os.path.join(ROOT_DIR, "name_voices.py"),
                "--manifest", LORA_MODELS_MANIFEST, "--models-dir", LORA_MODELS_DIR]
         if req.name_apply:
             cmd.append("--apply")
         if req.name_overwrite:
             cmd.append("--overwrite")
-        steps.append(("name", cmd, ROOT_DIR))
+        steps.append(("name", cmd, ROOT_DIR, None))
     return steps
 
 
@@ -5743,6 +5808,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     if not zips_dir_raw:
         raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
     zips_dir = _resolve_zips_dir(zips_dir_raw)
+    _validate_voicelab_path(zips_dir, "zips_dir")
 
     # Validate prerequisites up front with actionable errors
     needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
@@ -5800,7 +5866,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
 
         failed = False
-        for i, (stage, cmd, cwd) in enumerate(steps):
+        for i, (stage, cmd, cwd, env) in enumerate(steps):
             if state["cancel"]:
                 state["logs"].append("Pipeline cancelled.")
                 break
@@ -5809,7 +5875,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             state["logs"].append(f"--- [{i+1}/{len(steps)}] {stage} ---")
 
             try:
-                rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path)
+                rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path, env=env)
             except Exception as e:
                 state["logs"].append(f"[{stage}] error launching: {e}")
                 state["tasks"][i]["status"] = "failed"
