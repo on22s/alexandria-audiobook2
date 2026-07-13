@@ -9,7 +9,7 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
@@ -159,30 +159,30 @@ class LLMConfig(BaseModel):
     model_name: str
 
 class TTSConfig(BaseModel):
-    mode: str = "local"  # "local" or "external"
+    mode: Literal["local", "external"] = "local"
     url: str = "http://127.0.0.1:7860"  # external mode only
     device: str = "auto"  # local mode: "auto", "cuda:0", "cpu", etc.
     language: str = "English"  # TTS language
-    parallel_workers: int = 2  # concurrent TTS workers
+    parallel_workers: int = Field(default=2, ge=1)  # concurrent TTS workers
     batch_seed: Optional[int] = None  # Single seed for batch mode, None/-1 = random
     compile_codec: bool = False  # torch.compile the codec for ~3-4x batch throughput (slow first run)
     sub_batch_enabled: bool = True  # split batch by text length to reduce padding waste
-    sub_batch_min_size: int = 4  # minimum chunks per sub-batch before allowing a split
-    sub_batch_ratio: float = 5.0  # max longest/shortest length ratio before splitting
-    sub_batch_max_items: int = 0  # hard cap on sequences per sub-batch (0 = auto from VRAM estimate)
+    sub_batch_min_size: int = Field(default=4, ge=1)  # minimum chunks before allowing a split
+    sub_batch_ratio: float = Field(default=5.0, ge=1)  # max longest/shortest ratio before splitting
+    sub_batch_max_items: int = Field(default=0, ge=0)  # hard cap (0 = auto from VRAM estimate)
     batch_group_by_type: bool = False  # group chunks by voice type for efficient batching
-    pause_between_speakers_ms: int = 500  # silence (ms) between different speakers during merge
-    pause_same_speaker_ms: int = 250  # silence (ms) when same speaker continues during merge
+    pause_between_speakers_ms: int = Field(default=500, ge=0)  # silence between different speakers
+    pause_same_speaker_ms: int = Field(default=250, ge=0)  # silence when same speaker continues
 
 class GenerationConfig(BaseModel):
-    chunk_size: int = 3000
-    max_tokens: int = 4096
-    temperature: float = 0.6
-    top_p: float = 0.8
-    top_k: int = 0
-    min_p: float = 0
-    presence_penalty: float = 0.0
-    banned_tokens: List[str] = []
+    chunk_size: int = Field(default=3000, ge=500)
+    max_tokens: int = Field(default=4096, ge=256)
+    temperature: float = Field(default=0.6, ge=0, le=2)
+    top_p: float = Field(default=0.8, ge=0, le=1)
+    top_k: int = Field(default=0, ge=0, le=200)
+    min_p: float = Field(default=0, ge=0, le=1)
+    presence_penalty: float = Field(default=0.0, ge=-2, le=2)
+    banned_tokens: List[str] = Field(default_factory=list)
     merge_narrators: bool = False
 
 class PromptConfig(BaseModel):
