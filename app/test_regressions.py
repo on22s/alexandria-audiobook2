@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import importlib.util
 import json
 import os
@@ -697,6 +698,26 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("id=\"btn-lora-cancel\"", html)
         self.assertIn("/api/lora/train/cancel", html)
         self.assertNotIn("id=\"prep-skip-annotation\"", html)
+
+    def test_check_basic_auth_accepts_and_rejects_credentials(self):
+        make = lambda raw: "Basic " + base64.b64encode(raw.encode()).decode()
+        # Correct credentials pass.
+        self.assertTrue(utils.check_basic_auth(
+            make("alexandria:secret"), "alexandria", "secret"))
+        # Wrong password and wrong username both fail.
+        self.assertFalse(utils.check_basic_auth(
+            make("alexandria:wrong"), "alexandria", "secret"))
+        self.assertFalse(utils.check_basic_auth(
+            make("intruder:secret"), "alexandria", "secret"))
+        # Malformed / missing inputs fail closed rather than raising.
+        self.assertFalse(utils.check_basic_auth(
+            make("nocolonhere"), "alexandria", "secret"))
+        self.assertFalse(utils.check_basic_auth(
+            "Basic !!!not-base64!!!", "alexandria", "secret"))
+        self.assertFalse(utils.check_basic_auth(
+            "Bearer " + base64.b64encode(b"alexandria:secret").decode(),
+            "alexandria", "secret"))
+        self.assertFalse(utils.check_basic_auth("", "alexandria", "secret"))
 
 
 if __name__ == "__main__":

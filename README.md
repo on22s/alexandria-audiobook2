@@ -115,6 +115,8 @@ docker compose up --build
 
 Requires [Docker](https://docs.docker.com/get-docker/) with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). The web UI is available at `http://localhost:4200`. TTS models download on first use and are cached in a Docker volume. User data (uploads, voice configs, trained LoRA adapters, audio output) persists via bind mounts to the project directory.
 
+> **Note:** the container binds to `0.0.0.0`, so it is reachable from other machines on your network, not just localhost. If that network isn't fully trusted, enable the auth gate by passing `-e ALEXANDRIA_AUTH_PASSWORD=your-secret` to `docker run` (see [Authentication](#authentication-optional)).
+
 ## First Launch — What to Expect
 
 If this is your first time running Alexandria, read this before anything else.
@@ -562,6 +564,38 @@ Each WAV track is padded to the same total duration with silence where other spe
 ## API Reference
 
 Alexandria exposes a REST API for programmatic access:
+
+### Authentication (optional)
+
+By default the app has **no authentication** and binds to `127.0.0.1`, so it's
+only reachable from the same machine. If you expose it beyond localhost — the
+Docker image binds `0.0.0.0`, or you put it behind a tunnel/reverse proxy —
+turn on the optional HTTP Basic Auth gate by setting a password:
+
+```bash
+export ALEXANDRIA_AUTH_PASSWORD=your-secret       # enables the gate
+export ALEXANDRIA_AUTH_USERNAME=alexandria        # optional, defaults to "alexandria"
+```
+
+When set, **every** request must carry HTTP Basic credentials. Browsers prompt
+once with a native login dialog and then re-send the credentials on all requests
+(including audio playback and log downloads). For CLI/programmatic access, add
+credentials to each call:
+
+```bash
+# curl
+curl -u alexandria:your-secret http://127.0.0.1:4200/api/config
+
+# Python (requests)
+requests.get("http://127.0.0.1:4200/api/config", auth=("alexandria", "your-secret"))
+
+# JavaScript (fetch)
+fetch("/api/config", { headers: { Authorization: "Basic " + btoa("alexandria:your-secret") } })
+```
+
+Leave `ALEXANDRIA_AUTH_PASSWORD` unset for the default local Pinokio flow — the
+gate adds nothing when disabled. Use HTTPS (e.g. Pinokio's proxy) when auth is
+on, so credentials aren't sent in the clear.
 
 ### Configuration
 ```bash

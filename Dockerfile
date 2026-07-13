@@ -30,7 +30,9 @@ RUN mkdir -p /alexandria/scripts \
 
 RUN mkdir -p /alexandria/runtime
 
-# Bind to 0.0.0.0 inside the container
+# Bind to 0.0.0.0 inside the container. This makes the app reachable from
+# outside the container/host — if that network isn't trusted, enable the auth
+# gate by passing -e ALEXANDRIA_AUTH_PASSWORD=... to `docker run` (see README).
 ENV ALEXANDRIA_HOST=0.0.0.0
 ENV ALEXANDRIA_DATA_DIR=/alexandria/runtime
 EXPOSE 4200
