@@ -3071,6 +3071,60 @@ def _infer_character_gender(text):
     return "unknown"
 
 
+AGE_GROUPS = ("child", "teen", "young_adult", "adult", "middle_aged", "elderly")
+
+
+def _infer_age_group(text):
+    """Best-effort normalized apparent age from names, profiles, or dialogue."""
+    value = (text or "").lower().replace("-", " ").replace("_", " ")
+    patterns = (
+        ("child", r"\b(child|kid|little boy|little girl|preteen|under ?1[0-2])\b"),
+        ("teen", r"\b(teen|teenage|adolescent|1[3-9] years? old)\b"),
+        ("young_adult", r"\b(young adult|young man|young woman|early 20s|20s|twent(?:y|ies))\b"),
+        ("middle_aged", r"\b(middle aged|middle age|40s|50s|forties|fifties)\b"),
+        ("elderly", r"\b(elderly|old man|old woman|senior|60s|70s|80s|sixties|seventies|eighties)\b"),
+        ("adult", r"\b(adult|grown man|grown woman|30s|thirties)\b"),
+    )
+    return next((group for group, pattern in patterns if re.search(pattern, value)), "unknown")
+
+
+def _infer_lora_age(model):
+    explicit = str(model.get("age_group") or model.get("age") or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if explicit in AGE_GROUPS:
+        return explicit
+    evidence = " ".join(str(model.get(k) or "") for k in ("name", "id", "description", "voice_profile"))
+    return _infer_age_group(evidence)
+
+
+def _infer_character_traits(name, profile, lines):
+    """Infer traits with evidence priority: label, persona, then dialogue."""
+    sources = (("character label", name, "high"),
+               ("existing persona/style", profile, "medium"),
+               ("representative dialogue", " ".join(lines), "low"))
+    result = {"gender": "unknown", "gender_confidence": "unknown",
+              "age_group": "unknown", "age_confidence": "unknown", "trait_evidence": ""}
+    evidence = []
+    for source, text, confidence in sources:
+        if result["gender"] == "unknown":
+            gender = _infer_character_gender(text)
+            if gender != "unknown":
+                result.update(gender=gender, gender_confidence=confidence)
+                evidence.append(f"{source}: {gender}")
+        if result["age_group"] == "unknown":
+            age = _infer_age_group(text)
+            if age != "unknown":
+                result.update(age_group=age, age_confidence=confidence)
+                evidence.append(f"{source}: {age.replace('_', ' ')}")
+    result["trait_evidence"] = "; ".join(evidence) or "No explicit gender or age evidence"
+    return result
+
+
+def _age_distance(character_age, voice_age):
+    if character_age == "unknown" or voice_age == "unknown":
+        return 2
+    return abs(AGE_GROUPS.index(character_age) - AGE_GROUPS.index(voice_age))
+
+
 def _build_lora_candidates():
     """Downloaded built-in + user-trained adapters with normalized fields for matching."""
     candidates = []
@@ -3082,6 +3136,7 @@ def _build_lora_candidates():
             "name": m.get("name") or m["id"],
             "type": "builtin_lora",
             "gender": _infer_lora_gender(m),
+            "age_group": _infer_lora_age(m),
             "description": m.get("description") or m.get("voice_profile") or "",
         })
     for m in _load_manifest(LORA_MODELS_MANIFEST):
@@ -3090,6 +3145,7 @@ def _build_lora_candidates():
             "name": m.get("name") or m["id"],
             "type": "lora",
             "gender": _infer_lora_gender(m),
+            "age_group": _infer_lora_age(m),
             "description": m.get("description") or m.get("voice_profile") or "",
         })
     return candidates
@@ -3105,11 +3161,15 @@ def _select_representative_lines(lines: List[str], limit: int) -> List[str]:
     return [lines[i] for i in dict.fromkeys(indices)]
 
 
-def _rank_heuristic_candidates(profile: str, candidates: List[dict], preferred_gender=None) -> List[str]:
+def _rank_heuristic_candidates(profile: str, candidates: List[dict], preferred_gender=None,
+                               preferred_age="unknown") -> List[str]:
     gender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(profile)
     pool = [c for c in candidates if gender == "unknown" or c.get("gender") == gender] or candidates
     words = set(re.findall(r"[a-z]{4,}", profile.lower()))
-    ranked = sorted(pool, key=lambda c: (-len(words & set(re.findall(r"[a-z]{4,}", c.get("description", "").lower()))), c["adapter_id"]))
+    ranked = sorted(pool, key=lambda c: (
+        _age_distance(preferred_age, c.get("age_group", "unknown")),
+        -len(words & set(re.findall(r"[a-z]{4,}", c.get("description", "").lower()))),
+        c["adapter_id"]))
     return [c["adapter_id"] for c in ranked]
 
 
@@ -3190,6 +3250,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         cfg = voice_config.get(speaker, {})
         persona_bits = [cfg.get("description") or "", cfg.get("character_style") or "", cfg.get("default_style") or ""]
         profile = " ".join(b for b in persona_bits if b)
+        traits = _infer_character_traits(speaker, profile, lines)
         count = line_counts.get(speaker, len(lines))
         try:
             member_key = get_cast_member_key(speaker, book_id)
@@ -3201,6 +3262,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "line_count": count,
             "priority": "major" if _norm_name(speaker) == "narrator" or count >= CAST_MAJOR_LINE_THRESHOLD else "minor",
             "member_key": member_key,
+            **traits,
         }
 
     if not characters:
@@ -3242,13 +3304,15 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         client, model_name = _make_llm_client(timeout=120)
 
         voice_catalog = "\n".join(
-            f'- id="{c["adapter_id"]}" | name="{c["name"][:50]}" | gender={c["gender"]} | series_use={usage.get(c["adapter_id"], {}).get("character_count", 0)} | description: {(c["description"] or "(none)")[:80]}'
+            f'- id="{c["adapter_id"]}" | name="{c["name"][:50]}" | gender={c.get("gender", "unknown")} | age={c.get("age_group", "unknown")} | series_use={usage.get(c["adapter_id"], {}).get("character_count", 0)} | description: {(c["description"] or "(none)")[:80]}'
             for c in candidates
         )
         system_prompt = (
             "You are a casting director matching narrated audiobook characters to available LoRA TTS voices. "
             "For each character, rank up to three fitting voice ids and write concise TTS delivery guidance based only on the book text. "
             "The style should describe cadence, energy, formality, confidence, and supported emotion; do not invent biography or accent. "
+            "Infer gender and broad apparent age only when supported by the supplied book evidence. "
+            "Known character gender must match voice gender; prefer the closest available age group. "
             "Only use provided voice ids. Return every requested character in the structured response."
         )
         casting_schema = {
@@ -3269,8 +3333,12 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
                                 },
                                 "character_style": {"type": "string"},
                                 "reason": {"type": "string"},
+                                "character_gender": {"type": "string", "enum": ["male", "female", "unknown"]},
+                                "age_group": {"type": "string", "enum": ["child", "teen", "young_adult", "adult", "middle_aged", "elderly", "unknown"]},
+                                "trait_evidence": {"type": "string"},
+                                "trait_confidence": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
                             },
-                            "required": ["name", "ranked_adapter_ids", "character_style", "reason"],
+                            "required": ["name", "ranked_adapter_ids", "character_style", "reason", "character_gender", "age_group", "trait_evidence", "trait_confidence"],
                             "additionalProperties": False,
                         },
                     },
@@ -3289,7 +3357,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         for start in range(0, len(character_items), 2):
             batch = character_items[start:start + 2]
             char_block = "\n\n".join(
-                f'CHARACTER: {name}\nLines: {info["line_count"]} ({info["priority"]})\nPersona/style: {(info["profile"] or "(none)")[:200]}\nSample lines:\n'
+                f'CHARACTER: {name}\nLines: {info["line_count"]} ({info["priority"]})\nCurrent trait estimate: gender={info["gender"]}, age={info["age_group"]}\nPersona/style: {(info["profile"] or "(none)")[:200]}\nSample lines:\n'
                 + "\n".join(f'  - "{ln[:140]}"' for ln in info["lines"])
                 for name, info in batch
             )
@@ -3326,6 +3394,14 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
                     rankings[name] = list(dict.fromkeys(i for i in ranked if i in cand_by_id))
                     style_by_name[name] = (pick.get("character_style") or "").strip()[:500]
                     reason_by_name[name] = (pick.get("reason") or "").strip()[:240]
+                    llm_confidence = pick.get("trait_confidence", "unknown")
+                    if characters[name]["gender_confidence"] in ("unknown", "low") and pick.get("character_gender") in ("male", "female"):
+                        characters[name]["gender"] = pick["character_gender"]
+                        characters[name]["gender_confidence"] = llm_confidence
+                    if characters[name]["age_confidence"] in ("unknown", "low") and pick.get("age_group") in AGE_GROUPS:
+                        characters[name]["age_group"] = pick["age_group"]
+                        characters[name]["age_confidence"] = llm_confidence
+                    characters[name]["trait_evidence"] = (pick.get("trait_evidence") or characters[name]["trait_evidence"])[:300]
     except LLMConfigError as e:
         # Config issue (e.g. base_url rejected by _validate_local_llm_base_url) -
         # surface to the UI instead of silently falling back to heuristic.
@@ -3342,7 +3418,8 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     for name, info in characters.items():
         profile_text = " ".join([name, info["profile"]] + info["lines"])
         if not rankings.get(name):
-            rankings[name] = _rank_heuristic_candidates(profile_text, candidates, _infer_character_gender(name))
+            rankings[name] = _rank_heuristic_candidates(
+                profile_text, candidates, info["gender"], info["age_group"])
         if not style_by_name.get(name):
             style_by_name[name] = info["profile"] or "Natural delivery matching the character's dialogue and role in this book."
         if not reason_by_name.get(name):
@@ -3353,7 +3430,20 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             existing_member = (lib["casts"][cast_name].get("members", {}).get(info["member_key"])
                                or lib.get("shared", {}).get(info["member_key"]))
         existing_adapter = ((existing_member or {}).get("config") or {}).get("adapter_id")
-        ranked = rankings[name] or list(cand_by_id)
+        gender_matches = [c for c in candidates
+                          if info["gender"] == "unknown" or c.get("gender") == info["gender"]]
+        gender_fallback = info["gender"] != "unknown" and not gender_matches
+        eligible = gender_matches or candidates
+        eligible_ids = {c["adapter_id"] for c in eligible}
+        ranked = [adapter_id for adapter_id in rankings[name] if adapter_id in eligible_ids]
+        for adapter_id in _rank_heuristic_candidates(
+                profile_text, eligible, info["gender"], info["age_group"]):
+            if adapter_id not in ranked:
+                ranked.append(adapter_id)
+        rank_order = {adapter_id: index for index, adapter_id in enumerate(ranked)}
+        ranked.sort(key=lambda adapter_id: (
+            _age_distance(info["age_group"], cand_by_id[adapter_id].get("age_group", "unknown")),
+            rank_order[adapter_id]))
         if existing_adapter in cand_by_id:
             chosen_id = existing_adapter
             is_new_identity = False
@@ -3368,6 +3458,9 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             usage[chosen_id]["total_lines"] += info["line_count"]
             usage[chosen_id]["characters"].append(name)
         chosen = cand_by_id[chosen_id]
+        existing_trait_mismatch = bool(existing_adapter and (
+            (info["gender"] != "unknown" and chosen.get("gender") not in (info["gender"], "unknown"))
+            or _age_distance(info["age_group"], chosen.get("age_group", "unknown")) >= 3))
         suggestions[name] = {
             "adapter_id": chosen_id, "adapter_name": chosen["name"], "type": chosen["type"],
             "character_style": style_by_name[name], "reason": reason_by_name[name],
@@ -3376,6 +3469,14 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "reuse_count_after": before + (1 if is_new_identity else 0),
             "reused": before > 0 and is_new_identity,
             "forced_reuse": info["priority"] == "major" and before > 0 and all(usage.get(i, {}).get("character_count", 0) > 0 for i in ranked),
+            "character_gender": info["gender"], "character_age_group": info["age_group"],
+            "voice_gender": chosen.get("gender", "unknown"),
+            "voice_age_group": chosen.get("age_group", "unknown"),
+            "trait_evidence": info["trait_evidence"],
+            "gender_confidence": info["gender_confidence"],
+            "age_confidence": info["age_confidence"],
+            "gender_fallback": gender_fallback,
+            "existing_trait_mismatch": existing_trait_mismatch,
         }
 
     if not llm_ok and suggestions:
@@ -3431,6 +3532,15 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                     "priority": suggestion.get("priority"),
                     "suggestion_reason": (suggestion.get("reason") or "")[:240],
                     "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
+                    "character_gender": suggestion.get("character_gender", "unknown"),
+                    "character_age_group": suggestion.get("character_age_group", "unknown"),
+                    "voice_gender": suggestion.get("voice_gender", "unknown"),
+                    "voice_age_group": suggestion.get("voice_age_group", "unknown"),
+                    "trait_evidence": (suggestion.get("trait_evidence") or "")[:300],
+                    "gender_confidence": suggestion.get("gender_confidence", "unknown"),
+                    "age_confidence": suggestion.get("age_confidence", "unknown"),
+                    "gender_fallback": bool(suggestion.get("gender_fallback")),
+                    "existing_trait_mismatch": bool(suggestion.get("existing_trait_mismatch")),
                 }
                 members[key] = _make_library_entry(
                     character, cfg, counts[character], book_id, casting, members.get(key))
@@ -4266,6 +4376,15 @@ def _make_library_entry(display_name: str, config: dict, line_count: int,
             "priority": (casting or {}).get("priority", "major" if line_count >= CAST_MAJOR_LINE_THRESHOLD else "minor"),
             "reuse_count_when_assigned": (casting or {}).get("reuse_count_when_assigned", 0),
             "assigned_at": time.time(),
+            "character_gender": (casting or {}).get("character_gender", "unknown"),
+            "character_age_group": (casting or {}).get("character_age_group", "unknown"),
+            "voice_gender": (casting or {}).get("voice_gender", "unknown"),
+            "voice_age_group": (casting or {}).get("voice_age_group", "unknown"),
+            "trait_evidence": (casting or {}).get("trait_evidence", ""),
+            "gender_confidence": (casting or {}).get("gender_confidence", "unknown"),
+            "age_confidence": (casting or {}).get("age_confidence", "unknown"),
+            "gender_fallback": bool((casting or {}).get("gender_fallback")),
+            "existing_trait_mismatch": bool((casting or {}).get("existing_trait_mismatch")),
         }
     entry.update({
         "name": display_name,

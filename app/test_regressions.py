@@ -213,6 +213,52 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result["method"], "llm")
         self.assertEqual(result["suggestions"]["Major A"]["character_style"], "style Major A")
 
+    def test_casting_enforces_gender_and_prefers_closest_age(self):
+        script = [{"speaker": "Old Man", "text": f"He spoke wearily line {i}"} for i in range(30)]
+        parsed = {"characters": [{
+            "name": "Old Man", "ranked_adapter_ids": ["female_old", "male_adult", "male_old"],
+            "character_style": "Weathered and deliberate", "reason": "book evidence",
+            "character_gender": "male", "age_group": "elderly", "trait_evidence": "Old man label",
+        }]}
+        response = SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=json.dumps(parsed)), finish_reason="stop")])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **_kwargs: response)))
+        candidates = [
+            {"adapter_id": "female_old", "name": "F", "type": "lora", "gender": "female", "age_group": "elderly", "description": ""},
+            {"adapter_id": "male_adult", "name": "MA", "type": "lora", "gender": "male", "age_group": "adult", "description": ""},
+            {"adapter_id": "male_old", "name": "MO", "type": "lora", "gender": "male", "age_group": "elderly", "description": ""},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps(script), encoding="utf-8")
+            with patch.object(app_module, "SCRIPT_PATH", script_path), \
+                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(app_module, "get_active_book_id", return_value="b1"), \
+                 patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                 patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
+                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
+                 patch.object(app_module, "get_current_status", return_value={"context_length": None}):
+                result = app_module._suggest_voices_impl(app_module.SuggestVoicesRequest(max_lines=4))
+        suggestion = result["suggestions"]["Old Man"]
+        self.assertEqual(suggestion["adapter_id"], "male_old")
+        self.assertEqual(suggestion["character_gender"], "male")
+        self.assertEqual(suggestion["character_age_group"], "elderly")
+        self.assertEqual(suggestion["gender_confidence"], "high")
+        self.assertEqual(suggestion["age_confidence"], "high")
+        self.assertFalse(suggestion["gender_fallback"])
+
+    def test_lora_age_normalization(self):
+        self.assertEqual(app_module._infer_lora_age({"id": "warm_baritone_40s_m"}), "middle_aged")
+        self.assertEqual(app_module._infer_lora_age({"description": "elderly gravelly bass"}), "elderly")
+
+    def test_character_trait_evidence_prefers_label_over_dialogue(self):
+        traits = app_module._infer_character_traits(
+            "Young Man", "", ["She told her mother that the queen had arrived."])
+        self.assertEqual(traits["gender"], "male")
+        self.assertEqual(traits["gender_confidence"], "high")
+        self.assertEqual(traits["age_group"], "young_adult")
+
     def test_apply_suggestion_persists_style_and_book_scoped_cast_member(self):
         candidate = {"adapter_id": "v1", "name": "V1", "type": "lora",
                      "gender": "unknown", "description": ""}

@@ -3560,12 +3560,19 @@
                 const reuseText = sugg.reused
                     ? `Reused by ${sugg.reuse_count_before} existing cast character${sugg.reuse_count_before !== 1 ? 's' : ''}`
                     : 'Unused in this series cast';
+                const traitText = `${(sugg.character_gender || 'unknown').replace('_', ' ')} · ${(sugg.character_age_group || 'unknown').replace('_', ' ')} → ${(sugg.voice_gender || 'unknown').replace('_', ' ')} · ${(sugg.voice_age_group || 'unknown').replace('_', ' ')}`;
+                const traitWarning = sugg.gender_fallback
+                    ? 'No downloaded voice matched the known gender; fallback used.'
+                    : (sugg.existing_trait_mismatch ? 'Existing recurring voice retained despite a trait mismatch.' : '');
                 banner.innerHTML = `
                     <div class="me-2 small">
                         <i class="fas fa-wand-magic-sparkles me-1"></i>
                         <span class="badge ${sugg.priority === 'major' ? 'bg-primary' : 'bg-secondary'} me-1">${escapeHtml((sugg.priority || 'minor').toUpperCase())}</span>
                         <strong>${sugg.line_count || 0} lines · Suggested ${typeLabel} voice:</strong> ${escapeHtml(sugg.adapter_name)}
                         <span class="d-block"><strong>Style:</strong> ${escapeHtml(sugg.character_style || '')}</span>
+                        <span class="d-block"><strong>Trait match:</strong> ${escapeHtml(traitText)} <span class="text-muted">(gender ${escapeHtml(sugg.gender_confidence || 'unknown')}, age ${escapeHtml(sugg.age_confidence || 'unknown')})</span></span>
+                        ${sugg.trait_evidence ? `<span class="text-muted d-block">${escapeHtml(sugg.trait_evidence)}</span>` : ''}
+                        ${traitWarning ? `<span class="text-warning d-block">${escapeHtml(traitWarning)}</span>` : ''}
                         <span class="d-block ${sugg.reused ? 'text-warning' : 'text-success'}">${escapeHtml(reuseText)}${sugg.forced_reuse ? ' (candidate pool exhausted)' : ''}</span>
                         ${sugg.reason ? `<span class="text-muted d-block">${escapeHtml(sugg.reason)}</span>` : ''}
                     </div>
