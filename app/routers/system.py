@@ -5,11 +5,14 @@ import os
 import time
 import traceback
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig,
+                             TTSConfig, load_app_config)
 
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
@@ -37,7 +40,7 @@ from core import (
 )
 
 from utils import (atomic_json_write, rocm_smi_utilization as _rocm_smi_utilization,
-                   run_rocm_smi_json, safe_load_json, system_has_gpu)
+                   run_rocm_smi_json, system_has_gpu)
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -152,63 +155,6 @@ def get_gpu_stats():
     return stats
 
 
-# Data Models
-class LLMConfig(BaseModel):
-    base_url: str
-    api_key: str
-    model_name: str
-
-class TTSConfig(BaseModel):
-    mode: Literal["local", "external"] = "local"
-    url: str = "http://127.0.0.1:7860"  # external mode only
-    device: str = "auto"  # local mode: "auto", "cuda:0", "cpu", etc.
-    language: str = "English"  # TTS language
-    parallel_workers: int = Field(default=2, ge=1)  # concurrent TTS workers
-    batch_seed: Optional[int] = None  # Single seed for batch mode, None/-1 = random
-    compile_codec: bool = False  # torch.compile the codec for ~3-4x batch throughput (slow first run)
-    sub_batch_enabled: bool = True  # split batch by text length to reduce padding waste
-    sub_batch_min_size: int = Field(default=4, ge=1)  # minimum chunks before allowing a split
-    sub_batch_ratio: float = Field(default=5.0, ge=1)  # max longest/shortest ratio before splitting
-    sub_batch_max_items: int = Field(default=0, ge=0)  # hard cap (0 = auto from VRAM estimate)
-    batch_group_by_type: bool = False  # group chunks by voice type for efficient batching
-    pause_between_speakers_ms: int = Field(default=500, ge=0)  # silence between different speakers
-    pause_same_speaker_ms: int = Field(default=250, ge=0)  # silence when same speaker continues
-
-class GenerationConfig(BaseModel):
-    chunk_size: int = Field(default=3000, ge=500)
-    max_tokens: int = Field(default=4096, ge=256)
-    temperature: float = Field(default=0.6, ge=0, le=2)
-    top_p: float = Field(default=0.8, ge=0, le=1)
-    top_k: int = Field(default=0, ge=0, le=200)
-    min_p: float = Field(default=0, ge=0, le=1)
-    presence_penalty: float = Field(default=0.0, ge=-2, le=2)
-    banned_tokens: List[str] = Field(default_factory=list)
-    merge_narrators: bool = False
-
-class PromptConfig(BaseModel):
-    system_prompt: Optional[str] = None
-    user_prompt: Optional[str] = None
-    review_system_prompt: Optional[str] = None
-    review_user_prompt: Optional[str] = None
-    persona_system_prompt: Optional[str] = None
-    persona_user_prompt: Optional[str] = None
-    persona_advanced_prompt: Optional[str] = None
-
-class AppConfig(BaseModel):
-    llm: LLMConfig  # active profile - mirrored from llm_local/llm_remote per llm_mode
-    llm_mode: Literal["local", "remote"] = "local"  # remote = e.g. LM Studio on Thunder
-    llm_local: Optional[LLMConfig] = None   # saved local profile
-    llm_remote: Optional[LLMConfig] = None  # saved remote profile
-    llm_remote_ssh: Optional[str] = None    # ssh host alias (e.g. "tnr-0") for remote optimize
-    tts: TTSConfig
-    prompts: Optional[PromptConfig] = None
-    generation: Optional[GenerationConfig] = None
-
-
-
-
-
-
 @router.get("/api/system/stats")
 def get_system_stats():
     """Return GPU memory, disk, and basic hardware statistics."""
@@ -292,7 +238,7 @@ class LMStudioOptimizeRequest(BaseModel):
 async def lmstudio_status():
     """Report whether the loaded model is using ideal settings (VRAM-safe
     locally, large-context remotely) so the UI can show an at-a-glance indicator."""
-    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    full_cfg = load_app_config(CONFIG_PATH)
     llm_cfg = full_cfg.get("llm") or {}
     base_url = llm_cfg.get("base_url", "")
     model_name = llm_cfg.get("model_name")
@@ -325,7 +271,7 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     """Toggle the loaded model between VRAM-safe/best settings and LM Studio's
     defaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.
     LM Studio on Thunder) are driven over SSH via the configured host alias."""
-    full_cfg = safe_load_json(CONFIG_PATH, default={})
+    full_cfg = load_app_config(CONFIG_PATH)
     cfg = full_cfg.get("llm", {})
     model_name = cfg.get("model_name")
     if not model_name:
@@ -457,20 +403,8 @@ async def get_config():
     # unusable. safe_load_json logs the read failure and returns an empty dict;
     # merging here supplies required top-level sections without rewriting the
     # damaged file during a GET request.
-    loaded_config = safe_load_json(CONFIG_PATH, default={})
+    loaded_config = load_app_config(CONFIG_PATH)
     config = {**default_config, **loaded_config}
-
-    # safe_load_json validates the top-level object. Validate the nested
-    # sections before using dict operations so a syntactically valid but
-    # wrong-shaped config is handled by the same default-backed recovery.
-    for section in ("llm", "tts", "prompts"):
-        if not isinstance(config.get(section), dict):
-            logger.warning("Invalid '%s' section in config, using defaults", section)
-            config[section] = default_config[section]
-    for section in ("llm_local", "llm_remote"):
-        if config.get(section) is not None and not isinstance(config[section], dict):
-            logger.warning("Invalid '%s' section in config, ignoring it", section)
-            config[section] = None
 
     # Backfill any TTSConfig field missing from an existing on-disk config.json
     # (e.g. saved before pause_between_speakers_ms/pause_same_speaker_ms or some

@@ -19,6 +19,7 @@ from httpx import ASGITransport, AsyncClient
 
 import app as app_module
 import core as core_module
+import config_settings
 import generate_script
 import project as project_module
 from routers import preparer as preparer_module
@@ -43,6 +44,26 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_app_config_loader_returns_fresh_shape_safe_data(self):
+        documents = (
+            ("null", {}),
+            ("[]", {}),
+            ('{"llm": [], "tts": null, "prompts": "bad", '
+             '"generation": 3, "llm_local": [], "llm_remote": "bad", '
+             '"unknown": {"keep": true}}',
+             {"prompts": None, "generation": None, "llm_local": None,
+              "llm_remote": None, "unknown": {"keep": True}}),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            for document, expected in documents:
+                with self.subTest(document=document):
+                    path.write_text(document, encoding="utf-8")
+                    loaded = config_settings.load_app_config(str(path))
+                    self.assertEqual(expected, loaded)
+                    loaded["changed"] = True
+                    self.assertEqual(expected, config_settings.load_app_config(str(path)))
+
     def test_app_py_contains_no_http_route_decorators(self):
         app_path = Path(__file__).with_name("app.py")
         tree = ast.parse(app_path.read_text(encoding="utf-8"), filename=str(app_path))

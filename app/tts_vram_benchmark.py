@@ -14,6 +14,7 @@ Outputs:
 """
 
 import argparse
+from config_settings import load_app_config
 import json
 import os
 import random
@@ -223,11 +224,7 @@ def main():
     args = parser.parse_args()
 
     # Load config
-    tts_cfg = {}
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH) as f:
-            cfg = json.load(f)
-            tts_cfg = cfg.get("tts", {})
+    tts_cfg = load_app_config(CONFIG_PATH).get("tts", {})
 
     # Force local mode, disable compile_codec for baseline
     tts_cfg["mode"] = "local"

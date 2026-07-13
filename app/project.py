@@ -11,6 +11,7 @@ import logging
 import gc
 import uuid
 from utils import atomic_json_write, safe_load_json, is_oom_failure, get_app_config_path
+from config_settings import load_app_config
 from tts import (
     TTSEngine,
     combine_audio_with_pauses,
@@ -146,7 +147,7 @@ class ProjectManager:
             except OSError:
                 mtime = None
             if self._config_cache is None or mtime != self._config_mtime:
-                self._config_cache = safe_load_json(self.config_path, default={})
+                self._config_cache = load_app_config(self.config_path)
                 self._config_mtime = mtime
             return self._config_cache
 

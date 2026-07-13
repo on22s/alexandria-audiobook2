@@ -9,6 +9,7 @@ import argparse
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
+from config_settings import load_app_config
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
@@ -761,15 +762,9 @@ def main():
 
     # Load config
     config_path = get_app_config_path(data_dir, root, app_dir)
-    config = {}
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Warning: Failed to load config.json: {e}")
-    else:
+    if not os.path.exists(config_path):
         print("Warning: config.json not found. Using defaults.")
+    config = load_app_config(config_path)
 
     llm_config = config.get("llm", {})
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")

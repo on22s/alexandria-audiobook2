@@ -18,6 +18,7 @@ import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
+from config_settings import load_app_config
 from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
@@ -321,7 +322,7 @@ def main():
     print(f"Scanning {len(entries)} entries for character nicknames...")
 
     config_path = get_app_config_path(data_dir, root, base)
-    config = safe_load_json(config_path, default={})
+    config = load_app_config(config_path)
     llm = config.get("llm", {})
     base_url = llm.get("base_url", "")
     client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
