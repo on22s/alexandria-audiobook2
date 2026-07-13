@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import app as app_module
+import core as core_module
 import generate_script
 import utils
 import hf_utils
@@ -595,7 +596,7 @@ class RegressionTests(unittest.TestCase):
 
     def test_saved_book_metadata_preserves_original_identity(self):
         with tempfile.TemporaryDirectory() as tmp, \
-             patch.object(app_module, "SCRIPTS_DIR", tmp):
+             patch.object(core_module, "SCRIPTS_DIR", tmp):
             utils.atomic_json_write({"book_id": "original-upload"},
                                     app_module._saved_book_meta_path("volume-1"))
             self.assertEqual(app_module._get_saved_book_id("volume-1"), "original-upload")
