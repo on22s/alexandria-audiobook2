@@ -20,6 +20,7 @@ from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
                    secure_filename)
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
+from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -42,6 +43,22 @@ def _load_manifest(path):
         except (json.JSONDecodeError, ValueError) as e:
             _warn_corrupted_json("manifest", path, "returning empty list", e)
     return []
+
+
+def _load_builtin_lora_manifest():
+    """Load built-in LoRA manifest from HF (with local fallback). Returns ALL entries with download status."""
+    entries = fetch_builtin_manifest(BUILTIN_LORA_DIR)
+    result = []
+    for entry in entries:
+        entry = dict(entry)  # avoid mutating cached list
+        local_id = entry["id"] if entry["id"].startswith("builtin_") else f"builtin_{entry['id']}"
+        downloaded = is_adapter_downloaded(local_id, BUILTIN_LORA_DIR)
+        entry["id"] = local_id
+        entry["builtin"] = True
+        entry["downloaded"] = downloaded
+        entry["adapter_path"] = f"builtin_lora/{local_id}" if downloaded else None
+        result.append(entry)
+    return result
 
 
 def _save_manifest(path, manifest):
