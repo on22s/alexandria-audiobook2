@@ -6,16 +6,17 @@ services:
     volumes:
       # Persist HuggingFace model cache (~3.5 GB per model, downloaded on first use)
       - hf_cache:/root/.cache/huggingface
-      # Persist user data
-      - ./data/uploads:/alexandria/app/uploads
-      - ./data/designed_voices:/alexandria/designed_voices
-      - ./data/clone_voices:/alexandria/clone_voices
-      - ./data/lora_models:/alexandria/lora_models
-      - ./data/lora_datasets:/alexandria/lora_datasets
-      - ./data/dataset_builder:/alexandria/dataset_builder
-      - ./data/scripts:/alexandria/scripts
-      # Persist audiobook output
-      - ./data/output:/alexandria/voicelines
+      # Persist every mutable application artifact under one data root.
+      - ./data/runtime:/alexandria/runtime
+      # Keep pre-runtime-root Compose data visible after an upgrade.
+      - ./data/uploads:/alexandria/runtime/uploads
+      - ./data/designed_voices:/alexandria/runtime/designed_voices
+      - ./data/clone_voices:/alexandria/runtime/clone_voices
+      - ./data/lora_models:/alexandria/runtime/lora_models
+      - ./data/lora_datasets:/alexandria/runtime/lora_datasets
+      - ./data/dataset_builder:/alexandria/runtime/dataset_builder
+      - ./data/scripts:/alexandria/runtime/scripts
+      - ./data/output:/alexandria/runtime/voicelines
     deploy:
       resources:
         reservations:

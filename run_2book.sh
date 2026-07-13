@@ -10,6 +10,8 @@ set -u
 export TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
+SOURCE_DIR=${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}
 OUT_DIR="$SCRIPT_DIR/test_corpus_output"
 MODEL="Qwen2.5-14B-Instruct-Q6_K.gguf"
 FALLBACK="Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
@@ -17,8 +19,8 @@ mkdir -p "$OUT_DIR"
 
 # audio | source pairs (separator is `|`)
 PAIRS=(
-    "/home/fakemitch/Desktop/New folder/J Michael Tatum Spice and Wolf, Vol. 10-converted.wav|/home/fakemitch/Desktop/books/Spice and Wolf - Volume 10 [Yen Press][Kobo].epub"
-    "/home/fakemitch/Desktop/New folder/Cliff Kurt Mushoku Tensei-converted.wav|/home/fakemitch/Desktop/books/Mushoku Tensei - Volume 01.epub"
+    "$AUDIO_DIR/J Michael Tatum Spice and Wolf, Vol. 10-converted.wav|$SOURCE_DIR/Spice and Wolf - Volume 10 [Yen Press][Kobo].epub"
+    "$AUDIO_DIR/Cliff Kurt Mushoku Tensei-converted.wav|$SOURCE_DIR/Mushoku Tensei - Volume 01.epub"
 )
 
 notify() {

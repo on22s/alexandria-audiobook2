@@ -2,16 +2,19 @@
 # run_random_corpus.sh — verify ROCm pipeline on 3 random book pairs.
 
 set -u
+: "${HF_TOKEN:?Set HF_TOKEN in the environment before running this corpus test}"
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
+SOURCE_DIR=${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}
 OUT_DIR="$SCRIPT_DIR/random_test_output"
 MODEL="Qwen2.5-14B-Instruct-Q6_K.gguf"
 mkdir -p "$OUT_DIR"
 
 PAIRS=(
-    "/home/fakemitch/Desktop/New folder/Cliff Kurt Mushoku Tensei-converted.wav|/home/fakemitch/Desktop/books/Mushoku Tensei - Volume 01.epub"
-    "/home/fakemitch/Desktop/New folder/Paul Boehmer Vampire Hunter D-converted.wav|/home/fakemitch/Desktop/books/Vampire Hunter D - Volume 01.epub"
-    "/home/fakemitch/Desktop/New folder/J Michael Tatum Spice and Wolf, Vol. 10-converted.wav|/home/fakemitch/Desktop/books/Spice and Wolf - Volume 10 [Yen Press][Kobo].epub"
+    "$AUDIO_DIR/Cliff Kurt Mushoku Tensei-converted.wav|$SOURCE_DIR/Mushoku Tensei - Volume 01.epub"
+    "$AUDIO_DIR/Paul Boehmer Vampire Hunter D-converted.wav|$SOURCE_DIR/Vampire Hunter D - Volume 01.epub"
+    "$AUDIO_DIR/J Michael Tatum Spice and Wolf, Vol. 10-converted.wav|$SOURCE_DIR/Spice and Wolf - Volume 10 [Yen Press][Kobo].epub"
 )
 
 start_epoch=$(date +%s)
@@ -38,7 +41,7 @@ for pair in "${PAIRS[@]}"; do
         --output "$output" \
         --limit 5 \
         --diarize \
-        --hf-token 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 \
+        --hf-token "$HF_TOKEN" \
         --lang en
 
     rc=$?

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from openai import OpenAI
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
-from utils import atomic_json_write, extract_balanced
+from utils import atomic_json_write, extract_balanced, get_runtime_data_dir, get_app_config_path
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
@@ -416,7 +416,10 @@ def main():
     print(f"Read {len(book_content)} characters")
 
     # Load LLM config
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    config_path = get_app_config_path(data_dir, root, app_dir)
     config = {}
     if os.path.exists(config_path):
         try:
@@ -478,7 +481,7 @@ def main():
 
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
 
-    output_path = args.output or os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
+    output_path = args.output or os.path.join(data_dir, "annotated_script.json")
 
     all_entries = []
     chunk_times = []
@@ -538,7 +541,7 @@ def main():
 
     # Only clear chunks when writing to the default annotated_script.json location
     if args.output is None:
-        chunks_path = os.path.join(os.path.dirname(__file__), "..", "chunks.json")
+        chunks_path = os.path.join(data_dir, "chunks.json")
         if os.path.exists(chunks_path):
             os.remove(chunks_path)
             print("Cleared old chunks.json")

@@ -13,6 +13,19 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+
+def get_runtime_data_dir(root_dir: str) -> str:
+    """Return the single mutable-data root for this application instance."""
+    configured = os.environ.get("ALEXANDRIA_DATA_DIR", "").strip()
+    return os.path.abspath(configured or root_dir)
+
+
+def get_app_config_path(data_dir: str, root_dir: str, app_dir: str) -> str:
+    """Keep legacy local config placement while isolating configured runtimes."""
+    if os.path.abspath(data_dir) == os.path.abspath(root_dir):
+        return os.path.join(app_dir, "config.json")
+    return os.path.join(data_dir, "config.json")
+
 # --- GPU stats (rocm-smi) ---
 # Canonical implementation lives in gpu_stats.py at the repo root, shared
 # with the standalone alexandria_*.py scripts which can't import from

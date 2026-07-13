@@ -9,7 +9,7 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 
@@ -636,9 +636,11 @@ def main():
     args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    script_path = os.path.join(root, "annotated_script.json")
-    voice_config_path = os.path.join(root, "voice_config.json")
-    app_config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    script_path = os.path.join(data_dir, "annotated_script.json")
+    voice_config_path = os.path.join(data_dir, "voice_config.json")
+    app_config_path = get_app_config_path(data_dir, root, app_dir)
 
     if not os.path.exists(script_path):
         print(f"Error: {script_path} not found. Generate script first.")
@@ -719,7 +721,7 @@ def main():
             client=client,
             model_name=model_name,
             engine=engine,
-            root=root,
+            root=data_dir,
             args=args,
             system_prompt=persona_system,
             advanced_prompt=persona_advanced,

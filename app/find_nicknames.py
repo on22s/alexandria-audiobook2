@@ -18,7 +18,7 @@ import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
-from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json
+from utils import safe_load_json, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 
@@ -307,8 +307,10 @@ def main():
     args = parser.parse_args()
 
     base = os.path.dirname(os.path.abspath(__file__))
-    script_path = args.input or os.path.join(base, "..", "annotated_script.json")
-    aliases_path = args.aliases_file or os.path.join(base, "..", "character_aliases.json")
+    root = os.path.dirname(base)
+    data_dir = get_runtime_data_dir(root)
+    script_path = args.input or os.path.join(data_dir, "annotated_script.json")
+    aliases_path = args.aliases_file or os.path.join(data_dir, "character_aliases.json")
 
     if not os.path.exists(script_path):
         print(f"Error: script not found: {script_path}")
@@ -318,7 +320,7 @@ def main():
         entries = json.load(f)
     print(f"Scanning {len(entries)} entries for character nicknames...")
 
-    config_path = os.path.join(base, "config.json")
+    config_path = get_app_config_path(data_dir, root, base)
     config = safe_load_json(config_path, default={})
     llm = config.get("llm", {})
     base_url = llm.get("base_url", "")

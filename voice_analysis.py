@@ -46,8 +46,8 @@ from gpu_stats import system_has_gpu
 
 warnings.filterwarnings("ignore")
 
-DEFAULT_ZIPS2 = Path("/home/fakemitch/Desktop/zips2")
 PROJECT_ROOT  = Path(__file__).resolve().parent
+DEFAULT_ZIPS2 = Path(os.environ.get("ALEXANDRIA_ZIPS_DIR", PROJECT_ROOT / "zips2"))
 
 DEDUP_SAMPLES   = 150
 ANALYZE_SAMPLES = 200
@@ -401,7 +401,7 @@ def run_analyze(model, device, deduped_root, output_dir):
     cache_file = output_dir / "embeddings_cache.pkl"
 
     if not deduped_root.is_dir():
-        print(f"WARNING: {deduped_root} not found — run dedupe_zips2.py first.")
+        print(f"WARNING: {deduped_root} not found — run the dedup phase first (--phase dedup, or --phase both).")
         return
 
     zip_groups = {}

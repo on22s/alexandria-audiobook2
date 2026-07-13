@@ -26,6 +26,11 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_runtime_data_dir_ignores_empty_environment_override(self):
+        with patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": "   "}):
+            self.assertEqual(utils.get_runtime_data_dir("/expected/root"),
+                             "/expected/root")
+
     def test_voice_design_claims_gpu_before_engine_initialization(self):
         app_module.process_state["audio"]["running"] = True
         try:
@@ -80,6 +85,26 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("No downloaded voice matched the known gender; fallback used.", html)
         self.assertIn("Existing recurring voice retained despite a trait mismatch.", html)
         self.assertIn("escapeHtml(sugg.trait_evidence)", html)
+        self.assertIn("escapeHtml(config.ref_text || '')", html)
+        self.assertIn("escapeHtml(config.ref_audio || '')", html)
+        self.assertIn("escapeHtml(config.description || '')", html)
+        self.assertNotIn("onclick='downloadBuiltinAdapter(${JSON.stringify(m.id)})'", html)
+
+    def test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints(self):
+        root = Path(__file__).resolve().parent.parent
+        start = (root / "start.js").read_text(encoding="utf-8")
+        start_llm = (root / "start_llm.js").read_text(encoding="utf-8")
+        install = (root / "install.js").read_text(encoding="utf-8")
+        self.assertIn('port: "{{port}}"', start)
+        self.assertIn('ALEXANDRIA_PORT: "{{local.port}}"', start)
+        self.assertIn('method: "script.return"', start_llm)
+        self.assertIn("pytorch-triton-rocm", install)
+
+    def test_readme_api_examples_do_not_reference_removed_routes(self):
+        readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+        for removed in ("/api/parse_voices", "/api/lora/generate_dataset",
+                        "/api/voice_design/delete/", "/api/status/script_generation"):
+            self.assertNotIn(removed, readme)
 
     def test_queued_cancel_survives_background_start(self):
         key = "_test_claimed_task"
@@ -626,6 +651,31 @@ class RegressionTests(unittest.TestCase):
                          "alexandria_preparer_rocm_compatible.py",
                          "llm_enricher.py", "voice_analysis.py", "name_voices.py"):
             self.assertIn(required, dockerfile)
+
+    def test_runtime_data_dir_isolates_mutable_app_paths(self):
+        root = Path(__file__).resolve().parent.parent
+        code = (
+            "import app; print(app.DATA_DIR); print(app.SCRIPT_PATH); "
+            "print(app.VOICE_LIBRARY_PATH); print(app.CONFIG_PATH); print(app.UPLOADS_DIR)"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, ALEXANDRIA_DATA_DIR=tmp)
+            result = subprocess.run(
+                [sys.executable, "-c", code], cwd=root / "app", env=env,
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            paths = [Path(line) for line in result.stdout.splitlines() if line.strip()]
+            self.assertTrue(paths)
+            for path in paths:
+                self.assertTrue(utils.is_path_inside(path, tmp), path)
+
+    def test_docker_mounts_single_persistent_runtime_root(self):
+        root = Path(__file__).resolve().parent.parent
+        dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+        compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
+        self.assertIn("ALEXANDRIA_DATA_DIR=/alexandria/runtime", dockerfile)
+        self.assertIn("./data/runtime:/alexandria/runtime", compose)
 
     def test_review_help_does_not_advertise_unimplemented_source_mode(self):
         result = subprocess.run(

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
-PREP=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/alexandria_preparer_rocm_compatible.py
-PY=/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python
-export PYTHONPATH=/home/fakemitch/pinokio/api/alexandria-audiobook2.git:${PYTHONPATH}
-MODEL=Qwen2.5-14B-Instruct-Q6_K.gguf
-NEW_DIR="/home/fakemitch/Desktop/New folder/new new"
-OUT_BASE=/home/fakemitch/Desktop/zips2
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+PREP=${PREP:-"$SCRIPT_DIR/alexandria_preparer_rocm_compatible.py"}
+PY=${PY:-"$SCRIPT_DIR/../alexandria-audiobook.git/app/env/bin/python"}
+export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
+MODEL=${MODEL:-Qwen2.5-14B-Instruct-Q6_K.gguf}
+NEW_DIR=${NEW_DIR:?Set NEW_DIR to the directory containing paired WAV/EPUB files}
+OUT_BASE=${OUT_BASE:?Set OUT_BASE to the output directory}
 
 echo "[$(date)] Starting new batch — 26 narrators"
 

@@ -58,7 +58,7 @@ try:
         import warnings
         warnings.warn(
             "\n\n*** llama-cpp-python is a CPU-only build — GPU acceleration disabled! ***\n"
-            "Rebuild with: bash /home/fakemitch/Desktop/llama_build/build_llama_rocm.sh\n"
+            "Rebuild llama-cpp-python with ROCm support in this environment.\n"
             "Annotation will run ~9x slower than expected.\n",
             RuntimeWarning, stacklevel=2
         )

@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, atomic_json_write_pair, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, is_generic_speaker, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization
+from utils import atomic_json_write, atomic_json_write_pair, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, is_generic_speaker, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization, get_runtime_data_dir, get_app_config_path
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -57,24 +57,26 @@ app = FastAPI(title="Alexandria Audiobook")
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-VOICE_CONFIG_PATH = os.path.join(ROOT_DIR, "voice_config.json")
-SCRIPT_PATH = os.path.join(ROOT_DIR, "annotated_script.json")
-AUDIOBOOK_PATH = os.path.join(ROOT_DIR, "cloned_audiobook.mp3")
-M4B_PATH = os.path.join(ROOT_DIR, "audiobook.m4b")
-UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
-CHUNKS_PATH = os.path.join(ROOT_DIR, "chunks.json")
-VOICE_LIBRARY_PATH = os.path.join(ROOT_DIR, "voice_library.json")
-CHARACTER_ALIASES_PATH = os.path.join(ROOT_DIR, "character_aliases.json")
-REPORTS_DIR = os.path.join(ROOT_DIR, "reports")
-API_LOG_DIR = os.path.join(ROOT_DIR, "logs", "api")
+DATA_DIR = get_runtime_data_dir(ROOT_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+CONFIG_PATH = get_app_config_path(DATA_DIR, ROOT_DIR, BASE_DIR)
+VOICE_CONFIG_PATH = os.path.join(DATA_DIR, "voice_config.json")
+SCRIPT_PATH = os.path.join(DATA_DIR, "annotated_script.json")
+AUDIOBOOK_PATH = os.path.join(DATA_DIR, "cloned_audiobook.mp3")
+M4B_PATH = os.path.join(DATA_DIR, "audiobook.m4b")
+UPLOADS_DIR = os.path.join(DATA_DIR, "uploads") if DATA_DIR != ROOT_DIR else os.path.join(BASE_DIR, "uploads")
+SCRIPTS_DIR = os.path.join(DATA_DIR, "scripts")
+CHUNKS_PATH = os.path.join(DATA_DIR, "chunks.json")
+VOICE_LIBRARY_PATH = os.path.join(DATA_DIR, "voice_library.json")
+CHARACTER_ALIASES_PATH = os.path.join(DATA_DIR, "character_aliases.json")
+REPORTS_DIR = os.path.join(DATA_DIR, "reports")
+API_LOG_DIR = os.path.join(DATA_DIR, "logs", "api")
 os.makedirs(API_LOG_DIR, exist_ok=True)
 
 
 def get_active_book_id() -> Optional[str]:
     """Return the stable active-book id stored in state.json, if available."""
-    state = safe_load_json(os.path.join(ROOT_DIR, "state.json"), default={})
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), default={})
     book_id = secure_filename(state.get("active_book_id") or "")
     if book_id:
         return book_id
@@ -84,7 +86,7 @@ def get_active_book_id() -> Optional[str]:
 
 
 def _save_active_book_id(book_id: str, input_path: Optional[str] = None) -> None:
-    state_path = os.path.join(ROOT_DIR, "state.json")
+    state_path = os.path.join(DATA_DIR, "state.json")
     state = safe_load_json(state_path, default={})
     state["active_book_id"] = secure_filename(book_id)
     if input_path is not None:
@@ -118,14 +120,14 @@ def _init_task_log(task_name: str, extra_header: str = "") -> str:
     except OSError:
         pass
     return log_path
-DESIGNED_VOICES_DIR = os.path.join(ROOT_DIR, "designed_voices")
-CLONE_VOICES_DIR = os.path.join(ROOT_DIR, "clone_voices")
-LORA_MODELS_DIR = os.path.join(ROOT_DIR, "lora_models")
-LORA_DATASETS_DIR = os.path.join(ROOT_DIR, "lora_datasets")
+DESIGNED_VOICES_DIR = os.path.join(DATA_DIR, "designed_voices")
+CLONE_VOICES_DIR = os.path.join(DATA_DIR, "clone_voices")
+LORA_MODELS_DIR = os.path.join(DATA_DIR, "lora_models")
+LORA_DATASETS_DIR = os.path.join(DATA_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
-DATASET_BUILDER_DIR = os.path.join(ROOT_DIR, "dataset_builder")
+DATASET_BUILDER_DIR = os.path.join(DATA_DIR, "dataset_builder")
 PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
-PREPARER_OUTPUT_DIR = os.path.join(ROOT_DIR, "preparer_output")
+PREPARER_OUTPUT_DIR = os.path.join(DATA_DIR, "preparer_output")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -142,7 +144,7 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Create voicelines directory if it doesn't exist to prevent startup error
-VOICELINES_DIR = os.path.join(ROOT_DIR, "voicelines")
+VOICELINES_DIR = os.path.join(DATA_DIR, "voicelines")
 os.makedirs(VOICELINES_DIR, exist_ok=True)
 app.mount("/voicelines", StaticFiles(directory=VOICELINES_DIR), name="voicelines")
 
@@ -163,7 +165,7 @@ app.mount("/builtin_lora", StaticFiles(directory=BUILTIN_LORA_DIR), name="builti
 app.mount("/dataset_builder", StaticFiles(directory=DATASET_BUILDER_DIR), name="dataset_builder")
 
 # Initialize Project Manager
-project_manager = ProjectManager(ROOT_DIR)
+project_manager = ProjectManager(DATA_DIR)
 
 # Reset any chunks stuck in "generating" from a prior interrupted session
 _startup_chunks = project_manager.load_chunks()
@@ -1907,7 +1909,7 @@ async def get_config():
 
     # Always include current_file (null when no state or file missing)
     config["current_file"] = None
-    state_path = os.path.join(ROOT_DIR, "state.json")
+    state_path = os.path.join(DATA_DIR, "state.json")
     if os.path.exists(state_path):
         try:
             with open(state_path, "r", encoding="utf-8") as sf:
@@ -2256,7 +2258,7 @@ async def upload_file(file: UploadFile = File(...)):
         file_path = txt_path
 
     # Save input path to state.json to be compatible with original scripts if needed
-    state_path = os.path.join(ROOT_DIR, "state.json")
+    state_path = os.path.join(DATA_DIR, "state.json")
     state = {}
     if os.path.exists(state_path):
         with open(state_path, "r", encoding="utf-8") as f:
@@ -2274,7 +2276,7 @@ async def upload_file(file: UploadFile = File(...)):
 @app.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks):
     # Get input file from state.json
-    state_path = os.path.join(ROOT_DIR, "state.json")
+    state_path = os.path.join(DATA_DIR, "state.json")
     if not os.path.exists(state_path):
         raise HTTPException(status_code=400, detail="No input file selected")
 
@@ -3799,7 +3801,7 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
 
 @app.get("/api/export_audacity")
 async def get_audacity_export():
-    zip_path = os.path.join(ROOT_DIR, "audacity_export.zip")
+    zip_path = os.path.join(DATA_DIR, "audacity_export.zip")
     if not os.path.exists(zip_path):
         raise HTTPException(status_code=404, detail="Audacity export not found. Generate it first.")
     return FileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
@@ -3827,7 +3829,7 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
                 "narrator": request.narrator,
                 "year": request.year,
                 "description": request.description,
-                "cover_path": os.path.join(ROOT_DIR, "m4b_cover.jpg") if os.path.exists(os.path.join(ROOT_DIR, "m4b_cover.jpg")) else "",
+                "cover_path": os.path.join(DATA_DIR, "m4b_cover.jpg") if os.path.exists(os.path.join(DATA_DIR, "m4b_cover.jpg")) else "",
             }
             success, msg = project_manager.merge_m4b(per_chunk_chapters=request.per_chunk_chapters, metadata=meta)
             if success:
@@ -3853,7 +3855,7 @@ async def upload_m4b_cover(file: UploadFile = File(...)):
     """Upload a cover image for M4B export."""
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
-    cover_path = os.path.join(ROOT_DIR, "m4b_cover.jpg")
+    cover_path = os.path.join(DATA_DIR, "m4b_cover.jpg")
     cover_tmp = cover_path + ".upload"
     await _save_upload_limited(file, cover_tmp, 25 * 1024**2)
     os.replace(cover_tmp, cover_path)
@@ -3862,7 +3864,7 @@ async def upload_m4b_cover(file: UploadFile = File(...)):
 @app.delete("/api/m4b_cover")
 async def delete_m4b_cover():
     """Remove the uploaded cover image."""
-    cover_path = os.path.join(ROOT_DIR, "m4b_cover.jpg")
+    cover_path = os.path.join(DATA_DIR, "m4b_cover.jpg")
     if os.path.exists(cover_path):
         os.remove(cover_path)
     return {"status": "removed"}
@@ -6111,7 +6113,7 @@ async def preparer_batch_cancel():
 # config file rather than being hardcoded, so another machine can point them
 # elsewhere without code changes.
 
-VOICELAB_CONFIG_PATH = os.path.join(ROOT_DIR, "voicelab_config.json")
+VOICELAB_CONFIG_PATH = os.path.join(DATA_DIR, "voicelab_config.json")
 
 VOICELAB_DEFAULTS = {
     # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
@@ -6121,7 +6123,7 @@ VOICELAB_DEFAULTS = {
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
     # Default zips2 root (folder of narrator subfolders) the dedup stage reads
-    "zips_dir": os.environ.get("ALEXANDRIA_ZIPS_DIR", os.path.join(ROOT_DIR, "zips2")),
+    "zips_dir": os.environ.get("ALEXANDRIA_ZIPS_DIR", os.path.join(DATA_DIR, "zips2")),
 }
 
 VOICELAB_STAGES = ("dedup", "train", "profile", "name")
@@ -6234,11 +6236,11 @@ def _resolve_zips_dir(raw: str) -> str:
     """Resolve a (possibly relative) zips_dir the same way voicelab_start does.
 
     zips_dir is a machine-specific path (like rocm_python/pipeline_repo) and may be
-    absolute; relative values are resolved against the project root.
+    absolute; relative values are resolved against the runtime data root.
     """
     resolved = os.path.normpath(raw)
     if not os.path.isabs(resolved):
-        resolved = os.path.abspath(os.path.join(ROOT_DIR, resolved))
+        resolved = os.path.abspath(os.path.join(DATA_DIR, resolved))
     else:
         resolved = os.path.abspath(resolved)
     return resolved

@@ -52,6 +52,7 @@ cd app
 python test_api.py              # Quick tests (~37) — no TTS/LLM needed
 python test_api.py --full       # Full tests (~49) — requires running TTS + LLM
 python -m unittest test_regressions.py
+python run_isolated_api_tests.py # Starts a disposable server and seeds safe fixtures
 ```
 
 Quick mode tests config, upload, scripts CRUD, voice config, chunks, status polling, voice design listing, LoRA models/datasets listing, dataset builder CRUD, and error handling — all without loading TTS models. If quick tests pass, your changes are unlikely to break existing functionality.
