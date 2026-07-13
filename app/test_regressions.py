@@ -18,6 +18,7 @@ from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
 from routers import voice_library as voice_library_module
+from routers import scripts_library as scripts_library_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -601,16 +602,16 @@ class RegressionTests(unittest.TestCase):
 
     def test_saved_book_metadata_preserves_original_identity(self):
         with tempfile.TemporaryDirectory() as tmp, \
-             patch.object(core_module, "SCRIPTS_DIR", tmp):
+            patch.object(core_module, "SCRIPTS_DIR", tmp):
             utils.atomic_json_write({"book_id": "original-upload"},
-                                    app_module._saved_book_meta_path("volume-1"))
-            self.assertEqual(app_module._get_saved_book_id("volume-1"), "original-upload")
+                                    core_module._saved_book_meta_path("volume-1"))
+            self.assertEqual(core_module._get_saved_book_id("volume-1"), "original-upload")
 
     def test_saved_book_metadata_is_not_listed_as_a_script(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(app_module, "SCRIPTS_DIR", tmp):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(scripts_library_module, "SCRIPTS_DIR", tmp):
             Path(tmp, "volume-1.json").write_text("[]", encoding="utf-8")
             Path(tmp, "volume-1.meta.json").write_text('{"book_id":"original"}', encoding="utf-8")
-            listed = asyncio.run(app_module.list_saved_scripts())
+            listed = asyncio.run(scripts_library_module.list_saved_scripts())
         self.assertEqual([item["name"] for item in listed], ["volume-1"])
 
     def test_apply_narrator_suggestion_uses_shared_pool(self):
