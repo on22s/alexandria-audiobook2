@@ -1,7 +1,7 @@
 import logging
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -10,12 +10,9 @@ from core import (
     CLONE_VOICES_DIR,
     DATASET_BUILDER_DIR,
     DESIGNED_VOICES_DIR,
-    GPU_TASKS,
     LORA_MODELS_DIR,
     STATIC_DIR,
     VOICELINES_DIR,
-    claim_gpu_task,
-    process_state,
     project_manager,
 )
 from utils import check_basic_auth

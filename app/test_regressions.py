@@ -12,6 +12,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
@@ -294,17 +295,17 @@ class RegressionTests(unittest.TestCase):
                              "/expected/root")
 
     def test_voice_design_claims_gpu_before_engine_initialization(self):
-        app_module.process_state["audio"]["running"] = True
+        core_module.process_state["audio"]["running"] = True
         try:
-            with patch.object(app_module.project_manager, "get_engine") as get_engine:
-                with self.assertRaises(app_module.HTTPException) as raised:
+            with patch.object(core_module.project_manager, "get_engine") as get_engine:
+                with self.assertRaises(HTTPException) as raised:
                     asyncio.run(voice_design_module.voice_design_preview(
                         voice_design_module.VoiceDesignPreviewRequest(
                             description="voice", sample_text="text", language="english")))
             self.assertEqual(raised.exception.status_code, 400)
             get_engine.assert_not_called()
         finally:
-            app_module.process_state["audio"]["running"] = False
+            core_module.process_state["audio"]["running"] = False
 
     def test_lora_epochs_must_be_positive_at_api_boundary(self):
         for epochs in (0, -1):
@@ -370,40 +371,40 @@ class RegressionTests(unittest.TestCase):
 
     def test_queued_cancel_survives_background_start(self):
         key = "_test_claimed_task"
-        app_module.process_state[key] = {
+        core_module.process_state[key] = {
             "running": False, "cancel": True, "logs": [], "process": None,
         }
-        app_module.GPU_TASKS.add(key)
+        core_module.GPU_TASKS.add(key)
         try:
-            app_module.claim_gpu_task(key)
-            self.assertFalse(app_module.process_state[key]["cancel"])
-            app_module.process_state[key]["cancel"] = True
+            core_module.claim_gpu_task(key)
+            self.assertFalse(core_module.process_state[key]["cancel"])
+            core_module.process_state[key]["cancel"] = True
             observed = []
             core_module._run_claimed_background_task(
-                key, lambda: observed.append(app_module.process_state[key]["cancel"])
+                key, lambda: observed.append(core_module.process_state[key]["cancel"])
             )
             self.assertEqual(observed, [True])
-            self.assertFalse(app_module.process_state[key]["running"])
+            self.assertFalse(core_module.process_state[key]["running"])
         finally:
-            app_module.GPU_TASKS.discard(key)
-            app_module.process_state.pop(key, None)
+            core_module.GPU_TASKS.discard(key)
+            core_module.process_state.pop(key, None)
 
     def test_failed_claimed_task_releases_running_state(self):
         key = "_test_failed_task"
-        app_module.process_state[key] = {"running": True, "logs": [], "process": None}
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None}
         try:
             core_module._run_claimed_background_task(
                 key, lambda: (_ for _ in ()).throw(OSError("launch failed"))
             )
-            self.assertFalse(app_module.process_state[key]["running"])
-            self.assertIn("launch failed", app_module.process_state[key]["logs"][-1])
+            self.assertFalse(core_module.process_state[key]["running"])
+            self.assertIn("launch failed", core_module.process_state[key]["logs"][-1])
         finally:
-            app_module.process_state.pop(key, None)
+            core_module.process_state.pop(key, None)
 
     def test_oversized_upload_is_removed(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "upload.bin")
-            with self.assertRaises(app_module.HTTPException) as raised:
+            with self.assertRaises(HTTPException) as raised:
                 asyncio.run(core_module._save_upload_limited(
                     _Upload([b"1234", b"5678"]), path, 6
                 ))
@@ -440,7 +441,7 @@ class RegressionTests(unittest.TestCase):
             "output_filename": "dataset.zip",
             "skip_annotation": True,
         }
-        with self.assertRaises(app_module.HTTPException) as raised:
+        with self.assertRaises(HTTPException) as raised:
             asyncio.run(preparer_module.preparer_start(
                 None, json.dumps(config), None, None
             ))
@@ -951,7 +952,7 @@ class RegressionTests(unittest.TestCase):
         self.assertNotIn("--source", result.stdout)
 
     def test_lora_cancel_idle_reports_not_running(self):
-        with self.assertRaises(app_module.HTTPException) as raised:
+        with self.assertRaises(HTTPException) as raised:
             asyncio.run(lora_module.lora_cancel_training())
         self.assertEqual(raised.exception.status_code, 400)
 
