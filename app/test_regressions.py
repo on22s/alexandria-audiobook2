@@ -7,11 +7,13 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 import app as app_module
 import core as core_module
@@ -37,6 +39,62 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_system_stats_does_not_block_eta_requests(self):
+        async def exercise_requests():
+            probe_started = threading.Event()
+            release_probe = threading.Event()
+
+            def slow_gpu_probe():
+                probe_started.set()
+                if not release_probe.wait(timeout=3):
+                    raise AssertionError("ETA request could not run while GPU probe was blocked")
+                return None
+
+            transport = ASGITransport(app=app_module.app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                with patch.object(system_module, "get_gpu_stats", side_effect=slow_gpu_probe), \
+                     patch.object(system_module, "check_disk_space", return_value=(True, 10.0)), \
+                     patch.object(system_module, "_get_torch", return_value=None), \
+                     patch.object(system_module, "run_rocm_smi_json", return_value=None), \
+                     patch.object(system_module, "system_has_gpu", return_value=(False, None)):
+                    stats_request = asyncio.create_task(client.get("/api/system/stats"))
+                    try:
+                        probe_ready = await asyncio.to_thread(probe_started.wait, 1)
+                        self.assertTrue(probe_ready, "system-stats probe did not start")
+                        eta_response = await asyncio.wait_for(
+                            client.get("/api/status/eta"), timeout=1
+                        )
+                    finally:
+                        release_probe.set()
+
+                    stats_response = await asyncio.wait_for(stats_request, timeout=1)
+
+            self.assertEqual(200, eta_response.status_code)
+            self.assertEqual(200, stats_response.status_code)
+
+        asyncio.run(exercise_requests())
+
+    def test_gpu_stats_cache_preserves_rocm_fallback_result(self):
+        fallback_stats = {
+            "allocated_gb": 1.0,
+            "reserved_gb": 1.0,
+            "total_gb": 8.0,
+            "allocated_percent": 12.5,
+            "utilization_percent": 25.0,
+        }
+        with patch.dict(system_module._gpu_stats_cache,
+                        {"data": None, "timestamp": 0}, clear=True), \
+             patch.object(system_module.time, "time", side_effect=(100.0, 101.0)), \
+             patch.object(system_module, "_get_torch", return_value=None), \
+             patch.object(system_module, "_gpu_stats_via_rocm_smi",
+                          return_value=fallback_stats) as rocm_fallback:
+            first = system_module.get_gpu_stats()
+            second = system_module.get_gpu_stats()
+
+        self.assertEqual(fallback_stats, first)
+        self.assertIs(first, second)
+        rocm_fallback.assert_called_once_with()
+
     def test_config_models_accept_documented_boundaries(self):
         tts = system_module.TTSConfig(
             mode="external",
