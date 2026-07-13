@@ -10,7 +10,7 @@ import time
 import logging
 import gc
 import uuid
-from utils import atomic_json_write, safe_load_json, is_oom_failure
+from utils import atomic_json_write, safe_load_json, is_oom_failure, get_app_config_path
 from tts import (
     TTSEngine,
     combine_audio_with_pauses,
@@ -112,7 +112,14 @@ class ProjectManager:
         self.chunks_path = os.path.join(root_dir, "chunks.json")
         self.voicelines_dir = os.path.join(root_dir, "voicelines")
         self.voice_config_path = os.path.join(root_dir, "voice_config.json")
-        self.config_path = os.path.join(root_dir, "app", "config.json")
+        # config.json placement must match app.py's get_app_config_path exactly:
+        # legacy app/config.json when the data dir is the repo root, else
+        # <data_dir>/config.json. root_dir here IS the data dir (ProjectManager is
+        # constructed with DATA_DIR), so resolve against this file's own repo
+        # root/app dir — NOT root_dir/app, which points at <data_dir>/app and
+        # silently misses the config when ALEXANDRIA_DATA_DIR relocates data.
+        _app_dir = os.path.dirname(os.path.abspath(__file__))
+        self.config_path = get_app_config_path(root_dir, os.path.dirname(_app_dir), _app_dir)
 
         # Ensure voicelines dir exists
         os.makedirs(self.voicelines_dir, exist_ok=True)
@@ -832,12 +839,15 @@ class ProjectManager:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {executor.submit(self.generate_chunk_audio, idx): idx for idx in round_indices}
                 for future in as_completed(futures):
-                    if cancel_check and cancel_check():
+                    if cancel_check and cancel_check() and not was_cancelled:
                         was_cancelled = True
                         print("[CANCEL] Cancellation requested — stopping parallel generation")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+                        for pending_future in futures:
+                            if pending_future is not future:
+                                pending_future.cancel()
                     idx = futures[future]
+                    if future.cancelled():
+                        continue
                     try:
                         success, msg = future.result()
                         if success:

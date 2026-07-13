@@ -3402,10 +3402,10 @@
                                             <select class="form-select designed-voice-select" onchange="onDesignedVoiceSelect(this)">
                                                 <option value="">-- Select voice or enter path manually --</option>
                                                 ${(window._cloneVoicesCache || []).length ? `<optgroup label="Uploaded Voices">
-                                                    ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${v.id}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${v.name}</option>`).join('')}
+                                                    ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${escapeHtml(v.id)}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
                                                 ${(window._designedVoicesCache || []).length ? `<optgroup label="Designed Voices">
-                                                    ${(window._designedVoicesCache || []).map(v => `<option value="design:${v.id}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${v.name}</option>`).join('')}
+                                                    ${(window._designedVoicesCache || []).map(v => `<option value="design:${escapeHtml(v.id)}" ${config.ref_audio && config.ref_audio.includes(v.filename) ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
                                                 <option value="__manual__" ${config.ref_audio && !(window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) && !(window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) && config.ref_audio ? 'selected' : ''}>Custom path...</option>
                                             </select>
@@ -3415,9 +3415,9 @@
                                             <input type="file" class="clone-voice-file-input" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
                                         </div>
                                     </div>
-                                    <input type="text" class="form-control ref-text mb-2" placeholder="Reference Text" value="${config.ref_text || ''}">
+                                    <input type="text" class="form-control ref-text mb-2" placeholder="Reference Text" value="${escapeHtml(config.ref_text || '')}">
                                     <div class="input-group">
-                                        <input type="text" class="form-control ref-audio" placeholder="Path to audio file" value="${config.ref_audio || ''}" ${config.ref_audio && ((window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) || (window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename))) ? 'readonly' : ''}>
+                                        <input type="text" class="form-control ref-audio" placeholder="Path to audio file" value="${escapeHtml(config.ref_audio || '')}" ${config.ref_audio && ((window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) || (window._designedVoicesCache || []).some(v => config.ref_audio.includes(v.filename))) ? 'readonly' : ''}>
                                         <button class="btn btn-sm btn-outline-secondary clone-play-btn" onclick="playCloneVoice(this)" title="Play reference audio" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
                                         <button class="btn btn-sm btn-outline-danger clone-delete-btn" onclick="deleteCloneVoice(this)" title="Delete uploaded voice" style="display:${config.ref_audio && (window._cloneVoicesCache || []).some(v => config.ref_audio.includes(v.filename)) ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
@@ -3429,7 +3429,7 @@
                                         <div class="col-md-6">
                                             <select class="form-select lora-adapter-select">
                                                 <option value="">-- Select trained adapter --</option>
-                                                ${(window._loraModelsCache || []).map(m => `<option value="${m.id}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+                                                ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
@@ -3440,7 +3440,7 @@
 
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
-                                    <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${config.description || ''}">
+                                    <input type="text" class="form-control design-description mb-1" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
                                     <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
                                     <div class="mt-2">
                                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="openVoiceDesignEditor(this)">
@@ -5614,11 +5614,11 @@
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
-                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" onclick='downloadBuiltinAdapter(${JSON.stringify(m.id)})' title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
+                                            <button class="btn btn-sm btn-outline-warning" id="lora-dl-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="downloadBuiltinAdapter(this.dataset.adapterId)" title="Download from HuggingFace"><i class="fas fa-download me-1"></i>Download</button>
                                         ` : `
-                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" onclick='playLoraPreview(${JSON.stringify(m.id)})' title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
-                                            <button class="btn btn-sm btn-outline-primary me-1" onclick='testLoraModel(${JSON.stringify(m.id)})' title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
-                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" onclick='deleteLoraModel(${JSON.stringify(m.id)})' title="Delete"><i class="fas fa-trash"></i></button>`}
+                                            <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="playLoraPreview(this.dataset.adapterId)" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="testLoraModel(this.dataset.adapterId)" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
+                                            ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
                                 </tr>

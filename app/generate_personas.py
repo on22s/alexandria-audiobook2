@@ -9,7 +9,7 @@ import tempfile
 from openai import OpenAI
 
 from tts import TTSEngine, sanitize_filename
-from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 
@@ -594,7 +594,13 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
 
 
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None):
-    ref_dir = os.path.join(root, "persona_refs")
+    state = safe_load_json(os.path.join(root, "state.json"), default={})
+    book_id = sanitize_filename(state.get("active_book_id") or "active_book")
+    ref_dir = os.path.join(root, "persona_refs", book_id)
+    # Persona generation has no resume mode; a new run must not merge stale
+    # observations from an earlier run of this book.
+    if os.path.isdir(ref_dir):
+        shutil.rmtree(ref_dir)
     os.makedirs(ref_dir, exist_ok=True)
 
     batches = list(_batch_entries(script, args.batch_size))
@@ -630,9 +636,11 @@ def main():
     args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    script_path = os.path.join(root, "annotated_script.json")
-    voice_config_path = os.path.join(root, "voice_config.json")
-    app_config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    script_path = os.path.join(data_dir, "annotated_script.json")
+    voice_config_path = os.path.join(data_dir, "voice_config.json")
+    app_config_path = get_app_config_path(data_dir, root, app_dir)
 
     if not os.path.exists(script_path):
         print(f"Error: {script_path} not found. Generate script first.")
@@ -713,7 +721,7 @@ def main():
             client=client,
             model_name=model_name,
             engine=engine,
-            root=root,
+            root=data_dir,
             args=args,
             system_prompt=persona_system,
             advanced_prompt=persona_advanced,

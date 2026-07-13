@@ -7,9 +7,9 @@
 # duration percentiles). To actually tune the alignment/threshold knobs
 # you need to compare those stats across MANY books. This script:
 #
-#   1. Discovers audio in $AUDIO_DIR (defaults to ~/Desktop/New folder/).
+#   1. Discovers audio in the required $AUDIO_DIR.
 #   2. For each audio file, uses the batch processor's fuzzy matcher to
-#      find its source EPUB/TXT in $SOURCE_DIR (defaults to ~/Desktop/books/).
+#      find its source EPUB/TXT in the required $SOURCE_DIR.
 #   3. Runs the preparer on every matched pair (via the auto-resume
 #      wrapper run_with_restart.sh so a crash doesn't kill the batch).
 #   4. Builds an aggregated report at $OUT_DIR/aggregated_report.md
@@ -33,8 +33,8 @@
 #   ./build_test_corpus.sh --aggregate
 #
 # Environment overrides:
-#   AUDIO_DIR   default: /home/fakemitch/Desktop/New folder/
-#   SOURCE_DIR  default: /home/fakemitch/Desktop/books/
+#   AUDIO_DIR   required audiobook directory
+#   SOURCE_DIR  required source-book directory
 #   MODEL       default: models/Qwen2.5-14B-Instruct-Q6_K.gguf
 #   FALLBACK    default: models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
 #   OUT_DIR     default: ./test_corpus_output/
@@ -42,8 +42,8 @@
 set -u
 shopt -s -o pipefail
 
-AUDIO_DIR=${AUDIO_DIR:-"/home/fakemitch/Desktop/New folder/"}
-SOURCE_DIR=${SOURCE_DIR:-"/home/fakemitch/Desktop/books/"}
+: "${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}"
+: "${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}"
 # Project-root model paths (where the GGUF files actually live, not models/).
 MODEL=${MODEL:-"Qwen2.5-14B-Instruct-Q6_K.gguf"}
 FALLBACK=${FALLBACK:-"Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"}

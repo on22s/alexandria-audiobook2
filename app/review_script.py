@@ -13,7 +13,7 @@ from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
 from lmstudio_settings import ensure_ideal_settings, get_current_status, get_effective_max_tokens
-from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json
+from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -731,7 +731,6 @@ def diff_entries(original, corrected, highlight_pool=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
-    parser.add_argument("--source", help="Path to original source text for comparison (mode 2, not yet implemented)")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
     parser.add_argument("--input", help="Path to the script JSON to review (default: ../annotated_script.json)")
@@ -744,11 +743,11 @@ def main():
                         help="Path to a voice_config.json whose keys should follow renamed speakers")
     args = parser.parse_args()
 
-    if args.source:
-        parser.error("--source comparison mode is not implemented")
-
     # Locate the script to review (default: working annotated_script.json)
-    default_script = os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    default_script = os.path.join(data_dir, "annotated_script.json")
     script_path = args.input or default_script
     output_path = args.output or script_path
     if not os.path.exists(script_path):
@@ -761,7 +760,7 @@ def main():
     print(f"Loaded {len(entries)} script entries for review")
 
     # Load config
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config_path = get_app_config_path(data_dir, root, app_dir)
     config = {}
     if os.path.exists(config_path):
         try:
@@ -1148,7 +1147,7 @@ def main():
     # Delete chunks.json so editor regenerates — only when we reviewed the
     # working script (batch review of saved scripts must not touch it).
     if os.path.abspath(output_path) == os.path.abspath(default_script):
-        chunks_path = os.path.join(os.path.dirname(__file__), "..", "chunks.json")
+        chunks_path = os.path.join(data_dir, "chunks.json")
         if os.path.exists(chunks_path):
             os.remove(chunks_path)
             print("Cleared old chunks.json")

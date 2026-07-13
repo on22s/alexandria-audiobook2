@@ -8,17 +8,19 @@
 set -u
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
+SOURCE_DIR=${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}
 OUT_DIR="$SCRIPT_DIR/test_corpus_output"
 MODEL="Qwen2.5-14B-Instruct-Q6_K.gguf"
 FALLBACK="Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
 mkdir -p "$OUT_DIR"
 
 PAIRS=(
-    "/home/fakemitch/Desktop/New folder/Luci Christian Full Metal Panic-converted.wav|/home/fakemitch/Desktop/books/Full Metal Panic.epub"
-    "/home/fakemitch/Desktop/New folder/Cherami Leigh Cyberpunk 2077-converted.wav|/home/fakemitch/Desktop/books/Cyberpunk 2077.epub"
-    "/home/fakemitch/Desktop/New folder/Brittney Karbowski Reincarnated Slime-converted.wav|/home/fakemitch/Desktop/books/Ascendance of a Bookworm Part 1 volume 1.epub"
-    "/home/fakemitch/Desktop/New folder/Cliff Kurt Mushoku Tensei-converted.wav|/home/fakemitch/Desktop/books/86--Eighty-Six V11 - Dies Passionis.epub"
-    "/home/fakemitch/Desktop/New folder/Cristina Vee Nekomonogatari-converted.wav|/home/fakemitch/Desktop/books/A Natural History of Dragons.epub"
+    "$AUDIO_DIR/Luci Christian Full Metal Panic-converted.wav|$SOURCE_DIR/Full Metal Panic.epub"
+    "$AUDIO_DIR/Cherami Leigh Cyberpunk 2077-converted.wav|$SOURCE_DIR/Cyberpunk 2077.epub"
+    "$AUDIO_DIR/Brittney Karbowski Reincarnated Slime-converted.wav|$SOURCE_DIR/Ascendance of a Bookworm Part 1 volume 1.epub"
+    "$AUDIO_DIR/Cliff Kurt Mushoku Tensei-converted.wav|$SOURCE_DIR/86--Eighty-Six V11 - Dies Passionis.epub"
+    "$AUDIO_DIR/Cristina Vee Nekomonogatari-converted.wav|$SOURCE_DIR/A Natural History of Dragons.epub"
 )
 
 notify() {

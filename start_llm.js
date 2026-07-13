@@ -25,11 +25,18 @@ module.exports = {
       when: "{{!exists(args.model)}}"
     },
     {
+      method: "script.return",
+      params: {
+        error: "LLM server prerequisites are missing; see the preceding error."
+      },
+      when: "{{!exists('../alexandria-audiobook.git/app/env') || !exists(args.model)}}"
+    },
+    {
       method: "shell.run",
       params: {
         venv: "../alexandria-audiobook.git/app/env",
         path: ".",
-        message: "python -m llama_cpp.server --model {{args.model}} --host 127.0.0.1 --port {{local.port}} --n_gpu_layers -1 --n_ctx 8192",
+        message: "python -m llama_cpp.server --model \"{{args.model}}\" --host 127.0.0.1 --port {{local.port}} --n_gpu_layers -1 --n_ctx 8192",
         on: [{
           event: "/(http:\\/\\/[0-9.:]+)/",
           done: true

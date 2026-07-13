@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
-PREP=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/alexandria_preparer_rocm_compatible.py
-PY=/home/fakemitch/pinokio/api/alexandria-audiobook.git/app/env/bin/python
-export PYTHONPATH=/home/fakemitch/pinokio/api/alexandria-audiobook2.git:${PYTHONPATH}
-MODEL=Qwen2.5-14B-Instruct-Q6_K.gguf
-AUDIO_DIR="/home/fakemitch/Desktop/New folder"
-BOOKS_DIR=/home/fakemitch/Desktop/books
-OUT_BASE=/home/fakemitch/Desktop/zips2
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+PREP=${PREP:-"$SCRIPT_DIR/alexandria_preparer_rocm_compatible.py"}
+PY=${PY:-"$SCRIPT_DIR/../alexandria-audiobook.git/app/env/bin/python"}
+export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
+MODEL=${MODEL:-Qwen2.5-14B-Instruct-Q6_K.gguf}
+AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
+BOOKS_DIR=${BOOKS_DIR:?Set BOOKS_DIR to the source-book directory}
+OUT_BASE=${OUT_BASE:?Set OUT_BASE to the output directory}
 
 echo "[$(date)] Starting remaining batch — 5 narrators"
 

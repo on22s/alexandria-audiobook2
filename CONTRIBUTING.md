@@ -51,6 +51,8 @@ Before submitting a PR, run the API test suite to make sure nothing is broken:
 cd app
 python test_api.py              # Quick tests (~37) — no TTS/LLM needed
 python test_api.py --full       # Full tests (~49) — requires running TTS + LLM
+python -m unittest test_regressions.py
+python run_isolated_api_tests.py # Starts a disposable server and seeds safe fixtures
 ```
 
 Quick mode tests config, upload, scripts CRUD, voice config, chunks, status polling, voice design listing, LoRA models/datasets listing, dataset builder CRUD, and error handling — all without loading TTS models. If quick tests pass, your changes are unlikely to break existing functionality.
@@ -61,6 +63,6 @@ If your PR modifies or adds API endpoints, add corresponding tests to `test_api.
 
 1. Fork the repo and create a feature branch from `dev`
 2. Make your changes
-3. Run `python test_api.py` and verify tests pass
+3. Run `python test_api.py` and `python -m unittest test_regressions.py`; verify both pass
 4. Test manually by restarting the app
 5. Open a PR targeting `dev`

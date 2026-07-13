@@ -13,6 +13,19 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+
+def get_runtime_data_dir(root_dir: str) -> str:
+    """Return the single mutable-data root for this application instance."""
+    configured = os.environ.get("ALEXANDRIA_DATA_DIR", "").strip()
+    return os.path.abspath(configured or root_dir)
+
+
+def get_app_config_path(data_dir: str, root_dir: str, app_dir: str) -> str:
+    """Keep legacy local config placement while isolating configured runtimes."""
+    if os.path.abspath(data_dir) == os.path.abspath(root_dir):
+        return os.path.join(app_dir, "config.json")
+    return os.path.join(data_dir, "config.json")
+
 # --- GPU stats (rocm-smi) ---
 # Canonical implementation lives in gpu_stats.py at the repo root, shared
 # with the standalone alexandria_*.py scripts which can't import from
@@ -398,41 +411,3 @@ def is_generic_speaker(name):
     # proper names containing digits are not accidentally scoped to one book.
     value = re.sub(r"\s+#?\d+$", "", value).strip()
     return value in _GENERIC_SPEAKER_WORDS
-
-
-def de_generic_speakers(entries, book_id):
-    """Rename generic speaker labels (e.g. 'man', 'woman') to be unique to the
-    book, e.g. 'Man Book', so voices don't collide across books. 'NARRATOR' is
-    always left untouched.
-
-    Mutates `entries` in place (matching review_script.dedupe_speakers) and
-    returns the rename mapping `{original_label: new_label}` (empty when nothing
-    changed), suitable for feeding into `_remap_voice_config`. Idempotent: a
-    label already suffixed with `book_id` is no longer a generic word, so a
-    second call is a no-op.
-    """
-    if not book_id or not entries:
-        return {}
-
-    renamed = {}
-    for e in entries:
-        for key in ("speaker", "type"):
-            if key in e and e[key]:
-                val = e[key].strip()
-                if not val or val.upper() == "NARRATOR":
-                    continue
-
-                # Strip a leading "the " only for the generic-word membership
-                # test; the rename keeps the original label's wording.
-                if is_generic_speaker(val):
-                    if val not in renamed:
-                        capitalized = " ".join(w.capitalize() for w in val.split())
-                        renamed[val] = f"{capitalized} {book_id}"
-                    e[key] = renamed[val]
-
-    if renamed:
-        print(f"Made {len(renamed)} generic speaker label(s) unique to '{book_id}':")
-        for orig, new in renamed.items():
-            print(f"  '{orig}' -> '{new}'")
-
-    return renamed

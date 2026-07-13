@@ -28,8 +28,11 @@ RUN mkdir -p /alexandria/scripts \
     /alexandria/dataset_builder \
     /alexandria/app/uploads
 
+RUN mkdir -p /alexandria/runtime
+
 # Bind to 0.0.0.0 inside the container
 ENV ALEXANDRIA_HOST=0.0.0.0
+ENV ALEXANDRIA_DATA_DIR=/alexandria/runtime
 EXPOSE 4200
 
 CMD ["python", "app/app.py"]
