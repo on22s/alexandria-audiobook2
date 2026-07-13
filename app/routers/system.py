@@ -579,41 +579,43 @@ async def get_default_prompts():
         pass
     return result
 
-def _normalize_and_validate_llm(profile: "LLMConfig") -> None:
-    """Append /v1 to the base_url (in place) and ensure it's a local/trusted host."""
+def _normalize_and_validate_llm(profile: "LLMConfig") -> "LLMConfig":
+    """Return a copy with a normalized, validated local/trusted base URL."""
     if not profile.base_url.strip():
         raise HTTPException(status_code=400, detail="LLM base_url is required")
     url = profile.base_url.rstrip("/")
     if not url.endswith("/v1"):
         url += "/v1"
-    profile.base_url = url
     try:
         _validate_local_llm_base_url(url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    return profile.model_copy(update={"base_url": url}, deep=True)
 
 
 @router.post("/api/config")
 async def save_config(config: AppConfig):
+    normalized_config = config.model_copy(deep=True)
+
     # Normalize/validate whichever profiles were sent. The local/remote profiles
     # are persisted side-by-side so toggling never loses the other one's settings.
-    if config.llm_local is not None and config.llm_local.base_url.strip():
-        _normalize_and_validate_llm(config.llm_local)
-    if config.llm_remote is not None and config.llm_remote.base_url.strip():
-        _normalize_and_validate_llm(config.llm_remote)
+    if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
+        normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
+    if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
+        normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
 
     # Pick the active profile from the toggle, then mirror it into `llm` - the
     # section every consumer (review/generate/personas/nicknames) reads.
-    active = config.llm_remote if config.llm_mode == "remote" else config.llm_local
+    active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
+              else normalized_config.llm_local)
     if active is None:
         raise HTTPException(status_code=400, detail=(
-            f"llm_mode is '{config.llm_mode}' but no llm_{config.llm_mode} "
+            f"llm_mode is '{normalized_config.llm_mode}' but no llm_{normalized_config.llm_mode} "
             f"profile was provided - refusing to save a config where llm_mode "
             f"and the active llm profile would disagree."))
-    config.llm = active.model_copy(deep=True)
-    _normalize_and_validate_llm(config.llm)
+    normalized_config.llm = _normalize_and_validate_llm(active)
 
-    atomic_json_write(config.model_dump(), CONFIG_PATH)
+    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
     return {"status": "saved"}
