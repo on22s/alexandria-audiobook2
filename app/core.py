@@ -15,6 +15,7 @@ import aiofiles
 from fastapi import HTTPException, UploadFile
 
 from project import ProjectManager
+from config_settings import load_app_config
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
                    is_generic_speaker, is_path_inside, safe_load_json,
                    secure_filename)
@@ -1148,7 +1149,7 @@ _REPORT_SUMMARY_SYSTEM_PROMPT = (
 
 def _load_llm_config() -> dict:
     """Return the `llm` section of config.json, or {} if missing/unreadable."""
-    return safe_load_json(CONFIG_PATH, default={}).get("llm", {})
+    return load_app_config(CONFIG_PATH).get("llm", {})
 
 
 class LLMConfigError(ValueError):
@@ -1238,7 +1239,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
             {"role": "system", "content": _REPORT_SUMMARY_SYSTEM_PROMPT},
             {"role": "user", "content": markdown_body},
         ]
-        full_cfg = safe_load_json(CONFIG_PATH, default={})
+        full_cfg = load_app_config(CONFIG_PATH)
         llm_cfg = full_cfg.get("llm") or {}
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),

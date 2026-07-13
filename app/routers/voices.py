@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
+from config_settings import load_app_config
 
 from core import (
     CAST_MAJOR_LINE_THRESHOLD,
@@ -610,7 +611,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             },
         }
         character_items = list(characters.items())
-        full_cfg = safe_load_json(CONFIG_PATH, default={})
+        full_cfg = load_app_config(CONFIG_PATH)
         llm_cfg = full_cfg.get("llm") or {}
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),

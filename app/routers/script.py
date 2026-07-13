@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from config_settings import load_app_config
 
 from core import (
     BASE_DIR,
@@ -482,14 +483,12 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         total_entries = 0
 
     review_batch_size = 25
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                review_batch_size = max(1, int((cfg.get("generation") or {}).get("review_batch_size", 25)))
-        except (json.JSONDecodeError, ValueError, TypeError, OSError) as e:
-            _warn_corrupted_json("config", CONFIG_PATH, "using default review_batch_size", e)
-            review_batch_size = 25
+    try:
+        cfg = load_app_config(CONFIG_PATH)
+        generation = cfg.get("generation") or {}
+        review_batch_size = max(1, int(generation.get("review_batch_size", 25)))
+    except (ValueError, TypeError) as e:
+        _warn_corrupted_json("config", CONFIG_PATH, "using default review_batch_size", e)
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
     cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]

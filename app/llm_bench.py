@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 
 import lmstudio_settings
+from config_settings import load_app_config
 from utils import safe_load_json, atomic_json_write, file_lock
 
 _BENCH_SYSTEM_PROMPT = "You are a creative writing assistant."
@@ -176,7 +177,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     profile_key = "llm_remote" if is_remote else "llm_local"
     cache_key = f"{base_url}::{model_name}"
 
-    config = safe_load_json(config_path, default={})
+    config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
     if profile.get("concurrency_for") == cache_key and profile.get("concurrency"):
         concurrency = profile["concurrency"]
@@ -218,7 +219,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
 
     try:
         with file_lock(config_path):
-            config = safe_load_json(config_path, default={})
+            config = load_app_config(config_path)
             profile = dict(config.get(profile_key) or {})
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key

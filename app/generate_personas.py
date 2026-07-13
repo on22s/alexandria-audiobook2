@@ -7,6 +7,7 @@ import argparse
 import shutil
 import tempfile
 from openai import OpenAI
+from config_settings import load_app_config
 
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path
@@ -666,7 +667,7 @@ def main():
         narrator_context[speaker] = _collect_narrator_context(script, speaker, window)
 
     # Load LLM config
-    config = safe_load_json(app_config_path, default={})
+    config = load_app_config(app_config_path)
 
     llm_cfg = config.get("llm", {})
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")

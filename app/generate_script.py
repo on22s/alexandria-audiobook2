@@ -6,6 +6,7 @@ import re
 import time
 from dataclasses import dataclass
 from openai import OpenAI
+from config_settings import load_app_config
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 from utils import atomic_json_write, extract_balanced, get_runtime_data_dir, get_app_config_path
@@ -420,15 +421,9 @@ def main():
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
     config_path = get_app_config_path(data_dir, root, app_dir)
-    config = {}
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Warning: Failed to load config.json: {e}")
-    else:
+    if not os.path.exists(config_path):
         print("Warning: config.json not found. Using defaults.")
+    config = load_app_config(config_path)
 
     llm_config = config.get("llm", {})
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")

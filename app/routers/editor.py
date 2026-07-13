@@ -7,6 +7,7 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
+from config_settings import load_app_config
 
 from core import (
     AUDIOBOOK_PATH,
@@ -239,13 +240,8 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
 
     # Load worker count from config
     workers = 2
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
-        except (json.JSONDecodeError, ValueError) as e:
-            _warn_corrupted_json("config", CONFIG_PATH, "using default worker count", e)
+    cfg = load_app_config(CONFIG_PATH)
+    workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
 
     indices = request.indices
     total = len(indices)
@@ -300,18 +296,16 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
     batch_seed = -1
     batch_size = 4
     batch_group_by_type = False
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                tts_cfg = cfg.get("tts", {})
-                seed_val = tts_cfg.get("batch_seed")
-                if seed_val is not None and seed_val != "":
-                    batch_seed = int(seed_val)
-                batch_size = max(1, tts_cfg.get("parallel_workers", 4))
-                batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
-        except (json.JSONDecodeError, ValueError) as e:
-            _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
+    cfg = load_app_config(CONFIG_PATH)
+    try:
+        tts_cfg = cfg.get("tts", {})
+        seed_val = tts_cfg.get("batch_seed")
+        if seed_val is not None and seed_val != "":
+            batch_seed = int(seed_val)
+        batch_size = max(1, tts_cfg.get("parallel_workers", 4))
+        batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
+    except (TypeError, ValueError) as e:
+        _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
 
     indices = request.indices
     total = len(indices)
