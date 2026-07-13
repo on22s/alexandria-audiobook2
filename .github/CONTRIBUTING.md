@@ -55,6 +55,8 @@ python -m unittest discover -s . -p 'test_*.py'
 python update_api_contract_snapshots.py --check
 python run_isolated_api_tests.py         # Quick suite vs a disposable server + safe fixtures
 python run_isolated_api_tests.py --full  # Full GPU/LLM suite, isolated (pre-release check)
+python verify_release.py          # All required local gates, quick mode
+python verify_release.py --full   # Release gate: requires 83/83 with no skips
 ```
 
 The isolated runner spins up a server against a throwaway `ALEXANDRIA_DATA_DIR`,
