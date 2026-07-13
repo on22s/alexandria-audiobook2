@@ -39,7 +39,7 @@ jobs:
           grep -vE '^(transformers|peft)==' requirements.txt | pip install -r /dev/stdin
 
       - name: Unit tests (mocked LLM/TTS)
-        run: python -m unittest test_regressions -v
+        run: python -m unittest discover -s . -p 'test_*.py' -v
 
       - name: Isolated API suite (disposable data dir)
         run: python run_isolated_api_tests.py
