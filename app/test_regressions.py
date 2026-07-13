@@ -11,6 +11,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
 import app as app_module
 import core as core_module
 import generate_script
@@ -35,6 +37,112 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_config_models_accept_documented_boundaries(self):
+        tts = system_module.TTSConfig(
+            mode="external",
+            parallel_workers=1,
+            sub_batch_min_size=1,
+            sub_batch_ratio=1,
+            sub_batch_max_items=0,
+            pause_between_speakers_ms=0,
+            pause_same_speaker_ms=0,
+        )
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        generation_boundaries = (
+            system_module.GenerationConfig(
+                chunk_size=500,
+                max_tokens=256,
+                temperature=2,
+                top_p=1,
+                top_k=200,
+                min_p=0,
+                presence_penalty=-2,
+            ),
+            system_module.GenerationConfig(
+                chunk_size=500,
+                max_tokens=256,
+                temperature=0,
+                top_p=0,
+                top_k=0,
+                min_p=1,
+                presence_penalty=2,
+            ),
+        )
+
+        with patch.object(system_module, "atomic_json_write") as write_config, \
+             patch.object(system_module.project_manager, "engine", object()):
+            client = TestClient(app_module.app)
+            for generation in generation_boundaries:
+                payload = system_module.AppConfig(
+                    llm=profile,
+                    llm_mode="local",
+                    llm_local=profile,
+                    tts=tts,
+                    generation=generation,
+                ).model_dump(mode="json")
+                response = client.post("/api/config", json=payload)
+                self.assertEqual(200, response.status_code, response.text)
+
+        self.assertEqual(2, write_config.call_count)
+
+    def test_config_api_rejects_out_of_range_values_without_writing(self):
+        invalid_values = (
+            ("tts", "mode", "invalid"),
+            ("tts", "parallel_workers", 0),
+            ("tts", "sub_batch_min_size", 0),
+            ("tts", "sub_batch_ratio", 0.5),
+            ("tts", "sub_batch_max_items", -1),
+            ("tts", "pause_between_speakers_ms", -1),
+            ("tts", "pause_same_speaker_ms", -1),
+            ("generation", "chunk_size", 499),
+            ("generation", "max_tokens", 255),
+            ("generation", "temperature", -0.1),
+            ("generation", "temperature", 2.1),
+            ("generation", "top_p", -0.1),
+            ("generation", "top_p", 1.1),
+            ("generation", "top_k", -1),
+            ("generation", "top_k", 201),
+            ("generation", "min_p", -0.1),
+            ("generation", "min_p", 1.1),
+            ("generation", "presence_penalty", -2.1),
+            ("generation", "presence_penalty", 2.1),
+        )
+        profile = {
+            "base_url": "http://localhost:1234/v1",
+            "api_key": "key",
+            "model_name": "model",
+        }
+        base_payload = {
+            "llm": profile,
+            "llm_mode": "local",
+            "llm_local": profile,
+            "llm_remote": None,
+            "tts": system_module.TTSConfig().model_dump(mode="json"),
+            "generation": system_module.GenerationConfig().model_dump(mode="json"),
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            original = b'{"preserve": true}'
+            client = TestClient(app_module.app)
+            with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                for section, field, value in invalid_values:
+                    with self.subTest(section=section, field=field, value=value):
+                        config_path.write_bytes(original)
+                        payload = json.loads(json.dumps(base_payload))
+                        payload[section][field] = value
+                        response = client.post("/api/config", json=payload)
+                        self.assertEqual(422, response.status_code, response.text)
+                        self.assertEqual(original, config_path.read_bytes())
+
+    def test_generation_config_banned_tokens_default_is_not_shared(self):
+        first = system_module.GenerationConfig()
+        second = system_module.GenerationConfig()
+        first.banned_tokens.append("token")
+        self.assertEqual([], second.banned_tokens)
+
     def test_llm_normalization_returns_copy_without_mutating_profile(self):
         profile = system_module.LLMConfig(
             base_url="http://localhost:1234/", api_key="key", model_name="model"
