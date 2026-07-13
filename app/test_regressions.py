@@ -20,6 +20,7 @@ from routers import voice_design as voice_design_module
 from routers import voice_library as voice_library_module
 from routers import voices as voices_module
 from routers import scripts_library as scripts_library_module
+from routers import system as system_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -34,6 +35,40 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_get_config_recovers_without_rewriting_invalid_json(self):
+        invalid_documents = (
+            "", "{bad", "null", "[]",
+            '{"llm": [], "tts": "bad", "prompts": [], '
+            '"llm_local": "bad", "llm_remote": []}',
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            for document in invalid_documents:
+                with self.subTest(document=document):
+                    config_path.write_text(document, encoding="utf-8")
+                    with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                        config = asyncio.run(system_module.get_config())
+
+                    self.assertIn("llm", config)
+                    self.assertIn("tts", config)
+                    self.assertTrue(config["prompts"]["system_prompt"])
+                    self.assertEqual(document, config_path.read_text(encoding="utf-8"))
+
+    def test_get_config_backfills_partial_top_level_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            config_path.write_text(
+                json.dumps({"tts": {"language": "French"}, "custom": "preserved"}),
+                encoding="utf-8",
+            )
+            with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                config = asyncio.run(system_module.get_config())
+
+            self.assertIn("llm", config)
+            self.assertEqual("French", config["tts"]["language"])
+            self.assertIn("parallel_workers", config["tts"])
+            self.assertEqual("preserved", config["custom"])
+
     def test_runtime_data_dir_ignores_empty_environment_override(self):
         with patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": "   "}):
             self.assertEqual(utils.get_runtime_data_dir("/expected/root"),
