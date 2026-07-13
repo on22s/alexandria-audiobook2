@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from project import ProjectManager
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
-                   safe_load_json, secure_filename)
+                   is_path_inside, safe_load_json, secure_filename)
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 
@@ -28,6 +28,17 @@ def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> Non
     parse failure on a config/state/manifest file - keeps the message format
     in one place instead of over a dozen independently-written copies."""
     logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
+
+
+def _load_manifest(path):
+    """Load a JSON manifest file, returning [] on missing or corrupt file."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("manifest", path, "returning empty list", e)
+    return []
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -100,11 +111,24 @@ def _init_task_log(task_name: str, extra_header: str = "") -> str:
 DESIGNED_VOICES_DIR = os.path.join(DATA_DIR, "designed_voices")
 CLONE_VOICES_DIR = os.path.join(DATA_DIR, "clone_voices")
 LORA_MODELS_DIR = os.path.join(DATA_DIR, "lora_models")
+LORA_MODELS_MANIFEST = os.path.join(LORA_MODELS_DIR, "manifest.json")
 LORA_DATASETS_DIR = os.path.join(DATA_DIR, "lora_datasets")
 BUILTIN_LORA_DIR = os.path.join(ROOT_DIR, "builtin_lora")
 DATASET_BUILDER_DIR = os.path.join(DATA_DIR, "dataset_builder")
 PREPARER_SCRIPT_PATH = os.path.join(ROOT_DIR, "alexandria_preparer_rocm_compatible.py")
 PREPARER_OUTPUT_DIR = os.path.join(DATA_DIR, "preparer_output")
+VOICELAB_CONFIG_PATH = os.path.join(DATA_DIR, "voicelab_config.json")
+
+VOICELAB_DEFAULTS = {
+    # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
+    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", os.path.join(ROOT_DIR, "env", "bin", "python")),
+    # Repo holding batch_train_lora.py + voice_profiler.py
+    "pipeline_repo": os.environ.get("ALEXANDRIA_PIPELINE_REPO", ROOT_DIR),
+    # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
+    "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
+    # Default zips2 root (folder of narrator subfolders) the dedup stage reads
+    "zips_dir": os.environ.get("ALEXANDRIA_ZIPS_DIR", os.path.join(DATA_DIR, "zips2")),
+}
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -125,6 +149,70 @@ os.makedirs(VOICELINES_DIR, exist_ok=True)
 os.makedirs(BUILTIN_LORA_DIR, exist_ok=True)
 
 project_manager = ProjectManager(DATA_DIR)
+
+
+# Directories this app writes user/attacker-suppliable content into (uploads,
+# extracted dataset ZIPs, generated samples/previews, preparer output).
+# voicelab's rocm_python/pipeline_repo/profiler_model must never resolve
+# inside one of these - otherwise anyone who can upload a file (via
+# /api/upload, /api/lora/upload_dataset, etc.) or run the preparer (which
+# writes to PREPARER_OUTPUT_DIR with an attacker-chosen filename) could point
+# voicelab at content they just planted and have it executed as the
+# "trusted" interpreter or pipeline script.
+_VOICELAB_FORBIDDEN_DIRS = [
+    UPLOADS_DIR, LORA_DATASETS_DIR, LORA_MODELS_DIR, BUILTIN_LORA_DIR,
+    DATASET_BUILDER_DIR, DESIGNED_VOICES_DIR, CLONE_VOICES_DIR, VOICELINES_DIR,
+    PREPARER_OUTPUT_DIR,
+]
+
+
+def _validate_voicelab_path(path: str, what: str) -> None:
+    """Raise HTTPException 400 if `path` resolves inside a directory this app
+    writes uploaded/generated content into - see _VOICELAB_FORBIDDEN_DIRS."""
+    for forbidden in _VOICELAB_FORBIDDEN_DIRS:
+        if is_path_inside(path, forbidden):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{what} cannot be inside {forbidden} - that directory holds "
+                       f"uploaded/generated content, not trusted pipeline code.")
+
+
+def _load_voicelab_config() -> dict:
+    cfg = dict(VOICELAB_DEFAULTS)
+    if os.path.exists(VOICELAB_CONFIG_PATH):
+        try:
+            with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            _warn_corrupted_json("voicelab config", VOICELAB_CONFIG_PATH, "using defaults", e)
+    return cfg
+
+
+def _revalidate_voicelab_paths(*path_label_pairs: Tuple[Optional[str], str]) -> Optional[HTTPException]:
+    """Run _validate_voicelab_path on each (path, label) pair, skipping falsy
+    paths, and return the first HTTPException raised (or None if all pass).
+
+    Every caller of this is a background_tasks.add_task closure re-checking
+    a value that was already validated synchronously before the task was
+    scheduled - the deferral until after the HTTP response is sent leaves a
+    window where the on-disk target could be repointed in between. Shared
+    here specifically because preparer_start, preparer_batch_start, and
+    voicelab_start each used to hand-roll this same try/except, and one of
+    those three copies (preparer_batch_start) silently covered less than
+    its own comment claimed - one canonical implementation can't drift out
+    of sync with itself the way three independent copies already did.
+    Callers still apply their own state-dict's abort contract (which fields
+    to set, return vs. break a loop) since those genuinely differ.
+    """
+    for path, label in path_label_pairs:
+        if path:
+            try:
+                _validate_voicelab_path(path, label)
+            except HTTPException as e:
+                return e
+    return None
 
 
 # Global state for process tracking
@@ -430,6 +518,22 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
     except (ProcessLookupError, OSError):
         raise HTTPException(status_code=400, detail=exited_msg)
     return {"status": "cancel signal sent", "pid": pid}
+
+
+def _batch_cancel_helper(state_key: str):
+    state = process_state[state_key]
+    state["cancel"] = True
+    _resume_if_paused(state, state.get("process"))
+
+    # Also terminate the current subprocess (whole group) if it's running
+    proc = state.get("process")
+    if proc and proc.poll() is None:
+        try:
+            _send_signal_tree(proc, signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+
+    return {"status": "cancel_requested"}
 
 
 def _run_claimed_background_task(task_name: str, callback) -> None:
