@@ -125,7 +125,7 @@ class RegressionTests(unittest.TestCase):
             self.assertFalse(app_module.process_state[key]["cancel"])
             app_module.process_state[key]["cancel"] = True
             observed = []
-            app_module._run_claimed_background_task(
+            core_module._run_claimed_background_task(
                 key, lambda: observed.append(app_module.process_state[key]["cancel"])
             )
             self.assertEqual(observed, [True])
@@ -138,7 +138,7 @@ class RegressionTests(unittest.TestCase):
         key = "_test_failed_task"
         app_module.process_state[key] = {"running": True, "logs": [], "process": None}
         try:
-            app_module._run_claimed_background_task(
+            core_module._run_claimed_background_task(
                 key, lambda: (_ for _ in ()).throw(OSError("launch failed"))
             )
             self.assertFalse(app_module.process_state[key]["running"])
@@ -150,7 +150,7 @@ class RegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "upload.bin")
             with self.assertRaises(app_module.HTTPException) as raised:
-                asyncio.run(app_module._save_upload_limited(
+                asyncio.run(core_module._save_upload_limited(
                     _Upload([b"1234", b"5678"]), path, 6
                 ))
             self.assertEqual(raised.exception.status_code, 413)
