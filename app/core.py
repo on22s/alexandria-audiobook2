@@ -43,6 +43,33 @@ def _load_manifest(path):
     return []
 
 
+def _safe_subpath(base_dir: str, name: str) -> str:
+    """Resolve `name` under `base_dir`, rejecting path traversal (e.g. '..' or
+    absolute paths). Returns the realpath; raises HTTP 400 if it escapes.
+
+    Guards endpoints that build a filesystem path from a user-supplied name and
+    then delete/extract it, so a value like '..' can't reach outside base_dir.
+    """
+    target = os.path.realpath(os.path.join(base_dir, name))
+    if not is_path_inside(target, base_dir):
+        raise HTTPException(status_code=400, detail="Invalid name.")
+    return target
+
+
+def _require_safe_filename(raw_name: str, detail: str) -> str:
+    """secure_filename(raw_name), raising HTTPException 400 with `detail` if
+    it sanitizes to empty. Factors out the same 2-line sanitize-or-reject
+    pattern repeated across the many endpoints below that take a
+    user-supplied name/filename and reject the request outright if it's
+    invalid (loops that skip/log a single bad item instead of rejecting the
+    whole request build the same check inline, since their failure handling
+    differs per call site)."""
+    safe = secure_filename(raw_name)
+    if not safe:
+        raise HTTPException(status_code=400, detail=detail)
+    return safe
+
+
 def check_disk_space(path, required_gb):
     """Check if disk has enough space. Returns (has_space, free_gb)."""
     try:
