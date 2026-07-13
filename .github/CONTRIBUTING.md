@@ -52,8 +52,15 @@ cd app
 python test_api.py              # Quick tests (~37) — no TTS/LLM needed
 python test_api.py --full       # Full tests (~49) — requires running TTS + LLM
 python -m unittest test_regressions.py
-python run_isolated_api_tests.py # Starts a disposable server and seeds safe fixtures
+python run_isolated_api_tests.py         # Quick suite vs a disposable server + safe fixtures
+python run_isolated_api_tests.py --full  # Full GPU/LLM suite, isolated (pre-release check)
 ```
+
+The isolated runner spins up a server against a throwaway `ALEXANDRIA_DATA_DIR`,
+so it never touches your real books/voices. `--full` additionally requires a
+running LM Studio (`localhost:1234`) and a downloaded built-in voice; it exercises
+real TTS generation, review, export, voice design, and LoRA — run it before a
+release. CI runs the quick suites automatically; `--full` is manual (needs GPU).
 
 Quick mode tests config, upload, scripts CRUD, voice config, chunks, status polling, voice design listing, LoRA models/datasets listing, dataset builder CRUD, and error handling — all without loading TTS models. If quick tests pass, your changes are unlikely to break existing functionality.
 

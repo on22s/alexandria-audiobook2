@@ -1211,6 +1211,12 @@ def test_generate_script():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    # Generation is an open-ended full-book pass we deliberately don't wait to
+    # finish (see F-024), but leaving it running holds the global GPU lock and
+    # makes every downstream GPU test fail. Cancel it and confirm the lock frees.
+    post("/api/generate_script/cancel")
+    if not wait_for_task("script"):
+        raise TestFailure("GPU lock not released: generate_script still running after cancel")
 
 
 def test_review_script():
@@ -1223,6 +1229,11 @@ def test_review_script():
     data = r.json()
     if data.get("status") != "started":
         raise TestFailure(f"Expected status=started, got {data}")
+    # Same as generate_script above: free the GPU lock so the bounded generation
+    # tests below aren't blocked by this open-ended review pass.
+    post("/api/review_script/cancel")
+    if not wait_for_task("review"):
+        raise TestFailure("GPU lock not released: review_script still running after cancel")
 
 
 

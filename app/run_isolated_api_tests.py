@@ -28,6 +28,17 @@ def main():
         ]), encoding="utf-8")
         (data_path / "state.json").write_text(
             json.dumps({"active_book_id": "isolated-fixture"}), encoding="utf-8")
+        # If a built-in voice is downloaded, assign it to the fixture speakers so
+        # the --full GPU generation tests exercise real TTS instead of erroring on
+        # an unvoiced speaker. builtin_lora ships at the repo root (not the data
+        # dir), so it's reachable by the isolated server. Harmless when absent.
+        builtin_dir = app_dir.parent / "builtin_lora"
+        voice = next((p.parent.name for p in builtin_dir.glob("*/adapter_model.safetensors")), None)
+        if voice:
+            entry = {"type": "builtin_lora", "adapter_id": voice,
+                     "adapter_path": f"builtin_lora/{voice}", "seed": "-1"}
+            (data_path / "voice_config.json").write_text(
+                json.dumps({"NARRATOR": entry, "Hero": entry}), encoding="utf-8")
         port = get_free_port()
         env = dict(os.environ, ALEXANDRIA_DATA_DIR=data_dir,
                    ALEXANDRIA_PORT=str(port))
@@ -47,8 +58,11 @@ def main():
                     time.sleep(0.1)
             else:
                 raise RuntimeError("Server did not become ready within 20 seconds")
+            # Forward extra CLI args (e.g. --full) straight through to test_api.py
+            # so the GPU/LLM suite can be run against this same disposable state.
             result = subprocess.run(
-                [sys.executable, "test_api.py", "--url", f"http://127.0.0.1:{port}"],
+                [sys.executable, "test_api.py", "--url", f"http://127.0.0.1:{port}",
+                 *sys.argv[1:]],
                 cwd=app_dir,
             )
             return result.returncode
