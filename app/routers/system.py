@@ -453,27 +453,24 @@ async def get_config():
         }
     }
 
-    if not os.path.exists(CONFIG_PATH):
-        sys_prompt, usr_prompt = load_default_prompts()
-        default_config["prompts"]["system_prompt"] = sys_prompt
-        default_config["prompts"]["user_prompt"] = usr_prompt
-        try:
-            rev_sys, rev_usr = load_review_prompts()
-            default_config["prompts"]["review_system_prompt"] = rev_sys
-            default_config["prompts"]["review_user_prompt"] = rev_usr
-        except RuntimeError:
-            pass
-        try:
-            per_sys, per_usr, per_adv = load_persona_prompts()
-            default_config["prompts"]["persona_system_prompt"] = per_sys
-            default_config["prompts"]["persona_user_prompt"] = per_usr
-            default_config["prompts"]["persona_advanced_prompt"] = per_adv
-        except RuntimeError:
-            pass
-        config = default_config
-    else:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
+    # A partial, empty, or corrupted config should not make the Setup page
+    # unusable. safe_load_json logs the read failure and returns an empty dict;
+    # merging here supplies required top-level sections without rewriting the
+    # damaged file during a GET request.
+    loaded_config = safe_load_json(CONFIG_PATH, default={})
+    config = {**default_config, **loaded_config}
+
+    # safe_load_json validates the top-level object. Validate the nested
+    # sections before using dict operations so a syntactically valid but
+    # wrong-shaped config is handled by the same default-backed recovery.
+    for section in ("llm", "tts", "prompts"):
+        if not isinstance(config.get(section), dict):
+            logger.warning("Invalid '%s' section in config, using defaults", section)
+            config[section] = default_config[section]
+    for section in ("llm_local", "llm_remote"):
+        if config.get(section) is not None and not isinstance(config[section], dict):
+            logger.warning("Invalid '%s' section in config, ignoring it", section)
+            config[section] = None
 
     # Backfill any TTSConfig field missing from an existing on-disk config.json
     # (e.g. saved before pause_between_speakers_ms/pause_same_speaker_ms or some
