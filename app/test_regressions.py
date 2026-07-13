@@ -45,6 +45,12 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_regression_case_inventory_is_stable(self):
+        # Updated intentionally when tests are added/removed. This prevents a
+        # discovery or later file-split mistake from silently dropping coverage.
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(RegressionTests)
+        self.assertEqual(82, suite.countTestCases())
+
     def test_app_config_loader_returns_fresh_shape_safe_data(self):
         documents = (
             ("null", {}),

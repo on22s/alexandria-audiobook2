@@ -51,7 +51,7 @@ Before submitting a PR, run the API test suite to make sure nothing is broken:
 cd app
 python test_api.py              # Quick tests (~37) — no TTS/LLM needed
 python test_api.py --full       # Full tests (~49) — requires running TTS + LLM
-python -m unittest test_regressions.py
+python -m unittest discover -s . -p 'test_*.py'
 python run_isolated_api_tests.py         # Quick suite vs a disposable server + safe fixtures
 python run_isolated_api_tests.py --full  # Full GPU/LLM suite, isolated (pre-release check)
 ```
@@ -72,6 +72,6 @@ Then run `python update_api_contract_snapshots.py`, review both JSON diffs in
 
 1. Fork the repo and create a feature branch from `dev`
 2. Make your changes
-3. Run `python test_api.py` and `python -m unittest test_regressions.py`; verify both pass
+3. Run `python test_api.py` and `python -m unittest discover -s . -p 'test_*.py'`; verify both pass
 4. Test manually by restarting the app
 5. Open a PR targeting `dev`
