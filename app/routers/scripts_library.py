@@ -1,0 +1,144 @@
+import logging
+import os
+import shutil
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from core import (
+    CHUNKS_PATH,
+    SCRIPT_PATH,
+    SCRIPTS_DIR,
+    VOICE_CONFIG_PATH,
+    _get_saved_book_id,
+    _require_safe_filename,
+    _save_active_book_id,
+    _saved_book_meta_path,
+    get_active_book_id,
+    process_state,
+)
+from review_script import _checkpoint_path, clear_checkpoint
+from utils import atomic_json_write
+
+
+logger = logging.getLogger("AlexandriaUI")
+router = APIRouter()
+
+
+@router.get("/api/scripts")
+async def list_saved_scripts():
+    """List all saved scripts in the scripts/ directory.
+
+    Uses a whitelist approach: only includes .json files that do NOT end with
+    any known companion/internal suffix (voice_config, metadata, checkpoint, etc.).
+    """
+    scripts = []
+    companion_suffixes = (".voice_config.json", ".meta.json", ".review_checkpoint.json", ".checkpoint.jsonl")
+    for f in os.listdir(SCRIPTS_DIR):
+        if not f.endswith(".json"):
+            continue
+        if f.startswith(".") or f.endswith(companion_suffixes):
+            continue
+        name = f[:-5]  # strip .json
+        filepath = os.path.join(SCRIPTS_DIR, f)
+        companion = os.path.join(SCRIPTS_DIR, f"{name}.voice_config.json")
+        try:
+            created = os.path.getmtime(filepath)
+        except OSError:
+            # File vanished between listdir and stat (concurrent delete) - skip it.
+            continue
+        scripts.append({
+            "name": name,
+            "created": created,
+            "has_voice_config": os.path.exists(companion)
+        })
+    scripts.sort(key=lambda x: x["created"], reverse=True)
+    return scripts
+
+class ScriptSaveRequest(BaseModel):
+    name: str
+
+@router.post("/api/scripts/save")
+async def save_script(request: ScriptSaveRequest):
+    """Save the current annotated_script.json (and voice_config.json) under a name."""
+    if not os.path.exists(SCRIPT_PATH):
+        raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
+
+    safe_name = _require_safe_filename(request.name, "Invalid script name.")
+
+    dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    shutil.copy2(SCRIPT_PATH, dest)
+
+    if os.path.exists(VOICE_CONFIG_PATH):
+        shutil.copy2(VOICE_CONFIG_PATH, os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json"))
+    atomic_json_write({"book_id": get_active_book_id() or safe_name},
+                      _saved_book_meta_path(safe_name))
+
+    logger.info(f"Script saved as '{safe_name}'")
+    return {"status": "saved", "name": safe_name}
+
+class ScriptLoadRequest(BaseModel):
+    name: str
+
+@router.post("/api/scripts/load")
+async def load_script(request: ScriptLoadRequest):
+    """Load a saved script, replacing the current annotated_script.json and chunks."""
+    # Block while ANY task that writes annotated_script.json / voice_config.json
+    # is running — not just audio. A script/review/persona/nicknames run finishes
+    # by writing those files and would silently overwrite the book we load here.
+    busy = [k for k in ("audio", "script", "review", "persona", "nicknames")
+            if process_state.get(k, {}).get("running")]
+    if busy:
+        raise HTTPException(status_code=409,
+            detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
+
+    safe_name = _require_safe_filename(request.name, "Invalid script name.")
+
+    src = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    if not os.path.exists(src):
+        raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
+
+    shutil.copy2(src, SCRIPT_PATH)
+    _save_active_book_id(_get_saved_book_id(safe_name), src)
+
+    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
+    if os.path.exists(companion):
+        shutil.copy2(companion, VOICE_CONFIG_PATH)
+    elif os.path.exists(VOICE_CONFIG_PATH):
+        os.remove(VOICE_CONFIG_PATH)
+
+    # Delete chunks so they regenerate from the loaded script
+    if os.path.exists(CHUNKS_PATH):
+        os.remove(CHUNKS_PATH)
+
+    # Clear any review checkpoint left over from the PREVIOUS active book. The
+    # checkpoint is keyed to SCRIPT_PATH, not to a book identity (load_checkpoint
+    # validates only batch_size/context_window), so a resume after this load would
+    # otherwise splice the old book's corrected entries into the one just loaded.
+    clear_checkpoint(SCRIPT_PATH)
+
+    logger.info(f"Script '{request.name}' loaded")
+    return {"status": "loaded", "name": request.name}
+
+@router.delete("/api/scripts/{name}")
+async def delete_script(name: str):
+    """Delete a saved script."""
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+
+    filepath = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+
+    os.remove(filepath)
+    companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
+    if os.path.exists(companion):
+        os.remove(companion)
+    meta_path = _saved_book_meta_path(safe_name)
+    if os.path.exists(meta_path):
+        os.remove(meta_path)
+    checkpoint = _checkpoint_path(filepath)
+    if os.path.exists(checkpoint):
+        os.remove(checkpoint)
+
+    logger.info(f"Script '{name}' deleted")
+    return {"status": "deleted", "name": name}
