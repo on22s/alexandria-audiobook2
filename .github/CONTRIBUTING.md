@@ -52,6 +52,7 @@ cd app
 python test_api.py              # Quick tests (~37) — no TTS/LLM needed
 python test_api.py --full       # Full tests (~49) — requires running TTS + LLM
 python -m unittest discover -s . -p 'test_*.py'
+python update_api_contract_snapshots.py --check
 python run_isolated_api_tests.py         # Quick suite vs a disposable server + safe fixtures
 python run_isolated_api_tests.py --full  # Full GPU/LLM suite, isolated (pre-release check)
 ```
@@ -65,7 +66,8 @@ release. CI runs the quick suites automatically; `--full` is manual (needs GPU).
 Quick mode tests config, upload, scripts CRUD, voice config, chunks, status polling, voice design listing, LoRA models/datasets listing, dataset builder CRUD, and error handling — all without loading TTS models. If quick tests pass, your changes are unlikely to break existing functionality.
 
 If your PR modifies or adds API endpoints, add corresponding tests to `test_api.py`.
-Then run `python update_api_contract_snapshots.py`, review both JSON diffs in
+Run `python update_api_contract_snapshots.py --check` to review a summary of any
+contract drift. For an intentional change, run `python update_api_contract_snapshots.py`, review both JSON diffs in
 `app/api_contract/`, and include the intentional contract update in the PR.
 
 ## Getting Started

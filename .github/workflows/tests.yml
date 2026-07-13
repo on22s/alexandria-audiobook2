@@ -41,5 +41,8 @@ jobs:
       - name: Unit tests (mocked LLM/TTS)
         run: python -m unittest discover -s . -p 'test_*.py' -v
 
+      - name: API contract snapshots
+        run: python update_api_contract_snapshots.py --check
+
       - name: Isolated API suite (disposable data dir)
         run: python run_isolated_api_tests.py
