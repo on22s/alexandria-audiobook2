@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +23,31 @@ from utils import check_basic_auth
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AlexandriaUI")
 
-app = FastAPI(title="Alexandria Audiobook")
+
+def reset_stuck_chunks():
+    """Reset chunks left generating by a prior interrupted server process."""
+    chunks = project_manager.load_chunks()
+    if not chunks:
+        return 0
+
+    reset_count = 0
+    for chunk in chunks:
+        if chunk.get("status") == "generating":
+            chunk["status"] = "pending"
+            reset_count += 1
+    if reset_count:
+        project_manager.save_chunks(chunks)
+        print(f"Startup: reset {reset_count} stuck 'generating' chunk(s) to 'pending'")
+    return reset_count
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    reset_stuck_chunks()
+    yield
+
+
+app = FastAPI(title="Alexandria Audiobook", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -42,19 +67,6 @@ app.mount("/builtin_lora", StaticFiles(directory=BUILTIN_LORA_DIR), name="builti
 
 # Dataset builder directory for preview audio
 app.mount("/dataset_builder", StaticFiles(directory=DATASET_BUILDER_DIR), name="dataset_builder")
-
-# Reset any chunks stuck in "generating" from a prior interrupted session
-_startup_chunks = project_manager.load_chunks()
-if _startup_chunks:
-    _reset_count = 0
-    for chunk in _startup_chunks:
-        if chunk.get("status") == "generating":
-            chunk["status"] = "pending"
-            _reset_count += 1
-    if _reset_count:
-        project_manager.save_chunks(_startup_chunks)
-        print(f"Startup: reset {_reset_count} stuck 'generating' chunk(s) to 'pending'")
-    del _startup_chunks, _reset_count
 
 # CORS — allow configurable origins via env var, defaulting to localhost for security
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://127.0.0.1:4200,http://localhost:4200").split(",")]

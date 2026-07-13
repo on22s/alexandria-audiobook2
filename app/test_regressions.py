@@ -40,6 +40,49 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_app_import_does_not_run_stuck_chunk_recovery(self):
+        with patch.object(core_module.project_manager, "load_chunks") as load_chunks:
+            importlib.reload(app_module)
+
+        load_chunks.assert_not_called()
+
+    def test_reset_stuck_chunks_changes_only_generating_statuses(self):
+        chunks = [
+            {"status": "generating", "text": "first"},
+            {"status": "pending", "text": "second"},
+            {"status": "done", "text": "third"},
+            {"status": "error", "text": "fourth"},
+            {"status": "generating", "text": "fifth"},
+        ]
+        with patch.object(core_module.project_manager, "load_chunks", return_value=chunks), \
+             patch.object(core_module.project_manager, "save_chunks") as save_chunks:
+            reset_count = app_module.reset_stuck_chunks()
+
+        self.assertEqual(2, reset_count)
+        self.assertEqual(
+            ["pending", "pending", "done", "error", "pending"],
+            [chunk["status"] for chunk in chunks],
+        )
+        save_chunks.assert_called_once_with(chunks)
+
+    def test_reset_stuck_chunks_does_not_save_when_nothing_changed(self):
+        for chunks in ([], [{"status": "pending"}, {"status": "done"}]):
+            with self.subTest(chunks=chunks), \
+                 patch.object(core_module.project_manager, "load_chunks", return_value=chunks), \
+                 patch.object(core_module.project_manager, "save_chunks") as save_chunks:
+                self.assertEqual(0, app_module.reset_stuck_chunks())
+                save_chunks.assert_not_called()
+
+    def test_app_lifespan_runs_stuck_chunk_recovery_once(self):
+        async def run_lifespan():
+            async with app_module.app.router.lifespan_context(app_module.app):
+                pass
+
+        with patch.object(app_module, "reset_stuck_chunks") as reset_stuck_chunks:
+            asyncio.run(run_lifespan())
+
+        reset_stuck_chunks.assert_called_once_with()
+
     def test_system_stats_does_not_block_eta_requests(self):
         async def exercise_requests():
             probe_started = threading.Event()
