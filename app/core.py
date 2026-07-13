@@ -43,6 +43,11 @@ def _load_manifest(path):
     return []
 
 
+def _save_manifest(path, manifest):
+    """Write a JSON manifest file."""
+    atomic_json_write(manifest, path)
+
+
 def _safe_subpath(base_dir: str, name: str) -> str:
     """Resolve `name` under `base_dir`, rejecting path traversal (e.g. '..' or
     absolute paths). Returns the realpath; raises HTTP 400 if it escapes.
