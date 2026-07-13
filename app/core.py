@@ -4,13 +4,15 @@ import os
 import queue
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import threading
 import time
 from typing import List, Optional, Tuple
 
-from fastapi import HTTPException
+import aiofiles
+from fastapi import HTTPException, UploadFile
 
 from project import ProjectManager
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
@@ -39,6 +41,33 @@ def _load_manifest(path):
         except (json.JSONDecodeError, ValueError) as e:
             _warn_corrupted_json("manifest", path, "returning empty list", e)
     return []
+
+
+def check_disk_space(path, required_gb):
+    """Check if disk has enough space. Returns (has_space, free_gb)."""
+    try:
+        stat = shutil.disk_usage(path)
+        free_gb = stat.free / (1024 ** 3)
+        return free_gb >= required_gb, free_gb
+    except (OSError, ValueError) as e:
+        logger.warning(f"Could not check disk space for {path}: {e}")
+        return True, 0.0
+
+
+async def _save_upload_limited(file: UploadFile, path: str, max_bytes: int) -> None:
+    """Stream an upload to disk and remove it if it exceeds max_bytes."""
+    written = 0
+    try:
+        async with aiofiles.open(path, "wb") as out_file:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large.")
+                await out_file.write(chunk)
+    except Exception:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

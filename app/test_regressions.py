@@ -14,6 +14,7 @@ from unittest.mock import patch
 import app as app_module
 import core as core_module
 import generate_script
+from routers import preparer as preparer_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -181,7 +182,7 @@ class RegressionTests(unittest.TestCase):
             "skip_annotation": True,
         }
         with self.assertRaises(app_module.HTTPException) as raised:
-            asyncio.run(app_module.preparer_start(
+            asyncio.run(preparer_module.preparer_start(
                 None, json.dumps(config), None, None
             ))
         self.assertEqual(raised.exception.status_code, 400)
