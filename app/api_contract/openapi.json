@@ -1,0 +1,4858 @@
+{
+  "components": {
+    "schemas": {
+      "AppConfig": {
+        "properties": {
+          "generation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llm": {
+            "$ref": "#/components/schemas/LLMConfig"
+          },
+          "llm_local": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LLMConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llm_mode": {
+            "default": "local",
+            "enum": [
+              "local",
+              "remote"
+            ],
+            "title": "Llm Mode",
+            "type": "string"
+          },
+          "llm_remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LLMConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llm_remote_ssh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Remote Ssh"
+          },
+          "prompts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tts": {
+            "$ref": "#/components/schemas/TTSConfig"
+          }
+        },
+        "required": [
+          "llm",
+          "tts"
+        ],
+        "title": "AppConfig",
+        "type": "object"
+      },
+      "BatchGenerateRequest": {
+        "properties": {
+          "indices": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Indices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "indices"
+        ],
+        "title": "BatchGenerateRequest",
+        "type": "object"
+      },
+      "BatchPreparerRequest": {
+        "properties": {
+          "lang": {
+            "default": "en",
+            "title": "Lang",
+            "type": "string"
+          },
+          "min_confidence": {
+            "default": 0.85,
+            "title": "Min Confidence",
+            "type": "number"
+          },
+          "min_snr": {
+            "default": 25,
+            "title": "Min Snr",
+            "type": "integer"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPreparerTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "BatchPreparerRequest",
+        "type": "object"
+      },
+      "BatchPreparerTask": {
+        "properties": {
+          "audio_filename": {
+            "title": "Audio Filename",
+            "type": "string"
+          },
+          "output_filename": {
+            "title": "Output Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio_filename",
+          "output_filename"
+        ],
+        "title": "BatchPreparerTask",
+        "type": "object"
+      },
+      "BatchReviewRequest": {
+        "properties": {
+          "bidirectional": {
+            "default": false,
+            "title": "Bidirectional",
+            "type": "boolean"
+          },
+          "context_window": {
+            "default": 0,
+            "title": "Context Window",
+            "type": "integer"
+          },
+          "dedupe_speakers": {
+            "default": true,
+            "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "find_nicknames": {
+            "default": true,
+            "title": "Find Nicknames",
+            "type": "boolean"
+          },
+          "script_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Script Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "script_names"
+        ],
+        "title": "BatchReviewRequest",
+        "type": "object"
+      },
+      "BatchScriptRequest": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/BatchScriptTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "BatchScriptRequest",
+        "type": "object"
+      },
+      "BatchScriptTask": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "title": "BatchScriptTask",
+        "type": "object"
+      },
+      "Body_clone_voices_upload_api_clone_voices_upload_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_clone_voices_upload_api_clone_voices_upload_post",
+        "type": "object"
+      },
+      "Body_lora_upload_dataset_api_lora_upload_dataset_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_lora_upload_dataset_api_lora_upload_dataset_post",
+        "type": "object"
+      },
+      "Body_preparer_start_api_preparer_start_post": {
+        "properties": {
+          "audio_file": {
+            "format": "binary",
+            "title": "Audio File",
+            "type": "string"
+          },
+          "config_json": {
+            "title": "Config Json",
+            "type": "string"
+          },
+          "source_file": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source File"
+          }
+        },
+        "required": [
+          "config_json",
+          "audio_file"
+        ],
+        "title": "Body_preparer_start_api_preparer_start_post",
+        "type": "object"
+      },
+      "Body_upload_file_api_upload_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_file_api_upload_post",
+        "type": "object"
+      },
+      "Body_upload_m4b_cover_api_m4b_cover_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_m4b_cover_api_m4b_cover_post",
+        "type": "object"
+      },
+      "CastCreateRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CastCreateRequest",
+        "type": "object"
+      },
+      "CastMatchBulkRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "script_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Script Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "script_names"
+        ],
+        "title": "CastMatchBulkRequest",
+        "type": "object"
+      },
+      "ChunkRestoreRequest": {
+        "properties": {
+          "at_index": {
+            "title": "At Index",
+            "type": "integer"
+          },
+          "chunk": {
+            "additionalProperties": true,
+            "title": "Chunk",
+            "type": "object"
+          }
+        },
+        "required": [
+          "chunk",
+          "at_index"
+        ],
+        "title": "ChunkRestoreRequest",
+        "type": "object"
+      },
+      "ChunkUpdate": {
+        "properties": {
+          "instruct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruct"
+          },
+          "pause_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause After"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "ChunkUpdate",
+        "type": "object"
+      },
+      "ContextualReviewRequest": {
+        "properties": {
+          "dedupe_speakers": {
+            "default": true,
+            "title": "Dedupe Speakers",
+            "type": "boolean"
+          },
+          "window_size": {
+            "default": 4,
+            "title": "Window Size",
+            "type": "integer"
+          }
+        },
+        "title": "ContextualReviewRequest",
+        "type": "object"
+      },
+      "DatasetBatchGenRequest": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "global_seed": {
+            "default": -1,
+            "title": "Global Seed",
+            "type": "integer"
+          },
+          "indices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indices"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/LoraDatasetSample"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "seeds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seeds"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "samples"
+        ],
+        "title": "DatasetBatchGenRequest",
+        "type": "object"
+      },
+      "DatasetBuilderCreateRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetBuilderCreateRequest",
+        "type": "object"
+      },
+      "DatasetBuilderUpdateMetaRequest": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "global_seed": {
+            "default": "",
+            "title": "Global Seed",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetBuilderUpdateMetaRequest",
+        "type": "object"
+      },
+      "DatasetBuilderUpdateRowsRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "rows"
+        ],
+        "title": "DatasetBuilderUpdateRowsRequest",
+        "type": "object"
+      },
+      "DatasetSampleGenRequest": {
+        "properties": {
+          "dataset_name": {
+            "title": "Dataset Name",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "sample_index": {
+            "maximum": 4999.0,
+            "minimum": 0.0,
+            "title": "Sample Index",
+            "type": "integer"
+          },
+          "seed": {
+            "default": -1,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "text",
+          "dataset_name",
+          "sample_index"
+        ],
+        "title": "DatasetSampleGenRequest",
+        "type": "object"
+      },
+      "DatasetSaveRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ref_index": {
+            "default": 0,
+            "title": "Ref Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetSaveRequest",
+        "type": "object"
+      },
+      "GeneratePersonasRequest": {
+        "properties": {
+          "advanced": {
+            "default": false,
+            "title": "Advanced",
+            "type": "boolean"
+          },
+          "batch_size": {
+            "default": 40,
+            "title": "Batch Size",
+            "type": "integer"
+          }
+        },
+        "title": "GeneratePersonasRequest",
+        "type": "object"
+      },
+      "GenerationConfig": {
+        "properties": {
+          "banned_tokens": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Banned Tokens",
+            "type": "array"
+          },
+          "chunk_size": {
+            "default": 3000,
+            "minimum": 500.0,
+            "title": "Chunk Size",
+            "type": "integer"
+          },
+          "max_tokens": {
+            "default": 4096,
+            "minimum": 256.0,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "merge_narrators": {
+            "default": false,
+            "title": "Merge Narrators",
+            "type": "boolean"
+          },
+          "min_p": {
+            "default": 0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min P",
+            "type": "number"
+          },
+          "presence_penalty": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": -2.0,
+            "title": "Presence Penalty",
+            "type": "number"
+          },
+          "temperature": {
+            "default": 0.6,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Temperature",
+            "type": "number"
+          },
+          "top_k": {
+            "default": 0,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Top K",
+            "type": "integer"
+          },
+          "top_p": {
+            "default": 0.8,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Top P",
+            "type": "number"
+          }
+        },
+        "title": "GenerationConfig",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LLMConfig": {
+        "properties": {
+          "api_key": {
+            "title": "Api Key",
+            "type": "string"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url",
+          "api_key",
+          "model_name"
+        ],
+        "title": "LLMConfig",
+        "type": "object"
+      },
+      "LMStudioOptimizeRequest": {
+        "properties": {
+          "enable": {
+            "title": "Enable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enable"
+        ],
+        "title": "LMStudioOptimizeRequest",
+        "type": "object"
+      },
+      "LibraryApplyBulkRequest": {
+        "properties": {
+          "cast": {
+            "title": "Cast",
+            "type": "string"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapping",
+            "type": "object"
+          },
+          "script_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Script Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cast",
+          "mapping",
+          "script_names"
+        ],
+        "title": "LibraryApplyBulkRequest",
+        "type": "object"
+      },
+      "LibraryApplyRequest": {
+        "properties": {
+          "cast": {
+            "title": "Cast",
+            "type": "string"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapping",
+            "type": "object"
+          }
+        },
+        "required": [
+          "cast",
+          "mapping"
+        ],
+        "title": "LibraryApplyRequest",
+        "type": "object"
+      },
+      "LibrarySaveRequest": {
+        "properties": {
+          "cast": {
+            "title": "Cast",
+            "type": "string"
+          },
+          "cast_specific": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cast Specific"
+          },
+          "characters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Characters",
+            "type": "array"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          }
+        },
+        "required": [
+          "cast",
+          "characters"
+        ],
+        "title": "LibrarySaveRequest",
+        "type": "object"
+      },
+      "LoraDatasetSample": {
+        "properties": {
+          "emotion": {
+            "default": "",
+            "title": "Emotion",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "LoraDatasetSample",
+        "type": "object"
+      },
+      "LoraTestRequest": {
+        "properties": {
+          "adapter_id": {
+            "title": "Adapter Id",
+            "type": "string"
+          },
+          "instruct": {
+            "default": "",
+            "title": "Instruct",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter_id",
+          "text"
+        ],
+        "title": "LoraTestRequest",
+        "type": "object"
+      },
+      "LoraTrainingRequest": {
+        "properties": {
+          "batch_size": {
+            "default": 1,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "epochs": {
+            "default": 5,
+            "minimum": 1.0,
+            "title": "Epochs",
+            "type": "integer"
+          },
+          "gradient_accumulation_steps": {
+            "default": 8,
+            "title": "Gradient Accumulation Steps",
+            "type": "integer"
+          },
+          "language": {
+            "default": "english",
+            "title": "Language",
+            "type": "string"
+          },
+          "lora_alpha": {
+            "default": 128,
+            "title": "Lora Alpha",
+            "type": "integer"
+          },
+          "lora_r": {
+            "default": 32,
+            "title": "Lora R",
+            "type": "integer"
+          },
+          "lr": {
+            "default": 5e-06,
+            "title": "Lr",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "dataset_id"
+        ],
+        "title": "LoraTrainingRequest",
+        "type": "object"
+      },
+      "M4bExportRequest": {
+        "properties": {
+          "author": {
+            "default": "",
+            "title": "Author",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "narrator": {
+            "default": "",
+            "title": "Narrator",
+            "type": "string"
+          },
+          "per_chunk_chapters": {
+            "default": false,
+            "title": "Per Chunk Chapters",
+            "type": "boolean"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "year": {
+            "default": "",
+            "title": "Year",
+            "type": "string"
+          }
+        },
+        "title": "M4bExportRequest",
+        "type": "object"
+      },
+      "PromptConfig": {
+        "properties": {
+          "persona_advanced_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Advanced Prompt"
+          },
+          "persona_system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona System Prompt"
+          },
+          "persona_user_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona User Prompt"
+          },
+          "review_system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review System Prompt"
+          },
+          "review_user_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review User Prompt"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
+          },
+          "user_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Prompt"
+          }
+        },
+        "title": "PromptConfig",
+        "type": "object"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "dedupe_speakers": {
+            "default": true,
+            "title": "Dedupe Speakers",
+            "type": "boolean"
+          }
+        },
+        "title": "ReviewRequest",
+        "type": "object"
+      },
+      "ScriptLoadRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ScriptLoadRequest",
+        "type": "object"
+      },
+      "ScriptSaveRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ScriptSaveRequest",
+        "type": "object"
+      },
+      "SuggestVoicesRequest": {
+        "properties": {
+          "cast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cast"
+          },
+          "max_lines": {
+            "default": 8,
+            "title": "Max Lines",
+            "type": "integer"
+          },
+          "only_unset": {
+            "default": false,
+            "title": "Only Unset",
+            "type": "boolean"
+          }
+        },
+        "title": "SuggestVoicesRequest",
+        "type": "object"
+      },
+      "TTSConfig": {
+        "properties": {
+          "batch_group_by_type": {
+            "default": false,
+            "title": "Batch Group By Type",
+            "type": "boolean"
+          },
+          "batch_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Seed"
+          },
+          "compile_codec": {
+            "default": false,
+            "title": "Compile Codec",
+            "type": "boolean"
+          },
+          "device": {
+            "default": "auto",
+            "title": "Device",
+            "type": "string"
+          },
+          "language": {
+            "default": "English",
+            "title": "Language",
+            "type": "string"
+          },
+          "mode": {
+            "default": "local",
+            "enum": [
+              "local",
+              "external"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "parallel_workers": {
+            "default": 2,
+            "minimum": 1.0,
+            "title": "Parallel Workers",
+            "type": "integer"
+          },
+          "pause_between_speakers_ms": {
+            "default": 500,
+            "minimum": 0.0,
+            "title": "Pause Between Speakers Ms",
+            "type": "integer"
+          },
+          "pause_same_speaker_ms": {
+            "default": 250,
+            "minimum": 0.0,
+            "title": "Pause Same Speaker Ms",
+            "type": "integer"
+          },
+          "sub_batch_enabled": {
+            "default": true,
+            "title": "Sub Batch Enabled",
+            "type": "boolean"
+          },
+          "sub_batch_max_items": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Sub Batch Max Items",
+            "type": "integer"
+          },
+          "sub_batch_min_size": {
+            "default": 4,
+            "minimum": 1.0,
+            "title": "Sub Batch Min Size",
+            "type": "integer"
+          },
+          "sub_batch_ratio": {
+            "default": 5.0,
+            "minimum": 1.0,
+            "title": "Sub Batch Ratio",
+            "type": "number"
+          },
+          "url": {
+            "default": "http://127.0.0.1:7860",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "title": "TTSConfig",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceConfigItem": {
+        "properties": {
+          "adapter_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Id"
+          },
+          "adapter_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Path"
+          },
+          "character_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Character Style"
+          },
+          "default_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Default Style"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Description"
+          },
+          "ref_audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Audio"
+          },
+          "ref_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Text"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "-1",
+            "title": "Seed"
+          },
+          "type": {
+            "default": "custom",
+            "title": "Type",
+            "type": "string"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "Ryan",
+            "title": "Voice"
+          }
+        },
+        "title": "VoiceConfigItem",
+        "type": "object"
+      },
+      "VoiceDesignPreviewRequest": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "sample_text": {
+            "title": "Sample Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "sample_text"
+        ],
+        "title": "VoiceDesignPreviewRequest",
+        "type": "object"
+      },
+      "VoiceDesignSaveRequest": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preview_file": {
+            "title": "Preview File",
+            "type": "string"
+          },
+          "sample_text": {
+            "title": "Sample Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "sample_text",
+          "preview_file"
+        ],
+        "title": "VoiceDesignSaveRequest",
+        "type": "object"
+      },
+      "VoiceLabConfig": {
+        "properties": {
+          "pipeline_repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Repo"
+          },
+          "profiler_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profiler Model"
+          },
+          "rocm_python": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rocm Python"
+          },
+          "zips_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zips Dir"
+          }
+        },
+        "title": "VoiceLabConfig",
+        "type": "object"
+      },
+      "VoiceLabRequest": {
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "lora_r": {
+            "default": 64,
+            "title": "Lora R",
+            "type": "integer"
+          },
+          "max_epochs": {
+            "default": 6,
+            "title": "Max Epochs",
+            "type": "integer"
+          },
+          "name_apply": {
+            "default": true,
+            "title": "Name Apply",
+            "type": "boolean"
+          },
+          "name_overwrite": {
+            "default": false,
+            "title": "Name Overwrite",
+            "type": "boolean"
+          },
+          "profiler_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profiler Model"
+          },
+          "stages": {
+            "default": [
+              "dedup",
+              "train",
+              "profile",
+              "name"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "target_loss": {
+            "default": 4.15,
+            "title": "Target Loss",
+            "type": "number"
+          },
+          "zips_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zips Dir"
+          }
+        },
+        "title": "VoiceLabRequest",
+        "type": "object"
+      },
+      "VoiceSuggestionApplyBulkRequest": {
+        "properties": {
+          "cast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cast"
+          },
+          "suggestions": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Suggestions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "suggestions"
+        ],
+        "title": "VoiceSuggestionApplyBulkRequest",
+        "type": "object"
+      },
+      "VoiceSuggestionApplyRequest": {
+        "properties": {
+          "cast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cast"
+          },
+          "character": {
+            "title": "Character",
+            "type": "string"
+          },
+          "suggestion": {
+            "additionalProperties": true,
+            "title": "Suggestion",
+            "type": "object"
+          }
+        },
+        "required": [
+          "character",
+          "suggestion"
+        ],
+        "title": "VoiceSuggestionApplyRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Alexandria Audiobook",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "read_index__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Index"
+      }
+    },
+    "/api/annotated_script": {
+      "get": {
+        "description": "Return the current working annotated_script.json.\n\nNo SPA caller - intentionally kept as a programmatic/curl-accessible\nread endpoint (exercised by test_api.py's test_get_annotated_script).",
+        "operationId": "get_annotated_script_api_annotated_script_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Annotated Script"
+      }
+    },
+    "/api/audiobook": {
+      "get": {
+        "operationId": "get_audiobook_api_audiobook_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audiobook"
+      }
+    },
+    "/api/audiobook_m4b": {
+      "get": {
+        "operationId": "get_audiobook_m4b_api_audiobook_m4b_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audiobook M4B"
+      }
+    },
+    "/api/cancel_audio": {
+      "post": {
+        "description": "Cancel ongoing audio generation and reset in-progress chunks.",
+        "operationId": "cancel_audio_api_cancel_audio_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Audio"
+      }
+    },
+    "/api/cancel_persona": {
+      "post": {
+        "operationId": "cancel_persona_api_cancel_persona_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Persona"
+      }
+    },
+    "/api/character_aliases": {
+      "get": {
+        "description": "Return the current alias map { alias: canonical }.",
+        "operationId": "get_character_aliases_api_character_aliases_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Character Aliases"
+      },
+      "post": {
+        "description": "Overwrite the alias map (lets the user correct discovered nicknames before review).",
+        "operationId": "save_character_aliases_api_character_aliases_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Aliases",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Character Aliases"
+      }
+    },
+    "/api/chunks": {
+      "get": {
+        "operationId": "get_chunks_api_chunks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Chunks"
+      }
+    },
+    "/api/chunks/restore": {
+      "post": {
+        "description": "Re-insert a previously deleted chunk at a specific index.",
+        "operationId": "restore_chunk_api_chunks_restore_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChunkRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Chunk"
+      }
+    },
+    "/api/chunks/{index}": {
+      "delete": {
+        "description": "Delete a chunk at the given index.",
+        "operationId": "delete_chunk_api_chunks__index__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Chunk"
+      },
+      "post": {
+        "operationId": "update_chunk_api_chunks__index__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChunkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Chunk"
+      }
+    },
+    "/api/chunks/{index}/generate": {
+      "post": {
+        "operationId": "generate_chunk_endpoint_api_chunks__index__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Chunk Endpoint"
+      }
+    },
+    "/api/chunks/{index}/insert": {
+      "post": {
+        "description": "Insert an empty chunk after the given index.",
+        "operationId": "insert_chunk_api_chunks__index__insert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Insert Chunk"
+      }
+    },
+    "/api/clone_voices/list": {
+      "get": {
+        "description": "List all uploaded clone voices.",
+        "operationId": "clone_voices_list_api_clone_voices_list_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clone Voices List"
+      }
+    },
+    "/api/clone_voices/upload": {
+      "post": {
+        "description": "Upload an audio file for voice cloning.",
+        "operationId": "clone_voices_upload_api_clone_voices_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_clone_voices_upload_api_clone_voices_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clone Voices Upload"
+      }
+    },
+    "/api/clone_voices/{voice_id}": {
+      "delete": {
+        "description": "Delete an uploaded clone voice.",
+        "operationId": "clone_voices_delete_api_clone_voices__voice_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clone Voices Delete"
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Config"
+      },
+      "post": {
+        "operationId": "save_config_api_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Config"
+      }
+    },
+    "/api/dataset_builder/cancel": {
+      "post": {
+        "description": "Cancel ongoing batch dataset generation.",
+        "operationId": "dataset_builder_cancel_api_dataset_builder_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dataset Builder Cancel"
+      }
+    },
+    "/api/dataset_builder/create": {
+      "post": {
+        "description": "Create a new dataset builder project.",
+        "operationId": "dataset_builder_create_api_dataset_builder_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetBuilderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Create"
+      }
+    },
+    "/api/dataset_builder/generate_batch": {
+      "post": {
+        "description": "Batch generate dataset samples as a background task.",
+        "operationId": "dataset_builder_generate_batch_api_dataset_builder_generate_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetBatchGenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Generate Batch"
+      }
+    },
+    "/api/dataset_builder/generate_sample": {
+      "post": {
+        "description": "Generate a single dataset sample using VoiceDesign.",
+        "operationId": "dataset_builder_generate_sample_api_dataset_builder_generate_sample_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetSampleGenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Generate Sample"
+      }
+    },
+    "/api/dataset_builder/list": {
+      "get": {
+        "description": "List existing dataset builder projects.",
+        "operationId": "dataset_builder_list_api_dataset_builder_list_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dataset Builder List"
+      }
+    },
+    "/api/dataset_builder/save": {
+      "post": {
+        "description": "Finalize dataset builder project as a training dataset.",
+        "operationId": "dataset_builder_save_api_dataset_builder_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Save"
+      }
+    },
+    "/api/dataset_builder/status/{name}": {
+      "get": {
+        "description": "Get per-sample generation status for a dataset builder project.",
+        "operationId": "dataset_builder_status_api_dataset_builder_status__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Status"
+      }
+    },
+    "/api/dataset_builder/update_meta": {
+      "post": {
+        "description": "Update project description and global seed without touching samples.",
+        "operationId": "dataset_builder_update_meta_api_dataset_builder_update_meta_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetBuilderUpdateMetaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Update Meta"
+      }
+    },
+    "/api/dataset_builder/update_rows": {
+      "post": {
+        "description": "Update row definitions, preserving existing generation status/audio.",
+        "operationId": "dataset_builder_update_rows_api_dataset_builder_update_rows_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetBuilderUpdateRowsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Update Rows"
+      }
+    },
+    "/api/dataset_builder/{name}": {
+      "delete": {
+        "description": "Discard a dataset builder working project.",
+        "operationId": "dataset_builder_delete_api_dataset_builder__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Builder Delete"
+      }
+    },
+    "/api/default_prompts": {
+      "get": {
+        "operationId": "get_default_prompts_api_default_prompts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Default Prompts"
+      }
+    },
+    "/api/export_audacity": {
+      "get": {
+        "operationId": "get_audacity_export_api_export_audacity_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audacity Export"
+      },
+      "post": {
+        "operationId": "export_audacity_endpoint_api_export_audacity_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Export Audacity Endpoint"
+      }
+    },
+    "/api/find_nicknames": {
+      "post": {
+        "description": "Scan the working script for character nicknames/aliases and write character_aliases.json.",
+        "operationId": "find_nicknames_endpoint_api_find_nicknames_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Find Nicknames Endpoint"
+      }
+    },
+    "/api/find_nicknames/cancel": {
+      "post": {
+        "operationId": "find_nicknames_cancel_api_find_nicknames_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Find Nicknames Cancel"
+      }
+    },
+    "/api/find_nicknames/pause": {
+      "post": {
+        "operationId": "find_nicknames_pause_api_find_nicknames_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Find Nicknames Pause"
+      }
+    },
+    "/api/find_nicknames/resume": {
+      "post": {
+        "operationId": "find_nicknames_resume_api_find_nicknames_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Find Nicknames Resume"
+      }
+    },
+    "/api/generate_batch": {
+      "post": {
+        "description": "Generate multiple chunks in parallel using configured worker count.",
+        "operationId": "generate_batch_endpoint_api_generate_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Batch Endpoint"
+      }
+    },
+    "/api/generate_batch_fast": {
+      "post": {
+        "description": "Generate multiple chunks using batch TTS API with single seed. Faster but less flexible.\nRequires custom Qwen3-TTS with /generate_batch endpoint.",
+        "operationId": "generate_batch_fast_endpoint_api_generate_batch_fast_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Batch Fast Endpoint"
+      }
+    },
+    "/api/generate_personas": {
+      "post": {
+        "description": "Generate LLM-derived voice persona descriptions and VoiceDesign previews.\n\nThis runs `app/generate_personas.py` which:\n- reads `annotated_script.json`,\n- asks the configured LLM to produce a short `description` and `ref_text` for each character,\n- uses the VoiceDesign model to synthesize a preview and saves it,\n- updates `voice_config.json` with a clone-style reference for each character.",
+        "operationId": "generate_personas_api_generate_personas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratePersonasRequest",
+                "default": {
+                  "advanced": false,
+                  "batch_size": 40
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Personas"
+      }
+    },
+    "/api/generate_script": {
+      "post": {
+        "operationId": "generate_script_api_generate_script_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script"
+      }
+    },
+    "/api/generate_script/batch/cancel": {
+      "post": {
+        "operationId": "generate_script_batch_cancel_api_generate_script_batch_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Batch Cancel"
+      }
+    },
+    "/api/generate_script/batch/pause": {
+      "post": {
+        "operationId": "generate_script_batch_pause_api_generate_script_batch_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Batch Pause"
+      }
+    },
+    "/api/generate_script/batch/resume": {
+      "post": {
+        "operationId": "generate_script_batch_resume_api_generate_script_batch_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Batch Resume"
+      }
+    },
+    "/api/generate_script/batch/start": {
+      "post": {
+        "description": "Process multiple text/EPUB files sequentially through generate_script.py.",
+        "operationId": "generate_script_batch_start_api_generate_script_batch_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchScriptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Script Batch Start"
+      }
+    },
+    "/api/generate_script/cancel": {
+      "post": {
+        "operationId": "generate_script_cancel_api_generate_script_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Cancel"
+      }
+    },
+    "/api/generate_script/pause": {
+      "post": {
+        "operationId": "generate_script_pause_api_generate_script_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Pause"
+      }
+    },
+    "/api/generate_script/resume": {
+      "post": {
+        "operationId": "generate_script_resume_api_generate_script_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Script Resume"
+      }
+    },
+    "/api/llm/test": {
+      "post": {
+        "description": "Test LLM connectivity. Uses the posted profile if given (so the Setup tab\ncan test before saving), otherwise the active config. Writes a log on failure.",
+        "operationId": "llm_test_api_llm_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LLMConfig"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Profile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Llm Test"
+      }
+    },
+    "/api/lmstudio/optimize": {
+      "post": {
+        "description": "Toggle the loaded model between VRAM-safe/best settings and LM Studio's\ndefaults. Local endpoints use the local `lms` CLI; remote endpoints (e.g.\nLM Studio on Thunder) are driven over SSH via the configured host alias.",
+        "operationId": "lmstudio_optimize_api_lmstudio_optimize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LMStudioOptimizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lmstudio Optimize"
+      }
+    },
+    "/api/lmstudio/status": {
+      "get": {
+        "description": "Report whether the loaded model is using ideal settings (VRAM-safe\nlocally, large-context remotely) so the UI can show an at-a-glance indicator.",
+        "operationId": "lmstudio_status_api_lmstudio_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Lmstudio Status"
+      }
+    },
+    "/api/logs/{task_name}": {
+      "get": {
+        "description": "Serve the complete on-disk log for a task (the in-memory status only keeps a\ncapped tail). Use ?download=true to download the file.",
+        "operationId": "get_task_log_api_logs__task_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_name",
+            "required": true,
+            "schema": {
+              "title": "Task Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "download",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Download",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task Log"
+      }
+    },
+    "/api/lora/datasets": {
+      "get": {
+        "description": "List uploaded LoRA training datasets.",
+        "operationId": "lora_list_datasets_api_lora_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Lora List Datasets"
+      }
+    },
+    "/api/lora/datasets/{dataset_id}": {
+      "delete": {
+        "description": "Delete an uploaded dataset.",
+        "operationId": "lora_delete_dataset_api_lora_datasets__dataset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Delete Dataset"
+      }
+    },
+    "/api/lora/download/{adapter_id}": {
+      "post": {
+        "description": "Download a built-in LoRA adapter from HuggingFace.",
+        "operationId": "lora_download_builtin_api_lora_download__adapter_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Download Builtin"
+      }
+    },
+    "/api/lora/models": {
+      "get": {
+        "description": "List all LoRA adapters (built-in + user-trained).",
+        "operationId": "lora_list_models_api_lora_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Lora List Models"
+      }
+    },
+    "/api/lora/models/{adapter_id}": {
+      "delete": {
+        "description": "Delete a trained LoRA adapter. Built-in adapters cannot be deleted.",
+        "operationId": "lora_delete_model_api_lora_models__adapter_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Delete Model"
+      }
+    },
+    "/api/lora/preview/{adapter_id}": {
+      "post": {
+        "description": "Generate or return cached preview audio for a LoRA adapter.",
+        "operationId": "lora_preview_api_lora_preview__adapter_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Preview"
+      }
+    },
+    "/api/lora/test": {
+      "post": {
+        "description": "Generate test audio using a LoRA adapter (built-in or user-trained).",
+        "operationId": "lora_test_model_api_lora_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoraTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Test Model"
+      }
+    },
+    "/api/lora/train": {
+      "post": {
+        "description": "Start LoRA training as a subprocess.",
+        "operationId": "lora_start_training_api_lora_train_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoraTrainingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Start Training"
+      }
+    },
+    "/api/lora/train/cancel": {
+      "post": {
+        "description": "Cancel a running LoRA training subprocess (it holds the global GPU lock for\nhours, so without this the only way to stop it was killing the whole server).",
+        "operationId": "lora_cancel_training_api_lora_train_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Lora Cancel Training"
+      }
+    },
+    "/api/lora/upload_dataset": {
+      "post": {
+        "description": "Upload a ZIP containing WAV files and metadata.jsonl.",
+        "operationId": "lora_upload_dataset_api_lora_upload_dataset_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_lora_upload_dataset_api_lora_upload_dataset_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Upload Dataset"
+      }
+    },
+    "/api/m4b_cover": {
+      "delete": {
+        "description": "Remove the uploaded cover image.",
+        "operationId": "delete_m4b_cover_api_m4b_cover_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete M4B Cover"
+      },
+      "post": {
+        "description": "Upload a cover image for M4B export.",
+        "operationId": "upload_m4b_cover_api_m4b_cover_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_m4b_cover_api_m4b_cover_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload M4B Cover"
+      }
+    },
+    "/api/merge": {
+      "post": {
+        "operationId": "merge_audio_endpoint_api_merge_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Merge Audio Endpoint"
+      }
+    },
+    "/api/merge_m4b": {
+      "post": {
+        "operationId": "merge_m4b_endpoint_api_merge_m4b_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/M4bExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge M4B Endpoint"
+      }
+    },
+    "/api/preparer/batch/cancel": {
+      "post": {
+        "operationId": "preparer_batch_cancel_api_preparer_batch_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preparer Batch Cancel"
+      }
+    },
+    "/api/preparer/batch/start": {
+      "post": {
+        "description": "Process multiple audio files sequentially through the preparer script.",
+        "operationId": "preparer_batch_start_api_preparer_batch_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchPreparerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preparer Batch Start"
+      }
+    },
+    "/api/preparer/cancel": {
+      "post": {
+        "operationId": "preparer_cancel_api_preparer_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preparer Cancel"
+      }
+    },
+    "/api/preparer/download/{filename}": {
+      "get": {
+        "description": "Download a generated dataset ZIP.",
+        "operationId": "preparer_download_api_preparer_download__filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preparer Download"
+      }
+    },
+    "/api/preparer/list": {
+      "get": {
+        "description": "List completed dataset ZIP files available for download.",
+        "operationId": "preparer_list_outputs_api_preparer_list_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preparer List Outputs"
+      }
+    },
+    "/api/preparer/start": {
+      "post": {
+        "description": "Upload audio (and optionally a source EPUB/TXT) and run the preparer\nto generate a voice training dataset.",
+        "operationId": "preparer_start_api_preparer_start_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preparer_start_api_preparer_start_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preparer Start"
+      }
+    },
+    "/api/reports": {
+      "get": {
+        "description": "List all generated review reports in the reports/ directory, newest first.",
+        "operationId": "list_reports_api_reports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Reports"
+      }
+    },
+    "/api/reports/{filename}": {
+      "get": {
+        "description": "Return the raw Markdown contents of a generated report.",
+        "operationId": "get_report_api_reports__filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report"
+      }
+    },
+    "/api/review/checkpoints": {
+      "get": {
+        "description": "List saved review checkpoints (what's done + where a re-run resumes), plus\nthe live pass/order if a batch review is currently running.",
+        "operationId": "list_review_checkpoints_api_review_checkpoints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Review Checkpoints"
+      }
+    },
+    "/api/review_script": {
+      "post": {
+        "description": "Review the current annotated script. Accepts empty POST or JSON body.",
+        "operationId": "review_script_api_review_script_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReviewRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Script"
+      }
+    },
+    "/api/review_script/batch/cancel": {
+      "post": {
+        "operationId": "review_script_batch_cancel_api_review_script_batch_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Batch Cancel"
+      }
+    },
+    "/api/review_script/batch/pause": {
+      "post": {
+        "operationId": "review_script_batch_pause_api_review_script_batch_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Batch Pause"
+      }
+    },
+    "/api/review_script/batch/resume": {
+      "post": {
+        "operationId": "review_script_batch_resume_api_review_script_batch_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Batch Resume"
+      }
+    },
+    "/api/review_script/batch/start": {
+      "post": {
+        "description": "Review multiple saved scripts from the Scripts library, in place.\nA shared alias registry keeps merged character names consistent across the batch.",
+        "operationId": "review_script_batch_start_api_review_script_batch_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Script Batch Start"
+      }
+    },
+    "/api/review_script/cancel": {
+      "post": {
+        "operationId": "review_script_cancel_api_review_script_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Cancel"
+      }
+    },
+    "/api/review_script/pause": {
+      "post": {
+        "operationId": "review_script_pause_api_review_script_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Pause"
+      }
+    },
+    "/api/review_script/resume": {
+      "post": {
+        "operationId": "review_script_resume_api_review_script_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Script Resume"
+      }
+    },
+    "/api/review_script_contextual": {
+      "post": {
+        "operationId": "review_script_contextual_api_review_script_contextual_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContextualReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Script Contextual"
+      }
+    },
+    "/api/save_voice_config": {
+      "post": {
+        "operationId": "save_voice_config_api_save_voice_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/VoiceConfigItem"
+                },
+                "title": "Config Data",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Voice Config"
+      }
+    },
+    "/api/scripts": {
+      "get": {
+        "description": "List all saved scripts in the scripts/ directory.\n\nUses a whitelist approach: only includes .json files that do NOT end with\nany known companion/internal suffix (voice_config, metadata, checkpoint, etc.).",
+        "operationId": "list_saved_scripts_api_scripts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Saved Scripts"
+      }
+    },
+    "/api/scripts/load": {
+      "post": {
+        "description": "Load a saved script, replacing the current annotated_script.json and chunks.",
+        "operationId": "load_script_api_scripts_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptLoadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Script"
+      }
+    },
+    "/api/scripts/save": {
+      "post": {
+        "description": "Save the current annotated_script.json (and voice_config.json) under a name.",
+        "operationId": "save_script_api_scripts_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Script"
+      }
+    },
+    "/api/scripts/{name}": {
+      "delete": {
+        "description": "Delete a saved script.",
+        "operationId": "delete_script_api_scripts__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Script"
+      }
+    },
+    "/api/status/eta": {
+      "get": {
+        "description": "Return progress/ETA for the most relevant currently-running task, if any.",
+        "operationId": "get_eta_status_api_status_eta_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Eta Status"
+      }
+    },
+    "/api/status/{task_name}": {
+      "get": {
+        "operationId": "get_status_api_status__task_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_name",
+            "required": true,
+            "schema": {
+              "title": "Task Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Status"
+      }
+    },
+    "/api/suggest_voices": {
+      "post": {
+        "description": "Suggest the best-matching downloaded LoRA voice for each character based on\nthe character's dialogue + persona, ranked by the configured LLM (heuristic fallback).\n\nOffloaded to threadpool via asyncio.to_thread to avoid blocking the event loop.",
+        "operationId": "suggest_voices_api_suggest_voices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestVoicesRequest",
+                "default": {
+                  "max_lines": 8,
+                  "only_unset": false
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suggest Voices"
+      }
+    },
+    "/api/suggest_voices/apply": {
+      "post": {
+        "operationId": "apply_voice_suggestion_api_suggest_voices_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSuggestionApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Voice Suggestion"
+      }
+    },
+    "/api/suggest_voices/apply_bulk": {
+      "post": {
+        "operationId": "apply_voice_suggestions_bulk_api_suggest_voices_apply_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSuggestionApplyBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Voice Suggestions Bulk"
+      }
+    },
+    "/api/system/stats": {
+      "get": {
+        "description": "Return GPU memory, disk, and basic hardware statistics.",
+        "operationId": "get_system_stats_api_system_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get System Stats"
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "operationId": "upload_file_api_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_file_api_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload File"
+      }
+    },
+    "/api/voice_design/list": {
+      "get": {
+        "description": "List all saved designed voices.",
+        "operationId": "voice_design_list_api_voice_design_list_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voice Design List"
+      }
+    },
+    "/api/voice_design/preview": {
+      "post": {
+        "description": "Generate a preview voice from a text description.",
+        "operationId": "voice_design_preview_api_voice_design_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceDesignPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Design Preview"
+      }
+    },
+    "/api/voice_design/save": {
+      "post": {
+        "description": "Save a preview voice as a permanent designed voice.",
+        "operationId": "voice_design_save_api_voice_design_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceDesignSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Design Save"
+      }
+    },
+    "/api/voice_design/{voice_id}": {
+      "delete": {
+        "description": "Delete a saved designed voice.",
+        "operationId": "voice_design_delete_api_voice_design__voice_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Design Delete"
+      }
+    },
+    "/api/voice_library": {
+      "get": {
+        "description": "Return the full library plus the current book's characters with line counts.",
+        "operationId": "voice_library_get_api_voice_library_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voice Library Get"
+      }
+    },
+    "/api/voice_library/apply": {
+      "post": {
+        "description": "Apply confirmed cast members onto the current voice_config by the given mapping.",
+        "operationId": "voice_library_apply_api_voice_library_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Apply"
+      }
+    },
+    "/api/voice_library/apply_bulk": {
+      "post": {
+        "description": "Apply confirmed cast members onto several saved books' voice_config.json\nfiles at once. Each book only receives entries for characters that actually\nappear in that book.",
+        "operationId": "voice_library_apply_bulk_api_voice_library_apply_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryApplyBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Apply Bulk"
+      }
+    },
+    "/api/voice_library/casts": {
+      "post": {
+        "operationId": "voice_library_create_cast_api_voice_library_casts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Create Cast"
+      }
+    },
+    "/api/voice_library/casts/{cast}": {
+      "delete": {
+        "operationId": "voice_library_delete_cast_api_voice_library_casts__cast__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cast",
+            "required": true,
+            "schema": {
+              "title": "Cast",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Delete Cast"
+      }
+    },
+    "/api/voice_library/casts/{cast}/members/{key}": {
+      "delete": {
+        "operationId": "voice_library_delete_member_api_voice_library_casts__cast__members__key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cast",
+            "required": true,
+            "schema": {
+              "title": "Cast",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Delete Member"
+      }
+    },
+    "/api/voice_library/match": {
+      "post": {
+        "description": "Fuzzy-match the current book's characters against a cast (+shared pool).\nReturns proposals for the user to confirm before applying. `name` = cast name.",
+        "operationId": "voice_library_match_api_voice_library_match_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Match"
+      }
+    },
+    "/api/voice_library/match_bulk": {
+      "post": {
+        "description": "Fuzzy-match the union of characters across several saved books against a\ncast (+shared pool). Same proposal shape as /api/voice_library/match, but\n`line_count` is the sum across all selected books.",
+        "operationId": "voice_library_match_bulk_api_voice_library_match_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastMatchBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Match Bulk"
+      }
+    },
+    "/api/voice_library/save": {
+      "post": {
+        "description": "Save selected current-book characters into a cast (NARRATOR -> shared by default).",
+        "operationId": "voice_library_save_api_voice_library_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibrarySaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Save"
+      }
+    },
+    "/api/voicelab/cancel": {
+      "post": {
+        "operationId": "voicelab_cancel_api_voicelab_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voicelab Cancel"
+      }
+    },
+    "/api/voicelab/config": {
+      "get": {
+        "description": "Return the pipeline paths plus whether each resolves on this machine.",
+        "operationId": "voicelab_get_config_api_voicelab_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voicelab Get Config"
+      },
+      "post": {
+        "operationId": "voicelab_save_config_api_voicelab_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceLabConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voicelab Save Config"
+      }
+    },
+    "/api/voicelab/inspect": {
+      "get": {
+        "description": "Preview what a dedup input folder contains so the UI can show readiness.",
+        "operationId": "voicelab_inspect_api_voicelab_inspect_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "zips_dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zips Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voicelab Inspect"
+      }
+    },
+    "/api/voicelab/pause": {
+      "post": {
+        "operationId": "voicelab_pause_api_voicelab_pause_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voicelab Pause"
+      }
+    },
+    "/api/voicelab/resume": {
+      "post": {
+        "operationId": "voicelab_resume_api_voicelab_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voicelab Resume"
+      }
+    },
+    "/api/voicelab/start": {
+      "post": {
+        "description": "Run the selected pipeline stages in sequence as one cancel/pausable job.",
+        "operationId": "voicelab_start_api_voicelab_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceLabRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voicelab Start"
+      }
+    },
+    "/api/voices": {
+      "get": {
+        "operationId": "get_voices_api_voices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Voices"
+      }
+    },
+    "/favicon.ico": {
+      "get": {
+        "operationId": "read_favicon_favicon_ico_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Favicon"
+      }
+    }
+  }
+}

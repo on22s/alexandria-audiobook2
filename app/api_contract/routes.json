@@ -1,0 +1,1144 @@
+[
+  {
+    "index": 0,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "openapi",
+    "path": "/openapi.json",
+    "type": "Route"
+  },
+  {
+    "index": 1,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_html",
+    "path": "/docs",
+    "type": "Route"
+  },
+  {
+    "index": 2,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_redirect",
+    "path": "/docs/oauth2-redirect",
+    "type": "Route"
+  },
+  {
+    "index": 3,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "redoc_html",
+    "path": "/redoc",
+    "type": "Route"
+  },
+  {
+    "index": 4,
+    "methods": [],
+    "name": "static",
+    "path": "/static",
+    "type": "Mount"
+  },
+  {
+    "index": 5,
+    "methods": [],
+    "name": "voicelines",
+    "path": "/voicelines",
+    "type": "Mount"
+  },
+  {
+    "index": 6,
+    "methods": [],
+    "name": "designed_voices",
+    "path": "/designed_voices",
+    "type": "Mount"
+  },
+  {
+    "index": 7,
+    "methods": [],
+    "name": "clone_voices",
+    "path": "/clone_voices",
+    "type": "Mount"
+  },
+  {
+    "index": 8,
+    "methods": [],
+    "name": "lora_models",
+    "path": "/lora_models",
+    "type": "Mount"
+  },
+  {
+    "index": 9,
+    "methods": [],
+    "name": "builtin_lora",
+    "path": "/builtin_lora",
+    "type": "Mount"
+  },
+  {
+    "index": 10,
+    "methods": [],
+    "name": "dataset_builder",
+    "path": "/dataset_builder",
+    "type": "Mount"
+  },
+  {
+    "index": 11,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_system_stats",
+    "path": "/api/system/stats",
+    "type": "APIRoute"
+  },
+  {
+    "index": 12,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_eta_status",
+    "path": "/api/status/eta",
+    "type": "APIRoute"
+  },
+  {
+    "index": 13,
+    "methods": [
+      "GET"
+    ],
+    "name": "lmstudio_status",
+    "path": "/api/lmstudio/status",
+    "type": "APIRoute"
+  },
+  {
+    "index": 14,
+    "methods": [
+      "POST"
+    ],
+    "name": "lmstudio_optimize",
+    "path": "/api/lmstudio/optimize",
+    "type": "APIRoute"
+  },
+  {
+    "index": 15,
+    "methods": [
+      "POST"
+    ],
+    "name": "llm_test",
+    "path": "/api/llm/test",
+    "type": "APIRoute"
+  },
+  {
+    "index": 16,
+    "methods": [
+      "GET"
+    ],
+    "name": "read_index",
+    "path": "/",
+    "type": "APIRoute"
+  },
+  {
+    "index": 17,
+    "methods": [
+      "GET"
+    ],
+    "name": "read_favicon",
+    "path": "/favicon.ico",
+    "type": "APIRoute"
+  },
+  {
+    "index": 18,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_config",
+    "path": "/api/config",
+    "type": "APIRoute"
+  },
+  {
+    "index": 19,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_default_prompts",
+    "path": "/api/default_prompts",
+    "type": "APIRoute"
+  },
+  {
+    "index": 20,
+    "methods": [
+      "POST"
+    ],
+    "name": "save_config",
+    "path": "/api/config",
+    "type": "APIRoute"
+  },
+  {
+    "index": 21,
+    "methods": [
+      "POST"
+    ],
+    "name": "upload_file",
+    "path": "/api/upload",
+    "type": "APIRoute"
+  },
+  {
+    "index": 22,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script",
+    "path": "/api/generate_script",
+    "type": "APIRoute"
+  },
+  {
+    "index": 23,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_cancel",
+    "path": "/api/generate_script/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 24,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_pause",
+    "path": "/api/generate_script/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 25,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_resume",
+    "path": "/api/generate_script/resume",
+    "type": "APIRoute"
+  },
+  {
+    "index": 26,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script",
+    "path": "/api/review_script",
+    "type": "APIRoute"
+  },
+  {
+    "index": 27,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_contextual",
+    "path": "/api/review_script_contextual",
+    "type": "APIRoute"
+  },
+  {
+    "index": 28,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_cancel",
+    "path": "/api/review_script/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 29,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_pause",
+    "path": "/api/review_script/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 30,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_resume",
+    "path": "/api/review_script/resume",
+    "type": "APIRoute"
+  },
+  {
+    "index": 31,
+    "methods": [
+      "POST"
+    ],
+    "name": "find_nicknames_endpoint",
+    "path": "/api/find_nicknames",
+    "type": "APIRoute"
+  },
+  {
+    "index": 32,
+    "methods": [
+      "POST"
+    ],
+    "name": "find_nicknames_cancel",
+    "path": "/api/find_nicknames/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 33,
+    "methods": [
+      "POST"
+    ],
+    "name": "find_nicknames_pause",
+    "path": "/api/find_nicknames/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 34,
+    "methods": [
+      "POST"
+    ],
+    "name": "find_nicknames_resume",
+    "path": "/api/find_nicknames/resume",
+    "type": "APIRoute"
+  },
+  {
+    "index": 35,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_character_aliases",
+    "path": "/api/character_aliases",
+    "type": "APIRoute"
+  },
+  {
+    "index": 36,
+    "methods": [
+      "POST"
+    ],
+    "name": "save_character_aliases",
+    "path": "/api/character_aliases",
+    "type": "APIRoute"
+  },
+  {
+    "index": 37,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_batch_start",
+    "path": "/api/review_script/batch/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 38,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_batch_cancel",
+    "path": "/api/review_script/batch/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 39,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_batch_pause",
+    "path": "/api/review_script/batch/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 40,
+    "methods": [
+      "POST"
+    ],
+    "name": "review_script_batch_resume",
+    "path": "/api/review_script/batch/resume",
+    "type": "APIRoute"
+  },
+  {
+    "index": 41,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_batch_start",
+    "path": "/api/generate_script/batch/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 42,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_batch_cancel",
+    "path": "/api/generate_script/batch/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 43,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_batch_pause",
+    "path": "/api/generate_script/batch/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 44,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_script_batch_resume",
+    "path": "/api/generate_script/batch/resume",
+    "type": "APIRoute"
+  },
+  {
+    "index": 45,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_annotated_script",
+    "path": "/api/annotated_script",
+    "type": "APIRoute"
+  },
+  {
+    "index": 46,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_status",
+    "path": "/api/status/{task_name}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 47,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_task_log",
+    "path": "/api/logs/{task_name}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 48,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_voices",
+    "path": "/api/voices",
+    "type": "APIRoute"
+  },
+  {
+    "index": 49,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_personas",
+    "path": "/api/generate_personas",
+    "type": "APIRoute"
+  },
+  {
+    "index": 50,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_persona",
+    "path": "/api/cancel_persona",
+    "type": "APIRoute"
+  },
+  {
+    "index": 51,
+    "methods": [
+      "POST"
+    ],
+    "name": "save_voice_config",
+    "path": "/api/save_voice_config",
+    "type": "APIRoute"
+  },
+  {
+    "index": 52,
+    "methods": [
+      "POST"
+    ],
+    "name": "suggest_voices",
+    "path": "/api/suggest_voices",
+    "type": "APIRoute"
+  },
+  {
+    "index": 53,
+    "methods": [
+      "POST"
+    ],
+    "name": "apply_voice_suggestion",
+    "path": "/api/suggest_voices/apply",
+    "type": "APIRoute"
+  },
+  {
+    "index": 54,
+    "methods": [
+      "POST"
+    ],
+    "name": "apply_voice_suggestions_bulk",
+    "path": "/api/suggest_voices/apply_bulk",
+    "type": "APIRoute"
+  },
+  {
+    "index": 55,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_audiobook",
+    "path": "/api/audiobook",
+    "type": "APIRoute"
+  },
+  {
+    "index": 56,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_chunks",
+    "path": "/api/chunks",
+    "type": "APIRoute"
+  },
+  {
+    "index": 57,
+    "methods": [
+      "POST"
+    ],
+    "name": "restore_chunk",
+    "path": "/api/chunks/restore",
+    "type": "APIRoute"
+  },
+  {
+    "index": 58,
+    "methods": [
+      "POST"
+    ],
+    "name": "update_chunk",
+    "path": "/api/chunks/{index}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 59,
+    "methods": [
+      "POST"
+    ],
+    "name": "insert_chunk",
+    "path": "/api/chunks/{index}/insert",
+    "type": "APIRoute"
+  },
+  {
+    "index": 60,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_chunk",
+    "path": "/api/chunks/{index}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 61,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_chunk_endpoint",
+    "path": "/api/chunks/{index}/generate",
+    "type": "APIRoute"
+  },
+  {
+    "index": 62,
+    "methods": [
+      "POST"
+    ],
+    "name": "merge_audio_endpoint",
+    "path": "/api/merge",
+    "type": "APIRoute"
+  },
+  {
+    "index": 63,
+    "methods": [
+      "POST"
+    ],
+    "name": "export_audacity_endpoint",
+    "path": "/api/export_audacity",
+    "type": "APIRoute"
+  },
+  {
+    "index": 64,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_audacity_export",
+    "path": "/api/export_audacity",
+    "type": "APIRoute"
+  },
+  {
+    "index": 65,
+    "methods": [
+      "POST"
+    ],
+    "name": "merge_m4b_endpoint",
+    "path": "/api/merge_m4b",
+    "type": "APIRoute"
+  },
+  {
+    "index": 66,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_audiobook_m4b",
+    "path": "/api/audiobook_m4b",
+    "type": "APIRoute"
+  },
+  {
+    "index": 67,
+    "methods": [
+      "POST"
+    ],
+    "name": "upload_m4b_cover",
+    "path": "/api/m4b_cover",
+    "type": "APIRoute"
+  },
+  {
+    "index": 68,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_m4b_cover",
+    "path": "/api/m4b_cover",
+    "type": "APIRoute"
+  },
+  {
+    "index": 69,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_batch_endpoint",
+    "path": "/api/generate_batch",
+    "type": "APIRoute"
+  },
+  {
+    "index": 70,
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_batch_fast_endpoint",
+    "path": "/api/generate_batch_fast",
+    "type": "APIRoute"
+  },
+  {
+    "index": 71,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_audio",
+    "path": "/api/cancel_audio",
+    "type": "APIRoute"
+  },
+  {
+    "index": 72,
+    "methods": [
+      "GET"
+    ],
+    "name": "list_reports",
+    "path": "/api/reports",
+    "type": "APIRoute"
+  },
+  {
+    "index": 73,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_report",
+    "path": "/api/reports/{filename}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 74,
+    "methods": [
+      "GET"
+    ],
+    "name": "list_review_checkpoints",
+    "path": "/api/review/checkpoints",
+    "type": "APIRoute"
+  },
+  {
+    "index": 75,
+    "methods": [
+      "GET"
+    ],
+    "name": "list_saved_scripts",
+    "path": "/api/scripts",
+    "type": "APIRoute"
+  },
+  {
+    "index": 76,
+    "methods": [
+      "POST"
+    ],
+    "name": "save_script",
+    "path": "/api/scripts/save",
+    "type": "APIRoute"
+  },
+  {
+    "index": 77,
+    "methods": [
+      "POST"
+    ],
+    "name": "load_script",
+    "path": "/api/scripts/load",
+    "type": "APIRoute"
+  },
+  {
+    "index": 78,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "delete_script",
+    "path": "/api/scripts/{name}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 79,
+    "methods": [
+      "GET"
+    ],
+    "name": "voice_library_get",
+    "path": "/api/voice_library",
+    "type": "APIRoute"
+  },
+  {
+    "index": 80,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_create_cast",
+    "path": "/api/voice_library/casts",
+    "type": "APIRoute"
+  },
+  {
+    "index": 81,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "voice_library_delete_cast",
+    "path": "/api/voice_library/casts/{cast}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 82,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "voice_library_delete_member",
+    "path": "/api/voice_library/casts/{cast}/members/{key}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 83,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_save",
+    "path": "/api/voice_library/save",
+    "type": "APIRoute"
+  },
+  {
+    "index": 84,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_match",
+    "path": "/api/voice_library/match",
+    "type": "APIRoute"
+  },
+  {
+    "index": 85,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_match_bulk",
+    "path": "/api/voice_library/match_bulk",
+    "type": "APIRoute"
+  },
+  {
+    "index": 86,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_apply",
+    "path": "/api/voice_library/apply",
+    "type": "APIRoute"
+  },
+  {
+    "index": 87,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_library_apply_bulk",
+    "path": "/api/voice_library/apply_bulk",
+    "type": "APIRoute"
+  },
+  {
+    "index": 88,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_design_preview",
+    "path": "/api/voice_design/preview",
+    "type": "APIRoute"
+  },
+  {
+    "index": 89,
+    "methods": [
+      "POST"
+    ],
+    "name": "voice_design_save",
+    "path": "/api/voice_design/save",
+    "type": "APIRoute"
+  },
+  {
+    "index": 90,
+    "methods": [
+      "GET"
+    ],
+    "name": "voice_design_list",
+    "path": "/api/voice_design/list",
+    "type": "APIRoute"
+  },
+  {
+    "index": 91,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "voice_design_delete",
+    "path": "/api/voice_design/{voice_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 92,
+    "methods": [
+      "GET"
+    ],
+    "name": "clone_voices_list",
+    "path": "/api/clone_voices/list",
+    "type": "APIRoute"
+  },
+  {
+    "index": 93,
+    "methods": [
+      "POST"
+    ],
+    "name": "clone_voices_upload",
+    "path": "/api/clone_voices/upload",
+    "type": "APIRoute"
+  },
+  {
+    "index": 94,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "clone_voices_delete",
+    "path": "/api/clone_voices/{voice_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 95,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_upload_dataset",
+    "path": "/api/lora/upload_dataset",
+    "type": "APIRoute"
+  },
+  {
+    "index": 96,
+    "methods": [
+      "GET"
+    ],
+    "name": "lora_list_datasets",
+    "path": "/api/lora/datasets",
+    "type": "APIRoute"
+  },
+  {
+    "index": 97,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "lora_delete_dataset",
+    "path": "/api/lora/datasets/{dataset_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 98,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_cancel_training",
+    "path": "/api/lora/train/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 99,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_start_training",
+    "path": "/api/lora/train",
+    "type": "APIRoute"
+  },
+  {
+    "index": 100,
+    "methods": [
+      "GET"
+    ],
+    "name": "lora_list_models",
+    "path": "/api/lora/models",
+    "type": "APIRoute"
+  },
+  {
+    "index": 101,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "lora_delete_model",
+    "path": "/api/lora/models/{adapter_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 102,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_download_builtin",
+    "path": "/api/lora/download/{adapter_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 103,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_test_model",
+    "path": "/api/lora/test",
+    "type": "APIRoute"
+  },
+  {
+    "index": 104,
+    "methods": [
+      "POST"
+    ],
+    "name": "lora_preview",
+    "path": "/api/lora/preview/{adapter_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 105,
+    "methods": [
+      "GET"
+    ],
+    "name": "dataset_builder_list",
+    "path": "/api/dataset_builder/list",
+    "type": "APIRoute"
+  },
+  {
+    "index": 106,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_create",
+    "path": "/api/dataset_builder/create",
+    "type": "APIRoute"
+  },
+  {
+    "index": 107,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_update_meta",
+    "path": "/api/dataset_builder/update_meta",
+    "type": "APIRoute"
+  },
+  {
+    "index": 108,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_update_rows",
+    "path": "/api/dataset_builder/update_rows",
+    "type": "APIRoute"
+  },
+  {
+    "index": 109,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_generate_sample",
+    "path": "/api/dataset_builder/generate_sample",
+    "type": "APIRoute"
+  },
+  {
+    "index": 110,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_generate_batch",
+    "path": "/api/dataset_builder/generate_batch",
+    "type": "APIRoute"
+  },
+  {
+    "index": 111,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_cancel",
+    "path": "/api/dataset_builder/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 112,
+    "methods": [
+      "GET"
+    ],
+    "name": "dataset_builder_status",
+    "path": "/api/dataset_builder/status/{name}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 113,
+    "methods": [
+      "POST"
+    ],
+    "name": "dataset_builder_save",
+    "path": "/api/dataset_builder/save",
+    "type": "APIRoute"
+  },
+  {
+    "index": 114,
+    "methods": [
+      "DELETE"
+    ],
+    "name": "dataset_builder_delete",
+    "path": "/api/dataset_builder/{name}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 115,
+    "methods": [
+      "POST"
+    ],
+    "name": "preparer_start",
+    "path": "/api/preparer/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 116,
+    "methods": [
+      "POST"
+    ],
+    "name": "preparer_cancel",
+    "path": "/api/preparer/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 117,
+    "methods": [
+      "GET"
+    ],
+    "name": "preparer_list_outputs",
+    "path": "/api/preparer/list",
+    "type": "APIRoute"
+  },
+  {
+    "index": 118,
+    "methods": [
+      "GET"
+    ],
+    "name": "preparer_download",
+    "path": "/api/preparer/download/{filename:path}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 119,
+    "methods": [
+      "POST"
+    ],
+    "name": "preparer_batch_start",
+    "path": "/api/preparer/batch/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 120,
+    "methods": [
+      "POST"
+    ],
+    "name": "preparer_batch_cancel",
+    "path": "/api/preparer/batch/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 121,
+    "methods": [
+      "GET"
+    ],
+    "name": "voicelab_get_config",
+    "path": "/api/voicelab/config",
+    "type": "APIRoute"
+  },
+  {
+    "index": 122,
+    "methods": [
+      "POST"
+    ],
+    "name": "voicelab_save_config",
+    "path": "/api/voicelab/config",
+    "type": "APIRoute"
+  },
+  {
+    "index": 123,
+    "methods": [
+      "GET"
+    ],
+    "name": "voicelab_inspect",
+    "path": "/api/voicelab/inspect",
+    "type": "APIRoute"
+  },
+  {
+    "index": 124,
+    "methods": [
+      "POST"
+    ],
+    "name": "voicelab_start",
+    "path": "/api/voicelab/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 125,
+    "methods": [
+      "POST"
+    ],
+    "name": "voicelab_cancel",
+    "path": "/api/voicelab/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 126,
+    "methods": [
+      "POST"
+    ],
+    "name": "voicelab_pause",
+    "path": "/api/voicelab/pause",
+    "type": "APIRoute"
+  },
+  {
+    "index": 127,
+    "methods": [
+      "POST"
+    ],
+    "name": "voicelab_resume",
+    "path": "/api/voicelab/resume",
+    "type": "APIRoute"
+  }
+]
