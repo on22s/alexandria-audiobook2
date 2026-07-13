@@ -1,32 +1,26 @@
 """Shared config.json models and shape-safe loading boundary."""
 
 import logging
-from typing import List, Literal, Optional
+from dataclasses import dataclass
+from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from utils import safe_load_json
 
 
 logger = logging.getLogger(__name__)
 
-_DICT_SECTIONS = ("llm", "tts")
-_OPTIONAL_DICT_SECTIONS = ("prompts", "generation", "llm_local", "llm_remote")
+@dataclass(frozen=True)
+class ConfigWarning:
+    field: str
+    message: str
 
 
-def load_app_config(path: str) -> dict:
-    """Return a fresh, dictionary-shaped app config without writing repairs."""
-    loaded = safe_load_json(path, default={})
-    config = dict(loaded)
-    for section in _DICT_SECTIONS:
-        if section in config and not isinstance(config[section], dict):
-            logger.warning("Invalid '%s' section in config, ignoring it", section)
-            del config[section]
-    for section in _OPTIONAL_DICT_SECTIONS:
-        if config.get(section) is not None and not isinstance(config[section], dict):
-            logger.warning("Invalid '%s' section in config, ignoring it", section)
-            config[section] = None
-    return config
+@dataclass(frozen=True)
+class AppConfigLoadResult:
+    data: dict
+    warnings: tuple[ConfigWarning, ...]
 
 
 class LLMConfig(BaseModel):
@@ -83,3 +77,84 @@ class AppConfig(BaseModel):
     tts: TTSConfig
     prompts: Optional[PromptConfig] = None
     generation: Optional[GenerationConfig] = None
+
+
+_DICT_SECTIONS = {"llm": LLMConfig, "tts": TTSConfig}
+_OPTIONAL_DICT_SECTIONS = {
+    "prompts": PromptConfig,
+    "generation": GenerationConfig,
+    "llm_local": LLMConfig,
+    "llm_remote": LLMConfig,
+}
+
+
+def _get_field_adapter(model: type[BaseModel], field_name: str) -> TypeAdapter:
+    field = model.model_fields[field_name]
+    annotation = field.annotation
+    if field.metadata:
+        annotation = Annotated.__class_getitem__((annotation, *field.metadata))
+    return TypeAdapter(annotation)
+
+
+def _validate_present_fields(section_name: str, data: dict,
+                             model: type[BaseModel], warnings: list) -> dict:
+    validated = dict(data)
+    for field_name in model.model_fields:
+        if field_name not in validated:
+            continue
+        try:
+            validated[field_name] = _get_field_adapter(model, field_name).validate_python(
+                validated[field_name]
+            )
+        except ValidationError:
+            path = f"{section_name}.{field_name}"
+            warning = ConfigWarning(path, "Invalid stored value ignored")
+            warnings.append(warning)
+            logger.warning("Invalid stored config value '%s', ignoring it", path)
+            del validated[field_name]
+    return validated
+
+
+def load_app_config_result(path: str) -> AppConfigLoadResult:
+    """Load and sanitize present known values without defaults or file writes."""
+    config = dict(safe_load_json(path, default={}))
+    warnings = []
+
+    for section, model in _DICT_SECTIONS.items():
+        if section not in config:
+            continue
+        if not isinstance(config[section], dict):
+            warnings.append(ConfigWarning(section, "Invalid section ignored"))
+            logger.warning("Invalid '%s' section in config, ignoring it", section)
+            del config[section]
+            continue
+        config[section] = _validate_present_fields(section, config[section], model, warnings)
+
+    for section, model in _OPTIONAL_DICT_SECTIONS.items():
+        if config.get(section) is None:
+            continue
+        if not isinstance(config[section], dict):
+            warnings.append(ConfigWarning(section, "Invalid section ignored"))
+            logger.warning("Invalid '%s' section in config, ignoring it", section)
+            config[section] = None
+            continue
+        config[section] = _validate_present_fields(section, config[section], model, warnings)
+
+    for field_name in ("llm_mode", "llm_remote_ssh"):
+        if field_name not in config:
+            continue
+        try:
+            config[field_name] = _get_field_adapter(AppConfig, field_name).validate_python(
+                config[field_name]
+            )
+        except ValidationError:
+            warnings.append(ConfigWarning(field_name, "Invalid stored value ignored"))
+            logger.warning("Invalid stored config value '%s', ignoring it", field_name)
+            del config[field_name]
+
+    return AppConfigLoadResult(config, tuple(warnings))
+
+
+def load_app_config(path: str) -> dict:
+    """Return the sanitized config data from :func:`load_app_config_result`."""
+    return load_app_config_result(path).data
