@@ -16,7 +16,8 @@ from fastapi import HTTPException, UploadFile
 
 from project import ProjectManager
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
-                   is_path_inside, safe_load_json, secure_filename)
+                   is_generic_speaker, is_path_inside, safe_load_json,
+                   secure_filename)
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 
@@ -148,6 +149,129 @@ def _saved_book_meta_path(name: str) -> str:
 def _get_saved_book_id(name: str) -> str:
     meta = safe_load_json(_saved_book_meta_path(name), default={})
     return secure_filename(meta.get("book_id") or name)
+
+
+SHARED_DEFAULT_NAMES = {"narrator"}
+CAST_MAJOR_LINE_THRESHOLD = 25
+
+
+def _norm_name(name: str) -> str:
+    """Normalize a character name for matching: lowercase, trimmed, collapsed spaces."""
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def get_cast_member_key(name: str, book_id: Optional[str]) -> str:
+    """Return a cross-book key, scoping generic labels to one book."""
+    key = _norm_name(name)
+    if is_generic_speaker(name):
+        if not book_id:
+            raise ValueError(f"Book identity is required for generic character '{name}'.")
+        return f"{key}::{secure_filename(book_id)}"
+    return key
+
+
+def get_cast_storage_pool(lib: dict, cast_name: str, name: str,
+                          cast_specific: bool = False) -> dict:
+    """Return the single authoritative storage pool for a cast member."""
+    if _norm_name(name) in SHARED_DEFAULT_NAMES and not cast_specific:
+        return lib["shared"]
+    return lib["casts"][cast_name].setdefault("members", {})
+
+
+def get_cast_adapter_usage(lib: dict, cast_name: Optional[str]) -> dict:
+    """Derive LoRA usage from distinct stored cast-member identities."""
+    usage = {}
+    if not cast_name or cast_name not in lib.get("casts", {}):
+        return usage
+    members = list(lib.get("shared", {}).items())
+    members += list(lib["casts"][cast_name].get("members", {}).items())
+    for key, member in members:
+        cfg = member.get("config") or {}
+        adapter_id = cfg.get("adapter_id")
+        if not adapter_id:
+            continue
+        item = usage.setdefault(adapter_id, {"character_count": 0, "total_lines": 0, "characters": []})
+        item["character_count"] += 1
+        assignments = member.get("assignments") or {}
+        total_lines = sum(max(0, int(a.get("line_count", 0) or 0)) for a in assignments.values())
+        if not assignments:
+            total_lines = max(0, int(member.get("line_count", 0) or 0))
+        item["total_lines"] += total_lines
+        item["characters"].append(member.get("name", key))
+    return usage
+
+
+def _load_voice_library() -> dict:
+    lib = {"shared": {}, "casts": {}}
+    if os.path.exists(VOICE_LIBRARY_PATH):
+        try:
+            with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                lib["shared"] = data.get("shared", {}) or {}
+                lib["casts"] = data.get("casts", {}) or {}
+        except (json.JSONDecodeError, ValueError) as e:
+            _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
+    return lib
+
+
+def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
+    """Per-speaker line counts from the given annotated script (defaults to the current one)."""
+    counts = {}
+    script = safe_load_json(path)
+    if isinstance(script, list):
+        for entry in script:
+            speaker = (entry.get("speaker") or entry.get("type") or "").strip()
+            if speaker and (entry.get("text") or "").strip():
+                counts[speaker] = counts.get(speaker, 0) + 1
+    return counts
+
+
+def get_trait_assignment_metadata(source):
+    """Normalize the single persisted shape for casting trait decisions."""
+    return {
+        "character_gender": source.get("character_gender", "unknown"),
+        "character_age_group": source.get("character_age_group", "unknown"),
+        "voice_gender": source.get("voice_gender", "unknown"),
+        "voice_age_group": source.get("voice_age_group", "unknown"),
+        "trait_evidence": (source.get("trait_evidence") or "")[:300],
+        "local_trait_evidence": (source.get("local_trait_evidence") or "")[:300],
+        "llm_trait_evidence": (source.get("llm_trait_evidence") or "")[:300],
+        "gender_confidence": source.get("gender_confidence", "unknown"),
+        "age_confidence": source.get("age_confidence", "unknown"),
+        "gender_fallback": bool(source.get("gender_fallback")),
+        "existing_trait_mismatch": bool(source.get("existing_trait_mismatch")),
+    }
+
+
+def _make_library_entry(display_name: str, config: dict, line_count: int,
+                        book_id: Optional[str] = None, casting: Optional[dict] = None,
+                        existing: Optional[dict] = None) -> dict:
+    cfg = dict(config or {})
+    cfg.pop("alias_of", None)  # aliases are book-specific; don't carry across books
+    entry = dict(existing or {})
+    assignments = dict(entry.get("assignments") or {})
+    if book_id:
+        assignments[book_id] = {
+            "line_count": line_count,
+            "character_style": cfg.get("character_style", ""),
+            "suggestion_reason": (casting or {}).get("suggestion_reason", ""),
+            "priority": (casting or {}).get("priority", "major" if line_count >= CAST_MAJOR_LINE_THRESHOLD else "minor"),
+            "reuse_count_when_assigned": (casting or {}).get("reuse_count_when_assigned", 0),
+            "assigned_at": time.time(),
+            **get_trait_assignment_metadata(casting or {}),
+        }
+    entry.update({
+        "name": display_name,
+        "config": cfg,
+        "line_count": line_count,
+        "generic": is_generic_speaker(display_name),
+        "book_id": book_id if is_generic_speaker(display_name) else None,
+        "assignments": assignments,
+        "saved_at": time.time(),
+    })
+    return entry
+
 
 
 def _task_log_path(task_name: str) -> str:

@@ -17,6 +17,7 @@ import generate_script
 from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
+from routers import voice_library as voice_library_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -497,6 +498,7 @@ class RegressionTests(unittest.TestCase):
                 json.dump({"shared": {}, "casts": {"series": {"members": {}}}}, f)
             with patch.object(app_module, "VOICE_CONFIG_PATH", voice_path), \
                  patch.object(app_module, "VOICE_LIBRARY_PATH", library_path), \
+                 patch.object(core_module, "VOICE_LIBRARY_PATH", library_path), \
                  patch.object(app_module, "get_active_book_id", return_value="book-05"), \
                  patch.object(app_module, "_script_line_counts", return_value={"Man": 4}), \
                  patch.object(app_module, "_build_lora_candidates", return_value=[candidate]):
@@ -534,7 +536,7 @@ class RegressionTests(unittest.TestCase):
             "assignments": {"book-05": {"character_style": "book five style",
                                            **assignment_traits}},
         }}}}}
-        config, applied = app_module._apply_cast_mapping(
+        config, applied = voice_library_module._apply_cast_mapping(
             lib, "series", {"Holo": "holo"}, {}, book_id="book-05")
         self.assertEqual(applied, ["Holo"])
         self.assertEqual(config["Holo"]["character_style"], "book five style")
@@ -548,7 +550,7 @@ class RegressionTests(unittest.TestCase):
         lib = {"shared": {}, "casts": {"series": {"members": {
             "man": {"name": "Man", "config": {"type": "lora", "adapter_id": "v1"}}
         }}}}
-        self.assertNotIn("man", app_module._cast_match_pool(lib, "series", "book-05"))
+        self.assertNotIn("man", voice_library_module._cast_match_pool(lib, "series", "book-05"))
 
     def test_numbered_generic_cast_keys_are_book_scoped(self):
         self.assertEqual(app_module.get_cast_member_key("Man 1", "b5"), "man 1::b5")
@@ -568,7 +570,7 @@ class RegressionTests(unittest.TestCase):
             "man::b5": {"name": "Man", "config": {"adapter_id": "v2"}, "generic": True,
                          "book_id": "b5", "assignments": {"b5": {"character_style": "five"}}},
         }}}}
-        config, _ = app_module._apply_cast_mapping(
+        config, _ = voice_library_module._apply_cast_mapping(
             lib, "series", {"Man": "man::b1"}, {}, chars={"Man": 2}, book_id="b5")
         self.assertEqual(config["Man"]["adapter_id"], "v2")
         self.assertEqual(config["Man"]["character_style"], "five")
@@ -623,6 +625,7 @@ class RegressionTests(unittest.TestCase):
                 json.dumps({"shared": {}, "casts": {"series": {"members": {}}}}), encoding="utf-8")
             with patch.object(app_module, "VOICE_CONFIG_PATH", voice_path), \
                  patch.object(app_module, "VOICE_LIBRARY_PATH", library_path), \
+                 patch.object(core_module, "VOICE_LIBRARY_PATH", library_path), \
                  patch.object(app_module, "get_active_book_id", return_value="b1"), \
                  patch.object(app_module, "_script_line_counts", return_value={"Narrator": 100}), \
                  patch.object(app_module, "_build_lora_candidates", return_value=[candidate]):
