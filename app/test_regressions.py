@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -1296,6 +1297,58 @@ class RegressionTests(unittest.TestCase):
         self.assertNotIn("message.innerHTML", renderer)
         self.assertIn("renderConfigWarnings(config);", html)
         self.assertIn("renderConfigWarnings(savedConfig);", html)
+
+    def test_frontend_config_controls_match_backend_schema(self):
+        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        input_tags = {
+            match.group(1): match.group(0)
+            for match in re.finditer(r'<input\b[^>]*\bid="([^"]+)"[^>]*>', html)
+        }
+        mappings = {
+            "parallel-workers": (config_settings.TTSConfig, "parallel_workers"),
+            "sub-batch-min-size": (config_settings.TTSConfig, "sub_batch_min_size"),
+            "sub-batch-ratio": (config_settings.TTSConfig, "sub_batch_ratio"),
+            "sub-batch-max-items": (config_settings.TTSConfig, "sub_batch_max_items"),
+            "pause-between-speakers": (config_settings.TTSConfig, "pause_between_speakers_ms"),
+            "pause-same-speaker": (config_settings.TTSConfig, "pause_same_speaker_ms"),
+            "chunk-size": (config_settings.GenerationConfig, "chunk_size"),
+            "max-tokens": (config_settings.GenerationConfig, "max_tokens"),
+            "temperature": (config_settings.GenerationConfig, "temperature"),
+            "top-p": (config_settings.GenerationConfig, "top_p"),
+            "top-k": (config_settings.GenerationConfig, "top_k"),
+            "min-p": (config_settings.GenerationConfig, "min_p"),
+            "presence-penalty": (config_settings.GenerationConfig, "presence_penalty"),
+        }
+        for control_id, (model, field_name) in mappings.items():
+            with self.subTest(control_id=control_id):
+                tag = input_tags[control_id]
+                attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
+                schema = model.model_json_schema()["properties"][field_name]
+                self.assertEqual(float(schema["default"]), float(attrs["value"]))
+                for schema_key, attr_name in (("minimum", "min"), ("maximum", "max")):
+                    if schema_key in schema:
+                        self.assertEqual(float(schema[schema_key]), float(attrs[attr_name]))
+                    else:
+                        self.assertNotIn(attr_name, attrs)
+                step = float(attrs.get("step", "1"))
+                self.assertGreater(step, 0)
+                if schema["type"] == "integer":
+                    self.assertTrue(step.is_integer())
+
+        selects = {
+            match.group(1): set(re.findall(r'<option\s+value="([^"]+)"', match.group(2)))
+            for match in re.finditer(
+                r'<select\b[^>]*\bid="([^"]+)"[^>]*>(.*?)</select>', html, re.DOTALL
+            )
+        }
+        app_mode = config_settings.AppConfig.model_json_schema()["properties"]["llm_mode"]
+        tts_mode = config_settings.TTSConfig.model_json_schema()["properties"]["mode"]
+        self.assertEqual(set(app_mode["enum"]), selects["llm-mode"])
+        self.assertEqual(set(tts_mode["enum"]), selects["tts-mode"])
+        self.assertIn(app_mode["default"], selects["llm-mode"])
+        self.assertIn(tts_mode["default"], selects["tts-mode"])
 
     def test_check_basic_auth_accepts_and_rejects_credentials(self):
         make = lambda raw: "Basic " + base64.b64encode(raw.encode()).decode()
