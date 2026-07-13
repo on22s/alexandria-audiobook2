@@ -32,6 +32,7 @@ temp_m4b_meta.txt
 voicelines/
 scripts/
 app/config.json
+app/config.json.damaged-*.bak
 app/output_audio_cloned/
 app/output_audio/
 app/torch-constraints.txt

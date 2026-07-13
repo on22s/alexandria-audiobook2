@@ -495,6 +495,82 @@ class RegressionTests(unittest.TestCase):
             invalidate.assert_not_called()
             self.assertIs(engine, system_module.project_manager.engine)
 
+    def test_config_save_backs_up_damaged_source_before_replacing_it(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        config = system_module.AppConfig(
+            llm=profile, llm_mode="local", llm_local=profile,
+            tts=system_module.TTSConfig(),
+        )
+        damaged_documents = (b"{bad", b"[]", b'{"tts": []}')
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            for damaged in damaged_documents:
+                with self.subTest(damaged=damaged):
+                    for old_backup in config_path.parent.glob("config.json.damaged-*.bak"):
+                        old_backup.unlink()
+                    config_path.write_bytes(damaged)
+                    config_path.chmod(0o640)
+                    with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                        asyncio.run(system_module.save_config(config))
+
+                    backups = list(config_path.parent.glob("config.json.damaged-*.bak"))
+                    self.assertEqual(1, len(backups))
+                    self.assertEqual(damaged, backups[0].read_bytes())
+                    self.assertEqual(0o640, backups[0].stat().st_mode & 0o777)
+                    self.assertIsInstance(json.loads(config_path.read_text()), dict)
+
+    def test_config_save_does_not_back_up_valid_partial_source(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        config = system_module.AppConfig(
+            llm=profile, llm_mode="local", llm_local=profile,
+            tts=system_module.TTSConfig(),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            config_path.write_text('{"unknown": true}', encoding="utf-8")
+            with patch.object(system_module, "CONFIG_PATH", str(config_path)):
+                asyncio.run(system_module.save_config(config))
+
+            self.assertEqual([], list(config_path.parent.glob("config.json.damaged-*.bak")))
+
+    def test_damaged_config_backup_names_are_unique(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            config_path.write_bytes(b"{bad")
+
+            first = config_settings.backup_damaged_app_config(str(config_path))
+            second = config_settings.backup_damaged_app_config(str(config_path))
+
+            self.assertNotEqual(first, second)
+            self.assertEqual(b"{bad", Path(first).read_bytes())
+            self.assertEqual(b"{bad", Path(second).read_bytes())
+
+    def test_config_save_stops_when_damaged_backup_fails(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        config = system_module.AppConfig(
+            llm=profile, llm_mode="local", llm_local=profile,
+            tts=system_module.TTSConfig(),
+        )
+        result = config_settings.AppConfigLoadResult({}, (), True)
+        with patch.object(system_module, "load_app_config_result", return_value=result), \
+             patch.object(system_module, "backup_damaged_app_config",
+                          side_effect=OSError("backup failed")), \
+             patch.object(system_module, "atomic_json_write") as write_config, \
+             patch.object(system_module.project_manager, "invalidate_config_cache") as invalidate:
+            with self.assertRaises(system_module.HTTPException) as raised:
+                asyncio.run(system_module.save_config(config))
+
+        self.assertEqual(500, raised.exception.status_code)
+        write_config.assert_not_called()
+        invalidate.assert_not_called()
+
     def test_get_config_recovers_without_rewriting_invalid_json(self):
         invalid_documents = (
             "", "{bad", "null", "[]",
