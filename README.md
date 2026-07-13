@@ -602,7 +602,7 @@ curl -X POST http://127.0.0.1:4200/api/upload \
 curl -X POST http://127.0.0.1:4200/api/generate_script
 
 # Check status
-curl http://127.0.0.1:4200/api/status/script_generation
+curl http://127.0.0.1:4200/api/status/script
 
 # Review script (fix attribution tags, misattributed lines, etc.)
 curl -X POST http://127.0.0.1:4200/api/review_script
@@ -617,7 +617,7 @@ curl http://127.0.0.1:4200/api/status/review
 curl http://127.0.0.1:4200/api/voices
 
 # Parse voices from script
-curl -X POST http://127.0.0.1:4200/api/parse_voices
+curl http://127.0.0.1:4200/api/voices
 
 # Save voice config
 curl -X POST http://127.0.0.1:4200/api/save_voice_config \
@@ -701,7 +701,7 @@ curl -X POST http://127.0.0.1:4200/api/voice_design/save \
 curl http://127.0.0.1:4200/api/voice_design/list
 
 # Delete a designed voice
-curl -X DELETE http://127.0.0.1:4200/api/voice_design/delete/voice_id_here
+curl -X DELETE http://127.0.0.1:4200/api/voice_design/voice_id_here
 ```
 
 ### LoRA Training
@@ -711,9 +711,9 @@ curl -X POST http://127.0.0.1:4200/api/lora/upload_dataset \
   -F "file=@dataset.zip" -F "name=my_voice"
 
 # Generate a dataset from Voice Designer description
-curl -X POST http://127.0.0.1:4200/api/lora/generate_dataset \
+curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_batch \
   -H "Content-Type: application/json" \
-  -d '{"name": "warm_voice", "description": "A warm male voice", "texts": ["Hello.", "Goodbye."]}'
+  -d '{"name": "warm_voice", "description": "A warm male voice", "samples": [{"text": "Hello."}, {"text": "Goodbye."}]}'
 
 # List uploaded datasets
 curl http://127.0.0.1:4200/api/lora/datasets
@@ -819,7 +819,7 @@ requests.post(f"{BASE}/api/generate_script")
 # Poll for completion
 import time
 while True:
-    status = requests.get(f"{BASE}/api/status/script_generation").json()
+    status = requests.get(f"{BASE}/api/status/script").json()
     if status.get("status") in ["completed", "error"]:
         break
     time.sleep(2)

@@ -731,7 +731,6 @@ def diff_entries(original, corrected, highlight_pool=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
-    parser.add_argument("--source", help="Path to original source text for comparison (mode 2, not yet implemented)")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
     parser.add_argument("--input", help="Path to the script JSON to review (default: ../annotated_script.json)")
@@ -743,9 +742,6 @@ def main():
     parser.add_argument("--remap-voice-config",
                         help="Path to a voice_config.json whose keys should follow renamed speakers")
     args = parser.parse_args()
-
-    if args.source:
-        parser.error("--source comparison mode is not implemented")
 
     # Locate the script to review (default: working annotated_script.json)
     default_script = os.path.join(os.path.dirname(__file__), "..", "annotated_script.json")

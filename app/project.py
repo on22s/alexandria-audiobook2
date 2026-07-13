@@ -832,12 +832,15 @@ class ProjectManager:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {executor.submit(self.generate_chunk_audio, idx): idx for idx in round_indices}
                 for future in as_completed(futures):
-                    if cancel_check and cancel_check():
+                    if cancel_check and cancel_check() and not was_cancelled:
                         was_cancelled = True
                         print("[CANCEL] Cancellation requested — stopping parallel generation")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+                        for pending_future in futures:
+                            if pending_future is not future:
+                                pending_future.cancel()
                     idx = futures[future]
+                    if future.cancelled():
+                        continue
                     try:
                         success, msg = future.result()
                         if success:

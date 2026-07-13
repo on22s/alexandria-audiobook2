@@ -374,7 +374,8 @@ def train(args):
     for _name, _val in (("--lora_r", args.lora_r),
                         ("--lora_alpha", args.lora_alpha),
                         ("--gradient_accumulation_steps", args.gradient_accumulation_steps),
-                        ("--batch_size", args.batch_size)):
+                        ("--batch_size", args.batch_size),
+                        ("--epochs", args.epochs)):
         if _val < 1:
             print(f"[ERROR] {_name} must be >= 1 (got {_val}).", flush=True)
             sys.exit(1)

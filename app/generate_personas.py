@@ -594,7 +594,13 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
 
 
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config, client, model_name, engine, root, args, system_prompt=None, advanced_prompt=None, context_length=None):
-    ref_dir = os.path.join(root, "persona_refs")
+    state = safe_load_json(os.path.join(root, "state.json"), default={})
+    book_id = sanitize_filename(state.get("active_book_id") or "active_book")
+    ref_dir = os.path.join(root, "persona_refs", book_id)
+    # Persona generation has no resume mode; a new run must not merge stale
+    # observations from an earlier run of this book.
+    if os.path.isdir(ref_dir):
+        shutil.rmtree(ref_dir)
     os.makedirs(ref_dir, exist_ok=True)
 
     batches = list(_batch_entries(script, args.batch_size))

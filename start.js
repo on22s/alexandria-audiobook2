@@ -2,10 +2,15 @@ module.exports = {
   daemon: true,
   run: [
     {
+      method: "local.set",
+      params: { port: "{{port}}" }
+    },
+    {
       method: "shell.run",
       params: {
         venv: "env",
         path: "app",
+        env: { ALEXANDRIA_PORT: "{{local.port}}" },
         message: "python app.py",
         on: [{
           // Capture the URL when the server prints it

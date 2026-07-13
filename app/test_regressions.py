@@ -13,6 +13,7 @@ from unittest.mock import patch
 import app as app_module
 import generate_script
 import utils
+import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
 
 
@@ -25,6 +26,33 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_voice_design_claims_gpu_before_engine_initialization(self):
+        app_module.process_state["audio"]["running"] = True
+        try:
+            with patch.object(app_module.project_manager, "get_engine") as get_engine:
+                with self.assertRaises(app_module.HTTPException) as raised:
+                    asyncio.run(app_module.voice_design_preview(
+                        app_module.VoiceDesignPreviewRequest(
+                            description="voice", sample_text="text", language="english")))
+            self.assertEqual(raised.exception.status_code, 400)
+            get_engine.assert_not_called()
+        finally:
+            app_module.process_state["audio"]["running"] = False
+
+    def test_lora_epochs_must_be_positive_at_api_boundary(self):
+        for epochs in (0, -1):
+            with self.assertRaises(ValueError):
+                app_module.LoraTrainingRequest(name="x", dataset_id="d", epochs=epochs)
+
+    def test_builtin_manifest_normalization_skips_bad_entries(self):
+        entries = hf_utils._normalize_manifest_entries([
+            "bad", {}, {"id": " good ", "name": 42, "final_loss": "bad"}
+        ])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["id"], "good")
+        self.assertEqual(entries[0]["name"], "42")
+        self.assertIsNone(entries[0]["final_loss"])
+
     def test_token_budget_uses_fallback_without_verified_context(self):
         self.assertEqual(4096, get_effective_max_tokens(4096, None, [], 16000))
 
@@ -270,6 +298,97 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(app_module._infer_age_group(text), group, text)
         self.assertEqual(app_module._infer_age_group("young man, aged 50"), "middle_aged")
 
+    def test_age_parser_handles_invalid_ambiguous_and_decade_values(self):
+        expected = {
+            "0": "unknown", "1": "child", "67": "elderly", "120": "elderly",
+            "121": "unknown", "aged 12 then aged 60": "child", "under 12": "child",
+            "20s": "young_adult", "30s": "adult", "40s": "middle_aged",
+            "50s": "middle_aged", "60s": "elderly", "70s": "elderly", "80s": "elderly",
+        }
+        for text, group in expected.items():
+            self.assertEqual(app_module._infer_age_group(text), group, text)
+
+    def test_llm_traits_replace_local_traits_only_with_stronger_authority(self):
+        candidates = [
+            {"adapter_id": "female", "name": "F", "type": "lora", "gender": "female",
+             "age_group": "adult", "description": ""},
+            {"adapter_id": "male", "name": "M", "type": "lora", "gender": "male",
+             "age_group": "adult", "description": ""},
+        ]
+
+        def suggest(confidence):
+            parsed = {"characters": [{
+                "name": "Hero", "ranked_adapter_ids": ["male", "female"],
+                "character_style": "Direct", "reason": "book evidence",
+                "character_gender": "male", "age_group": "young_adult",
+                "trait_evidence": "The text identifies him as male",
+                "trait_confidence": confidence,
+            }]}
+            response = SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(parsed)), finish_reason="stop")])
+            client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+                create=lambda **_kwargs: response)))
+            with tempfile.TemporaryDirectory() as tmp:
+                script_path = os.path.join(tmp, "script.json")
+                Path(script_path).write_text(json.dumps([
+                    {"speaker": "Hero", "text": "She was an old woman who entered quietly."}
+                ]), encoding="utf-8")
+                with patch.object(app_module, "SCRIPT_PATH", script_path), \
+                     patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                     patch.object(app_module, "get_active_book_id", return_value="b1"), \
+                     patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                     patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
+                     patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
+                     patch.object(app_module, "get_current_status", return_value={"context_length": None}):
+                    return app_module._suggest_voices_impl(
+                        app_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["Hero"]
+
+        for confidence in ("unknown", "low"):
+            suggestion = suggest(confidence)
+            self.assertEqual(suggestion["character_gender"], "female", confidence)
+            self.assertEqual(suggestion["gender_confidence"], "low", confidence)
+            self.assertEqual(suggestion["character_age_group"], "elderly", confidence)
+            self.assertEqual(suggestion["age_confidence"], "low", confidence)
+        for confidence in ("medium", "high"):
+            suggestion = suggest(confidence)
+            self.assertEqual(suggestion["character_gender"], "male", confidence)
+            self.assertEqual(suggestion["gender_confidence"], confidence)
+            self.assertEqual(suggestion["character_age_group"], "young_adult", confidence)
+            self.assertEqual(suggestion["age_confidence"], confidence)
+
+    def test_mixed_llm_trait_acceptance_does_not_merge_conflicting_evidence(self):
+        parsed = {"characters": [{
+            "name": "King", "ranked_adapter_ids": ["male_old"],
+            "character_style": "Measured", "reason": "book evidence",
+            "character_gender": "female", "age_group": "elderly",
+            "trait_evidence": "An elderly woman speaks", "trait_confidence": "high",
+        }]}
+        response = SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=json.dumps(parsed)), finish_reason="stop")])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **_kwargs: response)))
+        candidates = [{"adapter_id": "male_old", "name": "MO", "type": "lora",
+                       "gender": "male", "age_group": "elderly", "description": ""}]
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, "script.json")
+            Path(script_path).write_text(json.dumps([
+                {"speaker": "King", "text": "The crown is mine."}
+            ]), encoding="utf-8")
+            with patch.object(app_module, "SCRIPT_PATH", script_path), \
+                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(app_module, "get_active_book_id", return_value="b1"), \
+                 patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                 patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
+                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
+                 patch.object(app_module, "get_current_status", return_value={"context_length": None}):
+                suggestion = app_module._suggest_voices_impl(
+                    app_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["King"]
+        self.assertEqual(suggestion["character_gender"], "male")
+        self.assertEqual(suggestion["character_age_group"], "elderly")
+        self.assertIn("LM accepted age=elderly", suggestion["trait_evidence"])
+        self.assertNotIn("elderly woman", suggestion["trait_evidence"])
+        self.assertEqual(suggestion["llm_trait_evidence"], "An elderly woman speaks")
+
     def test_low_confidence_traits_do_not_hard_filter(self):
         candidates = [
             {"adapter_id": "male", "gender": "male", "age_group": "adult", "description": ""},
@@ -295,6 +414,33 @@ class RegressionTests(unittest.TestCase):
             "", [male], ["male"], traits, "male", {}, "major")
         self.assertFalse(is_new)
         self.assertTrue(mismatch)
+
+    def test_authoritative_gender_prefers_exact_then_unknown_then_opposite(self):
+        female = {"adapter_id": "female", "gender": "female", "age_group": "adult", "description": ""}
+        unknown = {"adapter_id": "unknown", "gender": "unknown", "age_group": "adult", "description": ""}
+        male = {"adapter_id": "male", "gender": "male", "age_group": "adult", "description": ""}
+        traits = {"gender": "female", "gender_confidence": "high",
+                  "age_group": "adult", "age_confidence": "high"}
+        cases = [
+            ([male, unknown, female], "female", False),
+            ([male, unknown], "unknown", True),
+            ([male], "male", True),
+        ]
+        for candidates, expected, expected_fallback in cases:
+            chosen, _ranked, _new, fallback, _mismatch = app_module.get_voice_allocation(
+                "", candidates, [c["adapter_id"] for c in candidates],
+                traits, None, {}, "major")
+            self.assertEqual(chosen, expected)
+            self.assertEqual(fallback, expected_fallback)
+
+    def test_recurring_mismatch_requires_authoritative_trait_confidence(self):
+        male = {"adapter_id": "male", "gender": "male", "age_group": "child", "description": ""}
+        for confidence in ("unknown", "low", "medium", "high"):
+            traits = {"gender": "female", "gender_confidence": confidence,
+                      "age_group": "elderly", "age_confidence": confidence}
+            _chosen, _ranked, _new, _fallback, mismatch = app_module.get_voice_allocation(
+                "", [male], ["male"], traits, "male", {}, "major")
+            self.assertEqual(mismatch, confidence in ("medium", "high"), confidence)
 
     def test_character_trait_evidence_prefers_label_over_dialogue(self):
         traits = app_module._infer_character_traits(
@@ -328,8 +474,13 @@ class RegressionTests(unittest.TestCase):
             voice = json.loads(Path(voice_path).read_text(encoding="utf-8"))
             library = json.loads(Path(library_path).read_text(encoding="utf-8"))
         self.assertEqual(voice["Man"]["character_style"], "Brief wary delivery")
+        for field in app_module.get_trait_assignment_metadata(suggestion):
+            self.assertEqual(voice["Man"][field], suggestion[field], field)
         member = library["casts"]["series"]["members"]["man::book-05"]
         self.assertEqual(member["config"]["adapter_id"], "v1")
+        for field in app_module.get_trait_assignment_metadata(suggestion):
+            self.assertEqual(member["config"][field], suggestion[field], field)
+            self.assertEqual(member["assignments"]["book-05"][field], suggestion[field], field)
         self.assertEqual(member["assignments"]["book-05"]["character_style"], "Brief wary delivery")
         self.assertEqual(member["assignments"]["book-05"]["character_gender"], "male")
         self.assertEqual(member["assignments"]["book-05"]["age_confidence"], "medium")
@@ -337,15 +488,31 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result["adapter_usage"]["v1"]["character_count"], 1)
 
     def test_cast_apply_uses_book_specific_style(self):
+        assignment_traits = {
+            "character_gender": "female", "character_age_group": "adult",
+            "voice_gender": "female", "voice_age_group": "middle_aged",
+            "trait_evidence": "book five evidence", "local_trait_evidence": "local evidence",
+            "llm_trait_evidence": "LM evidence", "gender_confidence": "high",
+            "age_confidence": "medium", "gender_fallback": False,
+            "existing_trait_mismatch": True,
+        }
         lib = {"shared": {}, "casts": {"series": {"members": {"holo": {
             "name": "Holo", "config": {"type": "lora", "adapter_id": "v1",
-                                         "character_style": "default style"},
-            "assignments": {"book-05": {"character_style": "book five style"}},
+                                         "character_style": "default style",
+                                         "character_gender": "female",
+                                         "character_age_group": "young_adult"},
+            "assignments": {"book-05": {"character_style": "book five style",
+                                           **assignment_traits}},
         }}}}}
         config, applied = app_module._apply_cast_mapping(
             lib, "series", {"Holo": "holo"}, {}, book_id="book-05")
         self.assertEqual(applied, ["Holo"])
         self.assertEqual(config["Holo"]["character_style"], "book five style")
+        self.assertEqual(config["Holo"]["character_age_group"], "adult")
+        self.assertEqual(config["Holo"]["age_confidence"], "medium")
+        self.assertEqual(config["Holo"]["trait_evidence"], "book five evidence")
+        for field, value in assignment_traits.items():
+            self.assertEqual(config["Holo"][field], value, field)
 
     def test_legacy_generic_cast_member_is_not_auto_matched(self):
         lib = {"shared": {}, "casts": {"series": {"members": {
@@ -460,14 +627,14 @@ class RegressionTests(unittest.TestCase):
                          "llm_enricher.py", "voice_analysis.py", "name_voices.py"):
             self.assertIn(required, dockerfile)
 
-    def test_review_source_mode_is_rejected(self):
+    def test_review_help_does_not_advertise_unimplemented_source_mode(self):
         result = subprocess.run(
             [sys.executable, str(Path(__file__).with_name("review_script.py")),
-             "--source", "unused.txt"],
+             "--help"],
             capture_output=True, text=True,
         )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("not implemented", result.stderr)
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("--source", result.stdout)
 
     def test_lora_cancel_idle_reports_not_running(self):
         with self.assertRaises(app_module.HTTPException) as raised:

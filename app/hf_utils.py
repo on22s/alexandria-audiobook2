@@ -25,6 +25,27 @@ _manifest_cache_time = 0
 _MANIFEST_TTL = 3600  # 1 hour
 
 
+def _normalize_manifest_entries(entries):
+    """Return only entries safe for every backend and frontend consumer."""
+    if not isinstance(entries, list):
+        raise ValueError(f"manifest.json is not a list (got {type(entries).__name__})")
+    normalized = []
+    for item in entries:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip():
+            logger.warning("Skipping malformed built-in LoRA manifest entry: %r", item)
+            continue
+        entry = dict(item)
+        entry["id"] = entry["id"].strip()
+        entry["name"] = str(entry.get("name") or entry["id"])
+        for field in ("epochs", "sample_count"):
+            if not isinstance(entry.get(field), (int, float)):
+                entry[field] = None
+        if not isinstance(entry.get("final_loss"), (int, float)):
+            entry["final_loss"] = None
+        normalized.append(entry)
+    return normalized
+
+
 def builtin_hf_name(adapter_id):
     """Map a local adapter id ('builtin_watson') to its HF subfolder ('watson').
 
@@ -54,10 +75,7 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
         cached_path = hf_hub_download(repo_id=hf_repo, filename="manifest.json")
         with open(cached_path, "r", encoding="utf-8") as f:
             entries = json.load(f)
-        if not isinstance(entries, list):
-            # A malformed manifest (e.g. a dict) would otherwise be cached for an
-            # hour and 500 every /api/lora consumer; fall back to the local copy.
-            raise ValueError(f"manifest.json is not a list (got {type(entries).__name__})")
+        entries = _normalize_manifest_entries(entries)
         # Save local copy for offline fallback
         os.makedirs(builtin_dir, exist_ok=True)
         local_path = os.path.join(builtin_dir, "manifest.json")
@@ -65,7 +83,11 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning(f"Failed to fetch remote LoRA manifest, using local fallback: {e}")
         local_path = os.path.join(builtin_dir, "manifest.json")
-        entries = safe_load_json(local_path, default=[])
+        try:
+            entries = _normalize_manifest_entries(safe_load_json(local_path, default=[]))
+        except ValueError as validation_error:
+            logger.warning("Invalid local LoRA manifest: %s", validation_error)
+            entries = []
 
     _manifest_cache = entries
     _manifest_cache_key = cache_key

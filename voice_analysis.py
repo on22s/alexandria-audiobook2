@@ -60,6 +60,35 @@ PROSODY_METRICS = [
     "duration",
 ]
 
+
+def _load_pickle_cache(path, default):
+    if not path.exists():
+        return default
+    try:
+        with open(path, "rb") as cache_file:
+            return pickle.load(cache_file)
+    except (EOFError, pickle.UnpicklingError, OSError, ValueError) as exc:
+        quarantined = path.with_suffix(path.suffix + ".corrupt")
+        print(f"Warning: unreadable cache {path}: {exc}; rebuilding")
+        try:
+            os.replace(path, quarantined)
+        except OSError:
+            pass
+        return default
+
+
+def _atomic_pickle_dump(value, path):
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with open(temp_path, "wb") as cache_file:
+            pickle.dump(value, cache_file)
+            cache_file.flush()
+            os.fsync(cache_file.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
 EXCLUDE_ZIPS = {
     "split_test.zip", "tag_test.zip",
     "vol_test_vol01.zip", "vol_test_vol02.zip",
@@ -155,7 +184,7 @@ def run_dedup(model, device, zips2_root, output_dir):
     """
     output_dir.mkdir(exist_ok=True)
     cache_file = output_dir / "embeddings_cache.pkl"
-    cache = pickle.load(open(cache_file, "rb")) if cache_file.exists() else {}
+    cache = _load_pickle_cache(cache_file, {})
 
     deduped_dir = zips2_root / "_deduped"
     deduped_dir.mkdir(exist_ok=True)
@@ -223,7 +252,7 @@ def run_dedup(model, device, zips2_root, output_dir):
             else:
                 print(f"  {label:35s} (extraction failed)")
 
-        pickle.dump(cache, open(cache_file, "wb"))
+        _atomic_pickle_dump(cache, cache_file)
 
         if len(zip_labels) < 2:
             print("  Need at least 2 zips to compare.")
@@ -390,7 +419,7 @@ def run_analyze(model, device, deduped_root, output_dir):
     # Load cache
     if cache_file.exists():
         print(f"Loading cached embeddings from {cache_file}")
-        cache_data    = pickle.load(open(cache_file, "rb"))
+        cache_data    = _load_pickle_cache(cache_file, {})
         all_embs      = cache_data.get("embeddings", {})
         all_prosody   = cache_data.get("prosody", {})
         all_wav_names = cache_data.get("wav_names", {})
@@ -442,9 +471,9 @@ def run_analyze(model, device, deduped_root, output_dir):
             # pays) - deliberately accepted because losing a crash/interrupt's
             # GPU-extraction progress for every group done so far is worse
             # than the extra I/O.
-            pickle.dump(
+            _atomic_pickle_dump(
                 {"embeddings": all_embs, "prosody": all_prosody, "wav_names": all_wav_names},
-                open(cache_file, "wb"),
+                cache_file,
             )
     print(f"\nCache saved to {cache_file}")
 

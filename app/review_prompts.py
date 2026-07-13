@@ -26,5 +26,9 @@ def load_review_prompts():
     )
 
 
-# Cached at import time — used by review_script.py (subprocess, fresh each run)
-REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = load_review_prompts()
+# Keep unrelated app features available when this optional workflow resource is
+# damaged; review itself still fails loudly when it tries to load the prompts.
+try:
+    REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = load_review_prompts()
+except RuntimeError:
+    REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT = None, None

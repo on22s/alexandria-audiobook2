@@ -457,7 +457,7 @@ class PreparerConfig(BaseModel):
 class LoraTrainingRequest(BaseModel):
     name: str
     dataset_id: str
-    epochs: int = 5
+    epochs: int = Field(default=5, ge=1)
     lr: float = 5e-6
     batch_size: int = 1
     lora_r: int = 32
@@ -2999,8 +2999,8 @@ async def cancel_persona():
     proc = process_state["persona"].get("process")
     if proc and proc.poll() is None:
         try:
-            proc.terminate()
-        except Exception as e:
+            _send_signal_tree(proc, signal.SIGTERM)
+        except (ProcessLookupError, OSError) as e:
             logger.warning(f"Failed to terminate persona process cleanly: {e}")
 
     return {"status": "cancelling"}
@@ -3104,11 +3104,11 @@ def _infer_age_group(text):
         return _age_group_from_years(int(decade.group(1)) * 10 + 5)
     patterns = (
         ("child", r"\b(child|kid|little boy|little girl|preteen|under ?1[0-2])\b"),
-        ("teen", r"\b(teen|teenage|adolescent|1[3-9] years? old)\b"),
-        ("young_adult", r"\b(young adult|young man|young woman|early 20s|20s|twent(?:y|ies))\b"),
-        ("middle_aged", r"\b(middle aged|middle age|40s|50s|forties|fifties)\b"),
-        ("elderly", r"\b(elderly|old man|old woman|senior|60s|70s|80s|sixties|seventies|eighties)\b"),
-        ("adult", r"\b(adult|grown man|grown woman|30s|thirties)\b"),
+        ("teen", r"\b(teen|teenage|adolescent)\b"),
+        ("young_adult", r"\b(young adult|young man|young woman|twent(?:y|ies))\b"),
+        ("middle_aged", r"\b(middle aged|middle age|forties|fifties)\b"),
+        ("elderly", r"\b(elderly|old man|old woman|senior|sixties|seventies|eighties)\b"),
+        ("adult", r"\b(adult|grown man|grown woman|thirties)\b"),
     )
     return next((group for group, pattern in patterns if re.search(pattern, value)), "unknown")
 
@@ -3154,6 +3154,12 @@ def _age_distance(character_age, voice_age):
 
 def _is_authoritative_confidence(confidence):
     return confidence in ("high", "medium")
+
+
+def _is_stronger_authoritative_confidence(current, proposed):
+    confidence_rank = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+    return (_is_authoritative_confidence(proposed)
+            and confidence_rank.get(proposed, 0) > confidence_rank.get(current, 0))
 
 
 def _build_lora_candidates():
@@ -3215,37 +3221,46 @@ def get_voice_allocation(profile, candidates, initial_ranked, traits,
     hard_age = _is_authoritative_confidence(traits["age_confidence"])
     gender_matches = [c for c in candidates if c.get("gender") == traits["gender"]]
     gender_fallback = hard_gender and not gender_matches
-    eligible = gender_matches if hard_gender and gender_matches else candidates
-    eligible_ids = {c["adapter_id"] for c in eligible}
-    ranked = [adapter_id for adapter_id in initial_ranked if adapter_id in eligible_ids]
+    ranked = [adapter_id for adapter_id in initial_ranked if adapter_id in cand_by_id]
     for adapter_id in _rank_heuristic_candidates(
-            profile, eligible, traits["gender"],
+            profile, candidates, traits["gender"],
             traits["age_group"] if hard_age else "unknown",
-            filter_gender=hard_gender):
+            filter_gender=False):
         if adapter_id not in ranked:
             ranked.append(adapter_id)
     rank_order = {adapter_id: index for index, adapter_id in enumerate(ranked)}
-    def compatibility_score(adapter_id):
+
+    def allocation_score(adapter_id):
         candidate = cand_by_id[adapter_id]
+        candidate_gender = candidate.get("gender", "unknown")
+        hard_gender_tier = 0
+        soft_gender_penalty = 0
+        if hard_gender:
+            if candidate_gender != traits["gender"]:
+                hard_gender_tier = 1 if candidate_gender == "unknown" else 2
+        elif traits["gender"] != "unknown" and candidate_gender != traits["gender"]:
+            soft_gender_penalty = 1 if candidate_gender == "unknown" else 3
         distance = _age_distance(traits["age_group"], candidate.get("age_group", "unknown"))
-        age_penalty = distance * (100 if hard_age else 2)
-        gender_penalty = 0
-        if not hard_gender and traits["gender"] != "unknown" and candidate.get("gender") != traits["gender"]:
-            gender_penalty = 6
-        return rank_order[adapter_id] * 10 + age_penalty + gender_penalty
-    ranked.sort(key=compatibility_score)
+        age_penalty = distance * (100 if hard_age else 1)
+        reuse_penalty = 100 if priority == "major" else 2
+        compatibility_and_reuse = (
+            rank_order[adapter_id] * 10 + age_penalty + soft_gender_penalty
+            + usage.get(adapter_id, {}).get("character_count", 0) * reuse_penalty)
+        return hard_gender_tier, compatibility_and_reuse, adapter_id
+
+    ranked.sort(key=allocation_score)
     if existing_adapter in cand_by_id:
         chosen_id, is_new_identity = existing_adapter, False
     else:
-        reuse_penalty = 100 if priority == "major" else 2
-        chosen_id = min(ranked, key=lambda adapter_id: (
-            ranked.index(adapter_id) * 10
-            + usage.get(adapter_id, {}).get("character_count", 0) * reuse_penalty))
+        chosen_id = ranked[0]
         is_new_identity = True
     chosen = cand_by_id[chosen_id]
     existing_trait_mismatch = bool(existing_adapter and (
-        (traits["gender"] != "unknown" and chosen.get("gender") not in (traits["gender"], "unknown"))
-        or _age_distance(traits["age_group"], chosen.get("age_group", "unknown")) >= 3))
+        (_is_authoritative_confidence(traits["gender_confidence"])
+         and traits["gender"] != "unknown"
+         and chosen.get("gender") not in (traits["gender"], "unknown"))
+        or (_is_authoritative_confidence(traits["age_confidence"])
+            and _age_distance(traits["age_group"], chosen.get("age_group", "unknown")) >= 3)))
     return chosen_id, ranked, is_new_identity, gender_fallback, existing_trait_mismatch
 
 
@@ -3470,21 +3485,34 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
                     rankings[name] = list(dict.fromkeys(i for i in ranked if i in cand_by_id))
                     style_by_name[name] = (pick.get("character_style") or "").strip()[:500]
                     reason_by_name[name] = (pick.get("reason") or "").strip()[:240]
+                    info = characters[name]
                     llm_confidence = pick.get("trait_confidence", "unknown")
-                    accepted_llm_trait = False
-                    if characters[name]["gender_confidence"] in ("unknown", "low") and pick.get("character_gender") in ("male", "female"):
-                        characters[name]["gender"] = pick["character_gender"]
-                        characters[name]["gender_confidence"] = llm_confidence
-                        accepted_llm_trait = True
-                    if characters[name]["age_confidence"] in ("unknown", "low") and pick.get("age_group") in AGE_GROUPS:
-                        characters[name]["age_group"] = pick["age_group"]
-                        characters[name]["age_confidence"] = llm_confidence
-                        accepted_llm_trait = True
-                    characters[name]["llm_trait_evidence"] = (pick.get("trait_evidence") or "")[:300]
-                    if accepted_llm_trait and characters[name]["llm_trait_evidence"]:
-                        characters[name]["trait_evidence"] = (
-                            f"Local: {characters[name]['local_trait_evidence']}; "
-                            f"LM: {characters[name]['llm_trait_evidence']}")[:300]
+                    llm_gender = pick.get("character_gender")
+                    llm_age = pick.get("age_group")
+                    accepted_traits = []
+                    rejected_conflict = False
+                    if (llm_gender in ("male", "female")
+                            and _is_stronger_authoritative_confidence(
+                                info["gender_confidence"], llm_confidence)):
+                        info["gender"] = llm_gender
+                        info["gender_confidence"] = llm_confidence
+                        accepted_traits.append(f"gender={llm_gender}")
+                    elif llm_gender in ("male", "female") and llm_gender != info["gender"]:
+                        rejected_conflict = True
+                    if (llm_age in AGE_GROUPS
+                            and _is_stronger_authoritative_confidence(
+                                info["age_confidence"], llm_confidence)):
+                        info["age_group"] = llm_age
+                        info["age_confidence"] = llm_confidence
+                        accepted_traits.append(f"age={llm_age.replace('_', ' ')}")
+                    elif llm_age in AGE_GROUPS and llm_age != info["age_group"]:
+                        rejected_conflict = True
+                    info["llm_trait_evidence"] = (pick.get("trait_evidence") or "")[:300]
+                    if accepted_traits and info["llm_trait_evidence"]:
+                        llm_evidence = ("LM accepted " + ", ".join(accepted_traits)
+                                        if rejected_conflict else f"LM: {info['llm_trait_evidence']}")
+                        info["trait_evidence"] = (
+                            f"Local: {info['local_trait_evidence']}; {llm_evidence}")[:300]
     except LLMConfigError as e:
         # Config issue (e.g. base_url rejected by _validate_local_llm_base_url) -
         # surface to the UI instead of silently falling back to heuristic.
@@ -3603,6 +3631,7 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
                                  else f"lora_models/{adapter_id}"),
                 "character_style": style, "seed": "-1",
+                **get_trait_assignment_metadata(suggestion),
             })
             voice_config[character] = cfg
 
@@ -4407,6 +4436,9 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         assignment = (entry.get("assignments") or {}).get(book_id or "", {})
         if assignment.get("character_style"):
             cfg["character_style"] = assignment["character_style"]
+        for field in get_trait_assignment_metadata({}):
+            if field in assignment:
+                cfg[field] = assignment[field]
         cfg.pop("alias_of", None)
         # Preserve an existing alias_of on the current character (book-specific)
         if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
@@ -4736,13 +4768,13 @@ def _save_manifest(path, manifest):
 @app.post("/api/voice_design/preview")
 async def voice_design_preview(request: VoiceDesignPreviewRequest):
     """Generate a preview voice from a text description."""
-    engine = project_manager.get_engine()
-    if not engine:
-        raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-
-    # Synchronous local TTS/GPU inference - must not race other GPU_TASKS. See F-038.
     claim_gpu_task("voice_design")
     try:
+        # Model initialization allocates VRAM too, so it belongs inside the same
+        # reservation as inference rather than happening before the lock check.
+        engine = project_manager.get_engine()
+        if not engine:
+            raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
         wav_path, sr = engine.generate_voice_design(
             description=request.description,
             sample_text=request.sample_text,
@@ -4890,6 +4922,13 @@ def _load_builtin_lora_manifest():
         result.append(entry)
     return result
 
+
+def _extract_lora_dataset_archive(archive_path, dataset_dir):
+    """Perform potentially multi-gigabyte extraction outside the event loop."""
+    os.makedirs(dataset_dir, exist_ok=True)
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        _safe_extractall(archive, dataset_dir)
+
 @app.post("/api/lora/upload_dataset")
 async def lora_upload_dataset(file: UploadFile = File(...)):
     """Upload a ZIP containing WAV files and metadata.jsonl."""
@@ -4911,9 +4950,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
     try:
         await _save_upload_limited(file, tmp_path, 4 * 1024**3)
 
-        os.makedirs(dataset_dir, exist_ok=True)
-        with zipfile.ZipFile(tmp_path, "r") as zf:
-            _safe_extractall(zf, dataset_dir)
+        await asyncio.to_thread(_extract_lora_dataset_archive, tmp_path, dataset_dir)
 
         # Check for metadata.jsonl (may be inside a subdirectory)
         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
@@ -4936,6 +4973,7 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
 
         # Count samples and validate audio file presence
         sample_count = 0
+        valid_sample_count = 0
         missing_audio = []
         malformed_lines = []
         with open(metadata_path, "r", encoding="utf-8") as f:
@@ -4948,8 +4986,12 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
                     if not isinstance(entry, dict):
                         raise ValueError(f"line is valid JSON but not an object (got {type(entry).__name__})")
                     audio_rel = entry.get("audio_filepath") or entry.get("audio", "")
-                    if audio_rel and not os.path.exists(os.path.join(dataset_dir, audio_rel)):
+                    audio_path = os.path.realpath(os.path.join(dataset_dir, audio_rel)) if audio_rel else ""
+                    if (not audio_rel or not is_path_inside(audio_path, dataset_dir)
+                            or not os.path.isfile(audio_path)):
                         missing_audio.append(audio_rel)
+                    else:
+                        valid_sample_count += 1
                     sample_count += 1
                 except (json.JSONDecodeError, ValueError, KeyError) as e:
                     malformed_lines.append((line_num, str(e)))
@@ -4978,7 +5020,11 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
                 f"{'  (+more)' if len(malformed_lines) > 5 else ''}"
             )
 
-        return {"status": "uploaded", "dataset_id": dataset_name, "sample_count": sample_count}
+        if valid_sample_count == 0:
+            raise HTTPException(status_code=400, detail="Dataset contains no usable training audio.")
+
+        return {"status": "uploaded", "dataset_id": dataset_name,
+                "sample_count": valid_sample_count, "metadata_count": sample_count}
     except Exception:
         if os.path.isdir(dataset_dir):
             shutil.rmtree(dataset_dir)
@@ -5160,7 +5206,7 @@ async def lora_delete_model(adapter_id: str):
 @app.post("/api/lora/download/{adapter_id}")
 async def lora_download_builtin(adapter_id: str):
     """Download a built-in LoRA adapter from HuggingFace."""
-    manifest = fetch_builtin_manifest(BUILTIN_LORA_DIR)
+    manifest = await asyncio.to_thread(fetch_builtin_manifest, BUILTIN_LORA_DIR)
     hf_name = builtin_hf_name(adapter_id)
     entry = next((e for e in manifest if e["id"] == hf_name or e["id"] == adapter_id), None)
     if not entry:
@@ -5170,7 +5216,7 @@ async def lora_download_builtin(adapter_id: str):
         return {"status": "already_downloaded", "adapter_id": adapter_id}
 
     try:
-        download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
+        await asyncio.to_thread(download_builtin_adapter, adapter_id, BUILTIN_LORA_DIR)
         logger.info(f"Built-in adapter downloaded: {adapter_id}")
         return {"status": "downloaded", "adapter_id": adapter_id}
     except Exception as e:
@@ -5792,19 +5838,20 @@ async def preparer_start(
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
     audio_path = os.path.join(UPLOADS_DIR, audio_filename)
-    async with aiofiles.open(audio_path, "wb") as f:
-        while chunk := await audio_file.read(1024 * 1024):
-            await f.write(chunk)
-
     source_path = None
-    if source_file is not None:
-        source_filename = secure_filename(config.source_filename or source_file.filename)
-        if not source_filename:
-            raise HTTPException(status_code=400, detail="Invalid source filename")
-        source_path = os.path.join(UPLOADS_DIR, source_filename)
-        async with aiofiles.open(source_path, "wb") as f:
-            while chunk := await source_file.read(1024 * 1024):
-                await f.write(chunk)
+    try:
+        await _save_upload_limited(audio_file, audio_path, 20 * 1024**3)
+        if source_file is not None:
+            source_filename = secure_filename(config.source_filename or source_file.filename)
+            if not source_filename:
+                raise HTTPException(status_code=400, detail="Invalid source filename")
+            source_path = os.path.join(UPLOADS_DIR, source_filename)
+            await _save_upload_limited(source_file, source_path, 512 * 1024**2)
+    except Exception:
+        for upload_path in (audio_path, source_path):
+            if upload_path and os.path.exists(upload_path):
+                os.remove(upload_path)
+        raise
 
     def _run():
         state = process_state["preparer"]
@@ -5896,13 +5943,13 @@ async def preparer_cancel():
     state = process_state["preparer"]
     if not state["running"]:
         raise HTTPException(status_code=400, detail="No preparer is currently running.")
-    proc = state.get("process")
-    if proc:
-        try:
-            proc.terminate()
-        except OSError:
-            pass
     state["cancel"] = True
+    proc = state.get("process")
+    if proc and proc.poll() is None:
+        try:
+            _send_signal_tree(proc, signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
     return {"status": "cancel_requested"}
 
 
