@@ -35,6 +35,59 @@ class _Upload:
 
 
 class RegressionTests(unittest.TestCase):
+    def test_llm_normalization_returns_copy_without_mutating_profile(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/", api_key="key", model_name="model"
+        )
+
+        normalized = system_module._normalize_and_validate_llm(profile)
+
+        self.assertIsNot(profile, normalized)
+        self.assertEqual("http://localhost:1234/", profile.base_url)
+        self.assertEqual("http://localhost:1234/v1", normalized.base_url)
+        self.assertEqual(profile.api_key, normalized.api_key)
+        self.assertEqual(profile.model_name, normalized.model_name)
+
+    def test_llm_normalization_preserves_validation_behavior(self):
+        normalized = system_module._normalize_and_validate_llm(
+            system_module.LLMConfig(
+                base_url="http://localhost:1234/v1/", api_key="key", model_name="model"
+            )
+        )
+        self.assertEqual("http://localhost:1234/v1", normalized.base_url)
+
+        for base_url in (" ", "https://example.com/v1"):
+            with self.subTest(base_url=base_url):
+                profile = system_module.LLMConfig(
+                    base_url=base_url, api_key="key", model_name="model"
+                )
+                with self.assertRaises(system_module.HTTPException) as raised:
+                    system_module._normalize_and_validate_llm(profile)
+                self.assertEqual(400, raised.exception.status_code)
+                self.assertEqual(base_url, profile.base_url)
+
+    def test_save_config_persists_normalized_copy_without_mutating_request(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/", api_key="key", model_name="model"
+        )
+        config = system_module.AppConfig(
+            llm=profile,
+            llm_mode="local",
+            llm_local=profile,
+            llm_remote=None,
+            tts=system_module.TTSConfig(),
+        )
+        original = config.model_dump()
+
+        with patch.object(system_module, "atomic_json_write") as write_config, \
+             patch.object(system_module.project_manager, "engine", object()):
+            asyncio.run(system_module.save_config(config))
+
+        self.assertEqual(original, config.model_dump())
+        saved = write_config.call_args.args[0]
+        self.assertEqual("http://localhost:1234/v1", saved["llm"]["base_url"])
+        self.assertEqual("http://localhost:1234/v1", saved["llm_local"]["base_url"])
+
     def test_get_config_recovers_without_rewriting_invalid_json(self):
         invalid_documents = (
             "", "{bad", "null", "[]",
