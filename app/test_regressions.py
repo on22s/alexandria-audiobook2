@@ -64,6 +64,46 @@ class RegressionTests(unittest.TestCase):
                     loaded["changed"] = True
                     self.assertEqual(expected, config_settings.load_app_config(str(path)))
 
+    def test_app_config_loader_ignores_invalid_legacy_values_without_writing(self):
+        document = json.dumps({
+            "llm_mode": "cloud",
+            "llm": {"base_url": 5, "api_key": "key", "unknown": "keep"},
+            "tts": {"parallel_workers": 0, "language": "English"},
+            "generation": {
+                "max_tokens": 12,
+                "temperature": "0.7",
+                "banned_tokens": "bad",
+                "review_batch_size": 31,
+            },
+            "unknown_top": True,
+        })
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(document, encoding="utf-8")
+
+            result = config_settings.load_app_config_result(str(path))
+
+            self.assertEqual("key", result.data["llm"]["api_key"])
+            self.assertEqual("keep", result.data["llm"]["unknown"])
+            self.assertNotIn("base_url", result.data["llm"])
+            self.assertNotIn("parallel_workers", result.data["tts"])
+            self.assertNotIn("max_tokens", result.data["generation"])
+            self.assertNotIn("banned_tokens", result.data["generation"])
+            self.assertEqual(0.7, result.data["generation"]["temperature"])
+            self.assertEqual(31, result.data["generation"]["review_batch_size"])
+            self.assertTrue(result.data["unknown_top"])
+            self.assertNotIn("llm_mode", result.data)
+            self.assertEqual(
+                {"llm.base_url", "tts.parallel_workers", "generation.max_tokens",
+                 "generation.banned_tokens", "llm_mode"},
+                {warning.field for warning in result.warnings},
+            )
+            self.assertEqual(document, path.read_text(encoding="utf-8"))
+
+            generation = result.data["generation"]
+            self.assertEqual(4096, generation.get("max_tokens", 4096))
+            self.assertEqual(8000, generation.get("max_tokens", 8000))
+
     def test_app_py_contains_no_http_route_decorators(self):
         app_path = Path(__file__).with_name("app.py")
         tree = ast.parse(app_path.read_text(encoding="utf-8"), filename=str(app_path))
