@@ -18,6 +18,7 @@ from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
 from routers import voice_library as voice_library_module
+from routers import voices as voices_module
 from routers import scripts_library as scripts_library_module
 import utils
 import hf_utils
@@ -211,23 +212,23 @@ class RegressionTests(unittest.TestCase):
             with open(script_path, "w", encoding="utf-8") as f:
                 json.dump([{"speaker": "Hero", "text": f"distinct line {i}"}
                            for i in range(12)], f)
-            with patch.object(app_module, "SCRIPT_PATH", script_path), \
-                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=[{
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=[{
                      "adapter_id": "voice", "name": "Voice", "gender": "unknown",
                      "description": "neutral", "type": "lora",
                  }]), \
-                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")):
-                app_module._suggest_voices_impl(app_module.SuggestVoicesRequest(max_lines=12))
+                 patch.object(voices_module, "_make_llm_client", return_value=(client, "model")):
+                voices_module._suggest_voices_impl(voices_module.SuggestVoicesRequest(max_lines=12))
         for i in range(12):
             self.assertIn(f"distinct line {i}", captured["prompt"])
 
     def test_generic_cast_keys_are_book_scoped(self):
-        self.assertEqual(app_module.get_cast_member_key("Man", "book-01"), "man::book-01")
-        self.assertEqual(app_module.get_cast_member_key("Man", "book-05"), "man::book-05")
-        self.assertEqual(app_module.get_cast_member_key("Holo", "book-01"), "holo")
+        self.assertEqual(core_module.get_cast_member_key("Man", "book-01"), "man::book-01")
+        self.assertEqual(core_module.get_cast_member_key("Man", "book-05"), "man::book-05")
+        self.assertEqual(core_module.get_cast_member_key("Holo", "book-01"), "holo")
         with self.assertRaises(ValueError):
-            app_module.get_cast_member_key("Guard", None)
+            core_module.get_cast_member_key("Guard", None)
 
     def test_cast_usage_counts_distinct_members_not_books(self):
         lib = {"shared": {}, "casts": {"series": {"members": {
@@ -236,7 +237,7 @@ class RegressionTests(unittest.TestCase):
             "man::b1": {"name": "Man", "config": {"adapter_id": "v1"},
                         "assignments": {"b1": {"line_count": 3}}},
         }}}}
-        usage = app_module.get_cast_adapter_usage(lib, "series")
+        usage = core_module.get_cast_adapter_usage(lib, "series")
         self.assertEqual(usage["v1"]["character_count"], 2)
         self.assertEqual(usage["v1"]["total_lines"], 33)
 
@@ -263,14 +264,14 @@ class RegressionTests(unittest.TestCase):
             script_path = os.path.join(tmp, "script.json")
             with open(script_path, "w", encoding="utf-8") as f:
                 json.dump(script, f)
-            with patch.object(app_module, "SCRIPT_PATH", script_path), \
-                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
-                 patch.object(app_module, "get_active_book_id", return_value="book-01"), \
-                 patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {"series": {"members": {}}}}), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
-                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")):
-                result = app_module._suggest_voices_impl(
-                    app_module.SuggestVoicesRequest(cast="series", max_lines=4))
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(voices_module, "get_active_book_id", return_value="book-01"), \
+                 patch.object(voices_module, "_load_voice_library", return_value={"shared": {}, "casts": {"series": {"members": {}}}}), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=candidates), \
+                 patch.object(voices_module, "_make_llm_client", return_value=(client, "model")):
+                result = voices_module._suggest_voices_impl(
+                    voices_module.SuggestVoicesRequest(cast="series", max_lines=4))
         self.assertEqual(result["suggestions"]["Major A"]["adapter_id"], "v1")
         self.assertEqual(result["suggestions"]["Major B"]["adapter_id"], "v2")
         self.assertTrue(result["suggestions"]["Man"]["reused"])
@@ -298,14 +299,14 @@ class RegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "script.json")
             Path(script_path).write_text(json.dumps(script), encoding="utf-8")
-            with patch.object(app_module, "SCRIPT_PATH", script_path), \
-                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
-                 patch.object(app_module, "get_active_book_id", return_value="b1"), \
-                 patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
-                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
-                 patch.object(app_module, "get_current_status", return_value={"context_length": None}):
-                result = app_module._suggest_voices_impl(app_module.SuggestVoicesRequest(max_lines=4))
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(voices_module, "get_active_book_id", return_value="b1"), \
+                 patch.object(voices_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=candidates), \
+                 patch.object(voices_module, "_make_llm_client", return_value=(client, "model")), \
+                 patch.object(voices_module, "get_current_status", return_value={"context_length": None}):
+                result = voices_module._suggest_voices_impl(voices_module.SuggestVoicesRequest(max_lines=4))
         suggestion = result["suggestions"]["Old Man"]
         self.assertEqual(suggestion["adapter_id"], "male_old")
         self.assertEqual(suggestion["character_gender"], "male")
@@ -317,18 +318,18 @@ class RegressionTests(unittest.TestCase):
         self.assertFalse(suggestion["gender_fallback"])
 
     def test_lora_age_normalization(self):
-        self.assertEqual(app_module._infer_lora_age({"id": "warm_baritone_40s_m"}), "middle_aged")
-        self.assertEqual(app_module._infer_lora_age({"description": "elderly gravelly bass"}), "elderly")
-        self.assertEqual(app_module._infer_lora_age({"age": "40s"}), "middle_aged")
-        self.assertEqual(app_module._infer_lora_age({"age": 67}), "elderly")
+        self.assertEqual(voices_module._infer_lora_age({"id": "warm_baritone_40s_m"}), "middle_aged")
+        self.assertEqual(voices_module._infer_lora_age({"description": "elderly gravelly bass"}), "elderly")
+        self.assertEqual(voices_module._infer_lora_age({"age": "40s"}), "middle_aged")
+        self.assertEqual(voices_module._infer_lora_age({"age": 67}), "elderly")
 
     def test_numeric_age_boundaries_and_precedence(self):
         expected = {"aged 12": "child", "13 years old": "teen", "19-year-old": "teen",
                     "20 years old": "young_adult", "aged 39": "adult",
                     "40-year-old": "middle_aged", "aged 60": "elderly"}
         for text, group in expected.items():
-            self.assertEqual(app_module._infer_age_group(text), group, text)
-        self.assertEqual(app_module._infer_age_group("young man, aged 50"), "middle_aged")
+            self.assertEqual(voices_module._infer_age_group(text), group, text)
+        self.assertEqual(voices_module._infer_age_group("young man, aged 50"), "middle_aged")
 
     def test_age_parser_handles_invalid_ambiguous_and_decade_values(self):
         expected = {
@@ -338,7 +339,7 @@ class RegressionTests(unittest.TestCase):
             "50s": "middle_aged", "60s": "elderly", "70s": "elderly", "80s": "elderly",
         }
         for text, group in expected.items():
-            self.assertEqual(app_module._infer_age_group(text), group, text)
+            self.assertEqual(voices_module._infer_age_group(text), group, text)
 
     def test_llm_traits_replace_local_traits_only_with_stronger_authority(self):
         candidates = [
@@ -365,15 +366,15 @@ class RegressionTests(unittest.TestCase):
                 Path(script_path).write_text(json.dumps([
                     {"speaker": "Hero", "text": "She was an old woman who entered quietly."}
                 ]), encoding="utf-8")
-                with patch.object(app_module, "SCRIPT_PATH", script_path), \
-                     patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
-                     patch.object(app_module, "get_active_book_id", return_value="b1"), \
-                     patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
-                     patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
-                     patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
-                     patch.object(app_module, "get_current_status", return_value={"context_length": None}):
-                    return app_module._suggest_voices_impl(
-                        app_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["Hero"]
+                with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                     patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                     patch.object(voices_module, "get_active_book_id", return_value="b1"), \
+                     patch.object(voices_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                     patch.object(voices_module, "_build_lora_candidates", return_value=candidates), \
+                     patch.object(voices_module, "_make_llm_client", return_value=(client, "model")), \
+                     patch.object(voices_module, "get_current_status", return_value={"context_length": None}):
+                    return voices_module._suggest_voices_impl(
+                        voices_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["Hero"]
 
         for confidence in ("unknown", "low"):
             suggestion = suggest(confidence)
@@ -406,15 +407,15 @@ class RegressionTests(unittest.TestCase):
             Path(script_path).write_text(json.dumps([
                 {"speaker": "King", "text": "The crown is mine."}
             ]), encoding="utf-8")
-            with patch.object(app_module, "SCRIPT_PATH", script_path), \
-                 patch.object(app_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
-                 patch.object(app_module, "get_active_book_id", return_value="b1"), \
-                 patch.object(app_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=candidates), \
-                 patch.object(app_module, "_make_llm_client", return_value=(client, "model")), \
-                 patch.object(app_module, "get_current_status", return_value={"context_length": None}):
-                suggestion = app_module._suggest_voices_impl(
-                    app_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["King"]
+            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", os.path.join(tmp, "missing.json")), \
+                 patch.object(voices_module, "get_active_book_id", return_value="b1"), \
+                 patch.object(voices_module, "_load_voice_library", return_value={"shared": {}, "casts": {}}), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=candidates), \
+                 patch.object(voices_module, "_make_llm_client", return_value=(client, "model")), \
+                 patch.object(voices_module, "get_current_status", return_value={"context_length": None}):
+                suggestion = voices_module._suggest_voices_impl(
+                    voices_module.SuggestVoicesRequest(max_lines=4))["suggestions"]["King"]
         self.assertEqual(suggestion["character_gender"], "male")
         self.assertEqual(suggestion["character_age_group"], "elderly")
         self.assertIn("LM accepted age=elderly", suggestion["trait_evidence"])
@@ -428,7 +429,7 @@ class RegressionTests(unittest.TestCase):
         ]
         traits = {"gender": "female", "gender_confidence": "low",
                   "age_group": "elderly", "age_confidence": "low"}
-        chosen, _ranked, _new, fallback, _mismatch = app_module.get_voice_allocation(
+        chosen, _ranked, _new, fallback, _mismatch = voices_module.get_voice_allocation(
             "", candidates, ["male", "female"], traits, None, {}, "minor")
         self.assertEqual(chosen, "male")
         self.assertFalse(fallback)
@@ -437,12 +438,12 @@ class RegressionTests(unittest.TestCase):
         male = {"adapter_id": "male", "gender": "male", "age_group": "adult", "description": ""}
         traits = {"gender": "female", "gender_confidence": "high",
                   "age_group": "young_adult", "age_confidence": "high"}
-        chosen, _ranked, _new, fallback, mismatch = app_module.get_voice_allocation(
+        chosen, _ranked, _new, fallback, mismatch = voices_module.get_voice_allocation(
             "", [male], ["male"], traits, None, {}, "major")
         self.assertEqual(chosen, "male")
         self.assertTrue(fallback)
         self.assertFalse(mismatch)
-        chosen, _ranked, is_new, _fallback, mismatch = app_module.get_voice_allocation(
+        chosen, _ranked, is_new, _fallback, mismatch = voices_module.get_voice_allocation(
             "", [male], ["male"], traits, "male", {}, "major")
         self.assertFalse(is_new)
         self.assertTrue(mismatch)
@@ -459,7 +460,7 @@ class RegressionTests(unittest.TestCase):
             ([male], "male", True),
         ]
         for candidates, expected, expected_fallback in cases:
-            chosen, _ranked, _new, fallback, _mismatch = app_module.get_voice_allocation(
+            chosen, _ranked, _new, fallback, _mismatch = voices_module.get_voice_allocation(
                 "", candidates, [c["adapter_id"] for c in candidates],
                 traits, None, {}, "major")
             self.assertEqual(chosen, expected)
@@ -470,12 +471,12 @@ class RegressionTests(unittest.TestCase):
         for confidence in ("unknown", "low", "medium", "high"):
             traits = {"gender": "female", "gender_confidence": confidence,
                       "age_group": "elderly", "age_confidence": confidence}
-            _chosen, _ranked, _new, _fallback, mismatch = app_module.get_voice_allocation(
+            _chosen, _ranked, _new, _fallback, mismatch = voices_module.get_voice_allocation(
                 "", [male], ["male"], traits, "male", {}, "major")
             self.assertEqual(mismatch, confidence in ("medium", "high"), confidence)
 
     def test_character_trait_evidence_prefers_label_over_dialogue(self):
-        traits = app_module._infer_character_traits(
+        traits = voices_module._infer_character_traits(
             "Young Man", "", ["She told her mother that the queen had arrived."])
         self.assertEqual(traits["gender"], "male")
         self.assertEqual(traits["gender_confidence"], "high")
@@ -497,21 +498,21 @@ class RegressionTests(unittest.TestCase):
             library_path = os.path.join(tmp, "voice_library.json")
             with open(library_path, "w", encoding="utf-8") as f:
                 json.dump({"shared": {}, "casts": {"series": {"members": {}}}}, f)
-            with patch.object(app_module, "VOICE_CONFIG_PATH", voice_path), \
-                 patch.object(app_module, "VOICE_LIBRARY_PATH", library_path), \
+            with patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path), \
+                 patch.object(voices_module, "VOICE_LIBRARY_PATH", library_path), \
                  patch.object(core_module, "VOICE_LIBRARY_PATH", library_path), \
-                 patch.object(app_module, "get_active_book_id", return_value="book-05"), \
-                 patch.object(app_module, "_script_line_counts", return_value={"Man": 4}), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=[candidate]):
-                result = app_module._apply_voice_suggestions({"Man": suggestion}, "series")
+                 patch.object(voices_module, "get_active_book_id", return_value="book-05"), \
+                 patch.object(voices_module, "_script_line_counts", return_value={"Man": 4}), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=[candidate]):
+                result = voices_module._apply_voice_suggestions({"Man": suggestion}, "series")
             voice = json.loads(Path(voice_path).read_text(encoding="utf-8"))
             library = json.loads(Path(library_path).read_text(encoding="utf-8"))
         self.assertEqual(voice["Man"]["character_style"], "Brief wary delivery")
-        for field in app_module.get_trait_assignment_metadata(suggestion):
+        for field in core_module.get_trait_assignment_metadata(suggestion):
             self.assertEqual(voice["Man"][field], suggestion[field], field)
         member = library["casts"]["series"]["members"]["man::book-05"]
         self.assertEqual(member["config"]["adapter_id"], "v1")
-        for field in app_module.get_trait_assignment_metadata(suggestion):
+        for field in core_module.get_trait_assignment_metadata(suggestion):
             self.assertEqual(member["config"][field], suggestion[field], field)
             self.assertEqual(member["assignments"]["book-05"][field], suggestion[field], field)
         self.assertEqual(member["assignments"]["book-05"]["character_style"], "Brief wary delivery")
@@ -554,15 +555,15 @@ class RegressionTests(unittest.TestCase):
         self.assertNotIn("man", voice_library_module._cast_match_pool(lib, "series", "book-05"))
 
     def test_numbered_generic_cast_keys_are_book_scoped(self):
-        self.assertEqual(app_module.get_cast_member_key("Man 1", "b5"), "man 1::b5")
-        self.assertEqual(app_module.get_cast_member_key("Guard #2", "b5"), "guard #2::b5")
+        self.assertEqual(core_module.get_cast_member_key("Man 1", "b5"), "man 1::b5")
+        self.assertEqual(core_module.get_cast_member_key("Guard #2", "b5"), "guard #2::b5")
 
     def test_shared_narrator_is_reused_and_counted(self):
         lib = {"shared": {"narrator": {"name": "Narrator", "config": {"adapter_id": "v1"},
                                          "assignments": {"b1": {"line_count": 100}}}},
                "casts": {"series": {"members": {}}}}
-        self.assertEqual(app_module.get_cast_adapter_usage(lib, "series")["v1"]["character_count"], 1)
-        self.assertIs(app_module.get_cast_storage_pool(lib, "series", "Narrator"), lib["shared"])
+        self.assertEqual(core_module.get_cast_adapter_usage(lib, "series")["v1"]["character_count"], 1)
+        self.assertIs(core_module.get_cast_storage_pool(lib, "series", "Narrator"), lib["shared"])
 
     def test_bulk_generic_mapping_resolves_per_book_member(self):
         lib = {"shared": {}, "casts": {"series": {"members": {
@@ -577,11 +578,11 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(config["Man"]["character_style"], "five")
 
     def test_stale_suggestion_is_rejected(self):
-        with patch.object(app_module, "_build_lora_candidates", return_value=[]), \
-             patch.object(app_module, "_script_line_counts", return_value={"Narrator": 2}), \
-             patch.object(app_module, "get_active_book_id", return_value="book-b"):
+        with patch.object(voices_module, "_build_lora_candidates", return_value=[]), \
+             patch.object(voices_module, "_script_line_counts", return_value={"Narrator": 2}), \
+             patch.object(voices_module, "get_active_book_id", return_value="book-b"):
             with self.assertRaisesRegex(Exception, "different book"):
-                app_module._apply_voice_suggestions(
+                voices_module._apply_voice_suggestions(
                     {"Narrator": {"adapter_id": "v1", "book_id": "book-a"}}, None)
 
     def test_pair_write_rolls_back_first_file_when_second_replace_fails(self):
@@ -624,13 +625,13 @@ class RegressionTests(unittest.TestCase):
             library_path = os.path.join(tmp, "library.json")
             Path(library_path).write_text(
                 json.dumps({"shared": {}, "casts": {"series": {"members": {}}}}), encoding="utf-8")
-            with patch.object(app_module, "VOICE_CONFIG_PATH", voice_path), \
-                 patch.object(app_module, "VOICE_LIBRARY_PATH", library_path), \
+            with patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path), \
+                 patch.object(voices_module, "VOICE_LIBRARY_PATH", library_path), \
                  patch.object(core_module, "VOICE_LIBRARY_PATH", library_path), \
-                 patch.object(app_module, "get_active_book_id", return_value="b1"), \
-                 patch.object(app_module, "_script_line_counts", return_value={"Narrator": 100}), \
-                 patch.object(app_module, "_build_lora_candidates", return_value=[candidate]):
-                app_module._apply_voice_suggestions({"Narrator": suggestion}, "series")
+                 patch.object(voices_module, "get_active_book_id", return_value="b1"), \
+                 patch.object(voices_module, "_script_line_counts", return_value={"Narrator": 100}), \
+                 patch.object(voices_module, "_build_lora_candidates", return_value=[candidate]):
+                voices_module._apply_voice_suggestions({"Narrator": suggestion}, "series")
             library = json.loads(Path(library_path).read_text(encoding="utf-8"))
         self.assertEqual(library["shared"]["narrator"]["config"]["adapter_id"], "v1")
         self.assertNotIn("narrator", library["casts"]["series"]["members"])
@@ -664,8 +665,8 @@ class RegressionTests(unittest.TestCase):
     def test_runtime_data_dir_isolates_mutable_app_paths(self):
         root = Path(__file__).resolve().parent.parent
         code = (
-            "import app; print(app.DATA_DIR); print(app.SCRIPT_PATH); "
-            "print(app.VOICE_LIBRARY_PATH); print(app.CONFIG_PATH); print(app.UPLOADS_DIR)"
+            "import core; print(core.DATA_DIR); print(core.SCRIPT_PATH); "
+            "print(core.VOICE_LIBRARY_PATH); print(core.CONFIG_PATH); print(core.UPLOADS_DIR)"
         )
         with tempfile.TemporaryDirectory() as tmp:
             env = dict(os.environ, ALEXANDRIA_DATA_DIR=tmp)

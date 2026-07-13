@@ -17,6 +17,7 @@ from core import (
     LORA_MODELS_DIR,
     LORA_MODELS_MANIFEST,
     _cancel_task,
+    _load_builtin_lora_manifest,
     _load_manifest,
     _require_safe_filename,
     _safe_subpath,
@@ -80,22 +81,6 @@ class LoraTestRequest(BaseModel):
 
 
 ## ── LoRA Training ──────────────────────────────────────────────
-
-
-def _load_builtin_lora_manifest():
-    """Load built-in LoRA manifest from HF (with local fallback). Returns ALL entries with download status."""
-    entries = fetch_builtin_manifest(BUILTIN_LORA_DIR)
-    result = []
-    for entry in entries:
-        entry = dict(entry)  # avoid mutating cached list
-        local_id = entry["id"] if entry["id"].startswith("builtin_") else f"builtin_{entry['id']}"
-        downloaded = is_adapter_downloaded(local_id, BUILTIN_LORA_DIR)
-        entry["id"] = local_id
-        entry["builtin"] = True
-        entry["downloaded"] = downloaded
-        entry["adapter_path"] = f"builtin_lora/{local_id}" if downloaded else None
-        result.append(entry)
-    return result
 
 
 def _extract_lora_dataset_archive(archive_path, dataset_dir):
