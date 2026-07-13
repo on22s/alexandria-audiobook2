@@ -15,6 +15,7 @@ import app as app_module
 import core as core_module
 import generate_script
 from routers import preparer as preparer_module
+from routers import lora as lora_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -50,7 +51,7 @@ class RegressionTests(unittest.TestCase):
     def test_lora_epochs_must_be_positive_at_api_boundary(self):
         for epochs in (0, -1):
             with self.assertRaises(ValueError):
-                app_module.LoraTrainingRequest(name="x", dataset_id="d", epochs=epochs)
+                lora_module.LoraTrainingRequest(name="x", dataset_id="d", epochs=epochs)
 
     def test_builtin_manifest_normalization_skips_bad_entries(self):
         entries = hf_utils._normalize_manifest_entries([
@@ -691,7 +692,7 @@ class RegressionTests(unittest.TestCase):
 
     def test_lora_cancel_idle_reports_not_running(self):
         with self.assertRaises(app_module.HTTPException) as raised:
-            asyncio.run(app_module.lora_cancel_training())
+            asyncio.run(lora_module.lora_cancel_training())
         self.assertEqual(raised.exception.status_code, 400)
 
     def test_frontend_wires_preparer_duration_and_lora_cancel(self):
