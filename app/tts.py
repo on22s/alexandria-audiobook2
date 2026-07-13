@@ -12,9 +12,25 @@ import device_utils
 from pydub import AudioSegment
 
 try:
-    from .utils import secure_filename as _secure_filename
+    from .utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir
 except ImportError:
-    from utils import secure_filename as _secure_filename
+    from utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir
+
+
+def _resolve_asset_path(rel_path):
+    """Resolve a voice-config relative path (adapter_path / ref_audio) or an
+    output subdir to an absolute path, honoring ALEXANDRIA_DATA_DIR.
+
+    Built-in adapters ship read-only at the repo root; all other voice data
+    (lora_models, clone_voices, designed_voices) lives under the runtime data
+    dir. A no-op when the data dir IS the repo root (the default layout), so
+    existing installs are unaffected — it only corrects paths once data is
+    relocated (e.g. the Docker /alexandria/runtime volume)."""
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    norm = str(rel_path).replace("\\", "/").lstrip("/")
+    base = root_dir if norm.split("/", 1)[0] == "builtin_lora" else _get_runtime_data_dir(root_dir)
+    return os.path.join(base, rel_path)
+
 
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
@@ -699,8 +715,7 @@ class TTSEngine:
             raise ValueError(f"Clone voice for '{speaker}' missing ref_audio or ref_text")
         # Resolve relative paths against project root (parent of app/)
         if not os.path.isabs(ref_audio_path):
-            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ref_audio_path = os.path.join(root_dir, ref_audio_path)
+            ref_audio_path = _resolve_asset_path(ref_audio_path)
         if not os.path.exists(ref_audio_path):
             raise FileNotFoundError(f"Reference audio not found for '{speaker}': {ref_audio_path}")
 
@@ -809,8 +824,9 @@ class TTSEngine:
         duration = len(audio) / sr
         print(f"VoiceDesign: done in {gen_time:.1f}s -> {duration:.1f}s audio")
 
-        # Save to previews directory
-        previews_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "designed_voices", "previews")
+        # Save to previews directory (under the runtime data dir, matching where
+        # app.py's /api/voice_design/save reads it back from).
+        previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
         os.makedirs(previews_dir, exist_ok=True)
 
         filename = f"preview_{int(time.time() * 1000)}.wav"
@@ -875,8 +891,7 @@ class TTSEngine:
 
             # Resolve relative paths against project root
             if not os.path.isabs(adapter_path):
-                root_dir = os.path.dirname(os.path.dirname(__file__))
-                adapter_path = os.path.join(root_dir, adapter_path)
+                adapter_path = _resolve_asset_path(adapter_path)
 
             if not os.path.isdir(adapter_path):
                 # Auto-download built-in adapters from HF
@@ -1503,7 +1518,6 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
-        root_dir = os.path.dirname(os.path.dirname(__file__))
 
         # Group chunks by adapter_path (resolved to absolute). Two different
         # speakers can share the same adapter (e.g. aliases, or one trained
@@ -1521,7 +1535,7 @@ class TTSEngine:
                 continue
 
             if not os.path.isabs(adapter_path):
-                adapter_path = os.path.join(root_dir, adapter_path)
+                adapter_path = _resolve_asset_path(adapter_path)
 
             adapter_groups.setdefault(adapter_path, []).append((chunk, voice_data))
 
@@ -1768,8 +1782,7 @@ class TTSEngine:
 
             # Resolve relative paths against project root
             if not os.path.isabs(ref_audio):
-                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                ref_audio = os.path.join(root_dir, ref_audio)
+                ref_audio = _resolve_asset_path(ref_audio)
 
             if not os.path.exists(ref_audio):
                 print(f"Warning: Reference audio not found for '{speaker}': {ref_audio}")
