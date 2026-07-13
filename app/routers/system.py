@@ -402,10 +402,10 @@ async def get_config():
     }
 
     # A partial, empty, or corrupted config should not make the Setup page
-    # unusable. safe_load_json logs the read failure and returns an empty dict;
-    # merging here supplies required top-level sections without rewriting the
-    # damaged file during a GET request.
-    loaded_config = load_app_config(CONFIG_PATH)
+    # unusable. The shared loader returns safe data plus warnings; merging here
+    # supplies required sections without rewriting the damaged file during GET.
+    load_result = load_app_config_result(CONFIG_PATH)
+    loaded_config = load_result.data
     config = {**default_config, **loaded_config}
 
     # Backfill any TTSConfig field missing from an existing on-disk config.json
@@ -490,6 +490,11 @@ async def get_config():
     # so the frontend doesn't have to re-derive it from llm_mode alone (which
     # can drift from the actual active base_url) - see lmstudio_settings.is_remote_llm.
     config["is_remote"] = is_remote_llm(config["llm_mode"], config.get("llm", {}).get("base_url", ""))
+    config["config_warnings"] = [
+        {"field": warning.field, "message": warning.message}
+        for warning in load_result.warnings
+    ]
+    config["config_needs_backup"] = load_result.needs_backup
 
     return config
 
