@@ -129,18 +129,26 @@ class ProjectManager:
         self._uids_backfilled = False  # see _read_chunks
         self._config_cache = None
         self._config_mtime = None
+        self._config_lock = threading.Lock()
+
+    def invalidate_config_cache(self):
+        """Force the next config read to reload config.json from disk."""
+        with self._config_lock:
+            self._config_cache = None
+            self._config_mtime = None
 
     def _read_config(self):
         """Load config.json, caching by mtime to avoid repeated disk reads/parses
         across hot-path calls (get_engine, _load_tts_config, ...)."""
-        try:
-            mtime = os.path.getmtime(self.config_path)
-        except OSError:
-            mtime = None
-        if self._config_cache is None or mtime != self._config_mtime:
-            self._config_cache = safe_load_json(self.config_path, default={})
-            self._config_mtime = mtime
-        return self._config_cache
+        with self._config_lock:
+            try:
+                mtime = os.path.getmtime(self.config_path)
+            except OSError:
+                mtime = None
+            if self._config_cache is None or mtime != self._config_mtime:
+                self._config_cache = safe_load_json(self.config_path, default={})
+                self._config_mtime = mtime
+            return self._config_cache
 
     def get_engine(self):
         if self.engine:

@@ -616,6 +616,7 @@ async def save_config(config: AppConfig):
     normalized_config.llm = _normalize_and_validate_llm(active)
 
     atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+    project_manager.invalidate_config_cache()
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
     return {"status": "saved"}

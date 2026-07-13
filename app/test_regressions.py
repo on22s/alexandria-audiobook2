@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 import app as app_module
 import core as core_module
 import generate_script
+import project as project_module
 from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
@@ -386,13 +387,52 @@ class RegressionTests(unittest.TestCase):
         original = config.model_dump()
 
         with patch.object(system_module, "atomic_json_write") as write_config, \
+             patch.object(system_module.project_manager, "invalidate_config_cache") as invalidate, \
              patch.object(system_module.project_manager, "engine", object()):
             asyncio.run(system_module.save_config(config))
+            self.assertIsNone(system_module.project_manager.engine)
 
         self.assertEqual(original, config.model_dump())
+        invalidate.assert_called_once_with()
         saved = write_config.call_args.args[0]
         self.assertEqual("http://localhost:1234/v1", saved["llm"]["base_url"])
         self.assertEqual("http://localhost:1234/v1", saved["llm_local"]["base_url"])
+
+    def test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = project_module.ProjectManager(tmp)
+            manager.config_path = str(Path(tmp) / "config.json")
+            Path(manager.config_path).write_text('{"value": "aa"}', encoding="utf-8")
+
+            with patch.object(project_module.os.path, "getmtime", return_value=123):
+                self.assertEqual("aa", manager._read_config()["value"])
+                Path(manager.config_path).write_text('{"value": "bb"}', encoding="utf-8")
+                self.assertEqual("aa", manager._read_config()["value"])
+
+                manager.invalidate_config_cache()
+
+                self.assertEqual("bb", manager._read_config()["value"])
+
+    def test_failed_config_save_preserves_cache_and_engine(self):
+        profile = system_module.LLMConfig(
+            base_url="http://localhost:1234/v1", api_key="key", model_name="model"
+        )
+        config = system_module.AppConfig(
+            llm=profile,
+            llm_mode="local",
+            llm_local=profile,
+            tts=system_module.TTSConfig(),
+        )
+        engine = object()
+
+        with patch.object(system_module, "atomic_json_write", side_effect=OSError("write failed")), \
+             patch.object(system_module.project_manager, "invalidate_config_cache") as invalidate, \
+             patch.object(system_module.project_manager, "engine", engine):
+            with self.assertRaisesRegex(OSError, "write failed"):
+                asyncio.run(system_module.save_config(config))
+
+            invalidate.assert_not_called()
+            self.assertIs(engine, system_module.project_manager.engine)
 
     def test_get_config_recovers_without_rewriting_invalid_json(self):
         invalid_documents = (
