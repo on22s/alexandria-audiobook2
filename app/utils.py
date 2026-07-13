@@ -10,6 +10,8 @@ import subprocess
 import sys
 import logging
 import hashlib
+import hmac
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -411,3 +413,23 @@ def is_generic_speaker(name):
     # proper names containing digits are not accidentally scoped to one book.
     value = re.sub(r"\s+#?\d+$", "", value).strip()
     return value in _GENERIC_SPEAKER_WORDS
+
+
+def check_basic_auth(header_value, username, password):
+    """Constant-time verify an 'Authorization: Basic <base64>' header value
+    against the expected username/password. Returns False on any missing or
+    malformed input (wrong scheme, bad base64, no colon)."""
+    if not header_value or not header_value.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header_value[6:].strip()).decode("utf-8")
+    except Exception:
+        return False
+    supplied_user, sep, supplied_pw = decoded.partition(":")
+    if not sep:
+        return False
+    # Evaluate both comparisons before combining so the response time does not
+    # reveal which of username/password mismatched.
+    user_ok = hmac.compare_digest(supplied_user, username)
+    pw_ok = hmac.compare_digest(supplied_pw, password)
+    return user_ok and pw_ok

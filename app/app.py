@@ -22,7 +22,7 @@ import subprocess
 import traceback
 import aiofiles
 from datetime import datetime
-from utils import atomic_json_write, atomic_json_write_pair, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, is_generic_speaker, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization, get_runtime_data_dir, get_app_config_path
+from utils import atomic_json_write, atomic_json_write_pair, file_lock, safe_load_json, secure_filename, run_rocm_smi_json, extract_json_object, is_path_inside, is_generic_speaker, system_has_gpu, rocm_smi_utilization as _rocm_smi_utilization, get_runtime_data_dir, get_app_config_path, check_basic_auth
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -189,6 +189,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Optional HTTP Basic Auth gate. OFF by default: only registered when
+# ALEXANDRIA_AUTH_PASSWORD is set, so the local Pinokio flow is unchanged and
+# pays no per-request cost. When enabled, every request must carry valid Basic
+# credentials — the browser stores them once (native dialog) and re-sends on
+# fetch, download links, and <audio> loads alike. Set this before exposing the
+# app beyond localhost (e.g. the Docker image binds 0.0.0.0).
+_AUTH_USERNAME = os.environ.get("ALEXANDRIA_AUTH_USERNAME", "alexandria")
+_AUTH_PASSWORD = os.environ.get("ALEXANDRIA_AUTH_PASSWORD", "")
+if _AUTH_PASSWORD:
+    from starlette.responses import Response as _StarletteResponse
+
+    @app.middleware("http")
+    async def _basic_auth_gate(request, call_next):
+        # CORS preflight carries no credentials by design; let it through so the
+        # CORS middleware can answer it.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        if check_basic_auth(request.headers.get("Authorization", ""),
+                             _AUTH_USERNAME, _AUTH_PASSWORD):
+            return await call_next(request)
+        return _StarletteResponse(
+            "Authentication required", status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Alexandria"'})
+    print("Auth: HTTP Basic Auth enabled (ALEXANDRIA_AUTH_PASSWORD is set)")
 
 # --- System Helpers ---
 
