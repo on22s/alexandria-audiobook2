@@ -509,6 +509,10 @@
                         <span id="auto-config-msg"></span>
                         <button type="button" class="btn-close btn-sm" onclick="document.getElementById('auto-config-banner').style.display='none'"></button>
                     </div>
+                    <div id="config-warning-banner" class="alert alert-warning py-2 small mb-3" style="display:none;">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <span id="config-warning-msg"></span>
+                    </div>
                     <form id="config-form">
                         <h5 class="mb-3">LLM Settings (Script Generation)</h5>
                         <div class="mb-3">
@@ -2263,6 +2267,28 @@
         // from /api/config's response on load and after a successful save.
         let currentIsRemote = false;
 
+        function renderConfigWarnings(config) {
+            const banner = document.getElementById('config-warning-banner');
+            const message = document.getElementById('config-warning-msg');
+            const warnings = Array.isArray(config.config_warnings) ? config.config_warnings : [];
+            if (!warnings.length) {
+                message.textContent = '';
+                banner.style.display = 'none';
+                return;
+            }
+            const details = warnings.map((warning) => {
+                const field = warning && warning.field && warning.field !== '$'
+                    ? warning.field + ': ' : '';
+                return field + ((warning && warning.message) || 'Invalid saved setting ignored');
+            }).join('; ');
+            const recovery = config.config_needs_backup
+                ? ' Saving will preserve the damaged file as a backup before replacing it.'
+                : '';
+            message.textContent = 'Some saved configuration could not be used; safe defaults are shown.'
+                + recovery + ' ' + details;
+            banner.style.display = '';
+        }
+
         function populateLlmInputs(mode) {
             const p = llmProfiles[mode] || {};
             document.getElementById('llm-url').value = p.base_url || '';
@@ -2349,6 +2375,7 @@
 
             try {
                 const config = await API.get('/api/config');
+                renderConfigWarnings(config);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
@@ -2587,7 +2614,11 @@
                 // Refresh is_remote from the now-active saved config (not a
                 // full loadConfig() - that resets unrelated fields like
                 // chunk-size to hardcoded defaults).
-                try { currentIsRemote = !!(await API.get('/api/config')).is_remote; }
+                try {
+                    const savedConfig = await API.get('/api/config');
+                    currentIsRemote = !!savedConfig.is_remote;
+                    renderConfigWarnings(savedConfig);
+                }
                 catch (e) { console.debug('is_remote refresh after save failed', e); }
                 showToast('Configuration Saved!', 'success');
             } catch (e) {

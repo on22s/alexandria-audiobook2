@@ -588,6 +588,8 @@ class RegressionTests(unittest.TestCase):
                     self.assertIn("llm", config)
                     self.assertIn("tts", config)
                     self.assertTrue(config["prompts"]["system_prompt"])
+                    self.assertTrue(config["config_warnings"])
+                    self.assertTrue(config["config_needs_backup"])
                     self.assertEqual(document, config_path.read_text(encoding="utf-8"))
 
     def test_get_config_backfills_partial_top_level_config(self):
@@ -604,6 +606,8 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual("French", config["tts"]["language"])
             self.assertIn("parallel_workers", config["tts"])
             self.assertEqual("preserved", config["custom"])
+            self.assertEqual([], config["config_warnings"])
+            self.assertFalse(config["config_needs_backup"])
 
     def test_runtime_data_dir_ignores_empty_environment_override(self):
         with patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": "   "}):
@@ -1278,6 +1282,20 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("id=\"btn-lora-cancel\"", html)
         self.assertIn("/api/lora/train/cancel", html)
         self.assertNotIn("id=\"prep-skip-annotation\"", html)
+
+    def test_frontend_renders_config_warnings_as_text_and_refreshes_after_save(self):
+        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="config-warning-banner"', html)
+        self.assertIn('id="config-warning-msg"', html)
+        start = html.index("function renderConfigWarnings(config)")
+        end = html.index("function populateLlmInputs", start)
+        renderer = html[start:end]
+        self.assertIn("message.textContent", renderer)
+        self.assertNotIn("message.innerHTML", renderer)
+        self.assertIn("renderConfigWarnings(config);", html)
+        self.assertIn("renderConfigWarnings(savedConfig);", html)
 
     def test_check_basic_auth_accepts_and_rejects_credentials(self):
         make = lambda raw: "Basic " + base64.b64encode(raw.encode()).decode()
