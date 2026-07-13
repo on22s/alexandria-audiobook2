@@ -210,7 +210,7 @@ class AppConfig(BaseModel):
 
 
 @router.get("/api/system/stats")
-async def get_system_stats():
+def get_system_stats():
     """Return GPU memory, disk, and basic hardware statistics."""
     gpu = get_gpu_stats()
     has_space, free_gb = check_disk_space(ROOT_DIR, 1.0)
