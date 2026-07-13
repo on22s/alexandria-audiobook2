@@ -49,6 +49,9 @@ class RegressionTests(unittest.TestCase):
     def test_lora_style_attribute_escapes_persisted_content(self):
         html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn("value=\"${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}\"", html)
+        self.assertIn("No downloaded voice matched the known gender; fallback used.", html)
+        self.assertIn("Existing recurring voice retained despite a trait mismatch.", html)
+        self.assertIn("escapeHtml(sugg.trait_evidence)", html)
 
     def test_queued_cancel_survives_background_start(self):
         key = "_test_claimed_task"
@@ -183,7 +186,9 @@ class RegressionTests(unittest.TestCase):
                   + [{"speaker": "Man", "text": f"m{i}"} for i in range(3)])
         parsed = {"characters": [
             {"name": name, "ranked_adapter_ids": ["v1", "v2"],
-             "character_style": f"style {name}", "reason": "book evidence"}
+             "character_style": f"style {name}", "reason": "book evidence",
+             "character_gender": "unknown", "age_group": "unknown",
+             "trait_evidence": "none", "trait_confidence": "unknown"}
             for name in ("Major A", "Major B", "Man")
         ]}
         response = SimpleNamespace(choices=[SimpleNamespace(
@@ -218,7 +223,8 @@ class RegressionTests(unittest.TestCase):
         parsed = {"characters": [{
             "name": "Old Man", "ranked_adapter_ids": ["female_old", "male_adult", "male_old"],
             "character_style": "Weathered and deliberate", "reason": "book evidence",
-            "character_gender": "male", "age_group": "elderly", "trait_evidence": "Old man label",
+            "character_gender": "female", "age_group": "young_adult", "trait_evidence": "Conflicting LLM evidence",
+            "trait_confidence": "high",
         }]}
         response = SimpleNamespace(choices=[SimpleNamespace(
             message=SimpleNamespace(content=json.dumps(parsed)), finish_reason="stop")])
@@ -246,11 +252,49 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(suggestion["character_age_group"], "elderly")
         self.assertEqual(suggestion["gender_confidence"], "high")
         self.assertEqual(suggestion["age_confidence"], "high")
+        self.assertIn("character label: male", suggestion["trait_evidence"])
+        self.assertEqual(suggestion["llm_trait_evidence"], "Conflicting LLM evidence")
         self.assertFalse(suggestion["gender_fallback"])
 
     def test_lora_age_normalization(self):
         self.assertEqual(app_module._infer_lora_age({"id": "warm_baritone_40s_m"}), "middle_aged")
         self.assertEqual(app_module._infer_lora_age({"description": "elderly gravelly bass"}), "elderly")
+        self.assertEqual(app_module._infer_lora_age({"age": "40s"}), "middle_aged")
+        self.assertEqual(app_module._infer_lora_age({"age": 67}), "elderly")
+
+    def test_numeric_age_boundaries_and_precedence(self):
+        expected = {"aged 12": "child", "13 years old": "teen", "19-year-old": "teen",
+                    "20 years old": "young_adult", "aged 39": "adult",
+                    "40-year-old": "middle_aged", "aged 60": "elderly"}
+        for text, group in expected.items():
+            self.assertEqual(app_module._infer_age_group(text), group, text)
+        self.assertEqual(app_module._infer_age_group("young man, aged 50"), "middle_aged")
+
+    def test_low_confidence_traits_do_not_hard_filter(self):
+        candidates = [
+            {"adapter_id": "male", "gender": "male", "age_group": "adult", "description": ""},
+            {"adapter_id": "female", "gender": "female", "age_group": "elderly", "description": ""},
+        ]
+        traits = {"gender": "female", "gender_confidence": "low",
+                  "age_group": "elderly", "age_confidence": "low"}
+        chosen, _ranked, _new, fallback, _mismatch = app_module.get_voice_allocation(
+            "", candidates, ["male", "female"], traits, None, {}, "minor")
+        self.assertEqual(chosen, "male")
+        self.assertFalse(fallback)
+
+    def test_gender_fallback_and_recurring_mismatch(self):
+        male = {"adapter_id": "male", "gender": "male", "age_group": "adult", "description": ""}
+        traits = {"gender": "female", "gender_confidence": "high",
+                  "age_group": "young_adult", "age_confidence": "high"}
+        chosen, _ranked, _new, fallback, mismatch = app_module.get_voice_allocation(
+            "", [male], ["male"], traits, None, {}, "major")
+        self.assertEqual(chosen, "male")
+        self.assertTrue(fallback)
+        self.assertFalse(mismatch)
+        chosen, _ranked, is_new, _fallback, mismatch = app_module.get_voice_allocation(
+            "", [male], ["male"], traits, "male", {}, "major")
+        self.assertFalse(is_new)
+        self.assertTrue(mismatch)
 
     def test_character_trait_evidence_prefers_label_over_dialogue(self):
         traits = app_module._infer_character_traits(
@@ -263,7 +307,13 @@ class RegressionTests(unittest.TestCase):
         candidate = {"adapter_id": "v1", "name": "V1", "type": "lora",
                      "gender": "unknown", "description": ""}
         suggestion = {"adapter_id": "v1", "character_style": "Brief wary delivery", "book_id": "book-05",
-                      "priority": "minor", "reason": "small suspicious role"}
+                      "priority": "minor", "reason": "small suspicious role",
+                      "character_gender": "male", "character_age_group": "adult",
+                      "voice_gender": "male", "voice_age_group": "middle_aged",
+                      "gender_confidence": "high", "age_confidence": "medium",
+                      "trait_evidence": "label evidence", "local_trait_evidence": "label evidence",
+                      "llm_trait_evidence": "", "gender_fallback": False,
+                      "existing_trait_mismatch": True}
         with tempfile.TemporaryDirectory() as tmp:
             voice_path = os.path.join(tmp, "voice_config.json")
             library_path = os.path.join(tmp, "voice_library.json")
@@ -281,6 +331,9 @@ class RegressionTests(unittest.TestCase):
         member = library["casts"]["series"]["members"]["man::book-05"]
         self.assertEqual(member["config"]["adapter_id"], "v1")
         self.assertEqual(member["assignments"]["book-05"]["character_style"], "Brief wary delivery")
+        self.assertEqual(member["assignments"]["book-05"]["character_gender"], "male")
+        self.assertEqual(member["assignments"]["book-05"]["age_confidence"], "medium")
+        self.assertTrue(member["assignments"]["book-05"]["existing_trait_mismatch"])
         self.assertEqual(result["adapter_usage"]["v1"]["character_count"], 1)
 
     def test_cast_apply_uses_book_specific_style(self):
