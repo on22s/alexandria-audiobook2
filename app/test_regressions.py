@@ -16,6 +16,7 @@ import core as core_module
 import generate_script
 from routers import preparer as preparer_module
 from routers import lora as lora_module
+from routers import voice_design as voice_design_module
 import utils
 import hf_utils
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
@@ -40,8 +41,8 @@ class RegressionTests(unittest.TestCase):
         try:
             with patch.object(app_module.project_manager, "get_engine") as get_engine:
                 with self.assertRaises(app_module.HTTPException) as raised:
-                    asyncio.run(app_module.voice_design_preview(
-                        app_module.VoiceDesignPreviewRequest(
+                    asyncio.run(voice_design_module.voice_design_preview(
+                        voice_design_module.VoiceDesignPreviewRequest(
                             description="voice", sample_text="text", language="english")))
             self.assertEqual(raised.exception.status_code, 400)
             get_engine.assert_not_called()
