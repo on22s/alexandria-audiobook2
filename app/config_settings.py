@@ -1,13 +1,15 @@
 """Shared config.json models and shape-safe loading boundary."""
 
+import json
 import logging
+import os
+import shutil
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
-
-from utils import safe_load_json
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class ConfigWarning:
 class AppConfigLoadResult:
     data: dict
     warnings: tuple[ConfigWarning, ...]
+    needs_backup: bool = False
 
 
 class LLMConfig(BaseModel):
@@ -117,14 +120,31 @@ def _validate_present_fields(section_name: str, data: dict,
 
 def load_app_config_result(path: str) -> AppConfigLoadResult:
     """Load and sanitize present known values without defaults or file writes."""
-    config = dict(safe_load_json(path, default={}))
     warnings = []
+    needs_backup = False
+    if not os.path.exists(path):
+        return AppConfigLoadResult({}, ())
+    try:
+        with open(path, "r", encoding="utf-8") as config_file:
+            loaded = json.load(config_file)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Corrupted/unreadable JSON at %s, using defaults: %s", path, exc)
+        return AppConfigLoadResult(
+            {}, (ConfigWarning("$", "Configuration file could not be read"),), True
+        )
+    if not isinstance(loaded, dict):
+        logger.warning("Invalid top-level config shape '%s', using defaults", type(loaded).__name__)
+        return AppConfigLoadResult(
+            {}, (ConfigWarning("$", "Configuration must be a JSON object"),), True
+        )
+    config = dict(loaded)
 
     for section, model in _DICT_SECTIONS.items():
         if section not in config:
             continue
         if not isinstance(config[section], dict):
             warnings.append(ConfigWarning(section, "Invalid section ignored"))
+            needs_backup = True
             logger.warning("Invalid '%s' section in config, ignoring it", section)
             del config[section]
             continue
@@ -135,6 +155,7 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
             continue
         if not isinstance(config[section], dict):
             warnings.append(ConfigWarning(section, "Invalid section ignored"))
+            needs_backup = True
             logger.warning("Invalid '%s' section in config, ignoring it", section)
             config[section] = None
             continue
@@ -152,9 +173,23 @@ def load_app_config_result(path: str) -> AppConfigLoadResult:
             logger.warning("Invalid stored config value '%s', ignoring it", field_name)
             del config[field_name]
 
-    return AppConfigLoadResult(config, tuple(warnings))
+    return AppConfigLoadResult(config, tuple(warnings), needs_backup)
 
 
 def load_app_config(path: str) -> dict:
     """Return the sanitized config data from :func:`load_app_config_result`."""
     return load_app_config_result(path).data
+
+
+def backup_damaged_app_config(path: str) -> str:
+    """Create an atomic, metadata-preserving backup beside a damaged config."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backup_path = f"{path}.damaged-{stamp}-{uuid.uuid4().hex[:8]}.bak"
+    temp_path = f"{backup_path}.tmp"
+    try:
+        shutil.copy2(path, temp_path)
+        os.replace(temp_path, backup_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+    return backup_path

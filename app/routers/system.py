@@ -12,7 +12,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig,
-                             TTSConfig, load_app_config)
+                             TTSConfig, backup_damaged_app_config, load_app_config,
+                             load_app_config_result)
 
 from default_prompts import load_default_prompts
 from review_prompts import load_review_prompts
@@ -39,7 +40,8 @@ from core import (
     project_manager,
 )
 
-from utils import (atomic_json_write, rocm_smi_utilization as _rocm_smi_utilization,
+from utils import (atomic_json_write, file_lock,
+                   rocm_smi_utilization as _rocm_smi_utilization,
                    run_rocm_smi_json, system_has_gpu)
 
 
@@ -549,7 +551,17 @@ async def save_config(config: AppConfig):
             f"and the active llm profile would disagree."))
     normalized_config.llm = _normalize_and_validate_llm(active)
 
-    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+    with file_lock(CONFIG_PATH):
+        existing = load_app_config_result(CONFIG_PATH)
+        if existing.needs_backup:
+            try:
+                backup_damaged_app_config(CONFIG_PATH)
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Could not preserve damaged config before saving: {exc}",
+                ) from exc
+        atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
     project_manager.invalidate_config_cache()
     # Reset engine so it picks up new TTS settings on next use
     project_manager.engine = None
