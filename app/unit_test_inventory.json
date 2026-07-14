@@ -85,7 +85,7 @@
     "test_runtime_regressions.RuntimeTests.test_generate_batch_routes_ensemble_to_sequential_path",
     "test_runtime_regressions.RuntimeTests.test_gpu_stats_cache_preserves_rocm_fallback_result",
     "test_runtime_regressions.RuntimeTests.test_lora_cancel_idle_reports_not_running",
-    "test_runtime_regressions.RuntimeTests.test_lora_epochs_must_be_positive_at_api_boundary",
+    "test_runtime_regressions.RuntimeTests.test_lora_hyperparameters_are_validated_at_api_boundary",
     "test_runtime_regressions.RuntimeTests.test_lora_style_attribute_escapes_persisted_content",
     "test_runtime_regressions.RuntimeTests.test_mix_to_unison_aligns_and_mixes",
     "test_runtime_regressions.RuntimeTests.test_mix_to_unison_leaves_extreme_outlier_unstretched",

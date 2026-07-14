@@ -857,6 +857,8 @@
         "properties": {
           "batch_size": {
             "default": 1,
+            "maximum": 64.0,
+            "minimum": 1.0,
             "title": "Batch Size",
             "type": "integer"
           },
@@ -866,12 +868,15 @@
           },
           "epochs": {
             "default": 5,
+            "maximum": 1000.0,
             "minimum": 1.0,
             "title": "Epochs",
             "type": "integer"
           },
           "gradient_accumulation_steps": {
             "default": 8,
+            "maximum": 1024.0,
+            "minimum": 1.0,
             "title": "Gradient Accumulation Steps",
             "type": "integer"
           },
@@ -882,16 +887,22 @@
           },
           "lora_alpha": {
             "default": 128,
+            "maximum": 4096.0,
+            "minimum": 1.0,
             "title": "Lora Alpha",
             "type": "integer"
           },
           "lora_r": {
             "default": 32,
+            "maximum": 1024.0,
+            "minimum": 1.0,
             "title": "Lora R",
             "type": "integer"
           },
           "lr": {
             "default": 5e-06,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
             "title": "Lr",
             "type": "number"
           },
