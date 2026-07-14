@@ -4,7 +4,7 @@
 2. Confirm a built-in LoRA voice is downloaded and the GPU is otherwise idle.
 3. From `app/`, run `python verify_release.py --full`.
 4. Require the final `RELEASE VERIFICATION PASSED (full)` message. The full API
-   summary must report 83 passed, 0 failed, and 0 skipped.
+   summary must report zero failed and zero skipped tests.
 5. Review `git status` and confirm verification did not change either API
    contract snapshot or add runtime fixtures.
 6. If contract drift is intentional, regenerate snapshots explicitly, review

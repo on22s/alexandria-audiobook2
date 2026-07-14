@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import ci_env
 import diagnose_pr_changes
+import mark_pr_ready
 import verify_release
 
 
@@ -73,6 +74,29 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertEqual(2, len(hints))
         self.assertIn("update_test_inventory.py", hints[0])
         self.assertIn("update_api_contract_snapshots.py", hints[1])
+
+    def test_mark_ready_requires_current_mergeable_head_and_successful_checks(self):
+        head = "abc123"
+        ready = {
+            "isDraft": True, "headRefOid": head, "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "statusCheckRollup": [{
+                "name": "test", "status": "COMPLETED", "conclusion": "SUCCESS",
+            }],
+        }
+        self.assertEqual([], mark_pr_ready.get_readiness_errors(ready, head))
+        ready["headRefOid"] = "stale"
+        ready["statusCheckRollup"][0]["conclusion"] = "FAILURE"
+        errors = mark_pr_ready.get_readiness_errors(ready, head)
+        self.assertTrue(any("does not match" in error for error in errors))
+        self.assertTrue(any("not completed successfully" in error for error in errors))
+
+    def test_mark_ready_parses_https_and_ssh_origins(self):
+        expected = "on22s/alexandria-audiobook2"
+        self.assertEqual(expected, mark_pr_ready.get_origin_repo(
+            "https://github.com/on22s/alexandria-audiobook2.git"))
+        self.assertEqual(expected, mark_pr_ready.get_origin_repo(
+            "git@github.com:on22s/alexandria-audiobook2.git"))
 
     def test_block_ml_imports_hides_an_installed_module(self):
         # Prove the finder really blocks, using a module that IS installed here
