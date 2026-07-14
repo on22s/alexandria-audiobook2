@@ -86,7 +86,10 @@
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_is_not_listed_as_a_script",
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_preserves_original_identity",
     "test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests",
-    "test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization"
+    "test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_pipeline_repo",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
   "test_support": [],
   "test_voices_regressions": [
