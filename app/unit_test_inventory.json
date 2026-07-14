@@ -77,6 +77,7 @@
     "test_runtime_regressions.RuntimeTests.test_builtin_manifest_normalization_skips_bad_entries",
     "test_runtime_regressions.RuntimeTests.test_cancel_escalates_process_group_after_grace_period",
     "test_runtime_regressions.RuntimeTests.test_cancel_force_stops_subprocess_that_ignores_sigterm",
+    "test_runtime_regressions.RuntimeTests.test_dataset_builder_save_rejects_done_sample_with_missing_audio",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_nested_ensemble",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_unknown_or_empty_members",
     "test_runtime_regressions.RuntimeTests.test_ensemble_renders_each_member_with_its_own_voice",
@@ -161,6 +162,7 @@
     "test_voices_regressions.VoicesTests.test_shared_narrator_is_reused_and_counted",
     "test_voices_regressions.VoicesTests.test_stale_suggestion_is_rejected",
     "test_voices_regressions.VoicesTests.test_voice_config_rejects_empty_ensemble_before_save",
+    "test_voices_regressions.VoicesTests.test_voice_library_mutations_hold_lock_across_load_and_save",
     "test_voices_regressions.VoicesTests.test_voice_suggestion_honors_max_lines"
   ]
 }
