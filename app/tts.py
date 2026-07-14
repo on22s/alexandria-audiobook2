@@ -2,6 +2,7 @@ import os
 import re
 import time
 import json
+import tempfile
 import threading
 import shutil
 
@@ -41,7 +42,7 @@ def voice_category(voice_data):
 
     Collapses the "lora"/"builtin_lora" pair into a single "lora" category so
     the membership test isn't duplicated at every call site. Returns one of
-    "clone", "lora", "design", or "custom".
+    "clone", "lora", "design", "ensemble", or "custom".
     """
     voice_type = (voice_data or {}).get("type", "custom")
     if voice_type == "clone":
@@ -50,7 +51,66 @@ def voice_category(voice_data):
         return "lora"
     if voice_type == "design":
         return "design"
+    if voice_type == "ensemble":
+        return "ensemble"
     return "custom"
+
+
+def mix_to_unison(wav_paths, output_path, max_stretch=1.35):
+    """Align same-text clips to a common length and mix them into one track.
+
+    For an "ensemble" speaker, each member renders the same line separately, so
+    the clips differ in length and prosody. Time-stretching every clip to the
+    LONGEST one makes them start and end together (nobody is sped up). Words
+    still drift mid-line — this is a chorus/doubling effect, not true unison.
+    Word-level alignment would need forced alignment and is out of scope.
+
+    A clip needing more than `max_stretch` is left alone: stretching that far
+    smears it audibly, and letting it drift sounds better than destroying it.
+
+    Returns True on success.
+    """
+    import librosa
+
+    clips, rates = [], set()
+    for path in wav_paths:
+        audio, sr = sf.read(path)
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)  # force mono before mixing
+        clips.append(np.asarray(audio, dtype=np.float32))
+        rates.add(sr)
+    if not clips:
+        raise ValueError("mix_to_unison needs at least one clip")
+    if len(rates) > 1:
+        raise ValueError(f"cannot mix clips with different sample rates: {sorted(rates)}")
+    sample_rate = rates.pop()
+
+    target_len = max(len(c) for c in clips)
+    aligned = []
+    for clip in clips:
+        stretch = target_len / len(clip)
+        if stretch > max_stretch:
+            print(f"  Unison: clip is {stretch:.2f}x shorter than the longest "
+                  f"(> {max_stretch}x); leaving it unstretched to avoid smearing")
+            out = clip
+        else:
+            # librosa rate>1 speeds up; to reach target_len use len/target_len.
+            out = librosa.effects.time_stretch(clip, rate=len(clip) / target_len)
+        if len(out) < target_len:
+            out = np.pad(out, (0, target_len - len(out)))
+        aligned.append(out[:target_len])
+
+    # Power-preserving sum: /N would duck the line, straight sum would clip.
+    mixed = np.sum(aligned, axis=0) / np.sqrt(len(aligned))
+
+    # Match the loudest input so the line neither jumps out nor hides.
+    loudest = max(float(np.abs(c).max()) for c in clips)
+    peak = float(np.abs(mixed).max())
+    if peak > 0 and loudest > 0:
+        mixed = mixed * (loudest / peak)
+
+    sf.write(output_path, mixed, sample_rate)
+    return True
 
 
 def sanitize_filename(name):
@@ -783,8 +843,51 @@ class TTSEngine:
             return self.generate_lora_voice(text, instruct_text, voice_data, output_path)
         elif category == "design":
             return self.generate_design_voice(text, instruct_text, voice_data, output_path)
+        elif category == "ensemble":
+            return self.generate_ensemble_voice(text, instruct_text, voice_data,
+                                                voice_config, output_path)
         else:
             return self.generate_custom_voice(text, instruct_text, speaker, voice_config, output_path)
+
+    def generate_ensemble_voice(self, text, instruct_text, voice_data, voice_config,
+                                output_path):
+        """Render one line as several characters speaking at once.
+
+        Members are ordinary speaker keys, so each is rendered through
+        generate_voice with whatever voice it already has — a member with a LoRA
+        assigned keeps that LoRA. The clips are then aligned and mixed by
+        mix_to_unison.
+        """
+        members = voice_data.get("members") or []
+        if not members:
+            raise ValueError("Ensemble voice has no members configured.")
+
+        for member in members:
+            member_data = voice_config.get(member)
+            if not member_data:
+                raise ValueError(
+                    f"Ensemble member '{member}' has no voice configuration.")
+            # One level only: an ensemble of ensembles would recurse forever.
+            if voice_category(member_data) == "ensemble":
+                raise ValueError(
+                    f"Ensemble member '{member}' is itself an ensemble; "
+                    f"ensembles cannot be nested.")
+
+        temp_dir = tempfile.mkdtemp(prefix="unison_")
+        try:
+            member_paths = []
+            for i, member in enumerate(members):
+                member_path = os.path.join(temp_dir, f"member_{i}.wav")
+                if not self.generate_voice(text, instruct_text, member,
+                                           voice_config, member_path):
+                    raise RuntimeError(
+                        f"Ensemble member '{member}' failed to generate.")
+                member_paths.append(member_path)
+
+            print(f"  Unison: mixing {len(member_paths)} voices ({', '.join(members)})")
+            return mix_to_unison(member_paths, output_path)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     # ── Voice design generation ──────────────────────────────────
 
@@ -1029,6 +1132,7 @@ class TTSEngine:
         clone_chunks = []
         lora_chunks = []
         design_chunks = []
+        ensemble_chunks = []
 
         for chunk in chunks:
             speaker = chunk.get("speaker")
@@ -1041,8 +1145,18 @@ class TTSEngine:
                 lora_chunks.append(chunk)
             elif category == "design":
                 design_chunks.append(chunk)
+            elif category == "ensemble":
+                ensemble_chunks.append(chunk)
             else:
                 custom_chunks.append(chunk)
+
+        # Ensemble chunks need several different voices each, so they can't join
+        # a same-voice batch — render them one at a time.
+        if ensemble_chunks:
+            batch_results = self._sequential_ensemble(ensemble_chunks, voice_config, output_dir)
+            results["completed"].extend(batch_results["completed"])
+            results["failed"].extend(batch_results["failed"])
+            self._clear_gpu_cache()
 
         # Process custom voice chunks
         if custom_chunks:
@@ -1829,6 +1943,30 @@ class TTSEngine:
             print(f"Error generating clone voice for '{speaker}': {e}")
             traceback.print_exc()
             return False
+
+    def _sequential_ensemble(self, chunks, voice_config, output_dir):
+        """Render ensemble chunks one at a time (each needs several voices)."""
+        results = {"completed": [], "failed": []}
+
+        for chunk in chunks:
+            idx = chunk["index"]
+            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+            try:
+                success = self.generate_voice(
+                    chunk.get("text", ""),
+                    chunk.get("instruct", ""),
+                    chunk.get("speaker"),
+                    voice_config,
+                    output_path,
+                )
+                if success:
+                    results["completed"].append(idx)
+                else:
+                    results["failed"].append((idx, "Ensemble generation failed"))
+            except Exception as e:
+                results["failed"].append((idx, str(e)))
+
+        return results
 
     def _sequential_custom(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Sequential custom voice generation for external mode (no native batch)."""

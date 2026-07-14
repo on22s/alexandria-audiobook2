@@ -67,6 +67,7 @@ class VoiceConfigItem(BaseModel):
     adapter_id: Optional[str] = None
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
+    members: Optional[List[str]] = None  # speaker names to voice at once (ensemble type)
 
 class SuggestVoicesRequest(BaseModel):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
