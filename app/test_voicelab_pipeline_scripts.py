@@ -16,6 +16,7 @@ import zipfile
 from fastapi import BackgroundTasks
 
 import core
+import archive_utils
 from routers import voicelab
 from voicelab_settings import get_deduped_zip_name, get_profiler_paths
 
@@ -66,12 +67,12 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsafe path"):
                 batch_train.validate_zip_members(archive, tmp)
 
-            with patch.object(batch_train, "MAX_ARCHIVE_MEMBERS", 0), \
+            with patch.object(archive_utils, "MAX_ARCHIVE_MEMBERS", 0), \
                  self.assertRaisesRegex(ValueError, "more than"):
                 batch_train.validate_zip_members(archive, tmp)
 
             oversized = SimpleNamespace(filename="large.wav",
-                                        file_size=batch_train.MAX_ARCHIVE_BYTES + 1)
+                                        file_size=archive_utils.MAX_ARCHIVE_BYTES + 1)
             archive = SimpleNamespace(infolist=lambda: [oversized])
             with self.assertRaisesRegex(ValueError, "20 GB"):
                 batch_train.validate_zip_members(archive, tmp)
@@ -79,7 +80,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
             normal = SimpleNamespace(filename="audio.wav", file_size=10)
             archive = SimpleNamespace(infolist=lambda: [normal])
             disk = SimpleNamespace(free=5)
-            with patch.object(batch_train.shutil, "disk_usage", return_value=disk), \
+            with patch.object(archive_utils.shutil, "disk_usage", return_value=disk), \
                  self.assertRaisesRegex(ValueError, "available extraction disk"):
                 batch_train.validate_zip_members(archive, tmp)
 

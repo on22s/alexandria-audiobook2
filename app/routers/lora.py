@@ -11,6 +11,8 @@ import zipfile
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from archive_utils import validate_zip_members
+
 from core import (
     BUILTIN_LORA_DIR,
     LORA_DATASETS_DIR,
@@ -45,21 +47,10 @@ router = APIRouter()
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
     """zipfile.extractall, but reject members that would escape dest_dir
     (Zip-Slip path traversal via '../' entries or absolute paths)."""
-    # Resolve dest_dir's realpath once, not per member - is_path_inside
-    # re-resolves its base_dir argument on every call (even when given an
-    # already-canonical path, realpath still re-walks/lstats it), which
-    # would otherwise mean one extra realpath syscall per ZIP entry. Inlined
-    # rather than routed through is_path_inside for that reason.
-    dest = os.path.realpath(dest_dir)
-    members = zf.infolist()
-    if len(members) > 100000:
-        raise HTTPException(status_code=400, detail="Archive contains too many files.")
-    if sum(member.file_size for member in members) > 20 * 1024**3:
-        raise HTTPException(status_code=400, detail="Archive expands beyond the 20 GB limit.")
-    for member in members:
-        target = os.path.realpath(os.path.join(dest_dir, member.filename))
-        if target != dest and not target.startswith(dest + os.sep):
-            raise HTTPException(status_code=400, detail="Archive contains an unsafe path.")
+    try:
+        validate_zip_members(zf, dest_dir)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     zf.extractall(dest_dir)
 
 
@@ -256,7 +247,8 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
     # Log dataset details and effective settings before training
     try:
         meta_path = os.path.join(dataset_dir, "metadata.jsonl")
-        dataset_sample_count = sum(1 for l in open(meta_path, encoding="utf-8") if l.strip())
+        with open(meta_path, encoding="utf-8") as metadata_file:
+            dataset_sample_count = sum(1 for line in metadata_file if line.strip())
         total_passes = dataset_sample_count * request.epochs
         alpha_r = request.lora_alpha / request.lora_r
         logger.info(
