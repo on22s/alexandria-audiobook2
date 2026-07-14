@@ -9,7 +9,7 @@ import sys
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from config_settings import load_app_config
 
 from core import (
@@ -68,6 +68,14 @@ class VoiceConfigItem(BaseModel):
     adapter_path: Optional[str] = None
     description: Optional[str] = ""  # voice description (for design type)
     members: Optional[List[str]] = None  # speaker names to voice at once (ensemble type)
+
+    @model_validator(mode="after")
+    def validate_ensemble_members(self):
+        if self.type == "ensemble" and not self.members:
+            raise ValueError("ensemble voices must include at least one member")
+        if self.type == "ensemble" and any(not member.strip() for member in self.members):
+            raise ValueError("ensemble member names cannot be blank")
+        return self
 
 class SuggestVoicesRequest(BaseModel):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice

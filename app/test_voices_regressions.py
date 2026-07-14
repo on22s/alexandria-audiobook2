@@ -14,6 +14,15 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
+    def test_voice_config_rejects_empty_ensemble_before_save(self):
+        for members in (None, [], ["  "]):
+            with self.subTest(members=members), self.assertRaises(ValueError):
+                voices_module.VoiceConfigItem(type="ensemble", members=members)
+
+        configured = voices_module.VoiceConfigItem(
+            type="ensemble", members=["Petra", "Subaru"])
+        self.assertEqual(["Petra", "Subaru"], configured.members)
+
     def test_voice_suggestion_honors_max_lines(self):
         captured = {}
         response = SimpleNamespace(
