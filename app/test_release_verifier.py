@@ -81,7 +81,7 @@ class CiEnvParityTests(unittest.TestCase):
             "isDraft": True, "headRefOid": head, "mergeable": "MERGEABLE",
             "mergeStateStatus": "CLEAN",
             "statusCheckRollup": [{
-                "name": "test", "status": "COMPLETED", "conclusion": "SUCCESS",
+                "name": "test", "status": "completed", "conclusion": "success",
             }],
         }
         self.assertEqual([], mark_pr_ready.get_readiness_errors(ready, head))
