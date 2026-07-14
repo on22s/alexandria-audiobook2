@@ -342,8 +342,12 @@ class RuntimeTests(unittest.TestCase):
             "X": {"type": "custom"},
         }
         chunks = [{"index": 0, "text": "hi", "instruct": "", "speaker": "Duo"}]
+        # generate_batch clears the GPU cache after each bucket, which imports
+        # torch. Production always has it (install.js declares bundle "ai"), but
+        # CI deliberately installs without it, so stand torch in here.
         with patch.object(engine, "_sequential_ensemble",
-                          return_value={"completed": [0], "failed": []}) as seq:
+                          return_value={"completed": [0], "failed": []}) as seq, \
+                patch.dict(sys.modules, {"torch": self._fake_torch(8 * 10**9)}):
             results = engine.generate_batch(chunks, voice_config, "/tmp")
         seq.assert_called_once()
         self.assertEqual(results["completed"], [0])
@@ -363,6 +367,7 @@ class RuntimeTests(unittest.TestCase):
             mem_get_info=lambda: (free_bytes, free_bytes),
             memory_reserved=lambda: 0,
             memory_allocated=lambda: 0,
+            empty_cache=lambda: None,
         )
         return torch
 
