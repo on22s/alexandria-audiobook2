@@ -179,6 +179,29 @@ class ApiContractTests(unittest.TestCase):
         self.assertIn("Route removed: GET /old (old)", route_differences)
         self.assertIn("Route added: GET /new (new)", route_differences)
 
+    def test_api_contract_diff_reports_only_relative_reorders_of_shared_routes(self):
+        route = lambda path: {
+            "index": 0, "methods": ["GET"], "name": path, "path": path, "type": "APIRoute"
+        }
+
+        differences = api_contract.compare_contracts(
+            {},
+            [route("/removed"), route("/a"), route("/b")],
+            {},
+            [route("/b"), route("/a"), route("/added")],
+        )
+
+        self.assertIn("Route removed: GET /removed (/removed)", differences)
+        self.assertIn("Route added: GET /added (/added)", differences)
+        self.assertIn("Route reordered: GET /a 0 -> 1", differences)
+        self.assertIn("Route reordered: GET /b 1 -> 0", differences)
+
+        offset_only_differences = api_contract.compare_contracts(
+            {}, [route("/removed"), route("/a"), route("/b")],
+            {}, [route("/added"), route("/a"), route("/b")],
+        )
+        self.assertFalse(any("Route reordered:" in line for line in offset_only_differences))
+
     def test_api_contract_check_mode_is_read_only(self):
         before = (
             api_contract.OPENAPI_SNAPSHOT.read_bytes(),
