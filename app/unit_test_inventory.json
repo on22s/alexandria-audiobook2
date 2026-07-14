@@ -43,6 +43,8 @@
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes"
   ],
   "test_inventory": [
+    "test_inventory.TestInventoryTests.test_inventory_differences_are_compact_and_actionable",
+    "test_inventory.TestInventoryTests.test_inventory_writer_is_deterministic_and_check_is_read_only",
     "test_inventory.TestInventoryTests.test_unit_test_inventory_is_stable"
   ],
   "test_llm_review_regressions": [
