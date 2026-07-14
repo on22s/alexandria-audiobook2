@@ -158,6 +158,7 @@
     "test_voices_regressions.VoicesTests.test_selective_enrichment_prompt",
     "test_voices_regressions.VoicesTests.test_shared_narrator_is_reused_and_counted",
     "test_voices_regressions.VoicesTests.test_stale_suggestion_is_rejected",
+    "test_voices_regressions.VoicesTests.test_voice_config_rejects_empty_ensemble_before_save",
     "test_voices_regressions.VoicesTests.test_voice_suggestion_honors_max_lines"
   ]
 }
