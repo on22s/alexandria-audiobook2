@@ -215,10 +215,20 @@ class RuntimeTests(unittest.TestCase):
         finally:
             core_module.process_state["audio"]["running"] = False
 
-    def test_lora_epochs_must_be_positive_at_api_boundary(self):
-        for epochs in (0, -1):
-            with self.assertRaises(ValueError):
-                lora_module.LoraTrainingRequest(name="x", dataset_id="d", epochs=epochs)
+    def test_lora_hyperparameters_are_validated_at_api_boundary(self):
+        invalid_values = {
+            "epochs": (0, 1001),
+            "lr": (0, float("nan"), float("inf"), 1.1),
+            "batch_size": (0, 65),
+            "lora_r": (0, 1025),
+            "lora_alpha": (0, 4097),
+            "gradient_accumulation_steps": (0, 1025),
+        }
+        for field, values in invalid_values.items():
+            for value in values:
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    lora_module.LoraTrainingRequest(
+                        name="x", dataset_id="d", **{field: value})
 
     def test_builtin_manifest_normalization_skips_bad_entries(self):
         entries = hf_utils._normalize_manifest_entries([
