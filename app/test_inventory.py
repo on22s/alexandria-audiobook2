@@ -9,7 +9,7 @@ class TestInventoryTests(unittest.TestCase):
         suite = unittest.defaultTestLoader.discover(
             str(Path(__file__).parent), pattern="test_*_regressions.py"
         )
-        self.assertEqual(83, suite.countTestCases())
+        self.assertEqual(84, suite.countTestCases())
 
 
 if __name__ == "__main__":

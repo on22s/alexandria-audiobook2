@@ -67,9 +67,12 @@ def compare_contracts(expected_openapi, expected_routes, actual_openapi, actual_
         differences.append(f"Route removed: {'/'.join(key[1])} {key[0]} ({key[2]})")
     for key in sorted(actual_route_set - expected_route_set):
         differences.append(f"Route added: {'/'.join(key[1])} {key[0]} ({key[2]})")
-    if expected_route_set == actual_route_set and expected_route_keys != actual_route_keys:
-        actual_indexes = {key: index for index, key in enumerate(actual_route_keys)}
-        for old_index, key in enumerate(expected_route_keys):
+    shared_route_keys = expected_route_set & actual_route_set
+    expected_shared_routes = [key for key in expected_route_keys if key in shared_route_keys]
+    actual_shared_routes = [key for key in actual_route_keys if key in shared_route_keys]
+    if expected_shared_routes != actual_shared_routes:
+        actual_indexes = {key: index for index, key in enumerate(actual_shared_routes)}
+        for old_index, key in enumerate(expected_shared_routes):
             new_index = actual_indexes[key]
             if old_index != new_index:
                 differences.append(
