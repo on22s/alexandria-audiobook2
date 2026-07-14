@@ -68,7 +68,7 @@ def enable_rocm_optimizations():
        exhaustive search, avoiding workspace allocation failures that
        cause fallback to slow GEMM algorithms.
     3. MIOPEN_LOG_LEVEL=4: Suppress noisy MIOpen workspace warnings.
-    4. triton_key shim: Bridges pytorch-triton-rocm's get_cache_key()
+    4. triton_key shim: Bridges older ROCm Triton builds' get_cache_key()
        to the triton_key() that PyTorch's inductor expects.
     """
     try:
@@ -86,6 +86,6 @@ def enable_rocm_optimizations():
         from triton.compiler import compiler as triton_compiler
         if not hasattr(triton_compiler, "triton_key"):
             import triton
-            triton_compiler.triton_key = lambda: f"pytorch-triton-rocm-{triton.__version__}"
+            triton_compiler.triton_key = lambda: f"triton-rocm-{triton.__version__}"
     except ImportError:
         pass

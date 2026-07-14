@@ -43,9 +43,9 @@ module.exports = {
       },
       "next": null
     },
-    // amd linux (rocm) — pinned to the RDNA-verified combo (RX 9070 XT / gfx1201).
-    // Unpinned/auto-detected ROCm indexes pulled an untested torch; 2.7.0+rocm6.3
-    // is the version proven to expose this GPU (torch.cuda.is_available() == True).
+    // amd linux (rocm) — pinned to the benchmarked RDNA4 combo (RX 9070 XT / gfx1201).
+    // Torch 2.10.0+ROCm 7.0 improved real Ryan and LoRA TTS batches by 21% and
+    // 18% respectively over the previous 2.7.0+ROCm 6.3 pin (2026-07-14).
     {
       "when": "{{gpu === 'amd' && platform === 'linux'}}",
       "method": "shell.run",
@@ -53,9 +53,9 @@ module.exports = {
         "venv": "{{args && args.venv ? args.venv : null}}",
         "path": "{{args && args.path ? args.path : '.'}}",
         "message": [
-          "echo 'Installing verified ROCm torch 2.7.0+rocm6.3 (RDNA4 / RX 9070 XT tested)'",
-          "uv pip install torch==2.7.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/rocm6.3 --force-reinstall --no-deps",
-          "uv pip install pytorch-triton-rocm==3.3.0 --index-url https://download.pytorch.org/whl/rocm6.3"
+          "echo 'Installing benchmarked ROCm torch 2.10.0+rocm7.0 (RDNA4 / RX 9070 XT tested)'",
+          "uv pip install torch==2.10.0 torchaudio==2.10.0 --index-url https://download.pytorch.org/whl/rocm7.0 --force-reinstall --no-deps",
+          "uv pip install triton-rocm==3.6.0 --index-url https://download.pytorch.org/whl/rocm7.0"
         ]
       },
       "next": null

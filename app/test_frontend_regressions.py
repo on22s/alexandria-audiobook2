@@ -16,7 +16,11 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('port: "{{port}}"', start)
         self.assertIn('ALEXANDRIA_PORT: "{{local.port}}"', start)
         self.assertIn('method: "script.return"', start_llm)
-        self.assertIn("pytorch-triton-rocm", install)
+        self.assertIn("triton-rocm", install)
+        torch_script = (root / "torch.js").read_text(encoding="utf-8")
+        for rocm_pin in ("torch==2.10.0", "torchaudio==2.10.0",
+                         "triton-rocm==3.6.0", "/whl/rocm7.0"):
+            self.assertIn(rocm_pin, torch_script)
 
     def test_readme_api_examples_do_not_reference_removed_routes(self):
         readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
