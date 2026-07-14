@@ -33,17 +33,23 @@ def run_command(label, command, cwd, reject_unittest_skips=False):
     return combined
 
 
-def compile_tracked_python(repo_dir):
-    print("\n== Compile tracked Python ==", flush=True)
+def get_python_paths(repo_dir):
+    """Return tracked and non-ignored untracked Python files deterministically."""
     result = subprocess.run(
-        ["git", "ls-files", "*.py"], cwd=repo_dir, capture_output=True, text=True
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.py"],
+        cwd=repo_dir, capture_output=True, text=True,
     )
     if result.returncode:
-        raise RuntimeError("Could not enumerate tracked Python files")
-    paths = [repo_dir / line for line in result.stdout.splitlines() if line]
+        raise RuntimeError("Could not enumerate Python files")
+    return [Path(repo_dir) / line for line in sorted(set(result.stdout.splitlines())) if line]
+
+
+def compile_python_files(repo_dir):
+    print("\n== Compile Python files ==", flush=True)
+    paths = get_python_paths(repo_dir)
     for path in paths:
         py_compile.compile(str(path), doraise=True)
-    print(f"Compiled {len(paths)} tracked Python files.")
+    print(f"Compiled {len(paths)} tracked or non-ignored untracked Python files.")
 
 
 def validate_api_summary(output, full):
@@ -96,7 +102,7 @@ def main():
     app_dir = Path(__file__).resolve().parent
     repo_dir = app_dir.parent
     try:
-        compile_tracked_python(repo_dir)
+        compile_python_files(repo_dir)
         run_command(
             "Unit test discovery",
             [sys.executable, "-m", "unittest", "discover", "-s", ".", "-p", "test_*.py", "-v"],
