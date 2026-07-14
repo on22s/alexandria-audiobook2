@@ -236,6 +236,12 @@ def main(argv=None):
     try:
         run_report_gate(report, "compile_python", lambda: compile_python_files(repo_dir))
         run_report_gate(
+            report, "test_inventory", lambda: run_report_command(
+                "Unit test inventory",
+                [sys.executable, "update_test_inventory.py", "--check"], app_dir,
+            ),
+        )
+        run_report_gate(
             report, "unit_tests", lambda: run_report_command(
                 # Run through ci_env so the ML libraries CI lacks are hidden
                 # here too. Without this the gate only tests the developer's
