@@ -17,6 +17,8 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -38,13 +40,44 @@ jobs:
           python -m pip install --upgrade pip
           grep -vE '^(transformers|peft)==' requirements.txt | pip install -r /dev/stdin
 
+      - name: Snapshot maintenance hints
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python diagnose_pr_changes.py --base "$BASE_SHA"
+
       - name: Shared release verifier
+        id: verify
         run: python verify_release.py --json-report release-report.json
+
+      - name: Diagnose whether failure exists on the base commit
+        if: always() && github.event_name == 'pull_request' && steps.verify.outcome == 'failure'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE_WORKTREE="${RUNNER_TEMP}/alexandria-base"
+          git worktree add --detach "$BASE_WORKTREE" "$BASE_SHA"
+          set +e
+          (cd "$BASE_WORKTREE/app" && python verify_release.py --json-report "${RUNNER_TEMP}/base-release-report.json")
+          BASE_STATUS=$?
+          set -e
+          git worktree remove --force "$BASE_WORKTREE"
+          if [ ! -f "${RUNNER_TEMP}/base-release-report.json" ]; then
+            echo "::warning::Base verification was indeterminate because it produced no JSON report."
+          elif [ "$BASE_STATUS" -eq 0 ]; then
+            cp "${RUNNER_TEMP}/base-release-report.json" base-release-report.json
+            echo "::error::The base commit passes; this pull request introduced the verifier failure."
+          else
+            cp "${RUNNER_TEMP}/base-release-report.json" base-release-report.json
+            echo "::warning::The verifier also fails on the base commit; inspect both JSON reports."
+          fi
 
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-verification-report
-          path: app/release-report.json
+          path: |
+            app/release-report.json
+            app/base-release-report.json
           if-no-files-found: warn
