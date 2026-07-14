@@ -54,6 +54,50 @@ class RuntimeTests(unittest.TestCase):
             self.assertIn("sample_000.wav", raised.exception.detail)
             self.assertFalse(os.path.exists(os.path.join(datasets_root, "voice")))
 
+    def test_same_name_designed_voices_get_independent_ids_and_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            previews = os.path.join(tmp, "previews")
+            os.makedirs(previews)
+            Path(previews, "first.wav").write_bytes(b"first")
+            Path(previews, "second.wav").write_bytes(b"second")
+            manifest_path = os.path.join(tmp, "manifest.json")
+
+            async def save(preview_file):
+                return await voice_design_module.voice_design_save(
+                    voice_design_module.VoiceDesignSaveRequest(
+                        name="Same Voice", description="test", sample_text="test",
+                        preview_file=preview_file))
+
+            with patch.object(voice_design_module, "DESIGNED_VOICES_DIR", tmp), \
+                 patch.object(voice_design_module, "DESIGNED_VOICES_MANIFEST", manifest_path):
+                first = asyncio.run(save("first.wav"))
+                second = asyncio.run(save("second.wav"))
+
+            self.assertNotEqual(first["voice_id"], second["voice_id"])
+            manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(2, len(manifest))
+            self.assertEqual(b"first", Path(tmp, manifest[0]["filename"]).read_bytes())
+            self.assertEqual(b"second", Path(tmp, manifest[1]["filename"]).read_bytes())
+
+    def test_same_name_clone_uploads_get_independent_ids_and_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = os.path.join(tmp, "manifest.json")
+
+            async def upload(content):
+                source = _Upload([content])
+                source.filename = "Same Voice.wav"
+                return await voice_design_module.clone_voices_upload(source)
+
+            with patch.object(voice_design_module, "CLONE_VOICES_DIR", tmp), \
+                 patch.object(voice_design_module, "CLONE_VOICES_MANIFEST", manifest_path):
+                first = asyncio.run(upload(b"first"))
+                second = asyncio.run(upload(b"second"))
+
+            self.assertNotEqual(first["voice_id"], second["voice_id"])
+            manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(b"first", Path(tmp, manifest[0]["filename"]).read_bytes())
+            self.assertEqual(b"second", Path(tmp, manifest[1]["filename"]).read_bytes())
+
     def test_app_import_does_not_run_stuck_chunk_recovery(self):
         with patch.object(core_module.project_manager, "load_chunks") as load_chunks:
             importlib.reload(app_module)

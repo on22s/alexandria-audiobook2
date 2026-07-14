@@ -35,7 +35,7 @@ from hf_utils import (
     fetch_builtin_manifest,
     is_adapter_downloaded,
 )
-from utils import is_path_inside, secure_filename
+from utils import get_unique_id, is_path_inside, secure_filename
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -250,7 +250,7 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
     # Build output directory
     safe_name = _require_safe_filename(request.name, "Invalid adapter name")
 
-    adapter_id = f"{safe_name}_{int(time.time())}"
+    adapter_id = get_unique_id(safe_name)
     output_dir = os.path.join(LORA_MODELS_DIR, adapter_id)
 
     # Log dataset details and effective settings before training

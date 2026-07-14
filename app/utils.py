@@ -12,8 +12,14 @@ import logging
 import hashlib
 import hmac
 import base64
+import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def get_unique_id(prefix: str) -> str:
+    """Return a readable, collision-resistant identifier for a saved artifact."""
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 def get_runtime_data_dir(root_dir: str) -> str:

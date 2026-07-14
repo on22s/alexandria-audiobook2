@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-import time
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -19,6 +18,7 @@ from core import (
     process_state,
     project_manager,
 )
+from utils import get_unique_id
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -80,7 +80,7 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
 
     # Generate unique ID
-    voice_id = f"{safe_name}_{int(time.time())}"
+    voice_id = get_unique_id(safe_name)
     dest_filename = f"{voice_id}.wav"
     dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
 
@@ -145,7 +145,7 @@ async def clone_voices_upload(file: UploadFile = File(...)):
     base_name = os.path.splitext(file.filename)[0]
     safe_name = _require_safe_filename(base_name, "Invalid filename")
 
-    voice_id = f"{safe_name}_{int(time.time())}"
+    voice_id = get_unique_id(safe_name)
     dest_filename = f"{voice_id}{ext}"
     dest_path = os.path.join(CLONE_VOICES_DIR, dest_filename)
 
