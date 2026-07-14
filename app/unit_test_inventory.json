@@ -124,6 +124,9 @@
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
   "test_support": [],
+  "test_temporary_protection_probe": [
+    "test_temporary_protection_probe.Probe.test_never_exists"
+  ],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
