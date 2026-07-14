@@ -323,10 +323,13 @@ PREPARER_OUTPUT_DIR = os.path.join(DATA_DIR, "preparer_output")
 VOICELAB_CONFIG_PATH = os.path.join(DATA_DIR, "voicelab_config.json")
 
 VOICELAB_DEFAULTS = {
-    # Interpreter with torch/librosa/speechbrain (NOT the web app's env)
-    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", os.path.join(ROOT_DIR, "env", "bin", "python")),
-    # Repo holding batch_train_lora.py + voice_profiler.py
-    "pipeline_repo": os.environ.get("ALEXANDRIA_PIPELINE_REPO", ROOT_DIR),
+    # Interpreter with torch/librosa/speechbrain (NOT the web app's env). No
+    # default: this lives outside the repo, so any path derived from ROOT_DIR
+    # is a guess that cannot resolve. Empty means "not configured".
+    "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", ""),
+    # Repo holding batch_train_lora.py + voice_profiler.py. No default, same
+    # reason: it is a separate repo, not this one.
+    "pipeline_repo": os.environ.get("ALEXANDRIA_PIPELINE_REPO", ""),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
     # Default zips2 root (folder of narrator subfolders) the dedup stage reads

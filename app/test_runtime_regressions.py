@@ -20,6 +20,7 @@ from routers import lora as lora_module
 from routers import voice_design as voice_design_module
 from routers import scripts_library as scripts_library_module
 from routers import system as system_module
+from routers import voicelab as voicelab_module
 import utils
 import hf_utils
 from test_support import _Upload
@@ -221,6 +222,45 @@ class RuntimeTests(unittest.TestCase):
                 None, json.dumps(config), None, None
             ))
         self.assertEqual(raised.exception.status_code, 400)
+
+    def test_voicelab_defaults_do_not_guess_paths_inside_this_repo(self):
+        # rocm_python and pipeline_repo live outside this repo (a separate ML
+        # env + the repo holding batch_train_lora.py). Deriving them from
+        # ROOT_DIR only ships paths that cannot resolve.
+        for key in ("rocm_python", "pipeline_repo"):
+            value = core_module.VOICELAB_DEFAULTS[key]
+            self.assertFalse(
+                value.startswith(core_module.ROOT_DIR),
+                f"{key} default must not be guessed from ROOT_DIR, got {value!r}",
+            )
+
+    def _voicelab_start_with(self, cfg_overrides):
+        cfg = dict(core_module.VOICELAB_DEFAULTS)
+        cfg.update(cfg_overrides)
+        request = voicelab_module.VoiceLabRequest(stages=["train"])
+        with patch.object(voicelab_module, "_load_voicelab_config", return_value=cfg):
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(voicelab_module.voicelab_start(request, None))
+        return raised.exception
+
+    def test_voicelab_start_reports_unconfigured_rocm_python(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exc = self._voicelab_start_with(
+                {"zips_dir": tmp, "rocm_python": "", "pipeline_repo": tmp})
+        self.assertEqual(exc.status_code, 400)
+        self.assertIn("not configured", exc.detail)
+
+    def test_voicelab_start_reports_unconfigured_pipeline_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            interpreter = os.path.join(tmp, "python")
+            Path(interpreter).write_text("", encoding="utf-8")
+            os.chmod(interpreter, 0o755)
+            # train reads _deduped; create it so the run reaches the repo check
+            os.makedirs(os.path.join(tmp, "_deduped"))
+            exc = self._voicelab_start_with(
+                {"zips_dir": tmp, "rocm_python": interpreter, "pipeline_repo": ""})
+        self.assertEqual(exc.status_code, 400)
+        self.assertIn("not configured", exc.detail)
 
     def test_pair_write_rolls_back_first_file_when_second_replace_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

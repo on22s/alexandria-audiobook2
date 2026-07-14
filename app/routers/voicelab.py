@@ -281,6 +281,9 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     # Validate prerequisites up front with actionable errors
     needs_rocm = any(s in request.stages for s in ("dedup", "train", "profile"))
     if needs_rocm:
+        if not cfg["rocm_python"]:
+            raise HTTPException(status_code=400,
+                                detail="rocm_python is not configured. Set it in Voice Lab settings.")
         if not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
             raise HTTPException(status_code=400,
                                 detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
@@ -299,6 +302,9 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
                            ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
         if s in request.stages:
+            if not base:
+                raise HTTPException(status_code=400,
+                                    detail="pipeline_repo is not configured. Set it in Voice Lab settings.")
             if not os.path.isfile(os.path.join(base, fname)):
                 raise HTTPException(status_code=400,
                                     detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
