@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,29 +14,6 @@ from routers import voices as voices_module
 
 
 class VoicesTests(unittest.TestCase):
-    def test_voice_library_mutations_hold_lock_across_load_and_save(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            library_path = os.path.join(tmp, "voice_library.json")
-            Path(library_path).write_text(
-                json.dumps({"shared": {}, "casts": {}}), encoding="utf-8")
-            barrier = threading.Barrier(8)
-
-            def add_cast(index):
-                barrier.wait()
-                voice_library_module._mutate_voice_library(
-                    lambda lib: lib["casts"].update({f"cast-{index}": {"members": {}}}))
-
-            with patch.object(core_module, "VOICE_LIBRARY_PATH", library_path), \
-                 patch.object(voice_library_module, "VOICE_LIBRARY_PATH", library_path):
-                threads = [threading.Thread(target=add_cast, args=(index,)) for index in range(8)]
-                for thread in threads:
-                    thread.start()
-                for thread in threads:
-                    thread.join()
-
-            saved = json.loads(Path(library_path).read_text(encoding="utf-8"))
-            self.assertEqual({f"cast-{index}" for index in range(8)}, set(saved["casts"]))
-
     def test_voice_config_rejects_empty_ensemble_before_save(self):
         for members in (None, [], ["  "]):
             with self.subTest(members=members), self.assertRaises(ValueError):

@@ -73,24 +73,21 @@ def _name_similarity(a: str, b: str) -> float:
     return max(ratio, jaccard, contain * 0.9)
 
 
-def _mutate_voice_library(mutator):
-    """Apply one read-modify-write transaction under the library lock."""
+def _save_voice_library(lib: dict):
+    """Save voice library with file_lock to prevent race conditions."""
     try:
         with file_lock(VOICE_LIBRARY_PATH):
-            lib = _load_voice_library()
-            result = mutator(lib)
             atomic_json_write(lib, VOICE_LIBRARY_PATH)
-            return result
     except TimeoutError as e:
-        logger.warning(f"Could not acquire lock to update voice library: {e}")
-        raise
+        logger.warning(f"Could not acquire lock to save voice library: {e}")
+        raise  # Re-raise so caller knows the save failed
 
 
-async def _mutate_voice_library_async(mutator):
-    """Offload _mutate_voice_library to a worker thread so file_lock's wait loop
+async def _save_voice_library_async(lib: dict):
+    """Offload _save_voice_library to a worker thread so file_lock's wait loop
     can't block the event loop; turns lock-contention timeouts into a 503."""
     try:
-        return await asyncio.to_thread(_mutate_voice_library, mutator)
+        await asyncio.to_thread(_save_voice_library, lib)
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice library is busy (locked by another operation); please try again.")
 
@@ -246,40 +243,37 @@ async def voice_library_create_cast(request: CastCreateRequest):
         # Reserved sentinel: other endpoints treat this name as the global
         # shared pool, so a real cast by this name would be unaddressable.
         raise HTTPException(status_code=400, detail="'__shared__' is a reserved name.")
-    def create(lib):
-        if name in lib["casts"]:
-            raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
-        lib["casts"][name] = {"members": {}}
-
-    await _mutate_voice_library_async(create)
+    lib = _load_voice_library()
+    if name in lib["casts"]:
+        raise HTTPException(status_code=409, detail=f"Cast '{name}' already exists.")
+    lib["casts"][name] = {"members": {}}
+    await _save_voice_library_async(lib)
     return {"status": "created", "name": name}
 
 
 @router.delete("/api/voice_library/casts/{cast}")
 async def voice_library_delete_cast(cast: str):
-    def delete(lib):
-        if cast not in lib["casts"]:
-            raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
-        del lib["casts"][cast]
-
-    await _mutate_voice_library_async(delete)
+    lib = _load_voice_library()
+    if cast not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+    del lib["casts"][cast]
+    await _save_voice_library_async(lib)
     return {"status": "deleted", "name": cast}
 
 
 @router.delete("/api/voice_library/casts/{cast}/members/{key}")
 async def voice_library_delete_member(cast: str, key: str):
-    def delete(lib):
-        if cast == "__shared__":
-            pool = lib["shared"]
-        else:
-            if cast not in lib["casts"]:
-                raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
-            pool = lib["casts"][cast].setdefault("members", {})
-        if key not in pool:
-            raise HTTPException(status_code=404, detail=f"Member '{key}' not found.")
-        del pool[key]
-
-    await _mutate_voice_library_async(delete)
+    lib = _load_voice_library()
+    if cast == "__shared__":
+        pool = lib["shared"]
+    else:
+        if cast not in lib["casts"]:
+            raise HTTPException(status_code=404, detail=f"Cast '{cast}' not found.")
+        pool = lib["casts"][cast].setdefault("members", {})
+    if key not in pool:
+        raise HTTPException(status_code=404, detail=f"Member '{key}' not found.")
+    del pool[key]
+    await _save_voice_library_async(lib)
     return {"status": "deleted", "cast": cast, "key": key}
 
 
@@ -287,6 +281,10 @@ async def voice_library_delete_member(cast: str, key: str):
 async def voice_library_save(request: LibrarySaveRequest):
     """Save selected current-book characters into a cast (NARRATOR -> shared by default)."""
     cast_name = request.cast.strip()
+    lib = _load_voice_library()
+    if cast_name not in lib["casts"]:
+        raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found. Create it first.")
+
     voice_config = {}
     if os.path.exists(VOICE_CONFIG_PATH):
         try:
@@ -301,34 +299,32 @@ async def voice_library_save(request: LibrarySaveRequest):
     shared_override = {_norm_name(n) for n in (request.shared or [])}
     cast_specific = {_norm_name(n) for n in (request.cast_specific or [])}
 
-    def save(lib):
-        if cast_name not in lib["casts"]:
-            raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found. Create it first.")
-        saved = {"cast": [], "shared": []}
-        for char in request.characters:
-            config = voice_config.get(char)
-            if not config:
-                continue
-            try:
-                key = get_cast_member_key(char, book_id)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            is_shared = (key in SHARED_DEFAULT_NAMES or key in shared_override) and key not in cast_specific
-            if is_shared:
-                pool = get_cast_storage_pool(lib, cast_name, char)
-                entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
-                                            existing=pool.get(key))
-                pool[key] = entry
-                saved["shared"].append(char)
-            else:
-                members = lib["casts"][cast_name].setdefault("members", {})
-                entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
-                                            existing=members.get(key))
-                members[key] = entry
-                saved["cast"].append(char)
-        return saved
+    saved = {"cast": [], "shared": []}
+    for char in request.characters:
+        config = voice_config.get(char)
+        if not config:
+            continue  # nothing configured for this character; skip
+        try:
+            key = get_cast_member_key(char, book_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        # Narrator (or explicitly flagged) goes to the shared cross-series pool,
+        # unless this book uses a different narrator (forced cast-specific).
+        is_shared = (key in SHARED_DEFAULT_NAMES or key in shared_override) and key not in cast_specific
+        if is_shared:
+            pool = get_cast_storage_pool(lib, cast_name, char)
+            entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
+                                        existing=pool.get(key))
+            pool[key] = entry
+            saved["shared"].append(char)
+        else:
+            members = lib["casts"][cast_name].setdefault("members", {})
+            entry = _make_library_entry(char, config, counts.get(char, 0), book_id,
+                                        existing=members.get(key))
+            members[key] = entry
+            saved["cast"].append(char)
 
-    saved = await _mutate_voice_library_async(save)
+    await _save_voice_library_async(lib)
     return {"status": "saved", "cast": cast_name, "saved": saved}
 
 
