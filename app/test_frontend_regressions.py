@@ -1,10 +1,14 @@
 import base64
+import importlib.util
+import os
 from pathlib import Path
 import re
 import unittest
+from unittest.mock import patch
 
 import config_settings
 import utils
+from fastapi.testclient import TestClient
 
 
 class FrontendTests(unittest.TestCase):
@@ -33,7 +37,8 @@ class FrontendTests(unittest.TestCase):
         dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
         for required in ("gpu_stats.py", "persona_prompts.txt", "alexandria_alignment.py",
                          "alexandria_preparer_rocm_compatible.py",
-                         "llm_enricher.py", "voice_analysis.py", "name_voices.py"):
+                         "llm_enricher.py", "voice_analysis.py", "batch_train_lora.py",
+                         "voice_profiler.py", "name_voices.py"):
             self.assertIn(required, dockerfile)
 
     def test_docker_mounts_single_persistent_runtime_root(self):
@@ -42,6 +47,27 @@ class FrontendTests(unittest.TestCase):
         compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
         self.assertIn("ALEXANDRIA_DATA_DIR=/alexandria/runtime", dockerfile)
         self.assertIn("./data/runtime:/alexandria/runtime", compose)
+        self.assertIn('127.0.0.1:4200:4200', compose)
+        self.assertNotIn('- "4200:4200"', compose)
+
+    def test_basic_auth_middleware_guards_api_and_mounted_files(self):
+        app_path = Path(__file__).resolve().parent / "app.py"
+        spec = importlib.util.spec_from_file_location("authenticated_test_app", app_path)
+        module = importlib.util.module_from_spec(spec)
+        with patch.dict(os.environ, {
+            "ALEXANDRIA_AUTH_USERNAME": "reviewer",
+            "ALEXANDRIA_AUTH_PASSWORD": "secret",
+        }):
+            spec.loader.exec_module(module)
+
+        client = TestClient(module.app)
+        credentials = base64.b64encode(b"reviewer:secret").decode()
+        headers = {"Authorization": f"Basic {credentials}"}
+        for path in ("/api/status/eta", "/static/index.html",
+                     "/voicelines/missing.wav", "/lora_models/missing.wav"):
+            with self.subTest(path=path):
+                self.assertEqual(401, client.get(path).status_code)
+                self.assertNotEqual(401, client.get(path, headers=headers).status_code)
 
     def test_frontend_wires_preparer_duration_and_lora_cancel(self):
         html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(encoding="utf-8")

@@ -32,6 +32,7 @@
     "test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
   ],
   "test_frontend_regressions": [
+    "test_frontend_regressions.FrontendTests.test_basic_auth_middleware_guards_api_and_mounted_files",
     "test_frontend_regressions.FrontendTests.test_check_basic_auth_accepts_and_rejects_credentials",
     "test_frontend_regressions.FrontendTests.test_docker_image_includes_root_runtime_dependencies",
     "test_frontend_regressions.FrontendTests.test_docker_mounts_single_persistent_runtime_root",

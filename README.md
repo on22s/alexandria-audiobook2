@@ -115,7 +115,10 @@ docker compose up --build
 
 Requires [Docker](https://docs.docker.com/get-docker/) with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). The web UI is available at `http://localhost:4200`. TTS models download on first use and are cached in a Docker volume. User data (uploads, voice configs, trained LoRA adapters, audio output) persists via bind mounts to the project directory.
 
-> **Note:** the container binds to `0.0.0.0`, so it is reachable from other machines on your network, not just localhost. If that network isn't fully trusted, enable the auth gate by passing `-e ALEXANDRIA_AUTH_PASSWORD=your-secret` to `docker run` (see [Authentication](#authentication-optional)).
+> **Note:** Docker Compose publishes the app on `127.0.0.1` by default. The
+> container still binds internally to `0.0.0.0`, which Docker requires for port
+> forwarding. If you intentionally publish the host port on `0.0.0.0`, also set
+> `ALEXANDRIA_AUTH_PASSWORD` (see [Authentication](#authentication-optional)).
 
 ## First Launch — What to Expect
 
