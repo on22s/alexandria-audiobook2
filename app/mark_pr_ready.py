@@ -37,7 +37,9 @@ def get_readiness_errors(pr, head_sha):
         errors.append("pull request has no reported checks")
     for check in checks:
         name = check.get("name") or check.get("context") or "unnamed check"
-        if check.get("status") != "COMPLETED" or check.get("conclusion") != "SUCCESS":
+        status = str(check.get("status") or "").upper()
+        conclusion = str(check.get("conclusion") or "").upper()
+        if status != "COMPLETED" or conclusion != "SUCCESS":
             errors.append(f"check {name!r} has not completed successfully")
     return errors
 
@@ -66,8 +68,9 @@ def main(argv=None):
             return 1
 
     head = run(["git", "rev-parse", "HEAD"])
+    branch = run(["git", "branch", "--show-current"])
     origin = run(["git", "remote", "get-url", "origin"])
-    if head.returncode or origin.returncode:
+    if head.returncode or branch.returncode or not branch.stdout.strip() or origin.returncode:
         print("Refusing: could not resolve Git state.", file=sys.stderr)
         return 1
     try:
@@ -77,13 +80,21 @@ def main(argv=None):
         return 1
 
     view = run([
-        "gh", "pr", "view", "--repo", repository, "--json",
-        "url,isDraft,headRefOid,mergeable,mergeStateStatus,statusCheckRollup",
+        "gh", "pr", "view", branch.stdout.strip(), "--repo", repository, "--json",
+        "url,isDraft,headRefOid,mergeable,mergeStateStatus",
     ])
     if view.returncode:
         print(f"Refusing: could not inspect pull request: {view.stderr.strip()}", file=sys.stderr)
         return 1
     pr = json.loads(view.stdout)
+    checks = run([
+        "gh", "api", f"repos/{repository}/commits/{pr['headRefOid']}/check-runs",
+        "--jq", ".check_runs",
+    ])
+    if checks.returncode:
+        print(f"Refusing: could not inspect head checks: {checks.stderr.strip()}", file=sys.stderr)
+        return 1
+    pr["statusCheckRollup"] = json.loads(checks.stdout)
     errors = get_readiness_errors(pr, head.stdout.strip())
     if errors:
         for error in errors:
