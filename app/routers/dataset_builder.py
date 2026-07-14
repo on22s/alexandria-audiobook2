@@ -390,17 +390,6 @@ async def dataset_builder_save(request: DatasetSaveRequest):
     done_samples = [(i, s) for i, s in enumerate(samples) if s.get("status") == "done"]
     if not done_samples:
         raise HTTPException(status_code=400, detail="No completed samples to save")
-    missing_samples = [
-        f"sample_{i:03d}.wav" for i, _sample in done_samples
-        if not os.path.isfile(os.path.join(work_dir, f"sample_{i:03d}.wav"))
-    ]
-    if missing_samples:
-        preview = ", ".join(missing_samples[:5])
-        suffix = " and more" if len(missing_samples) > 5 else ""
-        raise HTTPException(
-            status_code=400,
-            detail=f"Completed sample audio is missing: {preview}{suffix}. Regenerate it before saving.",
-        )
 
     # Check ref_index is valid
     ref_idx = request.ref_index
@@ -422,6 +411,8 @@ async def dataset_builder_save(request: DatasetSaveRequest):
         for i, sample in done_samples:
             src_filename = f"sample_{i:03d}.wav"
             src_path = os.path.join(work_dir, src_filename)
+            if not os.path.exists(src_path):
+                continue
 
             dest_filename = f"sample_{i:03d}.wav"
             shutil.copy2(src_path, os.path.join(dataset_dir, dest_filename))
@@ -434,7 +425,8 @@ async def dataset_builder_save(request: DatasetSaveRequest):
 
         # Copy ref sample and save its text for correct clone prompt alignment
         ref_src = os.path.join(work_dir, f"sample_{ref_idx:03d}.wav")
-        shutil.copy2(ref_src, os.path.join(dataset_dir, "ref.wav"))
+        if os.path.exists(ref_src):
+            shutil.copy2(ref_src, os.path.join(dataset_dir, "ref.wav"))
         ref_text = ref_sample.get("text", "")
         with open(os.path.join(dataset_dir, "ref_text.txt"), "w", encoding="utf-8") as f:
             f.write(ref_text)

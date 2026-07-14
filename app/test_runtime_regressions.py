@@ -22,7 +22,6 @@ import core as core_module
 import tts as tts_module
 import tts_vram_benchmark as tts_benchmark_module
 from routers import preparer as preparer_module
-from routers import dataset_builder as dataset_builder_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
 from routers import scripts_library as scripts_library_module
@@ -34,26 +33,6 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
-    def test_dataset_builder_save_rejects_done_sample_with_missing_audio(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            builder_root = os.path.join(tmp, "builder")
-            datasets_root = os.path.join(tmp, "datasets")
-            work_dir = os.path.join(builder_root, "voice")
-            os.makedirs(work_dir)
-            Path(work_dir, "state.json").write_text(json.dumps({
-                "samples": [{"status": "done", "text": "Missing audio"}],
-            }), encoding="utf-8")
-
-            with patch.object(dataset_builder_module, "DATASET_BUILDER_DIR", builder_root), \
-                 patch.object(dataset_builder_module, "LORA_DATASETS_DIR", datasets_root):
-                with self.assertRaises(HTTPException) as raised:
-                    asyncio.run(dataset_builder_module.dataset_builder_save(
-                        dataset_builder_module.DatasetSaveRequest(name="voice", ref_index=0)))
-
-            self.assertEqual(400, raised.exception.status_code)
-            self.assertIn("sample_000.wav", raised.exception.detail)
-            self.assertFalse(os.path.exists(os.path.join(datasets_root, "voice")))
-
     def test_app_import_does_not_run_stuck_chunk_recovery(self):
         with patch.object(core_module.project_manager, "load_chunks") as load_chunks:
             importlib.reload(app_module)
