@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import unittest
 from pathlib import Path
 import subprocess
@@ -7,7 +8,67 @@ import sys
 import tempfile
 from unittest.mock import patch
 
+import ci_env
 import verify_release
+
+
+class CiEnvParityTests(unittest.TestCase):
+    """The local verifier is only useful if it predicts CI, which means the set
+    of libraries it hides must match the set CI actually lacks."""
+
+    def _workflow(self):
+        path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "tests.yml"
+        return path.read_text(encoding="utf-8")
+
+    def _requirements(self):
+        return (Path(__file__).resolve().parent / "requirements.txt").read_text(encoding="utf-8")
+
+    def test_blocked_modules_match_what_ci_omits(self):
+        # CI pip-installs requirements.txt minus an explicit exclusion list.
+        match = re.search(r"grep -vE '\^\(([^)]+)\)==' requirements\.txt", self._workflow())
+        self.assertIsNotNone(
+            match, "could not find CI's pip exclusion in tests.yml; update this test with it")
+        excluded = set(match.group(1).split("|"))
+
+        # Plus anything the workflow never installs because it is not declared.
+        declared = {
+            re.split(r"[=<>~\[]", line, 1)[0].strip().lower()
+            for line in self._requirements().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        undeclared = {m for m in ci_env.BLOCKED_MODULES if m not in declared}
+
+        self.assertEqual(
+            set(ci_env.BLOCKED_MODULES), excluded | undeclared,
+            "ci_env.BLOCKED_MODULES has drifted from what CI installs")
+
+    def test_torch_is_absent_from_requirements(self):
+        # The premise of blocking torch: prod gets it from torch.js, not pip.
+        # If torch is ever pinned here, CI would have it and blocking is wrong.
+        declared = {
+            re.split(r"[=<>~\[]", line, 1)[0].strip().lower()
+            for line in self._requirements().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        self.assertNotIn("torch", declared)
+
+    def test_block_ml_imports_hides_an_installed_module(self):
+        # Prove the finder really blocks, using a module that IS installed here
+        # (json), so the test is meaningful whether or not torch is present.
+        code = (
+            "import ci_env, sys\n"
+            "ci_env.block_ml_imports(['json'])\n"
+            "try:\n"
+            "    import json\n"
+            "except ImportError as e:\n"
+            "    print('BLOCKED')\n"
+            "else:\n"
+            "    print('LEAKED')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True)
+        self.assertIn("BLOCKED", result.stdout)
 
 
 class ReleaseVerifierTests(unittest.TestCase):

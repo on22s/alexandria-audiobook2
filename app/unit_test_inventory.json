@@ -55,6 +55,9 @@
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context"
   ],
   "test_release_verifier": [
+    "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
+    "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
+    "test_release_verifier.CiEnvParityTests.test_torch_is_absent_from_requirements",
     "test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_inconsistent_counts_and_duplicate_names",
     "test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_wrong_skip_identity_with_same_counts",
     "test_release_verifier.ReleaseVerifierTests.test_api_summary_uses_suite_inventory_for_quick_and_full_results",

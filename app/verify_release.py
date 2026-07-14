@@ -237,8 +237,12 @@ def main(argv=None):
         run_report_gate(report, "compile_python", lambda: compile_python_files(repo_dir))
         run_report_gate(
             report, "unit_tests", lambda: run_report_command(
-                "Unit test discovery",
-                [sys.executable, "-m", "unittest", "discover", "-s", ".", "-p", "test_*.py", "-v"],
+                # Run through ci_env so the ML libraries CI lacks are hidden
+                # here too. Without this the gate only tests the developer's
+                # machine, and a test touching torch passes locally then fails
+                # in CI (see ci_env.BLOCKED_MODULES).
+                "Unit test discovery (CI-equivalent env)",
+                [sys.executable, "-m", "ci_env", "discover", "-s", ".", "-p", "test_*.py", "-v"],
                 app_dir, reject_unittest_skips=True,
             ),
         )
