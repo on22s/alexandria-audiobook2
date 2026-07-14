@@ -31,29 +31,49 @@ class ReleaseVerifierTests(unittest.TestCase):
             )
             verify_release.compile_python_files(repo)
 
-    def test_api_summary_accepts_exact_quick_and_full_results(self):
+    def test_api_summary_uses_suite_inventory_for_quick_and_full_results(self):
+        quick = self._api_summary("quick", "skipped")
         self.assertEqual(
-            (71, 0, 12, 83),
-            verify_release.validate_api_summary(
-                "RESULTS: 71 passed, 0 failed, 12 skipped  (total: 83)", False
-            ),
+            quick["counts"], verify_release.validate_api_summary(quick, False)
         )
+        full = self._api_summary("full", "passed")
         self.assertEqual(
-            (83, 0, 0, 83),
-            verify_release.validate_api_summary(
-                "RESULTS: 83 passed, 0 failed, 0 skipped  (total: 83)", True
-            ),
+            full["counts"], verify_release.validate_api_summary(full, True)
         )
 
-    def test_api_summary_rejects_unexpected_skips(self):
-        with self.assertRaisesRegex(ValueError, "Unexpected full API result"):
-            verify_release.validate_api_summary(
-                "RESULTS: 82 passed, 0 failed, 1 skipped  (total: 83)", True
-            )
+    def test_api_summary_rejects_wrong_skip_identity_with_same_counts(self):
+        summary = self._api_summary("quick", "passed")
+        summary["tests"][0]["status"] = "skipped"
+        summary["counts"].update(passed=1, skipped=1)
+        with self.assertRaisesRegex(ValueError, "Unexpected quick API skips"):
+            verify_release.validate_api_summary(summary, False)
 
-    def test_api_summary_rejects_missing_summary(self):
-        with self.assertRaisesRegex(ValueError, "parseable RESULTS"):
-            verify_release.validate_api_summary("server exited early", False)
+    def test_api_summary_rejects_inconsistent_counts_and_duplicate_names(self):
+        summary = self._api_summary("quick", "skipped")
+        summary["counts"]["passed"] = 2
+        with self.assertRaisesRegex(ValueError, "do not match test records"):
+            verify_release.validate_api_summary(summary, False)
+
+        summary = self._api_summary("quick", "skipped")
+        summary["tests"][1]["name"] = summary["tests"][0]["name"]
+        with self.assertRaisesRegex(ValueError, "non-empty and unique"):
+            verify_release.validate_api_summary(summary, False)
+
+    @staticmethod
+    def _api_summary(mode, full_only_status):
+        tests = [
+            {"name": "always", "requires_full": False, "status": "passed"},
+            {"name": "gpu", "requires_full": True, "status": full_only_status},
+        ]
+        if full_only_status == "skipped":
+            tests[1]["reason"] = "requires --full"
+        passed = sum(test["status"] == "passed" for test in tests)
+        skipped = sum(test["status"] == "skipped" for test in tests)
+        return {
+            "schema_version": 1, "mode": mode,
+            "counts": {"passed": passed, "failed": 0, "skipped": skipped, "total": 2},
+            "tests": tests,
+        }
 
     def test_unittest_summary_rejects_skips_and_missing_success(self):
         verify_release.validate_unittest_output("Ran 87 tests in 1.0s\n\nOK\n")

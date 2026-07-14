@@ -2,16 +2,14 @@
 """Run the required local release gates with explicit skip accounting."""
 
 import argparse
+from collections import Counter
+import json
 import py_compile
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-
-
-RESULTS_RE = re.compile(
-    r"RESULTS:\s+(\d+) passed,\s+(\d+) failed,\s+(\d+) skipped\s+\(total:\s*(\d+)\)"
-)
 
 
 def run_command(label, command, cwd, reject_unittest_skips=False):
@@ -52,16 +50,40 @@ def compile_python_files(repo_dir):
     print(f"Compiled {len(paths)} tracked or non-ignored untracked Python files.")
 
 
-def validate_api_summary(output, full):
-    match = RESULTS_RE.search(output)
-    if not match:
-        raise ValueError("API suite did not print a parseable RESULTS summary")
-    result = tuple(int(value) for value in match.groups())
-    expected = (83, 0, 0, 83) if full else (71, 0, 12, 83)
-    if result != expected:
-        mode = "full" if full else "quick"
-        raise ValueError(f"Unexpected {mode} API result {result}; expected {expected}")
-    return result
+def validate_api_summary(summary, full):
+    """Validate API results using the suite-owned inventory and full-only flags."""
+    expected_mode = "full" if full else "quick"
+    if summary.get("schema_version") != 1 or summary.get("mode") != expected_mode:
+        raise ValueError(f"Invalid API summary schema or mode for {expected_mode} verification")
+    tests = summary.get("tests")
+    counts = summary.get("counts")
+    if not isinstance(tests, list) or not isinstance(counts, dict):
+        raise ValueError("API summary is missing tests or counts")
+    names = [test.get("name") for test in tests if isinstance(test, dict)]
+    if len(names) != len(tests) or any(not name for name in names) or len(set(names)) != len(names):
+        raise ValueError("API summary test names must be non-empty and unique")
+    if any(type(test.get("requires_full")) is not bool for test in tests):
+        raise ValueError("API summary tests must declare requires_full")
+    statuses = Counter(test.get("status") for test in tests)
+    if set(statuses) - {"passed", "failed", "skipped"}:
+        raise ValueError("API summary contains an invalid test status")
+    actual_counts = {
+        "passed": statuses["passed"], "failed": statuses["failed"],
+        "skipped": statuses["skipped"], "total": len(tests),
+    }
+    if counts != actual_counts:
+        raise ValueError(f"API summary counts {counts} do not match test records {actual_counts}")
+    expected_skips = {test["name"] for test in tests if test["requires_full"] and not full}
+    actual_skips = {test["name"] for test in tests if test["status"] == "skipped"}
+    failed = [test["name"] for test in tests if test["status"] == "failed"]
+    if failed:
+        raise ValueError(f"API suite reported failed tests: {', '.join(failed)}")
+    if actual_skips != expected_skips:
+        raise ValueError(
+            f"Unexpected {expected_mode} API skips: expected {sorted(expected_skips)}, "
+            f"got {sorted(actual_skips)}"
+        )
+    return actual_counts
 
 
 def validate_unittest_output(output):
@@ -74,29 +96,26 @@ def validate_unittest_output(output):
 
 def run_api_suite(app_dir, full):
     label = "Full isolated API suite" if full else "Quick isolated API suite"
-    command = [sys.executable, "run_isolated_api_tests.py"]
-    if full:
-        command.append("--full")
-    print(f"\n== {label} ==", flush=True)
-    process = subprocess.Popen(
-        command, cwd=app_dir, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True,
-    )
-    output = []
-    for line in process.stdout:
-        print(line, end="")
-        output.append(line)
-    return_code = process.wait()
-    if return_code:
-        raise RuntimeError(f"{label} failed with exit status {return_code}")
-    validate_api_summary("".join(output), full)
+    with tempfile.TemporaryDirectory(prefix="alexandria-release-") as tmp:
+        summary_path = Path(tmp) / "api-summary.json"
+        command = [
+            sys.executable, "run_isolated_api_tests.py", "--json-summary", str(summary_path),
+        ]
+        if full:
+            command.append("--full")
+        run_command(label, command, app_dir)
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Could not read API JSON summary: {exc}") from exc
+        validate_api_summary(summary, full)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--full", action="store_true",
-        help="require all 83 GPU/LLM/TTS checks with zero skips",
+        help="require every API check, including GPU/LLM/TTS tests, with zero skips",
     )
     args = parser.parse_args()
     app_dir = Path(__file__).resolve().parent
