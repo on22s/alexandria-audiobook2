@@ -323,9 +323,9 @@ PREPARER_OUTPUT_DIR = os.path.join(DATA_DIR, "preparer_output")
 VOICELAB_CONFIG_PATH = os.path.join(DATA_DIR, "voicelab_config.json")
 
 VOICELAB_DEFAULTS = {
-    # Interpreter with torch/librosa/speechbrain (NOT the web app's env). No
-    # default: this lives outside the repo, so any path derived from ROOT_DIR
-    # is a guess that cannot resolve. Empty means "not configured".
+    # Interpreter with the full Voice Lab ML stack, including speechbrain and
+    # llama_cpp. No default: this lives outside the repo, so any path derived
+    # from ROOT_DIR is a guess that cannot resolve. Empty means "not configured".
     "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", ""),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
