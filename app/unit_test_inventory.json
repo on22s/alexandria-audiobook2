@@ -105,6 +105,17 @@
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
   "test_support": [],
+  "test_voicelab_pipeline_scripts": [
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_returns_failure_after_processing_all_archives",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_missing_or_unreadable_reference_returns_failure",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_only_complete_adapters_are_resume_skipped",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_failure_stays_pending_and_returns_failure",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_successful_subprocess_with_incomplete_adapter_is_cleaned_up",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_train_and_profile_background_dispatch_reaches_subprocess",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_training_failure_removes_new_partial_output_and_dataset"
+  ],
   "test_voices_regressions": [
     "test_voices_regressions.VoicesTests.test_age_parser_handles_invalid_ambiguous_and_decade_values",
     "test_voices_regressions.VoicesTests.test_apply_narrator_suggestion_uses_shared_pool",

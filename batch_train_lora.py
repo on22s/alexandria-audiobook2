@@ -79,6 +79,18 @@ def save_manifest(path: str, data: list):
         raise
 
 
+def is_completed_adapter(path: str) -> bool:
+    """Return whether path contains a complete, loadable PEFT adapter."""
+    required = ("training_meta.json", "adapter_config.json", "adapter_model.safetensors")
+    if not os.path.isdir(path) or not all(os.path.isfile(os.path.join(path, name)) for name in required):
+        return False
+    try:
+        with open(os.path.join(path, "training_meta.json"), encoding="utf-8") as f:
+            return isinstance(json.load(f), dict)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
+
+
 def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | None:
     """Return the existing adapter path if one was already trained for this dataset_id.
 
@@ -92,11 +104,12 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
     for entry in manifest:
         if entry.get("dataset_id") == dataset_id:
             candidate = os.path.join(models_dir, entry.get("id", ""))
-            if os.path.isdir(candidate):
+            if is_completed_adapter(candidate):
                 return candidate
     for name in os.listdir(models_dir):
-        if name.startswith(dataset_id) and os.path.isdir(os.path.join(models_dir, name)):
-            return os.path.join(models_dir, name)
+        candidate = os.path.join(models_dir, name)
+        if (name == dataset_id or name.startswith(dataset_id + "_")) and is_completed_adapter(candidate):
+            return candidate
     return None
 
 
@@ -134,6 +147,13 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     """Extract, train, register. Returns the training_meta dict or None on failure."""
     dataset_dir = os.path.join(args.datasets_dir, dataset_id)
     output_dir  = os.path.join(args.models_dir, adapter_id)
+    output_existed = os.path.exists(output_dir)
+
+    def fail(message: str) -> None:
+        print(f"  ERROR {message}", flush=True)
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+        if not output_existed:
+            shutil.rmtree(output_dir, ignore_errors=True)
 
     # Extract zip
     print(f"  Extracting...", flush=True)
@@ -141,18 +161,17 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     try:
         extract_zip(zip_path, dataset_dir)
     except Exception as e:
-        print(f"  ERROR extracting: {e}", flush=True)
-        shutil.rmtree(dataset_dir, ignore_errors=True)
+        fail(f"extracting: {e}")
         return None
 
     # Verify metadata
     meta_path = os.path.join(dataset_dir, "metadata.jsonl")
     if not os.path.exists(meta_path):
-        print(f"  ERROR no metadata.jsonl after extraction", flush=True)
-        shutil.rmtree(dataset_dir, ignore_errors=True)
+        fail("no metadata.jsonl after extraction")
         return None
 
-    sample_count = sum(1 for l in open(meta_path, encoding="utf-8") if l.strip())
+    with open(meta_path, encoding="utf-8") as metadata_file:
+        sample_count = sum(1 for line in metadata_file if line.strip())
 
     # Build command
     command = [
@@ -195,28 +214,30 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         elapsed = time.time() - t0
 
         if proc.returncode != 0:
-            print(f"  ERROR train_lora.py exited {proc.returncode}", flush=True)
-            shutil.rmtree(dataset_dir, ignore_errors=True)
+            fail(f"train_lora.py exited {proc.returncode}")
             return None
 
     except Exception as e:
-        print(f"  ERROR running training: {e}", flush=True)
-        shutil.rmtree(dataset_dir, ignore_errors=True)
+        fail(f"running training: {e}")
         return None
 
     # Load training_meta.json written by train_lora.py
     meta_file = os.path.join(output_dir, "training_meta.json")
-    if not os.path.exists(meta_file):
-        print(f"  ERROR no training_meta.json — adapter was not saved", flush=True)
-        shutil.rmtree(dataset_dir, ignore_errors=True)
+    if not is_completed_adapter(output_dir):
+        fail("adapter output is incomplete")
         return None
 
-    with open(meta_file, encoding="utf-8") as f:
-        training_meta = json.load(f)
-
-    epoch_losses = parse_epoch_losses(log_lines)
-    final_loss   = training_meta.get("final_loss") or training_meta.get("best_loss")
-    best_loss    = training_meta.get("best_loss", final_loss)
+    try:
+        with open(meta_file, encoding="utf-8") as f:
+            training_meta = json.load(f)
+        epoch_losses = parse_epoch_losses(log_lines)
+        final_loss = training_meta.get("final_loss")
+        best_loss = training_meta.get("best_loss", final_loss)
+        if not isinstance(best_loss, (int, float)):
+            raise ValueError("training metadata has no numeric best_loss/final_loss")
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+        fail(f"invalid training metadata: {e}")
+        return None
 
     print(f"  Epoch losses: {epoch_losses}", flush=True)
     print(f"  Adapter saved — best_loss={best_loss:.4f}  time={elapsed:.0f}s", flush=True)
@@ -245,7 +266,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Batch LoRA training for all narrator zips")
     parser.add_argument("--zips_dir",    default=DEFAULT_ZIPS,
                         help=f"Directory of narrator zips (default: {DEFAULT_ZIPS})")
@@ -281,7 +302,7 @@ def main():
     # Find zips
     if not os.path.isdir(args.zips_dir):
         print(f"ERROR: --zips_dir not found: {args.zips_dir}")
-        sys.exit(1)
+        return 1
 
     zips = sorted(
         os.path.join(args.zips_dir, f)
@@ -291,7 +312,7 @@ def main():
 
     if not zips:
         print(f"No .zip files found in {args.zips_dir}")
-        sys.exit(1)
+        return 1
 
     os.makedirs(args.models_dir, exist_ok=True)
     os.makedirs(args.datasets_dir, exist_ok=True)
@@ -352,7 +373,8 @@ def main():
     print(f"Total time: {total/60:.1f} min")
     if done:
         print(f"Adapters in: {args.models_dir}")
+    return 1 if err else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

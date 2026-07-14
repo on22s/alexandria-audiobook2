@@ -44,11 +44,10 @@ router = APIRouter()
 #   profile → voice_profiler.py                 (this repo, ROCm env)
 #   name    → name_voices.py                    (this repo, pure stdlib)
 #
-# Stages 1-3 need the ROCm ML env (torch/librosa/speechbrain), which the web app's
-# own venv does NOT have — so they run under a configurable interpreter. The paths
-# are machine-specific (the user's established setup) and live in a small editable
-# config file rather than being hardcoded, so another machine can point them
-# elsewhere without code changes.
+# Dedup needs packages such as speechbrain that are not installed in the web
+# app's venv, so the ML stages run under a configurable ROCm interpreter. The
+# interpreter path is machine-specific and lives in a small editable config file
+# rather than being hardcoded.
 
 VOICELAB_STAGES = ("dedup", "train", "profile", "name")
 
@@ -57,11 +56,11 @@ def _rocm_env(rocm_python: str) -> dict:
     """Environment for the ROCm pipeline stages.
 
     The web app runs inside its own venv (app/env), so os.environ has VIRTUAL_ENV
-    and a PATH that front-loads app/env/bin — which has no torch/librosa. The
-    dedup/train/profile stages run under a *different* interpreter (rocm_python);
-    without scrubbing, any bare `python`/`pip`/tool those scripts shell out to
-    would resolve back into app/env and import the wrong (torch-less) packages.
-    Drop VIRTUAL_ENV and front-load the ROCm interpreter's own bin dir instead."""
+    and a PATH that front-loads app/env/bin. Dedup needs packages such as
+    speechbrain that are available only through rocm_python; without scrubbing,
+    any bare `python`/`pip`/tool the ML scripts invoke would resolve back into the
+    web environment. Drop VIRTUAL_ENV and front-load the configured interpreter's
+    own bin directory instead."""
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
     bin_dir = os.path.dirname(os.path.abspath(rocm_python))
@@ -139,7 +138,7 @@ async def voicelab_save_config(request: VoiceLabConfig):
 def _resolve_zips_dir(raw: str) -> str:
     """Resolve a (possibly relative) zips_dir the same way voicelab_start does.
 
-    zips_dir is a machine-specific path (like rocm_python/pipeline_repo) and may be
+    zips_dir is a machine-specific path (like rocm_python) and may be
     absolute; relative values are resolved against the runtime data root.
     """
     resolved = os.path.normpath(raw)
@@ -318,7 +317,6 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         e = _revalidate_voicelab_paths(
             (cfg["rocm_python"] if needs_rocm else None, "rocm_python"),
             (profiler_model if ("profile" in request.stages and profiler_model) else None, "profiler_model"),
-            (cfg["pipeline_repo"] if ("train" in request.stages or "profile" in request.stages) else None, "pipeline_repo"),
         )
         if e:
             state["status"] = "failed"

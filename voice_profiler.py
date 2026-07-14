@@ -29,6 +29,8 @@ import numpy as np
 import librosa
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_FIELDS = ("id", "narrator", "best_loss", "voice_profile", "gender_est",
+              "mean_f0", "std_f0", "speaking_rate")
 
 
 def atomic_json_write(data, target_path):
@@ -42,6 +44,23 @@ def atomic_json_write(data, target_path):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, target_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+
+def atomic_csv_write(rows: list[dict], target_path: str) -> None:
+    """Atomically replace the profile CSV with rows from the current manifest."""
+    directory = os.path.dirname(target_path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".csv", dir=directory)
+    try:
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(rows)
         os.replace(tmp_path, target_path)
     except Exception:
         if os.path.exists(tmp_path):
@@ -396,6 +415,26 @@ def parse_book_title(dataset_id: str) -> str:
     return " ".join(p.title() for p in title_parts) if title_parts else ""
 
 
+def profile_csv_row(entry: dict) -> dict | None:
+    """Build one CSV row from a completed manifest profile."""
+    profile = entry.get("voice_profile")
+    features = entry.get("voice_features")
+    if not profile or not isinstance(features, dict):
+        return None
+    dataset_id = entry.get("dataset_id", entry.get("name", ""))
+    mean_f0 = features.get("mean_f0", 0)
+    return {
+        "id": entry.get("id", ""),
+        "narrator": parse_narrator_name(dataset_id),
+        "best_loss": entry.get("best_loss", entry.get("final_loss", 0)),
+        "voice_profile": profile,
+        "gender_est": "female" if mean_f0 >= 165 else "male",
+        "mean_f0": mean_f0,
+        "std_f0": features.get("std_f0", 0),
+        "speaking_rate": features.get("speaking_rate", 0),
+    }
+
+
 # ── LLM description ───────────────────────────────────────────────────────────
 
 SYSTEM_MSG = (
@@ -460,7 +499,7 @@ def llm_describe(llm, narrator: str, summary: str,
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Profile narrator voices via acoustics + LLM")
     parser.add_argument("--manifest",   default=MANIFEST)
     parser.add_argument("--model",      default=MODEL_PATH,    help="Path to GGUF model")
@@ -471,24 +510,24 @@ def main():
 
     if not os.path.exists(args.manifest):
         print(f"ERROR: manifest not found: {args.manifest} (run batch_train_lora.py first)")
-        sys.exit(1)
+        return 1
     with open(args.manifest, encoding='utf-8') as f:
         manifest = json.load(f)
 
     batch = [e for e in manifest if e.get('zip_source')]
-    todo  = [e for e in batch if args.overwrite or 'voice_profile' not in e]
+    todo  = [e for e in batch if args.overwrite or not e.get('voice_profile')]
 
     print(f"{len(batch)} adapters with zip_source — {len(todo)} to profile")
     if not todo:
         print("All already profiled. Use --overwrite to redo.")
-        sys.exit(0)
+        return 0
 
     # Load LLM once (expensive — ~10-20s for 14B Q6)
     llm = None
     if not args.dry_run:
         if not os.path.exists(args.model):
             print(f"ERROR: model not found: {args.model}")
-            sys.exit(1)
+            return 1
         print(f"Loading LLM: {os.path.basename(args.model)} …", flush=True)
         from llama_cpp import Llama
         llm = Llama(
@@ -499,7 +538,8 @@ def main():
         )
         print("LLM ready.\n", flush=True)
 
-    csv_rows = []
+    preview_rows = []
+    errors = 0
 
     for i, entry in enumerate(todo, 1):
         dataset_id = entry.get('dataset_id', entry.get('name', ''))
@@ -511,6 +551,7 @@ def main():
         wav_bytes = get_ref_wav(zip_path)
         if wav_bytes is None:
             print(f"  SKIP — no ref.wav", flush=True)
+            errors += 1
             continue
 
         try:
@@ -518,6 +559,7 @@ def main():
             summary  = interpret_features(features)
         except Exception as e:
             print(f"  ERROR in acoustic analysis: {e}", flush=True)
+            errors += 1
             continue
 
         print(f"  {summary}", flush=True)
@@ -535,6 +577,7 @@ def main():
         else:
             print(f"  epub: not found", flush=True)
 
+        llm_failed = False
         if llm is not None:
             try:
                 description = llm_describe(llm, narrator, summary,
@@ -542,10 +585,11 @@ def main():
                                            book_passage=book_passage)
                 print(f"  → {description}", flush=True)
             except Exception as e:
-                print(f"  LLM error ({e}) — keeping acoustic summary", flush=True)
+                print(f"  LLM error ({e}) — leaving profile pending", flush=True)
+                llm_failed = True
+                errors += 1
 
         if not args.dry_run:
-            entry['voice_profile'] = description
             entry['voice_features'] = {
                 'mean_f0':       round(features['mean_f0'], 1),
                 'std_f0':        round(features['std_f0'], 1),
@@ -555,30 +599,31 @@ def main():
                 'smoothness':    round(features['smoothness'], 3),
                 'flatness':      round(features['flatness'], 4),
             }
+            if not llm_failed:
+                entry['voice_profile'] = description
             # Checkpoint manifest after each narrator
             atomic_json_write(manifest, args.manifest)
 
-        csv_rows.append({
-            'id':            entry['id'],
-            'narrator':      narrator,
-            'best_loss':     best_loss,
-            'voice_profile': description,
-            'gender_est':    'female' if features['mean_f0'] >= 165 else 'male',
-            'mean_f0':       round(features['mean_f0'], 1),
-            'std_f0':        round(features['std_f0'], 1),
-            'speaking_rate': round(features['speaking_rate'], 2),
-        })
+        if not llm_failed:
+            preview_rows.append({
+                'id':            entry['id'],
+                'narrator':      narrator,
+                'best_loss':     best_loss,
+                'voice_profile': description,
+                'gender_est':    'female' if features['mean_f0'] >= 165 else 'male',
+                'mean_f0':       round(features['mean_f0'], 1),
+                'std_f0':        round(features['std_f0'], 1),
+                'speaking_rate': round(features['speaking_rate'], 2),
+            })
 
-    # Write CSV
-    if csv_rows:
-        with open(args.output_csv, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=list(csv_rows[0].keys()))
-            writer.writeheader()
-            writer.writerows(csv_rows)
+    if not args.dry_run:
+        csv_rows = [row for entry in manifest if (row := profile_csv_row(entry)) is not None]
+        atomic_csv_write(csv_rows, args.output_csv)
         print(f"\nCSV: {args.output_csv}")
 
-    print(f"Done: {len(csv_rows)} profiles written")
+    print(f"Done: {len(preview_rows)} profiles processed, {errors} errors")
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
