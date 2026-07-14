@@ -1410,6 +1410,20 @@
       },
       "VoiceLabConfig": {
         "properties": {
+          "epub_dirs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epub Dirs"
+          },
           "profiler_model": {
             "anyOf": [
               {

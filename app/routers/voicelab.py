@@ -1,5 +1,7 @@
 import logging
+import json
 import os
+import subprocess
 import sys
 from typing import List, Optional
 
@@ -30,6 +32,7 @@ from core import (
     process_state,
 )
 from utils import atomic_json_write
+from voicelab_settings import get_profiler_paths
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -68,9 +71,43 @@ def _rocm_env(rocm_python: str) -> dict:
     return env
 
 
+def _run_profiler_preflight(command: list[str], env: dict) -> dict:
+    """Run voice_profiler's canonical lightweight check under its real env."""
+    try:
+        result = subprocess.run(command + ["--check"], capture_output=True, text=True,
+                                env=env, timeout=30, check=False)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=400, detail="Voice profiler preflight timed out after 30 seconds.")
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=f"Voice profiler preflight could not start: {e}")
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    try:
+        report = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        report = {}
+    if result.returncode or report.get("status") != "passed":
+        detail = "; ".join(report.get("errors", [])) or result.stderr.strip() or "unknown preflight failure"
+        raise HTTPException(status_code=400, detail=f"Voice profiler is not ready: {detail}")
+    return report
+
+
+def _build_profiler_command(rocm_python: str, profiler_model: str,
+                            epub_dirs: List[str]) -> list[str]:
+    """Build the one canonical profile/preflight command."""
+    paths = get_profiler_paths(ROOT_DIR, DATA_DIR)
+    command = [rocm_python, "-u", os.path.join(ROOT_DIR, "voice_profiler.py"),
+               "--manifest", paths["manifest"],
+               "--model", profiler_model or paths["model"],
+               "--output_csv", paths["output_csv"]]
+    for epub_dir in epub_dirs:
+        command += ["--epub-dir", epub_dir]
+    return command
+
+
 class VoiceLabConfig(BaseModel):
     rocm_python: Optional[str] = None
     profiler_model: Optional[str] = None
+    epub_dirs: Optional[List[str]] = None
     zips_dir: Optional[str] = None
 
 
@@ -97,6 +134,19 @@ async def voicelab_get_config():
     except Exception as e:
         logger.warning(f"Failed to resolve voicelab zips_dir '{cfg.get('zips_dir')}': {e}")
 
+    profiler_paths = get_profiler_paths(ROOT_DIR, DATA_DIR)
+    effective_profiler_model = cfg["profiler_model"] or profiler_paths["model"]
+    profiler_ready = False
+    profiler_errors = []
+    if os.path.isfile(cfg["rocm_python"]):
+        try:
+            _run_profiler_preflight(
+                _build_profiler_command(cfg["rocm_python"], effective_profiler_model,
+                                        cfg["epub_dirs"]),
+                _rocm_env(cfg["rocm_python"]))
+            profiler_ready = True
+        except HTTPException as e:
+            profiler_errors.append(str(e.detail))
     return {
         "config": cfg,
         "checks": {
@@ -105,9 +155,12 @@ async def voicelab_get_config():
             "voice_profiler": os.path.isfile(os.path.join(ROOT_DIR, "voice_profiler.py")),
             "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
             "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
-            "profiler_model": (not cfg["profiler_model"]) or os.path.isfile(cfg["profiler_model"]),
+            "profiler_model": os.path.isfile(effective_profiler_model),
+            "profiler_environment": profiler_ready,
+            "epub_dirs": all(os.path.isdir(path) for path in cfg["epub_dirs"]),
             "zips_dir": zips_dir_ok,
         },
+        "profiler_errors": profiler_errors,
         "defaults": VOICELAB_DEFAULTS,
     }
 
@@ -129,6 +182,8 @@ async def voicelab_save_config(request: VoiceLabConfig):
             raise HTTPException(status_code=400,
                                 detail=f"profiler_model must be an existing file: {updates['profiler_model']}")
         _validate_voicelab_path(updates["profiler_model"], "profiler_model")
+    if "epub_dirs" in updates:
+        updates["epub_dirs"] = [path.strip() for path in updates["epub_dirs"] if path.strip()]
 
     cfg.update(updates)
     atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
@@ -201,7 +256,8 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
     app's own interpreter/env)."""
     rocm = cfg["rocm_python"]
     deduped_dir = os.path.join(zips_dir, "_deduped")
-    profiler_model = (req.profiler_model or cfg["profiler_model"]).strip()
+    profiler_model = ((req.profiler_model or cfg["profiler_model"]).strip()
+                      or get_profiler_paths(ROOT_DIR, DATA_DIR)["model"])
     rocm_env = _rocm_env(rocm)
 
     steps = []
@@ -232,10 +288,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--lora_r", str(req.lora_r)]
         steps.append(("train", cmd, ROOT_DIR, rocm_env))
     if "profile" in req.stages:
-        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_profiler.py"),
-               "--manifest", LORA_MODELS_MANIFEST]
-        if profiler_model:
-            cmd += ["--model", profiler_model]
+        cmd = _build_profiler_command(rocm, profiler_model, cfg["epub_dirs"])
         steps.append(("profile", cmd, ROOT_DIR, rocm_env))
     if "name" in req.stages:
         # Pure stdlib — safe to run under the web app's own interpreter/env
@@ -299,6 +352,9 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                                 detail=f"{fname} is missing from this install.")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
+    if "profile" in request.stages:
+        profile_cmd = next(command for stage, command, _cwd, _env in steps if stage == "profile")
+        _run_profiler_preflight(profile_cmd, _rocm_env(cfg["rocm_python"]))
 
     def _run():
         state = process_state["voicelab"]
