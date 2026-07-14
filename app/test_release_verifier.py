@@ -9,6 +9,7 @@ import tempfile
 from unittest.mock import patch
 
 import ci_env
+import diagnose_pr_changes
 import verify_release
 
 
@@ -58,6 +59,20 @@ class CiEnvParityTests(unittest.TestCase):
             "python verify_release.py --json-report release-report.json", workflow)
         self.assertNotIn("python -m unittest discover", workflow)
         self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn("Diagnose whether failure exists on the base commit", workflow)
+        self.assertIn("fetch-depth: 0", workflow)
+
+    def test_changed_file_hints_name_the_missing_generator(self):
+        self.assertEqual([], diagnose_pr_changes.get_snapshot_hints({
+            "app/test_example.py", "app/unit_test_inventory.json",
+            "app/routers/example.py", "app/api_contract/openapi.json",
+        }))
+        hints = diagnose_pr_changes.get_snapshot_hints({
+            "app/test_example.py", "app/routers/example.py",
+        })
+        self.assertEqual(2, len(hints))
+        self.assertIn("update_test_inventory.py", hints[0])
+        self.assertIn("update_api_contract_snapshots.py", hints[1])
 
     def test_block_ml_imports_hides_an_installed_module(self):
         # Prove the finder really blocks, using a module that IS installed here
