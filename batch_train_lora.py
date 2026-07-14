@@ -34,13 +34,16 @@ import zipfile
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-REPO2_DIR    = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
+REPO2_DIR    = SCRIPT_DIR
 TRAIN_SCRIPT = os.path.join(REPO2_DIR, "app", "train_lora.py")
 PYTHON       = os.path.join(SCRIPT_DIR, "app", "env", "bin", "python")
 DATASETS_DIR = os.path.join(REPO2_DIR, "lora_datasets")
 MODELS_DIR   = os.path.join(REPO2_DIR, "lora_models")
 MANIFEST     = os.path.join(MODELS_DIR, "manifest.json")
-DEFAULT_ZIPS = os.path.join("/home/fakemitch/Desktop/zips2", "_deduped")
+DEFAULT_ZIPS = os.path.join(os.environ.get("ALEXANDRIA_ZIPS_DIR",
+                                           os.path.join(REPO2_DIR, "zips2")), "_deduped")
+MAX_ARCHIVE_MEMBERS = 100_000
+MAX_ARCHIVE_BYTES = 20 * 1024**3
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,6 +55,14 @@ def sanitize(name: str) -> str:
     name = re.sub(r"[^a-z0-9_]", "_", name)
     name = re.sub(r"_+", "_", name).strip("_")
     return name
+
+
+def get_dataset_id_collisions(zip_paths: list[str]) -> dict[str, list[str]]:
+    """Return lossy normalized IDs shared by more than one input ZIP."""
+    by_id = {}
+    for path in zip_paths:
+        by_id.setdefault(sanitize(path), []).append(path)
+    return {dataset_id: paths for dataset_id, paths in by_id.items() if len(paths) > 1}
 
 
 def load_manifest(path: str) -> list:
@@ -113,9 +124,27 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
     return None
 
 
+def validate_zip_members(zf: zipfile.ZipFile, dest_dir: str) -> None:
+    """Reject archives that escape or can exhaust the extraction filesystem."""
+    members = zf.infolist()
+    if len(members) > MAX_ARCHIVE_MEMBERS:
+        raise ValueError(f"archive contains more than {MAX_ARCHIVE_MEMBERS} files")
+    expanded_bytes = sum(member.file_size for member in members)
+    if expanded_bytes > MAX_ARCHIVE_BYTES:
+        raise ValueError("archive expands beyond the 20 GB limit")
+    if expanded_bytes > shutil.disk_usage(dest_dir).free:
+        raise ValueError("archive is larger than the available extraction disk space")
+    destination = os.path.realpath(dest_dir)
+    for member in members:
+        target = os.path.realpath(os.path.join(dest_dir, member.filename))
+        if target != destination and not target.startswith(destination + os.sep):
+            raise ValueError(f"archive contains an unsafe path: {member.filename}")
+
+
 def extract_zip(zip_path: str, dest_dir: str):
     """Extract zip, flattening a single top-level directory if present."""
     with zipfile.ZipFile(zip_path, "r") as zf:
+        validate_zip_members(zf, dest_dir)
         zf.extractall(dest_dir)
     # If metadata.jsonl is not at root, look one level deep and flatten
     if not os.path.exists(os.path.join(dest_dir, "metadata.jsonl")):
@@ -277,11 +306,7 @@ def main() -> int:
     parser.add_argument("--manifest",    default=MANIFEST,
                         help="manifest.json to update with completed adapters")
     parser.add_argument("--train_script", default=TRAIN_SCRIPT,
-                        help="Path to train_lora.py (default: the hardcoded "
-                             f"alexandria-audiobook2.git checkout: {TRAIN_SCRIPT}). "
-                             "Override this when invoking from a different checkout "
-                             "(e.g. a git worktree) so the version of train_lora.py "
-                             "that actually runs matches --models_dir/--manifest.")
+                        help=f"Path to train_lora.py (default: {TRAIN_SCRIPT})")
     parser.add_argument("--python",      default=PYTHON,
                         help=f"Python interpreter to run train_script with (default: {PYTHON})")
     parser.add_argument("--target_loss", type=float, default=4.15,
@@ -307,11 +332,18 @@ def main() -> int:
     zips = sorted(
         os.path.join(args.zips_dir, f)
         for f in os.listdir(args.zips_dir)
-        if not f.startswith("_") and f.endswith(".zip")
+        if not f.startswith("_") and f.lower().endswith(".zip")
     )
 
     if not zips:
         print(f"No .zip files found in {args.zips_dir}")
+        return 1
+
+    collisions = get_dataset_id_collisions(zips)
+    if collisions:
+        for dataset_id, paths in sorted(collisions.items()):
+            names = ", ".join(os.path.basename(path) for path in paths)
+            print(f"ERROR: ZIP names normalize to the same dataset id '{dataset_id}': {names}")
         return 1
 
     os.makedirs(args.models_dir, exist_ok=True)

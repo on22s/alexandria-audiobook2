@@ -17,7 +17,7 @@ from fastapi import BackgroundTasks
 
 import core
 from routers import voicelab
-from voicelab_settings import get_profiler_paths
+from voicelab_settings import get_deduped_zip_name, get_profiler_paths
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +35,59 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def test_deduped_zip_names_preserve_same_basename_from_different_narrators(self):
+        first = get_deduped_zip_name("Narrator One", "volume_1.zip")
+        second = get_deduped_zip_name("Narrator Two", "volume_1.zip")
+        self.assertNotEqual(first, second)
+        self.assertEqual(first, get_deduped_zip_name("Narrator One", "volume_1.zip"))
+        self.assertTrue(first.endswith(".zip"))
+
+    def test_batch_rejects_colliding_normalized_dataset_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zips = os.path.join(tmp, "zips")
+            os.makedirs(zips)
+            for name in ("A-B.zip", "A B.zip"):
+                Path(zips, name).write_bytes(b"not extracted")
+            argv = ["batch_train_lora.py", "--zips_dir", zips,
+                    "--datasets_dir", os.path.join(tmp, "datasets"),
+                    "--models_dir", os.path.join(tmp, "models"),
+                    "--manifest", os.path.join(tmp, "models", "manifest.json")]
+            with patch.object(sys, "argv", argv), \
+                 patch.object(batch_train, "train_one") as train_one:
+                rc = batch_train.main()
+
+            self.assertEqual(1, rc)
+            train_one.assert_not_called()
+
+    def test_batch_zip_validation_rejects_unsafe_and_oversized_archives(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            unsafe = SimpleNamespace(filename="../../escape", file_size=1)
+            archive = SimpleNamespace(infolist=lambda: [unsafe])
+            with self.assertRaisesRegex(ValueError, "unsafe path"):
+                batch_train.validate_zip_members(archive, tmp)
+
+            with patch.object(batch_train, "MAX_ARCHIVE_MEMBERS", 0), \
+                 self.assertRaisesRegex(ValueError, "more than"):
+                batch_train.validate_zip_members(archive, tmp)
+
+            oversized = SimpleNamespace(filename="large.wav",
+                                        file_size=batch_train.MAX_ARCHIVE_BYTES + 1)
+            archive = SimpleNamespace(infolist=lambda: [oversized])
+            with self.assertRaisesRegex(ValueError, "20 GB"):
+                batch_train.validate_zip_members(archive, tmp)
+
+            normal = SimpleNamespace(filename="audio.wav", file_size=10)
+            archive = SimpleNamespace(infolist=lambda: [normal])
+            disk = SimpleNamespace(free=5)
+            with patch.object(batch_train.shutil, "disk_usage", return_value=disk), \
+                 self.assertRaisesRegex(ValueError, "available extraction disk"):
+                batch_train.validate_zip_members(archive, tmp)
+
+    def test_batch_defaults_follow_loaded_checkout(self):
+        self.assertEqual(str(ROOT), batch_train.REPO2_DIR)
+        self.assertEqual(str(ROOT / "app" / "train_lora.py"), batch_train.TRAIN_SCRIPT)
+        self.assertEqual(str(ROOT / "lora_models"), batch_train.MODELS_DIR)
+
     def test_profiler_epub_search_uses_only_explicit_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
             expected = os.path.join(tmp, "Example Book [B012345678].epub")

@@ -108,7 +108,11 @@
   "test_support": [],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_rejects_colliding_normalized_dataset_ids",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_returns_failure_after_processing_all_archives",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_zip_validation_rejects_unsafe_and_oversized_archives",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_deduped_zip_names_preserve_same_basename_from_different_narrators",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_missing_or_unreadable_reference_returns_failure",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_only_complete_adapters_are_resume_skipped",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_defaults_are_checkout_and_data_root_relative",
