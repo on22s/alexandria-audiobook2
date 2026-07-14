@@ -146,6 +146,11 @@ class TTSEngine:
         self._device = tts_config.get("device", "auto")
         self._compile_codec_enabled = tts_config.get("compile_codec", False)
 
+        # Cap on generated audio tokens per sequence. One source for both the
+        # VRAM estimate and every generate call — if they ever disagree, the
+        # estimate under-counts memory per sequence and over-sizes the batch.
+        self._max_new_tokens = tts_config.get("max_new_tokens", 2048)
+
         # Language setting (passed to Qwen3-TTS)
         self._language = tts_config.get("language", "English")
 
@@ -228,17 +233,21 @@ class TTSEngine:
         torch._dynamo.reset()
 
     def _estimate_max_batch_size(self, model, clone_prompt_tokens=0,
-                                ref_text_chars=0, max_text_chars=0,
-                                max_new_tokens=2048):
+                                ref_text_chars=0, max_text_chars=0):
         """Estimate how many sequences fit in free VRAM based on KV cache math.
 
         Uses the talker's architecture (num_layers, num_kv_heads, head_dim) to
         calculate KV cache bytes per token, then estimates total tokens per
         sequence from clone prompt size + text length + max generation length.
 
+        The generation length is read from self._max_new_tokens - the same value
+        the generate calls use - rather than taken as an argument, so the two
+        cannot drift apart and silently over-size the batch.
+
         Returns max batch size (>= 1).  Falls back to a large default on CPU
         or if the model config is inaccessible.
         """
+        max_new_tokens = self._max_new_tokens
         import torch
         if not torch.cuda.is_available():
             return 9999
@@ -344,7 +353,7 @@ class TTSEngine:
                 speaker="serena",
                 instruct="neutral",
                 non_streaming_mode=True,
-                max_new_tokens=2048,
+                max_new_tokens=self._max_new_tokens,
             )
             print(f"Warmup done in {time.time()-t0:.1f}s")
         except Exception as e:
@@ -813,7 +822,7 @@ class TTSEngine:
             instruct=description,
             language=lang,
             non_streaming_mode=True,
-            max_new_tokens=2048,
+            max_new_tokens=self._max_new_tokens,
         )
         gen_time = time.time() - t_start
 
@@ -966,7 +975,7 @@ class TTSEngine:
                 text=text,
                 voice_clone_prompt=prompt,
                 non_streaming_mode=True,
-                max_new_tokens=2048,
+                max_new_tokens=self._max_new_tokens,
                 **gen_extra,
             )
             gen_time = time.time() - t_start
@@ -1170,7 +1179,7 @@ class TTSEngine:
                 speaker=voice,
                 instruct=instruct,
                 non_streaming_mode=True,
-                max_new_tokens=2048,
+                max_new_tokens=self._max_new_tokens,
             )
             gen_time = time.time() - t_start
 
@@ -1219,7 +1228,7 @@ class TTSEngine:
                 text=text,
                 voice_clone_prompt=prompt,
                 non_streaming_mode=True,
-                max_new_tokens=2048,
+                max_new_tokens=self._max_new_tokens,
             )
             gen_time = time.time() - t_start
 
@@ -1336,7 +1345,7 @@ class TTSEngine:
                     speaker=sb_speakers,
                     instruct=sb_instructs,
                     non_streaming_mode=True,
-                    max_new_tokens=2048,
+                    max_new_tokens=self._max_new_tokens,
                 )
                 gen_time = time.time() - t_start
                 peak_gb = torch.cuda.max_memory_allocated() / 1e9
@@ -1463,7 +1472,7 @@ class TTSEngine:
                         text=sb_texts,
                         voice_clone_prompt=prompt,
                         non_streaming_mode=True,
-                        max_new_tokens=2048,
+                        max_new_tokens=self._max_new_tokens,
                     )
                     gen_time = time.time() - t_start
 
@@ -1669,7 +1678,7 @@ class TTSEngine:
                         text=sb_texts,
                         voice_clone_prompt=prompt,
                         non_streaming_mode=True,
-                        max_new_tokens=2048,
+                        max_new_tokens=self._max_new_tokens,
                         **gen_extra,
                     )
                     gen_time = time.time() - t_start

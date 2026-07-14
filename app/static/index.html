@@ -623,6 +623,11 @@
                                 </div>
                                 <div class="form-text">Split batches by text length to reduce padding waste</div>
                             </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Max New Tokens</label>
+                                <input type="number" class="form-control" id="tts-max-new-tokens" value="2048" min="256" max="8192" step="1">
+                                <div class="form-text">Cap on generated audio per chunk. Lower to fit bigger batches; raise for long chunks. Too low truncates audio.</div>
+                            </div>
                             <div class="col-md-2" id="sub-batch-min-group">
                                 <label class="form-label">Min Sub-batch Size</label>
                                 <input type="number" class="form-control" id="sub-batch-min-size" value="4" min="1">
@@ -2391,6 +2396,9 @@
                     document.getElementById('batch-seed').value = config.tts.batch_seed;
                 }
                 document.getElementById('compile-codec').checked = !!config.tts.compile_codec;
+                if (config.tts.max_new_tokens != null) {
+                    document.getElementById('tts-max-new-tokens').value = config.tts.max_new_tokens;
+                }
                 document.getElementById('batch-group-by-type').checked = !!config.tts.batch_group_by_type;
                 document.getElementById('sub-batch-enabled').checked = config.tts.sub_batch_enabled !== false;
                 toggleSubBatchFields();
@@ -2571,6 +2579,7 @@
                     parallel_workers: parallelWorkers,
                     batch_seed: document.getElementById('batch-seed').value ? parseInt(document.getElementById('batch-seed').value) : null,
                     compile_codec: document.getElementById('compile-codec').checked,
+                    max_new_tokens: getNumFieldValue('tts-max-new-tokens', 2048, true),
                     batch_group_by_type: document.getElementById('batch-group-by-type').checked,
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
                     sub_batch_min_size: getNumFieldValue('sub-batch-min-size', 4, true),

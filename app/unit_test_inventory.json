@@ -69,6 +69,7 @@
   "test_runtime_regressions": [
     "test_runtime_regressions.RuntimeTests.test_app_import_does_not_run_stuck_chunk_recovery",
     "test_runtime_regressions.RuntimeTests.test_app_lifespan_runs_stuck_chunk_recovery_once",
+    "test_runtime_regressions.RuntimeTests.test_batch_estimate_uses_configured_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_builtin_manifest_normalization_skips_bad_entries",
     "test_runtime_regressions.RuntimeTests.test_failed_claimed_task_releases_running_state",
     "test_runtime_regressions.RuntimeTests.test_gpu_stats_cache_preserves_rocm_fallback_result",
@@ -86,6 +87,8 @@
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_is_not_listed_as_a_script",
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_preserves_original_identity",
     "test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests",
+    "test_runtime_regressions.RuntimeTests.test_tts_engine_reads_configured_max_new_tokens",
+    "test_runtime_regressions.RuntimeTests.test_tts_has_no_hardcoded_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization",
     "test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
     "test_runtime_regressions.RuntimeTests.test_voicelab_stage_scripts_ship_with_this_repo",

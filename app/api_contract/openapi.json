@@ -1123,6 +1123,13 @@
             "title": "Language",
             "type": "string"
           },
+          "max_new_tokens": {
+            "default": 2048,
+            "maximum": 8192.0,
+            "minimum": 256.0,
+            "title": "Max New Tokens",
+            "type": "integer"
+          },
           "mode": {
             "default": "local",
             "enum": [

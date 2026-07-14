@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -15,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 import app as app_module
 import core as core_module
+import tts as tts_module
 from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
@@ -241,6 +243,48 @@ class RuntimeTests(unittest.TestCase):
                 os.path.isfile(os.path.join(core_module.ROOT_DIR, fname)),
                 f"{fname} must ship with this repo",
             )
+
+    def test_tts_engine_reads_configured_max_new_tokens(self):
+        self.assertEqual(
+            tts_module.TTSEngine({"tts": {"max_new_tokens": 4096}})._max_new_tokens, 4096)
+        self.assertEqual(tts_module.TTSEngine({"tts": {}})._max_new_tokens, 2048)
+
+    def _fake_torch(self, free_bytes):
+        """Minimal torch stand-in: _estimate_max_batch_size imports torch inside
+        the function, so injecting sys.modules is enough (app/env has no torch)."""
+        torch = SimpleNamespace()
+        torch.cuda = SimpleNamespace(
+            is_available=lambda: True,
+            mem_get_info=lambda: (free_bytes, free_bytes),
+            memory_reserved=lambda: 0,
+            memory_allocated=lambda: 0,
+        )
+        return torch
+
+    def _max_batch_for(self, max_new_tokens):
+        engine = tts_module.TTSEngine({"tts": {"max_new_tokens": max_new_tokens}})
+        model = SimpleNamespace(model=SimpleNamespace(talker=SimpleNamespace(
+            config=SimpleNamespace(num_hidden_layers=24, num_key_value_heads=4,
+                                   hidden_size=1024, num_attention_heads=16))))
+        with patch.dict(sys.modules, {"torch": self._fake_torch(8 * 10**9)}):
+            return engine._estimate_max_batch_size(model, max_text_chars=300)
+
+    def test_batch_estimate_uses_configured_max_new_tokens(self):
+        # The estimator and the generate calls must read ONE value. If the
+        # estimator kept assuming 2048 while generation used a larger cap, it
+        # would under-count VRAM per sequence and over-size the batch -> OOM.
+        low = self._max_batch_for(2048)
+        high = self._max_batch_for(8192)
+        self.assertGreater(low, high,
+                           "a larger max_new_tokens must shrink the estimated batch")
+
+    def test_tts_has_no_hardcoded_max_new_tokens(self):
+        # Two independent 2048 literals (estimator default + generate calls) are
+        # exactly the drift this consolidation removes; keep them from returning.
+        source = Path(__file__).resolve().parent.joinpath("tts.py").read_text(encoding="utf-8")
+        # assertFalse, not assertNotIn: the latter dumps all of tts.py on failure.
+        self.assertFalse("max_new_tokens=2048" in source,
+                         "tts.py must read max_new_tokens from config, not hardcode it")
 
     def _voicelab_start_with(self, cfg_overrides):
         cfg = dict(core_module.VOICELAB_DEFAULTS)
