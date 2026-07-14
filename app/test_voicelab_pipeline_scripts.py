@@ -395,7 +395,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                      patch.object(voicelab, "claim_gpu_task"), \
                      patch.object(voicelab, "_load_voicelab_config", return_value=cfg), \
                      patch.object(voicelab, "_validate_voicelab_path"), \
-                     patch.object(voicelab, "_revalidate_voicelab_paths", return_value=None), \
+                     patch.object(voicelab, "_revalidate_voicelab_runtime",
+                                  return_value=None) as revalidate, \
                      patch.object(voicelab, "_run_profiler_preflight", return_value={}), \
                      patch.object(voicelab, "_init_task_log", return_value=None), \
                      patch.object(voicelab, "_stream_subprocess_to_logs", side_effect=fake_stream):
@@ -404,6 +405,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     task.func(*task.args, **task.kwargs)
 
                 self.assertEqual(1, len(streamed))
+                self.assertEqual([stage], revalidate.call_args.args[3])
                 self.assertIn(stage, os.path.basename(streamed[0][2]))
                 if stage == "profile":
                     defaults = get_profiler_paths(core.ROOT_DIR, core.DATA_DIR)
