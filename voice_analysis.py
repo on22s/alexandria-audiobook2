@@ -25,6 +25,7 @@ import re
 import pickle
 import random
 import shutil
+import sys
 import warnings
 import zipfile
 from pathlib import Path
@@ -43,6 +44,11 @@ import seaborn as sns
 from tqdm import tqdm
 
 from gpu_stats import system_has_gpu
+
+APP_DIR = Path(__file__).resolve().parent / "app"
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+from voicelab_settings import get_deduped_zip_name
 
 warnings.filterwarnings("ignore")
 
@@ -188,6 +194,11 @@ def run_dedup(model, device, zips2_root, output_dir):
 
     deduped_dir = zips2_root / "_deduped"
     deduped_dir.mkdir(exist_ok=True)
+    # This directory is generated output. Remove prior representatives so a
+    # changed source set (or the legacy naming scheme) cannot train twice.
+    for previous in deduped_dir.iterdir():
+        if previous.is_file() and previous.suffix.lower() == ".zip":
+            previous.unlink()
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
@@ -341,7 +352,7 @@ def run_dedup(model, device, zips2_root, output_dir):
         for ci, cluster in enumerate(clusters):
             rep_idx = max(cluster, key=lambda idx: label_to_path[zip_labels[idx]].stat().st_size)
             rep_path = label_to_path[zip_labels[rep_idx]]
-            dest_path = deduped_dir / rep_path.name
+            dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
             shutil.copy2(rep_path, dest_path)
             if len(cluster) > 1:
                 skipped = [zip_labels[idx] for idx in cluster if idx != rep_idx]
