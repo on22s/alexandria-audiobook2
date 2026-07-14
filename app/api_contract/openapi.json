@@ -1466,6 +1466,10 @@
           "device": {
             "anyOf": [
               {
+                "enum": [
+                  "cuda",
+                  "cpu"
+                ],
                 "type": "string"
               },
               {
@@ -1476,11 +1480,15 @@
           },
           "lora_r": {
             "default": 64,
+            "maximum": 1024.0,
+            "minimum": 1.0,
             "title": "Lora R",
             "type": "integer"
           },
           "max_epochs": {
             "default": 6,
+            "maximum": 100.0,
+            "minimum": 1.0,
             "title": "Max Epochs",
             "type": "integer"
           },
@@ -1515,11 +1523,14 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 4,
             "title": "Stages",
             "type": "array"
           },
           "target_loss": {
             "default": 4.15,
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
             "title": "Target Loss",
             "type": "number"
           },

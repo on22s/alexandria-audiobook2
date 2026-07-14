@@ -1,12 +1,13 @@
+import asyncio
 import logging
 import json
 import os
 import subprocess
 import sys
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core import (
     DATA_DIR,
@@ -113,11 +114,11 @@ class VoiceLabConfig(BaseModel):
 
 class VoiceLabRequest(BaseModel):
     zips_dir: Optional[str] = None                 # narrator-subfolder root; default from config
-    stages: List[str] = list(VOICELAB_STAGES)      # which stages to run, in pipeline order
-    device: Optional[str] = None                   # cuda/cpu for the dedup stage (auto if unset)
-    target_loss: float = 4.15                      # batch-train early-stop target
-    max_epochs: int = 6
-    lora_r: int = 64
+    stages: List[str] = Field(default=list(VOICELAB_STAGES), max_length=4)
+    device: Optional[Literal["cuda", "cpu"]] = None
+    target_loss: float = Field(4.15, gt=0, le=100)
+    max_epochs: int = Field(6, ge=1, le=100)
+    lora_r: int = Field(64, ge=1, le=1024)
     profiler_model: Optional[str] = None           # override GGUF for the profile stage
     name_apply: bool = True                        # name stage: actually rename (else dry-run)
     name_overwrite: bool = False                   # also re-name already-named adapters
@@ -140,7 +141,8 @@ async def voicelab_get_config():
     profiler_errors = []
     if os.path.isfile(cfg["rocm_python"]):
         try:
-            _run_profiler_preflight(
+            await asyncio.to_thread(
+                _run_profiler_preflight,
                 _build_profiler_command(cfg["rocm_python"], effective_profiler_model,
                                         cfg["epub_dirs"]),
                 _rocm_env(cfg["rocm_python"]))
@@ -302,6 +304,33 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
     return steps
 
 
+def _revalidate_voicelab_runtime(zips_dir: str, rocm_python: str,
+                                 profiler_model: str, stages: list[str]) -> Optional[HTTPException]:
+    """Recheck mutable filesystem prerequisites immediately before subprocess launch."""
+    error = _revalidate_voicelab_paths(
+        (zips_dir, "zips_dir"),
+        (rocm_python if any(stage in stages for stage in ("dedup", "train", "profile"))
+         else None, "rocm_python"),
+        (profiler_model if "profile" in stages else None, "profiler_model"),
+    )
+    if error:
+        return error
+    if any(stage in stages for stage in ("dedup", "train", "profile")) and not (
+            os.path.isfile(rocm_python) and os.access(rocm_python, os.X_OK)):
+        return HTTPException(status_code=400,
+                             detail=f"ROCm interpreter not found or not executable: {rocm_python}")
+    if "profile" in stages and not os.path.isfile(profiler_model):
+        return HTTPException(status_code=400,
+                             detail=f"profiler_model not found: {profiler_model}")
+    if "dedup" in stages and not os.path.isdir(zips_dir):
+        return HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
+    if "train" in stages and "dedup" not in stages and not os.path.isdir(
+            os.path.join(zips_dir, "_deduped")):
+        return HTTPException(status_code=400,
+                             detail=f"No _deduped folder in {zips_dir}; run dedup first.")
+    return None
+
+
 @router.post("/api/voicelab/start")
 async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
     """Run the selected pipeline stages in sequence as one cancel/pausable job."""
@@ -352,9 +381,13 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                                 detail=f"{fname} is missing from this install.")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
+    effective_profiler_model = next(
+        (command[command.index("--model") + 1]
+         for stage, command, _cwd, _env in steps if stage == "profile"), "")
     if "profile" in request.stages:
         profile_cmd = next(command for stage, command, _cwd, _env in steps if stage == "profile")
-        _run_profiler_preflight(profile_cmd, _rocm_env(cfg["rocm_python"]))
+        await asyncio.to_thread(
+            _run_profiler_preflight, profile_cmd, _rocm_env(cfg["rocm_python"]))
 
     def _run():
         state = process_state["voicelab"]
@@ -364,21 +397,6 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         state["status"] = "running"
         state["process"] = None
         state["pid"] = None
-
-        # Re-validate immediately before exec, not just synchronously above -
-        # background_tasks.add_task defers this whole closure until after the
-        # HTTP response is sent, leaving a window where a path that passed the
-        # checks above (e.g. a symlink) could be repointed before the
-        # subprocess below actually starts.
-        e = _revalidate_voicelab_paths(
-            (cfg["rocm_python"] if needs_rocm else None, "rocm_python"),
-            (profiler_model if ("profile" in request.stages and profiler_model) else None, "profiler_model"),
-        )
-        if e:
-            state["status"] = "failed"
-            state["running"] = False
-            state["logs"].append(f"Aborted: {e.detail}")
-            return
 
         log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
 
@@ -390,6 +408,16 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             state["current_task_idx"] = i
             state["tasks"][i]["status"] = "running"
             state["logs"].append(f"--- [{i+1}/{len(steps)}] {stage} ---")
+
+            # Each earlier stage may run for hours. Recheck immediately before
+            # this subprocess, not only when the background pipeline begins.
+            error = _revalidate_voicelab_runtime(
+                zips_dir, cfg["rocm_python"], effective_profiler_model, [stage])
+            if error:
+                state["logs"].append(f"[{stage}] aborted: {error.detail}")
+                state["tasks"][i]["status"] = "failed"
+                failed = True
+                break
 
             try:
                 rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path, env=env)

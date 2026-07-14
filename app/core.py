@@ -383,13 +383,19 @@ def _validate_voicelab_path(path: str, what: str) -> None:
 
 
 def _load_voicelab_config() -> dict:
-    cfg = dict(VOICELAB_DEFAULTS)
+    cfg = {**VOICELAB_DEFAULTS, "epub_dirs": list(VOICELAB_DEFAULTS["epub_dirs"])}
     if os.path.exists(VOICELAB_CONFIG_PATH):
         try:
             with open(VOICELAB_CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                cfg.update({k: v for k, v in data.items() if k in VOICELAB_DEFAULTS})
+                for key in ("rocm_python", "profiler_model", "zips_dir"):
+                    if isinstance(data.get(key), str):
+                        cfg[key] = data[key]
+                epub_dirs = data.get("epub_dirs")
+                if isinstance(epub_dirs, list) and all(
+                        isinstance(path, str) for path in epub_dirs):
+                    cfg["epub_dirs"] = list(epub_dirs)
         except (json.JSONDecodeError, ValueError, OSError) as e:
             _warn_corrupted_json("voicelab config", VOICELAB_CONFIG_PATH, "using defaults", e)
     return cfg

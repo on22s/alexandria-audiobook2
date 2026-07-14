@@ -101,7 +101,11 @@
     "test_runtime_regressions.RuntimeTests.test_tts_has_no_hardcoded_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_voice_category_routes_ensemble",
     "test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_config_ignores_invalid_stored_shapes",
     "test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_preflight_is_dispatched_off_event_loop",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_request_rejects_unbounded_training_values",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_runtime_revalidation_detects_missing_interpreter",
     "test_runtime_regressions.RuntimeTests.test_voicelab_stage_scripts_ship_with_this_repo",
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],

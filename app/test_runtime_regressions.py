@@ -411,6 +411,54 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(exc.status_code, 400)
         self.assertIn("not configured", exc.detail)
 
+    def test_voicelab_request_rejects_unbounded_training_values(self):
+        for values in ({"target_loss": 0}, {"target_loss": 101},
+                       {"max_epochs": 0}, {"max_epochs": 101},
+                       {"lora_r": 0}, {"lora_r": 1025},
+                       {"device": "rocm"}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                voicelab_module.VoiceLabRequest(**values)
+
+    def test_voicelab_config_ignores_invalid_stored_shapes(self):
+        defaults = {"rocm_python": "python", "profiler_model": "model",
+                    "epub_dirs": ["books"], "zips_dir": "zips"}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.json")
+            Path(path).write_text(json.dumps({"rocm_python": 7,
+                                              "profiler_model": [],
+                                              "epub_dirs": ["valid", 9],
+                                              "zips_dir": {}}), encoding="utf-8")
+            with patch.object(core_module, "VOICELAB_CONFIG_PATH", path), \
+                 patch.object(core_module, "VOICELAB_DEFAULTS", defaults):
+                loaded = core_module._load_voicelab_config()
+
+        self.assertEqual(defaults, loaded)
+        self.assertIsNot(defaults["epub_dirs"], loaded["epub_dirs"])
+
+    def test_voicelab_preflight_is_dispatched_off_event_loop(self):
+        calls = []
+
+        async def fake_to_thread(function, *args):
+            calls.append((function, args))
+            return {}
+
+        cfg = {"rocm_python": sys.executable, "profiler_model": "",
+               "epub_dirs": [], "zips_dir": ""}
+        with patch.object(voicelab_module, "_load_voicelab_config", return_value=cfg), \
+             patch.object(voicelab_module.asyncio, "to_thread", side_effect=fake_to_thread):
+            result = asyncio.run(voicelab_module.voicelab_get_config())
+
+        self.assertEqual(1, len(calls))
+        self.assertIs(voicelab_module._run_profiler_preflight, calls[0][0])
+        self.assertTrue(result["checks"]["profiler_environment"])
+
+    def test_voicelab_runtime_revalidation_detects_missing_interpreter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error = voicelab_module._revalidate_voicelab_runtime(
+                tmp, os.path.join(tmp, "missing-python"), "", ["train"])
+        self.assertIsNotNone(error)
+        self.assertIn("not found or not executable", error.detail)
+
     def test_pair_write_rolls_back_first_file_when_second_replace_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             first, second = os.path.join(tmp, "first.json"), os.path.join(tmp, "second.json")
