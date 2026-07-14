@@ -89,6 +89,17 @@ def gpu_name():
         print(f"Warning: gpu_name probe failed: {e}")
         return "unknown"
 
+
+def get_benchmark_engine_config(tts_config):
+    """Return the nested shape TTSEngine expects without mutating app config."""
+    benchmark_tts = dict(tts_config)
+    benchmark_tts.update({
+        "mode": "local",
+        "compile_codec": False,
+        "sub_batch_enabled": True,
+    })
+    return {"tts": benchmark_tts}
+
 # ---------------------------------------------------------------------------
 # Benchmark runner
 # ---------------------------------------------------------------------------
@@ -226,16 +237,15 @@ def main():
     # Load config
     tts_cfg = load_app_config(CONFIG_PATH).get("tts", {})
 
-    # Force local mode, disable compile_codec for baseline
-    tts_cfg["mode"] = "local"
-    tts_cfg["compile_codec"] = False
-    tts_cfg["sub_batch_enabled"] = True
-    tts_cfg["sub_batch_max_items"] = args.sizes[0]
+    # Force local mode and disable compile_codec for the baseline without
+    # changing the loaded application config dictionary.
+    engine_config = get_benchmark_engine_config(tts_cfg)
+    engine_config["tts"]["sub_batch_max_items"] = args.sizes[0]
 
     from tts import TTSEngine
     print("Initializing TTSEngine (local mode, compile_codec=False)...")
     snap_pre = vram_state()
-    engine = TTSEngine(tts_cfg)
+    engine = TTSEngine(engine_config)
 
     # Force model load and capture footprint
     print("\nLoading model (this will show VRAM footprint)...")
@@ -244,6 +254,8 @@ def main():
     model_vram_gb = (snap_post["allocated_gb"] - snap_pre["allocated_gb"]) if (snap_pre and snap_post) else 0
     total_gb = snap_post["total_gb"] if snap_post else 0
     print(f"\nModel VRAM footprint: {model_vram_gb:.2f} GB  (total GPU: {total_gb:.1f} GB)")
+    print("Warming model before timed sweeps...")
+    engine.ensure_custom_warmup(engine._local_custom_model)
 
     voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
 

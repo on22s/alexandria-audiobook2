@@ -226,7 +226,7 @@ class TTSEngine:
         self._local_clone_model = None
         self._local_design_model = None
         self._local_lora_model = None
-        self._warmup_needed = True  # cleared after first batch warmup
+        self._custom_warmup_needed = True
         self._lora_adapter_path = None  # track which adapter is currently loaded
         self._gradio_client = None
 
@@ -398,7 +398,7 @@ class TTSEngine:
 
     # ── Lazy initialization ──────────────────────────────────────
 
-    def _warmup_model(self, model):
+    def _warmup_model(self, model) -> bool:
         """Run a short warmup generation to pre-tune MIOpen/GPU solvers.
 
         First generation after model load is ~2x slower due to MIOpen autotuning.
@@ -416,8 +416,21 @@ class TTSEngine:
                 max_new_tokens=self._max_new_tokens,
             )
             print(f"Warmup done in {time.time()-t0:.1f}s")
+            return True
         except Exception as e:
             print(f"Warmup failed (non-fatal): {e}")
+            return False
+
+    def ensure_custom_warmup(self, model=None) -> bool:
+        """Warm the CustomVoice backend once, retrying after non-fatal failure."""
+        if not self._custom_warmup_needed:
+            return True
+        if model is None:
+            model = self._init_local_custom()
+        print("Running batch warmup generation...")
+        succeeded = self._warmup_model(model)
+        self._custom_warmup_needed = not succeeded
+        return succeeded
 
     def _resolve_device(self):
         """Resolve 'auto' device to the best available."""
@@ -1416,10 +1429,7 @@ class TTSEngine:
         model = self._init_local_custom()
 
         # Warmup on first batch to pre-tune MIOpen/GPU solvers
-        if self._warmup_needed:
-            print("Running batch warmup generation...")
-            self._warmup_model(model)
-            self._warmup_needed = False
+        self.ensure_custom_warmup(model)
 
         # Clear stale GPU cache from any prior generation to avoid
         # fragmented VRAM blocking large batch allocations (ROCm especially).
@@ -1526,14 +1536,6 @@ class TTSEngine:
             speaker_groups.setdefault(speaker, []).append(chunk)
 
         model = self._init_local_clone()
-
-        # Warmup on first batch to pre-tune MIOpen/GPU solvers.
-        # Use the already-loaded clone model to avoid loading a second model
-        # into VRAM simultaneously (OOM risk on 12–16 GB cards).
-        if self._warmup_needed:
-            print("Running batch warmup generation...")
-            self._warmup_model(model)
-            self._warmup_needed = False
 
         self._clear_gpu_cache()
 
@@ -1704,14 +1706,6 @@ class TTSEngine:
                     raise ValueError("ref_sample_text missing from training_meta.json")
 
                 model = self._init_local_lora(adapter_path)
-
-                # Warmup on first batch to pre-tune MIOpen/GPU solvers.
-                # Done here (inside the loop) so the LoRA model is already
-                # loaded — avoids loading a second model into VRAM (OOM risk).
-                if self._warmup_needed:
-                    print("Running batch warmup generation...")
-                    self._warmup_model(model)
-                    self._warmup_needed = False
 
                 if adapter_path not in self._lora_prompt_cache:
                     audio_array, sample_rate = sf.read(ref_wav_path)
