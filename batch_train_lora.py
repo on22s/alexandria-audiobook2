@@ -31,6 +31,10 @@ import tempfile
 import time
 import zipfile
 
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+sys.path.insert(0, APP_DIR)
+from archive_utils import validate_zip_members
+
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
@@ -42,8 +46,6 @@ MODELS_DIR   = os.path.join(REPO2_DIR, "lora_models")
 MANIFEST     = os.path.join(MODELS_DIR, "manifest.json")
 DEFAULT_ZIPS = os.path.join(os.environ.get("ALEXANDRIA_ZIPS_DIR",
                                            os.path.join(REPO2_DIR, "zips2")), "_deduped")
-MAX_ARCHIVE_MEMBERS = 100_000
-MAX_ARCHIVE_BYTES = 20 * 1024**3
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,23 +124,6 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
         if (name == dataset_id or name.startswith(dataset_id + "_")) and is_completed_adapter(candidate):
             return candidate
     return None
-
-
-def validate_zip_members(zf: zipfile.ZipFile, dest_dir: str) -> None:
-    """Reject archives that escape or can exhaust the extraction filesystem."""
-    members = zf.infolist()
-    if len(members) > MAX_ARCHIVE_MEMBERS:
-        raise ValueError(f"archive contains more than {MAX_ARCHIVE_MEMBERS} files")
-    expanded_bytes = sum(member.file_size for member in members)
-    if expanded_bytes > MAX_ARCHIVE_BYTES:
-        raise ValueError("archive expands beyond the 20 GB limit")
-    if expanded_bytes > shutil.disk_usage(dest_dir).free:
-        raise ValueError("archive is larger than the available extraction disk space")
-    destination = os.path.realpath(dest_dir)
-    for member in members:
-        target = os.path.realpath(os.path.join(dest_dir, member.filename))
-        if target != destination and not target.startswith(destination + os.sep):
-            raise ValueError(f"archive contains an unsafe path: {member.filename}")
 
 
 def extract_zip(zip_path: str, dest_dir: str):

@@ -87,6 +87,7 @@
     "test_runtime_regressions.RuntimeTests.test_lora_cancel_idle_reports_not_running",
     "test_runtime_regressions.RuntimeTests.test_lora_hyperparameters_are_validated_at_api_boundary",
     "test_runtime_regressions.RuntimeTests.test_lora_style_attribute_escapes_persisted_content",
+    "test_runtime_regressions.RuntimeTests.test_lora_zip_validation_rejects_insufficient_extraction_space",
     "test_runtime_regressions.RuntimeTests.test_mix_to_unison_aligns_and_mixes",
     "test_runtime_regressions.RuntimeTests.test_mix_to_unison_leaves_extreme_outlier_unstretched",
     "test_runtime_regressions.RuntimeTests.test_oversized_upload_is_removed",

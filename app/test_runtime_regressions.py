@@ -18,6 +18,7 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 import app as app_module
+import archive_utils
 import core as core_module
 import tts as tts_module
 import tts_vram_benchmark as tts_benchmark_module
@@ -97,6 +98,19 @@ class RuntimeTests(unittest.TestCase):
             manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
             self.assertEqual(b"first", Path(tmp, manifest[0]["filename"]).read_bytes())
             self.assertEqual(b"second", Path(tmp, manifest[1]["filename"]).read_bytes())
+
+    def test_lora_zip_validation_rejects_insufficient_extraction_space(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            member = SimpleNamespace(filename="audio.wav", file_size=10)
+            archive = SimpleNamespace(infolist=lambda: [member], extractall=Mock())
+            with patch.object(archive_utils.shutil, "disk_usage",
+                              return_value=SimpleNamespace(free=5)), \
+                 self.assertRaises(HTTPException) as raised:
+                lora_module._safe_extractall(archive, tmp)
+
+            self.assertEqual(400, raised.exception.status_code)
+            self.assertIn("available extraction disk", raised.exception.detail)
+            archive.extractall.assert_not_called()
 
     def test_app_import_does_not_run_stuck_chunk_recovery(self):
         with patch.object(core_module.project_manager, "load_chunks") as load_chunks:
