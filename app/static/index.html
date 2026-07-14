@@ -1338,11 +1338,6 @@
                                             <div class="form-text small">Interpreter with torch/librosa/speechbrain (not the web app's env).</div>
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-0">Pipeline repo <span id="chk-pipeline_repo" class="vl-chk"></span> <span id="chk-batch_train_lora" class="vl-chk"></span> <span id="chk-voice_profiler" class="vl-chk"></span></label>
-                                            <input type="text" class="form-control form-control-sm" id="vl-pipeline_repo" placeholder="/path/to/repo with batch_train_lora.py">
-                                            <div class="form-text small">Holds <code>batch_train_lora.py</code> + <code>voice_profiler.py</code>.</div>
-                                        </div>
-                                        <div class="col-md-6">
                                             <label class="form-label small mb-0">Profiler model (GGUF, optional) <span id="chk-profiler_model" class="vl-chk"></span></label>
                                             <input type="text" class="form-control form-control-sm" id="vl-profiler_model" placeholder="(use voice_profiler.py default)">
                                         </div>
@@ -6662,14 +6657,16 @@
                 const res = await API.get('/api/voicelab/config');
                 const c = res.config || {};
                 document.getElementById('vl-rocm_python').value = c.rocm_python || '';
-                document.getElementById('vl-pipeline_repo').value = c.pipeline_repo || '';
                 document.getElementById('vl-profiler_model').value = c.profiler_model || '';
                 document.getElementById('vl-zips_dir_cfg').value = c.zips_dir || '';
                 const input = document.getElementById('vl-zips_dir');
                 if (!input.value) { input.value = c.zips_dir || ''; }
 
                 const ck = res.checks || {};
-                ['rocm_python','pipeline_repo','batch_train_lora','voice_profiler','profiler_model','zips_dir']
+                // batch_train_lora/voice_profiler ship with the app, so like
+                // voice_analysis/name_voices they have no settings input - they
+                // still count toward the issue badge below via res.checks.
+                ['rocm_python','profiler_model','zips_dir']
                     .forEach(k => _vlSetCheckIcon('chk-' + k, !!ck[k]));
                 const issues = Object.values(ck).filter(v => v === false).length;
                 document.getElementById('voicelab-readiness').innerHTML = issues
@@ -6681,7 +6678,6 @@
         window.saveVoicelabConfig = async () => {
             const body = {
                 rocm_python: document.getElementById('vl-rocm_python').value.trim(),
-                pipeline_repo: document.getElementById('vl-pipeline_repo').value.trim(),
                 profiler_model: document.getElementById('vl-profiler_model').value.trim(),
                 zips_dir: document.getElementById('vl-zips_dir_cfg').value.trim(),
             };

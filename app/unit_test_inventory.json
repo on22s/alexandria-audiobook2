@@ -88,7 +88,7 @@
     "test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests",
     "test_runtime_regressions.RuntimeTests.test_voice_design_claims_gpu_before_engine_initialization",
     "test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
-    "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_pipeline_repo",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_stage_scripts_ship_with_this_repo",
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
   "test_support": [],
