@@ -7,6 +7,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+import io
 from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
@@ -15,6 +17,7 @@ from fastapi import BackgroundTasks
 
 import core
 from routers import voicelab
+from voicelab_settings import get_profiler_paths
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +35,69 @@ voice_profiler = load_script("voice_profiler")
 
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
+    def test_profiler_epub_search_uses_only_explicit_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = os.path.join(tmp, "Example Book [B012345678].epub")
+            Path(expected).write_bytes(b"epub")
+
+            self.assertEqual(expected, voice_profiler.find_epub(
+                "narrator_test_voice_example_book_b012345678_char1_vol01", [tmp]))
+            self.assertIsNone(voice_profiler.find_epub(
+                "narrator_test_voice_example_book_b012345678_char1_vol01", []))
+
+    def test_profiler_preflight_reports_missing_model_and_dependency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = os.path.join(tmp, "manifest.json")
+            Path(manifest).write_text("[]", encoding="utf-8")
+            with patch.object(voice_profiler, "DEPENDENCY_ERROR", ImportError("no librosa")), \
+                 patch.dict(sys.modules, {"llama_cpp": None}):
+                report = voice_profiler.get_preflight_report(
+                    manifest, os.path.join(tmp, "missing.gguf"),
+                    os.path.join(tmp, "profiles.csv"), [])
+
+        self.assertEqual("failed", report["status"])
+        self.assertTrue(any("acoustic dependency" in error for error in report["errors"]))
+        self.assertTrue(any("model not found" in error for error in report["errors"]))
+
+    def test_profiler_model_errors_are_classified(self):
+        self.assertIn("insufficient GPU memory", voice_profiler.describe_model_init_error(
+            RuntimeError("HIP out of memory")))
+        self.assertIn("invalid or incompatible GGUF", voice_profiler.describe_model_init_error(
+            ValueError("bad GGUF magic")))
+
+    def test_profiler_model_init_failure_is_concise_and_non_mutating(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = os.path.join(tmp, "manifest.json")
+            model_path = os.path.join(tmp, "model.gguf")
+            csv_path = os.path.join(tmp, "profiles.csv")
+            original = '[{"id":"voice","zip_source":"voice.zip"}]'
+            Path(manifest_path).write_text(original, encoding="utf-8")
+            Path(model_path).write_bytes(b"model")
+            fake_llama = SimpleNamespace(Llama=lambda **kwargs: (_ for _ in ()).throw(
+                RuntimeError("HIP out of memory")))
+            argv = ["voice_profiler.py", "--manifest", manifest_path,
+                    "--model", model_path, "--output_csv", csv_path]
+            output = io.StringIO()
+            with patch.object(sys, "argv", argv), \
+                 patch.dict(sys.modules, {"llama_cpp": fake_llama}), \
+                 redirect_stdout(output):
+                rc = voice_profiler.main()
+
+            self.assertEqual(1, rc)
+            self.assertIn("insufficient GPU memory", output.getvalue())
+            self.assertEqual(original, Path(manifest_path).read_text(encoding="utf-8"))
+
+    def test_profiler_defaults_are_checkout_and_data_root_relative(self):
+        with tempfile.TemporaryDirectory() as checkout, tempfile.TemporaryDirectory() as data:
+            paths = get_profiler_paths(checkout, data)
+
+        self.assertEqual(os.path.join(checkout, "Qwen2.5-14B-Instruct-Q6_K.gguf"),
+                         paths["model"])
+        self.assertEqual(os.path.join(data, "lora_models", "manifest.json"),
+                         paths["manifest"])
+        self.assertEqual(os.path.join(data, "lora_models", "voice_profiles.csv"),
+                         paths["output_csv"])
+
     def make_adapter(self, path, meta=None):
         os.makedirs(path)
         Path(path, "adapter_config.json").write_text("{}", encoding="utf-8")
@@ -235,7 +301,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
         for stage in ("train", "profile"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
                 os.makedirs(os.path.join(tmp, "_deduped"))
-                cfg = {"rocm_python": sys.executable, "profiler_model": "", "zips_dir": tmp}
+                cfg = {"rocm_python": sys.executable, "profiler_model": "",
+                       "epub_dirs": [], "zips_dir": tmp}
                 background = BackgroundTasks()
                 streamed = []
 
@@ -249,6 +316,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                      patch.object(voicelab, "_load_voicelab_config", return_value=cfg), \
                      patch.object(voicelab, "_validate_voicelab_path"), \
                      patch.object(voicelab, "_revalidate_voicelab_paths", return_value=None), \
+                     patch.object(voicelab, "_run_profiler_preflight", return_value={}), \
                      patch.object(voicelab, "_init_task_log", return_value=None), \
                      patch.object(voicelab, "_stream_subprocess_to_logs", side_effect=fake_stream):
                     asyncio.run(voicelab.voicelab_start(request, background))
@@ -257,6 +325,14 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
 
                 self.assertEqual(1, len(streamed))
                 self.assertIn(stage, os.path.basename(streamed[0][2]))
+                if stage == "profile":
+                    defaults = get_profiler_paths(core.ROOT_DIR, core.DATA_DIR)
+                    self.assertEqual(defaults["manifest"],
+                                     streamed[0][streamed[0].index("--manifest") + 1])
+                    self.assertEqual(defaults["model"],
+                                     streamed[0][streamed[0].index("--model") + 1])
+                    self.assertEqual(defaults["output_csv"],
+                                     streamed[0][streamed[0].index("--output_csv") + 1])
 
 
 if __name__ == "__main__":

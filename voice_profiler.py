@@ -25,10 +25,22 @@ import sys
 import tempfile
 import zipfile
 
-import numpy as np
-import librosa
+try:
+    import numpy as np
+    import librosa
+    DEPENDENCY_ERROR = None
+except ImportError as e:
+    np = None
+    librosa = None
+    DEPENDENCY_ERROR = e
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.join(SCRIPT_DIR, "app")
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
+
+from voicelab_settings import get_profiler_paths
+
 CSV_FIELDS = ("id", "narrator", "best_loss", "voice_profile", "gender_est",
               "mean_f0", "std_f0", "speaking_rate")
 
@@ -66,10 +78,63 @@ def atomic_csv_write(rows: list[dict], target_path: str) -> None:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise
-REPO2_DIR  = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
-MANIFEST   = os.path.join(REPO2_DIR, "lora_models", "manifest.json")
-MODEL_PATH = os.path.join(REPO2_DIR, "Qwen2.5-14B-Instruct-Q6_K.gguf")
-OUTPUT_CSV = os.path.join(REPO2_DIR, "lora_models", "voice_profiles.csv")
+
+
+def get_preflight_report(manifest_path: str, model_path: str,
+                         output_csv: str, epub_dirs: list[str]) -> dict:
+    """Check profiler prerequisites without loading the GGUF or changing data."""
+    errors = []
+    warnings = []
+    if DEPENDENCY_ERROR is not None:
+        errors.append(f"acoustic dependency unavailable: {DEPENDENCY_ERROR}")
+    try:
+        from llama_cpp import Llama
+        if Llama is None:
+            errors.append("llama_cpp.Llama is unavailable")
+    except (ImportError, OSError) as e:
+        errors.append(f"llama_cpp unavailable: {e}")
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+        if not isinstance(manifest, list):
+            errors.append("manifest must contain a JSON list")
+    except (OSError, json.JSONDecodeError) as e:
+        errors.append(f"manifest unreadable: {e}")
+    if not os.path.isfile(model_path):
+        errors.append(f"model not found: {model_path}")
+    output_dir = os.path.dirname(os.path.abspath(output_csv))
+    probe_path = None
+    try:
+        fd, probe_path = tempfile.mkstemp(prefix=".voice_profiler_check_", dir=output_dir)
+        os.close(fd)
+    except OSError:
+        errors.append(f"output directory is not writable: {output_dir}")
+    finally:
+        if probe_path:
+            try:
+                os.remove(probe_path)
+            except OSError:
+                errors.append(f"preflight probe could not be removed: {probe_path}")
+    for path in epub_dirs:
+        if not os.path.isdir(path) or not os.access(path, os.R_OK):
+            warnings.append(f"EPUB directory is not readable: {path}")
+    return {"status": "passed" if not errors else "failed",
+            "errors": errors, "warnings": warnings}
+
+
+def describe_model_init_error(error: Exception) -> str:
+    """Turn common llama.cpp startup failures into an actionable one-line error."""
+    detail = str(error).strip() or type(error).__name__
+    lowered = detail.lower()
+    if "out of memory" in lowered or "memory allocation" in lowered:
+        return f"insufficient GPU memory while loading the profiler model: {detail}"
+    if "gguf" in lowered or "magic" in lowered:
+        return f"invalid or incompatible GGUF model: {detail}"
+    return f"profiler model initialization failed: {detail}"
+PROFILER_PATHS = get_profiler_paths(SCRIPT_DIR)
+MANIFEST = PROFILER_PATHS["manifest"]
+MODEL_PATH = PROFILER_PATHS["model"]
+OUTPUT_CSV = PROFILER_PATHS["output_csv"]
 
 
 # ── Acoustic analysis ─────────────────────────────────────────────────────────
@@ -240,12 +305,6 @@ def interpret_features(f: dict) -> str:
 
 from html.parser import HTMLParser
 
-EPUB_DIRS = [
-    "/home/fakemitch/Desktop/New folder/new new",
-    "/home/fakemitch/Desktop/books",
-]
-
-
 class _TextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -270,7 +329,7 @@ class _TextExtractor(HTMLParser):
         return re.sub(r'\n{3,}', '\n\n', ''.join(self.parts)).strip()
 
 
-def find_epub(dataset_id: str) -> str | None:
+def find_epub(dataset_id: str, epub_dirs: list[str]) -> str | None:
     """Find EPUB matching this adapter — first by ASIN, then by title tokens."""
     asin_m = re.search(r'_([bB][a-z0-9]{9}|\d{10})(?:_|$)', dataset_id)
     asin = asin_m.group(1).upper() if asin_m else None
@@ -286,7 +345,7 @@ def find_epub(dataset_id: str) -> str | None:
 
     # Collect all candidates with scores, return best
     candidates = []
-    for epub_dir in EPUB_DIRS:
+    for epub_dir in epub_dirs:
         if not os.path.isdir(epub_dir):
             continue
         for fname in sorted(os.listdir(epub_dir)):
@@ -310,7 +369,7 @@ def find_epub(dataset_id: str) -> str | None:
     # Fallback: if any title word is a standalone number, try matching that alone
     number_words = [w for w in title_words if w.isdigit()]
     for num in number_words:
-        for epub_dir in EPUB_DIRS:
+        for epub_dir in epub_dirs:
             if not os.path.isdir(epub_dir):
                 continue
             for fname in sorted(os.listdir(epub_dir)):
@@ -504,9 +563,24 @@ def main() -> int:
     parser.add_argument("--manifest",   default=MANIFEST)
     parser.add_argument("--model",      default=MODEL_PATH,    help="Path to GGUF model")
     parser.add_argument("--output_csv", default=OUTPUT_CSV)
+    parser.add_argument("--epub-dir", dest="epub_dirs", action="append", default=[],
+                        help="Optional EPUB search directory (repeatable)")
     parser.add_argument("--dry_run",    action="store_true",   help="Acoustics only, skip LLM")
     parser.add_argument("--overwrite",  action="store_true",   help="Re-profile existing entries")
+    parser.add_argument("--check", action="store_true",
+                        help="Validate prerequisites without loading the model or writing files")
     args = parser.parse_args()
+
+    if args.check:
+        report = get_preflight_report(args.manifest, args.model, args.output_csv, args.epub_dirs)
+        print(json.dumps(report), flush=True)
+        return 0 if report["status"] == "passed" else 1
+
+    if not args.dry_run:
+        report = get_preflight_report(args.manifest, args.model, args.output_csv, args.epub_dirs)
+        if report["status"] != "passed":
+            print("ERROR: " + "; ".join(report["errors"]), flush=True)
+            return 1
 
     if not os.path.exists(args.manifest):
         print(f"ERROR: manifest not found: {args.manifest} (run batch_train_lora.py first)")
@@ -529,13 +603,17 @@ def main() -> int:
             print(f"ERROR: model not found: {args.model}")
             return 1
         print(f"Loading LLM: {os.path.basename(args.model)} …", flush=True)
-        from llama_cpp import Llama
-        llm = Llama(
-            model_path=args.model,
-            n_ctx=2048,
-            n_gpu_layers=-1,
-            verbose=False,
-        )
+        try:
+            from llama_cpp import Llama
+            llm = Llama(
+                model_path=args.model,
+                n_ctx=2048,
+                n_gpu_layers=-1,
+                verbose=False,
+            )
+        except Exception as e:
+            print(f"ERROR: {describe_model_init_error(e)}", flush=True)
+            return 1
         print("LLM ready.\n", flush=True)
 
     preview_rows = []
@@ -569,7 +647,7 @@ def main() -> int:
         ref_text     = get_ref_text(zip_path)
         description  = summary  # fallback for dry_run
 
-        epub_path    = find_epub(dataset_id)
+        epub_path    = find_epub(dataset_id, args.epub_dirs)
         book_passage = extract_epub_passage(epub_path) if epub_path else ""
 
         if epub_path:
@@ -602,7 +680,11 @@ def main() -> int:
             if not llm_failed:
                 entry['voice_profile'] = description
             # Checkpoint manifest after each narrator
-            atomic_json_write(manifest, args.manifest)
+            try:
+                atomic_json_write(manifest, args.manifest)
+            except OSError as e:
+                print(f"ERROR: unable to checkpoint profiler manifest: {e}", flush=True)
+                return 1
 
         if not llm_failed:
             preview_rows.append({
@@ -618,7 +700,11 @@ def main() -> int:
 
     if not args.dry_run:
         csv_rows = [row for entry in manifest if (row := profile_csv_row(entry)) is not None]
-        atomic_csv_write(csv_rows, args.output_csv)
+        try:
+            atomic_csv_write(csv_rows, args.output_csv)
+        except OSError as e:
+            print(f"ERROR: unable to write profile CSV: {e}", flush=True)
+            return 1
         print(f"\nCSV: {args.output_csv}")
 
     print(f"Done: {len(preview_rows)} profiles processed, {errors} errors")

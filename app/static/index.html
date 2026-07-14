@@ -1350,6 +1350,11 @@
                                             <label class="form-label small mb-0">Default input folder <span id="chk-zips_dir" class="vl-chk"></span></label>
                                             <input type="text" class="form-control form-control-sm" id="vl-zips_dir_cfg" placeholder="/path/to/zips2">
                                         </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-0">EPUB search folders (optional) <span id="chk-epub_dirs" class="vl-chk"></span></label>
+                                            <textarea class="form-control form-control-sm" id="vl-epub_dirs" rows="2" placeholder="One folder per line"></textarea>
+                                            <div class="form-text small">Adds book prose context to generated voice descriptions.</div>
+                                        </div>
                                     </div>
                                     <button class="btn btn-sm btn-outline-primary mt-2" type="button" onclick="saveVoicelabConfig()"><i class="fas fa-save me-1"></i>Save settings</button>
                                 </div>
@@ -6710,6 +6715,7 @@
                 document.getElementById('vl-rocm_python').value = c.rocm_python || '';
                 document.getElementById('vl-profiler_model').value = c.profiler_model || '';
                 document.getElementById('vl-zips_dir_cfg').value = c.zips_dir || '';
+                document.getElementById('vl-epub_dirs').value = (c.epub_dirs || []).join('\n');
                 const input = document.getElementById('vl-zips_dir');
                 if (!input.value) { input.value = c.zips_dir || ''; }
 
@@ -6717,12 +6723,18 @@
                 // batch_train_lora/voice_profiler ship with the app, so like
                 // voice_analysis/name_voices they have no settings input - they
                 // still count toward the issue badge below via res.checks.
-                ['rocm_python','profiler_model','zips_dir']
+                ['rocm_python','profiler_model','zips_dir','epub_dirs']
                     .forEach(k => _vlSetCheckIcon('chk-' + k, !!ck[k]));
                 const issues = Object.values(ck).filter(v => v === false).length;
                 document.getElementById('voicelab-readiness').innerHTML = issues
                     ? `<span class="badge bg-warning text-dark">${issues} issue${issues>1?'s':''}</span>`
                     : '<span class="badge bg-success">ready</span>';
+                const profilerErrors = res.profiler_errors || [];
+                if (profilerErrors.length) {
+                    document.getElementById('voicelab-readiness').title = profilerErrors.join('\n');
+                } else {
+                    document.getElementById('voicelab-readiness').removeAttribute('title');
+                }
             } catch (e) { console.error('Failed to load Voice Lab config:', e); }
         }
 
@@ -6731,6 +6743,7 @@
                 rocm_python: document.getElementById('vl-rocm_python').value.trim(),
                 profiler_model: document.getElementById('vl-profiler_model').value.trim(),
                 zips_dir: document.getElementById('vl-zips_dir_cfg').value.trim(),
+                epub_dirs: document.getElementById('vl-epub_dirs').value.split('\n').map(v => v.trim()).filter(Boolean),
             };
             try {
                 await API.post('/api/voicelab/config', body);

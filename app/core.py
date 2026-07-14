@@ -329,6 +329,8 @@ VOICELAB_DEFAULTS = {
     "rocm_python": os.environ.get("ALEXANDRIA_ROCM_PYTHON", ""),
     # GGUF model voice_profiler.py uses for the prose descriptions ("" = its default)
     "profiler_model": os.environ.get("ALEXANDRIA_PROFILER_MODEL", ""),
+    # Optional book folders used to enrich voice profiles with a prose sample.
+    "epub_dirs": [p for p in os.environ.get("ALEXANDRIA_EPUB_DIRS", "").split(os.pathsep) if p],
     # Default zips2 root (folder of narrator subfolders) the dedup stage reads
     "zips_dir": os.environ.get("ALEXANDRIA_ZIPS_DIR", os.path.join(DATA_DIR, "zips2")),
 }
