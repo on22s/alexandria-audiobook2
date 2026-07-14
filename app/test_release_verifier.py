@@ -52,6 +52,13 @@ class CiEnvParityTests(unittest.TestCase):
         }
         self.assertNotIn("torch", declared)
 
+    def test_ci_runs_the_shared_release_verifier(self):
+        workflow = self._workflow()
+        self.assertIn(
+            "python verify_release.py --json-report release-report.json", workflow)
+        self.assertNotIn("python -m unittest discover", workflow)
+        self.assertIn("actions/upload-artifact@v4", workflow)
+
     def test_block_ml_imports_hides_an_installed_module(self):
         # Prove the finder really blocks, using a module that IS installed here
         # (json), so the test is meaningful whether or not torch is present.
@@ -200,7 +207,7 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertEqual("passed", report["status"])
         self.assertEqual("quick", report["mode"])
         self.assertEqual(
-            ["compile_python", "unit_tests", "api_contract", "api_tests"],
+            ["compile_python", "test_inventory", "unit_tests", "api_contract", "api_tests"],
             [gate["name"] for gate in report["gates"]],
         )
         self.assertEqual(api_result, report["gates"][-1]["result"])
