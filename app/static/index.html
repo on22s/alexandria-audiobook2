@@ -3382,6 +3382,10 @@
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
                                         <label class="form-check-label">Voice Design</label>
                                     </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label">Together</label>
+                                    </div>
                                 </div>
 
                                 <!-- Custom Options -->
@@ -3483,11 +3487,42 @@
                                         </button>
                                     </div>
                                 </div>
+
+                                <!-- Ensemble Options -->
+                                <div class="ensemble-opts" style="display: ${voiceType === 'ensemble' ? 'block' : 'none'}">
+                                    <div class="ensemble-members small">${ensembleMembersMarkup(voice.name, config.members)}</div>
+                                    <span class="text-muted small">Each character is voiced with whatever voice it already has, then mixed together. Clips are aligned to the longest, so this sounds like a chorus rather than exact unison.</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
+        }
+
+        // Suggest members for a compound name like "Petra and Subaru" or
+        // "GOD/BUDDHA/OD LAGNA": keep the parts that are real characters.
+        function suggestEnsembleMembers(name) {
+            const names = window._voicesNames || [];
+            const lower = new Map(names.map(n => [n.toLowerCase(), n]));
+            return name.split(/\s+&\s+|\s+and\s+|\/|\s*\+\s*/i)
+                .map(part => lower.get(part.trim().toLowerCase()))
+                .filter(n => n && n !== name);
+        }
+
+        function ensembleMembersMarkup(name, members) {
+            const names = (window._voicesNames || []).filter(n => n !== name);
+            if (names.length === 0) {
+                return '<div class="text-muted">No other characters to combine.</div>';
+            }
+            // Only prefill when nothing is saved yet — never override a choice.
+            const selected = new Set(members && members.length ? members : suggestEnsembleMembers(name));
+            return names.map(n => `
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input ensemble-member" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
+                    <label class="form-check-label">${escapeHtml(n)}</label>
+                </div>
+            `).join('');
         }
 
         window.toggleVoiceType = (radio) => {
@@ -3497,6 +3532,7 @@
             card.querySelector('.clone-opts').style.display = radio.value === 'clone' ? 'block' : 'none';
             card.querySelector('.lora-opts').style.display = radio.value === 'lora' ? 'block' : 'none';
             card.querySelector('.design-opts').style.display = radio.value === 'design' ? 'block' : 'none';
+            card.querySelector('.ensemble-opts').style.display = radio.value === 'ensemble' ? 'block' : 'none';
             saveVoicesDebounced();
         };
 
@@ -4096,7 +4132,13 @@
                 const alias = card.querySelector('.alias-select') ? card.querySelector('.alias-select').value : '';
                 const type = card.querySelector('.voice-type:checked').value;
 
-                if (type === 'custom') {
+                if (type === 'ensemble') {
+                    config[name] = {
+                        type: 'ensemble',
+                        members: Array.from(card.querySelectorAll('.ensemble-member:checked')).map(cb => cb.value),
+                        seed: "-1"
+                    };
+                } else if (type === 'custom') {
                     config[name] = {
                         type: 'custom',
                         voice: card.querySelector('.voice-select').value,

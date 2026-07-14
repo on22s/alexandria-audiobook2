@@ -1282,6 +1282,20 @@
             "default": "",
             "title": "Description"
           },
+          "members": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Members"
+          },
           "ref_audio": {
             "anyOf": [
               {

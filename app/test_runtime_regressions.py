@@ -11,6 +11,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import numpy as np
+import soundfile as sf
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
@@ -244,20 +246,128 @@ class RuntimeTests(unittest.TestCase):
                 f"{fname} must ship with this repo",
             )
 
+    # ── Ensemble ("X and Y" lines voiced by several characters at once) ──
+
+    def _write_tone(self, path, seconds, freq=220.0, sr=24000):
+        t = np.linspace(0, seconds, int(sr * seconds), endpoint=False)
+        sf.write(path, (0.5 * np.sin(2 * np.pi * freq * t)).astype(np.float32), sr)
+        return path
+
+    def test_voice_category_routes_ensemble(self):
+        self.assertEqual(tts_module.voice_category({"type": "ensemble"}), "ensemble")
+
+    def test_mix_to_unison_aligns_and_mixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = self._write_tone(os.path.join(tmp, "a.wav"), 1.0, 220.0)
+            b = self._write_tone(os.path.join(tmp, "b.wav"), 1.2, 330.0)
+            out = os.path.join(tmp, "out.wav")
+            tts_module.mix_to_unison([a, b], out)
+
+            mixed, sr = sf.read(out)
+            longest = max(len(sf.read(p)[0]) for p in (a, b))
+            # Aligned to the longest clip: they start and end together.
+            self.assertEqual(len(mixed), longest)
+            # Mixing must not clip.
+            self.assertLessEqual(float(np.abs(mixed).max()), 1.0)
+            # Both voices must actually be present, not one silently dropped.
+            spectrum = np.abs(np.fft.rfft(mixed))
+            freqs = np.fft.rfftfreq(len(mixed), 1 / sr)
+            for expected in (220.0, 330.0):
+                band = spectrum[(freqs > expected - 15) & (freqs < expected + 15)]
+                self.assertGreater(band.max(), spectrum.mean() * 10,
+                                   f"{expected}Hz voice missing from the mix")
+
+    def test_mix_to_unison_leaves_extreme_outlier_unstretched(self):
+        # Stretching a 3x-shorter clip that far smears it audibly; drifting is
+        # the better failure. Output still spans the longest clip.
+        with tempfile.TemporaryDirectory() as tmp:
+            short = self._write_tone(os.path.join(tmp, "s.wav"), 1.0)
+            long = self._write_tone(os.path.join(tmp, "l.wav"), 3.0)
+            out = os.path.join(tmp, "out.wav")
+            tts_module.mix_to_unison([short, long], out, max_stretch=1.35)
+            self.assertEqual(len(sf.read(out)[0]), len(sf.read(long)[0]))
+
+    def _ensemble_engine(self):
+        return tts_module.TTSEngine({"tts": {}})
+
+    def test_ensemble_renders_each_member_with_its_own_voice(self):
+        # The point of the feature: members are ordinary speaker keys, so a
+        # member that already has a LoRA is rendered through its LoRA.
+        engine = self._ensemble_engine()
+        voice_config = {
+            "Petra and Subaru": {"type": "ensemble", "members": ["Petra", "Subaru"]},
+            "Petra": {"type": "lora", "adapter_path": "petra.safetensors"},
+            "Subaru": {"type": "custom", "voice": "Ryan"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            rendered = []
+
+            def fake_generate_voice(text, instruct, speaker, cfg, path):
+                rendered.append(speaker)
+                self._write_tone(path, 1.0 + 0.1 * len(rendered))
+                return True
+
+            out = os.path.join(tmp, "out.wav")
+            with patch.object(engine, "generate_voice", side_effect=fake_generate_voice):
+                ok = engine.generate_ensemble_voice(
+                    "Together!", "", voice_config["Petra and Subaru"], voice_config, out)
+            self.assertTrue(ok)
+            self.assertEqual(rendered, ["Petra", "Subaru"])
+            self.assertTrue(os.path.isfile(out))
+
+    def test_ensemble_rejects_nested_ensemble(self):
+        # Must fail loudly rather than recurse forever.
+        engine = self._ensemble_engine()
+        voice_config = {
+            "A": {"type": "ensemble", "members": ["B"]},
+            "B": {"type": "ensemble", "members": ["A"]},
+        }
+        with self.assertRaises(ValueError) as raised:
+            engine.generate_ensemble_voice("hi", "", voice_config["A"], voice_config, "x.wav")
+        self.assertIn("nested", str(raised.exception))
+
+    def test_ensemble_rejects_unknown_or_empty_members(self):
+        engine = self._ensemble_engine()
+        with self.assertRaises(ValueError):
+            engine.generate_ensemble_voice(
+                "hi", "", {"type": "ensemble", "members": ["Ghost"]}, {"Real": {}}, "x.wav")
+        with self.assertRaises(ValueError):
+            engine.generate_ensemble_voice(
+                "hi", "", {"type": "ensemble", "members": []}, {}, "x.wav")
+
+    def test_generate_batch_routes_ensemble_to_sequential_path(self):
+        engine = self._ensemble_engine()
+        voice_config = {
+            "Duo": {"type": "ensemble", "members": ["X"]},
+            "X": {"type": "custom"},
+        }
+        chunks = [{"index": 0, "text": "hi", "instruct": "", "speaker": "Duo"}]
+        # generate_batch clears the GPU cache after each bucket, which imports
+        # torch. Production always has it (install.js declares bundle "ai"), but
+        # CI deliberately installs without it, so stand torch in here.
+        with patch.object(engine, "_sequential_ensemble",
+                          return_value={"completed": [0], "failed": []}) as seq, \
+                patch.dict(sys.modules, {"torch": self._fake_torch(8 * 10**9)}):
+            results = engine.generate_batch(chunks, voice_config, "/tmp")
+        seq.assert_called_once()
+        self.assertEqual(results["completed"], [0])
+
     def test_tts_engine_reads_configured_max_new_tokens(self):
         self.assertEqual(
             tts_module.TTSEngine({"tts": {"max_new_tokens": 4096}})._max_new_tokens, 4096)
         self.assertEqual(tts_module.TTSEngine({"tts": {}})._max_new_tokens, 2048)
 
     def _fake_torch(self, free_bytes):
-        """Minimal torch stand-in: _estimate_max_batch_size imports torch inside
-        the function, so injecting sys.modules is enough (app/env has no torch)."""
+        """Minimal torch stand-in, so the estimate is exercised without a GPU:
+        _estimate_max_batch_size imports torch inside the function, so injecting
+        sys.modules is enough to control mem_get_info."""
         torch = SimpleNamespace()
         torch.cuda = SimpleNamespace(
             is_available=lambda: True,
             mem_get_info=lambda: (free_bytes, free_bytes),
             memory_reserved=lambda: 0,
             memory_allocated=lambda: 0,
+            empty_cache=lambda: None,
         )
         return torch
 
