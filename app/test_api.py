@@ -41,36 +41,37 @@ def section(title):
 
 
 def run_test(name, func, requires_full=False):
+    record = {"name": name, "requires_full": requires_full}
     if requires_full and not FULL_MODE:
         print(f"  [ SKIP ] {name} (requires --full)")
         results["skipped"] += 1
-        test_results.append({"name": name, "status": "skipped", "reason": "requires --full"})
+        test_results.append({**record, "status": "skipped", "reason": "requires --full"})
         return
     try:
         func()
         print(f"  [ PASS ] {name}")
         results["passed"] += 1
-        test_results.append({"name": name, "status": "passed"})
+        test_results.append({**record, "status": "passed"})
     except TestFailure as e:
         msg = str(e)
         if msg.startswith("SKIP:"):
             reason = msg[5:].strip()
             print(f"  [ SKIP ] {name} ({reason})")
             results["skipped"] += 1
-            test_results.append({"name": name, "status": "skipped", "reason": reason})
+            test_results.append({**record, "status": "skipped", "reason": reason})
         else:
             print(f"  [ FAIL ] {name}")
             print(f"           {msg}")
             results["failed"] += 1
             failures.append((name, msg))
-            test_results.append({"name": name, "status": "failed", "reason": msg})
+            test_results.append({**record, "status": "failed", "reason": msg})
     except Exception as e:
         msg = f"{type(e).__name__}: {e}"
         print(f"  [ FAIL ] {name}")
         print(f"           {msg}")
         results["failed"] += 1
         failures.append((name, str(e)))
-        test_results.append({"name": name, "status": "failed", "reason": msg})
+        test_results.append({**record, "status": "failed", "reason": msg})
 
 
 def get_json_summary():
