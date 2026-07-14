@@ -90,13 +90,40 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
 
     def test_profiler_epub_search_uses_only_explicit_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
-            expected = os.path.join(tmp, "Example Book [B012345678].epub")
+            expected = os.path.join(tmp, "Example Book [B012345678].EPUB")
             Path(expected).write_bytes(b"epub")
 
             self.assertEqual(expected, voice_profiler.find_epub(
                 "narrator_test_voice_example_book_b012345678_char1_vol01", [tmp]))
             self.assertIsNone(voice_profiler.find_epub(
                 "narrator_test_voice_example_book_b012345678_char1_vol01", []))
+
+    def test_profiler_identity_parser_keeps_middle_initial_and_book_boundary(self):
+        dataset_id = "narrator_jane_q_public_example_book_b012345678_char1_vol01"
+        self.assertEqual(("Jane Q Public", "Example Book", "B012345678"),
+                         voice_profiler.get_dataset_identity(dataset_id))
+
+    def test_completed_profiles_rebuild_csv_without_loading_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = os.path.join(tmp, "manifest.json")
+            csv_path = os.path.join(tmp, "profiles.csv")
+            manifest = [{
+                "id": "voice", "dataset_id": "narrator_jane_doe_example_book",
+                "zip_source": "voice.zip", "voice_profile": "warm",
+                "voice_features": {"mean_f0": 120, "std_f0": 10,
+                                   "speaking_rate": 3},
+            }]
+            Path(manifest_path).write_text(json.dumps(manifest), encoding="utf-8")
+            argv = ["voice_profiler.py", "--manifest", manifest_path,
+                    "--model", os.path.join(tmp, "missing.gguf"),
+                    "--output_csv", csv_path]
+            with patch.object(sys, "argv", argv):
+                rc = voice_profiler.main()
+
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(0, rc)
+            self.assertEqual(["voice"], [row["id"] for row in rows])
 
     def test_profiler_preflight_reports_missing_model_and_dependency(self):
         with tempfile.TemporaryDirectory() as tmp:

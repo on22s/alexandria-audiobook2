@@ -331,17 +331,9 @@ class _TextExtractor(HTMLParser):
 
 def find_epub(dataset_id: str, epub_dirs: list[str]) -> str | None:
     """Find EPUB matching this adapter — first by ASIN, then by title tokens."""
-    asin_m = re.search(r'_([bB][a-z0-9]{9}|\d{10})(?:_|$)', dataset_id)
-    asin = asin_m.group(1).upper() if asin_m else None
-
-    # Title slug: everything after narrator name, before ASIN, lowercased
-    s = dataset_id.removeprefix("narrator_")
-    s = re.sub(r"_char\d+_vol\d+$", "", s)
-    if asin_m:
-        s = s[:asin_m.start()]
-    all_words = re.sub(r"[^a-z0-9 ]", " ", s.lower()).split()
-    # Skip narrator name (first 2 tokens), include words >= 2 chars (catches "ex", "86")
-    title_words = [w for w in all_words[2:] if len(w) >= 2]
+    _, title, asin = get_dataset_identity(dataset_id)
+    title_words = [word for word in re.sub(r"[^a-z0-9 ]", " ", title.lower()).split()
+                   if len(word) >= 2]
 
     # Collect all candidates with scores, return best
     candidates = []
@@ -349,7 +341,7 @@ def find_epub(dataset_id: str, epub_dirs: list[str]) -> str | None:
         if not os.path.isdir(epub_dir):
             continue
         for fname in sorted(os.listdir(epub_dir)):
-            if not fname.endswith('.epub'):
+            if not fname.lower().endswith('.epub'):
                 continue
             fl = fname.lower()
             # Exact ASIN match wins immediately
@@ -373,7 +365,7 @@ def find_epub(dataset_id: str, epub_dirs: list[str]) -> str | None:
             if not os.path.isdir(epub_dir):
                 continue
             for fname in sorted(os.listdir(epub_dir)):
-                if fname.endswith('.epub') and re.search(rf'\b{num}\b', fname.lower()):
+                if fname.lower().endswith('.epub') and re.search(rf'\b{num}\b', fname.lower()):
                     return os.path.join(epub_dir, fname)
     return None
 
@@ -425,20 +417,25 @@ def extract_epub_passage(epub_path: str, target_chars: int = 600) -> str:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def parse_narrator_name(dataset_id: str) -> str:
-    """Extract a readable narrator name from dataset_id.
-    Format: narrator_firstname_lastname_booktitle_asin_charN_volN
-    """
+def get_dataset_identity(dataset_id: str) -> tuple[str, str, str | None]:
+    """Return narrator, book title, and ASIN parsed from a training dataset ID."""
     s = dataset_id.removeprefix("narrator_")
     s = re.sub(r"_char\d+_vol\d+$", "", s)
-    # Strip ASIN (10-char B-prefix or 10-digit number) and everything after
-    m = re.search(r"_(?:[bB][a-z0-9]{9}|\d{10})(?:_|$)", s)
+    m = re.search(r"_([bB][a-z0-9]{9}|\d{10})(?:_|$)", s)
+    asin = m.group(1).upper() if m else None
     if m:
         s = s[:m.start()]
     parts = [p for p in s.split("_") if p]
-    # Take first 2 tokens as first/last name; 3 if second looks like a middle name initial
-    name_parts = parts[:2] if len(parts) > 2 else parts
-    return " ".join(p.title() for p in name_parts)
+    name_count = 3 if len(parts) >= 3 and len(parts[1]) == 1 else min(2, len(parts))
+    narrator = " ".join(part.title() for part in parts[:name_count])
+    title = " ".join(part.title() for part in parts[name_count:])
+    return narrator, title, asin
+
+
+def parse_narrator_name(dataset_id: str) -> str:
+    """Extract a readable narrator name from dataset_id."""
+    narrator, _, _ = get_dataset_identity(dataset_id)
+    return narrator
 
 
 def get_ref_wav(zip_path: str) -> bytes | None:
@@ -463,15 +460,8 @@ def get_ref_text(zip_path: str) -> str:
 
 def parse_book_title(dataset_id: str) -> str:
     """Extract book title from dataset_id after stripping narrator name and suffixes."""
-    s = dataset_id.removeprefix("narrator_")
-    s = re.sub(r"_char\d+_vol\d+$", "", s)
-    m = re.search(r"_(?:[bB][a-z0-9]{9}|\d{10})(?:_|$)", s)
-    if m:
-        s = s[:m.start()]
-    parts = [p for p in s.split("_") if p]
-    # Skip first 2 tokens (narrator first/last name)
-    title_parts = parts[2:] if len(parts) > 2 else []
-    return " ".join(p.title() for p in title_parts) if title_parts else ""
+    _, title, _ = get_dataset_identity(dataset_id)
+    return title
 
 
 def profile_csv_row(entry: dict) -> dict | None:
@@ -576,25 +566,40 @@ def main() -> int:
         print(json.dumps(report), flush=True)
         return 0 if report["status"] == "passed" else 1
 
-    if not args.dry_run:
-        report = get_preflight_report(args.manifest, args.model, args.output_csv, args.epub_dirs)
-        if report["status"] != "passed":
-            print("ERROR: " + "; ".join(report["errors"]), flush=True)
-            return 1
-
     if not os.path.exists(args.manifest):
         print(f"ERROR: manifest not found: {args.manifest} (run batch_train_lora.py first)")
         return 1
-    with open(args.manifest, encoding='utf-8') as f:
-        manifest = json.load(f)
+    try:
+        with open(args.manifest, encoding='utf-8') as f:
+            manifest = json.load(f)
+        if not isinstance(manifest, list):
+            raise ValueError("manifest must contain a JSON list")
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        print(f"ERROR: manifest unreadable: {e}", flush=True)
+        return 1
 
     batch = [e for e in manifest if e.get('zip_source')]
     todo  = [e for e in batch if args.overwrite or not e.get('voice_profile')]
 
     print(f"{len(batch)} adapters with zip_source — {len(todo)} to profile")
     if not todo:
+        if not args.dry_run:
+            csv_rows = [row for entry in manifest
+                        if (row := profile_csv_row(entry)) is not None]
+            try:
+                atomic_csv_write(csv_rows, args.output_csv)
+            except OSError as e:
+                print(f"ERROR: unable to write profile CSV: {e}", flush=True)
+                return 1
+            print(f"CSV: {args.output_csv}")
         print("All already profiled. Use --overwrite to redo.")
         return 0
+
+    if not args.dry_run:
+        report = get_preflight_report(args.manifest, args.model, args.output_csv, args.epub_dirs)
+        if report["status"] != "passed":
+            print("ERROR: " + "; ".join(report["errors"]), flush=True)
+            return 1
 
     # Load LLM once (expensive — ~10-20s for 14B Q6)
     llm = None
