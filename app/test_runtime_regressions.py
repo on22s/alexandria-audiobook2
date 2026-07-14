@@ -10,7 +10,7 @@ import tempfile
 import threading
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import soundfile as sf
@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 import app as app_module
 import core as core_module
 import tts as tts_module
+import tts_vram_benchmark as tts_benchmark_module
 from routers import preparer as preparer_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
@@ -388,6 +389,28 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(
             tts_module.TTSEngine({"tts": {"max_new_tokens": 4096}})._max_new_tokens, 4096)
         self.assertEqual(tts_module.TTSEngine({"tts": {}})._max_new_tokens, 2048)
+
+    def test_tts_custom_warmup_retries_failure_and_runs_once_after_success(self):
+        engine = tts_module.TTSEngine({"tts": {}})
+        failed_model = SimpleNamespace(generate_custom_voice=Mock(
+            side_effect=RuntimeError("warmup failed")))
+        self.assertFalse(engine.ensure_custom_warmup(failed_model))
+        self.assertTrue(engine._custom_warmup_needed)
+
+        working_model = SimpleNamespace(generate_custom_voice=Mock())
+        self.assertTrue(engine.ensure_custom_warmup(working_model))
+        self.assertTrue(engine.ensure_custom_warmup(working_model))
+        working_model.generate_custom_voice.assert_called_once()
+        self.assertFalse(engine._custom_warmup_needed)
+
+    def test_tts_benchmark_builds_nested_engine_config_without_mutation(self):
+        original = {"language": "Spanish", "max_new_tokens": 4096}
+        result = tts_benchmark_module.get_benchmark_engine_config(original)
+
+        self.assertEqual({"language": "Spanish", "max_new_tokens": 4096}, original)
+        self.assertEqual("local", result["tts"]["mode"])
+        self.assertEqual("Spanish", result["tts"]["language"])
+        self.assertEqual(4096, result["tts"]["max_new_tokens"])
 
     def _fake_torch(self, free_bytes):
         """Minimal torch stand-in, so the estimate is exercised without a GPU:

@@ -99,6 +99,8 @@
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_is_not_listed_as_a_script",
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_preserves_original_identity",
     "test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests",
+    "test_runtime_regressions.RuntimeTests.test_tts_benchmark_builds_nested_engine_config_without_mutation",
+    "test_runtime_regressions.RuntimeTests.test_tts_custom_warmup_retries_failure_and_runs_once_after_success",
     "test_runtime_regressions.RuntimeTests.test_tts_engine_reads_configured_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_tts_has_no_hardcoded_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_voice_category_routes_ensemble",
