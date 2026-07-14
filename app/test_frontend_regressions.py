@@ -70,6 +70,7 @@ class FrontendTests(unittest.TestCase):
         }
         mappings = {
             "parallel-workers": (config_settings.TTSConfig, "parallel_workers"),
+            "tts-max-new-tokens": (config_settings.TTSConfig, "max_new_tokens"),
             "sub-batch-min-size": (config_settings.TTSConfig, "sub_batch_min_size"),
             "sub-batch-ratio": (config_settings.TTSConfig, "sub_batch_ratio"),
             "sub-batch-max-items": (config_settings.TTSConfig, "sub_batch_max_items"),
