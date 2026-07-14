@@ -224,14 +224,22 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 400)
 
     def test_voicelab_defaults_do_not_guess_paths_inside_this_repo(self):
-        # rocm_python and pipeline_repo live outside this repo (a separate ML
-        # env + the repo holding batch_train_lora.py). Deriving them from
-        # ROOT_DIR only ships paths that cannot resolve.
-        for key in ("rocm_python", "pipeline_repo"):
-            value = core_module.VOICELAB_DEFAULTS[key]
-            self.assertFalse(
-                value.startswith(core_module.ROOT_DIR),
-                f"{key} default must not be guessed from ROOT_DIR, got {value!r}",
+        # rocm_python is a separate ML env living outside this repo. Deriving it
+        # from ROOT_DIR only ships a path that cannot resolve.
+        value = core_module.VOICELAB_DEFAULTS["rocm_python"]
+        self.assertFalse(
+            value.startswith(core_module.ROOT_DIR),
+            f"rocm_python default must not be guessed from ROOT_DIR, got {value!r}",
+        )
+
+    def test_voicelab_stage_scripts_ship_with_this_repo(self):
+        # train/profile run scripts this repo owns; Voice Lab has no setting to
+        # point them elsewhere, so a miss is a broken install.
+        for fname in ("batch_train_lora.py", "voice_profiler.py",
+                      "voice_analysis.py", "name_voices.py"):
+            self.assertTrue(
+                os.path.isfile(os.path.join(core_module.ROOT_DIR, fname)),
+                f"{fname} must ship with this repo",
             )
 
     def _voicelab_start_with(self, cfg_overrides):
@@ -245,20 +253,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_voicelab_start_reports_unconfigured_rocm_python(self):
         with tempfile.TemporaryDirectory() as tmp:
-            exc = self._voicelab_start_with(
-                {"zips_dir": tmp, "rocm_python": "", "pipeline_repo": tmp})
-        self.assertEqual(exc.status_code, 400)
-        self.assertIn("not configured", exc.detail)
-
-    def test_voicelab_start_reports_unconfigured_pipeline_repo(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            interpreter = os.path.join(tmp, "python")
-            Path(interpreter).write_text("", encoding="utf-8")
-            os.chmod(interpreter, 0o755)
-            # train reads _deduped; create it so the run reaches the repo check
-            os.makedirs(os.path.join(tmp, "_deduped"))
-            exc = self._voicelab_start_with(
-                {"zips_dir": tmp, "rocm_python": interpreter, "pipeline_repo": ""})
+            exc = self._voicelab_start_with({"zips_dir": tmp, "rocm_python": ""})
         self.assertEqual(exc.status_code, 400)
         self.assertIn("not configured", exc.detail)
 

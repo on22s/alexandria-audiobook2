@@ -40,8 +40,8 @@ router = APIRouter()
 #
 # Orchestrates the four post-preparer stages as a single sequential job:
 #   dedup   → voice_analysis.py --phase dedup   (this repo, ROCm env)
-#   train   → batch_train_lora.py               (sibling repo, ROCm env)
-#   profile → voice_profiler.py                 (sibling repo, ROCm env)
+#   train   → batch_train_lora.py               (this repo, ROCm env)
+#   profile → voice_profiler.py                 (this repo, ROCm env)
 #   name    → name_voices.py                    (this repo, pure stdlib)
 #
 # Stages 1-3 need the ROCm ML env (torch/librosa/speechbrain), which the web app's
@@ -71,7 +71,6 @@ def _rocm_env(rocm_python: str) -> dict:
 
 class VoiceLabConfig(BaseModel):
     rocm_python: Optional[str] = None
-    pipeline_repo: Optional[str] = None
     profiler_model: Optional[str] = None
     zips_dir: Optional[str] = None
 
@@ -103,9 +102,8 @@ async def voicelab_get_config():
         "config": cfg,
         "checks": {
             "rocm_python": os.path.isfile(cfg["rocm_python"]),
-            "pipeline_repo": os.path.isdir(cfg["pipeline_repo"]),
-            "batch_train_lora": os.path.isfile(os.path.join(cfg["pipeline_repo"], "batch_train_lora.py")),
-            "voice_profiler": os.path.isfile(os.path.join(cfg["pipeline_repo"], "voice_profiler.py")),
+            "batch_train_lora": os.path.isfile(os.path.join(ROOT_DIR, "batch_train_lora.py")),
+            "voice_profiler": os.path.isfile(os.path.join(ROOT_DIR, "voice_profiler.py")),
             "voice_analysis": os.path.isfile(os.path.join(ROOT_DIR, "voice_analysis.py")),
             "name_voices": os.path.isfile(os.path.join(ROOT_DIR, "name_voices.py")),
             "profiler_model": (not cfg["profiler_model"]) or os.path.isfile(cfg["profiler_model"]),
@@ -127,11 +125,6 @@ async def voicelab_save_config(request: VoiceLabConfig):
             raise HTTPException(status_code=400,
                                 detail=f"rocm_python must be an existing, executable file: {path}")
         _validate_voicelab_path(path, "rocm_python")
-    if updates.get("pipeline_repo"):
-        if not os.path.isdir(updates["pipeline_repo"]):
-            raise HTTPException(status_code=400,
-                                detail=f"pipeline_repo must be an existing directory: {updates['pipeline_repo']}")
-        _validate_voicelab_path(updates["pipeline_repo"], "pipeline_repo")
     if updates.get("profiler_model"):
         if not os.path.isfile(updates["profiler_model"]):
             raise HTTPException(status_code=400,
@@ -208,7 +201,6 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
     None for the pure-stdlib `name` stage (which correctly runs under the web
     app's own interpreter/env)."""
     rocm = cfg["rocm_python"]
-    repo = cfg["pipeline_repo"]
     deduped_dir = os.path.join(zips_dir, "_deduped")
     profiler_model = (req.profiler_model or cfg["profiler_model"]).strip()
     rocm_env = _rocm_env(rocm)
@@ -221,7 +213,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
             cmd += ["--device", req.device]
         steps.append(("dedup", cmd, ROOT_DIR, rocm_env))
     if "train" in req.stages:
-        cmd = [rocm, "-u", os.path.join(repo, "batch_train_lora.py"),
+        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "batch_train_lora.py"),
                "--zips_dir", deduped_dir,
                "--models_dir", LORA_MODELS_DIR,
                "--manifest", LORA_MODELS_MANIFEST,
@@ -239,13 +231,13 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--target_loss", str(req.target_loss),
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
-        steps.append(("train", cmd, repo, rocm_env))
+        steps.append(("train", cmd, ROOT_DIR, rocm_env))
     if "profile" in req.stages:
-        cmd = [rocm, "-u", os.path.join(repo, "voice_profiler.py"),
+        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_profiler.py"),
                "--manifest", LORA_MODELS_MANIFEST]
         if profiler_model:
             cmd += ["--model", profiler_model]
-        steps.append(("profile", cmd, repo, rocm_env))
+        steps.append(("profile", cmd, ROOT_DIR, rocm_env))
     if "name" in req.stages:
         # Pure stdlib — safe to run under the web app's own interpreter/env
         cmd = [sys.executable, "-u", os.path.join(ROOT_DIR, "name_voices.py"),
@@ -299,16 +291,13 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
         raise HTTPException(status_code=400,
                             detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
-    for s, fname, base in (("train", "batch_train_lora.py", cfg["pipeline_repo"]),
-                           ("profile", "voice_profiler.py", cfg["pipeline_repo"])):
-        if s in request.stages:
-            if not base:
-                raise HTTPException(status_code=400,
-                                    detail="pipeline_repo is not configured. Set it in Voice Lab settings.")
-            if not os.path.isfile(os.path.join(base, fname)):
-                raise HTTPException(status_code=400,
-                                    detail=f"{fname} not found in {base}. Check the pipeline repo path in Voice Lab settings.")
-            _validate_voicelab_path(base, "pipeline_repo")
+    # These ship with this repo, so a miss means a broken install, not
+    # misconfiguration - there is no path for the user to correct.
+    for s, fname in (("train", "batch_train_lora.py"),
+                     ("profile", "voice_profiler.py")):
+        if s in request.stages and not os.path.isfile(os.path.join(ROOT_DIR, fname)):
+            raise HTTPException(status_code=400,
+                                detail=f"{fname} is missing from this install.")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
 

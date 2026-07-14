@@ -1143,11 +1143,6 @@ def test_voicelab_save_config_rejects_bad_rocm_python():
     assert_status(r, 400)
 
 
-def test_voicelab_save_config_rejects_bad_pipeline_repo():
-    r = post("/api/voicelab/config", json={"pipeline_repo": "/nonexistent/not-a-real-dir"})
-    assert_status(r, 400)
-
-
 def test_voicelab_save_config_rejects_bad_profiler_model():
     r = post("/api/voicelab/config", json={"profiler_model": "/nonexistent/not-a-real-model.gguf"})
     assert_status(r, 400)
@@ -1480,7 +1475,6 @@ def run_all_tests():
 
     section("Voice Lab Config")
     run_test("voicelab_save_config_rejects_bad_rocm_python", test_voicelab_save_config_rejects_bad_rocm_python)
-    run_test("voicelab_save_config_rejects_bad_pipeline_repo", test_voicelab_save_config_rejects_bad_pipeline_repo)
     run_test("voicelab_save_config_rejects_bad_profiler_model", test_voicelab_save_config_rejects_bad_profiler_model)
 
     section("Persona Generation")

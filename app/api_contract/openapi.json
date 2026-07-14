@@ -1389,17 +1389,6 @@
       },
       "VoiceLabConfig": {
         "properties": {
-          "pipeline_repo": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pipeline Repo"
-          },
           "profiler_model": {
             "anyOf": [
               {
