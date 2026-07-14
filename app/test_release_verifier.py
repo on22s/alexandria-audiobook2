@@ -1,7 +1,9 @@
+import json
 import unittest
 from pathlib import Path
 import subprocess
 import tempfile
+from unittest.mock import patch
 
 import verify_release
 
@@ -83,6 +85,45 @@ class ReleaseVerifierTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "successful summary"):
             verify_release.validate_unittest_output("process stopped")
+
+    def test_json_report_records_successful_gates_and_api_results(self):
+        api_result = {
+            "counts": {"passed": 1, "failed": 0, "skipped": 1, "total": 2},
+            "skips": [{"name": "gpu", "reason": "requires --full"}],
+        }
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(verify_release, "compile_python_files", return_value=None), \
+             patch.object(verify_release, "run_command"), \
+             patch.object(verify_release, "run_api_suite", return_value=api_result):
+            report_path = Path(tmp) / "report.json"
+            self.assertEqual(0, verify_release.main(["--json-report", str(report_path)]))
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual("passed", report["status"])
+        self.assertEqual("quick", report["mode"])
+        self.assertEqual(
+            ["compile_python", "unit_tests", "api_contract", "api_tests"],
+            [gate["name"] for gate in report["gates"]],
+        )
+        self.assertEqual(api_result, report["gates"][-1]["result"])
+        self.assertTrue(all(gate["status"] == "passed" for gate in report["gates"]))
+
+    def test_json_report_is_written_on_failure_with_secrets_redacted(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(
+                 verify_release, "compile_python_files",
+                 side_effect=ValueError("token=do-not-store compilation failed"),
+             ):
+            report_path = Path(tmp) / "report.json"
+            self.assertEqual(1, verify_release.main(["--json-report", str(report_path)]))
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual("failed", report["status"])
+        self.assertEqual("compile_python", report["failure"]["gate"])
+        self.assertEqual("token=[REDACTED] compilation failed", report["failure"]["message"])
+        self.assertNotIn("do-not-store", json.dumps(report))
 
 
 if __name__ == "__main__":
