@@ -1,7 +1,9 @@
 import json
+import os
 import unittest
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from unittest.mock import patch
 
@@ -32,6 +34,40 @@ class ReleaseVerifierTests(unittest.TestCase):
                 [repo / "staged.py", repo / "tracked.py", repo / "untracked.py"], paths
             )
             verify_release.compile_python_files(repo)
+
+    @unittest.skipUnless(os.name == "posix", "process-group behavior is POSIX-specific")
+    def test_failed_command_terminates_grandchild_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_path = Path(tmp) / "grandchild.pid"
+            code = (
+                "import subprocess,sys; "
+                "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'], "
+                "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+                f"open({str(pid_path)!r},'w').write(str(child.pid)); sys.exit(3)"
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "exit status 3"):
+                verify_release.run_command("failing tree", [sys.executable, "-c", code], tmp)
+
+            grandchild_pid = int(pid_path.read_text(encoding="utf-8"))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(grandchild_pid, 0)
+
+    def test_keyboard_interrupt_stops_child_group_before_propagating(self):
+        class InterruptingOutput:
+            def __iter__(self):
+                raise KeyboardInterrupt
+
+            def close(self):
+                pass
+
+        process = unittest.mock.Mock(stdout=InterruptingOutput())
+        with patch.object(verify_release.subprocess, "Popen", return_value=process), \
+             patch.object(verify_release, "stop_process_group") as stop:
+            with self.assertRaises(KeyboardInterrupt):
+                verify_release.run_command("interrupted", ["command"], ".")
+
+        stop.assert_called_once_with(process, interrupt=True)
 
     def test_api_summary_uses_suite_inventory_for_quick_and_full_results(self):
         quick = self._api_summary("quick", "skipped")
@@ -124,6 +160,19 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertEqual("compile_python", report["failure"]["gate"])
         self.assertEqual("token=[REDACTED] compilation failed", report["failure"]["message"])
         self.assertNotIn("do-not-store", json.dumps(report))
+
+    def test_json_report_marks_interrupted_gate_and_returns_130(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(verify_release, "compile_python_files", side_effect=KeyboardInterrupt):
+            report_path = Path(tmp) / "report.json"
+            self.assertEqual(
+                130, verify_release.main(["--json-report", str(report_path)])
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual("failed", report["status"])
+        self.assertEqual("KeyboardInterrupt", report["failure"]["type"])
+        self.assertEqual("failed", report["gates"][0]["status"])
 
 
 if __name__ == "__main__":

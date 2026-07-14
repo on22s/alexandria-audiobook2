@@ -4,8 +4,10 @@
 import argparse
 from collections import Counter
 import json
+import os
 import py_compile
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -15,18 +17,72 @@ from pathlib import Path
 from utils import atomic_json_write
 
 
+def is_process_group_running(process):
+    if os.name != "posix":
+        return process.poll() is None
+    try:
+        os.killpg(process.pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def stop_process_group(process, interrupt=False, timeout=5):
+    """Stop a verifier child and all descendants, escalating after a bounded wait."""
+    graceful_signal = signal.SIGINT if interrupt else signal.SIGTERM
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, graceful_signal)
+        elif process.poll() is None:
+            process.terminate()
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + timeout
+    while is_process_group_running(process) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if not is_process_group_running(process):
+        return
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+    else:
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+        )
+    if process.poll() is None:
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            pass
+
+
 def run_command(label, command, cwd, reject_unittest_skips=False):
     print(f"\n== {label} ==", flush=True)
     process = subprocess.Popen(
         command, cwd=cwd, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True,
+        start_new_session=(os.name == "posix"),
+        creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
     )
     output = []
-    for line in process.stdout:
-        print(line, end="")
-        output.append(line)
-    return_code = process.wait()
+    try:
+        for line in process.stdout:
+            print(line, end="")
+            output.append(line)
+        return_code = process.wait()
+    except KeyboardInterrupt:
+        stop_process_group(process, interrupt=True)
+        raise
+    except BaseException:
+        stop_process_group(process)
+        raise
+    finally:
+        process.stdout.close()
     if return_code:
+        stop_process_group(process)
         raise RuntimeError(f"{label} failed with exit status {return_code}")
     combined = "".join(output)
     if reject_unittest_skips:
@@ -128,7 +184,8 @@ def run_api_suite(app_dir, full):
 
 def get_concise_error(exc):
     """Return a bounded one-line error with common credential values redacted."""
-    message = str(exc).splitlines()[0][:500]
+    lines = str(exc).splitlines()
+    message = (lines[0] if lines else type(exc).__name__)[:500]
     message = re.sub(
         r"(?i)\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)\S+",
         r"\1\2[REDACTED]", message,
@@ -146,7 +203,7 @@ def run_report_gate(report, name, callback):
         if result is not None:
             gate["result"] = result
         return result
-    except Exception as exc:
+    except BaseException as exc:
         gate.update({
             "status": "failed",
             "failure": {"type": type(exc).__name__, "message": get_concise_error(exc)},
@@ -192,7 +249,7 @@ def main(argv=None):
             ),
         )
         run_report_gate(report, "api_tests", lambda: run_api_suite(app_dir, args.full))
-    except (OSError, py_compile.PyCompileError, RuntimeError, ValueError) as exc:
+    except (OSError, py_compile.PyCompileError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
         failure = exc
         report["status"] = "failed"
         report["failure"] = {
@@ -200,7 +257,7 @@ def main(argv=None):
             "type": type(exc).__name__,
             "message": get_concise_error(exc),
         }
-        print(f"\nRELEASE VERIFICATION FAILED: {exc}", file=sys.stderr)
+        print(f"\nRELEASE VERIFICATION FAILED: {get_concise_error(exc)}", file=sys.stderr)
     else:
         report["status"] = "passed"
     finally:
@@ -213,7 +270,7 @@ def main(argv=None):
                 print(f"\nRELEASE VERIFICATION FAILED: could not write JSON report: {exc}",
                       file=sys.stderr)
     if failure is not None:
-        return 1
+        return 130 if isinstance(failure, KeyboardInterrupt) else 1
     print(f"\nRELEASE VERIFICATION PASSED ({report['mode']}).")
     return 0
 
