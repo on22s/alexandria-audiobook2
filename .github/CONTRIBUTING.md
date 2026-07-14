@@ -5,9 +5,8 @@ Thanks for your interest in contributing! Here are a few guidelines to help PRs 
 ## Branch Workflow
 
 - **`main`** is the stable release branch. Users install from `main`.
-- **`dev`** is the integration branch where new features land first.
 
-**All pull requests must target the `dev` branch, not `main`.** PRs targeting `main` will be asked to retarget.
+All pull requests target `main`. Required verification must pass before merge.
 
 ## PR Guidelines
 
@@ -56,7 +55,8 @@ python update_api_contract_snapshots.py --check
 python run_isolated_api_tests.py         # Quick suite vs a disposable server + safe fixtures
 python run_isolated_api_tests.py --full  # Full GPU/LLM suite, isolated (pre-release check)
 python verify_release.py          # All required local gates, quick mode
-python verify_release.py --full   # Release gate: requires 83/83 with no skips
+python verify_release.py --full   # Release gate: requires zero failures/skips
+python update_test_inventory.py --check  # Verify checked-in test discovery
 ```
 
 The isolated runner spins up a server against a throwaway `ALEXANDRIA_DATA_DIR`,
@@ -72,9 +72,13 @@ Run `python update_api_contract_snapshots.py --check` to review a summary of any
 contract drift. For an intentional change, run `python update_api_contract_snapshots.py`, review both JSON diffs in
 `app/api_contract/`, and include the intentional contract update in the PR.
 
+If test discovery changes, run `python update_test_inventory.py` and commit the
+updated inventory. After local verification and GitHub checks pass on the same
+commit, `python mark_pr_ready.py` verifies the branch and marks its draft PR ready.
+
 ## Getting Started
 
-1. Fork the repo and create a feature branch from `dev`
+1. Fork the repo and create a feature branch from `main`
 2. Make your changes
 3. Run `python test_api.py` and `python -m unittest discover -s . -p 'test_*.py'`; verify both pass
 4. Test manually by restarting the app
