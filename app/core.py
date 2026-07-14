@@ -747,6 +747,31 @@ def _batch_cancel_helper(state_key: str):
     return {"status": "cancel_requested"}
 
 
+CANCEL_TERMINATE_GRACE_SECONDS = 10.0
+
+
+def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
+                            kill_sent: bool) -> Tuple[Optional[float], bool]:
+    """Signal a cancelled process group, escalating from TERM to KILL after grace."""
+    now = time.monotonic()
+    if terminate_requested_at is None:
+        try:
+            _send_signal_tree(process, signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        return now, kill_sent
+    if not kill_sent and now - terminate_requested_at >= CANCEL_TERMINATE_GRACE_SECONDS:
+        try:
+            if sys.platform == "win32":
+                process.kill()
+            else:
+                _send_signal_tree(process, signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            pass
+        return terminate_requested_at, True
+    return terminate_requested_at, kill_sent
+
+
 def _run_claimed_background_task(task_name: str, callback) -> None:
     """Run a claimed callback and always release its process-state slot."""
     state = process_state[task_name]
@@ -828,21 +853,18 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     reader.start()
 
     own_lines: List[str] = []
-    terminate_requested = False
+    terminate_requested_at = None
+    kill_sent = False
     max_idle_cycles = 600  # Max consecutive Empty polls before assuming reader died (600 * 0.2s = 120s)
     idle_cycles = 0
 
     def _honor_cancel():
-        # Signal the whole process group once, so a cancel reaches grandchildren
-        # (the direct child's SIGTERM handler, if any, decides how to stop them).
-        nonlocal terminate_requested
-        if state.get("cancel") and not terminate_requested:
-            terminate_requested = True
-            try:
-                _send_signal_tree(process, signal.SIGTERM)
-            except (ProcessLookupError, OSError):
-                # Already exited — reader will deliver its None sentinel next.
-                pass
+        # Graceful group termination first; force-kill the same group if a child
+        # or grandchild ignores SIGTERM and keeps the output pipe open.
+        nonlocal terminate_requested_at, kill_sent
+        if state.get("cancel"):
+            terminate_requested_at, kill_sent = apply_cancel_escalation(
+                process, terminate_requested_at, kill_sent)
 
     while True:
         try:
@@ -901,6 +923,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                     log_fh = None  # Stop trying to write to disk
 
     reader.join()
+    process.stdout.close()
     process.wait()
     if log_fh:
         try:

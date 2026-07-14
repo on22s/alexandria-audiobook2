@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -192,6 +193,37 @@ class RuntimeTests(unittest.TestCase):
         finally:
             core_module.GPU_TASKS.discard(key)
             core_module.process_state.pop(key, None)
+
+    def test_cancel_escalates_process_group_after_grace_period(self):
+        process = SimpleNamespace(pid=123)
+        with patch.object(core_module, "_send_signal_tree") as send_signal, \
+             patch.object(core_module.time, "monotonic",
+                          side_effect=[10.0, 19.9, 20.0, 21.0]):
+            requested_at, killed = core_module.apply_cancel_escalation(
+                process, None, False)
+            requested_at, killed = core_module.apply_cancel_escalation(
+                process, requested_at, killed)
+            requested_at, killed = core_module.apply_cancel_escalation(
+                process, requested_at, killed)
+            core_module.apply_cancel_escalation(process, requested_at, killed)
+
+        self.assertEqual([signal.SIGTERM, signal.SIGKILL],
+                         [call.args[1] for call in send_signal.call_args_list])
+        self.assertTrue(killed)
+
+    @unittest.skipUnless(os.name == "posix", "SIGTERM-ignore behavior is POSIX-specific")
+    def test_cancel_force_stops_subprocess_that_ignores_sigterm(self):
+        state = {"cancel": True, "logs": [], "process": None, "pid": None,
+                 "paused": False}
+        code = ("import signal,time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "print('ready', flush=True); time.sleep(60)")
+        with patch.object(core_module, "CANCEL_TERMINATE_GRACE_SECONDS", 0.1):
+            return_code, lines = core_module._stream_subprocess_to_logs(
+                [sys.executable, "-c", code], os.getcwd(), state)
+
+        self.assertEqual(-signal.SIGKILL, return_code)
+        self.assertEqual(["ready"], lines)
 
     def test_failed_claimed_task_releases_running_state(self):
         key = "_test_failed_task"
