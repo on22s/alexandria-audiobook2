@@ -14,6 +14,8 @@ import sys
 import time
 import requests
 
+from utils import atomic_json_write
+
 # ── Global state ─────────────────────────────────────────────
 
 BASE_URL = ""
@@ -22,6 +24,7 @@ TEST_PREFIX = "_test_"
 
 results = {"passed": 0, "failed": 0, "skipped": 0}
 failures = []
+test_results = []
 shared = {}  # state shared between dependent tests
 
 
@@ -41,26 +44,43 @@ def run_test(name, func, requires_full=False):
     if requires_full and not FULL_MODE:
         print(f"  [ SKIP ] {name} (requires --full)")
         results["skipped"] += 1
+        test_results.append({"name": name, "status": "skipped", "reason": "requires --full"})
         return
     try:
         func()
         print(f"  [ PASS ] {name}")
         results["passed"] += 1
+        test_results.append({"name": name, "status": "passed"})
     except TestFailure as e:
         msg = str(e)
         if msg.startswith("SKIP:"):
-            print(f"  [ SKIP ] {name} ({msg[5:].strip()})")
+            reason = msg[5:].strip()
+            print(f"  [ SKIP ] {name} ({reason})")
             results["skipped"] += 1
+            test_results.append({"name": name, "status": "skipped", "reason": reason})
         else:
             print(f"  [ FAIL ] {name}")
             print(f"           {msg}")
             results["failed"] += 1
             failures.append((name, msg))
+            test_results.append({"name": name, "status": "failed", "reason": msg})
     except Exception as e:
+        msg = f"{type(e).__name__}: {e}"
         print(f"  [ FAIL ] {name}")
-        print(f"           {type(e).__name__}: {e}")
+        print(f"           {msg}")
         results["failed"] += 1
         failures.append((name, str(e)))
+        test_results.append({"name": name, "status": "failed", "reason": msg})
+
+
+def get_json_summary():
+    """Return the stable, machine-readable result of the current suite run."""
+    return {
+        "schema_version": 1,
+        "mode": "full" if FULL_MODE else "quick",
+        "counts": {**results, "total": sum(results.values())},
+        "tests": list(test_results),
+    }
 
 
 def assert_status(resp, expected=200, msg=""):
@@ -1533,6 +1553,8 @@ def main():
                         help="Server URL (default: http://127.0.0.1:4200)")
     parser.add_argument("--full", action="store_true",
                         help="Include TTS/LLM-dependent tests")
+    parser.add_argument("--json-summary", metavar="PATH",
+                        help="Write a machine-readable test summary to PATH")
     args = parser.parse_args()
 
     BASE_URL = args.url.rstrip("/")
@@ -1560,6 +1582,9 @@ def main():
             # Truncate long error messages
             short = err.split("\n")[0][:200]
             print(f"  - {name}: {short}")
+
+    if args.json_summary:
+        atomic_json_write(get_json_summary(), args.json_summary)
 
     sys.exit(1 if results["failed"] > 0 else 0)
 
