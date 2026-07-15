@@ -40,7 +40,8 @@
     "test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save",
     "test_frontend_regressions.FrontendTests.test_frontend_wires_preparer_duration_and_lora_cancel",
     "test_frontend_regressions.FrontendTests.test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints",
-    "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes"
+    "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
+    "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy"
   ],
   "test_inventory": [
     "test_inventory.TestInventoryTests.test_inventory_differences_are_compact_and_actionable",
@@ -105,9 +106,11 @@
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_nested_ensemble",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_unknown_or_empty_members",
     "test_runtime_regressions.RuntimeTests.test_ensemble_renders_each_member_with_its_own_voice",
+    "test_runtime_regressions.RuntimeTests.test_existing_upload_can_be_listed_and_selected",
     "test_runtime_regressions.RuntimeTests.test_failed_claimed_task_releases_running_state",
     "test_runtime_regressions.RuntimeTests.test_generate_batch_routes_ensemble_to_sequential_path",
     "test_runtime_regressions.RuntimeTests.test_gpu_stats_cache_preserves_rocm_fallback_result",
+    "test_runtime_regressions.RuntimeTests.test_identical_script_upload_reuses_existing_file",
     "test_runtime_regressions.RuntimeTests.test_lora_cancel_idle_reports_not_running",
     "test_runtime_regressions.RuntimeTests.test_lora_hyperparameters_are_validated_at_api_boundary",
     "test_runtime_regressions.RuntimeTests.test_lora_style_attribute_escapes_persisted_content",
@@ -126,6 +129,7 @@
     "test_runtime_regressions.RuntimeTests.test_same_name_designed_voices_get_independent_ids_and_files",
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_is_not_listed_as_a_script",
     "test_runtime_regressions.RuntimeTests.test_saved_book_metadata_preserves_original_identity",
+    "test_runtime_regressions.RuntimeTests.test_script_collision_helpers_version_and_backup_without_overwrite",
     "test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests",
     "test_runtime_regressions.RuntimeTests.test_tts_benchmark_builds_nested_engine_config_without_mutation",
     "test_runtime_regressions.RuntimeTests.test_tts_custom_warmup_retries_failure_and_runs_once_after_success",

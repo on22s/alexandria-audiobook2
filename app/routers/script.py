@@ -1,14 +1,17 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import shutil
 import sys
+import threading
 import time
 import zipfile
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -64,6 +67,8 @@ from utils import atomic_json_write, safe_load_json, secure_filename
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
+_upload_hash_cache = {}
+_upload_hash_lock = threading.Lock()
 
 
 class ReviewRequest(BaseModel):
@@ -359,6 +364,80 @@ def _claim_unique_path(directory: str, filename: str) -> str:
         candidate = f"{base}_{counter}{ext}"
 
 
+def _get_upload_hash(path: str) -> str:
+    """Return a cached SHA-256 keyed by path, size, and modification time."""
+    stat = os.stat(path)
+    key = (path, stat.st_size, stat.st_mtime_ns)
+    with _upload_hash_lock:
+        cached = _upload_hash_cache.get(key)
+    if cached:
+        return cached
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    value = digest.hexdigest()
+    with _upload_hash_lock:
+        _upload_hash_cache[key] = value
+    return value
+
+
+def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
+    """Remove path and return an existing identical text upload when present."""
+    size = os.path.getsize(path)
+    digest = _get_upload_hash(path)
+    for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
+        if (not entry.is_file() or entry.path == path or
+                os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"} or
+                entry.stat().st_size != size):
+            continue
+        if _get_upload_hash(entry.path) == digest:
+            os.remove(path)
+            return entry.path, True
+    return path, False
+
+
+def _get_reusable_uploads() -> List[dict]:
+    uploads = []
+    for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name.casefold()):
+        if not entry.is_file() or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}:
+            continue
+        stat = entry.stat()
+        uploads.append({
+            "filename": entry.name, "size": stat.st_size, "modified": stat.st_mtime,
+            "sha256": _get_upload_hash(entry.path),
+        })
+    return uploads
+
+
+def _select_upload(filename: str) -> str:
+    safe_name = _require_safe_filename(filename, "Invalid upload filename")
+    path = os.path.join(UPLOADS_DIR, safe_name)
+    if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
+        raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
+    state_path = os.path.join(DATA_DIR, "state.json")
+    state = safe_load_json(state_path, default={})
+    state["input_file_path"] = path
+    state["active_book_id"] = secure_filename(os.path.splitext(safe_name)[0])
+    atomic_json_write(state, state_path)
+    return path
+
+
+@router.get("/api/uploads")
+async def list_reusable_uploads():
+    return await asyncio.to_thread(_get_reusable_uploads)
+
+
+class ExistingUploadRequest(BaseModel):
+    filename: str
+
+
+@router.post("/api/uploads/select")
+async def select_existing_upload(request: ExistingUploadRequest):
+    path = await asyncio.to_thread(_select_upload, request.filename)
+    return {"status": "selected", "stored_filename": os.path.basename(path), "path": path}
+
+
 
 
 
@@ -396,6 +475,8 @@ async def upload_file(file: UploadFile = File(...)):
             pass
         file_path = txt_path
 
+    file_path, reused = await asyncio.to_thread(_reuse_duplicate_upload, file_path)
+
     # Save input path to state.json to be compatible with original scripts if needed
     state_path = os.path.join(DATA_DIR, "state.json")
     state = {}
@@ -410,7 +491,8 @@ async def upload_file(file: UploadFile = File(...)):
     state["active_book_id"] = secure_filename(os.path.splitext(os.path.basename(file_path))[0])
     atomic_json_write(state, state_path)
 
-    return {"filename": file.filename, "stored_filename": os.path.basename(file_path), "path": file_path}
+    return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
+            "path": file_path, "reused": reused}
 
 @router.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks):
@@ -843,6 +925,24 @@ class BatchScriptTask(BaseModel):
 
 class BatchScriptRequest(BaseModel):
     tasks: List[BatchScriptTask]
+    collision_policy: Literal["cancel", "version", "replace"] = "cancel"
+
+
+def _get_versioned_script_path(path: str) -> str:
+    base, ext = os.path.splitext(path)
+    counter = 2
+    candidate = path
+    while os.path.exists(candidate):
+        candidate = f"{base}_{counter}{ext}"
+        counter += 1
+    return candidate
+
+
+def _backup_saved_script(path: str) -> str:
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000_000:09d}"
+    backup = f"{path}.bak-{stamp}"
+    shutil.copy2(path, backup)
+    return backup
 
 @router.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
@@ -889,6 +989,21 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             stem = os.path.splitext(os.path.basename(input_path))[0]
             safe_stem = secure_filename(stem) or f"batch_{i+1}"
             output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
+
+            if os.path.exists(output_path):
+                if request.collision_policy == "cancel":
+                    state["logs"].append(
+                        f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
+                        "Choose version or replace explicitly.")
+                    state["tasks"][i]["status"] = "failed"
+                    continue
+                if request.collision_policy == "version":
+                    output_path = _get_versioned_script_path(output_path)
+                    safe_stem = os.path.splitext(os.path.basename(output_path))[0]
+                else:
+                    backup = _backup_saved_script(output_path)
+                    state["logs"].append(
+                        f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
 
             state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
 

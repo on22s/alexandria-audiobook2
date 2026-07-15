@@ -23,6 +23,7 @@ import core as core_module
 import tts as tts_module
 import tts_vram_benchmark as tts_benchmark_module
 from routers import preparer as preparer_module
+from routers import script as script_module
 from routers import dataset_builder as dataset_builder_module
 from routers import lora as lora_module
 from routers import voice_design as voice_design_module
@@ -35,6 +36,57 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_identical_script_upload_reuses_existing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = os.path.join(tmp, "uploads")
+            os.makedirs(uploads)
+
+            async def upload(filename):
+                source = _Upload([b"same book"])
+                source.filename = filename
+                return await script_module.upload_file(source)
+
+            with patch.object(script_module, "UPLOADS_DIR", uploads), \
+                 patch.object(script_module, "DATA_DIR", tmp):
+                first = asyncio.run(upload("book.txt"))
+                second = asyncio.run(upload("book.txt"))
+
+            self.assertFalse(first["reused"])
+            self.assertTrue(second["reused"])
+            self.assertEqual(first["stored_filename"], second["stored_filename"])
+            self.assertEqual(["book.txt"], os.listdir(uploads))
+
+    def test_existing_upload_can_be_listed_and_selected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = os.path.join(tmp, "uploads")
+            os.makedirs(uploads)
+            Path(uploads, "book.txt").write_text("book", encoding="utf-8")
+            Path(uploads, "ignore.epub").write_bytes(b"archive")
+
+            with patch.object(script_module, "UPLOADS_DIR", uploads), \
+                 patch.object(script_module, "DATA_DIR", tmp):
+                listed = script_module._get_reusable_uploads()
+                selected = script_module._select_upload("book.txt")
+
+            self.assertEqual(["book.txt"], [item["filename"] for item in listed])
+            self.assertEqual(64, len(listed[0]["sha256"]))
+            self.assertEqual(os.path.join(uploads, "book.txt"), selected)
+            state = json.loads(Path(tmp, "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(selected, state["input_file_path"])
+
+    def test_script_collision_helpers_version_and_backup_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = os.path.join(tmp, "book.json")
+            Path(script).write_text("old", encoding="utf-8")
+            Path(tmp, "book_2.json").write_text("version", encoding="utf-8")
+
+            versioned = script_module._get_versioned_script_path(script)
+            backup = script_module._backup_saved_script(script)
+
+            self.assertEqual(os.path.join(tmp, "book_3.json"), versioned)
+            self.assertEqual("old", Path(backup).read_text(encoding="utf-8"))
+            self.assertEqual("old", Path(script).read_text(encoding="utf-8"))
+
     def test_dataset_builder_save_rejects_done_sample_with_missing_audio(self):
         with tempfile.TemporaryDirectory() as tmp:
             builder_root = os.path.join(tmp, "builder")
