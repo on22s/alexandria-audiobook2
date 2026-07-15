@@ -145,6 +145,14 @@
     "test_runtime_regressions.RuntimeTests.test_voicelab_stage_scripts_ship_with_this_repo",
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
+  "test_script_preflight": [
+    "test_script_preflight.ScriptPreflightTests.test_does_not_flag_non_adjacent_or_short_repetition_as_duplicate_block",
+    "test_script_preflight.ScriptPreflightTests.test_endpoint_reads_saved_script_and_source_without_writing",
+    "test_script_preflight.ScriptPreflightTests.test_endpoint_rejects_non_text_source",
+    "test_script_preflight.ScriptPreflightTests.test_reports_adjacent_multi_entry_duplicate_with_source_evidence",
+    "test_script_preflight.ScriptPreflightTests.test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking",
+    "test_script_preflight.ScriptPreflightTests.test_reuses_generic_speaker_policy_and_only_reports_narration_for_character"
+  ],
   "test_support": [],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
