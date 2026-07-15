@@ -654,14 +654,21 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             if task_name == "review":
                 stats = _extract_review_stats(state["logs"])
                 if stats:
-                    if stats.get("batches_skipped_vram"):
+                    if stats.get("batches_failed"):
+                        completion_note = (
+                            f"Task {task_name} completed, but {stats['batches_failed']} "
+                            f"section(s) could not be reviewed. The original entries were "
+                            f"preserved; see the report for exact ranges and retry guidance."
+                        )
+                    elif stats.get("batches_skipped_vram"):
                         completion_note = (
                             f"Task {task_name} completed, but {stats['batches_skipped_vram']} "
                             f"section(s) were skipped because the GPU ran low on memory. "
                             f"Re-run the review to finish the rest."
                         )
                     highlights = _extract_diff_highlights(state["logs"])
-                    report_path = _write_single_review_report(stats, highlights)
+                    failures = _extract_failed_sections(state["logs"])
+                    report_path = _write_single_review_report(stats, highlights, failures)
             state["logs"].append(completion_note)
             if report_path:
                 state["logs"].append(f"Wrote review report: {os.path.relpath(report_path, ROOT_DIR)}")
@@ -948,6 +955,7 @@ _REVIEW_SUMMARY_PATTERNS = {
 _ALIAS_HEADER_RE = re.compile(r'Found \d+ nickname/alias mapping')
 _ALIAS_LINE_RE = re.compile(r"'(.+?)'\s*->\s*'(.+?)'(?:\s*\((.*)\))?\s*$")
 _DIFF_PREVIEW_RE = re.compile(r'DIFF_PREVIEW_JSON:\s*(\{.*\})\s*$')
+_FAILED_SECTIONS_RE = re.compile(r'FAILED_SECTIONS_JSON:\s*(\{.*\})\s*$')
 
 
 def _new_review_totals() -> dict:
@@ -1043,6 +1051,55 @@ def _extract_diff_highlights(lines: List[str]) -> dict:
                 logger.warning(f"Malformed DIFF_PREVIEW_JSON line, returning empty diff preview: {e}")
                 break
     return {"text_rewrites": [], "speaker_changes": []}
+
+
+def _extract_failed_sections(lines: List[str]) -> dict:
+    """Parse structured failed-batch details emitted by review_script.py."""
+    for line in reversed(lines):
+        match = _FAILED_SECTIONS_RE.search(line)
+        if match:
+            try:
+                data = json.loads(match.group(1))
+                sections = data.get("sections")
+                if not isinstance(sections, list):
+                    break
+                return {
+                    "sections": sections,
+                    "original_entries_preserved": data.get("original_entries_preserved") is True,
+                    "checkpoint_retained": data.get("checkpoint_retained") is True,
+                    "retry_from_batch": data.get("retry_from_batch"),
+                }
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Malformed FAILED_SECTIONS_JSON line: {e}")
+                break
+    return {"sections": []}
+
+
+def _markdown_failed_sections_lines(failures: Optional[dict]) -> List[str]:
+    """Format failed review ranges and their safe retry disposition."""
+    if not failures or not failures.get("sections"):
+        return []
+    labels = {
+        "review_failed": "the review request or response failed",
+        "text_length_mismatch": "text-loss protection rejected the response",
+    }
+    lines = []
+    for section in failures["sections"]:
+        reason = labels.get(section.get("category"), "the section could not be reviewed")
+        if section.get("category") == "text_length_mismatch" and section.get("word_ratio") is not None:
+            reason += f" (word-count ratio {section['word_ratio']:.2f})"
+        lines.append(
+            f"- Batch {section.get('batch', '?')}, entries "
+            f"{section.get('entry_start', '?')}–{section.get('entry_end', '?')}: {reason}."
+        )
+    if failures.get("original_entries_preserved"):
+        lines.append("- The original entries for these sections were preserved unchanged.")
+    if failures.get("checkpoint_retained") and failures.get("retry_from_batch") is not None:
+        lines.append(
+            f"- A checkpoint was retained at batch {failures['retry_from_batch']}. "
+            "Running the single-book review again with the same settings will retry from there."
+        )
+    return lines
 
 
 def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -> str:
@@ -1152,13 +1209,17 @@ def _markdown_diff_highlights_lines(highlights: dict, max_each: int = 3, heading
     return lines
 
 
-def _markdown_book_pass_lines(stats: dict, diffs: Optional[dict], heading: str = "####") -> List[str]:
+def _markdown_book_pass_lines(stats: dict, diffs: Optional[dict], failures: Optional[dict] = None,
+                              heading: str = "####") -> List[str]:
     """Stats table + heads-up notes + top diff highlights for one book (or one
     pass of a book, in a bidirectional run)."""
     lines = _markdown_stats_table(stats)
     hu = _markdown_heads_up_lines(stats)
     if hu:
         lines += [""] + hu
+    failure_lines = _markdown_failed_sections_lines(failures)
+    if failure_lines:
+        lines += [""] + failure_lines
     if diffs:
         hl = _markdown_diff_highlights_lines(diffs, max_each=2, heading=heading)
         if hl:
@@ -1300,7 +1361,8 @@ def _insert_llm_summary(lines: List[str], intro_len: int) -> List[str]:
     return lines[:intro_len] + ["", "## In Plain English", "", summary] + lines[intro_len:]
 
 
-def _write_single_review_report(stats: dict, highlights: Optional[dict] = None) -> Optional[str]:
+def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
+                                failures: Optional[dict] = None) -> Optional[str]:
     """Write a plain-language Markdown summary of a single (non-batch) review run.
 
     Returns the path to the written file, or None if it couldn't be written.
@@ -1343,6 +1405,7 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None) 
     if heads_up:
         lines += ["", "## Things to check", ""]
         lines += heads_up
+        lines += _markdown_failed_sections_lines(failures)
 
     lines = _insert_llm_summary(lines, len(intro))
 
