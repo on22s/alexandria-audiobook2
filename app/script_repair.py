@@ -1,0 +1,79 @@
+"""Deterministic, source-backed repairs for annotated scripts."""
+
+import copy
+import re
+
+from script_preflight import find_adjacent_duplicate_blocks, _normalize
+
+
+_WORD_WITH_CYRILLIC_RE = re.compile(r"[^\W\d_]*[\u0400-\u04ff][^\W\d_]*", re.UNICODE)
+_CYRILLIC_HOMOGLYPHS = str.maketrans({
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x",
+    "у": "y", "к": "k", "м": "m", "т": "t", "в": "b", "г": "r",
+    "А": "A", "Е": "E", "О": "O", "Р": "P", "С": "C", "Х": "X",
+    "У": "Y", "К": "K", "М": "M", "Т": "T", "В": "B", "Г": "R",
+})
+_KNOWN_SOURCE_CORRUPTIONS = {"саге": "care"}
+
+
+def build_deterministic_repair(entries, source_text):
+    """Return repaired copies and evidence; never mutate the supplied entries."""
+    repaired = copy.deepcopy(entries)
+    changes = []
+    unresolved = []
+    source_words = set(re.findall(r"\w+", _normalize(source_text), re.UNICODE))
+
+    for index, entry in enumerate(repaired):
+        if not isinstance(entry, dict) or not isinstance(entry.get("text"), str):
+            continue
+        original = entry["text"]
+        replacements = []
+        for match in _WORD_WITH_CYRILLIC_RE.finditer(original):
+            old_word = match.group(0)
+            new_word = _KNOWN_SOURCE_CORRUPTIONS.get(old_word.casefold())
+            if new_word and old_word[:1].isupper():
+                new_word = new_word.capitalize()
+            if not new_word:
+                new_word = old_word.translate(_CYRILLIC_HOMOGLYPHS)
+            if any("\u0400" <= char <= "\u04ff" for char in new_word):
+                unresolved.append({"entry_number": index + 1, "text": old_word,
+                                   "reason": "unsupported_cyrillic_character"})
+            elif (new_word.casefold() not in source_words and
+                  old_word.casefold() not in source_words):
+                unresolved.append({"entry_number": index + 1, "text": old_word,
+                                   "candidate": new_word, "reason": "candidate_not_in_source"})
+            else:
+                replacements.append((match.start(), match.end(), old_word, new_word))
+        if replacements:
+            updated = original
+            for start, end, _old, new in reversed(replacements):
+                updated = updated[:start] + new + updated[end:]
+            entry["text"] = updated
+            changes.append({
+                "type": "unicode_homoglyph", "entry_number": index + 1,
+                "before": original, "after": updated,
+            })
+
+    texts = [_normalize(entry.get("text")) if isinstance(entry, dict) else "" for entry in repaired]
+    duplicate_findings = find_adjacent_duplicate_blocks(texts, source_text)
+    removals = []
+    for finding in duplicate_findings:
+        details = finding["details"]
+        if details.get("source_occurrences") != 1:
+            unresolved.append({"entry_numbers": finding["entry_numbers"],
+                               "reason": "duplicate_not_unique_in_source"})
+            continue
+        block_size = details["block_size"]
+        first = finding["entry_numbers"][0]
+        second_start = first + block_size
+        removals.extend(range(second_start - 1, second_start - 1 + block_size))
+        changes.append({
+            "type": "adjacent_duplicate_block",
+            "kept_entry_numbers": list(range(first, first + block_size)),
+            "removed_entry_numbers": list(range(second_start, second_start + block_size)),
+            "source_occurrences": 1,
+        })
+    for index in sorted(set(removals), reverse=True):
+        del repaired[index]
+
+    return {"entries": repaired, "changes": changes, "unresolved": unresolved}

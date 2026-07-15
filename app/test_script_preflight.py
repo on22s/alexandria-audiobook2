@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from routers import scripts_library
 from script_preflight import audit_script
+from script_repair import build_deterministic_repair
 
 
 def _entry(text, speaker="Narrator", instruct="Read naturally"):
@@ -16,6 +17,31 @@ def _entry(text, speaker="Narrator", instruct="Read naturally"):
 
 
 class ScriptPreflightTests(unittest.TestCase):
+    def test_deterministic_repair_is_source_backed_and_does_not_mutate_input(self):
+        entries = [_entry("Please take саге of it."), _entry("First repeated line."),
+                   _entry("Second repeated line."), _entry("First repeated line."),
+                   _entry("Second repeated line.")]
+        original = json.loads(json.dumps(entries))
+        source = "Please take саге of it. First repeated line. Second repeated line."
+
+        repair = build_deterministic_repair(entries, source)
+
+        self.assertEqual(original, entries)
+        self.assertEqual("Please take care of it.", repair["entries"][0]["text"])
+        self.assertEqual(3, len(repair["entries"]))
+        self.assertEqual([], repair["unresolved"])
+
+    def test_deterministic_repair_refuses_unproven_unicode_and_source_duplicates(self):
+        entries = [_entry("Unknown жук token."), _entry("Repeated long first line."),
+                   _entry("Repeated long second line."), _entry("Repeated long first line."),
+                   _entry("Repeated long second line.")]
+        source = "Repeated long first line. Repeated long second line. " * 2
+
+        repair = build_deterministic_repair(entries, source)
+
+        self.assertEqual(entries, repair["entries"])
+        self.assertEqual(2, len(repair["unresolved"]))
+
     def test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking(self):
         entries = [_entry(""), _entry("The саге was quiet.")]
 
@@ -87,6 +113,33 @@ class ScriptPreflightTests(unittest.TestCase):
                     asyncio.run(scripts_library.preflight_saved_script(
                         "book", scripts_library.ScriptPreflightRequest(source_filename="book.epub")))
             self.assertEqual(400, raised.exception.status_code)
+
+    def test_apply_requires_current_preview_and_creates_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp, "scripts")
+            uploads = Path(tmp, "uploads")
+            scripts.mkdir()
+            uploads.mkdir()
+            script_path = scripts / "book.json"
+            script_path.write_text(json.dumps([_entry("Take саге.")]), encoding="utf-8")
+            (uploads / "book.txt").write_text("Take саге.", encoding="utf-8")
+            request = scripts_library.ScriptRepairRequest(source_filename="book.txt")
+
+            with patch.object(scripts_library, "SCRIPTS_DIR", str(scripts)), \
+                 patch.object(scripts_library, "UPLOADS_DIR", str(uploads)):
+                preview = asyncio.run(scripts_library.preview_deterministic_repair("book", request))
+                stale = scripts_library.ScriptRepairRequest(
+                    source_filename="book.txt", expected_sha256="0" * 64)
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(scripts_library.apply_deterministic_repair("book", stale))
+                apply_request = scripts_library.ScriptRepairRequest(
+                    source_filename="book.txt", expected_sha256=preview["sha256"])
+                result = asyncio.run(scripts_library.apply_deterministic_repair("book", apply_request))
+
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertEqual("repaired", result["status"])
+            self.assertEqual("Take care.", json.loads(script_path.read_text())[0]["text"])
+            self.assertTrue((scripts / result["backup"]).exists())
 
 
 if __name__ == "__main__":

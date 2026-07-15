@@ -1101,6 +1101,30 @@
         "title": "ScriptPreflightRequest",
         "type": "object"
       },
+      "ScriptRepairRequest": {
+        "properties": {
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha256"
+          },
+          "source_filename": {
+            "title": "Source Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_filename"
+        ],
+        "title": "ScriptRepairRequest",
+        "type": "object"
+      },
       "ScriptSaveRequest": {
         "properties": {
           "name": {
@@ -4104,6 +4128,102 @@
           }
         },
         "summary": "Preflight Saved Script"
+      }
+    },
+    "/api/scripts/{name}/repair/deterministic/apply": {
+      "post": {
+        "description": "Apply an unchanged preview, preserving the original in a timestamped backup.",
+        "operationId": "apply_deterministic_repair_api_scripts__name__repair_deterministic_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptRepairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Deterministic Repair"
+      }
+    },
+    "/api/scripts/{name}/repair/deterministic/preview": {
+      "post": {
+        "description": "Preview only source-proven Unicode and adjacent-duplicate repairs.",
+        "operationId": "preview_deterministic_repair_api_scripts__name__repair_deterministic_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptRepairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Deterministic Repair"
       }
     },
     "/api/status/eta": {

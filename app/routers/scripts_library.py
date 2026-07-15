@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import shutil
@@ -20,7 +21,9 @@ from core import (
 )
 from review_script import _checkpoint_path, clear_checkpoint
 from script_preflight import audit_script
-from utils import atomic_json_write, is_generic_speaker, safe_load_json
+from script_repair import build_deterministic_repair
+from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
+                   is_generic_speaker, safe_load_json)
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -154,6 +157,67 @@ async def preflight_saved_script(name: str, request: ScriptPreflightRequest):
             raise HTTPException(status_code=422, detail="Source file is not valid UTF-8.") from exc
 
     return audit_script(entries, source_text, is_generic_speaker)
+
+
+class ScriptRepairRequest(BaseModel):
+    source_filename: str
+    expected_sha256: str | None = None
+
+
+def _load_repair_inputs(name, source_filename):
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    safe_source = _require_safe_filename(source_filename, "Invalid source filename.")
+    if not safe_source.lower().endswith((".txt", ".md")):
+        raise HTTPException(status_code=400, detail="Source must be a TXT or Markdown file.")
+    script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    source_path = os.path.join(UPLOADS_DIR, safe_source)
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+    if not os.path.exists(source_path):
+        raise HTTPException(status_code=404, detail=f"Uploaded source '{safe_source}' not found.")
+    try:
+        with open(script_path, "rb") as script_file:
+            script_bytes = script_file.read()
+        entries = safe_load_json(script_path, None)
+        with open(source_path, "r", encoding="utf-8") as source_file:
+            source_text = source_file.read()
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=422, detail="Source file is not valid UTF-8.") from exc
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=422, detail="Saved script must contain a JSON array.")
+    return script_path, hashlib.sha256(script_bytes).hexdigest(), build_deterministic_repair(entries, source_text)
+
+
+@router.post("/api/scripts/{name}/repair/deterministic/preview")
+async def preview_deterministic_repair(name: str, request: ScriptRepairRequest):
+    """Preview only source-proven Unicode and adjacent-duplicate repairs."""
+    _path, sha256, repair = _load_repair_inputs(name, request.source_filename)
+    return {"sha256": sha256, "changes": repair["changes"], "unresolved": repair["unresolved"],
+            "result_entry_count": len(repair["entries"])}
+
+
+@router.post("/api/scripts/{name}/repair/deterministic/apply")
+async def apply_deterministic_repair(name: str, request: ScriptRepairRequest):
+    """Apply an unchanged preview, preserving the original in a timestamped backup."""
+    if not request.expected_sha256:
+        raise HTTPException(status_code=400, detail="expected_sha256 from preview is required.")
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    try:
+        with file_lock(script_path):
+            path, sha256, repair = _load_repair_inputs(name, request.source_filename)
+            if sha256 != request.expected_sha256:
+                raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
+            if repair["unresolved"]:
+                raise HTTPException(status_code=409, detail="Repair has unresolved findings and was not applied.")
+            if not repair["changes"]:
+                return {"status": "unchanged", "sha256": sha256, "changes": []}
+            backup = backup_file_with_timestamp(path)
+            atomic_json_write(repair["entries"], path)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail="Script is busy; retry the preview.") from exc
+    return {"status": "repaired", "backup": os.path.basename(backup),
+            "changes": repair["changes"], "result_entry_count": len(repair["entries"])}
 
 @router.delete("/api/scripts/{name}")
 async def delete_script(name: str):

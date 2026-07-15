@@ -81,7 +81,7 @@ class RuntimeTests(unittest.TestCase):
             Path(tmp, "book_2.json").write_text("version", encoding="utf-8")
 
             versioned = script_module._get_versioned_script_path(script)
-            backup = script_module._backup_saved_script(script)
+            backup = utils.backup_file_with_timestamp(script)
 
             self.assertEqual(os.path.join(tmp, "book_3.json"), versioned)
             self.assertEqual("old", Path(backup).read_text(encoding="utf-8"))

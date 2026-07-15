@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 import os
-import shutil
 import sys
 import threading
 import time
@@ -62,7 +61,7 @@ from core import (
     run_process,
 )
 from review_script import clear_checkpoint
-from utils import atomic_json_write, safe_load_json, secure_filename
+from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json, secure_filename
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -938,12 +937,6 @@ def _get_versioned_script_path(path: str) -> str:
     return candidate
 
 
-def _backup_saved_script(path: str) -> str:
-    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000_000:09d}"
-    backup = f"{path}.bak-{stamp}"
-    shutil.copy2(path, backup)
-    return backup
-
 @router.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
     """Process multiple text/EPUB files sequentially through generate_script.py."""
@@ -1001,7 +994,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                     output_path = _get_versioned_script_path(output_path)
                     safe_stem = os.path.splitext(os.path.basename(output_path))[0]
                 else:
-                    backup = _backup_saved_script(output_path)
+                    backup = backup_file_with_timestamp(output_path)
                     state["logs"].append(
                         f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
 
