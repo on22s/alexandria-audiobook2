@@ -14,6 +14,7 @@ _CYRILLIC_HOMOGLYPHS = str.maketrans({
     "У": "Y", "К": "K", "М": "M", "Т": "T", "В": "B", "Г": "R",
 })
 _KNOWN_SOURCE_CORRUPTIONS = {"саге": "care"}
+EXPLICIT_SILENCE_MS = 1000
 
 
 def build_deterministic_repair(entries, source_text):
@@ -73,6 +74,28 @@ def build_deterministic_repair(entries, source_text):
             "removed_entry_numbers": list(range(second_start, second_start + block_size)),
             "source_occurrences": 1,
         })
+    empty_indexes = [index for index, entry in enumerate(repaired)
+                     if isinstance(entry, dict) and not str(entry.get("text") or "").strip()]
+    for index in empty_indexes:
+        if index == 0:
+            unresolved.append({"entry_number": 1, "reason": "empty_first_entry"})
+            continue
+        previous = repaired[index - 1]
+        if not isinstance(previous, dict):
+            unresolved.append({"entry_number": index + 1, "reason": "invalid_previous_entry"})
+            continue
+        if not str(previous.get("text") or "").strip():
+            unresolved.append({"entry_number": index + 1, "reason": "previous_entry_not_spoken"})
+            continue
+        if previous.get("pause_after") is not None:
+            unresolved.append({"entry_number": index + 1, "reason": "previous_pause_already_set"})
+            continue
+        previous["pause_after"] = EXPLICIT_SILENCE_MS
+        changes.append({
+            "type": "empty_entry_to_pause", "removed_entry_number": index + 1,
+            "pause_after_entry_number": index, "pause_ms": EXPLICIT_SILENCE_MS,
+        })
+        removals.append(index)
     for index in sorted(set(removals), reverse=True):
         del repaired[index]
 

@@ -150,6 +150,8 @@
     "test_script_preflight.ScriptPreflightTests.test_deterministic_repair_is_source_backed_and_does_not_mutate_input",
     "test_script_preflight.ScriptPreflightTests.test_deterministic_repair_refuses_unproven_unicode_and_source_duplicates",
     "test_script_preflight.ScriptPreflightTests.test_does_not_flag_non_adjacent_or_short_repetition_as_duplicate_block",
+    "test_script_preflight.ScriptPreflightTests.test_empty_entry_becomes_explicit_pause_on_previous_spoken_entry",
+    "test_script_preflight.ScriptPreflightTests.test_empty_entry_repair_refuses_to_overwrite_existing_pause",
     "test_script_preflight.ScriptPreflightTests.test_endpoint_reads_saved_script_and_source_without_writing",
     "test_script_preflight.ScriptPreflightTests.test_endpoint_rejects_non_text_source",
     "test_script_preflight.ScriptPreflightTests.test_reports_adjacent_multi_entry_duplicate_with_source_evidence",
