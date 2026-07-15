@@ -65,7 +65,10 @@
     "test_llm_review_regressions.ReviewDiffAlignmentTests.test_rewrite_and_metadata_changes_remain_visible",
     "test_llm_review_regressions.ReviewFailureReportingTests.test_failed_section_uses_human_entry_range_and_stable_ratio",
     "test_llm_review_regressions.ReviewFailureReportingTests.test_failed_sections_parser_and_markdown_explain_safe_retry",
-    "test_llm_review_regressions.ReviewFailureReportingTests.test_malformed_failed_sections_are_not_reported"
+    "test_llm_review_regressions.ReviewFailureReportingTests.test_malformed_failed_sections_are_not_reported",
+    "test_llm_review_regressions.ReviewSummaryTests.test_evidence_bound_llm_summary_is_kept_for_complete_run",
+    "test_llm_review_regressions.ReviewSummaryTests.test_incomplete_summary_is_deterministic_and_does_not_call_llm",
+    "test_llm_review_regressions.ReviewSummaryTests.test_unsupported_quality_claim_uses_deterministic_fallback"
   ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
