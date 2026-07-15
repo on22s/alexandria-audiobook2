@@ -42,6 +42,27 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual(entries, repair["entries"])
         self.assertEqual(2, len(repair["unresolved"]))
 
+    def test_empty_entry_becomes_explicit_pause_on_previous_spoken_entry(self):
+        entries = [_entry("Spoken line."), _entry("", instruct="A beat of silence."),
+                   _entry("Following line.")]
+
+        repair = build_deterministic_repair(entries, "Spoken line. Following line.")
+
+        self.assertEqual(2, len(repair["entries"]))
+        self.assertEqual(1000, repair["entries"][0]["pause_after"])
+        self.assertEqual("empty_entry_to_pause", repair["changes"][0]["type"])
+        self.assertNotIn("pause_after", entries[0])
+
+    def test_empty_entry_repair_refuses_to_overwrite_existing_pause(self):
+        previous = _entry("Spoken line.")
+        previous["pause_after"] = 750
+        entries = [previous, _entry("")]
+
+        repair = build_deterministic_repair(entries, "Spoken line.")
+
+        self.assertEqual(entries, repair["entries"])
+        self.assertEqual("previous_pause_already_set", repair["unresolved"][0]["reason"])
+
     def test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking(self):
         entries = [_entry(""), _entry("The саге was quiet.")]
 
