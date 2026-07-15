@@ -4,7 +4,7 @@ import os
 import shutil
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core import (
     CHUNKS_PATH,
@@ -22,6 +22,7 @@ from core import (
 from review_script import _checkpoint_path, clear_checkpoint
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
+from speaker_repair import apply_speaker_selections, build_speaker_review
 from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
                    is_generic_speaker, safe_load_json)
 
@@ -164,6 +165,17 @@ class ScriptRepairRequest(BaseModel):
     expected_sha256: str | None = None
 
 
+class SpeakerSelection(BaseModel):
+    entry_number: int = Field(ge=1)
+    expected_speaker: str
+    new_speaker: str
+
+
+class SpeakerRepairRequest(BaseModel):
+    expected_sha256: str | None = None
+    selections: list[SpeakerSelection] = Field(default_factory=list)
+
+
 def _load_repair_inputs(name, source_filename):
     safe_name = _require_safe_filename(name, "Invalid script name.")
     safe_source = _require_safe_filename(source_filename, "Invalid source filename.")
@@ -218,6 +230,49 @@ async def apply_deterministic_repair(name: str, request: ScriptRepairRequest):
         raise HTTPException(status_code=409, detail="Script is busy; retry the preview.") from exc
     return {"status": "repaired", "backup": os.path.basename(backup),
             "changes": repair["changes"], "result_entry_count": len(repair["entries"])}
+
+
+@router.get("/api/scripts/{name}/repair/speakers/preview")
+async def preview_speaker_repair(name: str):
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+    with open(path, "rb") as script_file:
+        sha256 = hashlib.sha256(script_file.read()).hexdigest()
+    entries = safe_load_json(path, None)
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=422, detail="Saved script must contain a JSON array.")
+    return {"sha256": sha256, "candidates": build_speaker_review(entries)}
+
+
+@router.post("/api/scripts/{name}/repair/speakers/apply")
+async def apply_speaker_repair(name: str, request: SpeakerRepairRequest):
+    if not request.expected_sha256:
+        raise HTTPException(status_code=400, detail="expected_sha256 from preview is required.")
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    try:
+        with file_lock(path):
+            if not os.path.exists(path):
+                raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+            with open(path, "rb") as script_file:
+                sha256 = hashlib.sha256(script_file.read()).hexdigest()
+            if sha256 != request.expected_sha256:
+                raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
+            entries = safe_load_json(path, None)
+            try:
+                repair = apply_speaker_selections(entries, [item.model_dump() for item in request.selections])
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if not repair["changes"]:
+                return {"status": "unchanged", "changes": []}
+            backup = backup_file_with_timestamp(path)
+            atomic_json_write(repair["entries"], path)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
+    return {"status": "repaired", "backup": os.path.basename(backup),
+            "changes": repair["changes"]}
 
 @router.delete("/api/scripts/{name}")
 async def delete_script(name: str):

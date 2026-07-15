@@ -156,7 +156,9 @@
     "test_script_preflight.ScriptPreflightTests.test_endpoint_rejects_non_text_source",
     "test_script_preflight.ScriptPreflightTests.test_reports_adjacent_multi_entry_duplicate_with_source_evidence",
     "test_script_preflight.ScriptPreflightTests.test_reports_empty_text_and_cyrillic_homoglyphs_as_blocking",
-    "test_script_preflight.ScriptPreflightTests.test_reuses_generic_speaker_policy_and_only_reports_narration_for_character"
+    "test_script_preflight.ScriptPreflightTests.test_reuses_generic_speaker_policy_and_only_reports_narration_for_character",
+    "test_script_preflight.ScriptPreflightTests.test_speaker_apply_requires_expected_value_and_does_not_mutate",
+    "test_script_preflight.ScriptPreflightTests.test_speaker_review_only_suggests_strong_third_person_case"
   ],
   "test_support": [],
   "test_voicelab_pipeline_scripts": [

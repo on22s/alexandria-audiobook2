@@ -1138,6 +1138,54 @@
         "title": "ScriptSaveRequest",
         "type": "object"
       },
+      "SpeakerRepairRequest": {
+        "properties": {
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha256"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/SpeakerSelection"
+            },
+            "title": "Selections",
+            "type": "array"
+          }
+        },
+        "title": "SpeakerRepairRequest",
+        "type": "object"
+      },
+      "SpeakerSelection": {
+        "properties": {
+          "entry_number": {
+            "minimum": 1.0,
+            "title": "Entry Number",
+            "type": "integer"
+          },
+          "expected_speaker": {
+            "title": "Expected Speaker",
+            "type": "string"
+          },
+          "new_speaker": {
+            "title": "New Speaker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_number",
+          "expected_speaker",
+          "new_speaker"
+        ],
+        "title": "SpeakerSelection",
+        "type": "object"
+      },
       "SuggestVoicesRequest": {
         "properties": {
           "cast": {
@@ -4224,6 +4272,90 @@
           }
         },
         "summary": "Preview Deterministic Repair"
+      }
+    },
+    "/api/scripts/{name}/repair/speakers/apply": {
+      "post": {
+        "operationId": "apply_speaker_repair_api_scripts__name__repair_speakers_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakerRepairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Speaker Repair"
+      }
+    },
+    "/api/scripts/{name}/repair/speakers/preview": {
+      "get": {
+        "operationId": "preview_speaker_repair_api_scripts__name__repair_speakers_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Speaker Repair"
       }
     },
     "/api/status/eta": {

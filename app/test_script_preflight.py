@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from routers import scripts_library
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
+from speaker_repair import apply_speaker_selections, build_speaker_review
 
 
 def _entry(text, speaker="Narrator", instruct="Read naturally"):
@@ -17,6 +18,23 @@ def _entry(text, speaker="Narrator", instruct="Read naturally"):
 
 
 class ScriptPreflightTests(unittest.TestCase):
+    def test_speaker_review_only_suggests_strong_third_person_case(self):
+        entries = [_entry("Subaru looked toward the door.", "SUBARU"),
+                   _entry("She said she would return.", "SUBARU")]
+        candidates = build_speaker_review(entries)
+        self.assertEqual("NARRATOR", candidates[0]["suggested_speaker"])
+        self.assertIsNone(candidates[1]["suggested_speaker"])
+        self.assertEqual(2, candidates[0]["next"]["entry_number"])
+
+    def test_speaker_apply_requires_expected_value_and_does_not_mutate(self):
+        entries = [_entry("Subaru looked around.", "SUBARU")]
+        repaired = apply_speaker_selections(entries, [{"entry_number": 1,
+            "expected_speaker": "SUBARU", "new_speaker": "NARRATOR"}])
+        self.assertEqual("SUBARU", entries[0]["speaker"])
+        self.assertEqual("NARRATOR", repaired["entries"][0]["speaker"])
+        with self.assertRaises(ValueError):
+            apply_speaker_selections(entries, [{"entry_number": 1,
+                "expected_speaker": "EMILIA", "new_speaker": "NARRATOR"}])
     def test_deterministic_repair_is_source_backed_and_does_not_mutate_input(self):
         entries = [_entry("Please take саге of it."), _entry("First repeated line."),
                    _entry("Second repeated line."), _entry("First repeated line."),
