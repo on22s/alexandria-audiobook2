@@ -188,6 +188,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window):
     data.setdefault("failed_batches", [])
     data.setdefault("total_stats", {})
     data["total_stats"].setdefault("batches_skipped_vram", 0)
+    data["total_stats"].setdefault("entries_changed", 0)
 
     failed_batches = sorted(data["failed_batches"])
     batch_lengths = data["batch_lengths"]
@@ -710,11 +711,13 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
         "text_changed": 0,
         "speaker_changed": 0,
         "instruct_changed": 0,
+        "entries_changed": 0,
         "entries_added": 0,
         "entries_removed": 0,
         "entries_original": len(original),
         "entries_corrected": len(corrected),
     }
+    changed_entry_indices = set()
 
     def compare_pair(orig, corr, orig_index):
         orig_text = orig.get("text", "")
@@ -723,6 +726,7 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
         corr_speaker = corr.get("speaker") or ""
 
         if orig_text != corr_text:
+            changed_entry_indices.add(orig_index)
             stats["text_changed"] += 1
             if highlight_pool is not None and len(highlight_pool["text"]) < _MAX_HIGHLIGHT_POOL:
                 ratio = difflib.SequenceMatcher(None, orig_text, corr_text).ratio()
@@ -733,6 +737,7 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
                     "magnitude": round(1.0 - ratio, 4),
                 })
         if orig_speaker != corr_speaker:
+            changed_entry_indices.add(orig_index)
             stats["speaker_changed"] += 1
             if highlight_pool is not None and len(highlight_pool["speaker"]) < _MAX_HIGHLIGHT_POOL:
                 speaker_change = {
@@ -756,6 +761,7 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
                     )
                 highlight_pool["speaker"].append(speaker_change)
         if orig.get("instruct") != corr.get("instruct"):
+            changed_entry_indices.add(orig_index)
             stats["instruct_changed"] += 1
 
     original_texts = [entry.get("text", "") for entry in original]
@@ -783,6 +789,7 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
         stats["entries_removed"] += len(original_block) - paired
         stats["entries_added"] += len(corrected_block) - paired
 
+    stats["entries_changed"] = len(changed_entry_indices)
     return stats
 
 
@@ -897,6 +904,7 @@ def main():
         "text_changed": 0,
         "speaker_changed": 0,
         "instruct_changed": 0,
+        "entries_changed": 0,
         "entries_added": 0,
         "entries_removed": 0,
         "batches_failed": 0,
@@ -994,6 +1002,7 @@ def main():
             total_stats["text_changed"] += stats["text_changed"]
             total_stats["speaker_changed"] += stats["speaker_changed"]
             total_stats["instruct_changed"] += stats["instruct_changed"]
+            total_stats["entries_changed"] += stats["entries_changed"]
 
             changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
             if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
@@ -1118,6 +1127,7 @@ def main():
                 total_stats["text_changed"] += stats["text_changed"]
                 total_stats["speaker_changed"] += stats["speaker_changed"]
                 total_stats["instruct_changed"] += stats["instruct_changed"]
+                total_stats["entries_changed"] += stats["entries_changed"]
 
                 changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
                 if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
@@ -1215,6 +1225,7 @@ def main():
     print(f"  Text changed:    {total_stats['text_changed']}")
     print(f"  Speaker changed: {total_stats['speaker_changed']}")
     print(f"  Instruct changed:{total_stats['instruct_changed']}")
+    print(f"  Entries changed: {total_stats['entries_changed']}")
     print(f"  Entries added:   {total_stats['entries_added']}")
     print(f"  Entries removed: {total_stats['entries_removed']}")
     print(f"  Narrators merged:{narrator_merges}")

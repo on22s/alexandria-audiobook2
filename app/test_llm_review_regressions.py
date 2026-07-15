@@ -112,6 +112,7 @@ class ReviewDiffAlignmentTests(unittest.TestCase):
         self.assertEqual(stats["text_changed"], 1)
         self.assertEqual(stats["speaker_changed"], 1)
         self.assertEqual(stats["instruct_changed"], 1)
+        self.assertEqual(stats["entries_changed"], 2)
         self.assertEqual(highlights["text"][0]["before"], "old wording")
         self.assertEqual(highlights["text"][0]["after"], "new wording")
 
@@ -271,3 +272,27 @@ class ReviewSummaryTests(unittest.TestCase):
             lines = core._insert_llm_summary(["Report"], 1, {"total_changes": 3})
 
         self.assertEqual(lines[4], summary)
+
+
+class ReviewChangeDensityTests(unittest.TestCase):
+    def test_high_change_density_warns_with_separate_structural_counts(self):
+        stats = {
+            "entries_before": 2615, "entries_changed": 613,
+            "entries_added": 8, "entries_removed": 1,
+        }
+
+        lines = core._markdown_change_density_lines(stats)
+
+        self.assertEqual(len(lines), 1)
+        self.assertIn("613 of 2615", lines[0])
+        self.assertIn("23.4%", lines[0])
+        self.assertIn("+8/-1", lines[0])
+        self.assertIn("before generating audio", lines[0])
+
+    def test_low_density_and_small_scripts_do_not_warn(self):
+        self.assertEqual(core._markdown_change_density_lines({
+            "entries_before": 1000, "entries_changed": 199,
+        }), [])
+        self.assertEqual(core._markdown_change_density_lines({
+            "entries_before": 99, "entries_changed": 99,
+        }), [])
