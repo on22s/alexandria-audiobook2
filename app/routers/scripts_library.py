@@ -9,6 +9,7 @@ from core import (
     CHUNKS_PATH,
     SCRIPT_PATH,
     SCRIPTS_DIR,
+    UPLOADS_DIR,
     VOICE_CONFIG_PATH,
     _get_saved_book_id,
     _require_safe_filename,
@@ -18,7 +19,8 @@ from core import (
     process_state,
 )
 from review_script import _checkpoint_path, clear_checkpoint
-from utils import atomic_json_write
+from script_preflight import audit_script
+from utils import atomic_json_write, is_generic_speaker, safe_load_json
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -119,6 +121,39 @@ async def load_script(request: ScriptLoadRequest):
 
     logger.info(f"Script '{request.name}' loaded")
     return {"status": "loaded", "name": request.name}
+
+
+class ScriptPreflightRequest(BaseModel):
+    source_filename: str | None = None
+
+
+@router.post("/api/scripts/{name}/preflight")
+async def preflight_saved_script(name: str, request: ScriptPreflightRequest):
+    """Audit a saved script and optional uploaded source without changing either."""
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+
+    entries = safe_load_json(script_path, None)
+    if entries is None:
+        raise HTTPException(status_code=422, detail=f"Saved script '{name}' is not valid JSON.")
+
+    source_text = None
+    if request.source_filename:
+        safe_source = _require_safe_filename(request.source_filename, "Invalid source filename.")
+        if not safe_source.lower().endswith((".txt", ".md")):
+            raise HTTPException(status_code=400, detail="Source must be a TXT or Markdown file.")
+        source_path = os.path.join(UPLOADS_DIR, safe_source)
+        if not os.path.exists(source_path):
+            raise HTTPException(status_code=404, detail=f"Uploaded source '{safe_source}' not found.")
+        try:
+            with open(source_path, "r", encoding="utf-8") as source_file:
+                source_text = source_file.read()
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=422, detail="Source file is not valid UTF-8.") from exc
+
+    return audit_script(entries, source_text, is_generic_speaker)
 
 @router.delete("/api/scripts/{name}")
 async def delete_script(name: str):

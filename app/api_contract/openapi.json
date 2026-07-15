@@ -1084,6 +1084,23 @@
         "title": "ScriptLoadRequest",
         "type": "object"
       },
+      "ScriptPreflightRequest": {
+        "properties": {
+          "source_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Filename"
+          }
+        },
+        "title": "ScriptPreflightRequest",
+        "type": "object"
+      },
       "ScriptSaveRequest": {
         "properties": {
           "name": {
@@ -4039,6 +4056,54 @@
           }
         },
         "summary": "Delete Script"
+      }
+    },
+    "/api/scripts/{name}/preflight": {
+      "post": {
+        "description": "Audit a saved script and optional uploaded source without changing either.",
+        "operationId": "preflight_saved_script_api_scripts__name__preflight_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptPreflightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preflight Saved Script"
       }
     },
     "/api/status/eta": {
