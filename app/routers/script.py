@@ -31,6 +31,7 @@ from core import (
     _combine_pass_stats,
     _combine_pass_totals,
     _extract_diff_highlights,
+    _extract_failed_sections,
     _extract_new_aliases,
     _extract_review_stats,
     _format_book_summary,
@@ -200,12 +201,14 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
                 if stats_fwd or stats_bwd:
                     if stats_fwd:
                         lines += ["#### First pass (reading order)", ""]
-                        lines += _markdown_book_pass_lines(stats_fwd, t.get("diffs_fwd"), heading="#####")
+                        lines += _markdown_book_pass_lines(
+                            stats_fwd, t.get("diffs_fwd"), t.get("failures_fwd"), heading="#####")
                     if stats_bwd:
                         if stats_fwd:
                             lines.append("")
                         lines += ["#### Second pass (hindsight)", ""]
-                        lines += _markdown_book_pass_lines(stats_bwd, t.get("diffs_bwd"), heading="#####")
+                        lines += _markdown_book_pass_lines(
+                            stats_bwd, t.get("diffs_bwd"), t.get("failures_bwd"), heading="#####")
                 elif status == "cancelled":
                     lines.append("- Not reviewed — the run was cancelled before reaching this book.")
                 elif status == "failed":
@@ -215,7 +218,7 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
             else:
                 stats = t.get("stats")
                 if stats:
-                    lines += _markdown_book_pass_lines(stats, t.get("diffs"))
+                    lines += _markdown_book_pass_lines(stats, t.get("diffs"), t.get("failures"))
                 elif status == "cancelled":
                     lines.append("- Not reviewed — the run was cancelled before reaching this book.")
                 elif status == "failed":
@@ -711,10 +714,11 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                     # or hit a VRAM abort with no recorded summary. Treat as
                     # incomplete rather than silently calling it "done".
                     state["tasks"][i]["status"] = "incomplete"
-                elif stats.get("batches_skipped_vram", 0) > 0:
+                elif (stats.get("batches_failed", 0) > 0 or
+                      stats.get("batches_skipped_vram", 0) > 0):
                     # The reviewer bailed out early to avoid an OOM; entries past the
-                    # abort point were left unreviewed and a checkpoint may remain on
-                    # disk for a future resume. Don't report this book as "done".
+                    # abort point or failed batches were left unreviewed, and a checkpoint
+                    # may remain on disk for a future resume. Don't report this book as done.
                     state["tasks"][i]["status"] = "incomplete"
                 else:
                     state["tasks"][i]["status"] = "done"
@@ -747,6 +751,10 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                         "stats were found in its output."
                     )
                 highlights = _extract_diff_highlights(own_lines)
+                failures = _extract_failed_sections(own_lines)
+                if failures["sections"]:
+                    state["tasks"][i][f"failures_{pass_key}"] = failures
+                    state["tasks"][i]["failures"] = failures
                 if highlights["text_rewrites"] or highlights["speaker_changes"]:
                     state["tasks"][i][f"diffs_{pass_key}"] = highlights
                     # Combine diffs from both passes for the UI badge tooltip

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import generate_script
+import core
 import review_script
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
 
@@ -161,3 +162,41 @@ class ReviewDiffAlignmentTests(unittest.TestCase):
 
         self.assertEqual(stats["text_changed"], 510)
         self.assertEqual(len(highlights["text"]), review_script._MAX_HIGHLIGHT_POOL)
+
+
+class ReviewFailureReportingTests(unittest.TestCase):
+    def test_failed_section_uses_human_entry_range_and_stable_ratio(self):
+        section = review_script.get_failed_section(
+            batch=3, zero_based_start=50, length=25,
+            category="text_length_mismatch", word_ratio=0.912345,
+        )
+
+        self.assertEqual(section, {
+            "batch": 3,
+            "entry_start": 51,
+            "entry_end": 75,
+            "category": "text_length_mismatch",
+            "word_ratio": 0.9123,
+        })
+
+    def test_failed_sections_parser_and_markdown_explain_safe_retry(self):
+        lines = [
+            'FAILED_SECTIONS_JSON: {"sections":[{"batch":3,"entry_start":51,'
+            '"entry_end":75,"category":"text_length_mismatch","word_ratio":0.91}],'
+            '"original_entries_preserved":true,"checkpoint_retained":true,'
+            '"retry_from_batch":3}'
+        ]
+
+        failures = core._extract_failed_sections(lines)
+        markdown = core._markdown_failed_sections_lines(failures)
+
+        self.assertEqual(failures["sections"][0]["entry_start"], 51)
+        self.assertTrue(any("entries 51–75" in line for line in markdown))
+        self.assertTrue(any("original entries" in line for line in markdown))
+        self.assertTrue(any("single-book review" in line for line in markdown))
+
+    def test_malformed_failed_sections_are_not_reported(self):
+        self.assertEqual(
+            core._extract_failed_sections(['FAILED_SECTIONS_JSON: {"sections":"bad"}']),
+            {"sections": []},
+        )

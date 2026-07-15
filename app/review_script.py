@@ -681,6 +681,19 @@ _MAX_HIGHLIGHT_POOL = 500
 _HIGHLIGHT_SNIPPET_LEN = 300
 
 
+def get_failed_section(batch, zero_based_start, length, category, word_ratio=None):
+    """Return structured metadata for one batch whose original entries were kept."""
+    section = {
+        "batch": batch,
+        "entry_start": zero_based_start + 1,
+        "entry_end": zero_based_start + length,
+        "category": category,
+    }
+    if word_ratio is not None:
+        section["word_ratio"] = round(word_ratio, 4)
+    return section
+
+
 def diff_entries(original, corrected, highlight_pool=None):
     """Compare original and corrected entries, return a summary dict.
 
@@ -872,6 +885,7 @@ def main():
         "batches_skipped_vram": 0,
     }
     highlight_pool = {"text": [], "speaker": []}
+    failed_sections = []
     vram_aborted = False
 
     if args.context_window and args.context_window > 0:
@@ -930,6 +944,8 @@ def main():
                 previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 batch_lengths.append(len(batch))
                 failed_batches.append(batch_index)
+                failed_sections.append(get_failed_section(
+                    batch_index, start, len(batch), "review_failed"))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
                                 batch_lengths, failed_batches)
@@ -945,6 +961,8 @@ def main():
                 previous_tail = batch[-2:] if len(batch) >= 2 else batch
                 batch_lengths.append(len(batch))
                 failed_batches.append(batch_index)
+                failed_sections.append(get_failed_section(
+                    batch_index, start, len(batch), "text_length_mismatch", ratio))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
                                 batch_lengths, failed_batches)
@@ -1045,6 +1063,9 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
                     failed_batches.append(i)
+                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
+                    failed_sections.append(get_failed_section(
+                        i, entry_start - 1, len(batch), "review_failed"))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
                                     batch_lengths, failed_batches)
@@ -1061,6 +1082,9 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
                     failed_batches.append(i)
+                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
+                    failed_sections.append(get_failed_section(
+                        i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
                                     batch_lengths, failed_batches)
@@ -1182,6 +1206,15 @@ def main():
         print(f"  Batches skipped (low GPU VRAM): {total_stats['batches_skipped_vram']}")
     print(f"  Total changes:   {total_changes}")
     print(f"{'='*60}")
+
+    if failed_sections:
+        failure_details = {
+            "sections": failed_sections,
+            "original_entries_preserved": True,
+            "checkpoint_retained": os.path.exists(_checkpoint_path(output_path)),
+            "retry_from_batch": min(section["batch"] for section in failed_sections),
+        }
+        print(f"FAILED_SECTIONS_JSON: {json.dumps(failure_details, ensure_ascii=False)}")
 
     # Emit a compact JSON line with the most notable before/after examples so the
     # web UI can show a "diff preview" without re-diffing the whole script.
