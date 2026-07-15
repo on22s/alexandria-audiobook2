@@ -16,6 +16,11 @@ _NARRATION_RE = re.compile(
 )
 
 
+def is_possible_misattributed_narration(text, speaker):
+    return (bool(speaker) and speaker.casefold() not in {"narrator", "narration"}
+            and bool(_NARRATION_RE.search(text)))
+
+
 def _normalize(value):
     return " ".join(str(value or "").split()).casefold()
 
@@ -99,7 +104,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             ))
         if index <= 30 and _FRONT_MATTER_RE.search(text):
             findings.append(_finding("manual_review", "front_matter", "Possible publication front matter.", [index]))
-        if speaker and speaker.casefold() not in {"narrator", "narration"} and _NARRATION_RE.search(text):
+        if is_possible_misattributed_narration(text, speaker):
             findings.append(_finding(
                 "manual_review", "possible_misattributed_narration",
                 "Third-person narration may be assigned to a character.", [index], speaker=speaker,
