@@ -342,6 +342,14 @@ def atomic_json_write_pair(first_data, first_path, second_data, second_path):
                 os.remove(backup)
 
 
+def backup_file_with_timestamp(path):
+    """Copy ``path`` to a collision-resistant timestamped sibling backup."""
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 1_000_000_000:09d}"
+    backup = f"{path}.bak-{stamp}"
+    shutil.copy2(path, backup)
+    return backup
+
+
 @contextlib.contextmanager
 def file_lock(target_path, timeout=10, stale_after=120):
     """Advisory cross-process lock for read-modify-write access to target_path.

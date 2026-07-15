@@ -20,6 +20,10 @@ def _normalize(value):
     return " ".join(str(value or "").split()).casefold()
 
 
+def _normalize_words(value):
+    return " ".join(_WORD_RE.findall(_normalize(value)))
+
+
 def _finding(severity, code, message, entry_numbers=None, **details):
     result = {"severity": severity, "code": code, "message": message}
     if entry_numbers:
@@ -29,10 +33,10 @@ def _finding(severity, code, message, entry_numbers=None, **details):
     return result
 
 
-def _find_adjacent_duplicate_blocks(texts, source_text):
+def find_adjacent_duplicate_blocks(texts, source_text):
     findings = []
     occupied = set()
-    source_normalized = _normalize(source_text)
+    source_normalized = _normalize_words(source_text)
     for block_size in range(5, 1, -1):
         index = 0
         while index + (2 * block_size) <= len(texts):
@@ -41,7 +45,7 @@ def _find_adjacent_duplicate_blocks(texts, source_text):
             positions = set(range(index, index + (2 * block_size)))
             if (positions.isdisjoint(occupied) and left == right and
                     all(len(text) >= 8 for text in left)):
-                block_text = " ".join(left)
+                block_text = _normalize_words(" ".join(left))
                 source_occurrences = source_normalized.count(block_text) if source_normalized else None
                 findings.append(_finding(
                     "blocking", "adjacent_duplicate_block",
@@ -106,7 +110,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
                 [index], speaker=speaker,
             ))
 
-    findings.extend(_find_adjacent_duplicate_blocks(texts, source_text))
+    findings.extend(find_adjacent_duplicate_blocks(texts, source_text))
 
     nonempty_instructions = [value for value in instructions if value]
     if len(nonempty_instructions) >= 20:
