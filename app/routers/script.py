@@ -215,7 +215,7 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
                 else:
                     lines.append("- Not reviewed.")
             else:
-                stats = t.get("stats")
+                stats = t.get("stats_fwd") or t.get("stats")
                 if stats:
                     lines += _markdown_book_pass_lines(stats, t.get("diffs"), t.get("failures"))
                 elif status == "cancelled":

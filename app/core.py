@@ -944,6 +944,7 @@ _REVIEW_SUMMARY_PATTERNS = {
     "text_changed": re.compile(r'Text changed:\s*(\d+)'),
     "speaker_changed": re.compile(r'Speaker changed:\s*(\d+)'),
     "instruct_changed": re.compile(r'Instruct changed:\s*(\d+)'),
+    "entries_changed": re.compile(r'Entries changed:\s*(\d+)'),
     "entries_added": re.compile(r'Entries added:\s*(\d+)'),
     "entries_removed": re.compile(r'Entries removed:\s*(\d+)'),
     "narrators_merged": re.compile(r'Narrators merged:\s*(\d+)'),
@@ -1140,8 +1141,9 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
 
 
 _STAT_LABELS = [
+    ("entries_changed", "Existing lines with one or more edits"),
     ("text_changed", "Lines with reworded text"),
-    ("speaker_changed", "Lines where the speaker was corrected"),
+    ("speaker_changed", "Lines with a changed speaker"),
     ("instruct_changed", "Lines with updated voice direction"),
     ("entries_added", "New lines added"),
     ("entries_removed", "Lines removed"),
@@ -1170,6 +1172,27 @@ def _markdown_heads_up_lines(stats: dict) -> List[str]:
                       f"graphics card was running low on memory. Running the review again may "
                       f"catch these.")
     return lines
+
+
+_HIGH_CHANGE_DENSITY_MIN_ENTRIES = 100
+_HIGH_CHANGE_DENSITY_THRESHOLD = 0.20
+
+
+def _markdown_change_density_lines(stats: dict) -> List[str]:
+    """Warn about broad review passes without treating change volume as failure."""
+    entries_before = stats.get("entries_before", 0)
+    entries_changed = stats.get("entries_changed", 0)
+    if entries_before < _HIGH_CHANGE_DENSITY_MIN_ENTRIES:
+        return []
+    density = entries_changed / entries_before
+    if density < _HIGH_CHANGE_DENSITY_THRESHOLD:
+        return []
+    return [
+        f"- **High-change review:** {entries_changed} of {entries_before} existing lines "
+        f"({density:.1%}) had text, speaker, or direction edits. Structural changes were "
+        f"+{stats.get('entries_added', 0)}/-{stats.get('entries_removed', 0)} lines. "
+        "Inspect the detailed counts and highlights before generating audio."
+    ]
 
 
 def _markdown_aliases_lines(aliases: List[dict], pass_label: str = "") -> List[str]:
@@ -1224,6 +1247,9 @@ def _markdown_book_pass_lines(stats: dict, diffs: Optional[dict], failures: Opti
     hu = _markdown_heads_up_lines(stats)
     if hu:
         lines += [""] + hu
+    density_lines = _markdown_change_density_lines(stats)
+    if density_lines:
+        lines += [""] + density_lines
     failure_lines = _markdown_failed_sections_lines(failures)
     if failure_lines:
         lines += [""] + failure_lines
@@ -1451,10 +1477,12 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
                 lines += hl_lines
 
     heads_up = _markdown_heads_up_lines(stats)
-    if heads_up:
+    density_lines = _markdown_change_density_lines(stats)
+    if heads_up or density_lines:
         lines += ["", "## Things to check", ""]
         lines += heads_up
         lines += _markdown_failed_sections_lines(failures)
+        lines += density_lines
 
     incomplete = bool(stats.get("batches_failed") or stats.get("batches_skipped_vram"))
     lines = _insert_llm_summary(lines, len(intro), stats, incomplete=incomplete)

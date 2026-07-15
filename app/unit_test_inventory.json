@@ -56,6 +56,8 @@
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_reserves_prompt_space",
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_scales_with_verified_context",
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context",
+    "test_llm_review_regressions.ReviewChangeDensityTests.test_high_change_density_warns_with_separate_structural_counts",
+    "test_llm_review_regressions.ReviewChangeDensityTests.test_low_density_and_small_scripts_do_not_warn",
     "test_llm_review_regressions.ReviewDiffAlignmentTests.test_addition_and_removal_are_counted_when_length_is_unchanged",
     "test_llm_review_regressions.ReviewDiffAlignmentTests.test_character_to_character_change_is_not_automatically_flagged",
     "test_llm_review_regressions.ReviewDiffAlignmentTests.test_highlight_pool_cap_is_preserved",
