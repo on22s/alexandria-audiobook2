@@ -407,6 +407,33 @@
         "title": "ChunkUpdate",
         "type": "object"
       },
+      "ContentRepairRequest": {
+        "properties": {
+          "direction_changes": {
+            "items": {
+              "$ref": "#/components/schemas/DirectionSelection"
+            },
+            "title": "Direction Changes",
+            "type": "array"
+          },
+          "expected_sha256": {
+            "title": "Expected Sha256",
+            "type": "string"
+          },
+          "front_matter_removals": {
+            "items": {
+              "$ref": "#/components/schemas/FrontMatterSelection"
+            },
+            "title": "Front Matter Removals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_sha256"
+        ],
+        "title": "ContentRepairRequest",
+        "type": "object"
+      },
       "ContextualReviewRequest": {
         "properties": {
           "dedupe_speakers": {
@@ -593,6 +620,30 @@
         "title": "DatasetSaveRequest",
         "type": "object"
       },
+      "DirectionSelection": {
+        "properties": {
+          "entry_number": {
+            "minimum": 1.0,
+            "title": "Entry Number",
+            "type": "integer"
+          },
+          "expected_instruct": {
+            "title": "Expected Instruct",
+            "type": "string"
+          },
+          "new_instruct": {
+            "title": "New Instruct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_number",
+          "expected_instruct",
+          "new_instruct"
+        ],
+        "title": "DirectionSelection",
+        "type": "object"
+      },
       "ExistingUploadRequest": {
         "properties": {
           "filename": {
@@ -604,6 +655,25 @@
           "filename"
         ],
         "title": "ExistingUploadRequest",
+        "type": "object"
+      },
+      "FrontMatterSelection": {
+        "properties": {
+          "entry_number": {
+            "minimum": 1.0,
+            "title": "Entry Number",
+            "type": "integer"
+          },
+          "expected_text": {
+            "title": "Expected Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_number",
+          "expected_text"
+        ],
+        "title": "FrontMatterSelection",
         "type": "object"
       },
       "GeneratePersonasRequest": {
@@ -4176,6 +4246,90 @@
           }
         },
         "summary": "Preflight Saved Script"
+      }
+    },
+    "/api/scripts/{name}/repair/content/apply": {
+      "post": {
+        "operationId": "apply_content_repair_api_scripts__name__repair_content_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentRepairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Content Repair"
+      }
+    },
+    "/api/scripts/{name}/repair/content/preview": {
+      "get": {
+        "operationId": "preview_content_repair_api_scripts__name__repair_content_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Content Repair"
       }
     },
     "/api/scripts/{name}/repair/deterministic/apply": {

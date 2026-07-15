@@ -757,6 +757,24 @@
   {
     "index": 85,
     "methods": [
+      "GET"
+    ],
+    "name": "preview_content_repair",
+    "path": "/api/scripts/{name}/repair/content/preview",
+    "type": "APIRoute"
+  },
+  {
+    "index": 86,
+    "methods": [
+      "POST"
+    ],
+    "name": "apply_content_repair",
+    "path": "/api/scripts/{name}/repair/content/apply",
+    "type": "APIRoute"
+  },
+  {
+    "index": 87,
+    "methods": [
       "DELETE"
     ],
     "name": "delete_script",
@@ -764,7 +782,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 86,
+    "index": 88,
     "methods": [
       "GET"
     ],
@@ -773,7 +791,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 87,
+    "index": 89,
     "methods": [
       "POST"
     ],
@@ -782,7 +800,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 88,
+    "index": 90,
     "methods": [
       "DELETE"
     ],
@@ -791,7 +809,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 89,
+    "index": 91,
     "methods": [
       "DELETE"
     ],
@@ -800,7 +818,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 90,
+    "index": 92,
     "methods": [
       "POST"
     ],
@@ -809,7 +827,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 91,
+    "index": 93,
     "methods": [
       "POST"
     ],
@@ -818,7 +836,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 92,
+    "index": 94,
     "methods": [
       "POST"
     ],
@@ -827,7 +845,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 93,
+    "index": 95,
     "methods": [
       "POST"
     ],
@@ -836,7 +854,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 94,
+    "index": 96,
     "methods": [
       "POST"
     ],
@@ -845,7 +863,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 95,
+    "index": 97,
     "methods": [
       "POST"
     ],
@@ -854,7 +872,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 96,
+    "index": 98,
     "methods": [
       "POST"
     ],
@@ -863,7 +881,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 97,
+    "index": 99,
     "methods": [
       "GET"
     ],
@@ -872,7 +890,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 98,
+    "index": 100,
     "methods": [
       "DELETE"
     ],
@@ -881,7 +899,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 99,
+    "index": 101,
     "methods": [
       "GET"
     ],
@@ -890,7 +908,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 100,
+    "index": 102,
     "methods": [
       "POST"
     ],
@@ -899,7 +917,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 101,
+    "index": 103,
     "methods": [
       "DELETE"
     ],
@@ -908,7 +926,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 102,
+    "index": 104,
     "methods": [
       "POST"
     ],
@@ -917,7 +935,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 103,
+    "index": 105,
     "methods": [
       "GET"
     ],
@@ -926,7 +944,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 104,
+    "index": 106,
     "methods": [
       "DELETE"
     ],
@@ -935,7 +953,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 105,
+    "index": 107,
     "methods": [
       "POST"
     ],
@@ -944,7 +962,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 106,
+    "index": 108,
     "methods": [
       "POST"
     ],
@@ -953,7 +971,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 107,
+    "index": 109,
     "methods": [
       "GET"
     ],
@@ -962,7 +980,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 108,
+    "index": 110,
     "methods": [
       "DELETE"
     ],
@@ -971,7 +989,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 109,
+    "index": 111,
     "methods": [
       "POST"
     ],
@@ -980,7 +998,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 110,
+    "index": 112,
     "methods": [
       "POST"
     ],
@@ -989,7 +1007,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 111,
+    "index": 113,
     "methods": [
       "POST"
     ],
@@ -998,7 +1016,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 112,
+    "index": 114,
     "methods": [
       "GET"
     ],
@@ -1007,7 +1025,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 113,
+    "index": 115,
     "methods": [
       "POST"
     ],
@@ -1016,7 +1034,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 114,
+    "index": 116,
     "methods": [
       "POST"
     ],
@@ -1025,7 +1043,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 115,
+    "index": 117,
     "methods": [
       "POST"
     ],
@@ -1034,7 +1052,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 116,
+    "index": 118,
     "methods": [
       "POST"
     ],
@@ -1043,7 +1061,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 117,
+    "index": 119,
     "methods": [
       "POST"
     ],
@@ -1052,7 +1070,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 118,
+    "index": 120,
     "methods": [
       "POST"
     ],
@@ -1061,7 +1079,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 119,
+    "index": 121,
     "methods": [
       "GET"
     ],
@@ -1070,7 +1088,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 120,
+    "index": 122,
     "methods": [
       "POST"
     ],
@@ -1079,7 +1097,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 121,
+    "index": 123,
     "methods": [
       "DELETE"
     ],
@@ -1088,7 +1106,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 122,
+    "index": 124,
     "methods": [
       "POST"
     ],
@@ -1097,7 +1115,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 123,
+    "index": 125,
     "methods": [
       "POST"
     ],
@@ -1106,7 +1124,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 124,
+    "index": 126,
     "methods": [
       "GET"
     ],
@@ -1115,7 +1133,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 125,
+    "index": 127,
     "methods": [
       "GET"
     ],
@@ -1124,7 +1142,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 126,
+    "index": 128,
     "methods": [
       "POST"
     ],
@@ -1133,7 +1151,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 127,
+    "index": 129,
     "methods": [
       "POST"
     ],
@@ -1142,7 +1160,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 128,
+    "index": 130,
     "methods": [
       "GET"
     ],
@@ -1151,7 +1169,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 129,
+    "index": 131,
     "methods": [
       "POST"
     ],
@@ -1160,7 +1178,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 130,
+    "index": 132,
     "methods": [
       "GET"
     ],
@@ -1169,7 +1187,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 131,
+    "index": 133,
     "methods": [
       "POST"
     ],
@@ -1178,7 +1196,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 132,
+    "index": 134,
     "methods": [
       "POST"
     ],
@@ -1187,7 +1205,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 133,
+    "index": 135,
     "methods": [
       "POST"
     ],
@@ -1196,7 +1214,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 134,
+    "index": 136,
     "methods": [
       "POST"
     ],

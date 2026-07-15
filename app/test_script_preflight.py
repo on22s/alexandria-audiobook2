@@ -11,6 +11,7 @@ from routers import scripts_library
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
+from content_repair import apply_content_selections, build_content_review
 
 
 def _entry(text, speaker="Narrator", instruct="Read naturally"):
@@ -18,6 +19,26 @@ def _entry(text, speaker="Narrator", instruct="Read naturally"):
 
 
 class ScriptPreflightTests(unittest.TestCase):
+    def test_content_review_is_selective_and_normalization_is_lossless(self):
+        entries = [_entry("Copyright © Publisher", instruct="  Calm,   clear. "),
+                   _entry("Chapter One", instruct="Dramatic and nuanced.")]
+        review = build_content_review(entries)
+        self.assertEqual([1], [item["entry_number"] for item in review["front_matter"]])
+        self.assertEqual("Calm, clear.", review["direction_normalizations"][0]["suggested"])
+        self.assertEqual(1, len(review["direction_normalizations"]))
+
+    def test_content_apply_requires_expected_values_and_does_not_mutate(self):
+        entries = [_entry("Copyright"), _entry("Story", instruct="Old direction")]
+        repair = apply_content_selections(entries,
+            [{"entry_number": 1, "expected_text": "Copyright"}],
+            [{"entry_number": 2, "expected_instruct": "Old direction",
+              "new_instruct": " New   direction "}])
+        self.assertEqual("Copyright", entries[0]["text"])
+        self.assertEqual(["Story"], [entry["text"] for entry in repair["entries"]])
+        self.assertEqual("New direction", repair["entries"][0]["instruct"])
+        with self.assertRaises(ValueError):
+            apply_content_selections(entries,
+                [{"entry_number": 1, "expected_text": "Changed"}], [])
     def test_speaker_review_only_suggests_strong_third_person_case(self):
         entries = [_entry("Subaru looked toward the door.", "SUBARU"),
                    _entry("She said she would return.", "SUBARU")]
