@@ -1201,11 +1201,18 @@ def _markdown_diff_highlights_lines(highlights: dict, max_each: int = 3, heading
     if changes:
         if rewrites:
             lines.append("")
-        lines += [f"{heading} Speaker corrections", ""]
+        lines += [f"{heading} Speaker changes to verify", ""]
         for c in changes:
             book = f" (in *{c['book']}*)" if c.get("book") else ""
-            lines.append(f"- “{_clean(c.get('text', ''))}” — was **{c.get('before') or '?'}**, "
-                          f"corrected to **{c.get('after') or '?'}**{book}")
+            entry = f"Entry {c['entry_number']}: " if c.get("entry_number") is not None else ""
+            lines.append(f"- {entry}“{_clean(c.get('text', ''))}” — changed from "
+                          f"**{c.get('before') or '?'}** to **{c.get('after') or '?'}**{book}")
+            if c.get("context_before"):
+                lines.append(f"  - Previous: “{_clean(c['context_before'])}”")
+            if c.get("context_after"):
+                lines.append(f"  - Next: “{_clean(c['context_after'])}”")
+            if c.get("manual_review_reason"):
+                lines.append(f"  - **Manual check recommended:** {c['manual_review_reason']}")
     return lines
 
 

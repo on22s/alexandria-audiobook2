@@ -679,6 +679,7 @@ def check_text_loss(original_entries, corrected_entries, threshold=0.95, upper_b
 
 _MAX_HIGHLIGHT_POOL = 500
 _HIGHLIGHT_SNIPPET_LEN = 300
+_HIGHLIGHT_CONTEXT_LEN = 160
 
 
 def get_failed_section(batch, zero_based_start, length, category, word_ratio=None):
@@ -694,7 +695,7 @@ def get_failed_section(batch, zero_based_start, length, category, word_ratio=Non
     return section
 
 
-def diff_entries(original, corrected, highlight_pool=None):
+def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
     """Compare original and corrected entries, return a summary dict.
 
     If highlight_pool is given (a dict with "text" and "speaker" lists), append
@@ -715,7 +716,7 @@ def diff_entries(original, corrected, highlight_pool=None):
         "entries_corrected": len(corrected),
     }
 
-    def compare_pair(orig, corr):
+    def compare_pair(orig, corr, orig_index):
         orig_text = orig.get("text", "")
         corr_text = corr.get("text", "")
         orig_speaker = orig.get("speaker") or ""
@@ -734,11 +735,26 @@ def diff_entries(original, corrected, highlight_pool=None):
         if orig_speaker != corr_speaker:
             stats["speaker_changed"] += 1
             if highlight_pool is not None and len(highlight_pool["speaker"]) < _MAX_HIGHLIGHT_POOL:
-                highlight_pool["speaker"].append({
+                speaker_change = {
                     "text": (corr_text or orig_text)[:_HIGHLIGHT_SNIPPET_LEN],
                     "before": orig_speaker or "(unknown)",
                     "after": corr_speaker or "(unknown)",
-                })
+                    "entry_number": entry_offset + orig_index + 1,
+                    "context_before": (
+                        original[orig_index - 1].get("text", "")[:_HIGHLIGHT_CONTEXT_LEN]
+                        if orig_index > 0 else ""
+                    ),
+                    "context_after": (
+                        original[orig_index + 1].get("text", "")[:_HIGHLIGHT_CONTEXT_LEN]
+                        if orig_index + 1 < len(original) else ""
+                    ),
+                }
+                if (orig_speaker.casefold() == "narrator" and
+                        corr_speaker.casefold() != "narrator"):
+                    speaker_change["manual_review_reason"] = (
+                        "Narrator-to-character changes alter which voice reads the line."
+                    )
+                highlight_pool["speaker"].append(speaker_change)
         if orig.get("instruct") != corr.get("instruct"):
             stats["instruct_changed"] += 1
 
@@ -747,8 +763,9 @@ def diff_entries(original, corrected, highlight_pool=None):
     matcher = difflib.SequenceMatcher(None, original_texts, corrected_texts, autojunk=False)
     for tag, orig_start, orig_end, corr_start, corr_end in matcher.get_opcodes():
         if tag == "equal":
-            for orig, corr in zip(original[orig_start:orig_end], corrected[corr_start:corr_end]):
-                compare_pair(orig, corr)
+            for offset, (orig, corr) in enumerate(zip(
+                    original[orig_start:orig_end], corrected[corr_start:corr_end])):
+                compare_pair(orig, corr, orig_start + offset)
             continue
         if tag == "delete":
             stats["entries_removed"] += orig_end - orig_start
@@ -760,8 +777,9 @@ def diff_entries(original, corrected, highlight_pool=None):
         original_block = original[orig_start:orig_end]
         corrected_block = corrected[corr_start:corr_end]
         paired = min(len(original_block), len(corrected_block))
-        for orig, corr in zip(original_block[:paired], corrected_block[:paired]):
-            compare_pair(orig, corr)
+        for offset, (orig, corr) in enumerate(zip(
+                original_block[:paired], corrected_block[:paired])):
+            compare_pair(orig, corr, orig_start + offset)
         stats["entries_removed"] += len(original_block) - paired
         stats["entries_added"] += len(corrected_block) - paired
 
@@ -968,7 +986,7 @@ def main():
                                 batch_lengths, failed_batches)
                 continue
 
-            stats = diff_entries(batch, corrected, highlight_pool)
+            stats = diff_entries(batch, corrected, highlight_pool, entry_offset=start)
 
             total_stats["entries_added"] += stats["entries_added"]
             total_stats["entries_removed"] += stats["entries_removed"]
@@ -1091,7 +1109,8 @@ def main():
                     continue
 
                 # Diff stats
-                stats = diff_entries(batch, corrected, highlight_pool)
+                batch_start = resume_offset + (i - completed_batches - 1) * batch_size
+                stats = diff_entries(batch, corrected, highlight_pool, entry_offset=batch_start)
 
                 total_stats["entries_added"] += stats["entries_added"]
                 total_stats["entries_removed"] += stats["entries_removed"]

@@ -163,6 +163,48 @@ class ReviewDiffAlignmentTests(unittest.TestCase):
         self.assertEqual(stats["text_changed"], 510)
         self.assertEqual(len(highlights["text"]), review_script._MAX_HIGHLIGHT_POOL)
 
+    def test_speaker_change_includes_entry_number_and_neighbor_context(self):
+        original = [
+            self.entry("before"), self.entry("He said as the cart passed."), self.entry("after"),
+        ]
+        corrected = [
+            self.entry("before"), self.entry("He said as the cart passed.", speaker="KENJI"),
+            self.entry("after"),
+        ]
+        highlights = {"text": [], "speaker": []}
+
+        review_script.diff_entries(original, corrected, highlights, entry_offset=100)
+
+        change = highlights["speaker"][0]
+        self.assertEqual(change["entry_number"], 102)
+        self.assertEqual(change["context_before"], "before")
+        self.assertEqual(change["context_after"], "after")
+        self.assertIn("Narrator-to-character", change["manual_review_reason"])
+
+    def test_character_to_character_change_is_not_automatically_flagged(self):
+        original = [self.entry("Hello", speaker="MAN")]
+        corrected = [self.entry("Hello", speaker="KENJI")]
+        highlights = {"text": [], "speaker": []}
+
+        review_script.diff_entries(original, corrected, highlights)
+
+        self.assertNotIn("manual_review_reason", highlights["speaker"][0])
+
+    def test_speaker_markdown_does_not_assert_correction(self):
+        highlights = {"text_rewrites": [], "speaker_changes": [{
+            "text": "He said as the cart passed.", "before": "NARRATOR", "after": "KENJI",
+            "entry_number": 102, "context_before": "Before.", "context_after": "After.",
+            "manual_review_reason": "Narrator-to-character changes alter the reading voice.",
+        }]}
+
+        markdown = "\n".join(core._markdown_diff_highlights_lines(highlights))
+
+        self.assertIn("Speaker changes to verify", markdown)
+        self.assertIn("Entry 102", markdown)
+        self.assertIn("Previous", markdown)
+        self.assertIn("Manual check recommended", markdown)
+        self.assertNotIn("corrected to", markdown)
+
 
 class ReviewFailureReportingTests(unittest.TestCase):
     def test_failed_section_uses_human_entry_range_and_stable_ratio(self):
