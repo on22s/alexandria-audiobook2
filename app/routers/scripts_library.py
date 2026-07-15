@@ -23,6 +23,7 @@ from review_script import _checkpoint_path, clear_checkpoint
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
+from content_repair import apply_content_selections, build_content_review
 from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
                    is_generic_speaker, safe_load_json)
 
@@ -176,6 +177,23 @@ class SpeakerRepairRequest(BaseModel):
     selections: list[SpeakerSelection] = Field(default_factory=list)
 
 
+class FrontMatterSelection(BaseModel):
+    entry_number: int = Field(ge=1)
+    expected_text: str
+
+
+class DirectionSelection(BaseModel):
+    entry_number: int = Field(ge=1)
+    expected_instruct: str
+    new_instruct: str
+
+
+class ContentRepairRequest(BaseModel):
+    expected_sha256: str
+    front_matter_removals: list[FrontMatterSelection] = Field(default_factory=list)
+    direction_changes: list[DirectionSelection] = Field(default_factory=list)
+
+
 def _load_repair_inputs(name, source_filename):
     safe_name = _require_safe_filename(name, "Invalid script name.")
     safe_source = _require_safe_filename(source_filename, "Invalid source filename.")
@@ -273,6 +291,49 @@ async def apply_speaker_repair(name: str, request: SpeakerRepairRequest):
         raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
     return {"status": "repaired", "backup": os.path.basename(backup),
             "changes": repair["changes"]}
+
+
+@router.get("/api/scripts/{name}/repair/content/preview")
+async def preview_content_repair(name: str):
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+    with open(path, "rb") as script_file:
+        sha256 = hashlib.sha256(script_file.read()).hexdigest()
+    entries = safe_load_json(path, None)
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=422, detail="Saved script must contain a JSON array.")
+    return {"sha256": sha256, **build_content_review(entries)}
+
+
+@router.post("/api/scripts/{name}/repair/content/apply")
+async def apply_content_repair(name: str, request: ContentRepairRequest):
+    safe_name = _require_safe_filename(name, "Invalid script name.")
+    path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
+    try:
+        with file_lock(path):
+            if not os.path.exists(path):
+                raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+            with open(path, "rb") as script_file:
+                sha256 = hashlib.sha256(script_file.read()).hexdigest()
+            if sha256 != request.expected_sha256:
+                raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
+            entries = safe_load_json(path, None)
+            try:
+                repair = apply_content_selections(
+                    entries, [item.model_dump() for item in request.front_matter_removals],
+                    [item.model_dump() for item in request.direction_changes])
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if not repair["changes"]:
+                return {"status": "unchanged", "changes": []}
+            backup = backup_file_with_timestamp(path)
+            atomic_json_write(repair["entries"], path)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
+    return {"status": "repaired", "backup": os.path.basename(backup),
+            "changes": repair["changes"], "result_entry_count": len(repair["entries"])}
 
 @router.delete("/api/scripts/{name}")
 async def delete_script(name: str):
