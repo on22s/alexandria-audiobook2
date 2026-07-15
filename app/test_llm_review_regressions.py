@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import generate_script
+import review_script
 from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
 
 
@@ -63,3 +64,100 @@ class LlmReviewTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertNotIn("--source", result.stdout)
+
+
+class ReviewDiffAlignmentTests(unittest.TestCase):
+    @staticmethod
+    def entry(text, speaker="NARRATOR", instruct="neutral"):
+        return {"text": text, "speaker": speaker, "instruct": instruct}
+
+    def test_middle_insertion_does_not_shift_later_comparisons(self):
+        original = [self.entry("first"), self.entry("second"), self.entry("third")]
+        corrected = [
+            self.entry("first"), self.entry("inserted", "SUBARU", "urgent"),
+            self.entry("second"), self.entry("third"),
+        ]
+
+        stats = review_script.diff_entries(original, corrected)
+
+        self.assertEqual(stats["entries_added"], 1)
+        self.assertEqual(stats["entries_removed"], 0)
+        self.assertEqual(stats["text_changed"], 0)
+        self.assertEqual(stats["speaker_changed"], 0)
+        self.assertEqual(stats["instruct_changed"], 0)
+
+    def test_middle_removal_does_not_shift_later_comparisons(self):
+        original = [self.entry("first"), self.entry("removed"), self.entry("third")]
+        corrected = [self.entry("first"), self.entry("third")]
+
+        stats = review_script.diff_entries(original, corrected)
+
+        self.assertEqual(stats["entries_added"], 0)
+        self.assertEqual(stats["entries_removed"], 1)
+        self.assertEqual(stats["text_changed"], 0)
+        self.assertEqual(stats["speaker_changed"], 0)
+        self.assertEqual(stats["instruct_changed"], 0)
+
+    def test_rewrite_and_metadata_changes_remain_visible(self):
+        original = [self.entry("old wording"), self.entry("same text")]
+        corrected = [
+            self.entry("new wording"),
+            self.entry("same text", speaker="SUBARU", instruct="quietly"),
+        ]
+        highlights = {"text": [], "speaker": []}
+
+        stats = review_script.diff_entries(original, corrected, highlights)
+
+        self.assertEqual(stats["text_changed"], 1)
+        self.assertEqual(stats["speaker_changed"], 1)
+        self.assertEqual(stats["instruct_changed"], 1)
+        self.assertEqual(highlights["text"][0]["before"], "old wording")
+        self.assertEqual(highlights["text"][0]["after"], "new wording")
+
+    def test_insertion_does_not_pair_adjacent_july_report_lines(self):
+        spirit_explanation = "That’s the tricky thing about spirit mages."
+        old_man_question = "By the way, old man, what is it you’re planning on doing?"
+        original = [self.entry(old_man_question), self.entry("following line")]
+        corrected = [
+            self.entry(spirit_explanation), self.entry(old_man_question),
+            self.entry("following line"),
+        ]
+        highlights = {"text": [], "speaker": []}
+
+        stats = review_script.diff_entries(original, corrected, highlights)
+
+        self.assertEqual(stats["entries_added"], 1)
+        self.assertEqual(stats["text_changed"], 0)
+        self.assertEqual(highlights["text"], [])
+
+    def test_replacement_with_insertion_counts_each_kind_once(self):
+        original = [self.entry("first"), self.entry("old"), self.entry("last")]
+        corrected = [
+            self.entry("first"), self.entry("new"), self.entry("extra"), self.entry("last"),
+        ]
+
+        stats = review_script.diff_entries(original, corrected)
+
+        self.assertEqual(stats["text_changed"], 1)
+        self.assertEqual(stats["entries_added"], 1)
+        self.assertEqual(stats["entries_removed"], 0)
+
+    def test_addition_and_removal_are_counted_when_length_is_unchanged(self):
+        original = [self.entry("first"), self.entry("removed"), self.entry("anchor")]
+        corrected = [self.entry("inserted"), self.entry("first"), self.entry("anchor")]
+
+        stats = review_script.diff_entries(original, corrected)
+
+        self.assertEqual(stats["entries_added"], 1)
+        self.assertEqual(stats["entries_removed"], 1)
+        self.assertEqual(stats["text_changed"], 0)
+
+    def test_highlight_pool_cap_is_preserved(self):
+        original = [self.entry(f"old {index}") for index in range(510)]
+        corrected = [self.entry(f"new {index}") for index in range(510)]
+        highlights = {"text": [], "speaker": []}
+
+        stats = review_script.diff_entries(original, corrected, highlights)
+
+        self.assertEqual(stats["text_changed"], 510)
+        self.assertEqual(len(highlights["text"]), review_script._MAX_HIGHLIGHT_POOL)

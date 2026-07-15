@@ -687,20 +687,22 @@ def diff_entries(original, corrected, highlight_pool=None):
     If highlight_pool is given (a dict with "text" and "speaker" lists), append
     notable per-entry before/after snippets to it for the "diff preview" report,
     capped at _MAX_HIGHLIGHT_POOL each so a huge book can't blow up memory.
+
+    Entries are aligned by their text before paired fields are compared. This
+    keeps a split or merge from making every later entry look changed merely
+    because its list index moved.
     """
     stats = {
         "text_changed": 0,
         "speaker_changed": 0,
         "instruct_changed": 0,
+        "entries_added": 0,
+        "entries_removed": 0,
         "entries_original": len(original),
         "entries_corrected": len(corrected),
     }
 
-    # Compare entry-by-entry up to the shorter length
-    compare_len = min(len(original), len(corrected))
-    for i in range(compare_len):
-        orig = original[i]
-        corr = corrected[i]
+    def compare_pair(orig, corr):
         orig_text = orig.get("text", "")
         corr_text = corr.get("text", "")
         orig_speaker = orig.get("speaker") or ""
@@ -726,6 +728,29 @@ def diff_entries(original, corrected, highlight_pool=None):
                 })
         if orig.get("instruct") != corr.get("instruct"):
             stats["instruct_changed"] += 1
+
+    original_texts = [entry.get("text", "") for entry in original]
+    corrected_texts = [entry.get("text", "") for entry in corrected]
+    matcher = difflib.SequenceMatcher(None, original_texts, corrected_texts, autojunk=False)
+    for tag, orig_start, orig_end, corr_start, corr_end in matcher.get_opcodes():
+        if tag == "equal":
+            for orig, corr in zip(original[orig_start:orig_end], corrected[corr_start:corr_end]):
+                compare_pair(orig, corr)
+            continue
+        if tag == "delete":
+            stats["entries_removed"] += orig_end - orig_start
+            continue
+        if tag == "insert":
+            stats["entries_added"] += corr_end - corr_start
+            continue
+
+        original_block = original[orig_start:orig_end]
+        corrected_block = corrected[corr_start:corr_end]
+        paired = min(len(original_block), len(corrected_block))
+        for orig, corr in zip(original_block[:paired], corrected_block[:paired]):
+            compare_pair(orig, corr)
+        stats["entries_removed"] += len(original_block) - paired
+        stats["entries_added"] += len(corrected_block) - paired
 
     return stats
 
@@ -926,24 +951,19 @@ def main():
                 continue
 
             stats = diff_entries(batch, corrected, highlight_pool)
-            entry_diff = len(corrected) - len(batch)
 
-            if entry_diff > 0:
-                total_stats["entries_added"] += entry_diff
-            elif entry_diff < 0:
-                total_stats["entries_removed"] += abs(entry_diff)
+            total_stats["entries_added"] += stats["entries_added"]
+            total_stats["entries_removed"] += stats["entries_removed"]
 
             total_stats["text_changed"] += stats["text_changed"]
             total_stats["speaker_changed"] += stats["speaker_changed"]
             total_stats["instruct_changed"] += stats["instruct_changed"]
 
             changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
-            if changes > 0 or entry_diff != 0:
+            if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
                 print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
-                if entry_diff > 0:
-                    print(f", +{entry_diff} entries (split)")
-                elif entry_diff < 0:
-                    print(f", {entry_diff} entries (merge)")
+                if stats["entries_added"] or stats["entries_removed"]:
+                    print(f", +{stats['entries_added']}/-{stats['entries_removed']} entries")
                 else:
                     print()
             else:
@@ -1048,24 +1068,19 @@ def main():
 
                 # Diff stats
                 stats = diff_entries(batch, corrected, highlight_pool)
-                entry_diff = len(corrected) - len(batch)
 
-                if entry_diff > 0:
-                    total_stats["entries_added"] += entry_diff
-                elif entry_diff < 0:
-                    total_stats["entries_removed"] += abs(entry_diff)
+                total_stats["entries_added"] += stats["entries_added"]
+                total_stats["entries_removed"] += stats["entries_removed"]
 
                 total_stats["text_changed"] += stats["text_changed"]
                 total_stats["speaker_changed"] += stats["speaker_changed"]
                 total_stats["instruct_changed"] += stats["instruct_changed"]
 
                 changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
-                if changes > 0 or entry_diff != 0:
+                if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
                     print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
-                    if entry_diff > 0:
-                        print(f", +{entry_diff} entries (splits)")
-                    elif entry_diff < 0:
-                        print(f", {entry_diff} entries (merges)")
+                    if stats["entries_added"] or stats["entries_removed"]:
+                        print(f", +{stats['entries_added']}/-{stats['entries_removed']} entries")
                     else:
                         print()
                 else:

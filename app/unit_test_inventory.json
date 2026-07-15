@@ -55,7 +55,14 @@
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_rejects_prompt_larger_than_context",
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_reserves_prompt_space",
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_scales_with_verified_context",
-    "test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context"
+    "test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_addition_and_removal_are_counted_when_length_is_unchanged",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_highlight_pool_cap_is_preserved",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_insertion_does_not_pair_adjacent_july_report_lines",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_middle_insertion_does_not_shift_later_comparisons",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_middle_removal_does_not_shift_later_comparisons",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_replacement_with_insertion_counts_each_kind_once",
+    "test_llm_review_regressions.ReviewDiffAlignmentTests.test_rewrite_and_metadata_changes_remain_visible"
   ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
