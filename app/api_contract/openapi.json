@@ -180,6 +180,16 @@
       },
       "BatchScriptRequest": {
         "properties": {
+          "collision_policy": {
+            "default": "cancel",
+            "enum": [
+              "cancel",
+              "version",
+              "replace"
+            ],
+            "title": "Collision Policy",
+            "type": "string"
+          },
           "tasks": {
             "items": {
               "$ref": "#/components/schemas/BatchScriptTask"
@@ -581,6 +591,19 @@
           "name"
         ],
         "title": "DatasetSaveRequest",
+        "type": "object"
+      },
+      "ExistingUploadRequest": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "title": "ExistingUploadRequest",
         "type": "object"
       },
       "GeneratePersonasRequest": {
@@ -4235,6 +4258,58 @@
           }
         },
         "summary": "Upload File"
+      }
+    },
+    "/api/uploads": {
+      "get": {
+        "operationId": "list_reusable_uploads_api_uploads_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Reusable Uploads"
+      }
+    },
+    "/api/uploads/select": {
+      "post": {
+        "operationId": "select_existing_upload_api_uploads_select_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExistingUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Existing Upload"
       }
     },
     "/api/voice_design/list": {

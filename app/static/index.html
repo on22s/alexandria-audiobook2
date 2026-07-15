@@ -792,6 +792,10 @@
                         <div class="mb-4">
                             <label class="form-label">Select Book/Novel (Text, Markdown, or EPUB)</label>
                             <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub">
+                            <label class="form-label mt-3" for="existing-upload-select">Or reuse an existing upload</label>
+                            <select class="form-select" id="existing-upload-select" onchange="selectExistingScriptUpload()">
+                                <option value="">Choose an existing TXT/MD file…</option>
+                            </select>
                             <div id="upload-status" class="mt-2"></div>
                         </div>
                     </div>
@@ -805,6 +809,14 @@
                         <div class="mb-3">
                             <label class="form-label">Select Files (TXT, MD, EPUB)</label>
                             <input type="file" class="form-control" id="script-batch-files" accept=".txt,.md,.epub" multiple onchange="onScriptBatchFilesChange()">
+                            <label class="form-label mt-3" for="script-existing-uploads">Also reuse existing uploads</label>
+                            <select class="form-select" id="script-existing-uploads" multiple size="6" onchange="onScriptBatchFilesChange()"></select>
+                            <label class="form-label mt-3" for="script-collision-policy">When a saved script already exists</label>
+                            <select class="form-select" id="script-collision-policy">
+                                <option value="cancel">Skip it (safest)</option>
+                                <option value="version">Create a new version</option>
+                                <option value="replace">Back up and replace it</option>
+                            </select>
                         </div>
                         <div id="script-batch-queue-container" class="mb-4" style="display:none;">
                             <h6>Processing Queue</h6>
@@ -2636,6 +2648,33 @@
         });
 
         // --- Script Tab ---
+        async function loadExistingScriptUploads() {
+            try {
+                const uploads = await API.get('/api/uploads');
+                const options = uploads.map(item =>
+                    `<option value="${escapeHtml(item.filename)}">${escapeHtml(item.filename)} (${Math.ceil(item.size / 1024)} KB)</option>`
+                ).join('');
+                document.getElementById('existing-upload-select').innerHTML =
+                    '<option value="">Choose an existing TXT/MD file…</option>' + options;
+                document.getElementById('script-existing-uploads').innerHTML = options;
+            } catch (e) {
+                console.debug('Existing upload list unavailable', e);
+            }
+        }
+
+        window.selectExistingScriptUpload = async () => {
+            const select = document.getElementById('existing-upload-select');
+            if (!select.value) { return; }
+            const statusEl = document.getElementById('upload-status');
+            try {
+                const result = await API.post('/api/uploads/select', { filename: select.value });
+                document.getElementById('file-upload').value = '';
+                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Reusing: ${escapeHtml(result.stored_filename)}</span>`;
+            } catch (e) {
+                statusEl.innerHTML = `<span class="text-danger">Failed to select upload: ${escapeHtml(e.message)}</span>`;
+            }
+        };
+
         document.getElementById('file-upload').addEventListener('change', async () => {
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
@@ -2644,7 +2683,10 @@
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
                 const res = await API.upload(fileInput.files[0]);
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${escapeHtml(res.filename)}</span>`;
+                document.getElementById('existing-upload-select').value = '';
+                const verb = res.reused ? 'Reused existing copy' : 'Loaded';
+                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
+                await loadExistingScriptUploads();
             } catch (e) {
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>Failed to load file: ${escapeHtml(e.message)}</span>`;
             }
@@ -2801,11 +2843,12 @@
 
         window.onScriptBatchFilesChange = () => {
             const files = document.getElementById('script-batch-files').files;
+            const existing = [...document.getElementById('script-existing-uploads').selectedOptions];
             const tbody = document.getElementById('script-batch-queue-body');
             tbody.innerHTML = '';
             scriptBatchQueue = [];
 
-            if (!files.length) {
+            if (!files.length && !existing.length) {
                 document.getElementById('script-batch-queue-container').style.display = 'none';
                 return;
             }
@@ -2819,6 +2862,16 @@
                 `;
                 tbody.appendChild(row);
                 scriptBatchQueue.push({ file });
+            });
+            existing.forEach((option) => {
+                const i = scriptBatchQueue.length;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(option.value)} <span class="text-muted">(existing)</span></td>
+                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                `;
+                tbody.appendChild(row);
+                scriptBatchQueue.push({ storedFilename: option.value });
             });
         };
 
@@ -2849,13 +2902,17 @@
             try {
                 // Upload files in parallel; map preserves queue order for `tasks`.
                 const tasks = await Promise.all(scriptBatchQueue.map(async (item) => {
+                    if (item.storedFilename) { return { filename: item.storedFilename }; }
                     const res = await API.upload(item.file);
                     // Use stored_filename if provided (handles epub→txt), otherwise fall back
                     return { filename: res.stored_filename || res.filename };
                 }));
 
                 statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
-                await API.post('/api/generate_script/batch/start', { tasks });
+                const collisionPolicy = document.getElementById('script-collision-policy').value;
+                await API.post('/api/generate_script/batch/start', {
+                    tasks, collision_policy: collisionPolicy
+                });
                 _pollScriptBatchLogs();
             } catch (e) {
                 showToast('Failed to start batch: ' + e.message, 'error');
@@ -2864,6 +2921,8 @@
                 document.getElementById('btn-cancel-batch-script').style.display = 'none';
             }
         }
+
+        loadExistingScriptUploads();
 
         function _pollScriptBatchLogs() {
             const logEl = document.getElementById('script-logs');

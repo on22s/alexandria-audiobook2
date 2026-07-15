@@ -12,6 +12,14 @@ from fastapi.testclient import TestClient
 
 
 class FrontendTests(unittest.TestCase):
+    def test_script_ui_reuses_uploads_and_sends_collision_policy(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in (
+                "existing-upload-select", "script-existing-uploads", "/api/uploads/select",
+                "script-collision-policy", "collision_policy: collisionPolicy"):
+            self.assertIn(required, frontend)
+
     def test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints(self):
         root = Path(__file__).resolve().parent.parent
         start = (root / "start.js").read_text(encoding="utf-8")
