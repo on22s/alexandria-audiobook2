@@ -1233,8 +1233,10 @@ _REPORT_SUMMARY_SYSTEM_PROMPT = (
     "about an automated review pass over a book script. Write a short summary "
     "(3-6 sentences, plain prose, no headings, no markdown formatting, no field names "
     "verbatim) that a non-technical person could read to understand what happened, "
-    "what kinds of things were fixed, and whether anything needs their attention. "
-    "Be warm and concrete, and mention any new character names that were discovered, "
+    "what kinds of changes were reported, and whether anything needs their attention. "
+    "Use only facts explicitly present in the report. Describe edits as reported changes, "
+    "not proven fixes or improvements. Never judge the script's quality, praise the reviewer, "
+    "or claim that every issue was found. Mention any new character names that were discovered, "
     "if listed. Respond with the summary text only."
 )
 
@@ -1350,14 +1352,54 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
         return None
 
 
-def _insert_llm_summary(lines: List[str], intro_len: int) -> List[str]:
-    """Ask the local LLM to summarize `lines` in plain English and, if it answers,
-    splice that summary in as an "In Plain English" section right after the intro
-    (the first `intro_len` lines). Returns `lines` unchanged if the LLM is
-    unavailable."""
-    summary = _llm_summarize_report("\n".join(lines))
+_UNSUPPORTED_SUMMARY_CLAIMS = (
+    "everything looks great", "fantastic job", "perfect", "flawless",
+    "all issues", "all mistakes", "successfully fixed", "fully polished",
+)
+
+
+def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
+    """Describe verified review status without making a quality judgment."""
+    total_changes = stats.get("total_changes", 0)
+    if incomplete:
+        failed = stats.get("batches_failed", 0)
+        skipped = stats.get("batches_skipped_vram", 0)
+        details = []
+        if failed:
+            details.append(f"{failed} section(s) failed")
+        if skipped:
+            details.append(f"{skipped} section(s) were skipped for VRAM safety")
+        reason = "; ".join(details) or "some work did not finish"
+        return (
+            f"This review was incomplete: {reason}. Completed sections reported "
+            f"{total_changes} change(s). Check the warnings below before generating audio."
+        )
+    return (
+        "The automated review completed without recorded failed or skipped sections. "
+        f"It reported {total_changes} change(s); the detailed counts and examples below "
+        "show what changed."
+    )
+
+
+def _is_evidence_bound_summary(summary: str) -> bool:
+    """Reject common unsupported quality and completeness claims."""
+    lowered = summary.casefold()
+    return not any(claim in lowered for claim in _UNSUPPORTED_SUMMARY_CLAIMS)
+
+
+def _insert_llm_summary(lines: List[str], intro_len: int, stats: Optional[dict] = None,
+                        incomplete: bool = False) -> List[str]:
+    """Insert an evidence-bound plain-language summary after the report intro."""
+    stats = stats or {}
+    summary = None
+    if not incomplete:
+        candidate = _llm_summarize_report("\n".join(lines))
+        if candidate and _is_evidence_bound_summary(candidate):
+            summary = candidate
+        elif candidate:
+            logger.warning("LLM report summary made an unsupported quality claim; using deterministic summary")
     if not summary:
-        return lines
+        summary = _get_deterministic_review_summary(stats, incomplete)
     return lines[:intro_len] + ["", "## In Plain English", "", summary] + lines[intro_len:]
 
 
@@ -1376,8 +1418,8 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         "",
         f"*Generated {time.strftime('%Y-%m-%d %H:%M:%S')}*",
         "",
-        "The AI reviewer checked your script for mistakes — like the wrong character "
-        "speaking a line, awkward wording, or repeated narration — and fixed what it found.",
+        "The AI reviewer checked your script for possible mistakes — like the wrong character "
+        "speaking a line, awkward wording, or repeated narration — and recorded its changes.",
         "",
         f"Your script went from **{stats['entries_before']}** lines to "
         f"**{stats['entries_after']}** lines.",
@@ -1390,7 +1432,7 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
 
     lines = list(intro)
     if stats["total_changes"] == 0:
-        lines += ["", "No changes were needed — your script looked good!"]
+        lines += ["", "No changes were reported during this pass."]
     else:
         lines += ["", "## What changed", ""]
         lines += _markdown_stats_table(stats)
@@ -1407,7 +1449,8 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         lines += heads_up
         lines += _markdown_failed_sections_lines(failures)
 
-    lines = _insert_llm_summary(lines, len(intro))
+    incomplete = bool(stats.get("batches_failed") or stats.get("batches_skipped_vram"))
+    lines = _insert_llm_summary(lines, len(intro), stats, incomplete=incomplete)
 
     try:
         with open(path, "w", encoding="utf-8") as f:

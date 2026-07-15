@@ -113,9 +113,9 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
         "",
         f"*Generated {time.strftime('%Y-%m-%d %H:%M:%S')}*",
         "",
-        f"The AI reviewer checked **{total_books} {book_word}** for mistakes — like the wrong "
-        "character speaking a line, awkward wording, or repeated narration — and fixed what "
-        "it found.",
+        f"The AI reviewer checked **{total_books} {book_word}** for possible mistakes — like "
+        "the wrong character speaking a line, awkward wording, or repeated narration — and "
+        "recorded its changes.",
     ]
 
     if bidirectional:
@@ -136,10 +136,8 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
     if incomplete:
         names_list = ", ".join(f"*{t['name']}*" for t in incomplete)
         intro += ["", f"**Note:** {len(incomplete)} {'book' if len(incomplete) == 1 else 'books'} "
-                       f"{'was' if len(incomplete) == 1 else 'were'} only partially reviewed — the "
-                       f"GPU ran low on memory and the run stopped early for "
-                       f"{'it' if len(incomplete) == 1 else 'them'}: {names_list}. "
-                       "Re-run the review to finish the rest."]
+                       f"{'was' if len(incomplete) == 1 else 'were'} only partially reviewed: "
+                       f"{names_list}. See the warnings below for the recorded reason and retry guidance."]
 
     if bidirectional:
         overall = _combine_pass_totals(state)
@@ -187,7 +185,8 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
 
     # Ask the LLM for a plain-English summary of the report so far, before appending
     # the (potentially very long) book-by-book breakdown.
-    lines = _insert_llm_summary(lines, len(intro))
+    partial = bool(cancelled or failed or incomplete or state.get("cancel") or len(done) < total_books)
+    lines = _insert_llm_summary(lines, len(intro), overall, incomplete=partial)
 
     if total_books > 1:
         lines += ["", "## Book-by-book breakdown", ""]

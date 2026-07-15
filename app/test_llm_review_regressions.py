@@ -200,3 +200,32 @@ class ReviewFailureReportingTests(unittest.TestCase):
             core._extract_failed_sections(['FAILED_SECTIONS_JSON: {"sections":"bad"}']),
             {"sections": []},
         )
+
+
+class ReviewSummaryTests(unittest.TestCase):
+    def test_incomplete_summary_is_deterministic_and_does_not_call_llm(self):
+        stats = {"total_changes": 12, "batches_failed": 1, "batches_skipped_vram": 0}
+        with patch.object(core, "_llm_summarize_report") as summarize:
+            lines = core._insert_llm_summary(["Report"], 1, stats, incomplete=True)
+
+        summarize.assert_not_called()
+        self.assertIn("This review was incomplete", lines[4])
+        self.assertIn("1 section(s) failed", lines[4])
+        self.assertIn("12 change(s)", lines[4])
+
+    def test_unsupported_quality_claim_uses_deterministic_fallback(self):
+        stats = {"total_changes": 3}
+        with patch.object(
+                core, "_llm_summarize_report",
+                return_value="Everything looks great and all issues were fixed."):
+            lines = core._insert_llm_summary(["Report"], 1, stats)
+
+        self.assertIn("without recorded failed or skipped sections", lines[4])
+        self.assertNotIn("Everything looks great", lines[4])
+
+    def test_evidence_bound_llm_summary_is_kept_for_complete_run(self):
+        summary = "The pass reported three text changes; inspect the examples below."
+        with patch.object(core, "_llm_summarize_report", return_value=summary):
+            lines = core._insert_llm_summary(["Report"], 1, {"total_changes": 3})
+
+        self.assertEqual(lines[4], summary)
