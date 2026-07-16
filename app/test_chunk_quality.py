@@ -26,6 +26,23 @@ def generate_script_test_client(entry_lists):
 
 
 class ChunkQualityTests(unittest.TestCase):
+    def test_final_gate_requires_whole_book_quality_and_zero_blockers(self):
+        self.assertTrue(generate_script.passes_final_generation_gate(
+            {"passed": True}, {"counts": {"blocking": 0}}))
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            {"passed": False}, {"counts": {"blocking": 0}}))
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            {"passed": True}, {"counts": {"blocking": 1}}))
+
+    def test_quality_manifest_summarizes_chunks_without_copying_entries(self):
+        accepted = [{"chunk_number": 1, "source_sha256": "source",
+                     "entries": [_entry("Text")], "quality": {"passed": True}}]
+        manifest = generate_script.build_generation_quality_manifest(
+            "verified", {"source_sha256": "book"}, accepted, [])
+        self.assertEqual(1, manifest["accepted_chunk_count"])
+        self.assertEqual(1, manifest["chunks"][0]["entry_count"])
+        self.assertNotIn("entries", manifest["chunks"][0])
+
     def test_known_source_corruption_normalizes_with_location_evidence(self):
         original = "First line.\nTake саге now."
 

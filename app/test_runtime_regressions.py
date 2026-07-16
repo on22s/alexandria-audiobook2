@@ -683,8 +683,27 @@ class RuntimeTests(unittest.TestCase):
             Path(tmp, "volume-1.json").write_text("[]", encoding="utf-8")
             Path(tmp, "volume-1.meta.json").write_text('{"book_id":"original"}', encoding="utf-8")
             Path(tmp, "volume-1.json.generation_checkpoint.json").write_text("{}", encoding="utf-8")
+            Path(tmp, "volume-1.json.generation_quality.json").write_text("{}", encoding="utf-8")
             listed = asyncio.run(scripts_library_module.list_saved_scripts())
         self.assertEqual([item["name"] for item in listed], ["volume-1"])
+
+    def test_delete_saved_script_removes_generation_companions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp, "book.json")
+            quality = Path(str(script) + ".generation_quality.json")
+            generation_checkpoint = Path(str(script) + ".generation_checkpoint.json")
+            script.write_text("[]", encoding="utf-8")
+            quality.write_text("{}", encoding="utf-8")
+            generation_checkpoint.write_text("{}", encoding="utf-8")
+            with patch.object(scripts_library_module, "SCRIPTS_DIR", tmp), \
+                 patch.object(scripts_library_module, "_saved_book_meta_path",
+                              return_value=str(Path(tmp, "book.meta.json"))), \
+                 patch.object(scripts_library_module, "_checkpoint_path",
+                              return_value=str(Path(tmp, "book.review_checkpoint.json"))):
+                asyncio.run(scripts_library_module.delete_script("book"))
+            self.assertFalse(script.exists())
+            self.assertFalse(quality.exists())
+            self.assertFalse(generation_checkpoint.exists())
 
     def test_runtime_data_dir_isolates_mutable_app_paths(self):
         root = Path(__file__).resolve().parent.parent
