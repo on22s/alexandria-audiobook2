@@ -394,7 +394,7 @@ def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
 
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
-                         transform_entries=None):
+                         transform_entries=None, attempt_observer=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -463,6 +463,17 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if usage:
                 print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
             print(f" | took {time.time() - t0:.1f}s")
+            if attempt_observer:
+                attempt_observer({
+                    "attempt": attempt + 1,
+                    "elapsed_seconds": round(time.time() - t0, 3),
+                    "finish_reason": finish_reason,
+                    "requested_max_tokens": requested_max,
+                    "effective_max_tokens": effective_max,
+                    "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
+                    "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
+                    "error": None,
+                })
 
             if finish_reason == "length":
                 print(f"  WARNING: Response was truncated (hit effective max_tokens={effective_max}). Consider optimizing LM Studio context.")
@@ -483,6 +494,13 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                               f"beyond {effective_max} in the loaded context.")
 
         except Exception as e:
+            if attempt_observer:
+                attempt_observer({"attempt": attempt + 1,
+                                  "elapsed_seconds": round(time.time() - t0, 3),
+                                  "finish_reason": None, "requested_max_tokens": requested_max,
+                                  "effective_max_tokens": None, "prompt_tokens": None,
+                                  "completion_tokens": None,
+                                  "error": f"{type(e).__name__}: {e}"})
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
             if attempt < max_retries:
                 continue
@@ -619,7 +637,7 @@ def _build_chunk_context(chunk_num, total_chunks, previous_entries):
 
 
 def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
-                  previous_entries=None, max_retries=2):
+                  previous_entries=None, max_retries=2, attempt_observer=None):
     """Process a text chunk and return JSON script entries."""
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
@@ -645,6 +663,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         max_retries=max_retries,
         validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
         transform_entries=prepare_entries,
+        attempt_observer=attempt_observer,
     )
 
 def main():

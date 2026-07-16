@@ -34,6 +34,27 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual(complete, result)
 
+    def test_attempt_observer_receives_token_and_finish_metrics(self):
+        source = "one two three four five"
+        response = json.dumps([{"speaker": "NARRATOR", "text": source,
+                                "instruct": "neutral"}])
+        usage = SimpleNamespace(prompt_tokens=12, completion_tokens=8)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **_kwargs: SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=response),
+                                         finish_reason="stop")], usage=usage))))
+        attempts = []
+
+        generate_script.process_chunk(
+            client, "model", source, 1, 1,
+            generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
+            attempt_observer=attempts.append)
+
+        self.assertEqual(1, len(attempts))
+        self.assertEqual("stop", attempts[0]["finish_reason"])
+        self.assertEqual(12, attempts[0]["prompt_tokens"])
+        self.assertEqual(8, attempts[0]["completion_tokens"])
+
     def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
         source = " ".join(f"word{index}" for index in range(20))
         incomplete = json.dumps([{"speaker": "NARRATOR", "text": "word0", "instruct": "neutral"}])

@@ -63,7 +63,8 @@
   ],
   "test_integration_corpus": [
     "test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
-    "test_integration_corpus.IntegrationCorpusTests.test_passage_selection_covers_distinct_text_features"
+    "test_integration_corpus.IntegrationCorpusTests.test_passage_selection_covers_distinct_text_features",
+    "test_integration_corpus.IntegrationCorpusTests.test_runner_writes_case_results_incrementally"
   ],
   "test_inventory": [
     "test_inventory.TestInventoryTests.test_inventory_differences_are_compact_and_actionable",
@@ -74,6 +75,7 @@
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_is_rejected",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_retries_with_specific_feedback",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_arrays_are_combined_in_order",
+    "test_llm_review_regressions.LlmReviewTests.test_attempt_observer_receives_token_and_finish_metrics",
     "test_llm_review_regressions.LlmReviewTests.test_bracketed_trailing_prose_does_not_discard_valid_array",
     "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason",
     "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response",
