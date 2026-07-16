@@ -889,6 +889,12 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
         report_path = _write_batch_review_report(state, names, bidirectional, discover)
         if report_path:
+            state["artifacts"].append({
+                "artifact_path": report_path,
+                "kind": "batch_review_report",
+                "source_paths": [os.path.join(SCRIPTS_DIR, f"{name}.json") for name in names],
+                "config_path": CONFIG_PATH,
+            })
             state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
 
         state["running"] = False
