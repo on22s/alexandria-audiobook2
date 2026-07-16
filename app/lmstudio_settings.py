@@ -30,7 +30,7 @@ DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
 # metrics retain IDEAL_SETTINGS rather than extrapolating from another model.
 _VERIFIED_LOCAL_PROFILES = {
     "gemma-4-e4b-uncensored-hauhaucs-aggressive": {
-        "context_length": 16384,
+        "context_length": 32768,
         "parallel": 2,
         "model_vram_bytes": int(8.50 * 1024 ** 3),
         # Measured context growth was smaller; 16 KiB/token deliberately
