@@ -1,4 +1,8 @@
 {
+  "test_alignment_regressions": [
+    "test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
+    "test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
+  ],
   "test_api_contract_regressions": [
     "test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
