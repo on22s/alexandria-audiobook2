@@ -12,9 +12,7 @@ interactive review loop, the checkpoint/log handling, and the targeted-reset
 flags that let you undo specific decisions without losing a long session.
 """
 
-import os
 import sys
-import re
 import json
 import difflib
 import argparse

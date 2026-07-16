@@ -6,7 +6,6 @@ import time
 import tempfile
 import contextlib
 import re
-import subprocess
 import sys
 import logging
 import hashlib

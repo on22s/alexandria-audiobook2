@@ -15,7 +15,7 @@ import re
 import logging
 import threading
 import torch
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from gpu_stats import run_rocm_smi_json
