@@ -11,6 +11,8 @@ from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
+from script_repair import build_deterministic_repair
+from source_normalization import normalize_known_source_corruptions
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
                    get_app_config_path, safe_load_json)
 
@@ -297,7 +299,8 @@ def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
 
 
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
-                         log_name, label, max_retries=2, validate_entries=None):
+                         log_name, label, max_retries=2, validate_entries=None,
+                         transform_entries=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -386,6 +389,19 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         entries = repair_json_array(json_text)
 
         if entries and len(entries) > 0:
+            if transform_entries:
+                transformed = transform_entries(entries)
+                if transformed.get("unresolved"):
+                    retry_feedback = "unresolved_safe_repair"
+                    print(f"Warning: {label} has unresolved deterministic repairs "
+                          f"(attempt {attempt + 1}): {transformed['unresolved']}")
+                    if attempt < max_retries:
+                        print("Retrying...")
+                        continue
+                    return []
+                entries = transformed["entries"]
+                if transformed.get("changes"):
+                    print(f"  Applied {len(transformed['changes'])} deterministic chunk repair(s)")
             if validate_entries:
                 quality = validate_entries(entries)
                 if not quality["passed"]:
@@ -412,6 +428,12 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         # Last resort after every full-response retry is exhausted.
         salvaged_entries = salvage_json_entries(json_text)
         if salvaged_entries:
+            if transform_entries:
+                transformed = transform_entries(salvaged_entries)
+                if transformed.get("unresolved"):
+                    print("Regex-salvaged response has unresolved deterministic repairs")
+                    return []
+                salvaged_entries = transformed["entries"]
             if validate_entries:
                 quality = validate_entries(salvaged_entries)
                 if not quality["passed"]:
@@ -468,6 +490,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         label=f"CHUNK {chunk_num}/{total_chunks}",
         max_retries=max_retries,
         validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
     )
 
 def main():
@@ -488,6 +511,10 @@ def main():
 
     # Fix encoding artifacts
     book_content = fix_mojibake(book_content)
+    book_content, source_normalizations = normalize_known_source_corruptions(book_content)
+    if source_normalizations:
+        print(f"Normalized {len(source_normalizations)} known source corruption(s) in memory; "
+              "the upload was not modified.")
 
     print(f"Read {len(book_content)} characters")
 

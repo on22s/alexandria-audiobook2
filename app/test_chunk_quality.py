@@ -5,13 +5,53 @@ import unittest
 
 from chunk_quality import validate_chunk_quality
 import generate_script
+from source_normalization import normalize_known_source_corruptions
 
 
 def _entry(text, speaker="NARRATOR", instruct="Read naturally."):
     return {"speaker": speaker, "text": text, "instruct": instruct}
 
 
+def generate_script_test_client(entry_lists):
+    from types import SimpleNamespace
+    import json
+    responses = iter(entry_lists)
+
+    def create(**_kwargs):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=json.dumps(next(responses))),
+            finish_reason="stop")], usage=None)
+
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
 class ChunkQualityTests(unittest.TestCase):
+    def test_known_source_corruption_normalizes_with_location_evidence(self):
+        original = "First line.\nTake саге now."
+
+        normalized, changes = normalize_known_source_corruptions(original)
+
+        self.assertEqual("First line.\nTake care now.", normalized)
+        self.assertEqual("First line.\nTake саге now.", original)
+        self.assertEqual((2, 6, "саге", "care"),
+                         (changes[0]["line"], changes[0]["column"],
+                          changes[0]["before"], changes[0]["after"]))
+
+    def test_generation_repairs_empty_silence_before_quality_acceptance(self):
+        source = "First spoken line. Following spoken line."
+        response_entries = [
+            _entry("First spoken line."),
+            _entry("", instruct="A beat of silence."),
+            _entry("Following spoken line."),
+        ]
+        client = generate_script_test_client([response_entries])
+        params = generate_script.LLMGenParams("system", "{chunk}")
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual(2, len(result))
+        self.assertEqual(1000, result[0]["pause_after"])
+
     def test_generation_checkpoint_roundtrip_requires_validated_matching_chunks(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = str(Path(tmp, "book.json"))
