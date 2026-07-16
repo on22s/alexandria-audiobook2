@@ -405,6 +405,22 @@ def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
             pass  # If rotation fails, just append to existing log
 
 
+def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
+                             quality):
+    """Return one consistent retry action for a deterministic quality failure."""
+    codes = {finding["code"] for finding in quality.get("findings", [])}
+    incomplete = bool({"low_source_token_recall", "low_ordered_trigram_recall",
+                       "output_source_ratio"} & codes
+                      and quality.get("metrics", {}).get("output_source_ratio", 1.0) < 0.9)
+    near_limit = (completion_tokens is not None and effective_max
+                  and completion_tokens >= effective_max * 0.9)
+    if finish_reason == "length" or (incomplete and near_limit):
+        return "increase_tokens"
+    if incomplete:
+        return "retry_same_budget"
+    return "retry_same_budget"
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None):
@@ -561,20 +577,21 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if validate_entries:
                 quality = validate_entries(entries)
                 if not quality["passed"]:
-                    retry_feedback = ", ".join(
-                        finding["code"] for finding in quality["findings"])
+                    retry_feedback = json.dumps(quality["findings"], ensure_ascii=False)
                     metrics = quality.get("metrics", {})
-                    codes = {finding["code"] for finding in quality["findings"]}
-                    if (attempt < max_retries and finish_reason != "length" and
-                            ({"low_source_token_recall", "low_ordered_trigram_recall",
-                              "output_source_ratio"} & codes
-                             and metrics.get("output_source_ratio", 1.0) < 0.9)):
+                    completion_tokens = (getattr(usage, "completion_tokens", None)
+                                         if usage else None)
+                    retry_policy = get_quality_retry_policy(
+                        finish_reason, completion_tokens, effective_max, quality)
+                    if attempt < max_retries and retry_policy == "increase_tokens":
                         next_max = get_next_retry_max_tokens(
                             requested_max, "incomplete_output", params.hard_max_tokens)
                         if next_max != requested_max:
                             print(f"  Increasing token budget after incomplete output: "
                                   f"{requested_max} -> {next_max}")
                             requested_max = next_max
+                    elif attempt < max_retries:
+                        print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
                     if attempt < max_retries:
