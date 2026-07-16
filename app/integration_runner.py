@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import time
+from collections import defaultdict
 
 from openai import OpenAI
 
@@ -14,6 +15,38 @@ from core import CONFIG_PATH
 from generate_script import LLMGenParams, process_chunk
 from lmstudio_settings import ensure_ideal_settings
 from utils import atomic_json_write
+
+
+def _percentile(values, percentile):
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, (len(ordered) * percentile + 99) // 100 - 1)
+    return round(ordered[index], 3)
+
+
+def summarize_cases(cases):
+    """Return aggregate latency, retry, token, quality, and category results."""
+    latencies = [case["elapsed_seconds"] for case in cases]
+    attempts = [attempt for case in cases for attempt in case.get("attempts", [])]
+    categories = defaultdict(lambda: {"total": 0, "passed": 0})
+    for case in cases:
+        bucket = categories[case["category"]]
+        bucket["total"] += 1
+        bucket["passed"] += case["status"] == "passed"
+    return {
+        "total": len(cases),
+        "passed": sum(case["status"] == "passed" for case in cases),
+        "failed": sum(case["status"] != "passed" for case in cases),
+        "retry_cases": sum(len(case.get("attempts", [])) > 1 for case in cases),
+        "attempts": len(attempts),
+        "prompt_tokens": sum(attempt.get("prompt_tokens") or 0 for attempt in attempts),
+        "completion_tokens": sum(attempt.get("completion_tokens") or 0 for attempt in attempts),
+        "latency_seconds": {"total": round(sum(latencies), 3),
+                            "p50": _percentile(latencies, 50),
+                            "p95": _percentile(latencies, 95)},
+        "by_category": dict(sorted(categories.items())),
+    }
 
 
 def run_manifest(manifest, output_path, limit=None):
@@ -63,6 +96,7 @@ def run_manifest(manifest, output_path, limit=None):
             "attempts": attempts, "quality": quality,
             "entry_count": len(entries),
         })
+        report["summary"] = summarize_cases(report["cases"])
         atomic_json_write(report, output_path)
     return report
 
@@ -78,9 +112,10 @@ def main(argv=None):
     with open(args.manifest, encoding="utf-8") as manifest_file:
         manifest = json.load(manifest_file)
     report = run_manifest(manifest, args.output, limit=args.limit)
-    passed = sum(case["status"] == "passed" for case in report["cases"])
-    print(f"Completed {len(report['cases'])} case(s): {passed} passed")
-    return 0 if passed == len(report["cases"]) else 1
+    summary = report["summary"]
+    print(f"Completed {summary['total']} case(s): {summary['passed']} passed, "
+          f"{summary['retry_cases']} retried")
+    return 0 if summary["failed"] == 0 else 1
 
 
 if __name__ == "__main__":
