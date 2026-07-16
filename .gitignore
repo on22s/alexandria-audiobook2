@@ -130,6 +130,9 @@ app/benchmark_results.json
 # Web wrapper's own log directory
 app/logs/
 
+# Durable runtime task history
+/run_history/
+
 # Session handoff artifacts
 HANDOFF.md
 
