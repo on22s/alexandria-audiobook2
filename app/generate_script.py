@@ -5,6 +5,7 @@ import sys
 import json
 import re
 import time
+import math
 from dataclasses import dataclass
 from openai import OpenAI
 from config_settings import load_app_config
@@ -648,6 +649,34 @@ def _build_chunk_context(chunk_num, total_chunks, previous_entries):
     return "\n".join(context_parts)
 
 
+def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
+                                 max_tokens, context_length, parallel,
+                                 context_growth_chars=2000, reserve=512):
+    """Estimate real prompt/completion size and per-slot context fit for a book."""
+    requests = []
+    total_chunks = len(chunks)
+    for number, chunk in enumerate(chunks, 1):
+        context = _build_chunk_context(number, total_chunks, None)
+        user_prompt = user_prompt_template.format(context=context, chunk=chunk)
+        prompt_tokens = math.ceil((len(system_prompt) + len(user_prompt)
+                                   + context_growth_chars) / 3)
+        predicted_completion = min(int(max_tokens), max(256, math.ceil(len(chunk) * 0.8)))
+        requests.append({"chunk_number": number, "prompt_tokens": prompt_tokens,
+                         "predicted_completion_tokens": predicted_completion,
+                         "predicted_total_tokens": prompt_tokens + predicted_completion + reserve})
+    totals = sorted(item["predicted_total_tokens"] for item in requests)
+    per_slot = int(context_length or 0) // max(1, int(parallel or 1))
+    worst = totals[-1] if totals else 0
+    p95 = totals[max(0, math.ceil(len(totals) * 0.95) - 1)] if totals else 0
+    return {"chunk_count": len(chunks), "context_length": context_length,
+            "parallel": parallel, "per_slot_context": per_slot,
+            "worst_predicted_tokens": worst, "p95_predicted_tokens": p95,
+            "average_predicted_tokens": round(sum(totals) / len(totals), 1) if totals else 0,
+            "predicted_fits": bool(per_slot and worst <= per_slot),
+            "required_total_context": {str(level): worst * level for level in range(1, 5)},
+            "requests": requests}
+
+
 def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
                   previous_entries=None, max_retries=2, attempt_observer=None):
     """Process a text chunk and return JSON script entries."""
@@ -769,6 +798,13 @@ def main():
     total_chunks = len(chunks)
 
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
+    request_preflight = build_book_request_preflight(
+        chunks, system_prompt, user_prompt_template, max_tokens,
+        lm_status.get("context_length"), lm_status.get("parallel"))
+    print(f"Request preflight: worst={request_preflight['worst_predicted_tokens']} tokens, "
+          f"p95={request_preflight['p95_predicted_tokens']}, "
+          f"per-slot={request_preflight['per_slot_context']}, "
+          f"fits={request_preflight['predicted_fits']}")
 
     output_path = args.output or os.path.join(data_dir, "annotated_script.json")
     response_log = os.path.relpath(get_response_log_path("llm_responses.log"), data_dir)
@@ -867,6 +903,7 @@ def main():
         total_chunks=total_chunks, response_log=response_log,
         model_name=model_name,
         source_unicode=source_unicode,
+        request_preflight=request_preflight,
         whole_book_quality=whole_quality,
         preflight=preflight,
         speaker_identity_review=identity_review,
