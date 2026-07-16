@@ -113,6 +113,12 @@
     "test_llm_review_regressions.ReviewSummaryTests.test_incomplete_summary_is_deterministic_and_does_not_call_llm",
     "test_llm_review_regressions.ReviewSummaryTests.test_unsupported_quality_claim_uses_deterministic_fallback"
   ],
+  "test_lmstudio_settings": [
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_external_vram_pressure_uses_fallback",
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_missing_gpu_metrics_use_fallback",
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
+  ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
