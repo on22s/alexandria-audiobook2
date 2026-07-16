@@ -122,7 +122,7 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
     print(f"[DATA] Using reference audio: {os.path.basename(ref_audio_path)}", flush=True)
 
-    ref_audio, ref_sr = librosa.load(ref_audio_path, sr=24000, mono=True)
+    ref_audio, _ = librosa.load(ref_audio_path, sr=24000, mono=True)
     ref_audio = ref_audio.astype(np.float32)
 
     with torch.no_grad():

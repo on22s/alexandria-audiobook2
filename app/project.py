@@ -534,7 +534,7 @@ class ProjectManager:
             return False, "No audio segments found"
 
         # Total duration = last chunk's start + its length
-        last_chunk, last_seg, last_start = timeline[-1]
+        _, last_seg, last_start = timeline[-1]
         total_duration_ms = last_start + len(last_seg)
 
         # Phase 2 — Build per-speaker WAV tracks
