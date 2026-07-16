@@ -388,9 +388,11 @@ class RuntimeTests(unittest.TestCase):
         key = "_test_failed_task"
         core_module.process_state[key] = {"running": True, "logs": [], "process": None}
         try:
-            core_module._run_claimed_background_task(
-                key, lambda: (_ for _ in ()).throw(OSError("launch failed"))
-            )
+            with tempfile.TemporaryDirectory() as history_dir, \
+                 patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                core_module._run_claimed_background_task(
+                    key, lambda: (_ for _ in ()).throw(OSError("launch failed"))
+                )
             self.assertFalse(core_module.process_state[key]["running"])
             self.assertIn("launch failed", core_module.process_state[key]["logs"][-1])
         finally:
