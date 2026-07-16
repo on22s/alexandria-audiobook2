@@ -4,6 +4,7 @@ import copy
 import re
 
 from script_preflight import find_adjacent_duplicate_blocks, _normalize
+from source_normalization import KNOWN_SOURCE_CORRUPTIONS
 
 
 _WORD_WITH_CYRILLIC_RE = re.compile(r"[^\W\d_]*[\u0400-\u04ff][^\W\d_]*", re.UNICODE)
@@ -13,7 +14,6 @@ _CYRILLIC_HOMOGLYPHS = str.maketrans({
     "А": "A", "Е": "E", "О": "O", "Р": "P", "С": "C", "Х": "X",
     "У": "Y", "К": "K", "М": "M", "Т": "T", "В": "B", "Г": "R",
 })
-_KNOWN_SOURCE_CORRUPTIONS = {"саге": "care"}
 EXPLICIT_SILENCE_MS = 1000
 
 
@@ -31,7 +31,7 @@ def build_deterministic_repair(entries, source_text):
         replacements = []
         for match in _WORD_WITH_CYRILLIC_RE.finditer(original):
             old_word = match.group(0)
-            new_word = _KNOWN_SOURCE_CORRUPTIONS.get(old_word.casefold())
+            new_word = KNOWN_SOURCE_CORRUPTIONS.get(old_word.casefold())
             if new_word and old_word[:1].isupper():
                 new_word = new_word.capitalize()
             if not new_word:
