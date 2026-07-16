@@ -130,6 +130,10 @@
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
   ],
+  "test_multi_process_state": [
+    "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
+    "test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
+  ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",

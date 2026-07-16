@@ -522,6 +522,7 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
         state["process"] = None
     if "pid" in state:
         state["pid"] = None
+    state["processes"] = []
 
 
 _PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
@@ -748,11 +749,14 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
 def _batch_cancel_helper(state_key: str):
     state = process_state[state_key]
     state["cancel"] = True
-    _resume_if_paused(state, state.get("process"))
+    processes = list(state.get("processes") or ([state.get("process")] if state.get("process") else []))
+    for proc in processes:
+        _resume_if_paused(state, proc)
 
     # Also terminate the current subprocess (whole group) if it's running
-    proc = state.get("process")
-    if proc and proc.poll() is None:
+    for proc in processes:
+        if not proc or proc.poll() is not None:
+            continue
         try:
             _send_signal_tree(proc, signal.SIGTERM)
         except (ProcessLookupError, OSError):
@@ -872,6 +876,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         state["process"] = process
     if "pid" in state:
         state["pid"] = process.pid
+    if "processes" in state:
+        state["processes"].append(process)
 
     log_queue: queue.Queue = queue.Queue()
 
@@ -965,6 +971,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     reader.join()
     process.stdout.close()
     process.wait()
+    if "processes" in state and process in state["processes"]:
+        state["processes"].remove(process)
     if log_fh:
         try:
             log_fh.close()  # flushes any remaining buffered lines
@@ -1579,10 +1587,11 @@ def _pause_task(state_key: str, not_running_msg: str, starting_up_msg: str, log_
     state = process_state[state_key]
     if not state["running"]:
         raise HTTPException(status_code=400, detail=not_running_msg)
-    proc = state.get("process")
-    if proc is None:
+    processes = list(state.get("processes") or ([state.get("process")] if state.get("process") else []))
+    if not processes:
         raise HTTPException(status_code=503, detail=starting_up_msg)
-    _posix_signal(proc, "SIGSTOP")
+    for proc in processes:
+        _posix_signal(proc, "SIGSTOP")
     state["paused"] = True
     state["logs"].append(f"[PAUSED] {log_label} paused.")
     return {"status": "paused"}
@@ -1593,10 +1602,11 @@ def _resume_task(state_key: str, not_running_msg: str, log_label: str):
     state = process_state[state_key]
     if not state["running"]:
         raise HTTPException(status_code=400, detail=not_running_msg)
-    proc = state.get("process")
-    if proc is None:
+    processes = list(state.get("processes") or ([state.get("process")] if state.get("process") else []))
+    if not processes:
         raise HTTPException(status_code=400, detail="Process not available.")
-    _posix_signal(proc, "SIGCONT")
+    for proc in processes:
+        _posix_signal(proc, "SIGCONT")
     state["paused"] = False
     state["logs"].append(f"[RESUMED] {log_label} resumed.")
     return {"status": "resumed"}
