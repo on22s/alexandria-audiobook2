@@ -95,8 +95,37 @@ def clear_generation_checkpoint(output_path):
     if os.path.exists(path):
         os.remove(path)
 
+
+class AdjacentArrayOverlapError(ValueError):
+    """Adjacent LLM arrays repeat source words at their boundary."""
+
+
+def _get_boundary_overlap(left_entries, right_entries, minimum_words=3):
+    """Return the longest normalized suffix/prefix overlap between two arrays."""
+    if (not left_entries or not right_entries
+            or not isinstance(left_entries[-1], dict)
+            or not isinstance(right_entries[0], dict)):
+        return []
+    left_text = str(left_entries[-1].get("text") or "")
+    right_text = str(right_entries[0].get("text") or "")
+    left_words = re.findall(r"\w+", left_text.casefold(), re.UNICODE)
+    right_words = re.findall(r"\w+", right_text.casefold(), re.UNICODE)
+    maximum = min(len(left_words), len(right_words))
+    for size in range(maximum, minimum_words - 1, -1):
+        if left_words[-size:] == right_words[:size]:
+            return left_words[-size:]
+    return []
+
+
 def clean_json_string(text):
     """Clean and combine adjacent complete JSON arrays from an LLM response."""
+    def parse_array_span(value):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = repair_json_array(value)
+        return parsed if isinstance(parsed, list) else None
+
     # Remove thinking tags (various formats used by different models)
     # GLM, DeepSeek, Qwen, etc. use different thinking tag formats
     text = re.sub(r'<think>[\s\S]*?</think>', '', text)
@@ -133,15 +162,31 @@ def clean_json_string(text):
         next_start = text.find('[', cursor)
         if next_start == -1:
             break
-        if text[cursor:next_start].strip():
-            # Text between arrays is ambiguous; make parsing fail rather than
-            # silently discarding either the text or a later array.
-            return None
         next_span = extract_balanced(text, '[', ']', next_start)
         if next_span is None:
-            return text[start:]
+            if text[cursor:next_start].strip():
+                break
+            return None
+        next_value = parse_array_span(next_span)
+        if next_value is None:
+            if re.match(r'^\[\s*\{', next_span):
+                return None
+            break
+        if text[cursor:next_start].strip():
+            # A later valid array behind prose is ambiguous: do not silently
+            # discard either the intervening material or the array.
+            return None
         spans.append(next_span)
         cursor = next_start + len(next_span)
+
+    if len(spans) > 1:
+        parsed_spans = [parse_array_span(item) for item in spans]
+        if any(item is None for item in parsed_spans):
+            parsed_spans = []
+        for left_entries, right_entries in zip(parsed_spans, parsed_spans[1:]):
+            overlap = _get_boundary_overlap(left_entries, right_entries)
+            if overlap:
+                raise AdjacentArrayOverlapError(" ".join(overlap))
 
     json_text = spans[0] if len(spans) == 1 else "[" + ",".join(
         item.strip()[1:-1] for item in spans) + "]"
@@ -362,15 +407,19 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     requested_max = params.max_tokens
     for attempt in range(max_retries + 1):
         t0 = time.time()
+        truncation_retry_available = False
         try:
+            base_messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
             attempt_prompt = user_prompt
             if retry_feedback:
                 attempt_prompt += ("\n\nYour previous response was rejected by deterministic "
                                    "quality checks. Return the complete source text exactly once. "
                                    f"Failures: {retry_feedback}")
-            messages = [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": attempt_prompt}
+            messages = base_messages if not retry_feedback else [
+                base_messages[0], {"role": "user", "content": attempt_prompt}
             ]
             effective_max = get_effective_max_tokens(
                 requested_max, params.context_length, messages,
@@ -420,8 +469,18 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if attempt < max_retries:
                     next_max = get_next_retry_max_tokens(
                         requested_max, "token_truncated", params.hard_max_tokens)
-                    print(f"  Token budget: requested={requested_max}, effective={effective_max}, next={next_max}")
-                    requested_max = next_max
+                    next_effective = get_effective_max_tokens(
+                        next_max, params.context_length, base_messages,
+                        params.hard_max_tokens, scale_to_context=False)
+                    if next_effective > effective_max:
+                        print(f"  Token budget: requested={requested_max}, effective={effective_max}, "
+                              f"next_requested={next_max}, next_effective={next_effective}")
+                        requested_max = next_max
+                        retry_feedback = None
+                        truncation_retry_available = True
+                    else:
+                        print(f"  Token escalation exhausted: effective budget cannot grow "
+                              f"beyond {effective_max} in the loaded context.")
 
         except Exception as e:
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
@@ -430,11 +489,20 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             return []
 
         # Clean and extract JSON from response
-        json_text = clean_json_string(text)
+        try:
+            json_text = clean_json_string(text)
+        except AdjacentArrayOverlapError as exc:
+            retry_feedback = f"adjacent_array_overlap: {exc}"
+            print(f"Warning: {label} repeats text across adjacent arrays "
+                  f"(attempt {attempt + 1}): {exc}")
+            if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
+                print("Retrying...")
+                continue
+            return []
 
         if not json_text:
             print(f"Warning: Could not find JSON array in {label} response (attempt {attempt + 1})")
-            if attempt < max_retries:
+            if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
                 print("Retrying...")
                 continue
             print(f"Response preview: {text[:300]}...")
@@ -483,8 +551,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         continue
                     return []
             if finish_reason == "length":
-                retry_feedback = "token_truncated"
-                if attempt < max_retries:
+                if attempt < max_retries and truncation_retry_available:
                     print("Retrying truncated response with a larger token budget...")
                     continue
                 return []
@@ -495,9 +562,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         print(f"Warning: Could not parse {label} response as JSON (attempt {attempt + 1})")
         print(f"JSON preview: {json_text[:300]}...")
 
-        if attempt < max_retries:
+        if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
             print("Retrying...")
             continue
+        if finish_reason == "length":
+            return []
 
         # Last resort after every full-response retry is exhausted.
         salvaged_entries = salvage_json_entries(json_text)
