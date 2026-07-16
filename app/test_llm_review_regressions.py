@@ -9,7 +9,8 @@ from unittest.mock import patch
 import generate_script
 import core
 import review_script
-from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
+from lmstudio_settings import (get_effective_max_tokens, get_next_retry_max_tokens,
+                               TokenBudgetError)
 
 
 class LlmReviewTests(unittest.TestCase):
@@ -64,6 +65,62 @@ class LlmReviewTests(unittest.TestCase):
     def test_token_budget_rejects_invalid_context(self):
         with self.assertRaises(ValueError):
             get_effective_max_tokens(100, "not-a-number", [], 500)
+
+    def test_adjacent_json_arrays_are_combined_in_order(self):
+        first = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        second = [{"speaker": "TWO", "text": "two", "instruct": "quiet"}]
+
+        cleaned = generate_script.clean_json_string(
+            json.dumps(first) + "\n" + json.dumps(second))
+
+        self.assertEqual(first + second, generate_script.repair_json_array(cleaned))
+
+    def test_text_between_json_arrays_is_not_silently_discarded(self):
+        first = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        second = [{"speaker": "TWO", "text": "two", "instruct": "quiet"}]
+
+        cleaned = generate_script.clean_json_string(
+            json.dumps(first) + " malformed " + json.dumps(second))
+
+        self.assertIsNone(generate_script.repair_json_array(cleaned))
+
+    def test_retry_budget_only_increases_for_incomplete_output(self):
+        self.assertEqual(6144, get_next_retry_max_tokens(
+            4096, "token_truncated", 16384))
+        self.assertEqual(9216, get_next_retry_max_tokens(
+            6144, "incomplete_output", 16384))
+        self.assertEqual(4096, get_next_retry_max_tokens(
+            4096, "quality_failure", 16384))
+        self.assertEqual(7000, get_next_retry_max_tokens(
+            6144, "token_truncated", 7000))
+
+    def test_length_retries_progressively_increase_api_budget(self):
+        calls = []
+        valid = json.dumps([
+            {"speaker": "NARRATOR", "text": "done", "instruct": "neutral"}
+        ])
+        contents = iter([
+            (valid, "length"),
+            (valid, "length"),
+            (valid, "stop"),
+        ])
+
+        def create(**kwargs):
+            calls.append(kwargs["max_tokens"])
+            content, reason = next(contents)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason=reason)], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(max_tokens=4096, hard_max_tokens=16384)
+
+        result = generate_script.call_llm_for_entries(
+            client, "model", "system", "text", params,
+            "test_responses.log", "TEST", max_retries=2)
+
+        self.assertEqual("done", result[0]["text"])
+        self.assertEqual([4096, 6144, 9216], calls)
 
     def test_llm_salvage_waits_until_retries_are_exhausted(self):
         response = SimpleNamespace(

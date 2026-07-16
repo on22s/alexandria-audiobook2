@@ -10,7 +10,8 @@ from openai import OpenAI
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
+from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
+                               get_next_retry_max_tokens)
 from script_repair import build_deterministic_repair
 from source_normalization import normalize_known_source_corruptions
 from speaker_identity import stabilize_speaker_identities
@@ -95,7 +96,7 @@ def clear_generation_checkpoint(output_path):
         os.remove(path)
 
 def clean_json_string(text):
-    """Clean and extract valid JSON array from LLM response."""
+    """Clean and combine adjacent complete JSON arrays from an LLM response."""
     # Remove thinking tags (various formats used by different models)
     # GLM, DeepSeek, Qwen, etc. use different thinking tag formats
     text = re.sub(r'<think>[\s\S]*?</think>', '', text)
@@ -126,7 +127,24 @@ def clean_json_string(text):
             return text[start:last_complete+1] + ']'
         return None
 
-    json_text = span
+    spans = [span]
+    cursor = start + len(span)
+    while True:
+        next_start = text.find('[', cursor)
+        if next_start == -1:
+            break
+        if text[cursor:next_start].strip():
+            # Text between arrays is ambiguous; make parsing fail rather than
+            # silently discarding either the text or a later array.
+            return None
+        next_span = extract_balanced(text, '[', ']', next_start)
+        if next_span is None:
+            return text[start:]
+        spans.append(next_span)
+        cursor = next_start + len(next_span)
+
+    json_text = spans[0] if len(spans) == 1 else "[" + ",".join(
+        item.strip()[1:-1] for item in spans) + "]"
 
     # Clean control characters inside strings (common LLM issue)
     # Replace literal newlines/tabs inside JSON strings with escaped versions
@@ -341,6 +359,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     (e.g. "CHUNK 3/40" or "BATCH 2/10").
     """
     retry_feedback = None
+    requested_max = params.max_tokens
     for attempt in range(max_retries + 1):
         t0 = time.time()
         try:
@@ -354,8 +373,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 {"role": "user", "content": attempt_prompt}
             ]
             effective_max = get_effective_max_tokens(
-                params.max_tokens, params.context_length, messages,
-                params.hard_max_tokens)
+                requested_max, params.context_length, messages,
+                params.hard_max_tokens, scale_to_context=False)
             response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
@@ -398,6 +417,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             if finish_reason == "length":
                 print(f"  WARNING: Response was truncated (hit effective max_tokens={effective_max}). Consider optimizing LM Studio context.")
+                if attempt < max_retries:
+                    next_max = get_next_retry_max_tokens(
+                        requested_max, "token_truncated", params.hard_max_tokens)
+                    print(f"  Token budget: requested={requested_max}, effective={effective_max}, next={next_max}")
+                    requested_max = next_max
 
         except Exception as e:
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
@@ -441,12 +465,29 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     retry_feedback = ", ".join(
                         finding["code"] for finding in quality["findings"])
                     metrics = quality.get("metrics", {})
+                    codes = {finding["code"] for finding in quality["findings"]}
+                    if (attempt < max_retries and finish_reason != "length" and
+                            ({"low_source_token_recall", "low_ordered_trigram_recall",
+                              "output_source_ratio"} & codes
+                             and metrics.get("output_source_ratio", 1.0) < 0.9)):
+                        next_max = get_next_retry_max_tokens(
+                            requested_max, "incomplete_output", params.hard_max_tokens)
+                        if next_max != requested_max:
+                            print(f"  Increasing token budget after incomplete output: "
+                                  f"{requested_max} -> {next_max}")
+                            requested_max = next_max
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
                     if attempt < max_retries:
                         print("Retrying...")
                         continue
                     return []
+            if finish_reason == "length":
+                retry_feedback = "token_truncated"
+                if attempt < max_retries:
+                    print("Retrying truncated response with a larger token budget...")
+                    continue
+                return []
             if attempt > 0:
                 print(f"  Succeeded on retry {attempt + 1}")
             return entries
