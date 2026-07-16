@@ -206,14 +206,6 @@ except ImportError as e:
     logger.debug(f"WhisperX not available: {e}")
 
 try:
-    from pyannote.audio import Pipeline
-    PYANNOTE_AVAILABLE = True
-    logger.info("✓ pyannote.audio available")
-except ImportError as e:
-    PYANNOTE_AVAILABLE = False
-    logger.debug(f"pyannote.audio not available: {e}")
-
-try:
     from intervaltree import IntervalTree, Interval
     INTERVALTREE_AVAILABLE = True
     logger.info("✓ intervaltree available")
@@ -2277,9 +2269,6 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     ctx = " ".join(list(context)[-2:]) if context else ""
 
                     if batch_size > 1:
-                        # Snap timing when first item enters a fresh batch buffer
-                        if not batch_buffer:
-                            batch_start_t0 = time.monotonic()
                         # Collect into batch buffer
                         batch_buffer.append({
                             "segment_idx": segment_idx,
@@ -2457,7 +2446,6 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     # Dynamic ETA from rolling average
                     if (segment_idx + 1) % 10 == 0:
                         avg_chunk_s = sum(chunk_times) / len(chunk_times)
-                        completed_this_run = segment_idx - next_segment_idx + 1
                         elapsed_s = time.monotonic() - annotation_start_time
                         remaining_chunks = max(0, estimated_chunks_total - segment_idx - 1)
                         remaining_s = remaining_chunks * avg_chunk_s
