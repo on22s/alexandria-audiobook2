@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import subprocess
 import sys
 import unittest
@@ -12,6 +13,37 @@ from lmstudio_settings import get_effective_max_tokens, TokenBudgetError
 
 
 class LlmReviewTests(unittest.TestCase):
+    @staticmethod
+    def _client_with_responses(contents):
+        responses = iter(contents)
+        def create(**_kwargs):
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=next(responses)), finish_reason="stop")], usage=None)
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    def test_chunk_quality_failure_retries_then_accepts_complete_response(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = [{"speaker": "NARRATOR", "text": "word0 word1", "instruct": "neutral"}]
+        complete = [{"speaker": "NARRATOR", "text": source, "instruct": "neutral"}]
+        client = self._client_with_responses([json.dumps(incomplete), json.dumps(complete)])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1, params, max_retries=1)
+
+        self.assertEqual(complete, result)
+
+    def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([{"speaker": "NARRATOR", "text": "word0", "instruct": "neutral"}])
+        client = self._client_with_responses([incomplete, incomplete])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1, params, max_retries=1)
+
+        self.assertEqual([], result)
+
     def test_token_budget_uses_fallback_without_verified_context(self):
         self.assertEqual(4096, get_effective_max_tokens(4096, None, [], 16000))
 

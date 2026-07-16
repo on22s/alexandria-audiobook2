@@ -57,6 +57,8 @@
     "test_inventory.TestInventoryTests.test_unit_test_inventory_is_stable"
   ],
   "test_llm_review_regressions": [
+    "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason",
+    "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response",
     "test_llm_review_regressions.LlmReviewTests.test_llm_salvage_waits_until_retries_are_exhausted",
     "test_llm_review_regressions.LlmReviewTests.test_review_help_does_not_advertise_unimplemented_source_mode",
     "test_llm_review_regressions.LlmReviewTests.test_token_budget_enforces_task_ceiling",
