@@ -25,6 +25,21 @@ from utils import run_rocm_smi_json
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
 
+# Profiles are enabled only after the exact model/profile has passed a real
+# concurrent near-limit run on this machine. Unknown models and unreadable GPU
+# metrics retain IDEAL_SETTINGS rather than extrapolating from another model.
+_VERIFIED_LOCAL_PROFILES = {
+    "gemma-4-e4b-uncensored-hauhaucs-aggressive": {
+        "context_length": 16384,
+        "parallel": 2,
+        "model_vram_bytes": int(8.50 * 1024 ** 3),
+        # Measured context growth was smaller; 16 KiB/token deliberately
+        # overestimates it so transient backend workspaces remain covered.
+        "bytes_per_extra_context_token": 16 * 1024,
+    },
+}
+_LOCAL_VRAM_RESERVE_BYTES = 2 * 1024 ** 3
+
 # "Best settings" for a remote LM Studio on a big cloud GPU (e.g. Thunder A6000,
 # 48GB): a large context with headroom under the model's max, vs LM Studio's
 # small defaults. Applied over SSH since the forwarded /v1 port can't set these.
@@ -100,6 +115,57 @@ def is_remote_llm(llm_mode, base_url):
 def find_lms_binary():
     """Return the path to the `lms` CLI, or None if it isn't available."""
     return shutil.which("lms")
+
+
+def get_local_vram_bytes():
+    """Return (total_bytes, used_bytes), or None when no reliable probe works."""
+    data = run_rocm_smi_json(["--showmeminfo", "vram"],
+                             rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
+    if data:
+        for card_data in data.values():
+            try:
+                total = int(card_data["VRAM Total Memory (B)"])
+                used = int(card_data["VRAM Total Used Memory (B)"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if total > 0 and 0 <= used <= total:
+                return total, used
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total,memory.used",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5)
+        total_mib, used_mib = (int(part.strip())
+                               for part in result.stdout.splitlines()[0].split(","))
+        if result.returncode == 0 and total_mib > 0 and 0 <= used_mib <= total_mib:
+            return total_mib * 1024 ** 2, used_mib * 1024 ** 2
+    except (OSError, IndexError, ValueError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def get_safe_local_settings(model_name, model_loaded, vram_bytes=None):
+    """Select a verified profile from live VRAM, otherwise return the fallback."""
+    fallback = dict(IDEAL_SETTINGS)
+    fallback["reason"] = "conservative fallback"
+    profile = _VERIFIED_LOCAL_PROFILES.get(model_name)
+    memory = vram_bytes if vram_bytes is not None else get_local_vram_bytes()
+    if not profile or not memory:
+        fallback["reason"] = ("model has no verified dynamic profile" if not profile
+                              else "GPU memory could not be measured")
+        return fallback
+
+    total, used = memory
+    baseline = used if model_loaded else used + profile["model_vram_bytes"]
+    extra_tokens = max(0, profile["context_length"] - IDEAL_SETTINGS["context_length"])
+    projected = baseline + extra_tokens * profile["bytes_per_extra_context_token"]
+    if projected + _LOCAL_VRAM_RESERVE_BYTES > total:
+        fallback["reason"] = "live VRAM lacks the 2 GiB safety reserve"
+        return fallback
+    return {"context_length": profile["context_length"],
+            "parallel": profile["parallel"], "gpu": "max",
+            "reason": "verified profile fits live VRAM with 2 GiB reserved"}
 
 
 def _validate_ssh_alias(ssh_alias):
@@ -190,7 +256,13 @@ def get_lmstudio_status(model_name):
         return {"available": True, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
-    return _parse_lms_ps_output(result.stdout, model_name, IDEAL_SETTINGS)
+    initial = _parse_lms_ps_output(result.stdout, model_name, IDEAL_SETTINGS)
+    ideal = get_safe_local_settings(model_name, initial["loaded"])
+    status = _parse_lms_ps_output(result.stdout, model_name, ideal)
+    status.update({"ideal_context_length": ideal["context_length"],
+                   "ideal_parallel": ideal["parallel"],
+                   "settings_reason": ideal["reason"]})
+    return status
 
 
 def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
@@ -352,7 +424,11 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
     if not lms:
         return False, "lms CLI not found on PATH"
 
-    settings = IDEAL_SETTINGS if ideal else DEFAULT_SETTINGS
+    if ideal:
+        status = get_lmstudio_status(model_name)
+        settings = get_safe_local_settings(model_name, status["loaded"])
+    else:
+        settings = DEFAULT_SETTINGS
 
     # `lms load` refuses to load if a model is already loaded under the same
     # identifier, so drop any existing instance first. If unload fails (e.g.
@@ -389,7 +465,9 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
         return False, msg
 
     label = "VRAM-safe" if ideal else "default"
-    return True, f"Reloaded {model_name} with {label} settings"
+    detail = (f" ({settings['context_length']} context, parallel {settings['parallel']}; "
+              f"{settings.get('reason', 'fixed profile')})")
+    return True, f"Reloaded {model_name} with {label} settings{detail}"
 
 
 def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
