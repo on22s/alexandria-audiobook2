@@ -216,6 +216,32 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual([4096, 6144, 9216], calls)
         self.assertTrue(all(messages[1]["content"] == "text" for messages in prompts))
 
+    def test_incomplete_stop_does_not_increase_unspent_token_budget(self):
+        calls = []
+        incomplete = json.dumps([{"speaker": "NARRATOR", "text": "one",
+                                  "instruct": "neutral"}])
+        usage = SimpleNamespace(prompt_tokens=100, completion_tokens=400)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **kwargs: (calls.append(kwargs["max_tokens"]) or SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=incomplete),
+                                         finish_reason="stop")], usage=usage)))))
+        quality = lambda _entries: {"passed": False,
+            "metrics": {"output_source_ratio": 0.1},
+            "findings": [{"code": "low_source_token_recall", "value": 0.1}]}
+
+        result = generate_script.call_llm_for_entries(
+            client, "model", "system", "text", generate_script.LLMGenParams(max_tokens=4096),
+            "test_responses.log", "TEST", max_retries=1, validate_entries=quality)
+
+        self.assertEqual([], result)
+        self.assertEqual([4096, 4096], calls)
+
+    def test_near_limit_incomplete_stop_increases_budget(self):
+        quality = {"metrics": {"output_source_ratio": 0.2},
+                   "findings": [{"code": "output_source_ratio"}]}
+        self.assertEqual("increase_tokens", generate_script.get_quality_retry_policy(
+            "stop", 950, 1000, quality))
+
     def test_context_clamped_truncation_does_not_retry(self):
         calls = []
         valid = json.dumps([
