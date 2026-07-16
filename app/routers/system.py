@@ -141,7 +141,7 @@ def get_gpu_stats():
     try:
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
         if data is not None:
-            for card_key, card_data in data.items():
+            for card_data in data.values():
                 if not isinstance(card_data, dict):
                     continue
                 stats['utilization_percent'] = _rocm_smi_utilization(card_data)

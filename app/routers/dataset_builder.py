@@ -177,7 +177,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
-        wav_path, sr = engine.generate_voice_design(
+        wav_path, _ = engine.generate_voice_design(
             description=request.description,
             sample_text=request.text,
             seed=request.seed,
@@ -314,7 +314,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                     elif global_seed >= 0:
                         seed = global_seed
 
-                    wav_path, sr = engine.generate_voice_design(
+                    wav_path, _ = engine.generate_voice_design(
                         description=description,
                         sample_text=text,
                         seed=seed,

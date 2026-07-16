@@ -41,7 +41,7 @@ def get_vram_usage():
         worst_used = 0
         worst_total = 0
 
-        for card_id, card_data in data.items():
+        for card_data in data.values():
             if not isinstance(card_data, dict):
                 continue
             try:

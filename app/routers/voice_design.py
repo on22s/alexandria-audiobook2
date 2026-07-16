@@ -52,7 +52,7 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
         engine = project_manager.get_engine()
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-        wav_path, sr = engine.generate_voice_design(
+        wav_path, _ = engine.generate_voice_design(
             description=request.description,
             sample_text=request.sample_text,
             language=request.language,
