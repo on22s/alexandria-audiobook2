@@ -29,6 +29,7 @@ from core import (
     ETA_TASKS,
     LLMConfigError,
     ROOT_DIR,
+    RUN_HISTORY_DIR,
     STATIC_DIR,
     _compute_eta,
     _load_llm_config,
@@ -43,10 +44,24 @@ from core import (
 from utils import (atomic_json_write, file_lock,
                    rocm_smi_utilization as _rocm_smi_utilization,
                    run_rocm_smi_json, system_has_gpu)
+from run_history import get_run, list_runs
 
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
+
+
+@router.get("/api/runs")
+async def get_run_history(limit: int = 100):
+    return {"runs": list_runs(RUN_HISTORY_DIR, limit=limit)}
+
+
+@router.get("/api/runs/{run_id}")
+async def get_run_history_entry(run_id: str):
+    record = get_run(RUN_HISTORY_DIR, run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return record
 
 # --- System Helpers ---
 

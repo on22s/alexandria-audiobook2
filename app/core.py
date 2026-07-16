@@ -22,6 +22,7 @@ from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
+from run_history import finish_run, start_run
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -137,6 +138,7 @@ VOICE_LIBRARY_PATH = os.path.join(DATA_DIR, "voice_library.json")
 CHARACTER_ALIASES_PATH = os.path.join(DATA_DIR, "character_aliases.json")
 REPORTS_DIR = os.path.join(DATA_DIR, "reports")
 API_LOG_DIR = os.path.join(DATA_DIR, "logs", "api")
+RUN_HISTORY_DIR = os.path.join(DATA_DIR, "run_history")
 os.makedirs(API_LOG_DIR, exist_ok=True)
 
 
@@ -782,9 +784,16 @@ def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
 def _run_claimed_background_task(task_name: str, callback) -> None:
     """Run a claimed callback and always release its process-state slot."""
     state = process_state[task_name]
+    run_id = None
+    error = None
     try:
+        try:
+            run_id = start_run(RUN_HISTORY_DIR, task_name)
+        except Exception:
+            logger.exception("Could not start run history for %s", task_name)
         callback()
     except Exception as e:
+        error = str(e)
         logger.exception("Background task %s failed: %s", task_name, e)
         state.setdefault("logs", []).append(f"Error: {e}")
         if "status" in state:
@@ -795,6 +804,17 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
         if "pid" in state:
             state["pid"] = None
         state["running"] = False
+        if run_id:
+            if error is not None or state.get("status") == "failed":
+                final_status = "failed"
+            elif state.get("cancel") or state.get("status") == "cancelled":
+                final_status = "cancelled"
+            else:
+                final_status = "completed"
+            try:
+                finish_run(RUN_HISTORY_DIR, run_id, final_status, error=error)
+            except Exception:
+                logger.exception("Could not finish run history record %s", run_id)
 
 
 
