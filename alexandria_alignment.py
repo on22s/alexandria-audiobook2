@@ -31,6 +31,7 @@ threading it through every call site. Empty lexicon == pre-feature behaviour.
 import re
 import difflib
 import functools
+import sys
 from pathlib import Path
 from collections import Counter
 

@@ -867,7 +867,7 @@ def main():
     if not decisions:
         print(f"\n🔍 Estimating source/audio alignment quality...")
         avg, n_sampled, low_ct, review_ct = estimate_alignment_quality(
-            entries, orig_match, cursor, threshold=threshold
+            entries, orig_match, cursor, threshold=args.threshold
         )
         if n_sampled >= 10:
             pct_low = low_ct / n_sampled
