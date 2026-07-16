@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 import json
-import os
 import re
 import logging
 import traceback
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from llama_cpp import Llama, llama_supports_gpu_offload
 from gpu_stats import system_has_gpu

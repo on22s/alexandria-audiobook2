@@ -18,7 +18,7 @@ from openai import OpenAI
 
 import lmstudio_settings
 from config_settings import load_app_config
-from utils import safe_load_json, atomic_json_write, file_lock
+from utils import atomic_json_write, file_lock
 
 _BENCH_SYSTEM_PROMPT = "You are a creative writing assistant."
 

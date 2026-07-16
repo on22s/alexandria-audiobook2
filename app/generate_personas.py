@@ -5,7 +5,6 @@ import time
 import re
 import argparse
 import shutil
-import tempfile
 from openai import OpenAI
 from config_settings import load_app_config
 
