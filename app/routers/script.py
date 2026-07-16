@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
@@ -16,6 +17,11 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from config_settings import load_app_config
+from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+from generate_script import (build_book_request_preflight, fix_mojibake,
+                             split_into_chunks)
+from lmstudio_settings import get_lmstudio_status
+from source_normalization import normalize_known_source_corruptions
 
 from core import (
     BASE_DIR,
@@ -943,6 +949,57 @@ def _get_versioned_script_path(path: str) -> str:
     return candidate
 
 
+def _get_batch_script_workers(jobs):
+    """Return a batch-wide safe worker count from live slots and every book."""
+    config = load_app_config(CONFIG_PATH)
+    llm = config.get("llm") or {}
+    status = get_lmstudio_status(llm.get("model_name", ""))
+    parallel = max(1, int(status.get("parallel") or 1))
+    context = int(status.get("context_length") or 0)
+    generation = config.get("generation") or {}
+    prompts = config.get("prompts") or {}
+    worst = 0
+    for job in jobs:
+        with open(job["input_path"], encoding="utf-8") as source:
+            text = fix_mojibake(source.read())
+        text, _ = normalize_known_source_corruptions(text)
+        chunks = split_into_chunks(text, generation.get("chunk_size", 3000))
+        report = build_book_request_preflight(
+            chunks, prompts.get("system_prompt") or DEFAULT_SYSTEM_PROMPT,
+            prompts.get("user_prompt") or DEFAULT_USER_PROMPT,
+            generation.get("max_tokens", 4096), context, parallel)
+        worst = max(worst, report["worst_predicted_tokens"])
+    safe = min(parallel, len(jobs))
+    while safe > 1 and worst * safe > context:
+        safe -= 1
+    return max(1, safe), worst, context
+
+
+def _run_batch_script_job(job, state, log_path, total):
+    index = job["index"]
+    if state.get("cancel"):
+        state["tasks"][index]["status"] = "cancelled"
+        return
+    state["tasks"][index]["status"] = "running"
+    state["logs"].append(f"--- [{index + 1}/{total}] {job['filename']} ---")
+    env = os.environ.copy()
+    if state.get("run_id"):
+        env["ALEXANDRIA_RUN_ID"] = state["run_id"]
+    command = [sys.executable, "-u", os.path.join(BASE_DIR, "generate_script.py"),
+               job["input_path"], "--output", job["output_path"]]
+    rc, _ = _stream_subprocess_to_logs(
+        command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",
+        log_file=log_path, env=env)
+    if state.get("cancel"):
+        state["tasks"][index]["status"] = "cancelled"
+    elif rc == 0:
+        state["tasks"][index].update({"status": "done", "saved_as": job["safe_stem"]})
+        state["logs"].append(f"[{index + 1}] Saved as '{job['safe_stem']}' in Scripts library.")
+    else:
+        state["tasks"][index]["status"] = "failed"
+        state["logs"].append(f"[{index + 1}] Failed (exit {rc}): {job['filename']}")
+
+
 @router.post("/api/generate_script/batch/start")
 async def generate_script_batch_start(request: BatchScriptRequest, background_tasks: BackgroundTasks):
     """Process multiple text/EPUB files sequentially through generate_script.py."""
@@ -959,15 +1016,12 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_script")
 
+        jobs = []
+        reserved_outputs = set()
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
                 state["logs"].append("Batch cancelled.")
                 break
-
-            state["current_task_idx"] = i
-            state["tasks"][i]["status"] = "running"
-
-            # Resolve upload path — handle epub→txt conversion
             safe_filename = secure_filename(task.filename)
             if not safe_filename:
                 state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — invalid filename: {task.filename}")
@@ -988,8 +1042,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             stem = os.path.splitext(os.path.basename(input_path))[0]
             safe_stem = secure_filename(stem) or f"batch_{i+1}"
             output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
-
-            if os.path.exists(output_path):
+            if os.path.exists(output_path) or output_path in reserved_outputs:
                 if request.collision_policy == "cancel":
                     state["logs"].append(
                         f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
@@ -998,37 +1051,31 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                     continue
                 if request.collision_policy == "version":
                     output_path = _get_versioned_script_path(output_path)
+                    base, extension = os.path.splitext(output_path)
+                    counter = 2
+                    while output_path in reserved_outputs:
+                        output_path = f"{base}_{counter}{extension}"
+                        counter += 1
                     safe_stem = os.path.splitext(os.path.basename(output_path))[0]
-                else:
+                elif os.path.exists(output_path):
                     backup = backup_file_with_timestamp(output_path)
                     state["logs"].append(
                         f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
 
-            state["logs"].append(f"--- [{i+1}/{len(request.tasks)}] {task.filename} ---")
+            reserved_outputs.add(output_path)
+            jobs.append({"index": i, "filename": task.filename, "input_path": input_path,
+                         "output_path": output_path, "safe_stem": safe_stem})
 
-            cmd = [
-                sys.executable, "-u",
-                os.path.join(BASE_DIR, "generate_script.py"),
-                input_path,
-                "--output", output_path,
-            ]
-            env = os.environ.copy()
-            if state.get("run_id"):
-                env["ALEXANDRIA_RUN_ID"] = state["run_id"]
-            rc, _ = _stream_subprocess_to_logs(
-                cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ",
-                log_file=log_path, env=env)
-
-            if state.get("cancel"):
-                state["tasks"][i]["status"] = "cancelled"
-                break
-            elif rc == 0:
-                state["tasks"][i]["status"] = "done"
-                state["tasks"][i]["saved_as"] = safe_stem
-                state["logs"].append(f"[{i+1}] Saved as '{safe_stem}' in Scripts library.")
-            else:
-                state["tasks"][i]["status"] = "failed"
-                state["logs"].append(f"[{i+1}] Failed (exit {rc}): {task.filename}")
+        if jobs and not state.get("cancel"):
+            workers, worst, context = _get_batch_script_workers(jobs)
+            state["workers"] = workers
+            state["logs"].append(
+                f"Batch preflight: workers={workers}, worst_request={worst}, context={context}")
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(_run_batch_script_job, job, state, log_path,
+                                           len(request.tasks)) for job in jobs]
+                for future in futures:
+                    future.result()
 
         state["running"] = False
         state["logs"].append("Batch script generation finished.")

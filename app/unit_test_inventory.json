@@ -17,6 +17,10 @@
     "test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_batch_script_concurrency": [
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_serializes_when_per_slot_context_is_too_small",
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits"
+  ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_refuses_short_or_boundaryless_chunk",
