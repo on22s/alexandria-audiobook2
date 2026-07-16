@@ -682,6 +682,7 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, patch.object(scripts_library_module, "SCRIPTS_DIR", tmp):
             Path(tmp, "volume-1.json").write_text("[]", encoding="utf-8")
             Path(tmp, "volume-1.meta.json").write_text('{"book_id":"original"}', encoding="utf-8")
+            Path(tmp, "volume-1.json.generation_checkpoint.json").write_text("{}", encoding="utf-8")
             listed = asyncio.run(scripts_library_module.list_saved_scripts())
         self.assertEqual([item["name"] for item in listed], ["volume-1"])
 

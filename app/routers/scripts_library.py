@@ -40,7 +40,8 @@ async def list_saved_scripts():
     any known companion/internal suffix (voice_config, metadata, checkpoint, etc.).
     """
     scripts = []
-    companion_suffixes = (".voice_config.json", ".meta.json", ".review_checkpoint.json", ".checkpoint.jsonl")
+    companion_suffixes = (".voice_config.json", ".meta.json", ".review_checkpoint.json",
+                          ".generation_checkpoint.json", ".checkpoint.jsonl")
     for f in os.listdir(SCRIPTS_DIR):
         if not f.endswith(".json"):
             continue

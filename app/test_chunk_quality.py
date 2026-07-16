@@ -1,7 +1,10 @@
 import copy
+from pathlib import Path
+import tempfile
 import unittest
 
 from chunk_quality import validate_chunk_quality
+import generate_script
 
 
 def _entry(text, speaker="NARRATOR", instruct="Read naturally."):
@@ -9,6 +12,41 @@ def _entry(text, speaker="NARRATOR", instruct="Read naturally."):
 
 
 class ChunkQualityTests(unittest.TestCase):
+    def test_generation_checkpoint_roundtrip_requires_validated_matching_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp, "book.json"))
+            params = generate_script.LLMGenParams("system", "{chunk}")
+            chunks = ["First source chunk.", "Second source chunk."]
+            fingerprint = generate_script.get_generation_fingerprint(
+                "\n".join(chunks), chunks, "model", "http://local", params, 6000)
+            accepted = [{
+                "chunk_number": 1,
+                "source_sha256": fingerprint["chunk_sha256"][0],
+                "entries": [_entry(chunks[0])],
+                "quality": {"passed": True},
+            }]
+
+            generate_script.save_generation_checkpoint(output, fingerprint, accepted)
+
+            self.assertEqual(accepted, generate_script.load_generation_checkpoint(output, fingerprint))
+            changed = dict(fingerprint, source_sha256="changed")
+            self.assertEqual([], generate_script.load_generation_checkpoint(output, changed))
+            generate_script.clear_generation_checkpoint(output)
+            self.assertFalse(Path(generate_script.get_generation_checkpoint_path(output)).exists())
+
+    def test_generation_checkpoint_rejects_unvalidated_chunk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp, "book.json"))
+            params = generate_script.LLMGenParams("system", "{chunk}")
+            fingerprint = generate_script.get_generation_fingerprint(
+                "source", ["source"], "model", "http://local", params, 6000)
+            rejected = [{"chunk_number": 1,
+                         "source_sha256": fingerprint["chunk_sha256"][0],
+                         "entries": [_entry("source")], "quality": {"passed": False}}]
+            generate_script.save_generation_checkpoint(output, fingerprint, rejected)
+
+            self.assertEqual([], generate_script.load_generation_checkpoint(output, fingerprint))
+
     def test_complete_resegmented_response_passes_without_mutation(self):
         source = "One complete sentence appears here. Another sentence follows it."
         entries = [_entry("One complete sentence appears here."),
