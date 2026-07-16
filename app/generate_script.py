@@ -15,7 +15,7 @@ from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
 from script_repair import build_deterministic_repair
 from source_normalization import normalize_known_source_corruptions
 from speaker_identity import stabilize_speaker_identities
-from script_preflight import audit_script
+from script_preflight import audit_script, audit_unicode_text
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
                    get_app_config_path, is_generic_speaker, safe_load_json)
 
@@ -700,6 +700,13 @@ def main():
     if source_normalizations:
         print(f"Normalized {len(source_normalizations)} known source corruption(s) in memory; "
               "the upload was not modified.")
+    source_unicode = audit_unicode_text(book_content)
+    print(f"Source scripts: {', '.join(source_unicode['scripts']) or 'none'}; "
+          f"NFC normalized: {source_unicode['is_nfc']}")
+    if source_unicode["replacement_character_count"] or source_unicode["unsafe_controls"]:
+        print("Error: source contains replacement or unsafe control characters; "
+              f"details={source_unicode}")
+        sys.exit(1)
 
     print(f"Read {len(book_content)} characters")
 
@@ -859,6 +866,7 @@ def main():
         fingerprint, accepted_chunks, source_normalizations,
         total_chunks=total_chunks, response_log=response_log,
         model_name=model_name,
+        source_unicode=source_unicode,
         whole_book_quality=whole_quality,
         preflight=preflight,
         speaker_identity_review=identity_review,
