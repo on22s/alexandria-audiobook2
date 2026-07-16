@@ -10,7 +10,7 @@ class DynamicLmStudioSettingsTests(unittest.TestCase):
     def test_verified_profile_selected_with_headroom(self):
         settings = lmstudio_settings.get_safe_local_settings(
             self.MODEL, True, (17 * 1024 ** 3, 10 * 1024 ** 3))
-        self.assertEqual((16384, 2),
+        self.assertEqual((32768, 2),
                          (settings["context_length"], settings["parallel"]))
 
     def test_external_vram_pressure_uses_fallback(self):
