@@ -2,6 +2,7 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from chunk_quality import validate_chunk_quality
 import generate_script
@@ -26,6 +27,26 @@ def generate_script_test_client(entry_lists):
 
 
 class ChunkQualityTests(unittest.TestCase):
+    def test_adaptive_split_recombines_and_carries_context(self):
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        first, second = generate_script.split_failed_chunk(source)
+        first_entries = [_entry(first)]
+        second_entries = [_entry(second)]
+        with patch.object(generate_script, "process_chunk",
+                          side_effect=[[], first_entries, second_entries]) as process:
+            entries, split = generate_script.process_chunk_adaptively(
+                object(), "model", source, 1, 1, generate_script.LLMGenParams(),
+                previous_entries=[_entry("Earlier")])
+        self.assertTrue(split)
+        self.assertEqual(first_entries + second_entries, entries)
+        self.assertEqual([_entry("Earlier")] + first_entries,
+                         process.call_args_list[2].kwargs["previous_entries"])
+
+    def test_adaptive_split_refuses_short_or_boundaryless_chunk(self):
+        self.assertEqual([], generate_script.split_failed_chunk("short text"))
+        self.assertEqual([], generate_script.split_failed_chunk("x" * 2000))
+
     def test_book_request_preflight_uses_real_chunks_and_parallel_slots(self):
         report = generate_script.build_book_request_preflight(
             ["short text", "x" * 6000], "system", "{context}\n{chunk}",

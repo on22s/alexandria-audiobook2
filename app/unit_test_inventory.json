@@ -18,6 +18,8 @@
     "test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
   "test_chunk_quality": [
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_refuses_short_or_boundaryless_chunk",
     "test_chunk_quality.ChunkQualityTests.test_book_request_preflight_reports_context_miss",
     "test_chunk_quality.ChunkQualityTests.test_book_request_preflight_uses_real_chunks_and_parallel_slots",
     "test_chunk_quality.ChunkQualityTests.test_boundary_allows_lowest_calibrated_intact_coverage",

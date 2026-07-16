@@ -53,6 +53,7 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
             "source_sha256": item["source_sha256"],
             "entry_count": len(item["entries"]),
             "quality": item["quality"],
+            "adaptively_split": item.get("adaptively_split", False),
         } for item in accepted_chunks],
         **details,
     }
@@ -724,6 +725,49 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         attempt_observer=attempt_observer,
     )
 
+
+def split_failed_chunk(chunk, minimum_chars=800):
+    """Split near the midpoint at a natural boundary, or return [] if unsafe."""
+    if len(chunk) < minimum_chars * 2:
+        return []
+    candidates = [match.end() for match in re.finditer(r"\n\s*\n", chunk)]
+    if not candidates:
+        candidates = [match.end() for match in re.finditer(r"(?<=[.!?])\s+", chunk)]
+    valid = [offset for offset in candidates
+             if offset >= minimum_chars and len(chunk) - offset >= minimum_chars]
+    if not valid:
+        return []
+    offset = min(valid, key=lambda value: abs(value - len(chunk) / 2))
+    return [chunk[:offset].strip(), chunk[offset:].strip()]
+
+
+def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
+                             params, previous_entries=None):
+    """Try a full chunk, then one bounded natural-boundary split on exhaustion."""
+    entries = process_chunk(client, model_name, chunk, chunk_num, total_chunks,
+                            params, previous_entries=previous_entries)
+    if entries:
+        return entries, False
+    parts = split_failed_chunk(chunk)
+    if not parts:
+        return [], False
+    print(f"  Adaptive split: chunk {chunk_num}/{total_chunks} -> "
+          f"{len(parts[0])} + {len(parts[1])} chars")
+    combined = []
+    for part_number, part in enumerate(parts, 1):
+        context_entries = list(previous_entries or []) + combined
+        part_entries = process_chunk(
+            client, model_name, part, chunk_num, total_chunks, params,
+            previous_entries=context_entries)
+        if not part_entries:
+            print(f"  Adaptive split part {part_number}/{len(parts)} failed")
+            return [], True
+        combined.extend(part_entries)
+    if not validate_chunk_quality(chunk, combined)["passed"]:
+        print("  Adaptive split recombination failed original-chunk validation")
+        return [], True
+    return combined, True
+
 def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
@@ -858,7 +902,7 @@ def main():
 
         chunk_start = time.monotonic()
         previous = all_entries if len(all_entries) > 0 else None
-        entries = process_chunk(
+        entries, adaptively_split = process_chunk_adaptively(
             client, model_name, chunk, i, total_chunks, gen_params,
             previous_entries=previous,
         )
@@ -890,6 +934,7 @@ def main():
             "source_sha256": fingerprint["chunk_sha256"][i - 1],
             "entries": entries,
             "quality": quality,
+            "adaptively_split": adaptively_split,
         })
         save_generation_checkpoint(output_path, fingerprint, accepted_chunks)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
