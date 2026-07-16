@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import sys
 import json
@@ -10,7 +11,55 @@ from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
-from utils import atomic_json_write, extract_balanced, get_runtime_data_dir, get_app_config_path
+from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
+                   get_app_config_path, safe_load_json)
+
+
+def get_generation_checkpoint_path(output_path):
+    return output_path + ".generation_checkpoint.json"
+
+
+def get_generation_fingerprint(source_text, chunks, model_name, base_url, params, chunk_size):
+    settings = {
+        "model_name": model_name, "base_url": base_url, "chunk_size": chunk_size,
+        "system_prompt": params.system_prompt, "user_prompt_template": params.user_prompt_template,
+        "max_tokens": params.max_tokens, "temperature": params.temperature,
+        "top_p": params.top_p, "top_k": params.top_k, "min_p": params.min_p,
+        "presence_penalty": params.presence_penalty, "banned_tokens": params.banned_tokens,
+        "context_length": params.context_length, "hard_max_tokens": params.hard_max_tokens,
+    }
+    encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return {
+        "source_sha256": hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
+        "settings_sha256": hashlib.sha256(encoded).hexdigest(),
+        "chunk_sha256": [hashlib.sha256(chunk.encode("utf-8")).hexdigest() for chunk in chunks],
+    }
+
+
+def load_generation_checkpoint(output_path, fingerprint):
+    checkpoint = safe_load_json(get_generation_checkpoint_path(output_path), None)
+    if not isinstance(checkpoint, dict) or checkpoint.get("fingerprint") != fingerprint:
+        return []
+    accepted = checkpoint.get("accepted_chunks")
+    if not isinstance(accepted, list) or len(accepted) > len(fingerprint["chunk_sha256"]):
+        return []
+    for index, item in enumerate(accepted):
+        if (not isinstance(item, dict) or not isinstance(item.get("entries"), list)
+                or not item.get("quality", {}).get("passed")
+                or item.get("source_sha256") != fingerprint["chunk_sha256"][index]):
+            return []
+    return accepted
+
+
+def save_generation_checkpoint(output_path, fingerprint, accepted_chunks):
+    atomic_json_write({"fingerprint": fingerprint, "accepted_chunks": accepted_chunks},
+                      get_generation_checkpoint_path(output_path))
+
+
+def clear_generation_checkpoint(output_path):
+    path = get_generation_checkpoint_path(output_path)
+    if os.path.exists(path):
+        os.remove(path)
 
 def clean_json_string(text):
     """Clean and extract valid JSON array from LLM response."""
@@ -522,7 +571,16 @@ def main():
         context_length=lm_status.get("context_length"),
     )
 
+    fingerprint = get_generation_fingerprint(
+        book_content, chunks, model_name, base_url, gen_params, chunk_size)
+    accepted_chunks = load_generation_checkpoint(output_path, fingerprint)
+    if accepted_chunks:
+        print(f"Resuming from generation checkpoint: {len(accepted_chunks)}/{total_chunks} validated chunks.")
+        all_entries = [entry for item in accepted_chunks for entry in item["entries"]]
+
     for i, chunk in enumerate(chunks, 1):
+        if i <= len(accepted_chunks):
+            continue
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
         chunk_start = time.monotonic()
@@ -535,10 +593,23 @@ def main():
         chunk_times.append(chunk_elapsed)
 
         if not entries:
-            print(f"Error: chunk {i}/{total_chunks} produced no entries; preserving existing output")
+            print(f"Error: chunk {i}/{total_chunks} failed validation after retries; "
+                  "preserving existing output and validated checkpoint")
             sys.exit(1)
 
+        quality = validate_chunk_quality(chunk, entries)
+        if not quality["passed"]:
+            print(f"Error: chunk {i}/{total_chunks} failed post-return validation; "
+                  "preserving existing output and validated checkpoint")
+            sys.exit(1)
         all_entries.extend(entries)
+        accepted_chunks.append({
+            "chunk_number": i,
+            "source_sha256": fingerprint["chunk_sha256"][i - 1],
+            "entries": entries,
+            "quality": quality,
+        })
+        save_generation_checkpoint(output_path, fingerprint, accepted_chunks)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
 
         remaining = total_chunks - i
@@ -559,6 +630,7 @@ def main():
         sys.exit(1)
 
     atomic_json_write(all_entries, output_path)
+    clear_generation_checkpoint(output_path)
 
     # Only clear chunks when writing to the default annotated_script.json location
     if args.output is None:
