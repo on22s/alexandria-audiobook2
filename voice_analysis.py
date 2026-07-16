@@ -652,7 +652,8 @@ def write_pipeline_summary(zips2_root, dedup_dir, analyze_dir):
     analyze_cache_file = analyze_dir / "embeddings_cache.pkl"
     analyzed_groups = set()
     if analyze_cache_file.exists():
-        analyzed_groups = set(pickle.load(open(analyze_cache_file, "rb")).keys())
+        with open(analyze_cache_file, "rb") as cache_file:
+            analyzed_groups = set(pickle.load(cache_file).keys())
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
