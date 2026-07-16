@@ -1,8 +1,10 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from integration_corpus import build_manifest, select_passages
+import integration_runner
 
 
 class IntegrationCorpusTests(unittest.TestCase):
@@ -28,6 +30,30 @@ class IntegrationCorpusTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(["a.txt", "b.txt"], [book["name"] for book in first["books"]])
         self.assertEqual("empty.txt", first["errors"][0]["name"])
+
+    def test_runner_writes_case_results_incrementally(self):
+        text = "one two three four five"
+        manifest = {"books": [{"name": "book.txt", "passages": [{
+            "category": "opening_narration", "text": text, "sha256": "abc"}]}]}
+
+        def process(_client, _model, chunk, _index, _total, _params,
+                    max_retries, attempt_observer):
+            attempt_observer({"attempt": 1, "finish_reason": "stop"})
+            return [{"speaker": "NARRATOR", "text": chunk, "instruct": "neutral"}]
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(integration_runner, "load_app_config", return_value={
+                 "llm": {"base_url": "http://localhost:1234/v1", "model_name": "model"}}), \
+             patch.object(integration_runner, "ensure_ideal_settings",
+                          return_value=(False, {"context_length": 8192}, "ready")), \
+             patch.object(integration_runner, "OpenAI"), \
+             patch.object(integration_runner, "process_chunk", side_effect=process):
+            output = str(Path(tmp, "report.json"))
+            report = integration_runner.run_manifest(manifest, output)
+
+            self.assertTrue(Path(output).is_file())
+        self.assertEqual("passed", report["cases"][0]["status"])
+        self.assertEqual(1, len(report["cases"][0]["attempts"]))
 
 
 if __name__ == "__main__":
