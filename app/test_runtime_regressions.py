@@ -281,6 +281,23 @@ class RuntimeTests(unittest.TestCase):
         finally:
             core_module.process_state["audio"]["running"] = False
 
+    def test_voice_design_logs_unexpected_failure_and_returns_sanitized_500(self):
+        request = voice_design_module.VoiceDesignPreviewRequest(
+            description="voice", sample_text="text", language="english")
+        with patch.object(core_module.project_manager, "get_engine",
+                          side_effect=RuntimeError("internal model path")), \
+             patch.object(voice_design_module.logger, "exception") as log_exception:
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(voice_design_module.voice_design_preview(request))
+
+        self.assertEqual(raised.exception.status_code, 500)
+        self.assertEqual(
+            raised.exception.detail,
+            "Voice design preview failed — see server logs for details.")
+        self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+        log_exception.assert_called_once_with("Voice design preview failed")
+        self.assertFalse(core_module.process_state["voice_design"]["running"])
+
     def test_lora_hyperparameters_are_validated_at_api_boundary(self):
         invalid_values = {
             "epochs": (0, 1001),
