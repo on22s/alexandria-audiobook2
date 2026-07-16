@@ -1,6 +1,7 @@
 """Read-only, deterministic checks for annotated audiobook scripts."""
 
 import re
+import unicodedata
 from collections import Counter
 
 
@@ -14,6 +15,36 @@ _NARRATION_RE = re.compile(
     r"\b(?:he|she|they|subaru|emilia)\s+(?:said|asked|replied|thought|looked|felt|was|were)\b",
     re.IGNORECASE,
 )
+_SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
+                    "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
+
+
+def _character_script(character):
+    name = unicodedata.name(character, "")
+    return next((prefix for prefix in _SCRIPT_PREFIXES if name.startswith(prefix)), None)
+
+
+def audit_unicode_text(text, source_text=None):
+    """Describe Unicode scripts and source-unsupported characters without mutation."""
+    text = str(text or "")
+    source = str(source_text or "")
+    scripts = sorted({script for char in text if (script := _character_script(char))})
+    source_scripts = {script for char in source if (script := _character_script(char))}
+    introduced = (sorted(set(scripts) - source_scripts) if source_text is not None
+                  else sorted(set(scripts) - {"LATIN"}))
+    controls = sorted({f"U+{ord(char):04X}" for char in text
+                       if unicodedata.category(char) in {"Cc", "Cs"}
+                       and char not in "\n\r\t"})
+    mixed = []
+    for match in _WORD_RE.finditer(text):
+        word_scripts = sorted({script for char in match.group() if (script := _character_script(char))})
+        if "LATIN" in word_scripts and len(word_scripts) > 1:
+            mixed.append({"text": match.group(), "scripts": word_scripts,
+                          "offset": match.start()})
+    return {"normalization": "NFC", "is_nfc": text == unicodedata.normalize("NFC", text),
+            "scripts": scripts, "introduced_scripts": introduced,
+            "replacement_character_count": text.count("\ufffd"),
+            "unsafe_controls": controls, "mixed_script_words": mixed}
 
 
 def is_possible_misattributed_narration(text, speaker):
@@ -95,13 +126,21 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             findings.append(_finding("blocking", "missing_speaker", "Entry has no speaker.", [index]))
         if not instruct:
             findings.append(_finding("manual_review", "missing_instruction", "Entry has no delivery instruction.", [index]))
-        cyrillic = sorted(set(_CYRILLIC_RE.findall(text)))
-        if cyrillic:
+        unicode_report = audit_unicode_text(text, source_text)
+        if unicode_report["introduced_scripts"]:
             findings.append(_finding(
-                "blocking", "cyrillic_in_text",
-                "Entry contains Cyrillic characters that may be Latin homoglyphs.",
-                [index], characters=cyrillic,
+                "blocking", "introduced_unicode_script",
+                "Entry contains a writing system absent from the source.",
+                [index], scripts=unicode_report["introduced_scripts"],
             ))
+        if unicode_report["mixed_script_words"]:
+            findings.append(_finding("blocking", "mixed_script_word",
+                                     "A word combines multiple writing systems.", [index],
+                                     words=unicode_report["mixed_script_words"]))
+        if unicode_report["replacement_character_count"] or unicode_report["unsafe_controls"]:
+            findings.append(_finding("blocking", "unsafe_unicode_character",
+                                     "Entry contains replacement or unsafe control characters.",
+                                     [index], unicode=unicode_report))
         if index <= 30 and _FRONT_MATTER_RE.search(text):
             findings.append(_finding("manual_review", "front_matter", "Possible publication front matter.", [index]))
         if is_possible_misattributed_narration(text, speaker):

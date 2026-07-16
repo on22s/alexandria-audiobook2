@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from routers import scripts_library
-from script_preflight import audit_script
+from script_preflight import audit_script, audit_unicode_text
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
@@ -110,9 +110,25 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual(2, report["counts"]["blocking"])
         self.assertFalse(report["can_apply_repairs"])
         self.assertEqual(
-            {"empty_text", "cyrillic_in_text"},
+            {"empty_text", "introduced_unicode_script"},
             {finding["code"] for finding in report["findings"]},
         )
+
+    def test_legitimate_japanese_is_allowed_when_source_backed(self):
+        report = audit_script([_entry("彼はありがとうと言った。")], "彼はありがとうと言った。")
+        self.assertEqual(0, report["counts"]["blocking"])
+
+    def test_introduced_hiragana_and_mixed_word_are_reported(self):
+        report = audit_script([_entry("Subあru saw a cat.")], "Subaru saw a cat.")
+        codes = {finding["code"] for finding in report["findings"]}
+        self.assertIn("introduced_unicode_script", codes)
+        self.assertIn("mixed_script_word", codes)
+
+    def test_unicode_audit_reports_nfc_and_unsafe_characters(self):
+        report = audit_unicode_text("Cafe\u0301\ufffd\x00")
+        self.assertFalse(report["is_nfc"])
+        self.assertEqual(1, report["replacement_character_count"])
+        self.assertEqual(["U+0000"], report["unsafe_controls"])
 
     def test_reports_adjacent_multi_entry_duplicate_with_source_evidence(self):
         block = [_entry("A sufficiently long first line."), _entry("A sufficiently long second line.")]
