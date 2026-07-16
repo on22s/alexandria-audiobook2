@@ -61,6 +61,10 @@
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy"
   ],
+  "test_integration_corpus": [
+    "test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
+    "test_integration_corpus.IntegrationCorpusTests.test_passage_selection_covers_distinct_text_features"
+  ],
   "test_inventory": [
     "test_inventory.TestInventoryTests.test_inventory_differences_are_compact_and_actionable",
     "test_inventory.TestInventoryTests.test_inventory_writer_is_deterministic_and_check_is_read_only",

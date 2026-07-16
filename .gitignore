@@ -116,6 +116,7 @@ alexandria_dataset_*.zip
 # Test-corpus run outputs (multi-GB zips, per-run sentinels, watchdog logs)
 test_corpus_output/
 test_corpus_output_pre_*/
+integration_runs/
 
 
 .gemini/
