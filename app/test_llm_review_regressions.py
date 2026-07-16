@@ -75,6 +75,54 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual(first + second, generate_script.repair_json_array(cleaned))
 
+    def test_adjacent_json_array_overlap_is_rejected(self):
+        first = [{"speaker": "NARRATOR", "text": "before the repeated words here",
+                  "instruct": "neutral"}]
+        second = [{"speaker": "OTHER", "text": "repeated words here after",
+                   "instruct": "quiet"}]
+
+        with self.assertRaisesRegex(
+                generate_script.AdjacentArrayOverlapError, "repeated words here"):
+            generate_script.clean_json_string(
+                json.dumps(first) + "\n" + json.dumps(second))
+
+    def test_adjacent_json_array_overlap_retries_with_specific_feedback(self):
+        prompts = []
+        first = [{"speaker": "NARRATOR", "text": "before repeated words here",
+                  "instruct": "neutral"}]
+        overlap = [{"speaker": "OTHER", "text": "repeated words here after",
+                    "instruct": "quiet"}]
+        complete = [{"speaker": "NARRATOR", "text": "complete", "instruct": "neutral"}]
+        responses = iter([json.dumps(first) + "\n" + json.dumps(overlap),
+                          json.dumps(complete)])
+
+        def create(**kwargs):
+            prompts.append(kwargs["messages"][1]["content"])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=next(responses)), finish_reason="stop")],
+                usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        result = generate_script.call_llm_for_entries(
+            client, "model", "system", "text", generate_script.LLMGenParams(),
+            "test_responses.log", "TEST", max_retries=1)
+
+        self.assertEqual(complete, result)
+        self.assertNotIn("adjacent_array_overlap", prompts[0])
+        self.assertIn("adjacent_array_overlap", prompts[1])
+
+    def test_two_word_adjacent_array_boundary_is_not_treated_as_overlap(self):
+        first = [{"speaker": "NARRATOR", "text": "before repeated words",
+                  "instruct": "neutral"}]
+        second = [{"speaker": "OTHER", "text": "repeated words after",
+                   "instruct": "quiet"}]
+
+        cleaned = generate_script.clean_json_string(
+            json.dumps(first) + "\n" + json.dumps(second))
+
+        self.assertEqual(first + second, generate_script.repair_json_array(cleaned))
+
     def test_text_between_json_arrays_is_not_silently_discarded(self):
         first = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
         second = [{"speaker": "TWO", "text": "two", "instruct": "quiet"}]
@@ -83,6 +131,22 @@ class LlmReviewTests(unittest.TestCase):
             json.dumps(first) + " malformed " + json.dumps(second))
 
         self.assertIsNone(generate_script.repair_json_array(cleaned))
+
+    def test_bracketed_trailing_prose_does_not_discard_valid_array(self):
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            json.dumps(entries) + "\nNote: preserve [speaker] labels.")
+
+        self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_malformed_trailing_entry_array_is_rejected(self):
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            json.dumps(entries) + '\n[{"speaker":}]')
+
+        self.assertIsNone(cleaned)
 
     def test_retry_budget_only_increases_for_incomplete_output(self):
         self.assertEqual(6144, get_next_retry_max_tokens(
@@ -96,6 +160,7 @@ class LlmReviewTests(unittest.TestCase):
 
     def test_length_retries_progressively_increase_api_budget(self):
         calls = []
+        prompts = []
         valid = json.dumps([
             {"speaker": "NARRATOR", "text": "done", "instruct": "neutral"}
         ])
@@ -107,6 +172,7 @@ class LlmReviewTests(unittest.TestCase):
 
         def create(**kwargs):
             calls.append(kwargs["max_tokens"])
+            prompts.append(kwargs["messages"])
             content, reason = next(contents)
             return SimpleNamespace(choices=[SimpleNamespace(
                 message=SimpleNamespace(content=content), finish_reason=reason)], usage=None)
@@ -121,6 +187,53 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual("done", result[0]["text"])
         self.assertEqual([4096, 6144, 9216], calls)
+        self.assertTrue(all(messages[1]["content"] == "text" for messages in prompts))
+
+    def test_context_clamped_truncation_does_not_retry(self):
+        calls = []
+        valid = json.dumps([
+            {"speaker": "NARRATOR", "text": "done", "instruct": "neutral"}
+        ])
+
+        def create(**kwargs):
+            calls.append(kwargs["max_tokens"])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=valid), finish_reason="length")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(
+            max_tokens=4096, context_length=2000, hard_max_tokens=16384)
+
+        result = generate_script.call_llm_for_entries(
+            client, "model", "system", "text", params,
+            "test_responses.log", "TEST", max_retries=2)
+
+        self.assertEqual([], result)
+        self.assertEqual(1, len(calls))
+        self.assertLess(calls[0], params.max_tokens)
+
+    def test_hard_capped_truncation_does_not_retry(self):
+        calls = []
+        valid = json.dumps([
+            {"speaker": "NARRATOR", "text": "done", "instruct": "neutral"}
+        ])
+
+        def create(**kwargs):
+            calls.append(kwargs["max_tokens"])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=valid), finish_reason="length")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(max_tokens=4096, hard_max_tokens=4096)
+
+        result = generate_script.call_llm_for_entries(
+            client, "model", "system", "text", params,
+            "test_responses.log", "TEST", max_retries=2)
+
+        self.assertEqual([], result)
+        self.assertEqual([4096], calls)
 
     def test_llm_salvage_waits_until_retries_are_exhausted(self):
         response = SimpleNamespace(
