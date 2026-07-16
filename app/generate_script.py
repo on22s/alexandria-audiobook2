@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from openai import OpenAI
 from config_settings import load_app_config
+from chunk_quality import validate_chunk_quality
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 from utils import atomic_json_write, extract_balanced, get_runtime_data_dir, get_app_config_path
@@ -247,7 +248,7 @@ def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
 
 
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
-                         log_name, label, max_retries=2):
+                         log_name, label, max_retries=2, validate_entries=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -256,12 +257,18 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     `log_name` is the raw-response log basename; `label` tags each block
     (e.g. "CHUNK 3/40" or "BATCH 2/10").
     """
+    retry_feedback = None
     for attempt in range(max_retries + 1):
         t0 = time.time()
         try:
+            attempt_prompt = user_prompt
+            if retry_feedback:
+                attempt_prompt += ("\n\nYour previous response was rejected by deterministic "
+                                   "quality checks. Return the complete source text exactly once. "
+                                   f"Failures: {retry_feedback}")
             messages = [
                 {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": attempt_prompt}
             ]
             effective_max = get_effective_max_tokens(
                 params.max_tokens, params.context_length, messages,
@@ -330,6 +337,18 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         entries = repair_json_array(json_text)
 
         if entries and len(entries) > 0:
+            if validate_entries:
+                quality = validate_entries(entries)
+                if not quality["passed"]:
+                    retry_feedback = ", ".join(
+                        finding["code"] for finding in quality["findings"])
+                    metrics = quality.get("metrics", {})
+                    print(f"Warning: {label} failed quality validation "
+                          f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
+                    if attempt < max_retries:
+                        print("Retrying...")
+                        continue
+                    return []
             if attempt > 0:
                 print(f"  Succeeded on retry {attempt + 1}")
             return entries
@@ -344,6 +363,12 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         # Last resort after every full-response retry is exhausted.
         salvaged_entries = salvage_json_entries(json_text)
         if salvaged_entries:
+            if validate_entries:
+                quality = validate_entries(salvaged_entries)
+                if not quality["passed"]:
+                    codes = ", ".join(finding["code"] for finding in quality["findings"])
+                    print(f"Regex-salvaged response failed quality validation: {codes}")
+                    return []
             print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
             return salvaged_entries
 
@@ -393,6 +418,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         log_name="llm_responses.log",
         label=f"CHUNK {chunk_num}/{total_chunks}",
         max_retries=max_retries,
+        validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
     )
 
 def main():
