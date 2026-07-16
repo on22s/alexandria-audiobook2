@@ -13,6 +13,7 @@ from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 from script_repair import build_deterministic_repair
 from source_normalization import normalize_known_source_corruptions
+from speaker_identity import stabilize_speaker_identities
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
                    get_app_config_path, safe_load_json)
 
@@ -402,6 +403,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 entries = transformed["entries"]
                 if transformed.get("changes"):
                     print(f"  Applied {len(transformed['changes'])} deterministic chunk repair(s)")
+                if transformed.get("review"):
+                    print(f"  Speaker identity review: {transformed['review']}")
             if validate_entries:
                 quality = validate_entries(entries)
                 if not quality["passed"]:
@@ -483,6 +486,17 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
 
     context = _build_chunk_context(chunk_num, total_chunks, previous_entries)
     user_prompt = usr_template.format(context=context, chunk=chunk)
+    established_speakers = [entry.get("speaker") for entry in (previous_entries or [])
+                            if isinstance(entry, dict) and entry.get("speaker")]
+
+    def prepare_entries(entries):
+        structural = build_deterministic_repair(entries, chunk)
+        if structural["unresolved"]:
+            return structural
+        identities = stabilize_speaker_identities(structural["entries"], established_speakers)
+        return {"entries": identities["entries"],
+                "changes": structural["changes"] + identities["changes"],
+                "unresolved": [], "review": identities["review"]}
 
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
@@ -490,7 +504,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         label=f"CHUNK {chunk_num}/{total_chunks}",
         max_retries=max_retries,
         validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
-        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
+        transform_entries=prepare_entries,
     )
 
 def main():
