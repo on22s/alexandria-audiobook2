@@ -1,6 +1,7 @@
 """Pure quality checks for an annotated response against its source chunk."""
 
 import re
+import unicodedata
 from collections import Counter
 
 from script_preflight import find_adjacent_duplicate_blocks
@@ -12,6 +13,7 @@ MIN_OUTPUT_SOURCE_RATIO = 0.90
 MAX_OUTPUT_SOURCE_RATIO = 1.10
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
+_CHARACTER_TOKEN_SCRIPTS = ("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI")
 
 
 def validate_chunk_quality(source_text, entries):
@@ -66,6 +68,21 @@ def validate_chunk_quality(source_text, entries):
     if unsupported:
         findings.append({"code": "unsupported_cyrillic", "characters": unsupported,
                          "message": "Response introduced Cyrillic characters absent from the source."})
+    source_non_ascii = {char for char in unicodedata.normalize("NFC", source_text)
+                        if ord(char) > 127 and unicodedata.category(char).startswith("L")}
+    introduced_non_ascii = sorted({char for char in unicodedata.normalize("NFC", output_text)
+                                   if ord(char) > 127
+                                   and unicodedata.category(char).startswith("L")
+                                   and char not in source_non_ascii
+                                   and not ("\u0400" <= char <= "\u04ff")})
+    if introduced_non_ascii:
+        findings.append({
+            "code": "unsupported_unicode_character",
+            "characters": [{"character": char, "codepoint": f"U+{ord(char):04X}",
+                            "name": unicodedata.name(char, "UNKNOWN")}
+                           for char in introduced_non_ascii],
+            "message": "Response introduced non-ASCII letters absent from the source.",
+        })
     entry_texts = [" ".join(str(entry.get("text") or "").split()).casefold()
                    if isinstance(entry, dict) else "" for entry in entries]
     for duplicate in find_adjacent_duplicate_blocks(entry_texts, source_text):
@@ -79,7 +96,15 @@ def validate_chunk_quality(source_text, entries):
 
 
 def _tokens(text):
-    return _TOKEN_RE.findall(str(text or "").casefold())
+    normalized = unicodedata.normalize("NFC", str(text or "")).casefold()
+    tokens = []
+    for word in _TOKEN_RE.findall(normalized):
+        if any(unicodedata.name(char, "").startswith(_CHARACTER_TOKEN_SCRIPTS)
+               for char in word):
+            tokens.extend(char for char in word if char.isalnum())
+        else:
+            tokens.append(word)
+    return tokens
 
 
 def _ngrams(tokens, size):

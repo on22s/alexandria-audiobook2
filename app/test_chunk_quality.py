@@ -165,6 +165,28 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertIn("source_unsupported_duplicate",
                       {item["code"] for item in report["findings"]})
 
+    def test_complete_japanese_text_uses_character_units(self):
+        source = "彼はありがとうと言った"
+        report = validate_chunk_quality(source, [_entry(source)])
+        self.assertTrue(report["passed"])
+        self.assertGreater(report["metrics"]["source_tokens"], 3)
+
+    def test_missing_japanese_span_fails_recall(self):
+        source = "彼はありがとうと言った"
+        report = validate_chunk_quality(source, [_entry("彼は言った")])
+        self.assertFalse(report["passed"])
+        self.assertIn("low_source_token_recall", {item["code"] for item in report["findings"]})
+
+    def test_introduced_hiragana_reports_codepoint(self):
+        report = validate_chunk_quality("Subaru saw a cat", [_entry("Subあru saw a cat")])
+        finding = next(item for item in report["findings"]
+                       if item["code"] == "unsupported_unicode_character")
+        self.assertEqual("U+3042", finding["characters"][0]["codepoint"])
+
+    def test_canonically_equivalent_accents_compare_equal(self):
+        report = validate_chunk_quality("Caf\u00e9", [_entry("Cafe\u0301")])
+        self.assertTrue(report["passed"])
+
 
 if __name__ == "__main__":
     unittest.main()
