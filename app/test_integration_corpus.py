@@ -54,6 +54,9 @@ class IntegrationCorpusTests(unittest.TestCase):
             self.assertTrue(Path(output).is_file())
         self.assertEqual("passed", report["cases"][0]["status"])
         self.assertEqual(1, len(report["cases"][0]["attempts"]))
+        self.assertEqual({"total": 1, "passed": 1},
+                         report["summary"]["by_category"]["opening_narration"])
+        self.assertEqual(0, report["summary"]["retry_cases"])
 
 
 if __name__ == "__main__":
