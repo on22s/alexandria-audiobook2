@@ -372,8 +372,8 @@ async def lora_download_builtin(adapter_id: str):
         logger.info(f"Built-in adapter downloaded: {adapter_id}")
         return {"status": "downloaded", "adapter_id": adapter_id}
     except Exception as e:
-        logger.error(f"Download failed for {adapter_id}: {e}")
-        raise HTTPException(status_code=500, detail="Built-in adapter download failed — see server logs for details.")
+        logger.exception("Download failed for %s", adapter_id)
+        raise HTTPException(status_code=500, detail="Built-in adapter download failed — see server logs for details.") from e
 
 @router.post("/api/lora/test")
 async def lora_test_model(request: LoraTestRequest):
@@ -413,8 +413,8 @@ async def lora_test_model(request: LoraTestRequest):
                 download_builtin_adapter(request.adapter_id, BUILTIN_LORA_DIR)
                 adapter_dir = os.path.join(BUILTIN_LORA_DIR, request.adapter_id)
             except Exception as e:
-                logger.error(f"Auto-download failed for {request.adapter_id}: {e}")
-                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+                logger.exception("Auto-download failed for %s", request.adapter_id)
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.") from e
 
         engine = project_manager.get_engine()
         if not engine:
@@ -444,8 +444,8 @@ async def lora_test_model(request: LoraTestRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"LoRA test generation failed: {e}")
-        raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.")
+        logger.exception("LoRA test generation failed")
+        raise HTTPException(status_code=500, detail="LoRA test generation failed — see server logs for details.") from e
     finally:
         process_state["lora_test"]["running"] = False
 
@@ -496,8 +496,8 @@ async def lora_preview(adapter_id: str):
                 download_builtin_adapter(adapter_id, BUILTIN_LORA_DIR)
                 adapter_dir = os.path.join(BUILTIN_LORA_DIR, adapter_id)
             except Exception as e:
-                logger.error(f"Auto-download failed for {adapter_id}: {e}")
-                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.")
+                logger.exception("Auto-download failed for %s", adapter_id)
+                raise HTTPException(status_code=500, detail="Adapter auto-download failed — see server logs for details.") from e
 
         engine = project_manager.get_engine()
         if not engine:
@@ -520,7 +520,7 @@ async def lora_preview(adapter_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"LoRA preview generation failed: {e}")
-        raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.")
+        logger.exception("LoRA preview generation failed")
+        raise HTTPException(status_code=500, detail="LoRA preview generation failed — see server logs for details.") from e
     finally:
         process_state["lora_test"]["running"] = False

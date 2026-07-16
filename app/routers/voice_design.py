@@ -61,8 +61,8 @@ async def voice_design_preview(request: VoiceDesignPreviewRequest):
         filename = os.path.basename(wav_path)
         return {"status": "ok", "audio_url": f"/designed_voices/previews/{filename}"}
     except Exception as e:
-        logger.error(f"Voice design preview failed: {e}")
-        raise HTTPException(status_code=500, detail="Voice design preview failed — see server logs for details.")
+        logger.exception("Voice design preview failed")
+        raise HTTPException(status_code=500, detail="Voice design preview failed — see server logs for details.") from e
     finally:
         process_state["voice_design"]["running"] = False
 

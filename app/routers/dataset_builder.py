@@ -214,7 +214,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Dataset builder sample generation failed: {e}")
+        logger.exception("Dataset builder sample generation failed")
         # Mark as error in state
         state = _load_builder_state(safe_name)
         samples = state.get("samples", [])
@@ -223,7 +223,7 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
         samples[request.sample_index] = {"status": "error", "error": str(e)}
         state["samples"] = samples
         _save_builder_state(safe_name, state)
-        raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.")
+        raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.") from e
     finally:
         process_state["dataset_builder"]["running"] = False
 
@@ -344,7 +344,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                 f"[DONE] Generated {completed}/{total} samples"
             )
         except Exception as e:
-            logger.error(f"Dataset builder batch generation crashed: {e}")
+            logger.exception("Dataset builder batch generation crashed")
             process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")
         finally:
             process_state["dataset_builder"]["running"] = False
@@ -455,8 +455,8 @@ async def dataset_builder_save(request: DatasetSaveRequest):
         # Clean up on failure
         if os.path.exists(dataset_dir):
             shutil.rmtree(dataset_dir, ignore_errors=True)
-        logger.error(f"Dataset save failed: {e}")
-        raise HTTPException(status_code=500, detail="Dataset save failed — see server logs for details.")
+        logger.exception("Dataset save failed")
+        raise HTTPException(status_code=500, detail="Dataset save failed — see server logs for details.") from e
 
 @router.delete("/api/dataset_builder/{name}")
 async def dataset_builder_delete(name: str):

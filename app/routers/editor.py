@@ -275,7 +275,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
                 for idx, err in results["failed"]:
                     process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
         except Exception as e:
-            logger.error(f"Batch generation error: {e}")
+            logger.exception("Batch generation error")
             process_state["audio"]["logs"].append(f"Batch generation error: {e}")
         finally:
             process_state["audio"]["running"] = False
@@ -340,7 +340,7 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
                 for idx, err in results["failed"]:
                     process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
         except Exception as e:
-            logger.error(f"Batch generation error: {e}")
+            logger.exception("Batch generation error")
             process_state["audio"]["logs"].append(f"Batch generation error: {e}")
         finally:
             process_state["audio"]["running"] = False
