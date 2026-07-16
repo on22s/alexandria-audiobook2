@@ -1127,10 +1127,8 @@ class ProjectManager:
         pending = list(indices)
         current_batch_size = max(1, batch_size)
         batch_num = 0
-        cancelled = False
         while pending:
             if cancel_check and cancel_check():
-                cancelled = True
                 print(f"[CANCEL] Cancellation requested before batch {batch_num + 1}")
                 break
 

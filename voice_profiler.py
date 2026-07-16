@@ -194,7 +194,6 @@ def interpret_features(f: dict) -> str:
     std = f['std_f0']
     rms = f['mean_rms']
     rate = f['speaking_rate']
-    centroid = f['mean_centroid']
     rolloff  = f['mean_rolloff']
     smooth   = f['smoothness']
     flat     = f['flatness']

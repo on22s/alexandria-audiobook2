@@ -1,6 +1,5 @@
 import os
 import re
-import time
 import json
 import tempfile
 import threading
@@ -920,7 +919,6 @@ class TTSEngine:
             RuntimeError: If generation fails
         """
         import time
-        import tempfile
         import torch
 
         lang = language or self._language
@@ -1006,7 +1004,6 @@ class TTSEngine:
         The LoRA weights refine voice identity beyond what the reference alone provides.
         """
         try:
-            import torch
             import time
 
             adapter_path = voice_data.get("adapter_path")
