@@ -37,7 +37,7 @@ class TokenBudgetError(ValueError):
 
 
 def get_effective_max_tokens(fallback, context_length=None, messages=None,
-                             hard_max=None, reserve=512):
+                             hard_max=None, reserve=512, scale_to_context=True):
     """Return a context-safe completion budget for a production LLM call.
 
     ``fallback`` is the conservative allowance used when live model context is
@@ -60,8 +60,18 @@ def get_effective_max_tokens(fallback, context_length=None, messages=None,
         raise TokenBudgetError(
             f"Prompt estimate ({prompt_tokens}) plus reserve ({reserve}) exceeds "
             f"the loaded context ({context_length}). Reduce the input or increase LM Studio context.")
-    scaled_target = max(fallback, context_length // 4)
+    scaled_target = max(fallback, context_length // 4) if scale_to_context else fallback
     return max(1, min(hard_max, scaled_target, available))
+
+
+def get_next_retry_max_tokens(current, retry_reason, hard_max, multiplier=1.5):
+    """Return the next requested completion budget for evidence of truncation."""
+    current = max(1, int(current))
+    hard_max = max(1, int(hard_max or current))
+    if retry_reason not in {"token_truncated", "incomplete_output"}:
+        return min(current, hard_max)
+    increased = max(current + 1, int(current * multiplier + 0.5))
+    return min(increased, hard_max)
 
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
