@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -14,6 +15,11 @@ from lmstudio_settings import (get_effective_max_tokens, get_next_retry_max_toke
 
 
 class LlmReviewTests(unittest.TestCase):
+    def test_response_log_is_isolated_by_run_id(self):
+        with patch.dict(os.environ, {"ALEXANDRIA_RUN_ID": "run_test"}):
+            path = generate_script.get_response_log_path("llm_responses.log")
+        self.assertTrue(path.endswith("logs/responses/run_test/llm_responses.log"))
+
     @staticmethod
     def _client_with_responses(contents):
         responses = iter(contents)
