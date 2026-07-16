@@ -28,6 +28,18 @@ def get_generation_quality_path(output_path):
     return output_path + ".generation_quality.json"
 
 
+def get_response_log_path(log_name):
+    """Return an isolated response log when a durable run id is available."""
+    log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+    run_id = os.environ.get("ALEXANDRIA_RUN_ID")
+    if not run_id:
+        return os.path.join(log_dir, log_name)
+    stem, extension = os.path.splitext(log_name)
+    response_dir = os.path.join(log_dir, "responses", run_id)
+    os.makedirs(response_dir, exist_ok=True)
+    return os.path.join(response_dir, stem + (extension or ".log"))
+
+
 def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
                                       source_normalizations, **details):
     return {
@@ -446,10 +458,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             usage = getattr(response, 'usage', None)
 
             # Log raw response for debugging (rotating to cap unbounded growth)
-            log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, log_name)
-            _rotate_log_if_large(log_path)
+            log_path = get_response_log_path(log_name)
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            if not os.environ.get("ALEXANDRIA_RUN_ID"):
+                _rotate_log_if_large(log_path)
             with open(log_path, "a", encoding="utf-8") as lf:
                 lf.write(f"\n{'='*80}\n")
                 lf.write(f"{label} | attempt {attempt + 1} | finish_reason={finish_reason}\n")
@@ -752,6 +764,7 @@ def main():
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
 
     output_path = args.output or os.path.join(data_dir, "annotated_script.json")
+    response_log = os.path.relpath(get_response_log_path("llm_responses.log"), data_dir)
 
     all_entries = []
     chunk_times = []
@@ -796,7 +809,7 @@ def main():
             save_generation_quality_manifest(output_path, build_generation_quality_manifest(
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
-                failure="chunk_failed_after_retries"))
+                failure="chunk_failed_after_retries", response_log=response_log))
             print(f"Error: chunk {i}/{total_chunks} failed validation after retries; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -806,7 +819,8 @@ def main():
             save_generation_quality_manifest(output_path, build_generation_quality_manifest(
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
-                failure="post_return_validation_failed", failed_quality=quality))
+                failure="post_return_validation_failed", failed_quality=quality,
+                response_log=response_log))
             print(f"Error: chunk {i}/{total_chunks} failed post-return validation; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -843,7 +857,7 @@ def main():
     final_manifest = build_generation_quality_manifest(
         "verified" if passes_final_generation_gate(whole_quality, preflight) else "failed",
         fingerprint, accepted_chunks, source_normalizations,
-        total_chunks=total_chunks,
+        total_chunks=total_chunks, response_log=response_log,
         model_name=model_name,
         whole_book_quality=whole_quality,
         preflight=preflight,

@@ -1012,7 +1012,12 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 input_path,
                 "--output", output_path,
             ]
-            rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ", log_file=log_path)
+            env = os.environ.copy()
+            if state.get("run_id"):
+                env["ALEXANDRIA_RUN_ID"] = state["run_id"]
+            rc, _ = _stream_subprocess_to_logs(
+                cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ",
+                log_file=log_path, env=env)
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"

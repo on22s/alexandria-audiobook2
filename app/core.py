@@ -645,7 +645,11 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
 
     return_code = None
     try:
-        return_code, _ = _stream_subprocess_to_logs(command, cwd or BASE_DIR, state, log_file=log_path)
+        env = os.environ.copy()
+        if state.get("run_id"):
+            env["ALEXANDRIA_RUN_ID"] = state["run_id"]
+        return_code, _ = _stream_subprocess_to_logs(
+            command, cwd or BASE_DIR, state, log_file=log_path, env=env)
 
         if state.get("cancel"):
             state["logs"].append(f"Task {task_name} cancelled.")
@@ -790,6 +794,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
     try:
         try:
             run_id = start_run(RUN_HISTORY_DIR, task_name)
+            state["run_id"] = run_id
         except Exception:
             logger.exception("Could not start run history for %s", task_name)
         callback()
@@ -805,6 +810,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
         if "pid" in state:
             state["pid"] = None
         state["running"] = False
+        state.pop("run_id", None)
         if run_id:
             for artifact in state.get("artifacts", []):
                 try:
