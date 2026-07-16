@@ -14,12 +14,42 @@ from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 from script_repair import build_deterministic_repair
 from source_normalization import normalize_known_source_corruptions
 from speaker_identity import stabilize_speaker_identities
+from script_preflight import audit_script
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
-                   get_app_config_path, safe_load_json)
+                   get_app_config_path, is_generic_speaker, safe_load_json)
 
 
 def get_generation_checkpoint_path(output_path):
     return output_path + ".generation_checkpoint.json"
+
+
+def get_generation_quality_path(output_path):
+    return output_path + ".generation_quality.json"
+
+
+def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
+                                      source_normalizations, **details):
+    return {
+        "status": status,
+        "fingerprint": fingerprint,
+        "source_normalizations": source_normalizations,
+        "accepted_chunk_count": len(accepted_chunks),
+        "chunks": [{
+            "chunk_number": item["chunk_number"],
+            "source_sha256": item["source_sha256"],
+            "entry_count": len(item["entries"]),
+            "quality": item["quality"],
+        } for item in accepted_chunks],
+        **details,
+    }
+
+
+def save_generation_quality_manifest(output_path, manifest):
+    atomic_json_write(manifest, get_generation_quality_path(output_path))
+
+
+def passes_final_generation_gate(whole_quality, preflight):
+    return bool(whole_quality.get("passed") and not preflight.get("counts", {}).get("blocking"))
 
 
 def get_generation_fingerprint(source_text, chunks, model_name, base_url, params, chunk_size):
@@ -634,12 +664,20 @@ def main():
         chunk_times.append(chunk_elapsed)
 
         if not entries:
+            save_generation_quality_manifest(output_path, build_generation_quality_manifest(
+                "failed", fingerprint, accepted_chunks, source_normalizations,
+                total_chunks=total_chunks, failed_chunk=i,
+                failure="chunk_failed_after_retries"))
             print(f"Error: chunk {i}/{total_chunks} failed validation after retries; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
 
         quality = validate_chunk_quality(chunk, entries)
         if not quality["passed"]:
+            save_generation_quality_manifest(output_path, build_generation_quality_manifest(
+                "failed", fingerprint, accepted_chunks, source_normalizations,
+                total_chunks=total_chunks, failed_chunk=i,
+                failure="post_return_validation_failed", failed_quality=quality))
             print(f"Error: chunk {i}/{total_chunks} failed post-return validation; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -670,7 +708,25 @@ def main():
         print("Error: No script entries generated")
         sys.exit(1)
 
+    whole_quality = validate_chunk_quality(book_content, all_entries)
+    preflight = audit_script(all_entries, book_content, is_generic_speaker)
+    identity_review = stabilize_speaker_identities(all_entries)["review"]
+    final_manifest = build_generation_quality_manifest(
+        "verified" if passes_final_generation_gate(whole_quality, preflight) else "failed",
+        fingerprint, accepted_chunks, source_normalizations,
+        total_chunks=total_chunks,
+        model_name=model_name,
+        whole_book_quality=whole_quality,
+        preflight=preflight,
+        speaker_identity_review=identity_review,
+    )
+    save_generation_quality_manifest(output_path, final_manifest)
+    if final_manifest["status"] != "verified":
+        print("Error: final whole-book quality gate failed; preserving existing output and checkpoint")
+        sys.exit(1)
+
     atomic_json_write(all_entries, output_path)
+    save_generation_quality_manifest(output_path, {**final_manifest, "status": "complete"})
     clear_generation_checkpoint(output_path)
 
     # Only clear chunks when writing to the default annotated_script.json location

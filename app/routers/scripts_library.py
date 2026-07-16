@@ -41,7 +41,8 @@ async def list_saved_scripts():
     """
     scripts = []
     companion_suffixes = (".voice_config.json", ".meta.json", ".review_checkpoint.json",
-                          ".generation_checkpoint.json", ".checkpoint.jsonl")
+                          ".generation_checkpoint.json", ".generation_quality.json",
+                          ".checkpoint.jsonl")
     for f in os.listdir(SCRIPTS_DIR):
         if not f.endswith(".json"):
             continue
@@ -355,6 +356,10 @@ async def delete_script(name: str):
     checkpoint = _checkpoint_path(filepath)
     if os.path.exists(checkpoint):
         os.remove(checkpoint)
+    for generated_companion in (filepath + ".generation_checkpoint.json",
+                                filepath + ".generation_quality.json"):
+        if os.path.exists(generated_companion):
+            os.remove(generated_companion)
 
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}

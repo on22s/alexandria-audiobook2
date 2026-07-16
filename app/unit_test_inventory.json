@@ -16,11 +16,13 @@
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_boundary_allows_lowest_calibrated_intact_coverage",
     "test_chunk_quality.ChunkQualityTests.test_complete_resegmented_response_passes_without_mutation",
+    "test_chunk_quality.ChunkQualityTests.test_final_gate_requires_whole_book_quality_and_zero_blockers",
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_rejects_unvalidated_chunk",
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_roundtrip_requires_validated_matching_chunks",
     "test_chunk_quality.ChunkQualityTests.test_generation_repairs_empty_silence_before_quality_acceptance",
     "test_chunk_quality.ChunkQualityTests.test_known_source_corruption_normalizes_with_location_evidence",
     "test_chunk_quality.ChunkQualityTests.test_malformed_and_empty_entries_fail_structural_checks",
+    "test_chunk_quality.ChunkQualityTests.test_quality_manifest_summarizes_chunks_without_copying_entries",
     "test_chunk_quality.ChunkQualityTests.test_source_cyrillic_is_reported_but_only_new_cyrillic_blocks",
     "test_chunk_quality.ChunkQualityTests.test_source_unsupported_adjacent_block_is_explicitly_reported",
     "test_chunk_quality.ChunkQualityTests.test_volume_10_style_early_stop_fails_all_coverage_signals"
@@ -117,6 +119,7 @@
     "test_runtime_regressions.RuntimeTests.test_cancel_escalates_process_group_after_grace_period",
     "test_runtime_regressions.RuntimeTests.test_cancel_force_stops_subprocess_that_ignores_sigterm",
     "test_runtime_regressions.RuntimeTests.test_dataset_builder_save_rejects_done_sample_with_missing_audio",
+    "test_runtime_regressions.RuntimeTests.test_delete_saved_script_removes_generation_companions",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_nested_ensemble",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_unknown_or_empty_members",
     "test_runtime_regressions.RuntimeTests.test_ensemble_renders_each_member_with_its_own_voice",
