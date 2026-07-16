@@ -13,6 +13,14 @@
     "test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_chunk_quality": [
+    "test_chunk_quality.ChunkQualityTests.test_boundary_allows_lowest_calibrated_intact_coverage",
+    "test_chunk_quality.ChunkQualityTests.test_complete_resegmented_response_passes_without_mutation",
+    "test_chunk_quality.ChunkQualityTests.test_malformed_and_empty_entries_fail_structural_checks",
+    "test_chunk_quality.ChunkQualityTests.test_source_cyrillic_is_reported_but_only_new_cyrillic_blocks",
+    "test_chunk_quality.ChunkQualityTests.test_source_unsupported_adjacent_block_is_explicitly_reported",
+    "test_chunk_quality.ChunkQualityTests.test_volume_10_style_early_stop_fails_all_coverage_signals"
+  ],
   "test_config_regressions": [
     "test_config_regressions.ConfigTests.test_app_config_loader_ignores_invalid_legacy_values_without_writing",
     "test_config_regressions.ConfigTests.test_app_config_loader_returns_fresh_shape_safe_data",
