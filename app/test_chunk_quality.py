@@ -26,6 +26,21 @@ def generate_script_test_client(entry_lists):
 
 
 class ChunkQualityTests(unittest.TestCase):
+    def test_book_request_preflight_uses_real_chunks_and_parallel_slots(self):
+        report = generate_script.build_book_request_preflight(
+            ["short text", "x" * 6000], "system", "{context}\n{chunk}",
+            10000, 16384, 2)
+        self.assertEqual(2, report["chunk_count"])
+        self.assertEqual(8192, report["per_slot_context"])
+        self.assertGreater(report["worst_predicted_tokens"], report["average_predicted_tokens"])
+        self.assertEqual(report["worst_predicted_tokens"] * 3,
+                         report["required_total_context"]["3"])
+
+    def test_book_request_preflight_reports_context_miss(self):
+        report = generate_script.build_book_request_preflight(
+            ["x" * 6000], "s", "{context}{chunk}", 10000, 8192, 2)
+        self.assertFalse(report["predicted_fits"])
+
     def test_final_gate_requires_whole_book_quality_and_zero_blockers(self):
         self.assertTrue(generate_script.passes_final_generation_gate(
             {"passed": True}, {"counts": {"blocking": 0}}))
