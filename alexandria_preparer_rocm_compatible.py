@@ -270,7 +270,7 @@ def get_gpu_stats():
         if data:
             # rocm-smi format: {"card0": {"GPU use (%)": "value"}} - key name
             # varies by rocm-smi version, hence the shared helper.
-            for card_key, card_data in data.items():
+            for card_data in data.values():
                 if not isinstance(card_data, dict):
                     continue
                 stats['utilization_percent'] = rocm_smi_utilization(card_data)
@@ -1652,7 +1652,7 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
 
         # Process each annotation
         results = []
-        for i, (item, annotated_raw) in enumerate(zip(batch_data, annotations)):
+        for item, annotated_raw in zip(batch_data, annotations):
             if not isinstance(annotated_raw, str):
                 annotated_raw = str(annotated_raw)
 
@@ -3440,7 +3440,7 @@ def main():
                     no_auto_anchor=args.no_auto_anchor,
                     entries_for_anchor=entries_for_anchor,
                 )
-                avg, n_sampled, low_ct, review_ct = alignment.estimate_alignment_quality(
+                avg, n_sampled, low_ct, _ = alignment.estimate_alignment_quality(
                     entries_for_anchor, source_state['orig_match'], source_state['cursor'],
                     start_entry_idx=source_state['anchor_entry_idx'],
                     threshold=args.source_threshold

@@ -540,7 +540,7 @@ class ProjectManager:
         # Phase 2 — Build per-speaker WAV tracks
         speakers_ordered = []
         seen = set()
-        for chunk, segment, start_ms in timeline:
+        for chunk, _, _ in timeline:
             if chunk["speaker"] not in seen:
                 speakers_ordered.append(chunk["speaker"])
                 seen.add(chunk["speaker"])
@@ -756,7 +756,7 @@ class ProjectManager:
 
         # Smart grouping: detect chapter headings
         heading_indices = []
-        for i, (chunk, segment, start_ms) in enumerate(timeline):
+        for i, (chunk, _, _) in enumerate(timeline):
             text = chunk.get("text", "").strip()
             # Starts with a heading keyword, or short structural text in its
             # own right (likely a stylized chapter title with no keyword,

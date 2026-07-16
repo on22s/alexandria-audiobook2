@@ -404,7 +404,7 @@ def _fallback_compiled_persona(character_ref):
 
 def _save_generated_preview(root, engine, voice_config, speaker, description, ref_text):
     try:
-        wav_path, sr = engine.generate_voice_design(description=description, sample_text=ref_text)
+        wav_path, _ = engine.generate_voice_design(description=description, sample_text=ref_text)
         dest_dir = os.path.join(root, "designed_voices")
         os.makedirs(dest_dir, exist_ok=True)
         safe = sanitize_filename(speaker)

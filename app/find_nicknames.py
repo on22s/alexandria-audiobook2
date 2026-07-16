@@ -337,7 +337,7 @@ def main():
     # since the last run. config["llm"] never actually stores a
     # context_length, so this replaces a previous hardcoded 8192 guess that
     # was disconnected from whatever was really loaded.
-    is_remote, status, heal_msg = ensure_ideal_settings(
+    _, status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 

@@ -64,7 +64,7 @@ def get_gpu_stats():
         stats['utilization_percent'] = None
         if data:
             # rocm-smi format: {"card0": {"GPU use (%)": "value"}}
-            for card_key, card_data in data.items():
+            for card_data in data.values():
                 gpu_use_str = card_data.get('GPU use (%)', 'N/A')
                 if gpu_use_str != 'N/A':
                     stats['utilization_percent'] = float(gpu_use_str)
