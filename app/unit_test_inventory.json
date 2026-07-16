@@ -176,6 +176,11 @@
     "test_script_preflight.ScriptPreflightTests.test_speaker_apply_requires_expected_value_and_does_not_mutate",
     "test_script_preflight.ScriptPreflightTests.test_speaker_review_only_suggests_strong_third_person_case"
   ],
+  "test_speaker_identity": [
+    "test_speaker_identity.SpeakerIdentityTests.test_distinct_names_are_not_reported",
+    "test_speaker_identity.SpeakerIdentityTests.test_safe_variants_reuse_first_established_spelling_without_mutation",
+    "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
+  ],
   "test_support": [],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
