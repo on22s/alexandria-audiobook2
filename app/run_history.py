@@ -1,6 +1,7 @@
 """Durable history records for long-running Alexandria tasks."""
 
 import datetime
+import hashlib
 import os
 
 from utils import atomic_json_write, get_unique_id, safe_load_json, secure_filename
@@ -37,6 +38,44 @@ def finish_run(history_dir, run_id, status, error=None):
     record = {**record, "status": status, "finished_at": _utc_now(), "error": error}
     atomic_json_write(record, path)
     return record
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def record_artifact(history_dir, run_id, artifact_path, kind, data_dir,
+                    source_paths=(), config_path=None):
+    """Hash an output and its declared inputs, then append it to a run record."""
+    record = get_run(history_dir, run_id)
+    if record is None:
+        raise FileNotFoundError(f"Run history record not found: {run_id}")
+    artifact_path = os.path.abspath(artifact_path)
+    if not os.path.isfile(artifact_path):
+        raise FileNotFoundError(f"Artifact not found: {artifact_path}")
+
+    def describe(path):
+        absolute = os.path.abspath(path)
+        return {
+            "path": os.path.relpath(absolute, data_dir),
+            "sha256": _sha256_file(absolute),
+            "size_bytes": os.path.getsize(absolute),
+        }
+
+    artifact = {
+        **describe(artifact_path),
+        "kind": kind,
+        "recorded_at": _utc_now(),
+        "sources": [describe(path) for path in source_paths if os.path.isfile(path)],
+        "config": describe(config_path) if config_path and os.path.isfile(config_path) else None,
+    }
+    record["artifacts"] = [*record.get("artifacts", []), artifact]
+    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
+    return artifact
 
 
 def get_run(history_dir, run_id):

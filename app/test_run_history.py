@@ -1,9 +1,11 @@
+import os
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import core
-from run_history import finish_run, get_run, list_runs, start_run
+from run_history import (finish_run, get_run, list_runs, record_artifact,
+                         start_run)
 
 
 class RunHistoryTests(unittest.TestCase):
@@ -21,6 +23,27 @@ class RunHistoryTests(unittest.TestCase):
     def test_invalid_run_id_cannot_escape_history_directory(self):
         with tempfile.TemporaryDirectory() as history_dir:
             self.assertIsNone(get_run(history_dir, "../state"))
+
+    def test_artifact_records_output_source_and_config_hashes(self):
+        with tempfile.TemporaryDirectory() as data_dir:
+            history_dir = os.path.join(data_dir, "run_history")
+            output = os.path.join(data_dir, "report.md")
+            source = os.path.join(data_dir, "book.json")
+            config = os.path.join(data_dir, "config.json")
+            for path, content in ((output, b"report"), (source, b"source"),
+                                  (config, b"config")):
+                with open(path, "wb") as handle:
+                    handle.write(content)
+            run_id = start_run(history_dir, "batch_review")
+
+            artifact = record_artifact(
+                history_dir, run_id, output, "batch_review_report", data_dir,
+                source_paths=[source], config_path=config)
+
+            self.assertEqual("report.md", artifact["path"])
+            self.assertEqual(64, len(artifact["sha256"]))
+            self.assertEqual("book.json", artifact["sources"][0]["path"])
+            self.assertEqual("config.json", artifact["config"]["path"])
 
     def test_shared_runner_records_failure_and_releases_task(self):
         key = "_test_history_failure"

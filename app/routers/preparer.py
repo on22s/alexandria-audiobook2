@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from core import (
     BASE_DIR,
+    CONFIG_PATH,
     PREPARER_OUTPUT_DIR,
     PREPARER_SCRIPT_PATH,
     ROOT_DIR,
@@ -158,6 +159,7 @@ async def preparer_start(
         state["logs"] = []
         state["status"] = "running"
         state["output_file"] = None
+        state["artifacts"] = []
         state["process"] = None
 
         # Re-validate immediately before exec, not just synchronously above -
@@ -224,6 +226,12 @@ async def preparer_start(
         elif rc == 0:
             state["status"] = "done"
             state["output_file"] = output_filename
+            state["artifacts"] = [{
+                "artifact_path": os.path.join(PREPARER_OUTPUT_DIR, output_filename),
+                "kind": "voice_dataset",
+                "source_paths": [path for path in (audio_path, source_path) if path],
+                "config_path": CONFIG_PATH,
+            }]
             state["logs"].append("Preparer completed successfully.")
         else:
             state["status"] = "failed"

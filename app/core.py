@@ -22,7 +22,7 @@ from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
-from run_history import finish_run, start_run
+from run_history import finish_run, record_artifact, start_run
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -513,6 +513,7 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     state["_last_eta_fraction"] = 0.0
     state["logs"] = logs
     state["tasks"] = tasks
+    state["artifacts"] = []
     state["current_task_idx"] = -1
     # Clear any stale process/pid left over from a previous run so an early
     # cancel (before the first subprocess is spawned) can't signal a dead or
@@ -805,6 +806,12 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
             state["pid"] = None
         state["running"] = False
         if run_id:
+            for artifact in state.get("artifacts", []):
+                try:
+                    record_artifact(
+                        RUN_HISTORY_DIR, run_id, data_dir=DATA_DIR, **artifact)
+                except Exception:
+                    logger.exception("Could not record artifact for run %s", run_id)
             if error is not None or state.get("status") == "failed":
                 final_status = "failed"
             elif state.get("cancel") or state.get("status") == "cancelled":

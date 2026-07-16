@@ -127,6 +127,7 @@
     "test_release_verifier.ReleaseVerifierTests.test_unittest_summary_rejects_skips_and_missing_success"
   ],
   "test_run_history": [
+    "test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",
     "test_run_history.RunHistoryTests.test_history_failure_does_not_block_task",
     "test_run_history.RunHistoryTests.test_invalid_run_id_cannot_escape_history_directory",
     "test_run_history.RunHistoryTests.test_run_lifecycle_is_persisted",
