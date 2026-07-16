@@ -358,7 +358,6 @@ def build_teacher_forcing_input(sample, hf_model, device, dtype, language="engli
 def train(args):
     import torch
     import torch.nn.functional as F
-    from transformers import AutoProcessor
 
     device = resolve_device(args.device)
     dtype = torch.bfloat16 if "cuda" in device else torch.float32

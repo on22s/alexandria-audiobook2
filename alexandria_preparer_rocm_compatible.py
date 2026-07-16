@@ -567,8 +567,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         stride = chunk_length - overlap
         half_overlap_secs = overlap_secs / 2.0
 
-        audio_duration = len(audio_16k) / 16000.0
-
         # Compute chunk start positions, ensuring last chunk reaches audio end
         chunk_starts = list(range(0, max(1, len(audio_16k) - chunk_length + 1), stride))
         # Append final chunk for any remaining audio
@@ -1692,8 +1690,6 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
     chunk_word_data = item["chunk_word_data"]
     current_start = item["current_start"]
     chunk_end_time = item["chunk_end_time"]
-    chunk_duration = item["chunk_duration"]
-
     actual_duration = len(audio_slice) / 24000.0
     expected_duration = chunk_end_time - current_start
     if abs(actual_duration - expected_duration) > 0.1:
