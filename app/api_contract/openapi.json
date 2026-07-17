@@ -1656,6 +1656,13 @@
       },
       "VoiceLabRequest": {
         "properties": {
+          "candidate_checkpoints": {
+            "default": 2,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Candidate Checkpoints",
+            "type": "integer"
+          },
           "device": {
             "anyOf": [
               {

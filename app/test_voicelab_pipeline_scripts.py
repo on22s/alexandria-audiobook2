@@ -424,6 +424,9 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                                      streamed[0][streamed[0].index("--config") + 1])
                 if stage == "quality":
                     self.assertEqual(tmp, streamed[0][streamed[0].index("--zips2") + 1])
+                if stage == "train":
+                    self.assertEqual("2", streamed[0][streamed[0].index(
+                        "--candidate_checkpoints") + 1])
 
 
 if __name__ == "__main__":

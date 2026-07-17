@@ -122,6 +122,7 @@ class VoiceLabRequest(BaseModel):
     target_loss: float = Field(4.15, gt=0, le=100)
     max_epochs: int = Field(6, ge=1, le=100)
     lora_r: int = Field(64, ge=1, le=1024)
+    candidate_checkpoints: int = Field(2, ge=0, le=2)
     profiler_model: Optional[str] = None           # override GGUF for the profile stage
     name_apply: bool = True                        # name stage: actually rename (else dry-run)
     name_overwrite: bool = False                   # also re-name already-named adapters
@@ -301,6 +302,7 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--target_loss", str(req.target_loss),
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
+        cmd += ["--candidate_checkpoints", str(req.candidate_checkpoints)]
         steps.append(("train", cmd, ROOT_DIR, rocm_env))
     if "evaluate" in req.stages:
         cmd = [rocm, "-u", os.path.join(ROOT_DIR, "evaluate_lora.py"),

@@ -32,6 +32,18 @@ from device_utils import resolve_device, enable_rocm_optimizations, is_oom_failu
 from utils import is_path_inside
 
 
+def save_evaluation_candidate(model, output_dir, existing_records, max_candidates,
+                              epoch, loss):
+    """Save one bounded generated candidate and return a new records list."""
+    if len(existing_records) >= max_candidates:
+        return list(existing_records), None
+    candidate_id = f"epoch_{epoch:03d}"
+    candidate_path = os.path.join(output_dir, "candidates", candidate_id)
+    model.save_pretrained(candidate_path)
+    record = {"id": candidate_id, "epoch": epoch, "loss": loss, "path": candidate_path}
+    return [*existing_records, record], record
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="LoRA fine-tuning for Qwen3-TTS Base model")
     parser.add_argument("--data_dir", required=True, help="Directory containing metadata.jsonl and audio files")
@@ -56,6 +68,8 @@ def parse_args():
                              "Recommended: 4.15 for auto sweet-spot detection.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducible shuffling")
+    parser.add_argument("--candidate_checkpoints", type=int, default=0, choices=range(0, 3),
+                        help="Keep the first N safe improvement checkpoints for evaluation (0-2)")
     return parser.parse_args()
 
 
@@ -473,6 +487,7 @@ def train(args):
     # This protects against overshooting when early stopping is enabled.
     GARBLE_FLOOR = 4.1  # Empirical threshold: below this, audio quality degrades significantly
     safe_best_loss = float("inf")
+    candidate_records = []
     training_start = time.time()
     total_oom_skips = 0
     consecutive_oom_skips = 0
@@ -647,12 +662,24 @@ def train(args):
             if avg_loss >= GARBLE_FLOOR and avg_loss < safe_best_loss:
                 safe_best_loss = avg_loss
                 best_loss = avg_loss
+                candidate_records, saved_candidate = save_evaluation_candidate(
+                    peft_talker, args.output_dir, candidate_records,
+                    args.candidate_checkpoints, epoch, avg_loss)
+                if saved_candidate:
+                    print(f"[TRAIN] Evaluation candidate saved ({saved_candidate['id']}, "
+                          f"loss={avg_loss:.4f})", flush=True)
                 peft_talker.save_pretrained(args.output_dir)
                 print(f"[TRAIN] Safe checkpoint saved (loss={avg_loss:.4f})", flush=True)
         else:
             # Original behaviour: save unconditionally when loss improves
             if avg_loss < best_loss:
                 best_loss = avg_loss
+                candidate_records, saved_candidate = save_evaluation_candidate(
+                    peft_talker, args.output_dir, candidate_records,
+                    args.candidate_checkpoints, epoch, avg_loss)
+                if saved_candidate:
+                    print(f"[TRAIN] Evaluation candidate saved ({saved_candidate['id']}, "
+                          f"loss={avg_loss:.4f})", flush=True)
                 peft_talker.save_pretrained(args.output_dir)
                 print(f"[TRAIN] Best adapter saved (loss={best_loss:.4f})", flush=True)
 
@@ -738,9 +765,21 @@ def train(args):
         "language": args.language,
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,
+        "evaluation_candidates": [
+            {"id": record["id"], "epoch": record["epoch"], "loss": record["loss"]}
+            for record in candidate_records
+        ],
     }
     with open(os.path.join(args.output_dir, "training_meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
+
+    for record in candidate_records:
+        shutil.copy2(ref_dest, os.path.join(record["path"], "ref_sample.wav"))
+        with open(os.path.join(record["path"], "training_meta.json"), "w", encoding="utf-8") as f:
+            json.dump({**meta, "candidate_id": record["id"],
+                       "candidate_epoch": record["epoch"],
+                       "candidate_loss": record["loss"]},
+                      f, indent=2, ensure_ascii=False)
 
     print(f"[DONE] Adapter saved to {args.output_dir} "
           f"(best_loss={best_loss:.4f}, time={training_time:.0f}s)", flush=True)
