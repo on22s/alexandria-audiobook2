@@ -20,7 +20,7 @@ from config_settings import load_app_config
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from generate_script import (build_book_request_preflight, fix_mojibake,
                              split_into_chunks)
-from lmstudio_settings import get_lmstudio_status
+from lmstudio_settings import (ensure_ideal_settings, get_planned_ideal_settings)
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
 
@@ -974,7 +974,9 @@ def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
     llm = config.get("llm") or {}
-    status = get_lmstudio_status(llm.get("model_name", ""))
+    status = get_planned_ideal_settings(
+        config.get("llm_mode", "local"), llm.get("base_url", ""),
+        llm.get("model_name", ""), config.get("llm_remote_ssh"))
     parallel = max(1, int(status.get("parallel") or 1))
     context = int(status.get("context_length") or 0)
     generation = config.get("generation") or {}
@@ -1117,6 +1119,12 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                          "output_path": output_path, "safe_stem": safe_stem})
 
         if jobs and not state.get("cancel"):
+            config = load_app_config(CONFIG_PATH)
+            llm = config.get("llm") or {}
+            _, _, settings_message = ensure_ideal_settings(
+                config.get("llm_mode", "local"), llm.get("base_url", ""),
+                llm.get("model_name", ""), config.get("llm_remote_ssh"))
+            state["logs"].append(f"Batch LM Studio preflight: {settings_message}")
             workers, worst, context = _get_batch_script_workers(jobs)
             state["workers"] = workers
             state["logs"].append(
@@ -1171,6 +1179,7 @@ async def get_status(task_name: str):
         raise HTTPException(status_code=404, detail="Task not found")
     state = dict(process_state[task_name])
     state.pop("process", None)
+    state.pop("processes", None)
     return state
 
 

@@ -521,6 +521,27 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     return get_lmstudio_status(model_name)
 
 
+def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
+    """Return the settings a subsequent ``ensure_ideal_settings`` will target.
+
+    This is a pure sizing helper for preflight UIs: it reports the verified
+    target without reloading a model. Runtime callers must still call
+    ``ensure_ideal_settings`` before dispatching work and size against its
+    fresh post-heal status.
+    """
+    if is_remote_llm(llm_mode, base_url):
+        return {"context_length": REMOTE_IDEAL_SETTINGS["context_length"],
+                "parallel": REMOTE_IDEAL_SETTINGS["parallel"],
+                "settings_reason": "remote ideal profile"}
+    status = get_current_status(llm_mode, base_url, model_name, ssh_alias)
+    return {
+        "context_length": (status.get("ideal_context_length")
+                           or IDEAL_SETTINGS["context_length"]),
+        "parallel": status.get("ideal_parallel") or IDEAL_SETTINGS["parallel"],
+        "settings_reason": status.get("settings_reason") or "conservative fallback",
+    }
+
+
 def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     """Self-heal LM Studio's load settings (local or remote) toward the ideal
     config (VRAM-safe locally, large-context remotely), then return the FRESH

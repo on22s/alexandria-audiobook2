@@ -810,6 +810,18 @@
                             <label class="form-label">Select Files (TXT, MD, EPUB)</label>
                             <input type="file" class="form-control" id="script-batch-files" accept=".txt,.md,.epub" multiple onchange="onScriptBatchFilesChange()">
                             <label class="form-label mt-3" for="script-existing-uploads">Also reuse existing uploads</label>
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(true)">Select all</button>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(false)">Clear</button>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Sort existing uploads">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('az')" title="Sort by name A→Z">A→Z</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('za')" title="Sort by name Z→A">Z→A</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-asc')" title="Sort by volume number 1→10">1→10</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-desc')" title="Sort by volume number 10→1">10→1</button>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSort('reverse')" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i>Reverse</button>
+                                <span class="small text-muted ms-auto" id="script-batch-selected-count">0 selected</span>
+                            </div>
                             <select class="form-select" id="script-existing-uploads" multiple size="6" onchange="onScriptBatchFilesChange()"></select>
                             <label class="form-label mt-3" for="script-collision-policy">When a saved script already exists</label>
                             <select class="form-select" id="script-collision-policy">
@@ -2847,6 +2859,8 @@
             const tbody = document.getElementById('script-batch-queue-body');
             tbody.innerHTML = '';
             scriptBatchQueue = [];
+            document.getElementById('script-batch-selected-count').textContent =
+                `${files.length + existing.length} selected`;
 
             if (!files.length && !existing.length) {
                 document.getElementById('script-batch-queue-container').style.display = 'none';
@@ -2873,6 +2887,35 @@
                 tbody.appendChild(row);
                 scriptBatchQueue.push({ storedFilename: option.value });
             });
+        };
+
+        window.scriptBatchSelectAll = (on) => {
+            document.querySelectorAll('#script-existing-uploads option').forEach(option => {
+                option.selected = on;
+            });
+            onScriptBatchFilesChange();
+        };
+
+        window.scriptBatchSort = (mode) => {
+            const select = document.getElementById('script-existing-uploads');
+            const uploads = [...select.options].map(option => ({
+                // Ignore the upload extension and duplicate suffix when finding
+                // a book's volume number ("Volume 10_3.txt" is volume 10).
+                name: option.value.replace(/\.[^.]+$/, '').replace(/_\d+$/, ''),
+                value: option.value,
+                label: option.textContent,
+                selected: option.selected,
+            }));
+            _sortScriptList(uploads, mode);
+            select.innerHTML = '';
+            uploads.forEach(upload => {
+                const option = document.createElement('option');
+                option.value = upload.value;
+                option.textContent = upload.label;
+                option.selected = upload.selected;
+                select.appendChild(option);
+            });
+            onScriptBatchFilesChange();
         };
 
         window.cancelBatchScript = () => cancelTask('/api/generate_script/batch/cancel', {
@@ -2976,14 +3019,19 @@
                         });
                     }
                 },
-                onDone: () => {
+                onDone: (state) => {
                     scriptBatchPoller = null;
                     notifyJobDone('batch_script');
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';
+                    const tasks = state.tasks || [];
+                    const done = tasks.filter(task => task.status === 'done').length;
+                    const failed = tasks.filter(task => task.status === 'failed').length;
+                    const cancelled = tasks.filter(task => task.status === 'cancelled').length;
+                    const tone = failed ? 'text-warning' : 'text-muted';
                     document.getElementById('script-batch-status-msg').innerHTML =
-                        '<span class="text-muted">Batch complete — results are in Saved Scripts below.</span>';
+                        `<span class="${tone}">Batch finished — ${done} completed, ${failed} failed, ${cancelled} cancelled. Failed books keep validated checkpoints.</span>`;
                     loadSavedScripts();
                 }
             });

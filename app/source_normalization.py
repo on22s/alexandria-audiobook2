@@ -3,7 +3,7 @@
 import re
 
 
-KNOWN_SOURCE_CORRUPTIONS = {"саге": "care"}
+KNOWN_SOURCE_CORRUPTIONS = {"саге": "care", "пар": "nap"}
 _KNOWN_RE = re.compile("|".join(re.escape(value) for value in KNOWN_SOURCE_CORRUPTIONS),
                        re.IGNORECASE)
 

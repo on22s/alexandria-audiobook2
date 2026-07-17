@@ -18,8 +18,20 @@ class FrontendTests(unittest.TestCase):
         for required in (
                 "existing-upload-select", "script-existing-uploads", "/api/uploads/select",
                 "script-collision-policy", "collision_policy: collisionPolicy",
-                "/api/generate_script/batch/preflight", "Largest predicted request"):
+                "/api/generate_script/batch/preflight", "Largest predicted request",
+                "scriptBatchSelectAll(true)", "scriptBatchSelectAll(false)",
+                "scriptBatchSort('num-asc')", "scriptBatchSort('reverse')",
+                "script-batch-selected-count", "Failed books keep validated checkpoints",
+                "completed, ${failed} failed, ${cancelled} cancelled"):
             self.assertIn(required, frontend)
+
+        sort_start = frontend.index("window.scriptBatchSort =")
+        sort_end = frontend.index("window.cancelBatchScript", sort_start)
+        sort_function = frontend[sort_start:sort_end]
+        self.assertIn("option.selected", sort_function)
+        self.assertIn("_sortScriptList(uploads, mode)", sort_function)
+        self.assertIn("replace(/_\\d+$/, '')", sort_function)
+        self.assertIn("onScriptBatchFilesChange();", sort_function)
 
     def test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints(self):
         root = Path(__file__).resolve().parent.parent
