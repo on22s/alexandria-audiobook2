@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phase 1 in progress**  
+Status: **approved — Phase 1 complete; Phase 2 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -30,7 +30,7 @@ checkpoint, retry, or recovery safety nets.
 
 | Phase | Work | Status | PR | Verification |
 |---|---|---|---|---|
-| 1 | Real end-to-end Voice Lab validation | In progress | — | Baseline: no active GPU task; 24 GB free (97% used) |
+| 1 | Real end-to-end Voice Lab validation | Complete | — | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Pending | — | — |
 | 3 | Persistent pipeline run summaries | Pending | — | — |
 | 4 | Pipeline health dashboard | Pending | — | — |
@@ -43,22 +43,31 @@ Allowed status values: `Pending`, `In progress`, `Blocked`, `Complete`.
 
 ## Phase 1 — Real end-to-end Voice Lab validation
 
-Status: `In progress`  
+Status: `Complete`
 Branch / PR: `agent/real-voicelab-validation` / —  
-Completed: Approved plan checkpointed; confirmed no active GPU task; inspected
-real-audio source inventory and disk baseline.  
-Verified behavior: Running app reports idle; original audiobook tree remains
-read-only.  
-Tests run (including skips): None yet.  
-Real artifacts or reports: Pending.  
-Deviations / discoveries: Only 24 GB is free (filesystem 97% used), so validation
-must use a minimal temporary dataset, at most one candidate, and aggressive
-post-evidence cleanup. Training will not start unless a safe footprint is
-confirmed.  
-Remaining: Select input, estimate footprint, run stages, verify evidence and
-recovery behavior, publish report/PR.  
-Next action: Inspect existing prepared archives and choose the smallest valid
-real-audio source without modifying `/home/fakemitch/audiobooks/`.
+Completed: Validated dedup, isolated one- and two-epoch training, production and
+candidate evaluation, paired probe audio, evidence hashes, promotion, rollback,
+and release gates on the configured ROCm GPU.
+Verified behavior: The RX 9070 XT completed every exercised ML stage; the
+candidate ranked above production; promotion installed its recorded hash; and
+rollback restored the exact original hash without touching production storage.
+Tests run (including skips): 36 focused tests passed. The release verifier passed
+311 unit tests and 70 quick API checks; its 12 full-mode GPU/TTS/LLM checks were
+explicitly skipped. An initial test invocation from the repository root ran no
+tests and produced four import errors; it was corrected by running from `app/`.
+Real artifacts or reports: `VOICE_LAB_VALIDATION_2026-07-17.md`. Temporary heavy
+artifacts were removed after their hashes and results were recorded.
+Deviations / discoveries: The smallest already-prepared real archive was used
+instead of deriving another archive from the read-only audiobook originals. A
+one-epoch candidate is necessarily identical to production and is correctly
+deduplicated, so a bounded two-epoch run was required for paired comparison.
+SpeechBrain also warns on canonical `cuda` and falls back to device 0; execution
+still remained on ROCm, but explicit device formatting should be considered in
+the preflight phase.
+Remaining: Publish the Phase 1 branch/PR. Live forced-interruption recovery was
+not induced on real weights; the corresponding focused recovery tests passed.
+Next action: Commit and publish Phase 1, then begin the shared read-only preflight
+builder in Phase 2.
 
 Purpose: exercise the actual ROCm path that unit and quick API tests cannot.
 
