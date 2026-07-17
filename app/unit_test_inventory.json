@@ -256,6 +256,13 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_voice_clustering": [
+    "test_voice_clustering.VoiceClusteringTests.test_clustering_is_invariant_to_input_order",
+    "test_voice_clustering.VoiceClusteringTests.test_complete_link_prevents_similarity_chain_overmerge",
+    "test_voice_clustering.VoiceClusteringTests.test_conflicting_and_unknown_overrides_fail_loud",
+    "test_voice_clustering.VoiceClusteringTests.test_manual_merge_and_split_are_persistent_constraints",
+    "test_voice_clustering.VoiceClusteringTests.test_override_file_is_narrator_scoped_and_versioned"
+  ],
   "test_voice_dataset_merge": [
     "test_voice_dataset_merge.VoiceDatasetMergeTests.test_failed_merge_preserves_existing_destination",
     "test_voice_dataset_merge.VoiceDatasetMergeTests.test_merge_preserves_unique_clips_provenance_and_removes_pcm_duplicates"

@@ -50,6 +50,8 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from voicelab_settings import get_deduped_zip_name
 from voice_dataset_merge import merge_voice_datasets
+from voice_clustering import cluster_voices, load_cluster_overrides
+from utils import atomic_json_write
 
 warnings.filterwarnings("ignore")
 
@@ -208,6 +210,7 @@ def run_dedup(model, device, zips2_root, output_dir):
         return
 
     results = {}
+    override_path = zips2_root / "cluster_overrides.json"
 
     for ndir in narrator_dirs:
         folder_name = ndir.name
@@ -311,18 +314,9 @@ def run_dedup(model, device, zips2_root, output_dir):
                     print(f"{marker}{val:>8.3f}", end="")
             print()
 
-        # Cluster identical voices
-        visited, clusters = set(), []
-        for i in range(n):
-            if i in visited:
-                continue
-            cluster = [i]
-            visited.add(i)
-            for j in range(i + 1, n):
-                if sim_matrix[i, j] > DEDUP_THRESHOLD:
-                    cluster.append(j)
-                    visited.add(j)
-            clusters.append(cluster)
+        overrides = load_cluster_overrides(override_path, folder_name)
+        clusters, cluster_decisions = cluster_voices(
+            zip_labels, sim_matrix, DEDUP_THRESHOLD, overrides)
 
         print(f"\n  ── Dedup Clusters (threshold={DEDUP_THRESHOLD}) ──")
         for ci, cluster in enumerate(clusters):
@@ -381,12 +375,32 @@ def run_dedup(model, device, zips2_root, output_dir):
         results[folder_name] = {
             "labels": zip_labels, "short_labels": short_labels,
             "matrix": sim_matrix, "clusters": clusters,
+            "overrides": overrides, "decisions": cluster_decisions,
         }
 
     for previous in deduped_dir.iterdir():
         if (previous.is_file() and previous.suffix.lower() == ".zip"
                 and previous not in expected_outputs):
             previous.unlink()
+
+    cluster_report = {
+        "version": 1,
+        "algorithm": "deterministic_complete_link",
+        "threshold": DEDUP_THRESHOLD,
+        "override_path": str(override_path),
+        "narrators": {
+            narrator: {
+                "labels": result["labels"],
+                "similarity_matrix": result["matrix"].tolist(),
+                "clusters": [[result["labels"][index] for index in cluster]
+                             for cluster in result["clusters"]],
+                "overrides": result["overrides"],
+                "decisions": result["decisions"],
+            }
+            for narrator, result in results.items()
+        },
+    }
+    atomic_json_write(cluster_report, str(output_dir / "dedup_clusters.json"))
 
     print(f"\n{'='*60}")
     print("DEDUP SUMMARY")
