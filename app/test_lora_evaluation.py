@@ -98,6 +98,30 @@ class LoraEvaluationTests(unittest.TestCase):
             [], evaluation.get_retained_candidate_records(records, "production")
         )
 
+    def test_checkpoint_partition_skips_production_and_candidate_duplicates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "voice")
+            candidates = adapter / "candidates"
+            adapter.mkdir()
+            adapter.joinpath("adapter_model.safetensors").write_bytes(b"production")
+            for candidate_id, weights in (
+                    ("epoch_001", b"distinct"),
+                    ("epoch_002", b"production"),
+                    ("epoch_003", b"distinct")):
+                candidate = candidates / candidate_id
+                candidate.mkdir(parents=True)
+                candidate.joinpath("adapter_model.safetensors").write_bytes(weights)
+
+            production_hash, unique, duplicates = evaluation.partition_unique_candidates(
+                str(adapter), str(candidates))
+
+        self.assertEqual(64, len(production_hash))
+        self.assertEqual(["epoch_001"], [item[0] for item in unique])
+        self.assertEqual(
+            [("epoch_002", "production"), ("epoch_003", "epoch_001")],
+            [(item["id"], item["duplicate_of"]) for item in duplicates],
+        )
+
     def test_resume_requires_version_probes_and_audio_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = {"version": evaluation.EVALUATION_VERSION, "probes": []}

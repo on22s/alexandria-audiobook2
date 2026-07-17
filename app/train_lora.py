@@ -20,6 +20,7 @@ Usage:
 
 import argparse
 import gc
+import hashlib
 import json
 import os
 import random
@@ -32,6 +33,14 @@ from device_utils import resolve_device, enable_rocm_optimizations, is_oom_failu
 from utils import is_path_inside
 
 
+def get_checkpoint_sha256(checkpoint_dir):
+    digest = hashlib.sha256()
+    with open(os.path.join(checkpoint_dir, "adapter_model.safetensors"), "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def save_evaluation_candidate(model, output_dir, existing_records, max_candidates,
                               epoch, loss):
     """Save one bounded generated candidate and return a new records list."""
@@ -40,8 +49,28 @@ def save_evaluation_candidate(model, output_dir, existing_records, max_candidate
     candidate_id = f"epoch_{epoch:03d}"
     candidate_path = os.path.join(output_dir, "candidates", candidate_id)
     model.save_pretrained(candidate_path)
-    record = {"id": candidate_id, "epoch": epoch, "loss": loss, "path": candidate_path}
+    record = {"id": candidate_id, "epoch": epoch, "loss": loss,
+              "path": candidate_path, "sha256": get_checkpoint_sha256(candidate_path)}
     return [*existing_records, record], record
+
+
+def deduplicate_evaluation_candidates(output_dir, records):
+    production_hash = get_checkpoint_sha256(output_dir)
+    retained = []
+    skipped = []
+    seen = {production_hash: "production"}
+    for record in records:
+        digest = record.get("sha256") or get_checkpoint_sha256(record["path"])
+        duplicate_of = seen.get(digest)
+        if duplicate_of:
+            shutil.rmtree(record["path"])
+            skipped.append({"id": record["id"], "duplicate_of": duplicate_of,
+                            "sha256": digest})
+            continue
+        retained_record = {**record, "sha256": digest}
+        retained.append(retained_record)
+        seen[digest] = record["id"]
+    return retained, skipped, production_hash
 
 
 def parse_args():
@@ -749,6 +778,11 @@ def train(args):
         # would 500 the whole model listing. Coerce any non-finite value to None.
         return x if isinstance(x, (int, float)) and float("-inf") < x < float("inf") else None
 
+    candidate_records, duplicate_candidates, production_hash = (
+        deduplicate_evaluation_candidates(args.output_dir, candidate_records))
+    for skipped_candidate in duplicate_candidates:
+        print(f"[TRAIN] Evaluation candidate {skipped_candidate['id']} skipped: "
+              f"duplicate of {skipped_candidate['duplicate_of']}", flush=True)
     meta = {
         "model_name": args.model_name,
         "epochs": args.epochs,
@@ -765,10 +799,13 @@ def train(args):
         "language": args.language,
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,
+        "checkpoint_sha256": production_hash,
         "evaluation_candidates": [
-            {"id": record["id"], "epoch": record["epoch"], "loss": record["loss"]}
+            {"id": record["id"], "epoch": record["epoch"], "loss": record["loss"],
+             "sha256": record["sha256"]}
             for record in candidate_records
         ],
+        "evaluation_candidate_skips": duplicate_candidates,
     }
     with open(os.path.join(args.output_dir, "training_meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)

@@ -2,6 +2,7 @@
 """Generate fixed LoRA probes and write resumable, warning-only evaluations."""
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,36 @@ def apply_evaluation_seed(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def get_checkpoint_sha256(checkpoint_dir: str) -> str:
+    digest = hashlib.sha256()
+    with open(os.path.join(checkpoint_dir, "adapter_model.safetensors"), "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def partition_unique_candidates(adapter_dir: str, candidates_root: str):
+    production_hash = get_checkpoint_sha256(adapter_dir)
+    checkpoint_hashes = {production_hash: "production"}
+    unique = []
+    duplicates = []
+    if not os.path.isdir(candidates_root):
+        return production_hash, unique, duplicates
+    for candidate_id in sorted(os.listdir(candidates_root)):
+        candidate_dir = os.path.join(candidates_root, candidate_id)
+        if not os.path.isdir(candidate_dir):
+            continue
+        candidate_hash = get_checkpoint_sha256(candidate_dir)
+        duplicate_of = checkpoint_hashes.get(candidate_hash)
+        if duplicate_of:
+            duplicates.append({"id": candidate_id, "duplicate_of": duplicate_of,
+                               "sha256": candidate_hash})
+        else:
+            checkpoint_hashes[candidate_hash] = candidate_id
+            unique.append((candidate_id, candidate_dir, candidate_hash))
+    return production_hash, unique, duplicates
 
 
 THRESHOLDS = {
@@ -242,23 +273,29 @@ def main() -> int:
             result = evaluate_adapter(entry, args.models_dir, engine, embedding_model, device)
             evaluations = {"production": result}
             candidates_root = os.path.join(adapter_dir, "candidates")
-            if os.path.isdir(candidates_root):
-                for candidate_id in sorted(os.listdir(candidates_root)):
-                    candidate_dir = os.path.join(candidates_root, candidate_id)
-                    if not os.path.isdir(candidate_dir):
-                        continue
-                    print(f"  candidate {candidate_id}", flush=True)
-                    candidate_result = evaluate_adapter(
-                        entry, args.models_dir, engine, embedding_model, device,
-                        adapter_dir_override=candidate_dir)
-                    atomic_json_write(candidate_result,
-                                      os.path.join(candidate_dir, "evaluation.json"))
-                    evaluations[candidate_id] = candidate_result
+            production_hash, unique_candidates, duplicate_candidates = (
+                partition_unique_candidates(adapter_dir, candidates_root))
+            result["checkpoint_sha256"] = production_hash
+            available_candidates = [candidate_id for candidate_id, _path, _hash
+                                    in unique_candidates]
+            available_candidates.extend(item["id"] for item in duplicate_candidates)
+            for item in duplicate_candidates:
+                print(f"  candidate {item['id']} — duplicate of {item['duplicate_of']}, skipped",
+                      flush=True)
+            for candidate_id, candidate_dir, candidate_hash in unique_candidates:
+                print(f"  candidate {candidate_id}", flush=True)
+                candidate_result = evaluate_adapter(
+                    entry, args.models_dir, engine, embedding_model, device,
+                    adapter_dir_override=candidate_dir)
+                candidate_result["checkpoint_sha256"] = candidate_hash
+                atomic_json_write(candidate_result,
+                                  os.path.join(candidate_dir, "evaluation.json"))
+                evaluations[candidate_id] = candidate_result
             recommendation = get_candidate_recommendation(evaluations)
             keep = (recommendation["recommended"]
                     if recommendation["recommended"] != "production" else None)
-            available_candidates = sorted(candidate_id for candidate_id in evaluations
-                                          if candidate_id != "production")
+            available_candidates = sorted(available_candidates)
+            recommendation["duplicate_candidates"] = duplicate_candidates
             recommendation["cleanup"] = {
                 "status": "pending",
                 "planned_removals": [candidate_id for candidate_id in available_candidates
@@ -271,6 +308,11 @@ def main() -> int:
                                "warnings": candidate_result["warnings"]}
                 for candidate_id, candidate_result in evaluations.items()
             }
+            recommendation["candidate_metrics"].update({
+                item["id"]: {"status": "skipped_duplicate",
+                              "duplicate_of": item["duplicate_of"]}
+                for item in duplicate_candidates
+            })
             result["candidate_recommendation"] = recommendation
             # Persist the comparison and cleanup plan before removing any
             # generated candidate directory. A crash can then be diagnosed and
