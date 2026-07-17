@@ -33,7 +33,7 @@ checkpoint, retry, or recovery safety nets.
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
-| 4 | Pipeline health dashboard | Complete | (pending) | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
+| 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
 | 5 | Sanitized diagnostics export | Pending | — | — |
 | 6 | Evaluation history and human review | Pending | — | — |
 | 7 | Stale-browser build detection | Pending | — | — |
@@ -200,7 +200,7 @@ Verification:
 ## Phase 4 — Pipeline health dashboard
 
 Status: `Complete`
-Branch / PR: `agent/voicelab-health-dashboard` / (PR pending)
+Branch / PR: `agent/voicelab-health-dashboard` / #153
 Completed: Added one read-only health summary endpoint `GET /api/voicelab/health`
 plus a compact Voice Lab dashboard card, both built from the existing Phase 3
 run summaries, live `process_state`, checkpoint recovery journals, and runtime
