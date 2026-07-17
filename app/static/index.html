@@ -6012,7 +6012,7 @@
                                 <div class="col-md-8"><label class="form-label small mb-1">Notes (optional)</label>
                                     <input type="text" class="form-control form-control-sm" id="blind-notes" maxlength="1000" placeholder="What stood out?"></div>
                             </div>
-                            <button class="btn btn-sm btn-primary" onclick="submitLoraBlindReview()"><i class="fas fa-check me-1"></i>Submit decision</button>
+                            <button id="btn-blind-submit" class="btn btn-sm btn-primary" onclick="submitLoraBlindReview()"><i class="fas fa-check me-1"></i>Submit decision</button>
                         </div>
                     </div>`;
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -6031,11 +6031,17 @@
                 rating: ratingRaw ? parseInt(ratingRaw, 10) : null,
                 notes: document.getElementById('blind-notes').value || '',
             };
+            // Disable on click so a double-click can't fire two submissions for
+            // the same session; the backend also guards this, but not sending
+            // the second request is cleaner. Re-enable only on error.
+            const submitBtn = document.getElementById('btn-blind-submit');
+            if (submitBtn) { submitBtn.disabled = true; }
             try {
                 const result = await API.post(
                     `/api/lora/models/${encodeURIComponent(_blindReview.adapterId)}/review/session/${encodeURIComponent(_blindReview.sessionId)}`, body);
                 renderBlindReviewResult(result);
             } catch (e) {
+                if (submitBtn) { submitBtn.disabled = false; }
                 showToast('Could not record review: ' + e.message, 'error');
             }
         };

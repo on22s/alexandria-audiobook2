@@ -229,6 +229,19 @@ class RuntimeTests(unittest.TestCase):
 
         reset_stuck_chunks.assert_called_once_with()
 
+    def test_app_lifespan_prunes_abandoned_review_sessions(self):
+        # Abandoned blind-review sessions must be cleared at startup, not only
+        # when the next session is opened.
+        async def run_lifespan():
+            async with app_module.app.router.lifespan_context(app_module.app):
+                pass
+
+        with patch.object(app_module.evaluation_reviews, "prune_sessions") as prune:
+            with patch.object(app_module, "reset_stuck_chunks"):
+                asyncio.run(run_lifespan())
+
+        prune.assert_called_once_with(app_module.EVALUATION_REVIEWS_DIR)
+
     def test_index_stamps_served_build_for_stale_tab_detection(self):
         # The served page must carry the current build so a tab open across a
         # backend update can detect it is stale (Phase 7).

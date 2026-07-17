@@ -159,33 +159,43 @@ def submit(reviews_dir, adapter_id, session_id, choice, current_fingerprint,
     note_text = ("" if notes is None else str(notes))[:MAX_NOTE_CHARS]
 
     session_path = _session_path(reviews_dir, session_id)
-    session = safe_load_json(session_path, default=None)
-    if not session:
-        raise ReviewError("Review session is unknown or has expired")
-    if session.get("adapter_id") != adapter_id:
-        raise ReviewError("Review session does not belong to this adapter")
-    if session.get("fingerprint") != current_fingerprint:
-        # Evidence changed (retrained/promoted/rolled back) since the session
-        # opened — the human listened to audio that no longer represents state.
-        raise ReviewError("Evaluation evidence changed since the review opened; "
-                          "reopen the review")
+    os.makedirs(_sessions_dir(reviews_dir), exist_ok=True)  # file_lock needs the parent dir
+    # Claim the pending session atomically: hold its lock across load → validate
+    # → delete so two concurrent submits (e.g. a double-click) can't both pass
+    # and each append a record. The loser finds the session already consumed.
+    with file_lock(session_path):
+        session = safe_load_json(session_path, default=None)
+        if not session:
+            raise ReviewError("Review session is unknown or has expired")
+        if session.get("adapter_id") != adapter_id:
+            raise ReviewError("Review session does not belong to this adapter")
+        if session.get("fingerprint") != current_fingerprint:
+            # Evidence changed (retrained/promoted/rolled back) since the session
+            # opened — the human listened to audio that no longer represents state.
+            raise ReviewError("Evaluation evidence changed since the review opened; "
+                              "reopen the review")
 
-    labels = session.get("labels") or {}
-    choice_role = "tie" if choice == "tie" else labels.get(choice)
-    if choice_role not in ("production", "candidate", "tie"):
-        raise ReviewError("Review session labels are invalid; reopen the review")
+        labels = session.get("labels") or {}
+        choice_role = "tie" if choice == "tie" else labels.get(choice)
+        if choice_role not in ("production", "candidate", "tie"):
+            raise ReviewError("Review session labels are invalid; reopen the review")
 
-    record = {
-        "id": get_unique_id("hr"),
-        "created_at": _utc_now(),
-        "adapter_id": adapter_id,
-        "candidate_id": session.get("candidate_id"),
-        "blind": bool(session.get("blind")),
-        "evidence": current_fingerprint,
-        "build": session.get("build") or {},
-        "automated": session.get("automated") or {},
-        "human": {"choice_role": choice_role, "rating": rating, "notes": note_text},
-    }
+        record = {
+            "id": get_unique_id("hr"),
+            "created_at": _utc_now(),
+            "adapter_id": adapter_id,
+            "candidate_id": session.get("candidate_id"),
+            "blind": bool(session.get("blind")),
+            "evidence": current_fingerprint,
+            "build": session.get("build") or {},
+            "automated": session.get("automated") or {},
+            "human": {"choice_role": choice_role, "rating": rating, "notes": note_text},
+        }
+        # Consume the session before recording so a duplicate can't double-record.
+        try:
+            os.unlink(session_path)
+        except OSError:
+            pass
 
     store_path = _store_path(reviews_dir, adapter_id)
     os.makedirs(reviews_dir, exist_ok=True)
@@ -199,11 +209,6 @@ def submit(reviews_dir, adapter_id, session_id, choice, current_fingerprint,
         # the sense that existing records are never edited, only aged out.
         store = {"version": STORE_VERSION, "reviews": reviews[-MAX_REVIEWS:]}
         atomic_json_write(store, store_path)
-
-    try:
-        os.unlink(session_path)
-    except OSError:
-        pass
 
     return {
         "recorded": True,
