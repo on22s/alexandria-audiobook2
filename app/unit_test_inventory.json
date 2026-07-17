@@ -75,6 +75,7 @@
     "test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save",
     "test_frontend_regressions.FrontendTests.test_frontend_wires_preparer_duration_and_lora_cancel",
     "test_frontend_regressions.FrontendTests.test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints",
+    "test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion",
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy"
   ],
@@ -144,6 +145,9 @@
   "test_lora_candidate_promotion": [
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_deletion_refuses_pending_checkpoint_recovery",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_status_and_explicit_deletion",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_refuses_mismatched_seed",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_refuses_missing_candidate_audio",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_returns_matched_audio_and_metrics_without_mutation",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_backup_deletion_keeps_manifest_reference",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_replacement_restores_production_and_manifest",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_rollback_restores_promoted_checkpoint",

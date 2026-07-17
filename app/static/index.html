@@ -1622,6 +1622,7 @@
                     <div id="lora-models-list">
                         <p class="text-muted mb-0">No trained adapters yet.</p>
                     </div>
+                    <div id="lora-comparison-panel" class="mt-3" style="display:none;"></div>
 
                     <!-- Test Voice Form -->
                     <div id="lora-test-form" class="mt-3 pt-3 border-top" style="display:none;">
@@ -5853,7 +5854,7 @@
                                             <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="playLoraPreview(this.dataset.adapterId)" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
                                             <button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="testLoraModel(this.dataset.adapterId)" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
                                             ${!m.builtin && m.checkpoint_swap ? `<button class="btn btn-sm btn-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="recoverLoraCheckpointSwap(this.dataset.adapterId)" title="Restore production from the interrupted operation journal"><i class="fas fa-life-ring me-1"></i>Recover</button>` : ''}
-                                            ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
+                                            ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-info me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="openLoraCandidateComparison(this.dataset.adapterId)" title="Listen to matched production and candidate evaluation probes"><i class="fas fa-headphones me-1"></i>Compare</button><button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.rollback_backup ? `<button class="btn btn-sm btn-outline-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraRollbackBackup(this.dataset.adapterId)" title="Delete ${(m.rollback_backup.size_bytes / 1024 ** 2).toFixed(1)} MB rollback backup"><i class="fas fa-hard-drive me-1"></i>Delete backup</button>` : ''}
                                             ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
@@ -5876,6 +5877,45 @@
                 console.error('Failed to load LoRA models:', e);
             }
         }
+
+        window.openLoraCandidateComparison = async (adapterId) => {
+            const panel = document.getElementById('lora-comparison-panel');
+            panel.style.display = '';
+            panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading comparison…</div>';
+            try {
+                const comparison = await API.get(`/api/lora/models/${encodeURIComponent(adapterId)}/comparison`);
+                const renderMetrics = probe => {
+                    const metrics = probe.metrics || {};
+                    const values = [
+                        ['speaker similarity', metrics.speaker_similarity],
+                        ['clipping', metrics.clipping_ratio],
+                        ['silence', metrics.silence_ratio],
+                    ].filter(item => item[1] != null);
+                    return values.length ? values.map(item => `${escapeHtml(item[0])}: ${Number(item[1]).toFixed(3)}`).join(' · ') : 'No metrics recorded';
+                };
+                panel.innerHTML = `
+                    <div class="card border-info">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div><strong>Candidate comparison: ${escapeHtml(comparison.candidate_id)}</strong><br><small class="text-muted">Advisory only — listening does not change production.</small></div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('lora-comparison-panel').style.display='none'" title="Close"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="card-body">
+                            ${comparison.reason ? `<p class="small mb-3">${escapeHtml(comparison.reason)}</p>` : ''}
+                            ${comparison.probe_pairs.map(pair => `
+                                <div class="border rounded p-2 mb-2">
+                                    <div class="small mb-2"><strong>${escapeHtml(pair.id)}</strong> · seed ${escapeHtml(String(pair.seed))}<br>${escapeHtml(pair.text)}</div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6"><label class="form-label small mb-1">Production</label><audio controls preload="none" class="w-100" src="${escapeHtml(pair.production.audio_url)}"></audio><div class="text-muted small">${renderMetrics(pair.production)}</div></div>
+                                        <div class="col-md-6"><label class="form-label small mb-1">Candidate</label><audio controls preload="none" class="w-100" src="${escapeHtml(pair.candidate.audio_url)}"></audio><div class="text-muted small">${renderMetrics(pair.candidate)}</div></div>
+                                    </div>
+                                </div>`).join('')}
+                        </div>
+                    </div>`;
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">Comparison unavailable: ${escapeHtml(e.message)}</div>`;
+            }
+        };
 
         window.promoteLoraCandidate = async (adapterId, candidateId) => {
             if (!confirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`)) {

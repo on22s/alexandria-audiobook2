@@ -12,6 +12,15 @@ from fastapi.testclient import TestClient
 
 
 class FrontendTests(unittest.TestCase):
+    def test_lora_candidate_comparison_is_advisory_and_separate_from_promotion(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in (
+                "lora-comparison-panel", "openLoraCandidateComparison",
+                "/comparison", "Advisory only", "Production", "Candidate",
+                "promoteLoraCandidate"):
+            self.assertIn(required, frontend)
+
     def test_script_ui_reuses_uploads_and_sends_collision_policy(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

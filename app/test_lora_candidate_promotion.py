@@ -282,6 +282,77 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual(original_manifest, json.loads(manifest_path.read_text()))
             self.assertTrue(backup.is_dir())
 
+    def _write_comparison_fixture(self, root, candidate_seed=42,
+                                  candidate_audio="probe.wav"):
+        models = Path(root, "models")
+        adapter = models / "voice"
+        candidate = adapter / "candidates" / "epoch_002"
+        candidate.mkdir(parents=True)
+        adapter.mkdir(parents=True, exist_ok=True)
+        (adapter / "probe.wav").write_bytes(b"production")
+        if candidate_audio == "probe.wav":
+            (candidate / candidate_audio).write_bytes(b"candidate")
+        probe = {"id": "neutral", "text": "Matched text", "seed": 42,
+                 "audio_file": "probe.wav",
+                 "metrics": {"speaker_similarity": 0.91}}
+        (adapter / "evaluation.json").write_text(json.dumps({
+            "probes": [probe],
+            "candidate_recommendation": {
+                "reason": "Candidate scored higher", "ranking": ["epoch_002"]},
+        }))
+        candidate_probe = {**probe, "seed": candidate_seed,
+                           "audio_file": candidate_audio}
+        (candidate / "evaluation.json").write_text(json.dumps({
+            "probes": [candidate_probe],
+        }))
+        manifest = models / "manifest.json"
+        manifest.write_text(json.dumps([{
+            "id": "voice",
+            "evaluation": {"recommended_candidate": "epoch_002"},
+            "evaluation_candidates": [{"id": "epoch_002"}],
+        }]))
+        return models, manifest
+
+    def test_comparison_returns_matched_audio_and_metrics_without_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models, manifest = self._write_comparison_fixture(tmp)
+            original_manifest = manifest.read_text()
+
+            result = lora._get_lora_candidate_comparison(
+                "voice", str(models), str(manifest))
+
+            self.assertTrue(result["advisory_only"])
+            self.assertEqual("epoch_002", result["candidate_id"])
+            self.assertEqual("Matched text", result["probe_pairs"][0]["text"])
+            self.assertEqual(0.91, result["probe_pairs"][0]["production"]
+                             ["metrics"]["speaker_similarity"])
+            self.assertIn("/candidates/epoch_002/probe.wav",
+                          result["probe_pairs"][0]["candidate"]["audio_url"])
+            self.assertEqual(original_manifest, manifest.read_text())
+
+    def test_comparison_refuses_mismatched_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models, manifest = self._write_comparison_fixture(tmp, candidate_seed=99)
+
+            with self.assertRaises(HTTPException) as raised:
+                lora._get_lora_candidate_comparison(
+                    "voice", str(models), str(manifest))
+
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertIn("not comparable", raised.exception.detail)
+
+    def test_comparison_refuses_missing_candidate_audio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models, manifest = self._write_comparison_fixture(
+                tmp, candidate_audio="missing.wav")
+
+            with self.assertRaises(HTTPException) as raised:
+                lora._get_lora_candidate_comparison(
+                    "voice", str(models), str(manifest))
+
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertIn("audio is missing", raised.exception.detail)
+
 
 if __name__ == "__main__":
     unittest.main()
