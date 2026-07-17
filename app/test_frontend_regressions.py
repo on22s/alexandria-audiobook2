@@ -101,6 +101,9 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("/rollback-promotion`, {}", html)
         self.assertIn("recoverLoraCheckpointSwap", html)
         self.assertIn("/recover-checkpoint-swap`, {}", html)
+        self.assertIn("deleteLoraRollbackBackup", html)
+        self.assertIn("/api/lora/backups", html)
+        self.assertIn("/rollback-backup`, { method: 'DELETE' }", html)
         self.assertNotIn("id=\"prep-skip-annotation\"", html)
 
     def test_frontend_renders_config_warnings_as_text_and_refreshes_after_save(self):

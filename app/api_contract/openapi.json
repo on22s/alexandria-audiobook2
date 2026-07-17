@@ -3212,6 +3212,23 @@
         "summary": "Get Task Log"
       }
     },
+    "/api/lora/backups": {
+      "get": {
+        "description": "Report rollback-backup storage and host free-space pressure.",
+        "operationId": "lora_list_backups_api_lora_backups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Lora List Backups"
+      }
+    },
     "/api/lora/datasets": {
       "get": {
         "description": "List uploaded LoRA training datasets.",
@@ -3434,6 +3451,44 @@
           }
         },
         "summary": "Lora Recover Checkpoint Swap"
+      }
+    },
+    "/api/lora/models/{adapter_id}/rollback-backup": {
+      "delete": {
+        "description": "Delete the preserved production checkpoint after explicit confirmation.",
+        "operationId": "lora_delete_rollback_backup_api_lora_models__adapter_id__rollback_backup_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Delete Rollback Backup"
       }
     },
     "/api/lora/models/{adapter_id}/rollback-promotion": {
