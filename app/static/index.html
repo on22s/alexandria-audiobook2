@@ -5827,7 +5827,7 @@
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
-                                    <td>${m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}</td>
+                                    <td>${m.checkpoint_swap ? `<span class="badge bg-danger">recovery required</span>` : m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
@@ -5835,8 +5835,9 @@
                                         ` : `
                                             <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="playLoraPreview(this.dataset.adapterId)" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
                                             <button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="testLoraModel(this.dataset.adapterId)" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
-                                            ${!m.builtin && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
-                                            ${!m.builtin && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
+                                            ${!m.builtin && m.checkpoint_swap ? `<button class="btn btn-sm btn-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="recoverLoraCheckpointSwap(this.dataset.adapterId)" title="Restore production from the interrupted operation journal"><i class="fas fa-life-ring me-1"></i>Recover</button>` : ''}
+                                            ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
+                                            ${!m.builtin && !m.checkpoint_swap && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
                                             ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
@@ -5881,6 +5882,19 @@
                 await loadLoraModels();
             } catch (e) {
                 showToast('Rollback failed: ' + e.message, 'error');
+            }
+        };
+
+        window.recoverLoraCheckpointSwap = async (adapterId) => {
+            if (!confirm('Recover production from the checkpoint saved before the interrupted operation?')) {
+                return;
+            }
+            try {
+                await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/recover-checkpoint-swap`, {});
+                showToast('Interrupted checkpoint operation recovered.', 'success');
+                await loadLoraModels();
+            } catch (e) {
+                showToast('Recovery failed: ' + e.message, 'error');
             }
         };
 

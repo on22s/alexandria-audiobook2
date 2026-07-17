@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import gc
 import json
 import logging
@@ -37,7 +38,7 @@ from hf_utils import (
     fetch_builtin_manifest,
     is_adapter_downloaded,
 )
-from utils import file_lock, get_unique_id, is_path_inside, secure_filename
+from utils import atomic_json_write, file_lock, get_unique_id, is_path_inside, secure_filename
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -73,6 +74,7 @@ class LoraTestRequest(BaseModel):
 
 PROMOTION_FILES = ("adapter_config.json", "adapter_model.safetensors", "README.md",
                    "ref_sample.wav", "training_meta.json")
+CHECKPOINT_SWAP_JOURNAL = ".checkpoint_swap.json"
 
 
 def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
@@ -82,6 +84,84 @@ def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
         if not os.path.isfile(source):
             raise FileNotFoundError(f"Candidate is incomplete: missing {filename}")
         shutil.copy2(source, os.path.join(destination_dir, filename))
+
+
+def _get_checkpoint_swap_journal(adapter_dir: str) -> dict | None:
+    path = os.path.join(adapter_dir, CHECKPOINT_SWAP_JOURNAL)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            journal = json.load(handle)
+        return journal if isinstance(journal, dict) else {"operation": "unknown"}
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError):
+        return {"operation": "unknown"}
+
+
+def _replace_checkpoint_files(adapter_dir: str, source_dir: str,
+                              recovery_dir: str, operation: str,
+                              keep_recovery: bool, manifest_entry: dict) -> None:
+    journal_path = os.path.join(adapter_dir, CHECKPOINT_SWAP_JOURNAL)
+    if os.path.exists(journal_path):
+        raise HTTPException(status_code=409, detail="Checkpoint recovery is required first")
+    staging_dir = os.path.join(adapter_dir, ".checkpoint_swap_staging")
+    shutil.rmtree(staging_dir, ignore_errors=True)
+    _copy_promotion_files(adapter_dir, recovery_dir)
+    _copy_promotion_files(source_dir, staging_dir)
+    atomic_json_write({
+        "version": 1,
+        "operation": operation,
+        "recovery_dir": os.path.relpath(recovery_dir, adapter_dir),
+        "keep_recovery": keep_recovery,
+        "manifest_entry": copy.deepcopy(manifest_entry),
+        "created_at": time.time(),
+    }, journal_path)
+    try:
+        for filename in PROMOTION_FILES:
+            os.replace(os.path.join(staging_dir, filename), os.path.join(adapter_dir, filename))
+    except Exception:
+        try:
+            _copy_promotion_files(recovery_dir, adapter_dir)
+            os.remove(journal_path)
+        except Exception:
+            logger.exception("Checkpoint swap recovery failed for %s", adapter_dir)
+        raise
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+
+
+def _complete_checkpoint_swap(adapter_dir: str, recovery_dir: str,
+                              keep_recovery: bool) -> None:
+    os.remove(os.path.join(adapter_dir, CHECKPOINT_SWAP_JOURNAL))
+    if not keep_recovery:
+        shutil.rmtree(recovery_dir, ignore_errors=True)
+
+
+def _recover_checkpoint_swap(adapter_id: str, models_dir: str,
+                             manifest_path: str) -> dict:
+    adapter_dir = _safe_subpath(models_dir, adapter_id)
+    with file_lock(manifest_path):
+        journal = _get_checkpoint_swap_journal(adapter_dir)
+        if not journal:
+            raise HTTPException(status_code=409, detail="No checkpoint recovery is pending")
+        relative_recovery = journal.get("recovery_dir", "")
+        recovery_dir = _safe_subpath(adapter_dir, relative_recovery)
+        previous_entry = journal.get("manifest_entry")
+        if not isinstance(previous_entry, dict) or previous_entry.get("id") != adapter_id:
+            raise HTTPException(status_code=409, detail="Checkpoint recovery journal is invalid")
+        manifest = _load_manifest(manifest_path)
+        entry_index = next((index for index, item in enumerate(manifest)
+                            if item.get("id") == adapter_id), None)
+        if entry_index is None:
+            raise HTTPException(status_code=409, detail="Adapter manifest entry is missing")
+        _copy_promotion_files(recovery_dir, adapter_dir)
+        manifest[entry_index] = previous_entry
+        _save_manifest(manifest_path, manifest)
+        shutil.rmtree(os.path.join(adapter_dir, ".checkpoint_swap_staging"), ignore_errors=True)
+        os.remove(os.path.join(adapter_dir, CHECKPOINT_SWAP_JOURNAL))
+        if not journal.get("keep_recovery", True):
+            shutil.rmtree(recovery_dir, ignore_errors=True)
+    return {"status": "recovered", "operation": journal.get("operation", "unknown")}
 
 
 def _promote_lora_candidate(adapter_id: str, models_dir: str,
@@ -101,23 +181,9 @@ def _promote_lora_candidate(adapter_id: str, models_dir: str,
 
         promotion_id = f"{int(time.time())}-{recommended}"
         backup_dir = os.path.join(adapter_dir, "promotion_backups", promotion_id)
-        staging_dir = os.path.join(adapter_dir, ".promotion_staging")
-        try:
-            _copy_promotion_files(adapter_dir, backup_dir)
-            _copy_promotion_files(candidate_dir, staging_dir)
-            for filename in PROMOTION_FILES:
-                os.replace(os.path.join(staging_dir, filename), os.path.join(adapter_dir, filename))
-        except Exception:
-            if os.path.isdir(backup_dir):
-                for filename in PROMOTION_FILES:
-                    backup = os.path.join(backup_dir, filename)
-                    if os.path.isfile(backup):
-                        shutil.copy2(backup, os.path.join(adapter_dir, filename))
-            raise
-        finally:
-            shutil.rmtree(staging_dir, ignore_errors=True)
+        _replace_checkpoint_files(adapter_dir, candidate_dir, backup_dir,
+                                  "promotion", keep_recovery=True, manifest_entry=entry)
 
-        shutil.rmtree(candidate_dir)
         entry["evaluation_candidates"] = []
         entry["evaluation"]["recommended_candidate"] = "production"
         entry["promotion"] = {
@@ -125,6 +191,8 @@ def _promote_lora_candidate(adapter_id: str, models_dir: str,
             "backup_id": promotion_id, "promoted_at": time.time(),
         }
         _save_manifest(manifest_path, manifest)
+        _complete_checkpoint_swap(adapter_dir, backup_dir, keep_recovery=True)
+        shutil.rmtree(candidate_dir)
     return entry["promotion"]
 
 
@@ -139,10 +207,13 @@ def _rollback_lora_promotion(adapter_id: str, models_dir: str,
             raise HTTPException(status_code=409, detail="No promotion is available to roll back")
         backup_dir = _safe_subpath(os.path.join(adapter_dir, "promotion_backups"),
                                    promotion.get("backup_id", ""))
-        _copy_promotion_files(backup_dir, adapter_dir)
+        recovery_dir = os.path.join(adapter_dir, ".rollback_recovery")
+        _replace_checkpoint_files(adapter_dir, backup_dir, recovery_dir,
+                                  "rollback", keep_recovery=False, manifest_entry=entry)
         promotion["status"] = "rolled_back"
         promotion["rolled_back_at"] = time.time()
         _save_manifest(manifest_path, manifest)
+        _complete_checkpoint_swap(adapter_dir, recovery_dir, keep_recovery=False)
     return promotion
 
 
@@ -406,6 +477,10 @@ async def lora_list_models():
             url_prefix = f"/lora_models/{m['id']}"
         preview_path = os.path.join(adapter_dir, "preview_sample.wav")
         m["preview_audio_url"] = f"{url_prefix}/preview_sample.wav" if os.path.exists(preview_path) else None
+        journal = None if is_builtin else _get_checkpoint_swap_journal(adapter_dir)
+        m["checkpoint_swap"] = ({"status": "recovery_required",
+                                  "operation": journal.get("operation", "unknown")}
+                                if journal else None)
     return models
 
 
@@ -431,6 +506,18 @@ async def lora_rollback_promotion(adapter_id: str):
     gc.collect()
     logger.info("LoRA promotion rolled back: %s", adapter_id)
     return {"status": "rolled_back", "adapter_id": adapter_id, "promotion": result}
+
+
+@router.post("/api/lora/models/{adapter_id}/recover-checkpoint-swap")
+async def lora_recover_checkpoint_swap(adapter_id: str):
+    """Restore production after a process interruption left a swap journal."""
+    check_global_gpu_lock("lora_training")
+    result = await asyncio.to_thread(
+        _recover_checkpoint_swap, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    project_manager.engine = None
+    gc.collect()
+    logger.warning("Recovered interrupted LoRA checkpoint swap: %s", adapter_id)
+    return {"adapter_id": adapter_id, **result}
 
 @router.delete("/api/lora/models/{adapter_id}")
 async def lora_delete_model(adapter_id: str):
