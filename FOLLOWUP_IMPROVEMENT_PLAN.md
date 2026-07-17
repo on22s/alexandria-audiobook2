@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–4 complete; Phase 5 pending**
+Status: **approved — Phases 1–5 complete; Phase 6 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -34,7 +34,7 @@ checkpoint, retry, or recovery safety nets.
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
 | 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
-| 5 | Sanitized diagnostics export | Pending | — | — |
+| 5 | Sanitized diagnostics export | Complete | #155 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
 | 6 | Evaluation history and human review | Pending | — | — |
 | 7 | Stale-browser build detection | Pending | — | — |
 | 8 | Launcher supervisor integration tests | Pending | — | — |
@@ -260,6 +260,46 @@ Verification:
 - Frontend regression tests and release verifier.
 
 ## Phase 5 — Sanitized diagnostics export
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-diagnostics-export-v2` / #155 (re-based on main;
+supersedes #154, which was stacked on #153 and merged into the Phase 4 branch
+instead of main, so Phase 5 never reached main until #155)
+Completed: Added a pure, self-contained `diagnostics.py` (recursive redaction +
+bounded assembly, no app imports) and a read-only `GET /api/voicelab/diagnostics`
+endpoint that gathers runtime/build, a non-sensitive config summary, Voice Lab
+config, the Phase 4 health summary, the latest run summary, and log-file
+identifiers (never contents). Added Copy/Download Diagnostics actions in the
+Voice Lab tab.
+Verified behavior: Sensitive keys (api_key/token/password/authorization/cookie/
+secret/…) are fully redacted at any nesting depth; URL user:pass credentials and
+inline `key=secret` text are scrubbed; home paths are collapsed to `~`; long
+strings/lists are truncated with explicit markers; and an oversized bundle drops
+its largest sections until it fits the total byte budget. The config summary is a
+whitelist that never includes `base_url`, `api_key`, or the SSH host. A live
+endpoint smoke confirmed 200 with no home path present in the serialized bundle.
+Generation is read-only and works after a failed run (latest_run may be a failed
+record). Full logs are intentionally excluded — the bundle points at Pinokio's
+Get Help / session bundle.
+Tests run (including skips): New `test_voicelab_diagnostics.py` (12 cases: API
+keys, bearer/basic auth, URL creds, inline creds, nested secrets, home paths,
+string/list truncation, Unicode preserved, non-string scalars, versioned wrapper,
+none/malformed section, oversized-drop) + a frontend regression assertion — all
+pass. Release verifier passed: 339 unit tests, quick API 70 passed / 0 failed /
+12 skipped (require full-mode GPU/TTS/LLM). API contract + unit-test inventory
+snapshots regenerated for the new route.
+Real artifacts or reports: none beyond code; read-only over existing records.
+Deviations / discoveries: `diagnostics.py` is intentionally app-import-free so it
+is fully unit-testable and cannot mutate app state; the endpoint gathers raw
+sections and hands them in. The one-line credential scrub in
+`verify_release.get_concise_error` was left as-is — it answers a different
+question (bounded single-line error text for the release tool) than the
+structured recursive bundle redaction, so it is not a Rule 15 duplicate.
+Remaining: Merge #155 into main. (Lesson: do not stack a phase PR on another
+phase branch — base every phase PR on main to avoid a merge landing on the wrong
+branch, as happened with #154.)
+Next action: Commit and publish Phase 5, then begin evaluation history and human
+review in Phase 6.
 
 Purpose: produce a useful support bundle without leaking secrets or flooding
 reports with raw data.

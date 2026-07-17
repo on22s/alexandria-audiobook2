@@ -1461,7 +1461,11 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Voice Lab Logs</span>
-                    <a href="/api/logs/voicelab?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete Voice Lab log"><i class="fas fa-download me-1"></i>Full log</a>
+                    <span class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="copyVoicelabDiagnostics()" title="Copy a sanitized diagnostics summary (secrets redacted) for support"><i class="fas fa-clipboard me-1"></i>Copy diagnostics</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="downloadVoicelabDiagnostics()" title="Download the sanitized diagnostics summary as JSON"><i class="fas fa-file-arrow-down me-1"></i>Download diagnostics</button>
+                        <a href="/api/logs/voicelab?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete Voice Lab log"><i class="fas fa-download me-1"></i>Full log</a>
+                    </span>
                 </div>
                 <div class="card-body p-0">
                     <div id="voicelab-logs" class="log-window"></div>
@@ -7237,6 +7241,42 @@
                 el.innerHTML = `<span class="text-muted">Pipeline health unavailable.</span>`;
             }
         }
+
+        // Sanitized, bounded diagnostics bundle (secrets/home paths redacted
+        // server-side). Full logs are intentionally excluded — use the Full log
+        // button or Pinokio's Get Help / session bundle for those.
+        async function _fetchVoicelabDiagnostics() {
+            const data = await API.get('/api/voicelab/diagnostics');
+            return JSON.stringify(data, null, 2);
+        }
+
+        window.copyVoicelabDiagnostics = async () => {
+            try {
+                const text = await _fetchVoicelabDiagnostics();
+                await navigator.clipboard.writeText(text);
+                showToast('Sanitized diagnostics copied to clipboard.', 'success');
+            } catch (e) {
+                showToast('Could not copy diagnostics: ' + (e.message || String(e)), 'error');
+            }
+        };
+
+        window.downloadVoicelabDiagnostics = async () => {
+            try {
+                const text = await _fetchVoicelabDiagnostics();
+                const blob = new Blob([text], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+                a.href = url;
+                a.download = `voicelab-diagnostics-${stamp}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                showToast('Could not download diagnostics: ' + (e.message || String(e)), 'error');
+            }
+        };
 
         function pollVoicelab() {
             const logEl = document.getElementById('voicelab-logs');
