@@ -65,12 +65,23 @@ class FrontendTests(unittest.TestCase):
         install = (root / "install.js").read_text(encoding="utf-8")
         self.assertIn('port: "{{port}}"', start)
         self.assertIn('ALEXANDRIA_PORT: "{{local.port}}"', start)
+        self.assertIn('PYTHONUNBUFFERED: "1"', start)
+        self.assertIn('url: "{{input.event[1]}}"', start)
+        self.assertIn("ModuleNotFoundError", start)
+        self.assertIn("Address already in use", start)
+        self.assertIn("Application startup failed", start)
+        self.assertIn("break: true", start)
         self.assertIn('method: "script.return"', start_llm)
         self.assertIn("triton-rocm", install)
         torch_script = (root / "torch.js").read_text(encoding="utf-8")
         for rocm_pin in ("torch==2.10.0", "torchaudio==2.10.0",
                          "triton-rocm==3.6.0", "/whl/rocm7.0"):
             self.assertIn(rocm_pin, torch_script)
+
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        for diagnostic in ("logs/api/start.js/latest", "logs/sessions/",
+                           "Get Help", "navbar build label"):
+            self.assertIn(diagnostic, readme)
 
     def test_readme_api_examples_do_not_reference_removed_routes(self):
         readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")

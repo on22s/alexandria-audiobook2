@@ -952,6 +952,28 @@ For script generation, non-thinking models work best:
 
 ## Troubleshooting
 
+### Pinokio launcher does not reach "Open Web UI"
+
+`start.js` waits for Alexandria to print its serving URL. Import failures,
+port-binding failures, Python tracebacks, and FastAPI startup failures stop the
+launcher visibly instead of leaving the sidebar at **Starting**.
+
+1. Open **Terminal** beside the running or failed Start entry and read the first
+   traceback or startup error. The navbar build label identifies the revision
+   that is actually running; hover it for Python and package versions.
+2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its
+   **Get Help** report includes the related launcher logs and system context and
+   applies Pinokio's normal secret/path redaction before sharing.
+3. For direct file inspection, the current launcher log is
+   `logs/api/start.js/latest`; timestamped runs are beside it, and
+   `logs/sessions/` groups related install/start/helper runs. App task logs such
+   as script generation and review remain under `logs/api/*-latest.log`.
+4. Fix the first startup error, then stop and start the existing `start.js`
+   entry. Do not launch a second copy to work around an address-in-use error.
+
+The launcher uses a Pinokio-selected free port and binds Alexandria to
+`127.0.0.1`. A hard-coded port is neither required nor recommended.
+
 ### Script generation fails
 - Check LLM server is running and accessible
 - Verify model name matches what's loaded
