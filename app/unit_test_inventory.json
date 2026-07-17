@@ -141,6 +141,12 @@
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
   ],
+  "test_lora_evaluation": [
+    "test_lora_evaluation.LoraEvaluationTests.test_adapter_evaluation_generates_both_probes_and_scores_them",
+    "test_lora_evaluation.LoraEvaluationTests.test_audio_metrics_detect_silence_and_clipping",
+    "test_lora_evaluation.LoraEvaluationTests.test_resume_requires_version_probes_and_audio_files",
+    "test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"
+  ],
   "test_multi_process_state": [
     "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
@@ -274,7 +280,7 @@
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_preflight_reports_missing_model_and_dependency",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_successful_subprocess_with_incomplete_adapter_is_cleaned_up",
-    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_train_and_profile_background_dispatch_reaches_subprocess",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_training_failure_removes_new_partial_output_and_dataset"
   ],
   "test_voices_regressions": [

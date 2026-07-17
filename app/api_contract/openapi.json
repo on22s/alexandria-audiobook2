@@ -1710,13 +1710,14 @@
             "default": [
               "dedup",
               "train",
+              "evaluate",
               "profile",
               "name"
             ],
             "items": {
               "type": "string"
             },
-            "maxItems": 4,
+            "maxItems": 5,
             "title": "Stages",
             "type": "array"
           },
