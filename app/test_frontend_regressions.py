@@ -71,7 +71,9 @@ class FrontendTests(unittest.TestCase):
                          "renderBlindReviewResult", "openLoraReviewHistory",
                          "clearLoraReviewHistory", "/review/session",
                          "/reviews", "Identities are hidden until you submit",
-                         "Automated recommendation (separate)"):
+                         "Automated recommendation (separate)",
+                         # Submit disables itself so a double-click can't fire twice.
+                         'id="btn-blind-submit"', "submitBtn.disabled = true"):
             self.assertIn(required, frontend)
 
     def test_lora_candidate_lifecycle_summary_is_rendered(self):

@@ -10,6 +10,7 @@ import inspect
 import json
 import os
 import tempfile
+import threading
 import unittest
 
 import evaluation_reviews as er
@@ -113,6 +114,34 @@ class SubmitTests(unittest.TestCase):
             sess2 = _mk(d)
             with self.assertRaises(er.ReviewError):
                 er.submit(d, "voice_x", sess2["session_id"], "A", _fp(), rating=9)
+
+    def test_concurrent_double_submit_records_exactly_once(self):
+        # A double-click (two submits for one session) must produce ONE record,
+        # not two. The pending session is the atomic single-use claim.
+        with tempfile.TemporaryDirectory() as d:
+            sess = _mk(d)
+            successes, errors = [], []
+            barrier = threading.Barrier(8)
+
+            def worker():
+                barrier.wait()  # release all threads together to maximize overlap
+                try:
+                    er.submit(d, "voice_x", sess["session_id"], "A", _fp())
+                    successes.append(1)
+                except er.ReviewError:
+                    errors.append(1)
+
+            threads = [threading.Thread(target=worker) for _ in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            self.assertEqual(1, sum(successes))
+            self.assertEqual(7, sum(errors))
+            self.assertEqual(1, len(er.list_reviews(d, "voice_x")))
+            # Session consumed exactly once.
+            self.assertFalse(os.path.exists(er._session_path(d, sess["session_id"])))
 
     def test_notes_are_clamped_and_unicode_preserved(self):
         with tempfile.TemporaryDirectory() as d:

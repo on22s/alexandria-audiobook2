@@ -11,6 +11,7 @@ from core import (
     CLONE_VOICES_DIR,
     DATASET_BUILDER_DIR,
     DESIGNED_VOICES_DIR,
+    EVALUATION_REVIEWS_DIR,
     LORA_MODELS_DIR,
     RUN_HISTORY_DIR,
     STATIC_DIR,
@@ -19,6 +20,7 @@ from core import (
 )
 from utils import check_basic_auth
 from run_history import mark_interrupted_runs
+import evaluation_reviews
 
 
 # Setup logging
@@ -49,6 +51,11 @@ async def lifespan(_app):
     interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
     if interrupted:
         logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
+    # Clear blind-review sessions abandoned by a prior process; otherwise they
+    # only get pruned when the next session is opened.
+    pruned = evaluation_reviews.prune_sessions(EVALUATION_REVIEWS_DIR)
+    if pruned:
+        logger.info("Pruned %d abandoned review session(s)", len(pruned))
     yield
 
 

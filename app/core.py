@@ -139,6 +139,9 @@ CHARACTER_ALIASES_PATH = os.path.join(DATA_DIR, "character_aliases.json")
 REPORTS_DIR = os.path.join(DATA_DIR, "reports")
 API_LOG_DIR = os.path.join(DATA_DIR, "logs", "api")
 RUN_HISTORY_DIR = os.path.join(DATA_DIR, "run_history")
+# Human evaluation-review history + pending blind sessions (Phase 6). Defined
+# here so both routers/lora.py and app.py's startup prune use one path.
+EVALUATION_REVIEWS_DIR = os.path.join(DATA_DIR, "evaluation_reviews")
 os.makedirs(API_LOG_DIR, exist_ok=True)
 
 

@@ -171,6 +171,37 @@ class ReviewAudioProxyTests(unittest.TestCase):
                 with self.assertRaises(HTTPException):
                     lora._serve_review_audio("voice", evil["session_id"], "A", "probe_0")
 
+    def test_proxy_serves_distinct_blind_samples_over_http(self):
+        from unittest import mock
+        from fastapi.testclient import TestClient
+        import app as app_module
+        with tempfile.TemporaryDirectory() as models, tempfile.TemporaryDirectory() as reviews:
+            _build_evaluated_adapter(models)
+            comparison, prod, cand = lora._load_candidate_comparison_full(
+                "voice", models, manifest_path=os.path.join(models, "manifest.json"))
+            audio_by_role = {
+                "production": lora._role_audio_paths(prod, os.path.join(models, "voice")),
+                "candidate": lora._role_audio_paths(
+                    cand, os.path.join(models, "voice", "candidates", "cand1")),
+            }
+            with mock.patch.object(lora, "EVALUATION_REVIEWS_DIR", reviews), \
+                 mock.patch.object(lora, "LORA_MODELS_DIR", models):
+                sess = er.create_session(reviews, "voice", "cand1",
+                                         er.evidence_fingerprint(prod, cand),
+                                         comparison["probe_pairs"], audio_by_role)
+                sid = sess["session_id"]
+                client = TestClient(app_module.app)
+                base = f"/api/lora/models/voice/review/session/{sid}/audio"
+                resp_a = client.get(f"{base}/A/probe_0")
+                resp_b = client.get(f"{base}/B/probe_0")
+                self.assertEqual(200, resp_a.status_code)
+                self.assertEqual(200, resp_b.status_code)
+                # A and B stream different real files (one production, one candidate).
+                self.assertNotEqual(resp_a.content, resp_b.content)
+                # Unknown label and unknown probe are 404s, not leaks.
+                self.assertEqual(404, client.get(f"{base}/C/probe_0").status_code)
+                self.assertEqual(404, client.get(f"{base}/A/nope").status_code)
+
 
 if __name__ == "__main__":
     unittest.main()

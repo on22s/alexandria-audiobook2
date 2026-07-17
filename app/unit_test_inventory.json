@@ -77,6 +77,7 @@
     "test_evaluation_reviews.SafetyTests.test_module_cannot_promote_or_touch_manifest",
     "test_evaluation_reviews.SafetyTests.test_prune_removes_only_aged_sessions",
     "test_evaluation_reviews.SubmitTests.test_choice_resolves_to_the_hidden_role",
+    "test_evaluation_reviews.SubmitTests.test_concurrent_double_submit_records_exactly_once",
     "test_evaluation_reviews.SubmitTests.test_invalid_choice_and_rating_are_rejected",
     "test_evaluation_reviews.SubmitTests.test_notes_are_clamped_and_unicode_preserved",
     "test_evaluation_reviews.SubmitTests.test_stale_evidence_is_rejected_and_writes_no_record",
@@ -214,6 +215,7 @@
     "test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"
   ],
   "test_lora_review_integration": [
+    "test_lora_review_integration.ReviewAudioProxyTests.test_proxy_serves_distinct_blind_samples_over_http",
     "test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",
     "test_lora_review_integration.ReviewIntegrationTests.test_full_blind_review_flow_over_real_evidence",
     "test_lora_review_integration.ReviewIntegrationTests.test_mutated_checkpoint_rejects_a_stale_submission"
@@ -259,6 +261,7 @@
   ],
   "test_runtime_regressions": [
     "test_runtime_regressions.RuntimeTests.test_app_import_does_not_run_stuck_chunk_recovery",
+    "test_runtime_regressions.RuntimeTests.test_app_lifespan_prunes_abandoned_review_sessions",
     "test_runtime_regressions.RuntimeTests.test_app_lifespan_runs_stuck_chunk_recovery_once",
     "test_runtime_regressions.RuntimeTests.test_batch_estimate_uses_configured_max_new_tokens",
     "test_runtime_regressions.RuntimeTests.test_builtin_manifest_normalization_skips_bad_entries",

@@ -18,7 +18,7 @@ from archive_utils import validate_zip_members
 
 from core import (
     BUILTIN_LORA_DIR,
-    DATA_DIR,
+    EVALUATION_REVIEWS_DIR,
     LORA_DATASETS_DIR,
     LORA_MODELS_DIR,
     LORA_MODELS_MANIFEST,
@@ -50,9 +50,6 @@ import evaluation_reviews
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
-
-# Human evaluation-review history + pending blind sessions (Phase 6).
-EVALUATION_REVIEWS_DIR = os.path.join(DATA_DIR, "evaluation_reviews")
 
 
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
