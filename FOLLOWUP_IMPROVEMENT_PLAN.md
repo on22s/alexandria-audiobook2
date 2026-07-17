@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–7 complete; Phase 8 pending**
+Status: **approved — all 8 phases complete**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -37,7 +37,7 @@ checkpoint, retry, or recovery safety nets.
 | 5 | Sanitized diagnostics export | Complete | #155 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
 | 6 | Evaluation history and human review | Complete | #156 | Evidence-bound append-only reviews, true blind A/B proxy, stale rejection, 346 unit tests |
 | 7 | Stale-browser build detection | Complete | #157 | Serve-time build stamp, poll-piggybacked banner, no new timer, no auto-refresh |
-| 8 | Launcher supervisor integration tests | Pending | — | — |
+| 8 | Launcher supervisor integration tests | Complete | #158 | Behavioral harness parses start.js regexes; success/failure/clean-exit; no ports bound |
 
 Allowed status values: `Pending`, `In progress`, `Blocked`, `Complete`.
 
@@ -449,6 +449,33 @@ Verification:
 
 ## Phase 8 — Launcher supervisor integration tests
 
+Status: `Complete`
+Branch / PR: `agent/voicelab-launcher-harness` / #158 (based on main)
+Completed: Added `test_launcher_supervisor.py`, a behavioral harness that parses
+the two readiness/failure regexes directly out of `start.js` (so it can never
+drift from the launcher), spawns throwaway `python -c` fake servers emitting each
+signal, and asserts the supervisor outcome per scenario.
+Verified behavior: Healthy uvicorn output captures the URL verbatim (including a
+dynamic `{{port}}` value); import failure, `ImportError`, traceback, FastAPI
+`Application startup failed`, and address-already-in-use each break; an early
+clean exit yields no URL and — critically — is NOT reported as a failure. Healthy
+lines (notably `Application startup complete.`) never trip the failure signal, and
+the two signals are mutually exclusive on a URL line. The launcher structure lock
+(daemon, `path: "app"`, `{{port}}`, `done: true`, `local.set` url from
+`input.event[1]`, `break: true`) remains asserted by the existing
+`test_launcher_contracts_*` string test, which this complements rather than
+duplicates (Rule 15).
+Tests run (including skips): 11 new harness tests pass. Release verifier passed:
+373 unit tests, quick API 70 passed / 0 failed / 12 skipped. Unit-test inventory
+regenerated; API contract unchanged (no new routes). The fake servers bind no
+ports, import nothing from the app, and start no second Alexandria server.
+Real artifacts or reports: none beyond code.
+Deviations / discoveries: The harness converts each JS regex literal to a Python
+pattern (collapse doubled backslashes, strip `/…/flags`, map `i`→IGNORECASE) so it
+exercises the exact patterns Pinokio compiles rather than a re-typed copy.
+Remaining: Merge #158 into main.
+Next action: None — this is the final phase; on merge the program is complete.
+
 Purpose: verify real Pinokio-style readiness and failure parsing rather than
 only checking launcher source strings.
 
@@ -514,3 +541,15 @@ Next action:
 - Diagnostics are demonstrably sanitized and bounded.
 - No active recovery journal, temporary validation process, or uncommitted
   project change remains.
+
+### Completion status (2026-07-17)
+
+All eight phases are `Complete`. PRs #150–#157 are merged to `main`; #158 (Phase 8)
+is the last open PR. `main` passes the release verifier at 373 unit tests and the
+quick API suite (70 passed / 12 full-mode GPU/TTS/LLM skipped by design).
+Phase 1 retained `VOICE_LAB_VALIDATION_2026-07-17.md` from a real RX 9070 XT ROCm
+run; Phase 5 diagnostics are sanitized and bounded with dedicated redaction tests.
+Note the mid-program process fix: PR #154 (Phase 5) was accidentally stacked on the
+Phase 4 branch and merged onto it instead of `main`; it was re-based onto `main`
+and re-merged as #155. Every later phase PR is based directly on `main`. On merge
+of #158 the program is complete.
