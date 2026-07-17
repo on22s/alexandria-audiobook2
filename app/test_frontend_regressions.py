@@ -95,6 +95,10 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("min_chunk_duration: getNumFieldValue('prep-min-chunk-duration', 2)", html)
         self.assertIn("id=\"btn-lora-cancel\"", html)
         self.assertIn("/api/lora/train/cancel", html)
+        self.assertIn("promoteLoraCandidate", html)
+        self.assertIn("/promote`, {}", html)
+        self.assertIn("rollbackLoraPromotion", html)
+        self.assertIn("/rollback-promotion`, {}", html)
         self.assertNotIn("id=\"prep-skip-annotation\"", html)
 
     def test_frontend_renders_config_warnings_as_text_and_refreshes_after_save(self):

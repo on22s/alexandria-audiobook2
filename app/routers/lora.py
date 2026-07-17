@@ -37,7 +37,7 @@ from hf_utils import (
     fetch_builtin_manifest,
     is_adapter_downloaded,
 )
-from utils import get_unique_id, is_path_inside, secure_filename
+from utils import file_lock, get_unique_id, is_path_inside, secure_filename
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -69,6 +69,81 @@ class LoraTestRequest(BaseModel):
     adapter_id: str
     text: str
     instruct: str = ""
+
+
+PROMOTION_FILES = ("adapter_config.json", "adapter_model.safetensors", "README.md",
+                   "ref_sample.wav", "training_meta.json")
+
+
+def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
+    os.makedirs(destination_dir, exist_ok=True)
+    for filename in PROMOTION_FILES:
+        source = os.path.join(source_dir, filename)
+        if not os.path.isfile(source):
+            raise FileNotFoundError(f"Candidate is incomplete: missing {filename}")
+        shutil.copy2(source, os.path.join(destination_dir, filename))
+
+
+def _promote_lora_candidate(adapter_id: str, models_dir: str,
+                            manifest_path: str) -> dict:
+    adapter_dir = _safe_subpath(models_dir, adapter_id)
+    with file_lock(manifest_path):
+        manifest = _load_manifest(manifest_path)
+        entry = next((item for item in manifest if item.get("id") == adapter_id), None)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Adapter not found")
+        recommended = (entry.get("evaluation") or {}).get("recommended_candidate")
+        if not recommended or recommended == "production":
+            raise HTTPException(status_code=409, detail="No retained candidate is recommended")
+        candidate_dir = _safe_subpath(os.path.join(adapter_dir, "candidates"), recommended)
+        if not os.path.isdir(candidate_dir):
+            raise HTTPException(status_code=409, detail="Recommended candidate is no longer available")
+
+        promotion_id = f"{int(time.time())}-{recommended}"
+        backup_dir = os.path.join(adapter_dir, "promotion_backups", promotion_id)
+        staging_dir = os.path.join(adapter_dir, ".promotion_staging")
+        try:
+            _copy_promotion_files(adapter_dir, backup_dir)
+            _copy_promotion_files(candidate_dir, staging_dir)
+            for filename in PROMOTION_FILES:
+                os.replace(os.path.join(staging_dir, filename), os.path.join(adapter_dir, filename))
+        except Exception:
+            if os.path.isdir(backup_dir):
+                for filename in PROMOTION_FILES:
+                    backup = os.path.join(backup_dir, filename)
+                    if os.path.isfile(backup):
+                        shutil.copy2(backup, os.path.join(adapter_dir, filename))
+            raise
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+        shutil.rmtree(candidate_dir)
+        entry["evaluation_candidates"] = []
+        entry["evaluation"]["recommended_candidate"] = "production"
+        entry["promotion"] = {
+            "status": "promoted", "candidate": recommended,
+            "backup_id": promotion_id, "promoted_at": time.time(),
+        }
+        _save_manifest(manifest_path, manifest)
+    return entry["promotion"]
+
+
+def _rollback_lora_promotion(adapter_id: str, models_dir: str,
+                             manifest_path: str) -> dict:
+    adapter_dir = _safe_subpath(models_dir, adapter_id)
+    with file_lock(manifest_path):
+        manifest = _load_manifest(manifest_path)
+        entry = next((item for item in manifest if item.get("id") == adapter_id), None)
+        promotion = (entry or {}).get("promotion") or {}
+        if promotion.get("status") != "promoted":
+            raise HTTPException(status_code=409, detail="No promotion is available to roll back")
+        backup_dir = _safe_subpath(os.path.join(adapter_dir, "promotion_backups"),
+                                   promotion.get("backup_id", ""))
+        _copy_promotion_files(backup_dir, adapter_dir)
+        promotion["status"] = "rolled_back"
+        promotion["rolled_back_at"] = time.time()
+        _save_manifest(manifest_path, manifest)
+    return promotion
 
 
 ## ── LoRA Training ──────────────────────────────────────────────
@@ -332,6 +407,30 @@ async def lora_list_models():
         preview_path = os.path.join(adapter_dir, "preview_sample.wav")
         m["preview_audio_url"] = f"{url_prefix}/preview_sample.wav" if os.path.exists(preview_path) else None
     return models
+
+
+@router.post("/api/lora/models/{adapter_id}/promote")
+async def lora_promote_candidate(adapter_id: str):
+    """Promote the evaluated recommendation while preserving production for rollback."""
+    check_global_gpu_lock("lora_training")
+    result = await asyncio.to_thread(
+        _promote_lora_candidate, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    project_manager.engine = None
+    gc.collect()
+    logger.info("LoRA candidate promoted: %s <- %s", adapter_id, result["candidate"])
+    return {"status": "promoted", "adapter_id": adapter_id, "promotion": result}
+
+
+@router.post("/api/lora/models/{adapter_id}/rollback-promotion")
+async def lora_rollback_promotion(adapter_id: str):
+    """Restore the production checkpoint preserved by the last promotion."""
+    check_global_gpu_lock("lora_training")
+    result = await asyncio.to_thread(
+        _rollback_lora_promotion, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    project_manager.engine = None
+    gc.collect()
+    logger.info("LoRA promotion rolled back: %s", adapter_id)
+    return {"status": "rolled_back", "adapter_id": adapter_id, "promotion": result}
 
 @router.delete("/api/lora/models/{adapter_id}")
 async def lora_delete_model(adapter_id: str):

@@ -28,6 +28,16 @@ PROBES = (
     ("narration", "The ancient library stood quietly beneath a sky filled with stars."),
     ("dialogue", "I understand the danger, but we cannot abandon them now."),
 )
+EVALUATION_SEED = 20260717
+
+
+def apply_evaluation_seed(seed: int) -> None:
+    import torch
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 THRESHOLDS = {
     "speaker_similarity_min": 0.55,
     "silence_ratio_max": 0.35,
@@ -102,7 +112,9 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
         raise FileNotFoundError(f"missing ref_sample.wav for {adapter_id}")
 
     probe_results = []
-    for probe_id, text in PROBES:
+    for probe_index, (probe_id, text) in enumerate(PROBES):
+        probe_seed = EVALUATION_SEED + probe_index
+        apply_evaluation_seed(probe_seed)
         filename = f"evaluation_{probe_id}.wav"
         output_path = os.path.join(adapter_dir, filename)
         generated = engine.generate_voice(
@@ -119,7 +131,7 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
             embedding_model, reference_path, output_path, device)
         warnings = get_warnings(metrics)
         probe_results.append({
-            "id": probe_id, "text": text, "audio_file": filename,
+            "id": probe_id, "text": text, "audio_file": filename, "seed": probe_seed,
             "metrics": metrics, "warnings": warnings,
         })
 
