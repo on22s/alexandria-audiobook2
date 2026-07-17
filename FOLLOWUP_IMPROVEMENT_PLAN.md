@@ -30,7 +30,7 @@ checkpoint, retry, or recovery safety nets.
 
 | Phase | Work | Status | PR | Verification |
 |---|---|---|---|---|
-| 1 | Real end-to-end Voice Lab validation | Complete | — | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
+| 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Pending | — | — |
 | 3 | Persistent pipeline run summaries | Pending | — | — |
 | 4 | Pipeline health dashboard | Pending | — | — |
@@ -44,7 +44,7 @@ Allowed status values: `Pending`, `In progress`, `Blocked`, `Complete`.
 ## Phase 1 — Real end-to-end Voice Lab validation
 
 Status: `Complete`
-Branch / PR: `agent/real-voicelab-validation` / —  
+Branch / PR: `agent/real-voicelab-validation` / #150
 Completed: Validated dedup, isolated one- and two-epoch training, production and
 candidate evaluation, paired probe audio, evidence hashes, promotion, rollback,
 and release gates on the configured ROCm GPU.
