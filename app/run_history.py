@@ -28,6 +28,16 @@ def start_run(history_dir, task_name):
     return run_id
 
 
+def update_run(history_dir, run_id, updates):
+    """Atomically merge bounded task-specific summary fields into one run."""
+    record = get_run(history_dir, run_id)
+    if record is None:
+        raise FileNotFoundError(f"Run history record not found: {run_id}")
+    record = {**record, **updates}
+    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
+    return record
+
+
 def finish_run(history_dir, run_id, status, error=None):
     """Finish an existing task record without changing its identity/start time."""
     safe_id = secure_filename(run_id)
@@ -100,3 +110,45 @@ def list_runs(history_dir, limit=100):
             records.append(record)
     records.sort(key=lambda item: item.get("started_at", ""), reverse=True)
     return records[:max(1, min(int(limit), 500))]
+
+
+def mark_interrupted_runs(history_dir):
+    """Mark records left running by a prior server process as interrupted."""
+    changed = []
+    for record in list_runs(history_dir, limit=500):
+        if record.get("status") != "running":
+            continue
+        changed.append(update_run(history_dir, record["id"], {
+            "status": "interrupted", "finished_at": _utc_now(),
+            "error": "Server stopped before the run completed.",
+            "next_action": "Review the last completed stage and start a new run.",
+        }))
+    return changed
+
+
+def prune_runs(history_dir, max_count=200, max_age_days=90):
+    """Delete expired/excess records while preserving active and newest failed runs."""
+    records = list_runs(history_dir, limit=500)
+    newest_failed = next((item["id"] for item in records
+                          if item.get("status") in ("failed", "interrupted")), None)
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)
+    removed = []
+    kept_finished = 0
+    for record in records:
+        protected = record.get("status") == "running" or record.get("id") == newest_failed
+        try:
+            started = datetime.datetime.fromisoformat(record.get("started_at", ""))
+        except (TypeError, ValueError):
+            started = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        expired = started < cutoff
+        excessive = kept_finished >= max_count
+        if not protected and (expired or excessive):
+            path = os.path.join(history_dir, f"{record['id']}.json")
+            try:
+                os.unlink(path)
+                removed.append(record["id"])
+            except OSError:
+                pass
+        elif not protected:
+            kept_finished += 1
+    return removed

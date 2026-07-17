@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import csv
 import importlib.util
 import json
@@ -386,6 +387,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                        "epub_dirs": [], "zips_dir": tmp}
                 background = BackgroundTasks()
                 streamed = []
+                persisted = []
 
                 def fake_stream(command, cwd, state, **kwargs):
                     streamed.append(command)
@@ -403,12 +405,21 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                                   return_value=None) as revalidate, \
                      patch.object(voicelab, "_run_profiler_preflight", return_value={}), \
                      patch.object(voicelab, "_init_task_log", return_value=None), \
+                     patch.object(voicelab, "_persist_voicelab_run",
+                                  side_effect=lambda run_id, update:
+                                  persisted.append((run_id, copy.deepcopy(update)))), \
                      patch.object(voicelab, "_stream_subprocess_to_logs", side_effect=fake_stream):
                     asyncio.run(voicelab.voicelab_start(request, background))
                     task = background.tasks[0]
                     task.func(*task.args, **task.kwargs)
 
                 self.assertEqual(1, len(streamed))
+                persisted_stage_states = [
+                    update["stages"][0]["status"]
+                    for _run_id, update in persisted
+                    if update.get("stages")]
+                self.assertIn("running", persisted_stage_states)
+                self.assertIn("completed", persisted_stage_states)
                 self.assertEqual([stage], revalidate.call_args.args[3])
                 expected_script_token = "audit_voice_datasets" if stage == "quality" else stage
                 self.assertIn(expected_script_token, os.path.basename(streamed[0][2]))

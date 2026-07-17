@@ -6,6 +6,8 @@ import hashlib
 import shutil
 import subprocess
 import sys
+import datetime
+import time
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -19,6 +21,7 @@ from core import (
     LORA_MODELS_DIR,
     LORA_MODELS_MANIFEST,
     ROOT_DIR,
+    RUN_HISTORY_DIR,
     VOICELAB_CONFIG_PATH,
     VOICELAB_DEFAULTS,
     _batch_cancel_helper,
@@ -39,6 +42,8 @@ from core import (
 from device_utils import normalize_device
 from utils import atomic_json_write, safe_load_json
 from voicelab_settings import get_profiler_paths
+from run_history import update_run
+from runtime_info import get_runtime_info
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -262,6 +267,16 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
             "outputs": {"datasets": "LoRA datasets library", "models": "LoRA models library",
                         "manifest": "LoRA model manifest"},
             "_zips_dir": zips_dir, "_profiler_model": profiler_model}
+
+
+def _persist_voicelab_run(run_id: Optional[str], updates: dict) -> None:
+    """Best-effort durable summary updates must never stop the pipeline."""
+    if not run_id:
+        return
+    try:
+        update_run(RUN_HISTORY_DIR, run_id, updates)
+    except Exception:
+        logger.exception("Could not update Voice Lab run summary %s", run_id)
 
 
 @router.post("/api/voicelab/preflight")
@@ -534,6 +549,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
 
     def _run():
         state = process_state["voicelab"]
+        run_id = state.get("run_id")
         _init_batch_state(state,
                           [f"Voice Lab: {len(steps)} stage(s) — {', '.join(s[0] for s in steps)}"],
                           [{"name": s[0], "status": "pending"} for s in steps])
@@ -542,6 +558,21 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         state["pid"] = None
 
         log_path = _init_task_log("voicelab", extra_header=f"# zips_dir={zips_dir}\n")
+        sanitized_preflight = {key: value for key, value in preflight.items()
+                               if not key.startswith("_")}
+        request_summary = request.model_dump(exclude={"preflight_id", "zips_dir"})
+        stage_records = [{"name": stage, "status": "pending", "started_at": None,
+                          "finished_at": None, "duration_seconds": None,
+                          "exit_status": None, "failure": None}
+                         for stage, _cmd, _cwd, _env in steps]
+        _persist_voicelab_run(run_id, {
+            "request": request_summary, "preflight": sanitized_preflight,
+            "build": get_runtime_info(ROOT_DIR), "stages": stage_records,
+            "log": os.path.relpath(log_path, DATA_DIR) if log_path else None,
+            "datasets": sanitized_preflight.get("dataset", {}),
+            "adapters_before": len(_load_manifest(LORA_MODELS_MANIFEST)),
+            "next_action": "Wait for the current stage to finish.",
+        })
 
         failed = False
         for i, (stage, cmd, cwd, env) in enumerate(steps):
@@ -551,6 +582,12 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             state["current_task_idx"] = i
             state["tasks"][i]["status"] = "running"
             state["logs"].append(f"--- [{i+1}/{len(steps)}] {stage} ---")
+            stage_started = time.monotonic()
+            stage_records[i] = {**stage_records[i], "status": "running",
+                                "started_at": datetime.datetime.now(
+                                    datetime.timezone.utc).isoformat()}
+            _persist_voicelab_run(run_id, {"stages": stage_records,
+                                           "next_action": f"Wait for {stage} to finish."})
 
             # Each earlier stage may run for hours. Recheck immediately before
             # this subprocess, not only when the background pipeline begins.
@@ -559,6 +596,13 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             if error:
                 state["logs"].append(f"[{stage}] aborted: {error.detail}")
                 state["tasks"][i]["status"] = "failed"
+                stage_records[i] = {**stage_records[i], "status": "failed",
+                                    "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    "duration_seconds": round(time.monotonic() - stage_started, 3),
+                                    "failure": {"type": "prerequisite_changed",
+                                                "message": str(error.detail)}}
+                _persist_voicelab_run(run_id, {"stages": stage_records,
+                                               "next_action": "Correct the changed prerequisite and start a new run."})
                 failed = True
                 break
 
@@ -567,17 +611,43 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
             except Exception as e:
                 state["logs"].append(f"[{stage}] error launching: {e}")
                 state["tasks"][i]["status"] = "failed"
+                stage_records[i] = {**stage_records[i], "status": "failed",
+                                    "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    "duration_seconds": round(time.monotonic() - stage_started, 3),
+                                    "failure": {"type": "launch_error", "message": str(e)}}
+                _persist_voicelab_run(run_id, {"stages": stage_records,
+                                               "next_action": "Review the stage log and retry after correcting the launch error."})
                 failed = True
                 break
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"
+                stage_records[i] = {**stage_records[i], "status": "cancelled",
+                                    "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    "duration_seconds": round(time.monotonic() - stage_started, 3),
+                                    "exit_status": rc, "failure": {"type": "cancelled"}}
+                _persist_voicelab_run(run_id, {"stages": stage_records,
+                                               "next_action": "Review partial outputs before starting another run."})
                 break
             if rc == 0:
                 state["tasks"][i]["status"] = "done"
+                stage_records[i] = {**stage_records[i], "status": "completed",
+                                    "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    "duration_seconds": round(time.monotonic() - stage_started, 3),
+                                    "exit_status": 0}
+                _persist_voicelab_run(run_id, {"stages": stage_records,
+                                               "adapters_current": len(_load_manifest(LORA_MODELS_MANIFEST)),
+                                               "next_action": "Continue to the next stage."})
             else:
                 state["tasks"][i]["status"] = "failed"
                 state["logs"].append(f"[{stage}] failed (exit {rc}) — stopping pipeline.")
+                stage_records[i] = {**stage_records[i], "status": "failed",
+                                    "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    "duration_seconds": round(time.monotonic() - stage_started, 3),
+                                    "exit_status": rc,
+                                    "failure": {"type": "nonzero_exit", "exit_status": rc}}
+                _persist_voicelab_run(run_id, {"stages": stage_records,
+                                               "next_action": f"Review the {stage} log and retry from that stage."})
                 failed = True
                 break  # later stages depend on earlier ones; don't continue on failure
 
@@ -586,11 +656,22 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         state["running"] = False
         if state.get("cancel"):
             state["status"] = "cancelled"
+            _persist_voicelab_run(run_id, {
+                "adapters_after": len(_load_manifest(LORA_MODELS_MANIFEST)),
+                "next_action": "Review partial outputs before starting another run.",
+            })
         elif failed:
             state["status"] = "failed"
+            _persist_voicelab_run(run_id, {
+                "adapters_after": len(_load_manifest(LORA_MODELS_MANIFEST)),
+            })
         else:
             state["status"] = "done"
             state["logs"].append("Voice Lab pipeline finished.")
+            _persist_voicelab_run(run_id, {
+                "adapters_after": len(_load_manifest(LORA_MODELS_MANIFEST)),
+                "next_action": "Review generated adapters and evaluation evidence.",
+            })
 
     claim_gpu_task("voicelab")
     background_tasks.add_task(_run_claimed_background_task, "voicelab", _run)

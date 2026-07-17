@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–2 complete; Phase 3 pending**
+Status: **approved — Phases 1–3 complete; Phase 4 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -32,7 +32,7 @@ checkpoint, retry, or recovery safety nets.
 |---|---|---|---|---|
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
-| 3 | Persistent pipeline run summaries | Pending | — | — |
+| 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
 | 4 | Pipeline health dashboard | Pending | — | — |
 | 5 | Sanitized diagnostics export | Pending | — | — |
 | 6 | Evaluation history and human review | Pending | — | — |
@@ -149,6 +149,26 @@ Verification:
 - API contract snapshots and release verifier.
 
 ## Phase 3 — Persistent pipeline run summaries
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-run-summaries` / #152
+Completed: Extended the existing run-history records with atomic Voice Lab
+request, sanitized preflight, build, stage, dataset/adapter, log-reference,
+failure, duration, and next-action summaries. Added startup interruption recovery
+and deterministic count/age retention.
+Verified behavior: Stage transitions persist independently of the live
+`process_state`; startup distinguishes abandoned runs as `interrupted`; active
+runs and the newest failure survive pruning; summary-write failures preserve the
+previous valid JSON and do not stop pipeline execution.
+Tests run (including skips): Focused history/pipeline tests passed. Release
+verification passed 318 unit tests and 70 quick API checks; 12 full-mode checks
+were explicitly skipped.
+Deviations / discoveries: The generic history runner already supplied immutable
+run identities and final completed/failed/cancelled status, so Phase 3 extended
+that record rather than adding a Voice Lab-only store. Real forced process death
+was not induced; startup interruption behavior is covered with persisted records.
+Remaining: Publish and merge the Phase 3 PR.
+Next action: Commit and publish Phase 3, then build the read-only health summary.
 
 Purpose: make every Voice Lab run diagnosable after the live process ends.
 
