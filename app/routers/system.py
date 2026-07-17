@@ -45,6 +45,7 @@ from utils import (atomic_json_write, file_lock,
                    rocm_smi_utilization as _rocm_smi_utilization,
                    run_rocm_smi_json, system_has_gpu)
 from run_history import get_run, list_runs
+from runtime_info import get_runtime_info
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -222,6 +223,7 @@ def get_system_stats():
         gpu_mismatch = has_gpu
 
     return {
+        "runtime": get_runtime_info(ROOT_DIR),
         "gpu": gpu,
         "gpu_name": gpu_name,
         "gpu_mismatch": gpu_mismatch,

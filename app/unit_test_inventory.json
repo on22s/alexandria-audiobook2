@@ -78,6 +78,7 @@
     "test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion",
     "test_frontend_regressions.FrontendTests.test_lora_candidate_lifecycle_summary_is_rendered",
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
+    "test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy"
   ],
   "test_integration_corpus": [
@@ -205,6 +206,11 @@
     "test_run_history.RunHistoryTests.test_invalid_run_id_cannot_escape_history_directory",
     "test_run_history.RunHistoryTests.test_run_lifecycle_is_persisted",
     "test_run_history.RunHistoryTests.test_shared_runner_records_failure_and_releases_task"
+  ],
+  "test_runtime_info": [
+    "test_runtime_info.RuntimeInfoTests.test_environment_revision_overrides_git_and_missing_packages_are_explicit",
+    "test_runtime_info.RuntimeInfoTests.test_runtime_info_reads_git_metadata_and_versions_without_importing_packages",
+    "test_runtime_info.RuntimeInfoTests.test_worktree_gitdir_marker_is_resolved"
   ],
   "test_runtime_regressions": [
     "test_runtime_regressions.RuntimeTests.test_app_import_does_not_run_stuck_chunk_recovery",

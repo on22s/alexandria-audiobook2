@@ -484,6 +484,7 @@
                         </button>
                     </li>
                     <li class="nav-item small d-flex align-items-center" title="System Status">
+                        <span id="sys-build" class="text-light d-flex align-items-center me-3" title="Runtime build"><i class="fas fa-code-branch me-1 text-secondary"></i><span id="sys-build-val" style="font-family: monospace;">build ?</span></span>
                         <span id="sys-eta" class="text-light align-items-center me-3" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span id="sys-eta-val" style="font-family: monospace;"></span></span>
                         <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span id="sys-gpu-val" style="font-family: monospace;">N/A</span></span>
                         <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span id="sys-disk-val" style="font-family: monospace;">N/A</span></span>
@@ -6575,9 +6576,24 @@
             try {
                 const stats = await API.get('/api/system/stats');
                 const gpuEl = document.getElementById('sys-gpu-val');
+                const buildEl = document.getElementById('sys-build-val');
+                const buildWrap = document.getElementById('sys-build');
                 const gpuWrap = document.getElementById('sys-gpu');
                 const diskEl = document.getElementById('sys-disk-val');
                 const diskWrap = document.getElementById('sys-disk');
+
+                const runtime = stats.runtime || {};
+                buildEl.textContent = runtime.short_revision ? `build ${runtime.short_revision}` : 'build unknown';
+                const packageVersions = Object.entries(runtime.packages || {})
+                    .filter(item => item[1])
+                    .map(item => `${item[0]} ${item[1]}`)
+                    .join(', ');
+                buildWrap.title = [
+                    runtime.revision ? `Revision: ${runtime.revision}` : 'Revision unavailable',
+                    runtime.branch ? `Branch: ${runtime.branch}` : '',
+                    runtime.python ? `Python ${runtime.python}` : '',
+                    packageVersions,
+                ].filter(Boolean).join('\n');
 
                 if (stats.gpu_mismatch) {
                     // A GPU is physically present but torch can't use it - everything
