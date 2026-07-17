@@ -19,7 +19,8 @@
   ],
   "test_batch_script_concurrency": [
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_serializes_when_per_slot_context_is_too_small",
-    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits"
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits",
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
   ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",

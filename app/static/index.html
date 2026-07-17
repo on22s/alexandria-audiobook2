@@ -2908,8 +2908,29 @@
                     return { filename: res.stored_filename || res.filename };
                 }));
 
-                statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
                 const collisionPolicy = document.getElementById('script-collision-policy').value;
+                const preflight = await API.post('/api/generate_script/batch/preflight', {
+                    tasks, collision_policy: collisionPolicy
+                });
+                const scripts = [...new Set(preflight.books.flatMap(book => book.scripts))];
+                const fallback = preflight.fallback_reason
+                    ? `\nSafety adjustment: ${preflight.fallback_reason}` : '';
+                const approved = await showConfirm(
+                    `Batch preflight (${preflight.book_count} book${preflight.book_count === 1 ? '' : 's'}):\n` +
+                    `Concurrency: ${preflight.workers} (LM Studio loaded for ${preflight.loaded_parallel})\n` +
+                    `Context per worker: ${preflight.per_slot_context.toLocaleString()} tokens\n` +
+                    `Largest predicted request: ${preflight.worst_request_tokens.toLocaleString()} tokens\n` +
+                    `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`
+                );
+                if (!approved) {
+                    statusMsg.innerHTML = '<span class="text-muted">Batch cancelled after preflight.</span>';
+                    btn.disabled = false;
+                    pauseBtn.style.display = 'none';
+                    document.getElementById('btn-cancel-batch-script').style.display = 'none';
+                    return;
+                }
+
+                statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
                 await API.post('/api/generate_script/batch/start', {
                     tasks, collision_policy: collisionPolicy
                 });
