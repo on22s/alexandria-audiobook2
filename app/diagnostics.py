@@ -40,6 +40,22 @@ _URL_CREDENTIALS = re.compile(r"([a-zA-Z][a-zA-Z0-9+.\-]*://)[^/\s:@]+:[^/\s@]+@
 _INLINE_CREDENTIAL = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret|authorization|bearer)(\s*[=:]\s*)"
     r"([^\s,;]+)")
+# Bare secret tokens by their well-known *shape*, so a credential stored as a
+# plain string value under an innocent key name is still scrubbed. Deliberately
+# format-based (not "any long string"): the bundle intentionally surfaces git
+# revisions and sha256 evidence hashes, which are pure hex and must NOT be
+# mistaken for secrets. Residual limitation: an unformatted opaque secret with no
+# recognizable prefix under an innocent key can still pass — the config summary
+# is whitelisted precisely so real credentials never reach this text path.
+_SECRET_TOKENS = re.compile(
+    r"\b("
+    r"sk-[A-Za-z0-9_-]{16,}"                            # OpenAI / Anthropic
+    r"|(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{16,}"       # GitHub PATs
+    r"|xox[baprs]-[A-Za-z0-9-]{10,}"                     # Slack
+    r"|AKIA[0-9A-Z]{16}"                                 # AWS access key id
+    r"|eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"  # JWT
+    r")\b")
+_BEARER_TOKEN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")
 # Common home-directory shapes across platforms.
 _HOME_PATTERNS = (
     re.compile(r"/home/[^/\s]+"),
@@ -64,6 +80,11 @@ def redact_text(value, home_dir=None):
     for pattern in _HOME_PATTERNS:
         result = pattern.sub("~", result)
     result = _URL_CREDENTIALS.sub(r"\1" + REDACTED + "@", result)
+    # Bearer/token-shape scrubbing runs BEFORE the inline key=value rule: for
+    # "Authorization: Bearer <tok>" the inline rule would otherwise treat "Bearer"
+    # as the value and leave the real token exposed after it.
+    result = _BEARER_TOKEN.sub("Bearer " + REDACTED, result)
+    result = _SECRET_TOKENS.sub(REDACTED, result)
     result = _INLINE_CREDENTIAL.sub(r"\1\2" + REDACTED, result)
     if len(result) > MAX_STRING_CHARS:
         result = result[:MAX_STRING_CHARS] + STRING_TRUNCATION_MARKER
