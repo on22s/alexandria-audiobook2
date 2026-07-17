@@ -59,6 +59,66 @@ less than 1×.
 
 Rent Thunder for **VRAM headroom, CUDA, and per-token speed**. Not for fan-out.
 
+Note the bottleneck depends on the workload: LLM **review/script-gen is decode,
+which is memory-bandwidth-bound** (so a faster GPU barely helps per-token, and
+parallelism hurts — above). **LoRA training is compute-bound** (matmul/backprop),
+which is the one place raw GPU throughput genuinely buys speed. Don't apply the
+"faster GPU barely helps" lesson to training — it's a different bottleneck.
+
+---
+
+## Case study: Voice Lab — estimated, and keep it local anyway
+
+*(This section is reasoned from specs, **not benchmarked** like §4. Treat the
+numbers as order-of-magnitude.)*
+
+Voice Lab (dataset ZIPs → dedup → train → profile → name → named LoRA voices) is
+the **clearest keep-local case in the project**, for three structural reasons:
+
+1. **It's a ROCm pipeline; Thunder is CUDA.** Every stage runs locally on the
+   9070 XT via the configured `rocm_python` interpreter. Going remote isn't a
+   toggle — it's re-provisioning a whole CUDA ML environment.
+2. **There is no remote plumbing for it.** The app's Local/Remote switch only
+   repoints the *LM Studio LLM endpoint*. Voice Lab stages run as local
+   subprocesses under the shared GPU lock — nothing routes them off-box.
+3. **Amdahl's law.** Only one of the four stages is the kind of work a faster
+   GPU accelerates.
+
+| Stage | Bottleneck | Remote benefit |
+|---|---|---|
+| **Dedup** | speechbrain embeds (GPU) + umap (CPU) | small — and *pins you local*: `voice_analysis.py` needs speechbrain/umap/matplotlib/seaborn, only in the sibling `alexandria-audiobook.git/app/env`. |
+| **Train** | LoRA matmul/backprop — **compute-bound** | the only real win. `batch_train_lora.py` has no top-level third-party imports, so it's the one portable stage. |
+| **Profile** | `llama_cpp` decode (**bandwidth-bound**) + acoustic feats (CPU) | small — needs the local Qwen GGUF; same "decode barely speeds up" lesson as §4. |
+| **Name** | pure stdlib | none — already instant. |
+
+**How much would it actually benefit?**
+
+- **Train on an A100:** ~2–3× the local card on paper. But LoRA training is
+  small-batch with heavy per-step/data-loading overhead that caps *any* GPU well
+  below peak — so realistically expect **2–4×**, and an **H100 would be only
+  marginally better than the A100** because that same overhead eats its extra
+  peak throughput. **With H100s sold out, the A100 is the right pick and you
+  lose very little.** (An A6000 would give almost nothing on Train.)
+- **A100 also helps Profile** more than an A6000 would (~2 TB/s vs ~768 GB/s ≈
+  ~3× local bandwidth vs "barely faster"), but Profile is a minor slice.
+- **End-to-end**, even a 3× Train win is diluted by the CPU/bandwidth-bound
+  stages to roughly **1.3–1.5×** — *before* subtracting overhead.
+
+**Why it's still net-negative for normal runs:** the overhead is unchanged by
+which GPU you rent — (a) shuttling GB of audio ZIPs up and adapters back, (b)
+rebuilding dedup's speechbrain/umap + profile's `llama_cpp` on CUDA per
+instance, (c) billing the whole setup+transfer time. For a small or mixed run
+that overhead **exceeds** the ~1.3–1.5× saved.
+
+**The one scenario where it pays off:** a **large standalone Train batch** —
+many narrators, dedup/profile already done locally, datasets shipped once. Then
+you skip the local-pinned stages, and the 2–4× lands on the part that dominates.
+
+**Before building any of this:** the cheap experiment is to time **one
+narrator's Train stage** locally vs. on a rented A100. That single number pins
+the real speedup; everything else is transfer/setup you can measure directly.
+Don't build the remote path on the estimates above — measure Train first.
+
 ---
 
 ## 5. Picking a GPU (real pricing, per hour)
@@ -68,8 +128,8 @@ Rent Thunder for **VRAM headroom, CUDA, and per-token speed**. Not for fan-out.
 | **a6000_x1** | **0.35** | **Default choice.** 48 GB, cheapest, benchmarked for this project's review workload. |
 | l40_x1 | 0.79 | Only if you've measured it beating the A6000 for your job. |
 | l40s | 0.99 | Same — measure first. |
-| a100xl_x1 | 1.09 | Big training runs that genuinely need it. |
-| h100_x1 | 2.19 | Rarely justified here. |
+| a100xl_x1 | 1.09 | **Best pick for a big LoRA-training batch** — compute-bound, ~2 TB/s, and in practice close to an H100 once small-batch overhead is factored in (see Voice Lab case study). |
+| h100_x1 | 2.19 | Marginally faster than the A100 for training here (overhead eats its extra peak). Often sold out — the A100 is the practical substitute. |
 | *_x2 / _x4 / _x8 | 2–23 | **Not for this project.** See §4 — you can't use the parallelism. |
 
 Storage: disk $0.0003/GB/hr, snapshots $0.00006849/GB/hr (snapshots are ~4×
