@@ -256,6 +256,10 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_voice_dataset_merge": [
+    "test_voice_dataset_merge.VoiceDatasetMergeTests.test_failed_merge_preserves_existing_destination",
+    "test_voice_dataset_merge.VoiceDatasetMergeTests.test_merge_preserves_unique_clips_provenance_and_removes_pcm_duplicates"
+  ],
   "test_voice_dataset_quality": [
     "test_voice_dataset_quality.VoiceDatasetQualityTests.test_metrics_and_warnings_detect_real_failure_modes",
     "test_voice_dataset_quality.VoiceDatasetQualityTests.test_reuse_requires_matching_source_and_thresholds",

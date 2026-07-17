@@ -18,6 +18,7 @@ APP_DIR = Path(__file__).resolve().parent / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from utils import atomic_json_write
+from voice_dataset_merge import get_file_fingerprint
 
 
 REPORT_VERSION = 1
@@ -31,18 +32,6 @@ THRESHOLDS = {
     "snr_estimate_min_db": 15.0,
     "sample_rate_min": 16000,
 }
-
-
-def get_source_fingerprint(path: Path) -> dict:
-    stat = path.stat()
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        digest.update(handle.read(1024 * 1024))
-        if stat.st_size > 2 * 1024 * 1024:
-            handle.seek(stat.st_size - 1024 * 1024)
-            digest.update(handle.read(1024 * 1024))
-    return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
-            "edge_sha256": digest.hexdigest()}
 
 
 def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
@@ -158,7 +147,7 @@ def main() -> int:
     for index, path in enumerate(zips, 1):
         identity = hashlib.sha256(str(path.relative_to(args.zips2)).encode()).hexdigest()[:16]
         report_path = output / f"{identity}.json"
-        fingerprint = get_source_fingerprint(path)
+        fingerprint = get_file_fingerprint(path)
         existing = {}
         try:
             existing = json.loads(report_path.read_text(encoding="utf-8"))

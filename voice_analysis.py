@@ -4,8 +4,8 @@ Alexandria voice analysis pipeline.
 
 Phase 1 – dedup: For each narrator subfolder in zips2/, computes pairwise
 speaker similarity between volumes and identifies duplicate voices. Produces
-per-folder heatmaps and dedup-cluster reports, and copies one representative
-zip per cluster (the largest file) into zips2/_deduped/ for the train stage.
+per-folder heatmaps and dedup-cluster reports, and merges confirmed same-speaker
+ZIPs into zips2/_deduped/ for the train stage without discarding unique clips.
 
 Phase 2 – analyze: Across all deduplicated narrators in zips2/_deduped/,
 computes cross-group speaker similarity, prosody divergence (EMD), UMAP
@@ -49,6 +49,7 @@ APP_DIR = Path(__file__).resolve().parent / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from voicelab_settings import get_deduped_zip_name
+from voice_dataset_merge import merge_voice_datasets
 
 warnings.filterwarnings("ignore")
 
@@ -184,9 +185,8 @@ def run_dedup(model, device, zips2_root, output_dir):
     """
     For each narrator subfolder of zips2_root, compute pairwise speaker
     similarity across its ZIP files, identify which are the same voice, and
-    copy one representative zip per cluster (largest file = most training
-    data) into zips2_root/_deduped/ so the train stage has exactly one zip
-    per distinct voice to work from.
+    merge each confirmed same-speaker cluster into zips2_root/_deduped/ so the
+    train stage has exactly one provenance-preserving ZIP per distinct voice.
     """
     output_dir.mkdir(exist_ok=True)
     cache_file = output_dir / "embeddings_cache.pkl"
@@ -194,11 +194,10 @@ def run_dedup(model, device, zips2_root, output_dir):
 
     deduped_dir = zips2_root / "_deduped"
     deduped_dir.mkdir(exist_ok=True)
-    # This directory is generated output. Remove prior representatives so a
-    # changed source set (or the legacy naming scheme) cannot train twice.
-    for previous in deduped_dir.iterdir():
-        if previous.is_file() and previous.suffix.lower() == ".zip":
-            previous.unlink()
+    # Keep prior outputs until their replacements are complete. Expected files
+    # are tracked and stale outputs are removed only after every narrator has
+    # finished, so an interrupted merge cannot destroy the last good dataset.
+    expected_outputs = set()
 
     narrator_dirs = sorted(
         d for d in zips2_root.iterdir()
@@ -272,7 +271,11 @@ def run_dedup(model, device, zips2_root, output_dir):
             # just one volume isn't silently dropped from _deduped/.
             if len(zip_labels) == 1:
                 rep_path = next(zp for zp in zips if zp.stem == zip_labels[0])
-                shutil.copy2(rep_path, deduped_dir / rep_path.name)
+                dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
+                expected_outputs.add(dest_path)
+                temporary = dest_path.with_suffix(dest_path.suffix + ".tmp")
+                shutil.copy2(rep_path, temporary)
+                os.replace(temporary, dest_path)
                 print(f"  [UNIQUE] kept {rep_path.name}")
             continue
 
@@ -340,24 +343,27 @@ def run_dedup(model, device, zips2_root, output_dir):
             else:
                 print(f"  {short_labels[cluster[0]]} → UNIQUE narrator")
 
-        # Copy one representative zip per cluster into _deduped/ - the
-        # largest file is used as a proxy for "most complete dataset" among
-        # same-voice duplicates. This is what makes _deduped/ actually exist
-        # for the train stage; previously this function only printed
-        # suggestions and never wrote anything here, so "run the dedup stage
-        # first" (app.py's error when _deduped/ is missing) was misleading -
-        # re-running dedup alone could never satisfy it.
+        # Unique clusters pass through unchanged. Confirmed same-speaker
+        # clusters are merged with exact decoded-PCM deduplication and source
+        # provenance instead of silently discarding every ZIP but the largest.
         label_to_path = {zp.stem: zp for zp in zips}
         print(f"\n  ── Copying representatives to {deduped_dir} ──")
         for ci, cluster in enumerate(clusters):
+            # The largest member supplies the stable, readable destination
+            # name; it no longer determines which training data survives.
             rep_idx = max(cluster, key=lambda idx: label_to_path[zip_labels[idx]].stat().st_size)
             rep_path = label_to_path[zip_labels[rep_idx]]
             dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
-            shutil.copy2(rep_path, dest_path)
+            expected_outputs.add(dest_path)
             if len(cluster) > 1:
-                skipped = [zip_labels[idx] for idx in cluster if idx != rep_idx]
-                print(f"  [GROUP {ci+1}] kept {rep_path.name}  (skipped: {', '.join(skipped)})")
+                cluster_paths = [label_to_path[zip_labels[idx]] for idx in cluster]
+                merge_result = merge_voice_datasets(cluster_paths, dest_path)
+                print(f"  [GROUP {ci+1}] {merge_result['status']} {len(cluster_paths)} ZIPs"
+                      f" → {dest_path.name}")
             else:
+                temporary = dest_path.with_suffix(dest_path.suffix + ".tmp")
+                shutil.copy2(rep_path, temporary)
+                os.replace(temporary, dest_path)
                 print(f"  [UNIQUE] kept {rep_path.name}")
 
         # Heatmap
@@ -376,6 +382,11 @@ def run_dedup(model, device, zips2_root, output_dir):
             "labels": zip_labels, "short_labels": short_labels,
             "matrix": sim_matrix, "clusters": clusters,
         }
+
+    for previous in deduped_dir.iterdir():
+        if (previous.is_file() and previous.suffix.lower() == ".zip"
+                and previous not in expected_outputs):
+            previous.unlink()
 
     print(f"\n{'='*60}")
     print("DEDUP SUMMARY")
