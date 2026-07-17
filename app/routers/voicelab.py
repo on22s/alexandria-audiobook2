@@ -42,8 +42,9 @@ from core import (
 from device_utils import normalize_device
 from utils import atomic_json_write, safe_load_json
 from voicelab_settings import get_profiler_paths
-from run_history import update_run
+from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
+from routers.lora import list_adapters_needing_recovery
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -277,6 +278,139 @@ def _persist_voicelab_run(run_id: Optional[str], updates: dict) -> None:
         update_run(RUN_HISTORY_DIR, run_id, updates)
     except Exception:
         logger.exception("Could not update Voice Lab run summary %s", run_id)
+
+
+def _elapsed_seconds(iso: Optional[str]) -> Optional[float]:
+    """Whole seconds since an ISO timestamp, or None when unparseable."""
+    try:
+        started = datetime.datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return None
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=datetime.timezone.utc)
+    delta = datetime.datetime.now(datetime.timezone.utc) - started
+    return round(max(0.0, delta.total_seconds()), 1)
+
+
+def _summarize_history_run(record: dict) -> dict:
+    """Compact, bounded view of one run for the health card — never the raw log."""
+    failure = None
+    for stage in record.get("stages") or []:
+        if stage.get("failure"):
+            failure = stage["failure"]  # keep the last (most recent) failing stage
+    if failure is None and record.get("error"):
+        failure = {"message": record["error"]}
+    return {
+        "id": record.get("id"),
+        "status": record.get("status"),
+        "finished_at": record.get("finished_at"),
+        "next_action": record.get("next_action"),
+        "failure": failure,
+    }
+
+
+def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[str] = None,
+                           models_dir: Optional[str] = None, manifest_path: Optional[str] = None,
+                           root_dir: Optional[str] = None) -> dict:
+    """Read-only Voice Lab health snapshot for the dashboard.
+
+    Assembled from the live process state, persisted run summaries, checkpoint
+    recovery journals, and runtime build identity. Never mutates process state
+    or writes to disk. Recovery-required takes precedence over run status.
+    """
+    state = process_state.get("voicelab", {}) if state is None else state
+    history_dir = RUN_HISTORY_DIR if history_dir is None else history_dir
+    models_dir = LORA_MODELS_DIR if models_dir is None else models_dir
+    manifest_path = LORA_MODELS_MANIFEST if manifest_path is None else manifest_path
+    root_dir = ROOT_DIR if root_dir is None else root_dir
+
+    try:
+        runs = [r for r in list_runs(history_dir) if r.get("task") == "voicelab"]
+    except Exception:
+        logger.exception("Could not list Voice Lab run history")
+        runs = []
+    try:
+        pending_recovery = list_adapters_needing_recovery(models_dir, manifest_path)
+    except Exception:
+        logger.exception("Could not scan for pending checkpoint recovery")
+        pending_recovery = []
+
+    running = bool(state.get("running"))
+    paused = bool(state.get("paused"))
+    run_id = state.get("run_id")
+    active_record = next((r for r in runs if r.get("id") == run_id), None)
+
+    active = None
+    if running:
+        idx = state.get("current_task_idx")
+        tasks = state.get("tasks") or []
+        stage_name = None
+        stage_started = None
+        if isinstance(idx, int) and 0 <= idx < len(tasks):
+            stage_name = tasks[idx].get("name")
+        stage_records = (active_record or {}).get("stages") or []
+        if isinstance(idx, int) and 0 <= idx < len(stage_records):
+            stage_started = stage_records[idx].get("started_at")
+        elapsed = _elapsed_seconds(stage_started or (active_record or {}).get("started_at"))
+        active = {
+            "run_id": run_id,
+            "stage": stage_name,
+            "stage_index": idx if isinstance(idx, int) else None,
+            "stage_count": len(tasks),
+            "paused": paused,
+            "elapsed_seconds": elapsed,
+        }
+
+    last_success = next((_summarize_history_run(r) for r in runs
+                         if r.get("status") == "completed"), None)
+    last_failure = next((_summarize_history_run(r) for r in runs
+                         if r.get("status") in ("failed", "interrupted", "cancelled")), None)
+
+    def _device(record):
+        return ((record or {}).get("request") or {}).get("device")
+
+    device = _device(active_record) or (_device(runs[0]) if runs else None)
+
+    if pending_recovery:
+        status = "recovery_required"
+    elif running:
+        status = "running"
+    elif runs:
+        newest = runs[0].get("status")
+        status = "ok" if newest == "completed" else (newest or "idle")
+    else:
+        status = "idle"
+
+    if pending_recovery:
+        count = len(pending_recovery)
+        next_action = (f"Recover {count} interrupted checkpoint operation"
+                       f"{'s' if count != 1 else ''} in the LoRA models list "
+                       "before starting a new run.")
+    elif running:
+        next_action = (active_record or {}).get("next_action") or "Wait for the current stage to finish."
+    elif runs:
+        next_action = runs[0].get("next_action") or "Review the most recent Voice Lab run."
+    else:
+        next_action = "No Voice Lab runs yet."
+
+    return {
+        "status": status,
+        "running": running,
+        "paused": paused,
+        "active_run": active,
+        "device": device,
+        "last_success": last_success,
+        "last_failure": last_failure,
+        "pending_recovery": pending_recovery,
+        "next_action": next_action,
+        "build": get_runtime_info(root_dir),
+        "run_count": len(runs),
+    }
+
+
+@router.get("/api/voicelab/health")
+async def voicelab_health():
+    return await asyncio.to_thread(_build_voicelab_health)
 
 
 @router.post("/api/voicelab/preflight")

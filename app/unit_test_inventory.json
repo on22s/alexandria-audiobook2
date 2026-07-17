@@ -80,6 +80,7 @@
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
+    "test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
   "test_integration_corpus": [
@@ -321,6 +322,15 @@
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_comparison_reports_feature_drift",
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_operation_timing_covers_every_profiler_acoustic_operation",
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_torch_features_match_librosa_on_voiced_and_noisy_audio"
+  ],
+  "test_voicelab_health": [
+    "test_voicelab_health.VoiceLabHealthTests.test_builder_does_not_mutate_state_or_write_files",
+    "test_voicelab_health.VoiceLabHealthTests.test_corrupt_history_record_is_skipped",
+    "test_voicelab_health.VoiceLabHealthTests.test_failure_detail_comes_from_failing_stage",
+    "test_voicelab_health.VoiceLabHealthTests.test_idle_when_no_history_and_no_state",
+    "test_voicelab_health.VoiceLabHealthTests.test_newest_of_each_kind_is_selected",
+    "test_voicelab_health.VoiceLabHealthTests.test_recovery_required_takes_precedence_over_success",
+    "test_voicelab_health.VoiceLabHealthTests.test_running_reports_stage_and_nonnegative_elapsed"
   ],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",

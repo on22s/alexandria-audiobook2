@@ -314,6 +314,26 @@ def _get_checkpoint_swap_journal(adapter_dir: str) -> dict | None:
         return {"operation": "unknown"}
 
 
+def list_adapters_needing_recovery(models_dir: str, manifest_path: str) -> list[dict]:
+    """Return user adapters with a pending checkpoint-swap journal.
+
+    Single source of truth for "recovery required" over user adapters so the
+    Voice Lab health dashboard and any other caller don't re-derive the check.
+    """
+    pending = []
+    for entry in _load_manifest(manifest_path):
+        if entry.get("builtin"):
+            continue
+        adapter_id = entry.get("id")
+        if not adapter_id:
+            continue
+        journal = _get_checkpoint_swap_journal(os.path.join(models_dir, adapter_id))
+        if journal:
+            pending.append({"adapter_id": adapter_id,
+                            "operation": journal.get("operation", "unknown")})
+    return pending
+
+
 def _replace_checkpoint_files(adapter_dir: str, source_dir: str,
                               recovery_dir: str, operation: str,
                               keep_recovery: bool, manifest_entry: dict) -> None:
