@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import time
+from urllib.parse import quote
 import zipfile
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
@@ -152,6 +153,86 @@ def _delete_rollback_backup(adapter_id: str, models_dir: str,
         promotion["backup_id"] = None
         _save_manifest(manifest_path, manifest)
     return {"status": "deleted", "adapter_id": adapter_id, "backup_id": backup_id}
+
+
+def _load_comparison_evaluation(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            result = json.load(handle)
+    except (OSError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=409, detail="Evaluation evidence is unavailable") from error
+    if not isinstance(result, dict) or not isinstance(result.get("probes"), list):
+        raise HTTPException(status_code=409, detail="Evaluation evidence is incomplete")
+    return result
+
+
+def _get_probe_comparison(result: dict, checkpoint_dir: str, url_prefix: str) -> dict:
+    probes = {}
+    for probe in result["probes"]:
+        probe_id = probe.get("id")
+        audio_file = probe.get("audio_file", "")
+        if not probe_id or probe_id in probes:
+            raise HTTPException(status_code=409, detail="Evaluation probe identities are invalid")
+        audio_path = _safe_subpath(checkpoint_dir, audio_file)
+        if not audio_file or not os.path.isfile(audio_path):
+            raise HTTPException(status_code=409, detail=f"Evaluation audio is missing: {probe_id}")
+        probes[probe_id] = {
+            "id": probe_id,
+            "text": probe.get("text", ""),
+            "seed": probe.get("seed"),
+            "audio_url": f"{url_prefix}/{quote(audio_file, safe='')}",
+            "metrics": probe.get("metrics", {}),
+            "warnings": probe.get("warnings", []),
+        }
+    return probes
+
+
+def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
+                                   manifest_path: str) -> dict:
+    adapter_dir = _safe_subpath(models_dir, adapter_id)
+    if _get_checkpoint_swap_journal(adapter_dir):
+        raise HTTPException(status_code=409, detail="Checkpoint recovery is required first")
+    entry = next((item for item in _load_manifest(manifest_path)
+                  if item.get("id") == adapter_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Adapter not found")
+    candidate_id = (entry.get("evaluation") or {}).get("recommended_candidate")
+    retained = entry.get("evaluation_candidates") or []
+    if (not candidate_id or candidate_id == "production"
+            or not any(item.get("id") == candidate_id for item in retained)):
+        raise HTTPException(status_code=409, detail="No retained candidate is available to compare")
+    candidate_dir = _safe_subpath(os.path.join(adapter_dir, "candidates"), candidate_id)
+    production_result = _load_comparison_evaluation(
+        os.path.join(adapter_dir, "evaluation.json"))
+    candidate_result = _load_comparison_evaluation(
+        os.path.join(candidate_dir, "evaluation.json"))
+    adapter_url = quote(adapter_id, safe="")
+    candidate_url = quote(candidate_id, safe="")
+    production_probes = _get_probe_comparison(
+        production_result, adapter_dir, f"/lora_models/{adapter_url}")
+    candidate_probes = _get_probe_comparison(
+        candidate_result, candidate_dir,
+        f"/lora_models/{adapter_url}/candidates/{candidate_url}")
+    if production_probes.keys() != candidate_probes.keys():
+        raise HTTPException(status_code=409, detail="Production and candidate probes do not match")
+    pairs = []
+    for probe_id, production_probe in production_probes.items():
+        candidate_probe = candidate_probes[probe_id]
+        if (production_probe["text"], production_probe["seed"]) != (
+                candidate_probe["text"], candidate_probe["seed"]):
+            raise HTTPException(status_code=409, detail=f"Probe evidence is not comparable: {probe_id}")
+        pairs.append({"id": probe_id, "text": production_probe["text"],
+                      "seed": production_probe["seed"],
+                      "production": production_probe, "candidate": candidate_probe})
+    recommendation = production_result.get("candidate_recommendation") or {}
+    return {
+        "adapter_id": adapter_id,
+        "candidate_id": candidate_id,
+        "advisory_only": True,
+        "reason": recommendation.get("reason", ""),
+        "ranking": recommendation.get("ranking", []),
+        "probe_pairs": pairs,
+    }
 
 
 def _get_checkpoint_swap_journal(adapter_dir: str) -> dict | None:
@@ -564,6 +645,14 @@ async def lora_list_backups():
     """Report rollback-backup storage and host free-space pressure."""
     return await asyncio.to_thread(
         _get_lora_backup_status, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+
+
+@router.get("/api/lora/models/{adapter_id}/comparison")
+async def lora_get_candidate_comparison(adapter_id: str):
+    """Return validated, paired evaluation audio for a retained candidate."""
+    return await asyncio.to_thread(
+        _get_lora_candidate_comparison, adapter_id,
+        LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
 
 
 @router.post("/api/lora/models/{adapter_id}/promote")

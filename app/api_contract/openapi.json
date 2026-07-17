@@ -3377,6 +3377,44 @@
         "summary": "Lora Delete Model"
       }
     },
+    "/api/lora/models/{adapter_id}/comparison": {
+      "get": {
+        "description": "Return validated, paired evaluation audio for a retained candidate.",
+        "operationId": "lora_get_candidate_comparison_api_lora_models__adapter_id__comparison_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Get Candidate Comparison"
+      }
+    },
     "/api/lora/models/{adapter_id}/promote": {
       "post": {
         "description": "Promote the evaluated recommendation while preserving production for rollback.",
