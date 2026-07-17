@@ -1348,7 +1348,7 @@
                     <span id="voicelab-status" class="text-muted small"></span>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs <strong>Dedup → Train → Evaluate → Profile → Name</strong> in sequence. Heavy stages run on the ROCm ML environment configured below.</p>
+                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs <strong>Quality → Dedup → Train → Evaluate → Profile → Name</strong> in sequence. Heavy stages run on the ROCm ML environment configured below.</p>
 
                     <!-- Pipeline settings (paths) -->
                     <div class="accordion mb-3" id="voicelab-settings-acc">
@@ -1400,6 +1400,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-5">
                             <div class="fw-bold small mb-1">Stages to run</div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-quality" value="quality" checked><label class="form-check-label small" for="vl-stage-quality"><strong>Quality</strong> — warning-only clip health and duplicate audit</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-dedup" value="dedup" checked><label class="form-check-label small" for="vl-stage-dedup"><strong>Dedup</strong> — cluster &amp; de-duplicate voices within each narrator</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-train" value="train" checked><label class="form-check-label small" for="vl-stage-train"><strong>Train</strong> — train a LoRA per deduped voice</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-evaluate" value="evaluate" checked><label class="form-check-label small" for="vl-stage-evaluate"><strong>Evaluate</strong> — fixed probes, speaker similarity, silence, and clipping warnings</label></div>
@@ -6889,12 +6890,14 @@
             try {
                 const r = await API.get('/api/voicelab/inspect' + (dir ? `?zips_dir=${encodeURIComponent(dir)}` : ''));
                 const m = r.manifest || {};
+                const q = r.quality || {};
                 el.innerHTML =
                     `<span class="badge bg-secondary me-1">${r.narrator_count} narrator folder${r.narrator_count!==1?'s':''}</span>`
                     + (r.deduped_exists
                         ? `<span class="badge bg-info me-1">${r.deduped_count} deduped zip${r.deduped_count!==1?'s':''}</span>`
                         : '<span class="badge bg-light text-muted border me-1">no _deduped yet</span>')
                     + `<span class="badge bg-success me-1">${m.trained||0} trained</span>`
+                    + `<span class="badge bg-secondary me-1">${q.zip_count||0} audited · ${q.warning_clip_count||0} warnings</span>`
                     + `<span class="badge bg-info me-1">${m.evaluated||0} evaluated</span>`
                     + `<span class="badge bg-primary me-1">${m.profiled||0} profiled</span>`
                     + `<span class="badge bg-warning text-dark me-1">${m.unnamed||0} unnamed</span>`;

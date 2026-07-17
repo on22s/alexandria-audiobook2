@@ -1708,6 +1708,7 @@
           },
           "stages": {
             "default": [
+              "quality",
               "dedup",
               "train",
               "evaluate",
@@ -1717,7 +1718,7 @@
             "items": {
               "type": "string"
             },
-            "maxItems": 5,
+            "maxItems": 6,
             "title": "Stages",
             "type": "array"
           },
