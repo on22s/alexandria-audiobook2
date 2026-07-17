@@ -5835,6 +5835,8 @@
                                         ` : `
                                             <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="playLoraPreview(this.dataset.adapterId)" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
                                             <button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="testLoraModel(this.dataset.adapterId)" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
+                                            ${!m.builtin && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
+                                            ${!m.builtin && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
                                             ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
@@ -5855,6 +5857,32 @@
                 console.error('Failed to load LoRA models:', e);
             }
         }
+
+        window.promoteLoraCandidate = async (adapterId, candidateId) => {
+            if (!confirm(`Promote ${candidateId}? The current production checkpoint will be preserved for rollback.`)) {
+                return;
+            }
+            try {
+                await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/promote`, {});
+                showToast(`Promoted ${candidateId}. Production backup retained.`, 'success');
+                await loadLoraModels();
+            } catch (e) {
+                showToast('Promotion failed: ' + e.message, 'error');
+            }
+        };
+
+        window.rollbackLoraPromotion = async (adapterId) => {
+            if (!confirm('Restore the production checkpoint saved before promotion?')) {
+                return;
+            }
+            try {
+                await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/rollback-promotion`, {});
+                showToast('Previous production checkpoint restored.', 'success');
+                await loadLoraModels();
+            } catch (e) {
+                showToast('Rollback failed: ' + e.message, 'error');
+            }
+        };
 
         window.playLoraPreview = async (adapterId) => {
             const btn = document.getElementById(`lora-preview-btn-${adapterId}`);

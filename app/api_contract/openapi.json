@@ -3360,6 +3360,82 @@
         "summary": "Lora Delete Model"
       }
     },
+    "/api/lora/models/{adapter_id}/promote": {
+      "post": {
+        "description": "Promote the evaluated recommendation while preserving production for rollback.",
+        "operationId": "lora_promote_candidate_api_lora_models__adapter_id__promote_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Promote Candidate"
+      }
+    },
+    "/api/lora/models/{adapter_id}/rollback-promotion": {
+      "post": {
+        "description": "Restore the production checkpoint preserved by the last promotion.",
+        "operationId": "lora_rollback_promotion_api_lora_models__adapter_id__rollback_promotion_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Rollback Promotion"
+      }
+    },
     "/api/lora/preview/{adapter_id}": {
       "post": {
         "description": "Generate or return cached preview audio for a LoRA adapter.",

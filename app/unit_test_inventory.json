@@ -141,6 +141,11 @@
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
   ],
+  "test_lora_candidate_promotion": [
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_replacement_restores_production_and_manifest",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_preserves_and_rolls_back_production",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation"
+  ],
   "test_lora_candidate_retention": [
     "test_lora_candidate_retention.LoraCandidateRetentionTests.test_candidate_save_is_bounded_and_does_not_mutate_records_input"
   ],

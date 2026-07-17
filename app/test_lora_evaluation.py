@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import numpy as np
 import soundfile as sf
@@ -26,7 +26,8 @@ class LoraEvaluationTests(unittest.TestCase):
             adapter_dir = Path(tmp, "voice")
             adapter_dir.mkdir()
             sf.write(adapter_dir / "ref_sample.wav", np.ones(8000) * 0.1, 16000)
-            with patch.object(evaluation, "get_speaker_similarity", return_value=0.9):
+            with (patch.object(evaluation, "get_speaker_similarity", return_value=0.9),
+                  patch.object(evaluation, "apply_evaluation_seed") as apply_seed):
                 result = evaluation.evaluate_adapter(
                     {"id": "voice"}, tmp, FakeEngine(), object(), "cpu")
 
@@ -35,6 +36,14 @@ class LoraEvaluationTests(unittest.TestCase):
                          [probe["id"] for probe in result["probes"]])
         self.assertTrue(all(probe["metrics"]["speaker_similarity"] == 0.9
                             for probe in result["probes"]))
+        self.assertEqual(
+            [evaluation.EVALUATION_SEED, evaluation.EVALUATION_SEED + 1],
+            [probe["seed"] for probe in result["probes"]],
+        )
+        self.assertEqual(
+            [call(evaluation.EVALUATION_SEED), call(evaluation.EVALUATION_SEED + 1)],
+            apply_seed.call_args_list,
+        )
 
     def test_audio_metrics_detect_silence_and_clipping(self):
         with tempfile.TemporaryDirectory() as tmp:
