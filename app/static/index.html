@@ -5835,6 +5835,31 @@
                         ${(backupStatus.total_size_bytes / 1024 ** 3).toFixed(2)} GB;
                         ${(backupStatus.free_bytes / 1024 ** 3).toFixed(1)} GB free.
                     </div>` : '';
+                const renderCandidateSummary = model => {
+                    const summary = model.candidate_summary;
+                    if (!summary || summary.state === 'no_candidates') {
+                        return '';
+                    }
+                    const labels = {
+                        awaiting_evaluation: 'awaiting evaluation',
+                        candidate_recommended: 'candidate recommended',
+                        production_recommended: 'production recommended',
+                        promoted: 'candidate promoted',
+                        rolled_back: 'promotion rolled back',
+                    };
+                    const counts = [];
+                    if (summary.evaluated_count) {
+                        counts.push(`${summary.evaluated_count} evaluated`);
+                    }
+                    if (summary.retained_count) {
+                        counts.push(`${summary.retained_count} retained`);
+                    }
+                    if (summary.duplicate_count) {
+                        counts.push(`${summary.duplicate_count} duplicate skipped`);
+                    }
+                    const unchanged = summary.production_unchanged ? ' · production unchanged' : '';
+                    return `<div class="text-muted small mt-1">${escapeHtml(labels[summary.state] || summary.state)}${counts.length ? ` · ${escapeHtml(counts.join(', '))}` : ''}${unchanged}</div>`;
+                };
                 container.innerHTML = `${backupSummary}
                     <table class="table table-sm table-hover mb-0">
                         <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Evaluation</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
@@ -5845,7 +5870,7 @@
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
-                                    <td>${m.checkpoint_swap ? `<span class="badge bg-danger">recovery required</span>` : m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}</td>
+                                    <td>${m.checkpoint_swap ? `<span class="badge bg-danger">recovery required</span>` : m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}${renderCandidateSummary(m)}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `

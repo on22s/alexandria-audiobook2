@@ -21,6 +21,14 @@ class FrontendTests(unittest.TestCase):
                 "promoteLoraCandidate"):
             self.assertIn(required, frontend)
 
+    def test_lora_candidate_lifecycle_summary_is_rendered(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("renderCandidateSummary", "candidate_summary",
+                         "awaiting evaluation", "candidate promoted",
+                         "duplicate skipped", "production unchanged"):
+            self.assertIn(required, frontend)
+
     def test_script_ui_reuses_uploads_and_sends_collision_policy(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

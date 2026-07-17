@@ -389,6 +389,53 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual(409, raised.exception.status_code)
             self.assertIn("does not match", raised.exception.detail)
 
+    def test_candidate_summary_reports_lifecycle_counts_without_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "voice")
+            adapter.mkdir()
+            entry = {
+                "evaluation": {"status": "pass", "recommended_candidate": "epoch_002"},
+                "evaluation_candidates": [{"id": "epoch_002"}],
+                "evaluation_candidate_skips": [
+                    {"id": "epoch_001", "duplicate_of": "production"}],
+            }
+            original = json.loads(json.dumps(entry))
+            (adapter / "evaluation.json").write_text(json.dumps({
+                "candidate_recommendation": {
+                    "candidate_metrics": {
+                        "production": {"status": "pass"},
+                        "epoch_001": {"status": "skipped_duplicate"},
+                        "epoch_002": {"status": "pass"},
+                    },
+                    "cleanup": {"status": "complete"},
+                },
+            }))
+
+            summary = lora._get_candidate_summary(entry, str(adapter))
+
+            self.assertEqual("candidate_recommended", summary["state"])
+            self.assertEqual(1, summary["evaluated_count"])
+            self.assertEqual(1, summary["retained_count"])
+            self.assertEqual(1, summary["duplicate_count"])
+            self.assertTrue(summary["production_unchanged"])
+            self.assertEqual("complete", summary["cleanup_status"])
+            self.assertEqual(original, entry)
+
+    def test_candidate_summary_survives_corrupt_evaluation_and_reports_promotion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "voice")
+            adapter.mkdir()
+            (adapter / "evaluation.json").write_text("{broken")
+
+            summary = lora._get_candidate_summary({
+                "evaluation_candidates": "invalid",
+                "promotion": {"status": "promoted"},
+            }, str(adapter))
+
+            self.assertEqual("promoted", summary["state"])
+            self.assertEqual(0, summary["retained_count"])
+            self.assertFalse(summary["production_unchanged"])
+
 
 if __name__ == "__main__":
     unittest.main()
