@@ -21,6 +21,7 @@ if str(APP_DIR) not in sys.path:
 from config_settings import load_app_config
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_evidence_error,
                            get_evaluation_spec_sha256, get_file_sha256)
+from device_utils import normalize_device, resolve_device
 from tts import TTSEngine
 from utils import atomic_json_write
 
@@ -237,13 +238,14 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--models-dir", required=True)
     parser.add_argument("--config", required=True)
-    parser.add_argument("--device", choices=("cuda", "cpu"), default=None)
+    parser.add_argument("--device", type=normalize_device, default="auto",
+                        help="Device: auto, cpu, cuda, cuda:N, mps, rocm, or hip")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
     with open(args.manifest, encoding="utf-8") as handle:
         manifest = json.load(handle)
-    device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_device(args.device)
     from speechbrain.inference.speaker import EncoderClassifier
     embedding_model = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",

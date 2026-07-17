@@ -34,6 +34,7 @@ import zipfile
 APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
 sys.path.insert(0, APP_DIR)
 from archive_utils import validate_zip_members
+from device_utils import normalize_device
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,8 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "--target_loss", str(args.target_loss),
         "--candidate_checkpoints", str(getattr(args, "candidate_checkpoints", 0)),
     ]
+    if getattr(args, "device", None):
+        command += ["--device", args.device]
 
     print(f"  Training: max_epochs={args.max_epochs} lr={args.lr} "
           f"r={args.lora_r} alpha={args.lora_alpha} target_loss={args.target_loss}", flush=True)
@@ -311,6 +314,8 @@ def main() -> int:
                         help="Don't delete extracted datasets after training")
     parser.add_argument("--candidate_checkpoints", type=int, default=0, choices=range(0, 3),
                         help="Temporary evaluation candidates per adapter (0-2)")
+    parser.add_argument("--device", type=normalize_device, default="auto",
+                        help="Device: auto, cpu, cuda, cuda:N, mps, rocm, or hip")
     parser.add_argument("--dry_run",     action="store_true",
                         help="List what would be trained without running")
     args = parser.parse_args()

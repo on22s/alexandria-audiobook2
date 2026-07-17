@@ -29,7 +29,8 @@ import sys
 import time
 import traceback
 
-from device_utils import resolve_device, enable_rocm_optimizations, is_oom_failure
+from device_utils import (enable_rocm_optimizations, is_oom_failure,
+                          normalize_device, resolve_device)
 from utils import is_path_inside
 
 
@@ -86,7 +87,8 @@ def parse_args():
     parser.add_argument("--lora_alpha", type=int, default=128, help="LoRA alpha scaling")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8,
                         help="Gradient accumulation steps")
-    parser.add_argument("--device", default="auto", help="Device: auto, cuda, cpu")
+    parser.add_argument("--device", type=normalize_device, default="auto",
+                        help="Device: auto, cpu, cuda, cuda:N, mps, rocm, or hip")
     parser.add_argument("--language", default="english",
                         help="Language for codec prefix token (english, chinese, korean, japanese, etc.)")
     parser.add_argument("--max_audio_seconds", type=float, default=30.0,

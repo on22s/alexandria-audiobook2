@@ -43,11 +43,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
-from gpu_stats import system_has_gpu
-
 APP_DIR = Path(__file__).resolve().parent / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
+from device_utils import normalize_device, resolve_device
 from voicelab_settings import get_deduped_zip_name
 from voice_dataset_merge import merge_voice_datasets
 from voice_clustering import cluster_voices, load_cluster_overrides
@@ -777,7 +776,7 @@ def main():
         help="Output folder for the analyze phase",
     )
     parser.add_argument(
-        "--device", choices=["cuda", "cpu"], default=None,
+        "--device", type=normalize_device, default="auto",
         help="Force a specific device (default: auto-detect)",
     )
     parser.add_argument(
@@ -786,21 +785,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.device:
-        device = args.device
-    elif torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
-        has_gpu, vendor = system_has_gpu()
-        if has_gpu:
-            print(
-                f"WARNING: {vendor} GPU detected on this system, but torch can't "
-                f"see it (torch.cuda.is_available() is False) - falling back to "
-                f"CPU, which will be dramatically slower for embedding extraction. "
-                f"This usually means torch got installed as the wrong build for "
-                f"this GPU."
-            )
+    device = resolve_device(args.device)
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")
 
     model_savedir = args.dedup_out / "models" / "ecapa"

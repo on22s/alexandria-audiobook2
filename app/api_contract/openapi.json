@@ -1667,8 +1667,12 @@
             "anyOf": [
               {
                 "enum": [
+                  "auto",
+                  "cpu",
                   "cuda",
-                  "cpu"
+                  "mps",
+                  "rocm",
+                  "hip"
                 ],
                 "type": "string"
               },
