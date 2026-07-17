@@ -5883,6 +5883,17 @@
                     const unchanged = summary.production_unchanged ? ' · production unchanged' : '';
                     return `<div class="text-muted small mt-1">${escapeHtml(labels[summary.state] || summary.state)}${counts.length ? ` · ${escapeHtml(counts.join(', '))}` : ''}${unchanged}</div>`;
                 };
+                // Human review tally, kept visually distinct from the automated
+                // recommendation above (the "human" icon vs the evaluation badge).
+                const renderReviewSummary = model => {
+                    const r = model.review_summary;
+                    if (!r || !r.count) { return ''; }
+                    const parts = [];
+                    if (r.preferred_candidate) { parts.push(`${r.preferred_candidate} prefer candidate`); }
+                    if (r.preferred_production) { parts.push(`${r.preferred_production} prefer production`); }
+                    if (r.tie) { parts.push(`${r.tie} no preference`); }
+                    return `<div class="text-muted small mt-1"><i class="fas fa-user me-1"></i>${r.count} human review${r.count === 1 ? '' : 's'}${parts.length ? ` · ${escapeHtml(parts.join(', '))}` : ''}</div>`;
+                };
                 container.innerHTML = `${backupSummary}
                     <table class="table table-sm table-hover mb-0">
                         <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Evaluation</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
@@ -5893,7 +5904,7 @@
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
-                                    <td>${m.checkpoint_swap ? `<span class="badge bg-danger">recovery required</span>` : m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}${renderCandidateSummary(m)}</td>
+                                    <td>${m.checkpoint_swap ? `<span class="badge bg-danger">recovery required</span>` : m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}${renderCandidateSummary(m)}${renderReviewSummary(m)}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
@@ -7383,10 +7394,13 @@
                 const pos = (active.stage_index !== null && active.stage_count)
                     ? ` (${active.stage_index + 1}/${active.stage_count})` : '';
                 const elapsed = _vlFormatElapsed(active.elapsed_seconds);
+                const eta = _vlFormatElapsed(active.eta_seconds);
                 parts.push(`<div><i class="fas fa-spinner fa-spin me-1"></i>`
                     + `Running stage <strong>${stage}</strong>${pos}`
                     + (active.paused ? ' <span class="badge bg-warning text-dark">paused</span>' : '')
-                    + (elapsed ? ` · ${elapsed} elapsed` : '') + `</div>`);
+                    + (elapsed ? ` · ${elapsed} elapsed` : '')
+                    + (eta ? ` · ~${eta} left` : '')
+                    + (active.progress ? ` · ${escapeHtml(String(active.progress))}` : '') + `</div>`);
             }
 
             const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString() : '';

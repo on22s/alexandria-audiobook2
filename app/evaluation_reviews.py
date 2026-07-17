@@ -227,6 +227,27 @@ def list_reviews(reviews_dir, adapter_id):
     return list(reversed(store["reviews"]))
 
 
+def summarize(reviews_dir, adapter_id):
+    """Compact human-review tally for the models list (never the full records).
+
+    Kept separate from the automated recommendation by the caller — this only
+    reports what humans preferred.
+    """
+    reviews = list_reviews(reviews_dir, adapter_id)
+    tally = {"production": 0, "candidate": 0, "tie": 0}
+    for review in reviews:
+        role = (review.get("human") or {}).get("choice_role")
+        if role in tally:
+            tally[role] += 1
+    return {
+        "count": len(reviews),
+        "preferred_production": tally["production"],
+        "preferred_candidate": tally["candidate"],
+        "tie": tally["tie"],
+        "latest_at": reviews[0].get("created_at") if reviews else None,
+    }
+
+
 def cleanup(reviews_dir, adapter_id):
     """Delete this adapter's review history, reporting count and bytes freed."""
     path = _store_path(reviews_dir, adapter_id)

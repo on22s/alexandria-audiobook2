@@ -74,6 +74,8 @@
     "test_evaluation_reviews.HistoryTests.test_existing_records_are_not_mutated_by_new_submissions",
     "test_evaluation_reviews.HistoryTests.test_history_is_bounded_keeping_newest",
     "test_evaluation_reviews.HistoryTests.test_list_on_missing_store_is_empty",
+    "test_evaluation_reviews.HistoryTests.test_summarize_empty_is_zeroed",
+    "test_evaluation_reviews.HistoryTests.test_summarize_tallies_preferences",
     "test_evaluation_reviews.SafetyTests.test_module_cannot_promote_or_touch_manifest",
     "test_evaluation_reviews.SafetyTests.test_prune_removes_only_aged_sessions",
     "test_evaluation_reviews.SubmitTests.test_choice_resolves_to_the_hidden_role",
@@ -98,6 +100,7 @@
     "test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion",
     "test_frontend_regressions.FrontendTests.test_lora_candidate_lifecycle_summary_is_rendered",
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
+    "test_frontend_regressions.FrontendTests.test_review_summary_and_health_eta_are_rendered",
     "test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
     "test_frontend_regressions.FrontendTests.test_stale_build_banner_is_wired_without_a_new_timer",
@@ -385,6 +388,7 @@
     "test_voicelab_diagnostics.RedactionTests.test_url_credentials_in_values_are_stripped"
   ],
   "test_voicelab_health": [
+    "test_voicelab_health.VoiceLabHealthTests.test_active_run_reports_eta_from_shared_estimator",
     "test_voicelab_health.VoiceLabHealthTests.test_builder_does_not_mutate_state_or_write_files",
     "test_voicelab_health.VoiceLabHealthTests.test_corrupt_history_record_is_skipped",
     "test_voicelab_health.VoiceLabHealthTests.test_failure_detail_comes_from_failing_stage",

@@ -35,6 +35,13 @@ class FrontendTests(unittest.TestCase):
                          "Download diagnostics"):
             self.assertIn(required, frontend)
 
+    def test_review_summary_and_health_eta_are_rendered(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("renderReviewSummary", "review_summary", "human review",
+                         "prefer candidate", "active.eta_seconds", "left"):
+            self.assertIn(required, frontend)
+
     def test_stale_build_banner_is_wired_without_a_new_timer(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

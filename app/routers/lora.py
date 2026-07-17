@@ -744,6 +744,9 @@ async def lora_list_models():
                                 if journal else None)
         if not is_builtin:
             m["candidate_summary"] = _get_candidate_summary(m, adapter_dir)
+            # Human-review tally, kept separate from the automated recommendation.
+            m["review_summary"] = evaluation_reviews.summarize(
+                EVALUATION_REVIEWS_DIR, m["id"])
     return models
 
 
