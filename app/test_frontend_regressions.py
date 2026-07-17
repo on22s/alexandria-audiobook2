@@ -58,7 +58,7 @@ class FrontendTests(unittest.TestCase):
         dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
         for required in ("gpu_stats.py", "persona_prompts.txt", "alexandria_alignment.py",
                          "alexandria_preparer_rocm_compatible.py",
-                         "llm_enricher.py", "voice_analysis.py", "batch_train_lora.py",
+                         "llm_enricher.py", "audit_voice_datasets.py", "voice_analysis.py", "batch_train_lora.py",
                          "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):
             self.assertIn(required, dockerfile)
 

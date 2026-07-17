@@ -256,6 +256,12 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_voice_dataset_quality": [
+    "test_voice_dataset_quality.VoiceDatasetQualityTests.test_metrics_and_warnings_detect_real_failure_modes",
+    "test_voice_dataset_quality.VoiceDatasetQualityTests.test_reuse_requires_matching_source_and_thresholds",
+    "test_voice_dataset_quality.VoiceDatasetQualityTests.test_stationary_noise_is_flagged_as_low_snr",
+    "test_voice_dataset_quality.VoiceDatasetQualityTests.test_summary_reports_cross_archive_pcm_duplicates"
+  ],
   "test_voice_feature_benchmark": [
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_comparison_reports_feature_drift",
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_operation_timing_covers_every_profiler_acoustic_operation",
@@ -278,9 +284,9 @@
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_model_errors_are_classified",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_model_init_failure_is_concise_and_non_mutating",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_preflight_reports_missing_model_and_dependency",
+    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_successful_subprocess_with_incomplete_adapter_is_cleaned_up",
-    "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_training_failure_removes_new_partial_output_and_dataset"
   ],
   "test_voices_regressions": [

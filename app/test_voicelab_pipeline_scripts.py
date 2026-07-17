@@ -378,8 +378,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     voice_profiler.atomic_csv_write([], target)
             self.assertEqual("old content", Path(target).read_text(encoding="utf-8"))
 
-    def test_train_evaluate_and_profile_background_dispatch_reaches_subprocess(self):
-        for stage in ("train", "evaluate", "profile"):
+    def test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess(self):
+        for stage in ("quality", "train", "evaluate", "profile"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
                 os.makedirs(os.path.join(tmp, "_deduped"))
                 cfg = {"rocm_python": sys.executable, "profiler_model": "",
@@ -407,7 +407,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
 
                 self.assertEqual(1, len(streamed))
                 self.assertEqual([stage], revalidate.call_args.args[3])
-                self.assertIn(stage, os.path.basename(streamed[0][2]))
+                expected_script_token = "audit_voice_datasets" if stage == "quality" else stage
+                self.assertIn(expected_script_token, os.path.basename(streamed[0][2]))
                 if stage == "profile":
                     defaults = get_profiler_paths(core.ROOT_DIR, core.DATA_DIR)
                     self.assertEqual(defaults["manifest"],
@@ -421,6 +422,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                                      streamed[0][streamed[0].index("--manifest") + 1])
                     self.assertEqual(core.CONFIG_PATH,
                                      streamed[0][streamed[0].index("--config") + 1])
+                if stage == "quality":
+                    self.assertEqual(tmp, streamed[0][streamed[0].index("--zips2") + 1])
 
 
 if __name__ == "__main__":
