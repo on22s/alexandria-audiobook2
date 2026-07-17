@@ -19,6 +19,14 @@ class FrontendTests(unittest.TestCase):
                          "renderVoicelabPreflight", "preflight.preflight_id"):
             self.assertIn(required, frontend)
 
+    def test_voicelab_health_dashboard_is_rendered_and_wired(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("vl-health", "vl-health-body", "renderVoicelabHealth",
+                         "refreshVoicelabHealth", "/api/voicelab/health",
+                         "openLoraModelsTab", "pending_recovery"):
+            self.assertIn(required, frontend)
+
     def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

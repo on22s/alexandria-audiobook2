@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–3 complete; Phase 4 pending**
+Status: **approved — Phases 1–4 complete; Phase 5 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -33,7 +33,7 @@ checkpoint, retry, or recovery safety nets.
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
-| 4 | Pipeline health dashboard | Pending | — | — |
+| 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
 | 5 | Sanitized diagnostics export | Pending | — | — |
 | 6 | Evaluation history and human review | Pending | — | — |
 | 7 | Stale-browser build detection | Pending | — | — |
@@ -198,6 +198,40 @@ Verification:
 - Release verifier.
 
 ## Phase 4 — Pipeline health dashboard
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-health-dashboard` / #153
+Completed: Added one read-only health summary endpoint `GET /api/voicelab/health`
+plus a compact Voice Lab dashboard card, both built from the existing Phase 3
+run summaries, live `process_state`, checkpoint recovery journals, and runtime
+build identity — no new tracking store and no new polling timer.
+Verified behavior: The builder is pure and read-only (a dedicated test asserts it
+mutates neither the passed state nor the history directory). Recovery-required
+status and next action take precedence over ordinary run status. Corrupt history
+records are skipped and the summary still builds. The live endpoint returns 200
+with the expected keys; on this machine it reported `status: ok` from the last
+completed run. The dashboard refreshes on tab open, on each existing
+`pollVoicelab` tick while a run is live, and on mid-run page reload — adding no
+`setInterval`.
+Tests run (including skips): New `test_voicelab_health.py` (7 cases:
+idle/running/newest-of-kind/failure-detail/corrupt-history/recovery-precedence/
+no-mutation) and a frontend regression assertion — all pass. Release verifier
+passed: 326 unit tests, quick API suite 70 passed / 0 failed / 12 skipped (the
+12 require full-mode GPU/TTS/LLM). API contract and unit-test inventory snapshots
+were regenerated for the new route.
+Real artifacts or reports: none beyond code; dashboard is read-only over existing
+records so no GPU run was required.
+Deviations / discoveries: For the idle (not running, no recovery) next action the
+dashboard uses the newest run's next action rather than the plan's
+failure-then-success ordering — a later success should not be overridden by an
+older failure, and the truly-unresolved case (interrupted checkpoint swaps)
+is already handled by the higher-precedence recovery status. `last_success` and
+`last_failure` are still surfaced separately regardless. The recovery scan was
+consolidated into one shared `list_adapters_needing_recovery` helper in
+`routers/lora.py` (Rule 15) rather than re-deriving the journal check.
+Remaining: Open and merge the Phase 4 PR.
+Next action: Commit and publish Phase 4, then begin the sanitized diagnostics
+export in Phase 5.
 
 Purpose: expose current and recent Voice Lab health without reading terminal
 logs manually.

@@ -1351,6 +1351,11 @@
                 <div class="card-body">
                     <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs <strong>Quality → Dedup → Train → Evaluate → Profile → Name</strong> in sequence. Heavy stages run on the ROCm ML environment configured below.</p>
 
+                    <!-- Pipeline health dashboard (read-only; fed by tab open + run poller) -->
+                    <div id="vl-health" class="border rounded p-2 mb-3 small">
+                        <div id="vl-health-body" class="text-muted">Loading pipeline health…</div>
+                    </div>
+
                     <!-- Pipeline settings (paths) -->
                     <div class="accordion mb-3" id="voicelab-settings-acc">
                         <div class="accordion-item">
@@ -2088,6 +2093,7 @@
                 } else if (e.target.dataset.tab === 'voicelab') {
                     loadVoicelabConfig();
                     voicelabInspect();
+                    refreshVoicelabHealth();
                 } else if (e.target.dataset.tab === 'reports') {
                     loadReports();
                     loadCheckpoints();
@@ -6781,6 +6787,7 @@
                 });
             } else if (running.voicelab) {
                 _vlSetRunning(true);
+                refreshVoicelabHealth();
                 pollVoicelab();
             }
         }
@@ -7142,6 +7149,95 @@
             onSuccess: () => _resetPauseBtn('btn-vl-pause'),
         });
 
+        function _vlFormatElapsed(seconds) {
+            if (seconds === null || seconds === undefined) { return ''; }
+            const total = Math.max(0, Math.round(seconds));
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            const s = total % 60;
+            if (h > 0) { return `${h}h ${m}m`; }
+            if (m > 0) { return `${m}m ${s}s`; }
+            return `${s}s`;
+        }
+
+        function _vlHealthTone(status) {
+            if (status === 'recovery_required') { return 'danger'; }
+            if (status === 'running') { return 'primary'; }
+            if (status === 'failed' || status === 'interrupted') { return 'danger'; }
+            if (status === 'cancelled') { return 'warning'; }
+            if (status === 'ok') { return 'success'; }
+            return 'secondary';
+        }
+
+        // Paints the read-only Voice Lab health card. Recovery-required always
+        // wins the headline banner over ordinary run status.
+        function renderVoicelabHealth(health) {
+            const el = document.getElementById('vl-health-body');
+            if (!el) { return; }
+            const tone = _vlHealthTone(health.status);
+            const parts = [];
+            parts.push(`<div class="d-flex justify-content-between align-items-center mb-1">`
+                + `<span><strong>Pipeline health</strong> `
+                + `<span class="badge bg-${tone}">${escapeHtml(health.status || 'idle')}</span></span>`
+                + `<span class="text-muted">${escapeHtml(health.device || 'device: auto')}</span></div>`);
+
+            if ((health.pending_recovery || []).length) {
+                const names = health.pending_recovery.map(r => escapeHtml(r.adapter_id)).join(', ');
+                parts.push(`<div class="alert alert-danger py-1 px-2 mb-1">`
+                    + `<i class="fas fa-life-ring me-1"></i>Recovery required: ${names}. `
+                    + `<a href="#" onclick="openLoraModelsTab(); return false;">Open LoRA models</a> to recover.</div>`);
+            }
+
+            const active = health.active_run;
+            if (active) {
+                const stage = active.stage ? escapeHtml(active.stage) : 'starting';
+                const pos = (active.stage_index !== null && active.stage_count)
+                    ? ` (${active.stage_index + 1}/${active.stage_count})` : '';
+                const elapsed = _vlFormatElapsed(active.elapsed_seconds);
+                parts.push(`<div><i class="fas fa-spinner fa-spin me-1"></i>`
+                    + `Running stage <strong>${stage}</strong>${pos}`
+                    + (active.paused ? ' <span class="badge bg-warning text-dark">paused</span>' : '')
+                    + (elapsed ? ` · ${elapsed} elapsed` : '') + `</div>`);
+            }
+
+            const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString() : '';
+            if (health.last_success) {
+                parts.push(`<div class="text-success"><i class="fas fa-check me-1"></i>`
+                    + `Last success: ${escapeHtml(fmtWhen(health.last_success.finished_at)) || 'unknown'}</div>`);
+            }
+            if (health.last_failure) {
+                const f = health.last_failure;
+                const detail = f.failure && f.failure.message ? ` — ${escapeHtml(f.failure.message)}` : '';
+                parts.push(`<div class="text-danger"><i class="fas fa-triangle-exclamation me-1"></i>`
+                    + `Last ${escapeHtml(f.status || 'failure')}: ${escapeHtml(fmtWhen(f.finished_at)) || 'unknown'}${detail}</div>`);
+            }
+            if (!active && !health.last_success && !health.last_failure && !(health.pending_recovery || []).length) {
+                parts.push(`<div class="text-muted">No Voice Lab runs recorded yet.</div>`);
+            }
+
+            parts.push(`<div class="mt-1"><i class="fas fa-arrow-right me-1"></i>`
+                + `${escapeHtml(health.next_action || '')}</div>`);
+            el.innerHTML = parts.join('');
+        }
+
+        // The LoRA models list (with the Recover control) lives in the Training
+        // tab; reuse the nav link so its normal load hook fires.
+        window.openLoraModelsTab = () => {
+            const link = document.querySelector('.nav-link[data-tab="training"]');
+            if (link) { link.click(); }
+        };
+
+        async function refreshVoicelabHealth() {
+            const el = document.getElementById('vl-health-body');
+            if (!el) { return; }
+            try {
+                const health = await API.get('/api/voicelab/health');
+                renderVoicelabHealth(health);
+            } catch (e) {
+                el.innerHTML = `<span class="text-muted">Pipeline health unavailable.</span>`;
+            }
+        }
+
         function pollVoicelab() {
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
@@ -7155,6 +7251,7 @@
                         progEl.innerHTML = s.tasks.map(t =>
                             `<span class="badge bg-${colours[t.status] || 'secondary'}">${escapeHtml(t.name)}: ${t.status}</span>`).join('');
                     }
+                    refreshVoicelabHealth();  // reuse this poll tick; no extra timer
                 },
                 onDone: s => {
                     _vlSetRunning(false);
@@ -7164,6 +7261,7 @@
                     document.getElementById('voicelab-status').innerHTML =
                         `<span class="${cls}">Pipeline ${escapeHtml(s.status || 'finished')}.</span>`;
                     voicelabInspect();  // refresh manifest counts
+                    refreshVoicelabHealth();
                 }
             });
         }
