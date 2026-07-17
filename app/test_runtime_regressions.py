@@ -644,9 +644,41 @@ class RuntimeTests(unittest.TestCase):
 
     def test_voicelab_start_reports_unconfigured_rocm_python(self):
         with tempfile.TemporaryDirectory() as tmp:
-            exc = self._voicelab_start_with({"zips_dir": tmp, "rocm_python": ""})
-        self.assertEqual(exc.status_code, 400)
-        self.assertIn("not configured", exc.detail)
+            cfg = dict(core_module.VOICELAB_DEFAULTS,
+                       zips_dir=tmp, rocm_python="")
+            report = voicelab_module._build_voicelab_preflight(
+                voicelab_module.VoiceLabRequest(stages=["train"]), cfg)
+        self.assertIn("interpreter_missing",
+                      [finding["code"] for finding in report["blockers"]])
+
+    def test_voicelab_preflight_is_read_only_sanitized_and_stage_specific(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(voicelab_module, "_probe_voicelab_interpreter",
+                          return_value={"python": "3.10", "torch": "2.7+rocm", "hip": "6.3",
+                                        "gpu": "AMD Test", "vram": [12 * 1024**3, 16 * 1024**3],
+                                        "deps": {"librosa": True, "peft": True}}):
+            os.makedirs(os.path.join(tmp, "_deduped"))
+            Path(tmp, "_deduped", "voice.zip").write_bytes(b"zip")
+            cfg = dict(core_module.VOICELAB_DEFAULTS,
+                       zips_dir=tmp, rocm_python=sys.executable)
+            report = voicelab_module._build_voicelab_preflight(
+                voicelab_module.VoiceLabRequest(stages=["train"]), cfg)
+        self.assertTrue(report["ready"])
+        self.assertEqual(1, report["dataset"]["deduped_count"])
+        self.assertNotIn(tmp, json.dumps({key: value for key, value in report.items()
+                                         if not key.startswith("_")}))
+
+    def test_voicelab_start_rejects_stale_preflight_before_gpu_claim(self):
+        request = voicelab_module.VoiceLabRequest(
+            stages=["train"], preflight_id="old")
+        report = {"preflight_id": "new", "blockers": [], "_zips_dir": "/zips",
+                  "_profiler_model": ""}
+        with patch.object(voicelab_module, "_build_voicelab_preflight", return_value=report), \
+             patch.object(voicelab_module, "claim_gpu_task") as claim:
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(voicelab_module.voicelab_start(request, None))
+        self.assertEqual(409, raised.exception.status_code)
+        claim.assert_not_called()
 
     def test_voicelab_request_rejects_unbounded_training_values(self):
         for values in ({"target_loss": 0}, {"target_loss": 101},

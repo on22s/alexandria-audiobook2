@@ -1439,6 +1439,8 @@
                         </div>
                     </div>
 
+                    <div id="vl-preflight" class="alert alert-secondary small mb-2" style="display:none;"></div>
+
                     <!-- Run controls -->
                     <div class="d-flex gap-2 mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-vl-start" onclick="startVoicelab()"><i class="fas fa-play me-2"></i>Run Pipeline</button>
@@ -7075,13 +7077,9 @@
             if (running) { _resetPauseBtn('btn-vl-pause'); }
         }
 
-        window.startVoicelab = async () => {
+        function getVoicelabRequest() {
             const stages = Array.from(document.querySelectorAll('.vl-stage:checked')).map(c => c.value);
-            if (!stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
-            if (stages.includes('name') && document.getElementById('vl-name-apply').checked
-                && !confirm('The Name stage will rename adapter folders and update the manifest. A backup is written first. Continue?')) { return; }
-
-            const body = {
+            return {
                 zips_dir: document.getElementById('vl-zips_dir').value.trim() || undefined,
                 stages,
                 device: document.getElementById('vl-device').value || undefined,
@@ -7092,6 +7090,41 @@
                 name_apply: document.getElementById('vl-name-apply').checked,
                 name_overwrite: document.getElementById('vl-name-overwrite').checked,
             };
+        }
+
+        function renderVoicelabPreflight(report) {
+            const el = document.getElementById('vl-preflight');
+            const blockers = report.blockers || [];
+            const warnings = report.warnings || [];
+            const runtime = report.runtime || {};
+            const dataset = report.dataset || {};
+            el.className = `alert ${blockers.length ? 'alert-danger' : warnings.length ? 'alert-warning' : 'alert-success'} small mb-2`;
+            el.style.display = 'block';
+            const findings = [...blockers, ...warnings]
+                .map(item => `<li>${escapeHtml(item.message)}</li>`).join('');
+            el.innerHTML = `<strong>Preflight: ${blockers.length ? 'blocked' : 'ready'}</strong>`
+                + `<div>${escapeHtml((report.stages || []).join(' → '))}</div>`
+                + `<div>${dataset.narrator_count || 0} narrators · ${dataset.zip_count || 0} source ZIPs · ${dataset.deduped_count || 0} deduped ZIPs</div>`
+                + `<div>${escapeHtml(runtime.gpu || runtime.device || 'device unavailable')} · ${runtime.free_vram_gb ?? 'unknown'} GB VRAM free · ${runtime.free_disk_gb ?? 'unknown'} GB disk free</div>`
+                + (findings ? `<ul class="mb-0 mt-1">${findings}</ul>` : '');
+        }
+
+        window.startVoicelab = async () => {
+            const body = getVoicelabRequest();
+            if (!body.stages.length) { showToast('Select at least one stage to run.', 'warning'); return; }
+            let preflight;
+            try {
+                preflight = await API.post('/api/voicelab/preflight', body);
+                renderVoicelabPreflight(preflight);
+            } catch (e) {
+                showToast('Preflight failed: ' + (e.message || 'unknown'), 'error');
+                return;
+            }
+            if (!preflight.ready) { return; }
+            const warningText = (preflight.warnings || []).map(item => item.message).join('\n');
+            const prompt = `${warningText ? warningText + '\n\n' : ''}Preflight is ready. Run ${preflight.stages.join(' → ')}?`;
+            if (!confirm(prompt)) { return; }
+            body.preflight_id = preflight.preflight_id;
             _vlSetRunning(true);
             document.getElementById('voicelab-status').innerHTML =
                 '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting…</span>';

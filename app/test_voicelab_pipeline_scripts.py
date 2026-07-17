@@ -391,11 +391,14 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     streamed.append(command)
                     return 0, []
 
-                request = voicelab.VoiceLabRequest(stages=[stage])
+                request = voicelab.VoiceLabRequest(stages=[stage], preflight_id="test-ready")
                 with patch.object(voicelab, "check_global_gpu_lock"), \
                      patch.object(voicelab, "claim_gpu_task"), \
                      patch.object(voicelab, "_load_voicelab_config", return_value=cfg), \
                      patch.object(voicelab, "_validate_voicelab_path"), \
+                     patch.object(voicelab, "_build_voicelab_preflight",
+                                  return_value={"preflight_id": "test-ready", "blockers": [],
+                                                "_zips_dir": tmp, "_profiler_model": ""}), \
                      patch.object(voicelab, "_revalidate_voicelab_runtime",
                                   return_value=None) as revalidate, \
                      patch.object(voicelab, "_run_profiler_preflight", return_value={}), \

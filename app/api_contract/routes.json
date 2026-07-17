@@ -1243,6 +1243,15 @@
   {
     "index": 139,
     "methods": [
+      "POST"
+    ],
+    "name": "voicelab_preflight",
+    "path": "/api/voicelab/preflight",
+    "type": "APIRoute"
+  },
+  {
+    "index": 140,
+    "methods": [
       "GET"
     ],
     "name": "voicelab_get_config",
@@ -1250,7 +1259,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 140,
+    "index": 141,
     "methods": [
       "POST"
     ],
@@ -1259,7 +1268,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 141,
+    "index": 142,
     "methods": [
       "GET"
     ],
@@ -1268,7 +1277,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 142,
+    "index": 143,
     "methods": [
       "POST"
     ],
@@ -1277,7 +1286,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 143,
+    "index": 144,
     "methods": [
       "POST"
     ],
@@ -1286,7 +1295,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 144,
+    "index": 145,
     "methods": [
       "POST"
     ],
@@ -1295,7 +1304,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 145,
+    "index": 146,
     "methods": [
       "POST"
     ],
