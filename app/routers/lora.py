@@ -167,6 +167,64 @@ def _load_comparison_evaluation(path: str) -> dict:
     return result
 
 
+def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
+    evaluation = entry.get("evaluation") or {}
+    promotion = entry.get("promotion") or {}
+    retained = entry.get("evaluation_candidates") or []
+    skipped = entry.get("evaluation_candidate_skips") or []
+    evaluation = evaluation if isinstance(evaluation, dict) else {}
+    promotion = promotion if isinstance(promotion, dict) else {}
+    retained = retained if isinstance(retained, list) else []
+    skipped = skipped if isinstance(skipped, list) else []
+    recommendation = {}
+    try:
+        with open(os.path.join(adapter_dir, "evaluation.json"), encoding="utf-8") as handle:
+            stored_evaluation = json.load(handle)
+        if isinstance(stored_evaluation, dict):
+            recommendation = stored_evaluation.get("candidate_recommendation") or {}
+    except (OSError, json.JSONDecodeError):
+        pass
+    recommendation = recommendation if isinstance(recommendation, dict) else {}
+    metrics = recommendation.get("candidate_metrics") or {}
+    metrics = metrics if isinstance(metrics, dict) else {}
+    evaluated_candidates = [candidate_id for candidate_id, candidate_metrics in metrics.items()
+                            if candidate_id != "production"
+                            and isinstance(candidate_metrics, dict)
+                            and candidate_metrics.get("status") != "skipped_duplicate"]
+    duplicate_ids = {item.get("id") for item in skipped
+                     if isinstance(item, dict) and item.get("id")}
+    stored_duplicates = recommendation.get("duplicate_candidates") or []
+    stored_duplicates = stored_duplicates if isinstance(stored_duplicates, list) else []
+    cleanup = recommendation.get("cleanup") or {}
+    cleanup = cleanup if isinstance(cleanup, dict) else {}
+    duplicate_ids.update(item.get("id") for item in stored_duplicates
+                         if isinstance(item, dict) and item.get("id"))
+    recommended = evaluation.get("recommended_candidate")
+    if promotion.get("status") == "promoted":
+        state = "promoted"
+    elif promotion.get("status") == "rolled_back":
+        state = "rolled_back"
+    elif recommended and recommended != "production":
+        state = "candidate_recommended"
+    elif evaluation.get("status") in ("pass", "warning"):
+        state = "production_recommended"
+    elif retained or skipped:
+        state = "awaiting_evaluation"
+    else:
+        state = "no_candidates"
+    return {
+        "state": state,
+        "evaluated_count": len(evaluated_candidates),
+        "retained_count": len(retained),
+        "duplicate_count": len(duplicate_ids),
+        "recommended_candidate": recommended,
+        "production_unchanged": state in (
+            "candidate_recommended", "production_recommended", "awaiting_evaluation"),
+        "promotion_status": promotion.get("status"),
+        "cleanup_status": cleanup.get("status"),
+    }
+
+
 def _get_probe_comparison(result: dict, checkpoint_dir: str, url_prefix: str) -> dict:
     probes = {}
     for probe in result["probes"]:
@@ -646,6 +704,8 @@ async def lora_list_models():
         m["checkpoint_swap"] = ({"status": "recovery_required",
                                   "operation": journal.get("operation", "unknown")}
                                 if journal else None)
+        if not is_builtin:
+            m["candidate_summary"] = _get_candidate_summary(m, adapter_dir)
     return models
 
 
