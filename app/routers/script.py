@@ -75,6 +75,7 @@ logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 _upload_hash_cache = {}
 _upload_hash_lock = threading.Lock()
+_upload_dedupe_lock = threading.Lock()
 
 
 class ReviewRequest(BaseModel):
@@ -390,16 +391,23 @@ def _get_upload_hash(path: str) -> str:
 
 def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     """Remove path and return an existing identical text upload when present."""
-    size = os.path.getsize(path)
-    digest = _get_upload_hash(path)
-    for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
-        if (not entry.is_file() or entry.path == path or
-                os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"} or
-                entry.stat().st_size != size):
-            continue
-        if _get_upload_hash(entry.path) == digest:
-            os.remove(path)
-            return entry.path, True
+    # Serialize the scan-and-remove decision. Without this, two identical
+    # concurrent uploads can each select the other as canonical and remove
+    # both files, or one scan can stat a path the other just removed.
+    with _upload_dedupe_lock:
+        size = os.path.getsize(path)
+        digest = _get_upload_hash(path)
+        for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
+            try:
+                if (not entry.is_file() or entry.path == path or
+                        os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"} or
+                        entry.stat().st_size != size):
+                    continue
+                if _get_upload_hash(entry.path) == digest:
+                    os.remove(path)
+                    return entry.path, True
+            except FileNotFoundError:
+                continue
     return path, False
 
 
