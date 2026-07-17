@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -38,6 +39,8 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual("production", manifest[0]["evaluation"]["recommended_candidate"])
             self.assertEqual([], manifest[0]["evaluation_candidates"])
             self.assertEqual("promoted", promoted["status"])
+            backup_dir = adapter / "promotion_backups" / promoted["backup_id"]
+            self.assertTrue(backup_dir.is_dir())
 
             rolled_back = lora._rollback_lora_promotion(
                 "voice", str(models), str(manifest_path))
@@ -45,6 +48,9 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual(b"production:adapter_config.json",
                              (adapter / "adapter_config.json").read_bytes())
             self.assertEqual("rolled_back", rolled_back["status"])
+            self.assertFalse(backup_dir.exists())
+            manifest = json.loads(manifest_path.read_text())
+            self.assertIsNone(manifest[0]["promotion"]["backup_id"])
 
     def test_promotion_refuses_production_recommendation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -189,6 +195,92 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual(b"production:adapter_config.json",
                              (adapter / "adapter_config.json").read_bytes())
             self.assertEqual(original_manifest, json.loads(manifest_path.read_text()))
+
+    def test_new_promotion_prunes_older_backup_after_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            adapter = models / "voice"
+            candidate = adapter / "candidates" / "epoch_002"
+            stale_backup = adapter / "promotion_backups" / "stale"
+            manifest_path = models / "manifest.json"
+            self._write_checkpoint(adapter, "production")
+            self._write_checkpoint(candidate, "candidate")
+            self._write_checkpoint(stale_backup, "stale")
+            manifest_path.write_text(json.dumps([{
+                "id": "voice",
+                "evaluation": {"recommended_candidate": "epoch_002"},
+                "evaluation_candidates": [{"id": "epoch_002"}],
+            }]))
+
+            promoted = lora._promote_lora_candidate("voice", str(models), str(manifest_path))
+
+            backups = sorted(path.name for path in (adapter / "promotion_backups").iterdir())
+            self.assertEqual([promoted["backup_id"]], backups)
+
+    def test_backup_status_and_explicit_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            adapter = models / "voice"
+            backup = adapter / "promotion_backups" / "backup-1"
+            manifest_path = models / "manifest.json"
+            self._write_checkpoint(backup, "backup")
+            manifest_path.write_text(json.dumps([{
+                "id": "voice",
+                "promotion": {"status": "promoted", "backup_id": "backup-1",
+                              "promoted_at": 123.0},
+            }]))
+
+            with patch.object(lora.shutil, "disk_usage",
+                              return_value=SimpleNamespace(free=1024)):
+                status = lora._get_lora_backup_status(str(models), str(manifest_path))
+
+            self.assertTrue(status["low_space_warning"])
+            self.assertEqual(1, len(status["backups"]))
+            self.assertGreater(status["total_size_bytes"], 0)
+            deleted = lora._delete_rollback_backup("voice", str(models), str(manifest_path))
+            self.assertEqual("deleted", deleted["status"])
+            self.assertFalse(backup.exists())
+            manifest = json.loads(manifest_path.read_text())
+            self.assertIsNone(manifest[0]["promotion"]["backup_id"])
+
+    def test_backup_deletion_refuses_pending_checkpoint_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            adapter = models / "voice"
+            backup = adapter / "promotion_backups" / "backup-1"
+            manifest_path = models / "manifest.json"
+            self._write_checkpoint(backup, "backup")
+            adapter.mkdir(parents=True, exist_ok=True)
+            (adapter / lora.CHECKPOINT_SWAP_JOURNAL).write_text("{}")
+            manifest_path.write_text(json.dumps([{
+                "id": "voice",
+                "promotion": {"status": "promoted", "backup_id": "backup-1"},
+            }]))
+
+            with self.assertRaises(HTTPException) as raised:
+                lora._delete_rollback_backup("voice", str(models), str(manifest_path))
+
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertTrue(backup.is_dir())
+
+    def test_failed_backup_deletion_keeps_manifest_reference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            backup = models / "voice" / "promotion_backups" / "backup-1"
+            manifest_path = models / "manifest.json"
+            self._write_checkpoint(backup, "backup")
+            original_manifest = [{
+                "id": "voice",
+                "promotion": {"status": "promoted", "backup_id": "backup-1"},
+            }]
+            manifest_path.write_text(json.dumps(original_manifest))
+
+            with patch.object(lora.shutil, "rmtree", side_effect=OSError("disk error")):
+                with self.assertRaises(OSError):
+                    lora._delete_rollback_backup("voice", str(models), str(manifest_path))
+
+            self.assertEqual(original_manifest, json.loads(manifest_path.read_text()))
+            self.assertTrue(backup.is_dir())
 
 
 if __name__ == "__main__":

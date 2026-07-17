@@ -142,10 +142,14 @@
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
   ],
   "test_lora_candidate_promotion": [
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_deletion_refuses_pending_checkpoint_recovery",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_status_and_explicit_deletion",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_backup_deletion_keeps_manifest_reference",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_replacement_restores_production_and_manifest",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_failed_rollback_restores_promoted_checkpoint",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_interrupted_swap_leaves_journal_and_explicit_recovery_restores",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_interruption_before_manifest_save_recovers_files_and_manifest",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_new_promotion_prunes_older_backup_after_commit",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_preserves_and_rolls_back_production",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation"
   ],

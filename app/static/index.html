@@ -5807,6 +5807,16 @@
         async function loadLoraModels() {
             try {
                 const models = await API.get('/api/lora/models');
+                let backupStatus = { backups: [], total_size_bytes: 0, free_bytes: 0, low_space_warning: false };
+                try {
+                    backupStatus = await API.get('/api/lora/backups');
+                } catch (e) {
+                    console.debug('LoRA backup status unavailable', e);
+                }
+                models.forEach(model => {
+                    model.rollback_backup = backupStatus.backups.find(
+                        backup => backup.adapter_id === model.id) || null;
+                });
                 window._loraModelsCache = models;
                 const container = document.getElementById('lora-models-list');
                 const testForm = document.getElementById('lora-test-form');
@@ -5817,7 +5827,14 @@
                     return;
                 }
 
-                container.innerHTML = `
+                const backupSummary = backupStatus.backups.length || backupStatus.low_space_warning ? `
+                    <div class="alert ${backupStatus.low_space_warning ? 'alert-warning' : 'alert-secondary'} py-2 mb-2 small">
+                        ${backupStatus.low_space_warning ? '<strong>Low disk space.</strong> ' : ''}
+                        Rollback backups: ${backupStatus.backups.length},
+                        ${(backupStatus.total_size_bytes / 1024 ** 3).toFixed(2)} GB;
+                        ${(backupStatus.free_bytes / 1024 ** 3).toFixed(1)} GB free.
+                    </div>` : '';
+                container.innerHTML = `${backupSummary}
                     <table class="table table-sm table-hover mb-0">
                         <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Evaluation</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
                         <tbody>
@@ -5838,6 +5855,7 @@
                                             ${!m.builtin && m.checkpoint_swap ? `<button class="btn btn-sm btn-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="recoverLoraCheckpointSwap(this.dataset.adapterId)" title="Restore production from the interrupted operation journal"><i class="fas fa-life-ring me-1"></i>Recover</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
+                                            ${!m.builtin && !m.checkpoint_swap && m.rollback_backup ? `<button class="btn btn-sm btn-outline-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraRollbackBackup(this.dataset.adapterId)" title="Delete ${(m.rollback_backup.size_bytes / 1024 ** 2).toFixed(1)} MB rollback backup"><i class="fas fa-hard-drive me-1"></i>Delete backup</button>` : ''}
                                             ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
                                         `}
                                     </td>
@@ -5895,6 +5913,23 @@
                 await loadLoraModels();
             } catch (e) {
                 showToast('Recovery failed: ' + e.message, 'error');
+            }
+        };
+
+        window.deleteLoraRollbackBackup = async (adapterId) => {
+            if (!confirm('Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint.')) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/lora/models/${encodeURIComponent(adapterId)}/rollback-backup`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || `HTTP ${response.status}`);
+                }
+                showToast('Rollback backup deleted.', 'success');
+                await loadLoraModels();
+            } catch (e) {
+                showToast('Backup deletion failed: ' + e.message, 'error');
             }
         };
 

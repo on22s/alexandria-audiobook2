@@ -75,6 +75,7 @@ class LoraTestRequest(BaseModel):
 PROMOTION_FILES = ("adapter_config.json", "adapter_model.safetensors", "README.md",
                    "ref_sample.wav", "training_meta.json")
 CHECKPOINT_SWAP_JOURNAL = ".checkpoint_swap.json"
+LORA_DISK_WARNING_BYTES = 25 * 1024**3
 
 
 def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
@@ -86,12 +87,79 @@ def _copy_promotion_files(source_dir: str, destination_dir: str) -> None:
         shutil.copy2(source, os.path.join(destination_dir, filename))
 
 
+def _get_directory_size(path: str) -> int:
+    return sum(os.path.getsize(os.path.join(root, filename))
+               for root, _dirs, filenames in os.walk(path)
+               for filename in filenames)
+
+
+def _prune_promotion_backups(adapter_dir: str, keep_backup_id: str) -> list[str]:
+    backups_dir = os.path.join(adapter_dir, "promotion_backups")
+    removed = []
+    if not os.path.isdir(backups_dir):
+        return removed
+    for backup_id in sorted(os.listdir(backups_dir)):
+        backup_dir = os.path.join(backups_dir, backup_id)
+        if backup_id != keep_backup_id and os.path.isdir(backup_dir):
+            shutil.rmtree(backup_dir)
+            removed.append(backup_id)
+    return removed
+
+
+def _get_lora_backup_status(models_dir: str, manifest_path: str) -> dict:
+    backups = []
+    for entry in _load_manifest(manifest_path):
+        promotion = entry.get("promotion") or {}
+        backup_id = promotion.get("backup_id")
+        if not backup_id:
+            continue
+        adapter_dir = _safe_subpath(models_dir, entry.get("id", ""))
+        backup_dir = _safe_subpath(os.path.join(adapter_dir, "promotion_backups"), backup_id)
+        if os.path.isdir(backup_dir):
+            backups.append({
+                "adapter_id": entry["id"], "backup_id": backup_id,
+                "size_bytes": _get_directory_size(backup_dir),
+                "created_at": promotion.get("promoted_at"),
+                "active": promotion.get("status") == "promoted",
+            })
+    usage = shutil.disk_usage(models_dir)
+    return {
+        "backups": backups,
+        "total_size_bytes": sum(item["size_bytes"] for item in backups),
+        "free_bytes": usage.free,
+        "warning_threshold_bytes": LORA_DISK_WARNING_BYTES,
+        "low_space_warning": usage.free < LORA_DISK_WARNING_BYTES,
+    }
+
+
+def _delete_rollback_backup(adapter_id: str, models_dir: str,
+                            manifest_path: str) -> dict:
+    adapter_dir = _safe_subpath(models_dir, adapter_id)
+    with file_lock(manifest_path):
+        if _get_checkpoint_swap_journal(adapter_dir):
+            raise HTTPException(status_code=409, detail="Checkpoint recovery is required first")
+        manifest = _load_manifest(manifest_path)
+        entry = next((item for item in manifest if item.get("id") == adapter_id), None)
+        promotion = (entry or {}).get("promotion") or {}
+        backup_id = promotion.get("backup_id")
+        if not backup_id:
+            raise HTTPException(status_code=404, detail="Rollback backup not found")
+        backup_dir = _safe_subpath(os.path.join(adapter_dir, "promotion_backups"), backup_id)
+        if not os.path.isdir(backup_dir):
+            raise HTTPException(status_code=404, detail="Rollback backup not found")
+        shutil.rmtree(backup_dir)
+        promotion["backup_deleted_at"] = time.time()
+        promotion["backup_id"] = None
+        _save_manifest(manifest_path, manifest)
+    return {"status": "deleted", "adapter_id": adapter_id, "backup_id": backup_id}
+
+
 def _get_checkpoint_swap_journal(adapter_dir: str) -> dict | None:
     path = os.path.join(adapter_dir, CHECKPOINT_SWAP_JOURNAL)
     try:
         with open(path, encoding="utf-8") as handle:
             journal = json.load(handle)
-        return journal if isinstance(journal, dict) else {"operation": "unknown"}
+        return journal if isinstance(journal, dict) and journal else {"operation": "unknown"}
     except FileNotFoundError:
         return None
     except (OSError, json.JSONDecodeError):
@@ -193,6 +261,7 @@ def _promote_lora_candidate(adapter_id: str, models_dir: str,
         _save_manifest(manifest_path, manifest)
         _complete_checkpoint_swap(adapter_dir, backup_dir, keep_recovery=True)
         shutil.rmtree(candidate_dir)
+        _prune_promotion_backups(adapter_dir, promotion_id)
     return entry["promotion"]
 
 
@@ -212,8 +281,11 @@ def _rollback_lora_promotion(adapter_id: str, models_dir: str,
                                   "rollback", keep_recovery=False, manifest_entry=entry)
         promotion["status"] = "rolled_back"
         promotion["rolled_back_at"] = time.time()
+        promotion["backup_id"] = None
+        promotion["backup_deleted_at"] = time.time()
         _save_manifest(manifest_path, manifest)
         _complete_checkpoint_swap(adapter_dir, recovery_dir, keep_recovery=False)
+        shutil.rmtree(backup_dir, ignore_errors=True)
     return promotion
 
 
@@ -484,6 +556,13 @@ async def lora_list_models():
     return models
 
 
+@router.get("/api/lora/backups")
+async def lora_list_backups():
+    """Report rollback-backup storage and host free-space pressure."""
+    return await asyncio.to_thread(
+        _get_lora_backup_status, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+
+
 @router.post("/api/lora/models/{adapter_id}/promote")
 async def lora_promote_candidate(adapter_id: str):
     """Promote the evaluated recommendation while preserving production for rollback."""
@@ -518,6 +597,15 @@ async def lora_recover_checkpoint_swap(adapter_id: str):
     gc.collect()
     logger.warning("Recovered interrupted LoRA checkpoint swap: %s", adapter_id)
     return {"adapter_id": adapter_id, **result}
+
+
+@router.delete("/api/lora/models/{adapter_id}/rollback-backup")
+async def lora_delete_rollback_backup(adapter_id: str):
+    """Delete the preserved production checkpoint after explicit confirmation."""
+    result = await asyncio.to_thread(
+        _delete_rollback_backup, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    logger.warning("LoRA rollback backup deleted: %s", adapter_id)
+    return result
 
 @router.delete("/api/lora/models/{adapter_id}")
 async def lora_delete_model(adapter_id: str):
