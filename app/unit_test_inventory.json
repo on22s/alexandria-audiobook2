@@ -250,6 +250,11 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_voice_feature_benchmark": [
+    "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_comparison_reports_feature_drift",
+    "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_operation_timing_covers_every_profiler_acoustic_operation",
+    "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_torch_features_match_librosa_on_voiced_and_noisy_audio"
+  ],
   "test_voicelab_pipeline_scripts": [
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_atomic_csv_failure_preserves_previous_file",
     "test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_batch_defaults_follow_loaded_checkout",
