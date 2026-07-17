@@ -229,6 +229,31 @@ class RuntimeTests(unittest.TestCase):
 
         reset_stuck_chunks.assert_called_once_with()
 
+    def test_index_stamps_served_build_for_stale_tab_detection(self):
+        # The served page must carry the current build so a tab open across a
+        # backend update can detect it is stale (Phase 7).
+        with patch.object(system_module, "get_runtime_info",
+                          return_value={"short_revision": "abc1234"}):
+            response = asyncio.run(system_module.read_index())
+        body = response.body.decode("utf-8")
+        self.assertIn('<meta name="app-build" content="abc1234">', body)
+        # Only the meta tag is stamped — the JS placeholder literal the frontend
+        # compares against MUST survive, or a blanket replace would rewrite the
+        # guard (PAGE_BUILD !== '<placeholder>') and permanently disable
+        # detection on served pages.
+        self.assertIn("'__APP_BUILD__'", body)
+        self.assertNotIn('content="__APP_BUILD__"', body)
+
+    def test_index_stamps_empty_build_when_revision_unavailable(self):
+        # An unknown revision must render an empty stamp (informational), not the
+        # literal placeholder in the meta tag, so the frontend never
+        # false-positives a mismatch.
+        with patch.object(system_module, "get_runtime_info", return_value={}):
+            response = asyncio.run(system_module.read_index())
+        body = response.body.decode("utf-8")
+        self.assertIn('<meta name="app-build" content="">', body)
+        self.assertNotIn('content="__APP_BUILD__"', body)
+
     def test_system_stats_does_not_block_eta_requests(self):
         async def exercise_requests():
             probe_started = threading.Event()

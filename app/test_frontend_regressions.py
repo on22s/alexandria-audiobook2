@@ -35,6 +35,18 @@ class FrontendTests(unittest.TestCase):
                          "Download diagnostics"):
             self.assertIn(required, frontend)
 
+    def test_stale_build_banner_is_wired_without_a_new_timer(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ('name="app-build"', "__APP_BUILD__", "stale-build-banner",
+                         "PAGE_BUILD", "checkStaleBuild", "location.reload()"):
+            self.assertIn(required, frontend)
+        # The check must piggyback on the existing stats poll, adding no timer:
+        # checkStaleBuild is called from updateSystemStats, and there is no new
+        # setInterval referencing it.
+        self.assertIn("checkStaleBuild(runtime.short_revision)", frontend)
+        self.assertNotIn("setInterval(checkStaleBuild", frontend)
+
     def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

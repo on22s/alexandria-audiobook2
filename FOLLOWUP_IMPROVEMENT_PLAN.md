@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–6 complete; Phase 7 pending**
+Status: **approved — Phases 1–7 complete; Phase 8 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -36,7 +36,7 @@ checkpoint, retry, or recovery safety nets.
 | 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
 | 5 | Sanitized diagnostics export | Complete | #155 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
 | 6 | Evaluation history and human review | Complete | #156 | Evidence-bound append-only reviews, true blind A/B proxy, stale rejection, 346 unit tests |
-| 7 | Stale-browser build detection | Pending | — | — |
+| 7 | Stale-browser build detection | Complete | #157 | Serve-time build stamp, poll-piggybacked banner, no new timer, no auto-refresh |
 | 8 | Launcher supervisor integration tests | Pending | — | — |
 
 Allowed status values: `Pending`, `In progress`, `Blocked`, `Complete`.
@@ -396,6 +396,34 @@ Verification:
 - Frontend tests and release verifier.
 
 ## Phase 7 — Stale-browser build detection
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-stale-build` / #157 (based on main)
+Completed: The `/` route now stamps the served page with the current build
+(`get_runtime_info` short_revision) into a `<meta name="app-build">` tag. The
+frontend captures it once and, inside the existing `/api/system/stats` poll,
+compares it to the live backend revision — showing a dismissible, non-destructive
+"newer version available / Reload now" banner on a real mismatch. No new timer;
+no auto-refresh.
+Verified behavior: Served build equals the stats build on a fresh load (no false
+positive). Unknown build on either side is treated as informational (empty stamp
+when the revision is unavailable; the literal placeholder when opened as a raw
+file → detection disabled, never a false warning). The banner only appears on a
+genuine mismatch and offers an explicit Reload; unsaved work is never discarded.
+Tests run (including skips): Two backend serve-time tests (build stamped; empty
+when unavailable) and a frontend regression (meta/banner/PAGE_BUILD/checkStaleBuild
+wired, called from the stats poll, no new setInterval) — all pass. Release verifier
+passed: 362 unit tests, quick API 70 passed / 0 failed / 12 skipped. Unit-test
+inventory regenerated; API contract unchanged (same route, only response class).
+Real artifacts or reports: none beyond code.
+Deviations / discoveries: A first version replaced every `__APP_BUILD__`
+occurrence, which also rewrote the JS guard literal (`PAGE_BUILD !== '__APP_BUILD__'`)
+and would have permanently disabled detection on served pages. Caught before merge;
+fixed by stamping only the meta-tag occurrence, with a regression test asserting
+the JS placeholder literal survives.
+Remaining: Merge #157 into main.
+Next action: Commit and publish Phase 7, then begin launcher supervisor integration
+tests in Phase 8.
 
 Purpose: identify a browser tab serving old frontend code after a backend update.
 

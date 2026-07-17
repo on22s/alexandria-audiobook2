@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Build this page was served from; replaced server-side (Phase 7 stale-tab
+         detection). Stays as the literal placeholder when opened as a raw file. -->
+    <meta name="app-build" content="__APP_BUILD__">
     <title>Alexandria Audiobook</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -456,6 +459,13 @@
     </script>
 </head>
 <body>
+    <!-- Non-destructive stale-build notice: shown only when the backend build
+         differs from the build this tab was served with. Never auto-reloads. -->
+    <div id="stale-build-banner" class="alert alert-warning alert-dismissible mb-0 rounded-0 text-center" style="display:none;" role="alert">
+        <i class="fas fa-rotate me-1"></i>A newer version of Alexandria is available. Reload when convenient to pick it up — your unsaved work is not touched.
+        <button type="button" class="btn btn-sm btn-warning ms-2" onclick="location.reload()"><i class="fas fa-rotate-right me-1"></i>Reload now</button>
+        <button type="button" class="btn-close" onclick="document.getElementById('stale-build-banner').style.display='none'" aria-label="Dismiss"></button>
+    </div>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="#"><i class="fas fa-book-open me-2"></i>Alexandria</a>
@@ -6733,6 +6743,25 @@
         document.getElementById('dsb-description')?.addEventListener('input', dsbSaveForm);
         document.getElementById('dsb-global-seed')?.addEventListener('input', dsbSaveForm);
 
+        // The build this tab was served with (stamped server-side). Stays the
+        // literal placeholder if the page was opened as a raw file → treat as
+        // unknown and never warn.
+        const PAGE_BUILD = (document.querySelector('meta[name="app-build"]')?.content || '').trim();
+        const PAGE_BUILD_KNOWN = PAGE_BUILD && PAGE_BUILD !== '__APP_BUILD__';
+
+        // Reuses the /api/system/stats poll below — adds no timer. Shows the
+        // non-destructive banner only on a real mismatch; unknown either side is
+        // informational. Once dismissed/shown it never forces a reload.
+        function checkStaleBuild(currentBuild) {
+            const banner = document.getElementById('stale-build-banner');
+            if (!banner) { return; }
+            const current = (currentBuild || '').trim();
+            if (!PAGE_BUILD_KNOWN || !current) { return; }
+            if (current !== PAGE_BUILD) {
+                banner.style.display = 'block';
+            }
+        }
+
         async function updateSystemStats() {
             try {
                 const stats = await API.get('/api/system/stats');
@@ -6745,6 +6774,7 @@
 
                 const runtime = stats.runtime || {};
                 buildEl.textContent = runtime.short_revision ? `build ${runtime.short_revision}` : 'build unknown';
+                checkStaleBuild(runtime.short_revision);
                 const packageVersions = Object.entries(runtime.packages || {})
                     .filter(item => item[1])
                     .map(item => `${item[0]} ${item[1]}`)
