@@ -69,6 +69,20 @@ class ChunkQualityTests(unittest.TestCase):
             {"passed": False}, {"counts": {"blocking": 0}}))
         self.assertFalse(generate_script.passes_final_generation_gate(
             {"passed": True}, {"counts": {"blocking": 1}}))
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            {"passed": True}, {"counts": {"blocking": 0}}, [{"reason": "unsafe"}]))
+
+    def test_final_repair_removes_unique_duplicate_across_chunk_boundary(self):
+        first = _entry("A sufficiently long first source line.")
+        second = _entry("A sufficiently long second source line.")
+        source = f"{first['text']} {second['text']}"
+
+        repaired = generate_script.build_final_generation_repair(
+            [first, second, copy.deepcopy(first), copy.deepcopy(second)], source)
+
+        self.assertEqual([first, second], repaired["entries"])
+        self.assertEqual("adjacent_duplicate_block", repaired["changes"][0]["type"])
+        self.assertEqual([], repaired["unresolved"])
 
     def test_quality_manifest_summarizes_chunks_without_copying_entries(self):
         accepted = [{"chunk_number": 1, "source_sha256": "source",
@@ -89,6 +103,14 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual((2, 6, "саге", "care"),
                          (changes[0]["line"], changes[0]["column"],
                           changes[0]["before"], changes[0]["after"]))
+
+    def test_known_source_nap_corruption_is_normalized(self):
+        normalized, changes = normalize_known_source_corruptions(
+            "She intended to пар until their arrival.")
+
+        self.assertEqual("She intended to nap until their arrival.", normalized)
+        self.assertEqual("пар", changes[0]["before"])
+        self.assertEqual("nap", changes[0]["after"])
 
     def test_generation_repairs_empty_silence_before_quality_acceptance(self):
         source = "First spoken line. Following spoken line."

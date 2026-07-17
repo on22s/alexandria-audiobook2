@@ -18,7 +18,9 @@
     "test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
   "test_batch_script_concurrency": [
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_preflight_uses_planned_runtime_profile",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_serializes_when_per_slot_context_is_too_small",
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_status_omits_all_live_process_objects",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
   ],
@@ -32,11 +34,13 @@
     "test_chunk_quality.ChunkQualityTests.test_complete_japanese_text_uses_character_units",
     "test_chunk_quality.ChunkQualityTests.test_complete_resegmented_response_passes_without_mutation",
     "test_chunk_quality.ChunkQualityTests.test_final_gate_requires_whole_book_quality_and_zero_blockers",
+    "test_chunk_quality.ChunkQualityTests.test_final_repair_removes_unique_duplicate_across_chunk_boundary",
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_rejects_unvalidated_chunk",
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_roundtrip_requires_validated_matching_chunks",
     "test_chunk_quality.ChunkQualityTests.test_generation_repairs_empty_silence_before_quality_acceptance",
     "test_chunk_quality.ChunkQualityTests.test_introduced_hiragana_reports_codepoint",
     "test_chunk_quality.ChunkQualityTests.test_known_source_corruption_normalizes_with_location_evidence",
+    "test_chunk_quality.ChunkQualityTests.test_known_source_nap_corruption_is_normalized",
     "test_chunk_quality.ChunkQualityTests.test_malformed_and_empty_entries_fail_structural_checks",
     "test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_fails_recall",
     "test_chunk_quality.ChunkQualityTests.test_quality_manifest_summarizes_chunks_without_copying_entries",
@@ -132,6 +136,8 @@
   "test_lmstudio_settings": [
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_external_vram_pressure_uses_fallback",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_missing_gpu_metrics_use_fallback",
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_local_settings_use_verified_target_without_mutating",
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_remote_settings_use_remote_target_without_status_call",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
   ],

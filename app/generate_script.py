@@ -63,8 +63,27 @@ def save_generation_quality_manifest(output_path, manifest):
     atomic_json_write(manifest, get_generation_quality_path(output_path))
 
 
-def passes_final_generation_gate(whole_quality, preflight):
-    return bool(whole_quality.get("passed") and not preflight.get("counts", {}).get("blocking"))
+def passes_final_generation_gate(whole_quality, preflight, unresolved_repairs=None):
+    return bool(whole_quality.get("passed")
+                and not preflight.get("counts", {}).get("blocking")
+                and not unresolved_repairs)
+
+
+def build_final_generation_repair(entries, source_text):
+    """Apply the same source-backed repair after chunks are reassembled.
+
+    Chunk-local repair cannot see a duplicate block spanning a chunk boundary.
+    Running it once more over the assembled book removes only blocks proven to
+    occur once in the source and preserves unresolved findings for a loud final
+    gate failure.
+    """
+    structural = build_deterministic_repair(entries, source_text)
+    if structural["unresolved"]:
+        return structural
+    identities = stabilize_speaker_identities(structural["entries"])
+    return {"entries": identities["entries"],
+            "changes": structural["changes"] + identities["changes"],
+            "unresolved": [], "review": identities["review"]}
 
 
 def get_generation_fingerprint(source_text, chunks, model_name, base_url, params, chunk_size):
@@ -956,11 +975,15 @@ def main():
         print("Error: No script entries generated")
         sys.exit(1)
 
+    final_repair = build_final_generation_repair(all_entries, book_content)
+    if not final_repair["unresolved"]:
+        all_entries = final_repair["entries"]
     whole_quality = validate_chunk_quality(book_content, all_entries)
     preflight = audit_script(all_entries, book_content, is_generic_speaker)
     identity_review = stabilize_speaker_identities(all_entries)["review"]
     final_manifest = build_generation_quality_manifest(
-        "verified" if passes_final_generation_gate(whole_quality, preflight) else "failed",
+        "verified" if passes_final_generation_gate(
+            whole_quality, preflight, final_repair["unresolved"]) else "failed",
         fingerprint, accepted_chunks, source_normalizations,
         total_chunks=total_chunks, response_log=response_log,
         model_name=model_name,
@@ -968,6 +991,8 @@ def main():
         request_preflight=request_preflight,
         whole_book_quality=whole_quality,
         preflight=preflight,
+        final_repairs={"changes": final_repair["changes"],
+                       "unresolved": final_repair["unresolved"]},
         speaker_identity_review=identity_review,
     )
     save_generation_quality_manifest(output_path, final_manifest)
