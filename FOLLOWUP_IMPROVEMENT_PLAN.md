@@ -34,7 +34,7 @@ checkpoint, retry, or recovery safety nets.
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
 | 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
-| 5 | Sanitized diagnostics export | Complete | #154 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
+| 5 | Sanitized diagnostics export | Complete | #155 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
 | 6 | Evaluation history and human review | Pending | — | — |
 | 7 | Stale-browser build detection | Pending | — | — |
 | 8 | Launcher supervisor integration tests | Pending | — | — |
@@ -262,7 +262,9 @@ Verification:
 ## Phase 5 — Sanitized diagnostics export
 
 Status: `Complete`
-Branch / PR: `agent/voicelab-diagnostics-export` / #154 (stacked on #153)
+Branch / PR: `agent/voicelab-diagnostics-export-v2` / #155 (re-based on main;
+supersedes #154, which was stacked on #153 and merged into the Phase 4 branch
+instead of main, so Phase 5 never reached main until #155)
 Completed: Added a pure, self-contained `diagnostics.py` (recursive redaction +
 bounded assembly, no app imports) and a read-only `GET /api/voicelab/diagnostics`
 endpoint that gathers runtime/build, a non-sensitive config summary, Voice Lab
@@ -293,8 +295,9 @@ sections and hands them in. The one-line credential scrub in
 `verify_release.get_concise_error` was left as-is — it answers a different
 question (bounded single-line error text for the release tool) than the
 structured recursive bundle redaction, so it is not a Rule 15 duplicate.
-Remaining: Open and merge the Phase 5 PR (stacked on #153; retarget/rebase once
-#153 merges to main).
+Remaining: Merge #155 into main. (Lesson: do not stack a phase PR on another
+phase branch — base every phase PR on main to avoid a merge landing on the wrong
+branch, as happened with #154.)
 Next action: Commit and publish Phase 5, then begin evaluation history and human
 review in Phase 6.
 
