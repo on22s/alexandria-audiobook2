@@ -5892,7 +5892,7 @@
                                             <button class="btn btn-sm ${m.preview_audio_url ? 'btn-outline-success' : 'btn-outline-secondary'} me-1" id="lora-preview-btn-${escapeHtml(m.id)}" data-adapter-id="${escapeHtml(m.id)}" onclick="playLoraPreview(this.dataset.adapterId)" title="${m.preview_audio_url ? 'Play preview' : 'Generate and play preview (first time may take a moment)'}"><i class="fas fa-volume-up"></i></button>
                                             <button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="testLoraModel(this.dataset.adapterId)" title="Generate test line with custom text"><i class="fas fa-flask me-1"></i>Test</button>
                                             ${!m.builtin && m.checkpoint_swap ? `<button class="btn btn-sm btn-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="recoverLoraCheckpointSwap(this.dataset.adapterId)" title="Restore production from the interrupted operation journal"><i class="fas fa-life-ring me-1"></i>Recover</button>` : ''}
-                                            ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-info me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="openLoraCandidateComparison(this.dataset.adapterId)" title="Listen to matched production and candidate evaluation probes"><i class="fas fa-headphones me-1"></i>Compare</button><button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
+                                            ${!m.builtin && !m.checkpoint_swap && m.evaluation?.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? `<button class="btn btn-sm btn-outline-info me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="openLoraCandidateComparison(this.dataset.adapterId)" title="Listen to matched production and candidate evaluation probes"><i class="fas fa-headphones me-1"></i>Compare</button><button class="btn btn-sm btn-outline-primary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="openLoraBlindReview(this.dataset.adapterId)" title="Blind A/B listening review — identities hidden until you submit; never promotes"><i class="fas fa-user-secret me-1"></i>Blind review</button><button class="btn btn-sm btn-outline-secondary me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="openLoraReviewHistory(this.dataset.adapterId)" title="Human review history for this adapter"><i class="fas fa-clock-rotate-left me-1"></i>History</button><button class="btn btn-sm btn-outline-success me-1" data-adapter-id="${escapeHtml(m.id)}" data-candidate-id="${escapeHtml(m.evaluation.recommended_candidate)}" onclick="promoteLoraCandidate(this.dataset.adapterId, this.dataset.candidateId)" title="Preserve production, then promote this evaluated candidate"><i class="fas fa-arrow-up me-1"></i>Promote</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.promotion?.status === 'promoted' ? `<button class="btn btn-sm btn-outline-warning me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="rollbackLoraPromotion(this.dataset.adapterId)" title="Restore the production checkpoint saved before promotion"><i class="fas fa-undo me-1"></i>Rollback</button>` : ''}
                                             ${!m.builtin && !m.checkpoint_swap && m.rollback_backup ? `<button class="btn btn-sm btn-outline-danger me-1" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraRollbackBackup(this.dataset.adapterId)" title="Delete ${(m.rollback_backup.size_bytes / 1024 ** 2).toFixed(1)} MB rollback backup"><i class="fas fa-hard-drive me-1"></i>Delete backup</button>` : ''}
                                             ${m.builtin ? '' : `<button class="btn btn-sm btn-outline-danger" data-adapter-id="${escapeHtml(m.id)}" onclick="deleteLoraModel(this.dataset.adapterId)" title="Delete"><i class="fas fa-trash"></i></button>`}
@@ -5952,6 +5952,155 @@
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
                 panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">Comparison unavailable: ${escapeHtml(e.message)}</div>`;
+            }
+        };
+
+        // Blind A/B human review. Identities are hidden by the server until a
+        // decision is submitted; this never calls promote (Rule: human feedback
+        // never auto-promotes). Reuses the comparison panel area.
+        let _blindReview = null;
+
+        function _blindReviewSelectedChoice() {
+            const checked = document.querySelector('input[name="blind-pref"]:checked');
+            return checked ? checked.value : null;
+        }
+
+        window.openLoraBlindReview = async (adapterId) => {
+            const panel = document.getElementById('lora-comparison-panel');
+            panel.style.display = '';
+            panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Opening blind review…</div>';
+            try {
+                const session = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/review/session`, {});
+                _blindReview = { adapterId: adapterId, sessionId: session.session_id };
+                const pairsHtml = session.pairs.map(pair => `
+                    <div class="border rounded p-2 mb-2">
+                        <div class="small mb-2"><strong>${escapeHtml(pair.id)}</strong><br>${escapeHtml(pair.text)}</div>
+                        <div class="row g-2">
+                            <div class="col-md-6"><label class="form-label small mb-1">Sample A</label><audio controls preload="none" class="w-100" src="${escapeHtml(pair.A.audio_url)}"></audio></div>
+                            <div class="col-md-6"><label class="form-label small mb-1">Sample B</label><audio controls preload="none" class="w-100" src="${escapeHtml(pair.B.audio_url)}"></audio></div>
+                        </div>
+                    </div>`).join('');
+                panel.innerHTML = `
+                    <div class="card border-primary">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div><strong>Blind review</strong><br><small class="text-muted">Identities are hidden until you submit. This never changes production.</small></div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('lora-comparison-panel').style.display='none'" title="Close"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="card-body">
+                            ${pairsHtml}
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Which sounds better?</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check"><input class="form-check-input" type="radio" name="blind-pref" id="blind-pref-a" value="A"><label class="form-check-label small" for="blind-pref-a">Sample A</label></div>
+                                    <div class="form-check"><input class="form-check-input" type="radio" name="blind-pref" id="blind-pref-b" value="B"><label class="form-check-label small" for="blind-pref-b">Sample B</label></div>
+                                    <div class="form-check"><input class="form-check-input" type="radio" name="blind-pref" id="blind-pref-tie" value="tie"><label class="form-check-label small" for="blind-pref-tie">No preference</label></div>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4"><label class="form-label small mb-1">Rating (optional)</label>
+                                    <select class="form-select form-select-sm" id="blind-rating"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+                                <div class="col-md-8"><label class="form-label small mb-1">Notes (optional)</label>
+                                    <input type="text" class="form-control form-control-sm" id="blind-notes" maxlength="1000" placeholder="What stood out?"></div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="submitLoraBlindReview()"><i class="fas fa-check me-1"></i>Submit decision</button>
+                        </div>
+                    </div>`;
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">Blind review unavailable: ${escapeHtml(e.message)}</div>`;
+            }
+        };
+
+        window.submitLoraBlindReview = async () => {
+            if (!_blindReview) { return; }
+            const choice = _blindReviewSelectedChoice();
+            if (!choice) { showToast('Pick Sample A, Sample B, or No preference.', 'warning'); return; }
+            const ratingRaw = document.getElementById('blind-rating').value;
+            const body = {
+                choice: choice,
+                rating: ratingRaw ? parseInt(ratingRaw, 10) : null,
+                notes: document.getElementById('blind-notes').value || '',
+            };
+            try {
+                const result = await API.post(
+                    `/api/lora/models/${encodeURIComponent(_blindReview.adapterId)}/review/session/${encodeURIComponent(_blindReview.sessionId)}`, body);
+                renderBlindReviewResult(result);
+            } catch (e) {
+                showToast('Could not record review: ' + e.message, 'error');
+            }
+        };
+
+        // Reveal identities AFTER submission. Human preference and the automated
+        // recommendation are shown as separate, clearly labelled facts.
+        function renderBlindReviewResult(result) {
+            const panel = document.getElementById('lora-comparison-panel');
+            const labels = result.revealed.labels || {};
+            const role = result.revealed.choice_role;
+            const yourPick = role === 'tie' ? 'No preference'
+                : `the <strong>${escapeHtml(role)}</strong> checkpoint`;
+            const automated = (result.automated && result.automated.recommended_candidate) || 'none';
+            panel.innerHTML = `
+                <div class="card border-success">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong>Review recorded</strong>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('lora-comparison-panel').style.display='none'" title="Close"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="card-body small">
+                        <div class="mb-1">Sample A was <strong>${escapeHtml(labels.A || '?')}</strong>, Sample B was <strong>${escapeHtml(labels.B || '?')}</strong>.</div>
+                        <div class="mb-1"><i class="fas fa-user me-1"></i>Your preference: ${yourPick}.</div>
+                        <div class="text-muted"><i class="fas fa-robot me-1"></i>Automated recommendation (separate): ${escapeHtml(automated)}. Human feedback does not change production.</div>
+                    </div>
+                </div>`;
+            _blindReview = null;
+        }
+
+        window.openLoraReviewHistory = async (adapterId) => {
+            const panel = document.getElementById('lora-comparison-panel');
+            panel.style.display = '';
+            panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading review history…</div>';
+            try {
+                const data = await API.get(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews`);
+                renderLoraReviewHistory(adapterId, data.reviews || []);
+            } catch (e) {
+                panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">History unavailable: ${escapeHtml(e.message)}</div>`;
+            }
+        };
+
+        function renderLoraReviewHistory(adapterId, reviews) {
+            const panel = document.getElementById('lora-comparison-panel');
+            const rows = reviews.map(r => {
+                const when = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+                const human = r.human || {};
+                const rating = human.rating ? ` · ${human.rating}/5` : '';
+                const notes = human.notes ? ` · ${escapeHtml(human.notes)}` : '';
+                const auto = (r.automated || {}).recommended_candidate || '—';
+                return `<div class="border rounded p-2 mb-1 small">
+                    <div><i class="fas fa-user me-1"></i>Preferred: <strong>${escapeHtml(human.choice_role || '?')}</strong>${rating}${notes}</div>
+                    <div class="text-muted"><i class="fas fa-robot me-1"></i>Automated: ${escapeHtml(auto)} · ${escapeHtml(when)}${r.blind ? ' · blind' : ''}</div>
+                </div>`;
+            }).join('');
+            panel.innerHTML = `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong>Review history (${reviews.length})</strong>
+                        <span>
+                            ${reviews.length ? `<button class="btn btn-sm btn-outline-danger me-1" data-adapter-id="${escapeHtml(adapterId)}" onclick="clearLoraReviewHistory(this.dataset.adapterId)"><i class="fas fa-trash me-1"></i>Clear</button>` : ''}
+                            <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('lora-comparison-panel').style.display='none'" title="Close"><i class="fas fa-times"></i></button>
+                        </span>
+                    </div>
+                    <div class="card-body">${rows || '<div class="text-muted small">No human reviews recorded yet.</div>'}</div>
+                </div>`;
+        }
+
+        window.clearLoraReviewHistory = async (adapterId) => {
+            if (!confirm('Delete all human review history for this adapter?')) { return; }
+            try {
+                const result = await API.post(`/api/lora/models/${encodeURIComponent(adapterId)}/reviews/cleanup`, {});
+                const freedKb = (result.freed_bytes / 1024).toFixed(1);
+                showToast(`Cleared ${result.removed_count} review(s), freed ${freedKb} KB.`, 'success');
+                openLoraReviewHistory(adapterId);
+            } catch (e) {
+                showToast('Could not clear history: ' + e.message, 'error');
             }
         };
 

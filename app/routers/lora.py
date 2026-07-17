@@ -11,15 +11,18 @@ from urllib.parse import quote
 import zipfile
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from archive_utils import validate_zip_members
 
 from core import (
     BUILTIN_LORA_DIR,
+    DATA_DIR,
     LORA_DATASETS_DIR,
     LORA_MODELS_DIR,
     LORA_MODELS_MANIFEST,
+    ROOT_DIR,
     _cancel_task,
     _load_builtin_lora_manifest,
     _load_manifest,
@@ -41,10 +44,15 @@ from hf_utils import (
 )
 from lora_evidence import get_evidence_error
 from utils import atomic_json_write, file_lock, get_unique_id, is_path_inside, secure_filename
+from runtime_info import get_runtime_info
+import evaluation_reviews
 
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
+
+# Human evaluation-review history + pending blind sessions (Phase 6).
+EVALUATION_REVIEWS_DIR = os.path.join(DATA_DIR, "evaluation_reviews")
 
 
 def _safe_extractall(zf: "zipfile.ZipFile", dest_dir: str) -> None:
@@ -246,8 +254,13 @@ def _get_probe_comparison(result: dict, checkpoint_dir: str, url_prefix: str) ->
     return probes
 
 
-def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
-                                   manifest_path: str) -> dict:
+def _load_candidate_comparison_full(adapter_id: str, models_dir: str,
+                                    manifest_path: str) -> tuple:
+    """Comparison payload plus the two integrity-checked evaluation results.
+
+    Single loader shared by the advisory comparison endpoint and the human-review
+    session builder so the evidence is loaded and validated in exactly one place.
+    """
     adapter_dir = _safe_subpath(models_dir, adapter_id)
     if _get_checkpoint_swap_journal(adapter_dir):
         raise HTTPException(status_code=409, detail="Checkpoint recovery is required first")
@@ -292,7 +305,7 @@ def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
                       "seed": production_probe["seed"],
                       "production": production_probe, "candidate": candidate_probe})
     recommendation = production_result.get("candidate_recommendation") or {}
-    return {
+    comparison = {
         "adapter_id": adapter_id,
         "candidate_id": candidate_id,
         "advisory_only": True,
@@ -300,6 +313,14 @@ def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
         "ranking": recommendation.get("ranking", []),
         "probe_pairs": pairs,
     }
+    return comparison, production_result, candidate_result
+
+
+def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
+                                   manifest_path: str) -> dict:
+    comparison, _production, _candidate = _load_candidate_comparison_full(
+        adapter_id, models_dir, manifest_path)
+    return comparison
 
 
 def _get_checkpoint_swap_journal(adapter_dir: str) -> dict | None:
@@ -742,6 +763,118 @@ async def lora_get_candidate_comparison(adapter_id: str):
     return await asyncio.to_thread(
         _get_lora_candidate_comparison, adapter_id,
         LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+
+
+class ReviewSubmitRequest(BaseModel):
+    choice: str
+    rating: int | None = None
+    notes: str = ""
+
+
+def _current_evidence_fingerprint(adapter_id: str) -> dict:
+    """Re-load + integrity-check both sides, returning their evidence fingerprint.
+
+    Raises the same 409s as the comparison endpoint when evidence is missing or
+    no longer matches on disk (checkpoint retrained/promoted/rolled back).
+    """
+    _comparison, production_result, candidate_result = _load_candidate_comparison_full(
+        adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    return evaluation_reviews.evidence_fingerprint(production_result, candidate_result)
+
+
+def _role_audio_paths(result: dict, checkpoint_dir: str) -> dict:
+    """probe_id -> real audio path for one side's evaluation result."""
+    return {probe.get("id"): os.path.join(checkpoint_dir, probe.get("audio_file", ""))
+            for probe in result.get("probes", []) if probe.get("id")}
+
+
+def _open_review_session(adapter_id: str) -> dict:
+    comparison, production_result, candidate_result = _load_candidate_comparison_full(
+        adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    fingerprint = evaluation_reviews.evidence_fingerprint(production_result, candidate_result)
+    adapter_dir = _safe_subpath(LORA_MODELS_DIR, adapter_id)
+    candidate_dir = _safe_subpath(
+        os.path.join(adapter_dir, "candidates"), comparison["candidate_id"])
+    audio_paths_by_role = {
+        "production": _role_audio_paths(production_result, adapter_dir),
+        "candidate": _role_audio_paths(candidate_result, candidate_dir),
+    }
+    try:
+        session = evaluation_reviews.create_session(
+            EVALUATION_REVIEWS_DIR, adapter_id, comparison["candidate_id"],
+            fingerprint, comparison["probe_pairs"], audio_paths_by_role,
+            build={"short_revision": get_runtime_info(ROOT_DIR).get("short_revision")},
+            automated_recommended=comparison["candidate_id"])
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    # Attach identity-neutral proxy URLs. The candidate's real URL contains
+    # "/candidates/", so serving raw URLs would break blindness — stream via a
+    # session/label-scoped endpoint that resolves the side server-side.
+    adapter_q = quote(adapter_id, safe="")
+    session_q = quote(session["session_id"], safe="")
+    base = f"/api/lora/models/{adapter_q}/review/session/{session_q}/audio"
+    for pair in session["pairs"]:
+        probe_q = quote(str(pair["id"]), safe="")
+        pair["A"] = {"audio_url": f"{base}/A/{probe_q}"}
+        pair["B"] = {"audio_url": f"{base}/B/{probe_q}"}
+    return session
+
+
+def _serve_review_audio(adapter_id: str, session_id: str, label: str, probe_id: str):
+    if label not in ("A", "B"):
+        raise HTTPException(status_code=404, detail="Unknown sample")
+    try:
+        path = evaluation_reviews.get_session_audio_path(
+            EVALUATION_REVIEWS_DIR, session_id, label, probe_id)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    if not is_path_inside(path, LORA_MODELS_DIR) or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return FileResponse(path)
+
+
+def _submit_review_decision(adapter_id: str, session_id: str, req: "ReviewSubmitRequest") -> dict:
+    current = _current_evidence_fingerprint(adapter_id)
+    try:
+        return evaluation_reviews.submit(
+            EVALUATION_REVIEWS_DIR, adapter_id, session_id, req.choice, current,
+            rating=req.rating, notes=req.notes)
+    except evaluation_reviews.ReviewError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/api/lora/models/{adapter_id}/review/session")
+async def lora_open_review_session(adapter_id: str):
+    """Open a blind A/B human-review session (identities hidden until submit)."""
+    return await asyncio.to_thread(_open_review_session, adapter_id)
+
+
+@router.get("/api/lora/models/{adapter_id}/review/session/{session_id}/audio/{label}/{probe_id}")
+async def lora_review_audio(adapter_id: str, session_id: str, label: str, probe_id: str):
+    """Stream one blind sample (A/B) without revealing which side it is."""
+    return await asyncio.to_thread(
+        _serve_review_audio, adapter_id, session_id, label, probe_id)
+
+
+@router.post("/api/lora/models/{adapter_id}/review/session/{session_id}")
+async def lora_submit_review(adapter_id: str, session_id: str, request: ReviewSubmitRequest):
+    """Record a human listening decision; rejects if evidence changed. Never promotes."""
+    return await asyncio.to_thread(_submit_review_decision, adapter_id, session_id, request)
+
+
+@router.get("/api/lora/models/{adapter_id}/reviews")
+async def lora_list_reviews(adapter_id: str):
+    """Return this adapter's bounded human-review history, newest first."""
+    reviews = await asyncio.to_thread(
+        evaluation_reviews.list_reviews, EVALUATION_REVIEWS_DIR, adapter_id)
+    return {"reviews": reviews}
+
+
+@router.post("/api/lora/models/{adapter_id}/reviews/cleanup")
+async def lora_cleanup_reviews(adapter_id: str):
+    """Delete this adapter's human-review history, reporting count and space freed."""
+    return await asyncio.to_thread(
+        evaluation_reviews.cleanup, EVALUATION_REVIEWS_DIR, adapter_id)
 
 
 @router.post("/api/lora/models/{adapter_id}/promote")
