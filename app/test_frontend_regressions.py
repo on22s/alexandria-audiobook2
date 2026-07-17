@@ -27,6 +27,14 @@ class FrontendTests(unittest.TestCase):
                          "openLoraModelsTab", "pending_recovery"):
             self.assertIn(required, frontend)
 
+    def test_voicelab_diagnostics_actions_are_present_and_sanitized(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("copyVoicelabDiagnostics", "downloadVoicelabDiagnostics",
+                         "/api/voicelab/diagnostics", "Copy diagnostics",
+                         "Download diagnostics"):
+            self.assertIn(required, frontend)
+
     def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

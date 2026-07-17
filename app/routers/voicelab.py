@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from pydantic import field_validator
 
 from core import (
+    API_LOG_DIR,
     CONFIG_PATH,
     DATA_DIR,
     LORA_DATASETS_DIR,
@@ -45,6 +46,9 @@ from voicelab_settings import get_profiler_paths
 from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
 from routers.lora import list_adapters_needing_recovery
+from config_settings import load_app_config
+from lmstudio_settings import is_remote_llm
+import diagnostics as diagnostics_module
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -411,6 +415,67 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
 @router.get("/api/voicelab/health")
 async def voicelab_health():
     return await asyncio.to_thread(_build_voicelab_health)
+
+
+def _safe_config_summary() -> dict:
+    """Non-sensitive LLM/config fields only — no base_url, api_key, or SSH host."""
+    try:
+        cfg = load_app_config(CONFIG_PATH)
+    except Exception:
+        logger.exception("Could not load app config for diagnostics")
+        return {"available": False}
+    llm = cfg.get("llm") or {}
+    llm_mode = cfg.get("llm_mode", "local")
+    return {
+        "available": True,
+        "llm_mode": llm_mode,
+        "model_name": llm.get("model_name"),
+        "is_remote_llm": is_remote_llm(llm_mode, llm.get("base_url", "")),
+        "remote_ssh_configured": bool((cfg.get("llm_remote_ssh") or "").strip()),
+    }
+
+
+def _voicelab_log_identifiers() -> list:
+    """List Voice Lab log file identifiers (name + size) — never their contents."""
+    logs = []
+    try:
+        for name in sorted(os.listdir(API_LOG_DIR)):
+            if "voicelab" not in name or not name.endswith(".log"):
+                continue
+            path = os.path.join(API_LOG_DIR, name)
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                size = None
+            logs.append({"name": name, "size_bytes": size})
+    except OSError:
+        pass
+    return logs
+
+
+def _build_voicelab_diagnostics() -> dict:
+    """Assemble a redacted, bounded Voice Lab diagnostics bundle (read-only)."""
+    try:
+        latest_run = next((r for r in list_runs(RUN_HISTORY_DIR)
+                           if r.get("task") == "voicelab"), None)
+    except Exception:
+        logger.exception("Could not read latest Voice Lab run for diagnostics")
+        latest_run = None
+    sections = {
+        "runtime": get_runtime_info(ROOT_DIR),
+        "config": _safe_config_summary(),
+        "voicelab_config": _load_voicelab_config(),
+        "health": _build_voicelab_health(),
+        "latest_run": latest_run,
+        "logs": _voicelab_log_identifiers(),
+    }
+    return diagnostics_module.build_diagnostics(
+        sections, home_dir=os.path.expanduser("~"))
+
+
+@router.get("/api/voicelab/diagnostics")
+async def voicelab_diagnostics():
+    return await asyncio.to_thread(_build_voicelab_diagnostics)
 
 
 @router.post("/api/voicelab/preflight")
