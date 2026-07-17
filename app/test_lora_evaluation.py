@@ -54,6 +54,41 @@ class LoraEvaluationTests(unittest.TestCase):
         })
         self.assertEqual(["low_speaker_similarity", "excess_silence", "clipping"], warnings)
 
+    def test_candidate_recommendation_prefers_quality_and_never_promotes(self):
+        def result(similarity, warnings=None):
+            return {"warnings": warnings or [], "probes": [{"metrics": {
+                "speaker_similarity": similarity, "clipping_ratio": 0.0,
+                "silence_ratio": 0.1,
+            }}]}
+        recommendation = evaluation.get_candidate_recommendation({
+            "production": result(0.7, ["low_speaker_similarity"]),
+            "epoch_001": result(0.8),
+            "epoch_002": result(0.75),
+        })
+        self.assertEqual("epoch_001", recommendation["recommended"])
+        self.assertTrue(recommendation["production_unchanged"])
+
+    def test_candidate_cleanup_keeps_only_recommended_generated_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "candidates")
+            for name in ("epoch_001", "epoch_002"):
+                Path(root, name).mkdir(parents=True)
+            removed = evaluation.cleanup_candidates(tmp, "epoch_002")
+            self.assertEqual(["epoch_001"], removed)
+            self.assertFalse(Path(root, "epoch_001").exists())
+            self.assertTrue(Path(root, "epoch_002").is_dir())
+
+    def test_manifest_candidate_records_match_retained_recommendation(self):
+        records = [{"id": "epoch_001"}, {"id": "epoch_002"}]
+
+        self.assertEqual(
+            [{"id": "epoch_002"}],
+            evaluation.get_retained_candidate_records(records, "epoch_002"),
+        )
+        self.assertEqual(
+            [], evaluation.get_retained_candidate_records(records, "production")
+        )
+
     def test_resume_requires_version_probes_and_audio_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = {"version": evaluation.EVALUATION_VERSION, "probes": []}

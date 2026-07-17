@@ -1428,6 +1428,10 @@
                                     <label class="form-label small mb-0">LoRA rank</label>
                                     <input type="number" class="form-control form-control-sm" id="vl-lora-r" value="64" min="1">
                                 </div>
+                                <div class="col-6 col-lg-3">
+                                    <label class="form-label small mb-0">Eval candidates</label>
+                                    <input type="number" class="form-control form-control-sm" id="vl-candidate-checkpoints" value="2" min="0" max="2">
+                                </div>
                             </div>
                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="vl-name-apply" checked><label class="form-check-label small" for="vl-name-apply">Name stage: actually rename (uncheck for a dry-run preview)</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="vl-name-overwrite"><label class="form-check-label small" for="vl-name-overwrite">Re-name adapters that already have a descriptive name</label></div>
@@ -5823,7 +5827,7 @@
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
-                                    <td>${m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>` : '--'}</td>
+                                    <td>${m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>${m.evaluation.recommended_candidate && m.evaluation.recommended_candidate !== 'production' ? ` <small title="Production remains unchanged">recommend ${escapeHtml(m.evaluation.recommended_candidate)}</small>` : ''}` : '--'}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
@@ -6926,6 +6930,7 @@
                 target_loss: parseFloat(document.getElementById('vl-target-loss').value) || 4.15,
                 max_epochs: parseInt(document.getElementById('vl-max-epochs').value, 10) || 6,
                 lora_r: parseInt(document.getElementById('vl-lora-r').value, 10) || 64,
+                candidate_checkpoints: Math.max(0, Math.min(2, parseInt(document.getElementById('vl-candidate-checkpoints').value, 10) || 0)),
                 name_apply: document.getElementById('vl-name-apply').checked,
                 name_overwrite: document.getElementById('vl-name-overwrite').checked,
             };

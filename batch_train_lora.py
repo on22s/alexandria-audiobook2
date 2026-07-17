@@ -200,6 +200,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "--gradient_accumulation_steps", str(args.grad_accum),
         "--language",    args.language,
         "--target_loss", str(args.target_loss),
+        "--candidate_checkpoints", str(getattr(args, "candidate_checkpoints", 0)),
     ]
 
     print(f"  Training: max_epochs={args.max_epochs} lr={args.lr} "
@@ -274,6 +275,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "lora_r":       args.lora_r,
         "lr":           args.lr,
         "target_loss":  args.target_loss,
+        "evaluation_candidates": training_meta.get("evaluation_candidates", []),
         "created":      time.time(),
     }
 
@@ -305,6 +307,8 @@ def main() -> int:
     parser.add_argument("--language",    default="english",          help="Language")
     parser.add_argument("--keep_datasets", action="store_true",
                         help="Don't delete extracted datasets after training")
+    parser.add_argument("--candidate_checkpoints", type=int, default=0, choices=range(0, 3),
+                        help="Temporary evaluation candidates per adapter (0-2)")
     parser.add_argument("--dry_run",     action="store_true",
                         help="List what would be trained without running")
     args = parser.parse_args()
