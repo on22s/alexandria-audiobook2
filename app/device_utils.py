@@ -18,6 +18,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from gpu_stats import system_has_gpu, is_oom_failure  # noqa: F401
 
 
+def normalize_device(device_str, allow_auto=True):
+    """Return the canonical PyTorch device name for accepted user syntax."""
+    value = str(device_str or "auto").strip().lower()
+    if value in ("rocm", "hip"):
+        return "cuda"
+    if value == "auto" and allow_auto:
+        return value
+    if value in ("cpu", "cuda", "mps"):
+        return value
+    if value.startswith("cuda:") and value[5:].isdigit():
+        return value
+    allowed = "auto, cpu, cuda, cuda:N, mps, rocm, or hip"
+    raise ValueError(f"Unsupported device '{device_str}'; expected {allowed}")
+
+
 def resolve_device(device_str):
     """Resolve 'auto' to the best available torch device: cuda > mps > cpu.
 
@@ -28,6 +43,7 @@ def resolve_device(device_str):
     machine has no GPU" case, and it's easy to miss precisely because both
     cases look identical from the outside: everything just runs on CPU.
     """
+    device_str = normalize_device(device_str)
     if device_str != "auto":
         return device_str
     torch_unavailable_reason = None

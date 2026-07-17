@@ -8,6 +8,7 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
+from pydantic import field_validator
 
 from core import (
     CONFIG_PATH,
@@ -33,6 +34,7 @@ from core import (
     claim_gpu_task,
     process_state,
 )
+from device_utils import normalize_device
 from utils import atomic_json_write, safe_load_json
 from voicelab_settings import get_profiler_paths
 
@@ -118,7 +120,7 @@ class VoiceLabConfig(BaseModel):
 class VoiceLabRequest(BaseModel):
     zips_dir: Optional[str] = None                 # narrator-subfolder root; default from config
     stages: List[str] = Field(default=list(VOICELAB_STAGES), max_length=6)
-    device: Optional[Literal["cuda", "cpu"]] = None
+    device: Optional[Literal["auto", "cpu", "cuda", "mps", "rocm", "hip"]] = None
     target_loss: float = Field(4.15, gt=0, le=100)
     max_epochs: int = Field(6, ge=1, le=100)
     lora_r: int = Field(64, ge=1, le=1024)
@@ -126,6 +128,11 @@ class VoiceLabRequest(BaseModel):
     profiler_model: Optional[str] = None           # override GGUF for the profile stage
     name_apply: bool = True                        # name stage: actually rename (else dry-run)
     name_overwrite: bool = False                   # also re-name already-named adapters
+
+    @field_validator("device", mode="before")
+    @classmethod
+    def normalize_requested_device(cls, value):
+        return normalize_device(value) if value is not None else None
 
 
 @router.get("/api/voicelab/config")
@@ -303,6 +310,8 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
                "--max_epochs", str(req.max_epochs),
                "--lora_r", str(req.lora_r)]
         cmd += ["--candidate_checkpoints", str(req.candidate_checkpoints)]
+        if req.device:
+            cmd += ["--device", req.device]
         steps.append(("train", cmd, ROOT_DIR, rocm_env))
     if "evaluate" in req.stages:
         cmd = [rocm, "-u", os.path.join(ROOT_DIR, "evaluate_lora.py"),

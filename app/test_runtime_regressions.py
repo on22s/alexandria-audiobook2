@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 import app as app_module
 import archive_utils
 import core as core_module
+import device_utils
 import tts as tts_module
 import tts_vram_benchmark as tts_benchmark_module
 from routers import preparer as preparer_module
@@ -651,9 +652,29 @@ class RuntimeTests(unittest.TestCase):
         for values in ({"target_loss": 0}, {"target_loss": 101},
                        {"max_epochs": 0}, {"max_epochs": 101},
                        {"lora_r": 0}, {"lora_r": 1025},
-                       {"device": "rocm"}):
+                       {"device": "vulkan"}):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 voicelab_module.VoiceLabRequest(**values)
+
+    def test_device_normalization_canonicalizes_amd_and_preserves_cuda_index(self):
+        self.assertEqual("cuda", device_utils.normalize_device(" ROCm "))
+        self.assertEqual("cuda", device_utils.normalize_device("hip"))
+        self.assertEqual("cuda:2", device_utils.normalize_device("CUDA:2"))
+        self.assertEqual("cuda", voicelab_module.VoiceLabRequest(
+            stages=["train"], device=" ROCm ").device)
+
+    def test_voicelab_passes_canonical_device_to_all_device_aware_stages(self):
+        request = voicelab_module.VoiceLabRequest(
+            stages=["dedup", "train", "evaluate"], device="hip")
+        cfg = {"rocm_python": "/python", "profiler_model": "",
+               "epub_dirs": []}
+
+        steps = voicelab_module._voicelab_build_commands(request, cfg, "/zips")
+
+        for stage, command, _cwd, _env in steps:
+            with self.subTest(stage=stage):
+                index = command.index("--device")
+                self.assertEqual("cuda", command[index + 1])
 
     def test_voicelab_config_ignores_invalid_stored_shapes(self):
         defaults = {"rocm_python": "python", "profiler_model": "model",
