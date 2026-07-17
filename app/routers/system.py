@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig,
@@ -390,8 +390,18 @@ async def llm_test(profile: Optional[LLMConfig] = None):
 
 @router.get("/")
 async def read_index():
-    return FileResponse(
-        os.path.join(STATIC_DIR, "index.html"),
+    # Stamp the page with the build it was served from so a tab left open across
+    # a backend update can detect it is running stale frontend code (Phase 7).
+    # Same runtime build source the backend reports at /api/system/stats.
+    with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as handle:
+        html = handle.read()
+    build = get_runtime_info(ROOT_DIR).get("short_revision") or ""
+    # Replace only the meta-tag stamp, not the JS placeholder literal the
+    # frontend compares against (a blanket replace would rewrite that guard and
+    # permanently disable stale detection on served pages).
+    html = html.replace('content="__APP_BUILD__"', f'content="{build}"', 1)
+    return HTMLResponse(
+        html,
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
 
