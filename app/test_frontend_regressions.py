@@ -17,7 +17,8 @@ class FrontendTests(unittest.TestCase):
             encoding="utf-8")
         for required in (
                 "existing-upload-select", "script-existing-uploads", "/api/uploads/select",
-                "script-collision-policy", "collision_policy: collisionPolicy"):
+                "script-collision-policy", "collision_policy: collisionPolicy",
+                "/api/generate_script/batch/preflight", "Largest predicted request"):
             self.assertIn(required, frontend)
 
     def test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints(self):

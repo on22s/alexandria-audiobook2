@@ -21,6 +21,7 @@ from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from generate_script import (build_book_request_preflight, fix_mojibake,
                              split_into_chunks)
 from lmstudio_settings import get_lmstudio_status
+from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
 
 from core import (
@@ -949,8 +950,20 @@ def _get_versioned_script_path(path: str) -> str:
     return candidate
 
 
-def _get_batch_script_workers(jobs):
-    """Return a batch-wide safe worker count from live slots and every book."""
+def _resolve_batch_script_input(filename: str) -> str:
+    safe_filename = secure_filename(filename)
+    if not safe_filename:
+        raise ValueError(f"Invalid filename: {filename}")
+    input_path = os.path.join(UPLOADS_DIR, safe_filename)
+    if not os.path.exists(input_path) and os.path.splitext(safe_filename)[1].lower() == ".epub":
+        input_path = os.path.join(UPLOADS_DIR, os.path.splitext(safe_filename)[0] + ".txt")
+    if not os.path.exists(input_path):
+        raise ValueError(f"File not found: {filename}")
+    return input_path
+
+
+def build_batch_script_preflight(jobs):
+    """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
     llm = config.get("llm") or {}
     status = get_lmstudio_status(llm.get("model_name", ""))
@@ -958,21 +971,60 @@ def _get_batch_script_workers(jobs):
     context = int(status.get("context_length") or 0)
     generation = config.get("generation") or {}
     prompts = config.get("prompts") or {}
-    worst = 0
+    books = []
     for job in jobs:
         with open(job["input_path"], encoding="utf-8") as source:
             text = fix_mojibake(source.read())
-        text, _ = normalize_known_source_corruptions(text)
+        text, normalization_count = normalize_known_source_corruptions(text)
         chunks = split_into_chunks(text, generation.get("chunk_size", 3000))
         report = build_book_request_preflight(
             chunks, prompts.get("system_prompt") or DEFAULT_SYSTEM_PROMPT,
             prompts.get("user_prompt") or DEFAULT_USER_PROMPT,
-            generation.get("max_tokens", 4096), context, parallel)
-        worst = max(worst, report["worst_predicted_tokens"])
+            generation.get("max_tokens", 4096), context, 1)
+        unicode_report = audit_unicode_text(text)
+        books.append({
+            "filename": job["filename"],
+            "chunk_count": report["chunk_count"],
+            "worst_predicted_tokens": report["worst_predicted_tokens"],
+            "p95_predicted_tokens": report["p95_predicted_tokens"],
+            "average_predicted_tokens": report["average_predicted_tokens"],
+            "scripts": unicode_report["scripts"],
+            "is_nfc": unicode_report["is_nfc"],
+            "known_normalizations": normalization_count,
+        })
+    worst = max((book["worst_predicted_tokens"] for book in books), default=0)
     safe = min(parallel, len(jobs))
     while safe > 1 and worst * safe > context:
         safe -= 1
-    return max(1, safe), worst, context
+    safe = max(1, safe)
+    per_slot = context // safe if context else 0
+    for book in books:
+        book["fits_selected_slot"] = bool(per_slot and book["worst_predicted_tokens"] <= per_slot)
+    fallback = None
+    if safe < min(parallel, len(jobs)):
+        fallback = (f"Reduced concurrency from {min(parallel, len(jobs))} to {safe} because "
+                    f"the largest predicted request needs {worst} tokens.")
+    return {"book_count": len(books), "workers": safe, "loaded_parallel": parallel,
+            "context_length": context, "per_slot_context": per_slot,
+            "worst_request_tokens": worst, "fallback_reason": fallback, "books": books}
+
+
+def _get_batch_script_workers(jobs):
+    report = build_batch_script_preflight(jobs)
+    return report["workers"], report["worst_request_tokens"], report["context_length"]
+
+
+@router.post("/api/generate_script/batch/preflight")
+async def generate_script_batch_preflight(request: BatchScriptRequest):
+    if not request.tasks:
+        raise HTTPException(status_code=400, detail="No files provided.")
+    try:
+        jobs = [{"filename": task.filename,
+                 "input_path": _resolve_batch_script_input(task.filename)}
+                for task in request.tasks]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return await asyncio.to_thread(build_batch_script_preflight, jobs)
 
 
 def _run_batch_script_job(job, state, log_path, total):
@@ -1022,20 +1074,10 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             if state["cancel"]:
                 state["logs"].append("Batch cancelled.")
                 break
-            safe_filename = secure_filename(task.filename)
-            if not safe_filename:
-                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — invalid filename: {task.filename}")
-                state["tasks"][i]["status"] = "failed"
-                continue
-            input_path = os.path.join(UPLOADS_DIR, safe_filename)
-            if not os.path.exists(input_path):
-                stem, ext = os.path.splitext(safe_filename)
-                if ext.lower() == ".epub":
-                    txt_path = os.path.join(UPLOADS_DIR, stem + ".txt")
-                    if os.path.exists(txt_path):
-                        input_path = txt_path
-            if not os.path.exists(input_path):
-                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — file not found: {task.filename}")
+            try:
+                input_path = _resolve_batch_script_input(task.filename)
+            except ValueError as exc:
+                state["logs"].append(f"[{i+1}/{len(request.tasks)}] Skipping — {exc}")
                 state["tasks"][i]["status"] = "failed"
                 continue
 
