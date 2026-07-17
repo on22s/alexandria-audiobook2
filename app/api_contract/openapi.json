@@ -1141,6 +1141,35 @@
         "title": "ReviewRequest",
         "type": "object"
       },
+      "ReviewSubmitRequest": {
+        "properties": {
+          "choice": {
+            "title": "Choice",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          }
+        },
+        "required": [
+          "choice"
+        ],
+        "title": "ReviewSubmitRequest",
+        "type": "object"
+      },
       "ScriptLoadRequest": {
         "properties": {
           "name": {
@@ -3504,6 +3533,242 @@
           }
         },
         "summary": "Lora Recover Checkpoint Swap"
+      }
+    },
+    "/api/lora/models/{adapter_id}/review/session": {
+      "post": {
+        "description": "Open a blind A/B human-review session (identities hidden until submit).",
+        "operationId": "lora_open_review_session_api_lora_models__adapter_id__review_session_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Open Review Session"
+      }
+    },
+    "/api/lora/models/{adapter_id}/review/session/{session_id}": {
+      "post": {
+        "description": "Record a human listening decision; rejects if evidence changed. Never promotes.",
+        "operationId": "lora_submit_review_api_lora_models__adapter_id__review_session__session_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Submit Review"
+      }
+    },
+    "/api/lora/models/{adapter_id}/review/session/{session_id}/audio/{label}/{probe_id}": {
+      "get": {
+        "description": "Stream one blind sample (A/B) without revealing which side it is.",
+        "operationId": "lora_review_audio_api_lora_models__adapter_id__review_session__session_id__audio__label___probe_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "title": "Label",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "probe_id",
+            "required": true,
+            "schema": {
+              "title": "Probe Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Review Audio"
+      }
+    },
+    "/api/lora/models/{adapter_id}/reviews": {
+      "get": {
+        "description": "Return this adapter's bounded human-review history, newest first.",
+        "operationId": "lora_list_reviews_api_lora_models__adapter_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora List Reviews"
+      }
+    },
+    "/api/lora/models/{adapter_id}/reviews/cleanup": {
+      "post": {
+        "description": "Delete this adapter's human-review history, reporting count and space freed.",
+        "operationId": "lora_cleanup_reviews_api_lora_models__adapter_id__reviews_cleanup_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Cleanup Reviews"
       }
     },
     "/api/lora/models/{adapter_id}/rollback-backup": {

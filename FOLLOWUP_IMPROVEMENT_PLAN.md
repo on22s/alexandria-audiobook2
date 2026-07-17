@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phases 1–5 complete; Phase 6 pending**
+Status: **approved — Phases 1–6 complete; Phase 7 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -35,7 +35,7 @@ checkpoint, retry, or recovery safety nets.
 | 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
 | 4 | Pipeline health dashboard | Complete | #153 | Read-only health summary, recovery precedence, no new poller, 326 unit tests |
 | 5 | Sanitized diagnostics export | Complete | #155 | Recursive redaction, bounded/versioned bundle, secret/URL/home-path tests |
-| 6 | Evaluation history and human review | Pending | — | — |
+| 6 | Evaluation history and human review | Complete | #156 | Evidence-bound append-only reviews, true blind A/B proxy, stale rejection, 346 unit tests |
 | 7 | Stale-browser build detection | Pending | — | — |
 | 8 | Launcher supervisor integration tests | Pending | — | — |
 
@@ -329,6 +329,42 @@ Verification:
 - Security-focused review, API/frontend tests, and release verifier.
 
 ## Phase 6 — Evaluation history and human review
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-evaluation-review` / #156 (based on main)
+Completed: Added a pure, append-only `evaluation_reviews.py` (versioned per-adapter
+store + blind A/B sessions) bound to the existing version-2 evaluation evidence
+hashes and build identity, plus five read-only/CPU-only routes on `routers/lora.py`
+(open session, stream blind sample, submit decision, list history, cleanup) and a
+Voice Lab / LoRA-models UI (Blind review, History, Clear). Consolidated evidence
+loading into one `_load_candidate_comparison_full` shared by the advisory
+comparison endpoint and the review-session builder (Rule 15).
+Verified behavior: Blind labels never disclose identity before submission — the
+client payload carries only probe id/text, and audio is streamed through a
+session/label-scoped proxy (`.../audio/A/<probe>`) that resolves the side
+server-side, so the candidate's real `/candidates/` URL never reaches the browser.
+A submit is rejected (409, no record written) when the evidence fingerprint at
+submit differs from session open (retrain/promote/rollback). Human preference and
+the automated recommendation are stored and shown as separate fields; the module
+structurally cannot promote (an AST test asserts it imports no promotion code and
+calls nothing named promote). History is bounded (newest 50, append-only, oldest
+aged out) and removable with count/bytes reporting. A path-traversal test confirms
+the audio proxy refuses any stored path outside the models dir.
+Tests run (including skips): New `test_evaluation_reviews.py` (16 module cases) and
+`test_lora_review_integration.py` (3 router-level cases over real evidence,
+including the blind-URL leak that an initial version missed and the proxy guard) +
+a frontend regression assertion — all pass. Release verifier passed: 346 unit
+tests, quick API 70 passed / 0 failed / 12 skipped (require full-mode GPU/TTS/LLM).
+API contract + unit-test inventory snapshots regenerated for the five new routes.
+Real artifacts or reports: none beyond code; CPU-only, no GPU run required.
+Deviations / discoveries: The first design returned the raw probe audio URLs in the
+session; a test caught that the candidate URL contains `/candidates/` and thus
+leaked identity in "blind" mode. Fixed by streaming both samples through an
+identity-neutral proxy endpoint and keeping the label->path map server-side only.
+Remaining: Merge #156 into main. (Phase 5 #155 is independent and can merge in any
+order; this branch also marks it #155 so the ledger does not regress on merge.)
+Next action: Commit and publish Phase 6, then begin stale-browser build detection
+in Phase 7.
 
 Purpose: retain bounded decision evidence and combine automated scores with
 human listening judgments.

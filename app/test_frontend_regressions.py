@@ -52,6 +52,16 @@ class FrontendTests(unittest.TestCase):
                 "promoteLoraCandidate"):
             self.assertIn(required, frontend)
 
+    def test_blind_human_review_is_present_and_kept_separate_from_automated(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("openLoraBlindReview", "submitLoraBlindReview",
+                         "renderBlindReviewResult", "openLoraReviewHistory",
+                         "clearLoraReviewHistory", "/review/session",
+                         "/reviews", "Identities are hidden until you submit",
+                         "Automated recommendation (separate)"):
+            self.assertIn(required, frontend)
+
     def test_lora_candidate_lifecycle_summary_is_rendered(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

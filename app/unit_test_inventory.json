@@ -66,8 +66,27 @@
     "test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
   ],
+  "test_evaluation_reviews": [
+    "test_evaluation_reviews.BlindSessionTests.test_blind_assignment_varies_across_sessions",
+    "test_evaluation_reviews.BlindSessionTests.test_non_blind_session_is_deterministic",
+    "test_evaluation_reviews.BlindSessionTests.test_session_payload_hides_identity",
+    "test_evaluation_reviews.HistoryTests.test_cleanup_reports_count_and_freed_bytes",
+    "test_evaluation_reviews.HistoryTests.test_existing_records_are_not_mutated_by_new_submissions",
+    "test_evaluation_reviews.HistoryTests.test_history_is_bounded_keeping_newest",
+    "test_evaluation_reviews.HistoryTests.test_list_on_missing_store_is_empty",
+    "test_evaluation_reviews.SafetyTests.test_module_cannot_promote_or_touch_manifest",
+    "test_evaluation_reviews.SafetyTests.test_prune_removes_only_aged_sessions",
+    "test_evaluation_reviews.SubmitTests.test_choice_resolves_to_the_hidden_role",
+    "test_evaluation_reviews.SubmitTests.test_invalid_choice_and_rating_are_rejected",
+    "test_evaluation_reviews.SubmitTests.test_notes_are_clamped_and_unicode_preserved",
+    "test_evaluation_reviews.SubmitTests.test_stale_evidence_is_rejected_and_writes_no_record",
+    "test_evaluation_reviews.SubmitTests.test_tie_is_supported",
+    "test_evaluation_reviews.SubmitTests.test_unknown_session_is_rejected",
+    "test_evaluation_reviews.SubmitTests.test_wrong_adapter_for_session_is_rejected"
+  ],
   "test_frontend_regressions": [
     "test_frontend_regressions.FrontendTests.test_basic_auth_middleware_guards_api_and_mounted_files",
+    "test_frontend_regressions.FrontendTests.test_blind_human_review_is_present_and_kept_separate_from_automated",
     "test_frontend_regressions.FrontendTests.test_check_basic_auth_accepts_and_rejects_credentials",
     "test_frontend_regressions.FrontendTests.test_docker_image_includes_root_runtime_dependencies",
     "test_frontend_regressions.FrontendTests.test_docker_mounts_single_persistent_runtime_root",
@@ -179,6 +198,11 @@
     "test_lora_evaluation.LoraEvaluationTests.test_resume_refuses_legacy_evidence",
     "test_lora_evaluation.LoraEvaluationTests.test_resume_requires_version_probes_and_audio_files",
     "test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"
+  ],
+  "test_lora_review_integration": [
+    "test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",
+    "test_lora_review_integration.ReviewIntegrationTests.test_full_blind_review_flow_over_real_evidence",
+    "test_lora_review_integration.ReviewIntegrationTests.test_mutated_checkpoint_rejects_a_stale_submission"
   ],
   "test_multi_process_state": [
     "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
