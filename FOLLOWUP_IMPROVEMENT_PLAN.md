@@ -31,7 +31,7 @@ checkpoint, retry, or recovery safety nets.
 | Phase | Work | Status | PR | Verification |
 |---|---|---|---|---|
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
-| 2 | Voice Lab preflight report | Complete | — | Shared preview/start decision, stale-preview gate, real ROCm probe |
+| 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Pending | — | — |
 | 4 | Pipeline health dashboard | Pending | — | — |
 | 5 | Sanitized diagnostics export | Pending | — | — |
@@ -104,7 +104,7 @@ Verification:
 ## Phase 2 — Voice Lab preflight report
 
 Status: `Complete`
-Branch / PR: `agent/voicelab-preflight` / —
+Branch / PR: `agent/voicelab-preflight` / #151
 Completed: Added one canonical read-only preflight builder, a sanitized preview
 endpoint, start-time recomputation with stable preview identity, and a visible UI
 review/confirmation panel.
