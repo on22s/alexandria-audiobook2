@@ -154,13 +154,15 @@
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation"
   ],
   "test_lora_candidate_retention": [
-    "test_lora_candidate_retention.LoraCandidateRetentionTests.test_candidate_save_is_bounded_and_does_not_mutate_records_input"
+    "test_lora_candidate_retention.LoraCandidateRetentionTests.test_candidate_save_is_bounded_and_does_not_mutate_records_input",
+    "test_lora_candidate_retention.LoraCandidateRetentionTests.test_final_dedup_removes_production_and_candidate_duplicates"
   ],
   "test_lora_evaluation": [
     "test_lora_evaluation.LoraEvaluationTests.test_adapter_evaluation_generates_both_probes_and_scores_them",
     "test_lora_evaluation.LoraEvaluationTests.test_audio_metrics_detect_silence_and_clipping",
     "test_lora_evaluation.LoraEvaluationTests.test_candidate_cleanup_keeps_only_recommended_generated_directory",
     "test_lora_evaluation.LoraEvaluationTests.test_candidate_recommendation_prefers_quality_and_never_promotes",
+    "test_lora_evaluation.LoraEvaluationTests.test_checkpoint_partition_skips_production_and_candidate_duplicates",
     "test_lora_evaluation.LoraEvaluationTests.test_manifest_candidate_records_match_retained_recommendation",
     "test_lora_evaluation.LoraEvaluationTests.test_resume_requires_version_probes_and_audio_files",
     "test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"

@@ -275,7 +275,9 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "lora_r":       args.lora_r,
         "lr":           args.lr,
         "target_loss":  args.target_loss,
+        "checkpoint_sha256": training_meta.get("checkpoint_sha256"),
         "evaluation_candidates": training_meta.get("evaluation_candidates", []),
+        "evaluation_candidate_skips": training_meta.get("evaluation_candidate_skips", []),
         "created":      time.time(),
     }
 

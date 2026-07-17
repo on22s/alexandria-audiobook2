@@ -517,7 +517,10 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
                     "sample_count": meta.get("num_samples"),
                     "lora_r": meta.get("lora_r"),
                     "lr": meta.get("lr"),
+                    "checkpoint_sha256": meta.get("checkpoint_sha256"),
                     "evaluation_candidates": meta.get("evaluation_candidates", []),
+                    "evaluation_candidate_skips": meta.get(
+                        "evaluation_candidate_skips", []),
                     "created": time.time(),
                 })
                 _save_manifest(LORA_MODELS_MANIFEST, manifest)
