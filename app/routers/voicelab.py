@@ -2,6 +2,8 @@ import asyncio
 import logging
 import json
 import os
+import hashlib
+import shutil
 import subprocess
 import sys
 from typing import List, Literal, Optional
@@ -128,11 +130,144 @@ class VoiceLabRequest(BaseModel):
     profiler_model: Optional[str] = None           # override GGUF for the profile stage
     name_apply: bool = True                        # name stage: actually rename (else dry-run)
     name_overwrite: bool = False                   # also re-name already-named adapters
+    preflight_id: Optional[str] = None
 
     @field_validator("device", mode="before")
     @classmethod
     def normalize_requested_device(cls, value):
         return normalize_device(value) if value is not None else None
+
+
+def _probe_voicelab_interpreter(rocm_python: str) -> dict:
+    """Read Torch/device/dependency state from the interpreter that will run ML stages."""
+    code = (
+        "import importlib.util,json,torch; "
+        "ok=torch.cuda.is_available(); "
+        "print(json.dumps({'python':__import__('sys').version.split()[0],"
+        "'torch':torch.__version__,'hip':getattr(torch.version,'hip',None),"
+        "'gpu':torch.cuda.get_device_name(0) if ok else None,"
+        "'vram':torch.cuda.mem_get_info() if ok else None,"
+        "'deps':{n:importlib.util.find_spec(n) is not None for n in "
+        "['speechbrain','librosa','peft','llama_cpp']}}))")
+    try:
+        result = subprocess.run([rocm_python, "-c", code], capture_output=True,
+                                text=True, timeout=20, check=False,
+                                env=_rocm_env(rocm_python))
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        return json.loads(lines[-1]) if result.returncode == 0 and lines else {}
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return {}
+
+
+def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
+    """Build the canonical read-only start decision and sanitized UI report."""
+    stages = [stage for stage in VOICELAB_STAGES if stage in request.stages]
+    blockers, warnings = [], []
+    def finding(target, code, message):
+        target.append({"code": code, "message": message})
+
+    raw = (request.zips_dir or cfg.get("zips_dir") or "").strip()
+    zips_dir = _resolve_zips_dir(raw) if raw else ""
+    if not raw:
+        finding(blockers, "zips_unconfigured", "Configure an input dataset folder.")
+    elif not os.path.isdir(zips_dir):
+        finding(blockers, "zips_missing", "The input dataset folder does not exist.")
+    narrator_count = zip_count = deduped_count = 0
+    if os.path.isdir(zips_dir):
+        for name in os.listdir(zips_dir):
+            folder = os.path.join(zips_dir, name)
+            if name.startswith("_") or not os.path.isdir(folder):
+                continue
+            narrator_count += 1
+            zip_count += sum(item.lower().endswith(".zip") for item in os.listdir(folder))
+        deduped = os.path.join(zips_dir, "_deduped")
+        if os.path.isdir(deduped):
+            deduped_count = sum(item.lower().endswith(".zip") for item in os.listdir(deduped))
+        if "train" in stages and "dedup" not in stages and not deduped_count:
+            finding(blockers, "dedup_missing", "Training requires deduplicated ZIP files or the dedup stage.")
+
+    ml_stages = {"quality", "dedup", "train", "evaluate", "profile"}
+    needs_rocm = bool(ml_stages.intersection(stages))
+    rocm = cfg.get("rocm_python") or ""
+    interpreter_ok = bool(rocm and os.path.isfile(rocm) and os.access(rocm, os.X_OK))
+    probe = _probe_voicelab_interpreter(rocm) if needs_rocm and interpreter_ok else {}
+    if needs_rocm and not interpreter_ok:
+        finding(blockers, "interpreter_missing", "Configure an executable ROCm Python interpreter.")
+    elif needs_rocm and not probe:
+        finding(blockers, "interpreter_probe_failed", "The ROCm interpreter readiness probe failed.")
+    deps = probe.get("deps", {})
+    required_deps = set()
+    if {"quality", "train", "evaluate"}.intersection(stages):
+        required_deps.update(("librosa", "peft"))
+    if {"dedup", "evaluate"}.intersection(stages):
+        required_deps.add("speechbrain")
+    if "profile" in stages:
+        required_deps.add("llama_cpp")
+    missing_deps = sorted(name for name in required_deps if not deps.get(name))
+    if missing_deps:
+        finding(blockers, "dependencies_missing", "Missing stage dependencies: " + ", ".join(missing_deps) + ".")
+
+    profiler_model = (request.profiler_model or cfg.get("profiler_model") or "").strip()
+    if "profile" in stages and profiler_model and not os.path.isfile(profiler_model):
+        finding(blockers, "profiler_model_missing", "The configured profiler model does not exist.")
+    for stage, filename in (("quality", "audit_voice_datasets.py"),
+                            ("dedup", "voice_analysis.py"),
+                            ("train", "batch_train_lora.py"),
+                            ("evaluate", "evaluate_lora.py"),
+                            ("profile", "voice_profiler.py"), ("name", "name_voices.py")):
+        if stage in stages and not os.path.isfile(os.path.join(ROOT_DIR, filename)):
+            finding(blockers, "stage_script_missing", f"The {stage} stage script is missing from this install.")
+    if "profile" in stages and interpreter_ok and not any(
+            item["code"] in ("dependencies_missing", "profiler_model_missing") for item in blockers):
+        try:
+            _run_profiler_preflight(
+                _build_profiler_command(rocm, profiler_model, cfg.get("epub_dirs") or []),
+                _rocm_env(rocm))
+        except HTTPException as exc:
+            finding(blockers, "profiler_not_ready", str(exc.detail))
+
+    usage = shutil.disk_usage(DATA_DIR)
+    free_gb = round(usage.free / 1024 ** 3, 1)
+    if free_gb < 2:
+        finding(blockers, "disk_critical", "Less than 2 GB of free disk remains.")
+    elif free_gb < 10:
+        finding(warnings, "disk_low", "Less than 10 GB of free disk remains.")
+    vram = probe.get("vram") or []
+    free_vram_gb = round(vram[0] / 1024 ** 3, 1) if len(vram) == 2 else None
+    requested_device = request.device or "auto"
+    if needs_rocm and requested_device != "cpu" and not probe.get("gpu"):
+        finding(blockers, "gpu_unavailable", "The selected interpreter cannot see a GPU.")
+    elif "train" in stages and requested_device != "cpu" and free_vram_gb is not None and free_vram_gb < 8:
+        finding(blockers, "vram_low", "Training requires at least 8 GB of free VRAM.")
+    if request.candidate_checkpoints and request.max_epochs == 1:
+        finding(warnings, "candidate_duplicate", "A one-epoch candidate will match production and be discarded.")
+
+    stable = {"stages": stages, "zips_dir": zips_dir, "narrators": narrator_count,
+              "zips": zip_count, "deduped": deduped_count, "interpreter_ok": interpreter_ok,
+              "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
+              "missing_deps": missing_deps, "blockers": [item["code"] for item in blockers],
+              "settings": [requested_device, request.target_loss, request.max_epochs,
+                           request.lora_r, request.candidate_checkpoints, request.name_apply,
+                           request.name_overwrite]}
+    preflight_id = hashlib.sha256(json.dumps(stable, sort_keys=True).encode()).hexdigest()[:20]
+    return {"preflight_id": preflight_id, "ready": not blockers, "stages": stages,
+            "blockers": blockers, "warnings": warnings,
+            "dataset": {"narrator_count": narrator_count, "zip_count": zip_count,
+                        "deduped_count": deduped_count},
+            "runtime": {"interpreter_configured": interpreter_ok, "python": probe.get("python"),
+                        "torch": probe.get("torch"), "hip": probe.get("hip"),
+                        "device": requested_device, "gpu": probe.get("gpu"),
+                        "free_vram_gb": free_vram_gb, "free_disk_gb": free_gb,
+                        "dependencies": deps},
+            "outputs": {"datasets": "LoRA datasets library", "models": "LoRA models library",
+                        "manifest": "LoRA model manifest"},
+            "_zips_dir": zips_dir, "_profiler_model": profiler_model}
+
+
+@router.post("/api/voicelab/preflight")
+async def voicelab_preflight(request: VoiceLabRequest):
+    report = await asyncio.to_thread(_build_voicelab_preflight, request, _load_voicelab_config())
+    return {key: value for key, value in report.items() if not key.startswith("_")}
 
 
 @router.get("/api/voicelab/config")
@@ -366,8 +501,6 @@ def _revalidate_voicelab_runtime(zips_dir: str, rocm_python: str,
 @router.post("/api/voicelab/start")
 async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundTasks):
     """Run the selected pipeline stages in sequence as one cancel/pausable job."""
-    check_global_gpu_lock("voicelab")
-
     bad = [s for s in request.stages if s not in VOICELAB_STAGES]
     if bad:
         raise HTTPException(status_code=400, detail=f"Unknown stage(s): {', '.join(bad)}")
@@ -377,51 +510,27 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=400, detail="No stages selected.")
 
     cfg = _load_voicelab_config()
-    zips_dir_raw = (request.zips_dir or cfg["zips_dir"]).strip()
-    if not zips_dir_raw:
-        raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
-    zips_dir = _resolve_zips_dir(zips_dir_raw)
+    preflight = await asyncio.to_thread(_build_voicelab_preflight, request, cfg)
+    if not request.preflight_id:
+        raise HTTPException(status_code=409, detail="Review the Voice Lab preflight before starting.")
+    if request.preflight_id != preflight["preflight_id"]:
+        raise HTTPException(status_code=409, detail="Voice Lab inputs changed; review a fresh preflight.")
+    if preflight["blockers"]:
+        raise HTTPException(status_code=400, detail="; ".join(
+            finding["message"] for finding in preflight["blockers"]))
+    zips_dir = preflight["_zips_dir"]
     _validate_voicelab_path(zips_dir, "zips_dir")
-
-    # Validate prerequisites up front with actionable errors
-    needs_rocm = any(s in request.stages for s in ("quality", "dedup", "train", "evaluate", "profile"))
-    if needs_rocm:
-        if not cfg["rocm_python"]:
-            raise HTTPException(status_code=400,
-                                detail="rocm_python is not configured. Set it in Voice Lab settings.")
-        if not (os.path.isfile(cfg["rocm_python"]) and os.access(cfg["rocm_python"], os.X_OK)):
-            raise HTTPException(status_code=400,
-                                detail=f"ROCm interpreter not found or not executable: {cfg['rocm_python']}. Set it in Voice Lab settings.")
+    if cfg.get("rocm_python"):
         _validate_voicelab_path(cfg["rocm_python"], "rocm_python")
-    profiler_model = (request.profiler_model or cfg["profiler_model"] or "").strip()
-    if "profile" in request.stages and profiler_model:
-        if not os.path.isfile(profiler_model):
-            raise HTTPException(status_code=400,
-                                detail=f"profiler_model not found: {profiler_model}. Set it in Voice Lab settings.")
+    profiler_model = preflight["_profiler_model"]
+    if profiler_model:
         _validate_voicelab_path(profiler_model, "profiler_model")
-    if "dedup" in request.stages and not os.path.isdir(zips_dir):
-        raise HTTPException(status_code=400, detail=f"Input folder not found: {zips_dir}")
-    if "train" in request.stages and not os.path.isdir(os.path.join(zips_dir, "_deduped")) and "dedup" not in request.stages:
-        raise HTTPException(status_code=400,
-                            detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
-    # These ship with this repo, so a miss means a broken install, not
-    # misconfiguration - there is no path for the user to correct.
-    for s, fname in (("quality", "audit_voice_datasets.py"),
-                     ("train", "batch_train_lora.py"),
-                     ("evaluate", "evaluate_lora.py"),
-                     ("profile", "voice_profiler.py")):
-        if s in request.stages and not os.path.isfile(os.path.join(ROOT_DIR, fname)):
-            raise HTTPException(status_code=400,
-                                detail=f"{fname} is missing from this install.")
 
     steps = _voicelab_build_commands(request, cfg, zips_dir)
     effective_profiler_model = next(
         (command[command.index("--model") + 1]
          for stage, command, _cwd, _env in steps if stage == "profile"), "")
-    if "profile" in request.stages:
-        profile_cmd = next(command for stage, command, _cwd, _env in steps if stage == "profile")
-        await asyncio.to_thread(
-            _run_profiler_preflight, profile_cmd, _rocm_env(cfg["rocm_python"]))
+    check_global_gpu_lock("voicelab")
 
     def _run():
         state = process_state["voicelab"]

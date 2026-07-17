@@ -1706,6 +1706,17 @@
             "title": "Name Overwrite",
             "type": "boolean"
           },
+          "preflight_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preflight Id"
+          },
           "profiler_model": {
             "anyOf": [
               {
@@ -5690,6 +5701,42 @@
           }
         },
         "summary": "Voicelab Pause"
+      }
+    },
+    "/api/voicelab/preflight": {
+      "post": {
+        "operationId": "voicelab_preflight_api_voicelab_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceLabRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voicelab Preflight"
       }
     },
     "/api/voicelab/resume": {

@@ -79,7 +79,8 @@
     "test_frontend_regressions.FrontendTests.test_lora_candidate_lifecycle_summary_is_rendered",
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
-    "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy"
+    "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
+    "test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
   "test_integration_corpus": [
     "test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
@@ -262,9 +263,11 @@
     "test_runtime_regressions.RuntimeTests.test_voicelab_defaults_do_not_guess_paths_inside_this_repo",
     "test_runtime_regressions.RuntimeTests.test_voicelab_passes_canonical_device_to_all_device_aware_stages",
     "test_runtime_regressions.RuntimeTests.test_voicelab_preflight_is_dispatched_off_event_loop",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_preflight_is_read_only_sanitized_and_stage_specific",
     "test_runtime_regressions.RuntimeTests.test_voicelab_request_rejects_unbounded_training_values",
     "test_runtime_regressions.RuntimeTests.test_voicelab_runtime_revalidation_detects_missing_interpreter",
     "test_runtime_regressions.RuntimeTests.test_voicelab_stage_scripts_ship_with_this_repo",
+    "test_runtime_regressions.RuntimeTests.test_voicelab_start_rejects_stale_preflight_before_gpu_claim",
     "test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
   "test_script_preflight": [

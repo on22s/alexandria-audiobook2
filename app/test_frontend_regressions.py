@@ -12,6 +12,13 @@ from fastapi.testclient import TestClient
 
 
 class FrontendTests(unittest.TestCase):
+    def test_voicelab_requires_visible_preflight_before_start(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("vl-preflight", "/api/voicelab/preflight",
+                         "renderVoicelabPreflight", "preflight.preflight_id"):
+            self.assertIn(required, frontend)
+
     def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")

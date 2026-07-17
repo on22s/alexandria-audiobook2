@@ -1,6 +1,6 @@
 # Alexandria Follow-up Improvement Plan
 
-Status: **approved — Phase 1 complete; Phase 2 pending**
+Status: **approved — Phases 1–2 complete; Phase 3 pending**
 Created: 2026-07-17  
 Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
 
@@ -31,7 +31,7 @@ checkpoint, retry, or recovery safety nets.
 | Phase | Work | Status | PR | Verification |
 |---|---|---|---|---|
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
-| 2 | Voice Lab preflight report | Pending | — | — |
+| 2 | Voice Lab preflight report | Complete | — | Shared preview/start decision, stale-preview gate, real ROCm probe |
 | 3 | Persistent pipeline run summaries | Pending | — | — |
 | 4 | Pipeline health dashboard | Pending | — | — |
 | 5 | Sanitized diagnostics export | Pending | — | — |
@@ -102,6 +102,25 @@ Verification:
 - Recorded real-run commands, stage outcomes, durations, and artifact locations.
 
 ## Phase 2 — Voice Lab preflight report
+
+Status: `Complete`
+Branch / PR: `agent/voicelab-preflight` / —
+Completed: Added one canonical read-only preflight builder, a sanitized preview
+endpoint, start-time recomputation with stable preview identity, and a visible UI
+review/confirmation panel.
+Verified behavior: A real local probe reported 51 narrator folders, 451 source
+ZIPs, 75 deduplicated ZIPs, the RX 9070 XT, 15.7 GB free VRAM, 23.7 GB free
+disk, and all dependencies ready without exposing configured absolute paths.
+Tests run (including skips): Runtime/frontend suites passed 70 tests. Release
+verification passed 314 unit tests and 70 quick API checks; 12 full-mode checks
+were explicitly skipped. The first release attempt stopped at expected test
+inventory drift; the inventory was regenerated and the verifier then passed.
+Deviations / discoveries: One-epoch candidate retention now produces an advisory
+warning because that candidate necessarily duplicates production. Bare PyTorch
+`cuda` remains the canonical ROCm device string; the report also exposes the
+resolved AMD GPU so the backend is unambiguous.
+Remaining: Publish and merge the Phase 2 PR.
+Next action: Commit and publish Phase 2, then begin persistent run summaries.
 
 Purpose: show whether a requested run is safe and runnable before claiming the
 GPU or starting a subprocess.
