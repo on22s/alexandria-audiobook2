@@ -32,7 +32,7 @@ checkpoint, retry, or recovery safety nets.
 |---|---|---|---|---|
 | 1 | Real end-to-end Voice Lab validation | Complete | #150 | Real ROCm run, paired evaluation, promotion/rollback, release verifier |
 | 2 | Voice Lab preflight report | Complete | #151 | Shared preview/start decision, stale-preview gate, real ROCm probe |
-| 3 | Persistent pipeline run summaries | Complete | — | Atomic stage records, interruption recovery, bounded retention |
+| 3 | Persistent pipeline run summaries | Complete | #152 | Atomic stage records, interruption recovery, bounded retention |
 | 4 | Pipeline health dashboard | Pending | — | — |
 | 5 | Sanitized diagnostics export | Pending | — | — |
 | 6 | Evaluation history and human review | Pending | — | — |
@@ -151,7 +151,7 @@ Verification:
 ## Phase 3 — Persistent pipeline run summaries
 
 Status: `Complete`
-Branch / PR: `agent/voicelab-run-summaries` / —
+Branch / PR: `agent/voicelab-run-summaries` / #152
 Completed: Extended the existing run-history records with atomic Voice Lab
 request, sanitized preflight, build, stage, dataset/adapter, log-reference,
 failure, duration, and next-action summaries. Added startup interruption recovery
