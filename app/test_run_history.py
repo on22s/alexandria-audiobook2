@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 import core
-from run_history import (finish_run, get_run, list_runs, record_artifact,
-                         start_run)
+from run_history import (finish_run, get_run, list_runs, mark_interrupted_runs,
+                         prune_runs, record_artifact, start_run, update_run)
 
 
 class RunHistoryTests(unittest.TestCase):
@@ -72,6 +72,52 @@ class RunHistoryTests(unittest.TestCase):
             self.assertFalse(core.process_state[key]["running"])
         finally:
             core.process_state.pop(key, None)
+
+    def test_run_summary_updates_atomically_without_changing_identity(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            run_id = start_run(history_dir, "voicelab")
+            original = get_run(history_dir, run_id)
+            updated = update_run(history_dir, run_id, {
+                "stages": [{"name": "train", "status": "completed"}],
+                "next_action": "Review adapters.",
+            })
+        self.assertEqual(run_id, updated["id"])
+        self.assertEqual(original["started_at"], updated["started_at"])
+        self.assertEqual("completed", updated["stages"][0]["status"])
+
+    def test_failed_summary_write_preserves_previous_record(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            run_id = start_run(history_dir, "voicelab")
+            before = get_run(history_dir, run_id)
+            with patch("run_history.atomic_json_write", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    update_run(history_dir, run_id, {"stages": [{"status": "failed"}]})
+            self.assertEqual(before, get_run(history_dir, run_id))
+
+    def test_startup_marks_only_running_records_interrupted(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            running_id = start_run(history_dir, "voicelab")
+            completed_id = start_run(history_dir, "review")
+            finish_run(history_dir, completed_id, "completed")
+            changed = mark_interrupted_runs(history_dir)
+            self.assertEqual([running_id], [item["id"] for item in changed])
+            self.assertEqual("interrupted", get_run(history_dir, running_id)["status"])
+            self.assertEqual("completed", get_run(history_dir, completed_id)["status"])
+
+    def test_retention_preserves_active_and_newest_failure(self):
+        with tempfile.TemporaryDirectory() as history_dir:
+            active = start_run(history_dir, "voicelab")
+            old_failed = start_run(history_dir, "voicelab")
+            finish_run(history_dir, old_failed, "failed")
+            newest_failed = start_run(history_dir, "voicelab")
+            finish_run(history_dir, newest_failed, "failed")
+            completed = start_run(history_dir, "voicelab")
+            finish_run(history_dir, completed, "completed")
+            removed = prune_runs(history_dir, max_count=0, max_age_days=0)
+            self.assertIsNotNone(get_run(history_dir, active))
+            self.assertIsNotNone(get_run(history_dir, newest_failed))
+            self.assertIn(old_failed, removed)
+            self.assertIn(completed, removed)
 
 
 if __name__ == "__main__":

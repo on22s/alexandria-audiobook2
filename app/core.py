@@ -22,7 +22,7 @@ from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
 from lmstudio_settings import (get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
-from run_history import finish_run, record_artifact, start_run
+from run_history import finish_run, prune_runs, record_artifact, start_run
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -797,6 +797,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
     error = None
     try:
         try:
+            prune_runs(RUN_HISTORY_DIR)
             run_id = start_run(RUN_HISTORY_DIR, task_name)
             state["run_id"] = run_id
         except Exception:

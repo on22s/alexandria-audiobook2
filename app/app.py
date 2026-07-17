@@ -12,11 +12,13 @@ from core import (
     DATASET_BUILDER_DIR,
     DESIGNED_VOICES_DIR,
     LORA_MODELS_DIR,
+    RUN_HISTORY_DIR,
     STATIC_DIR,
     VOICELINES_DIR,
     project_manager,
 )
 from utils import check_basic_auth
+from run_history import mark_interrupted_runs
 
 
 # Setup logging
@@ -44,6 +46,9 @@ def reset_stuck_chunks():
 @asynccontextmanager
 async def lifespan(_app):
     reset_stuck_chunks()
+    interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
+    if interrupted:
+        logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
     yield
 
 

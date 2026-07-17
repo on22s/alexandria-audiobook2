@@ -203,10 +203,14 @@
   ],
   "test_run_history": [
     "test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",
+    "test_run_history.RunHistoryTests.test_failed_summary_write_preserves_previous_record",
     "test_run_history.RunHistoryTests.test_history_failure_does_not_block_task",
     "test_run_history.RunHistoryTests.test_invalid_run_id_cannot_escape_history_directory",
+    "test_run_history.RunHistoryTests.test_retention_preserves_active_and_newest_failure",
     "test_run_history.RunHistoryTests.test_run_lifecycle_is_persisted",
-    "test_run_history.RunHistoryTests.test_shared_runner_records_failure_and_releases_task"
+    "test_run_history.RunHistoryTests.test_run_summary_updates_atomically_without_changing_identity",
+    "test_run_history.RunHistoryTests.test_shared_runner_records_failure_and_releases_task",
+    "test_run_history.RunHistoryTests.test_startup_marks_only_running_records_interrupted"
   ],
   "test_runtime_info": [
     "test_runtime_info.RuntimeInfoTests.test_environment_revision_overrides_git_and_missing_packages_are_explicit",
