@@ -59,7 +59,7 @@ class FrontendTests(unittest.TestCase):
         for required in ("gpu_stats.py", "persona_prompts.txt", "alexandria_alignment.py",
                          "alexandria_preparer_rocm_compatible.py",
                          "llm_enricher.py", "voice_analysis.py", "batch_train_lora.py",
-                         "voice_profiler.py", "name_voices.py"):
+                         "evaluate_lora.py", "voice_profiler.py", "name_voices.py"):
             self.assertIn(required, dockerfile)
 
     def test_docker_mounts_single_persistent_runtime_root(self):

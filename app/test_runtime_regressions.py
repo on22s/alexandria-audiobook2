@@ -453,7 +453,7 @@ class RuntimeTests(unittest.TestCase):
     def test_voicelab_stage_scripts_ship_with_this_repo(self):
         # train/profile run scripts this repo owns; Voice Lab has no setting to
         # point them elsewhere, so a miss is a broken install.
-        for fname in ("batch_train_lora.py", "voice_profiler.py",
+        for fname in ("batch_train_lora.py", "evaluate_lora.py", "voice_profiler.py",
                       "voice_analysis.py", "name_voices.py"):
             self.assertTrue(
                 os.path.isfile(os.path.join(core_module.ROOT_DIR, fname)),

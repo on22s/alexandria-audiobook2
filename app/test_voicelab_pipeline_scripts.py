@@ -378,8 +378,8 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     voice_profiler.atomic_csv_write([], target)
             self.assertEqual("old content", Path(target).read_text(encoding="utf-8"))
 
-    def test_train_and_profile_background_dispatch_reaches_subprocess(self):
-        for stage in ("train", "profile"):
+    def test_train_evaluate_and_profile_background_dispatch_reaches_subprocess(self):
+        for stage in ("train", "evaluate", "profile"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
                 os.makedirs(os.path.join(tmp, "_deduped"))
                 cfg = {"rocm_python": sys.executable, "profiler_model": "",
@@ -416,6 +416,11 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                                      streamed[0][streamed[0].index("--model") + 1])
                     self.assertEqual(defaults["output_csv"],
                                      streamed[0][streamed[0].index("--output_csv") + 1])
+                if stage == "evaluate":
+                    self.assertEqual(core.LORA_MODELS_MANIFEST,
+                                     streamed[0][streamed[0].index("--manifest") + 1])
+                    self.assertEqual(core.CONFIG_PATH,
+                                     streamed[0][streamed[0].index("--config") + 1])
 
 
 if __name__ == "__main__":

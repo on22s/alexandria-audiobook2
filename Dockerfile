@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r app/requirements.txt && \
 COPY app/ /alexandria/app/
 COPY default_prompts.txt review_prompts.txt persona_prompts.txt /alexandria/
 COPY gpu_stats.py alexandria_alignment.py alexandria_preparer_rocm_compatible.py llm_enricher.py /alexandria/
-COPY voice_analysis.py batch_train_lora.py voice_profiler.py name_voices.py icon.png /alexandria/
+COPY voice_analysis.py batch_train_lora.py evaluate_lora.py voice_profiler.py name_voices.py icon.png /alexandria/
 COPY builtin_lora/ /alexandria/builtin_lora/
 
 # Create directories for runtime data

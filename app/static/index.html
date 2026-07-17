@@ -1348,7 +1348,7 @@
                     <span id="voicelab-status" class="text-muted small"></span>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, descriptively-named LoRA voices. Runs <strong>Dedup → Train → Profile → Name</strong> in sequence. Heavy stages (dedup/train/profile) run on the ROCm ML environment configured below.</p>
+                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs <strong>Dedup → Train → Evaluate → Profile → Name</strong> in sequence. Heavy stages run on the ROCm ML environment configured below.</p>
 
                     <!-- Pipeline settings (paths) -->
                     <div class="accordion mb-3" id="voicelab-settings-acc">
@@ -1402,6 +1402,7 @@
                             <div class="fw-bold small mb-1">Stages to run</div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-dedup" value="dedup" checked><label class="form-check-label small" for="vl-stage-dedup"><strong>Dedup</strong> — cluster &amp; de-duplicate voices within each narrator</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-train" value="train" checked><label class="form-check-label small" for="vl-stage-train"><strong>Train</strong> — train a LoRA per deduped voice</label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-evaluate" value="evaluate" checked><label class="form-check-label small" for="vl-stage-evaluate"><strong>Evaluate</strong> — fixed probes, speaker similarity, silence, and clipping warnings</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-profile" value="profile" checked><label class="form-check-label small" for="vl-stage-profile"><strong>Profile</strong> — acoustic + LLM voice descriptions</label></div>
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-name" value="name" checked><label class="form-check-label small" for="vl-stage-name"><strong>Name</strong> — descriptive slug + rename adapters</label></div>
                         </div>
@@ -5813,7 +5814,7 @@
 
                 container.innerHTML = `
                     <table class="table table-sm table-hover mb-0">
-                        <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Dataset</th><th>Epochs</th><th>Final Loss</th><th>Evaluation</th><th>Samples</th><th style="width:240px">Actions</th></tr></thead>
                         <tbody>
                             ${models.map(m => `
                                 <tr${m.builtin ? ' class="table-light"' : ''}>
@@ -5821,6 +5822,7 @@
                                     <td>${escapeHtml(m.dataset_id || (m.builtin ? '--' : '--'))}</td>
                                     <td>${m.epochs || '--'}</td>
                                     <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '--'}</td>
+                                    <td>${m.evaluation ? `<span class="badge ${m.evaluation.status === 'pass' ? 'bg-success' : m.evaluation.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'}" title="${escapeHtml((m.evaluation.warnings || []).join(', '))}">${escapeHtml(m.evaluation.status || 'unknown')}</span>` : '--'}</td>
                                     <td>${m.sample_count || '--'}</td>
                                     <td>
                                         ${m.builtin && m.downloaded === false ? `
@@ -6893,6 +6895,7 @@
                         ? `<span class="badge bg-info me-1">${r.deduped_count} deduped zip${r.deduped_count!==1?'s':''}</span>`
                         : '<span class="badge bg-light text-muted border me-1">no _deduped yet</span>')
                     + `<span class="badge bg-success me-1">${m.trained||0} trained</span>`
+                    + `<span class="badge bg-info me-1">${m.evaluated||0} evaluated</span>`
                     + `<span class="badge bg-primary me-1">${m.profiled||0} profiled</span>`
                     + `<span class="badge bg-warning text-dark me-1">${m.unnamed||0} unnamed</span>`;
             } catch (e) {
