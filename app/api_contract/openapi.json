@@ -5642,6 +5642,22 @@
         "summary": "Voicelab Save Config"
       }
     },
+    "/api/voicelab/diagnostics": {
+      "get": {
+        "operationId": "voicelab_diagnostics_api_voicelab_diagnostics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Voicelab Diagnostics"
+      }
+    },
     "/api/voicelab/health": {
       "get": {
         "operationId": "voicelab_health_api_voicelab_health_get",

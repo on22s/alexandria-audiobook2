@@ -80,6 +80,7 @@
     "test_frontend_regressions.FrontendTests.test_readme_api_examples_do_not_reference_removed_routes",
     "test_frontend_regressions.FrontendTests.test_runtime_build_and_package_versions_are_visible_in_navbar",
     "test_frontend_regressions.FrontendTests.test_script_ui_reuses_uploads_and_sends_collision_policy",
+    "test_frontend_regressions.FrontendTests.test_voicelab_diagnostics_actions_are_present_and_sanitized",
     "test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
@@ -322,6 +323,20 @@
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_comparison_reports_feature_drift",
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_operation_timing_covers_every_profiler_acoustic_operation",
     "test_voice_feature_benchmark.VoiceFeatureBenchmarkTests.test_torch_features_match_librosa_on_voiced_and_noisy_audio"
+  ],
+  "test_voicelab_diagnostics": [
+    "test_voicelab_diagnostics.BundleTests.test_bundle_is_versioned_and_wraps_sections",
+    "test_voicelab_diagnostics.BundleTests.test_bundle_redacts_secrets_in_sections",
+    "test_voicelab_diagnostics.BundleTests.test_malformed_none_section_is_bounded_not_fatal",
+    "test_voicelab_diagnostics.BundleTests.test_oversized_bundle_is_dropped_to_stay_within_budget",
+    "test_voicelab_diagnostics.RedactionTests.test_home_paths_are_collapsed",
+    "test_voicelab_diagnostics.RedactionTests.test_inline_credentials_in_free_text_are_scrubbed",
+    "test_voicelab_diagnostics.RedactionTests.test_long_lists_are_capped_with_marker",
+    "test_voicelab_diagnostics.RedactionTests.test_long_strings_are_truncated_with_marker",
+    "test_voicelab_diagnostics.RedactionTests.test_non_string_scalars_pass_through",
+    "test_voicelab_diagnostics.RedactionTests.test_sensitive_keys_are_fully_redacted_at_any_depth",
+    "test_voicelab_diagnostics.RedactionTests.test_unicode_is_preserved",
+    "test_voicelab_diagnostics.RedactionTests.test_url_credentials_in_values_are_stripped"
   ],
   "test_voicelab_health": [
     "test_voicelab_health.VoiceLabHealthTests.test_builder_does_not_mutate_state_or_write_files",
