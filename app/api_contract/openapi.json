@@ -3398,6 +3398,44 @@
         "summary": "Lora Promote Candidate"
       }
     },
+    "/api/lora/models/{adapter_id}/recover-checkpoint-swap": {
+      "post": {
+        "description": "Restore production after a process interruption left a swap journal.",
+        "operationId": "lora_recover_checkpoint_swap_api_lora_models__adapter_id__recover_checkpoint_swap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_id",
+            "required": true,
+            "schema": {
+              "title": "Adapter Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lora Recover Checkpoint Swap"
+      }
+    },
     "/api/lora/models/{adapter_id}/rollback-promotion": {
       "post": {
         "description": "Restore the production checkpoint preserved by the last promotion.",
