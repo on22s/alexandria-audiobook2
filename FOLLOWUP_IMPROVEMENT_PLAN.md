@@ -1,0 +1,330 @@
+# Alexandria Follow-up Improvement Plan
+
+Status: **approved — Phase 1 in progress**  
+Created: 2026-07-17  
+Baseline: nine-phase LoRA/Voice Lab improvement program merged through PR #149
+
+## Objective
+
+Validate the merged Voice Lab workflow on real audio, then improve its preflight,
+run records, health visibility, diagnostics, evaluation review, stale-client
+detection, and launcher integration coverage without weakening GPU, storage,
+checkpoint, retry, or recovery safety nets.
+
+## Operating rules
+
+- Implementation starts only after explicit approval of this plan.
+- Use one focused branch and pull request per phase.
+- Update this file after every significant step: mark status, record evidence,
+  note deviations, and identify the next action.
+- Preserve the global GPU lock, VRAM checks, bounded candidate retention,
+  checkpoint journals/backups, atomic writes, and retry policies.
+- Never expose API keys, authentication values, private paths, or raw environment
+  variables in UI diagnostics or reports.
+- Prefer existing architecture: vanilla JavaScript, FastAPI routers,
+  `process_state`, flat JSON, run history, and Pinokio's native log/session model.
+- A phase is complete only when its stated behavior is verified. Skipped tests
+  and unverified hardware paths must be reported explicitly.
+
+## Progress ledger
+
+| Phase | Work | Status | PR | Verification |
+|---|---|---|---|---|
+| 1 | Real end-to-end Voice Lab validation | In progress | — | Baseline: no active GPU task; 24 GB free (97% used) |
+| 2 | Voice Lab preflight report | Pending | — | — |
+| 3 | Persistent pipeline run summaries | Pending | — | — |
+| 4 | Pipeline health dashboard | Pending | — | — |
+| 5 | Sanitized diagnostics export | Pending | — | — |
+| 6 | Evaluation history and human review | Pending | — | — |
+| 7 | Stale-browser build detection | Pending | — | — |
+| 8 | Launcher supervisor integration tests | Pending | — | — |
+
+Allowed status values: `Pending`, `In progress`, `Blocked`, `Complete`.
+
+## Phase 1 — Real end-to-end Voice Lab validation
+
+Status: `In progress`  
+Branch / PR: `agent/real-voicelab-validation` / —  
+Completed: Approved plan checkpointed; confirmed no active GPU task; inspected
+real-audio source inventory and disk baseline.  
+Verified behavior: Running app reports idle; original audiobook tree remains
+read-only.  
+Tests run (including skips): None yet.  
+Real artifacts or reports: Pending.  
+Deviations / discoveries: Only 24 GB is free (filesystem 97% used), so validation
+must use a minimal temporary dataset, at most one candidate, and aggressive
+post-evidence cleanup. Training will not start unless a safe footprint is
+confirmed.  
+Remaining: Select input, estimate footprint, run stages, verify evidence and
+recovery behavior, publish report/PR.  
+Next action: Inspect existing prepared archives and choose the smallest valid
+real-audio source without modifying `/home/fakemitch/audiobooks/`.
+
+Purpose: exercise the actual ROCm path that unit and quick API tests cannot.
+
+Plan:
+
+1. Select the smallest suitable real voice dataset from
+   `/home/fakemitch/audiobooks/`; inspect it read-only before choosing it.
+2. Record baseline build, interpreter, Torch/ROCm versions, GPU, free VRAM,
+   free disk, and relevant Voice Lab configuration.
+3. Copy or derive a minimal test input in a temporary directory. Do not alter
+   the original audiobook data.
+4. Run quality → dedup → one-epoch training with bounded candidates → evaluation.
+5. Verify canonical device propagation through dedup, batch trainer,
+   `train_lora.py`, and evaluator.
+6. Verify version-2 evidence hashes, candidate summary, paired playback files,
+   promotion, rollback, and interrupted-state recovery where safely testable.
+7. Save a concise validation report and remove temporary heavyweight artifacts
+   after confirming they are not needed for failure analysis.
+
+Success criteria:
+
+- One real adapter completes the intended stages on the configured ROCm GPU.
+- Evidence and manifest records refer to the correct checkpoint and probe files.
+- Candidate comparison is playable and promotion/rollback preserves production.
+- Any failure is reproduced, classified, and retained with enough evidence to
+  fix; it is not silently called a pass.
+
+Verification:
+
+- Focused unit tests for any defect fixed during validation.
+- Full release verifier.
+- Recorded real-run commands, stage outcomes, durations, and artifact locations.
+
+## Phase 2 — Voice Lab preflight report
+
+Purpose: show whether a requested run is safe and runnable before claiming the
+GPU or starting a subprocess.
+
+Plan:
+
+1. Add one pure preflight builder shared by the preview endpoint and start path.
+2. Report requested stages, resolved dataset root/count, interpreter,
+   dependency readiness, canonical device, GPU visibility, free VRAM/disk,
+   profiler model, training settings, and expected output locations.
+3. Classify findings as blockers or advisory warnings using explicit rules.
+4. Recompute the preflight at start time to reject stale previews.
+5. Add a Voice Lab UI panel requiring the user to review blockers/warnings.
+
+Success criteria:
+
+- Preview is read-only and does not claim the GPU or mutate configuration.
+- Start uses the same decision function and refuses genuine blockers.
+- Missing optional stages/dependencies do not block unrelated selected stages.
+- Secrets and unnecessary absolute paths are absent from the response.
+
+Verification:
+
+- Tests for missing interpreter, wrong Torch build, low disk/VRAM, CPU fallback,
+  stage-specific dependencies, stale preview, and a healthy configuration.
+- API contract snapshots and release verifier.
+
+## Phase 3 — Persistent pipeline run summaries
+
+Purpose: make every Voice Lab run diagnosable after the live process ends.
+
+Plan:
+
+1. Extend the existing run-history style rather than create a second tracking
+   architecture.
+2. Create an immutable run identity and atomically persist initial request,
+   sanitized preflight, build identity, and stage plan before execution.
+3. Update the record after every stage with timestamps, duration, exit status,
+   concise failure classification, datasets/adapters affected, and next action.
+4. Mark cancellation and process interruption distinctly from stage failure.
+5. Apply bounded count/age retention without deleting the active or latest
+   failed record.
+
+Success criteria:
+
+- A crash between stages leaves a valid, useful partial record.
+- Completed, failed, cancelled, and interrupted runs are distinguishable.
+- Records contain summaries and log references, not unbounded raw logs.
+- Retention is deterministic, recoverable where practical, and tested.
+
+Verification:
+
+- Atomic-write failure, interruption, cancellation, multi-stage partial failure,
+  successful run, and retention-boundary tests.
+- Release verifier.
+
+## Phase 4 — Pipeline health dashboard
+
+Purpose: expose current and recent Voice Lab health without reading terminal
+logs manually.
+
+Plan:
+
+1. Build one read-only health summary from `process_state`, persistent run
+   summaries, runtime build identity, and checkpoint recovery state.
+2. Show active run/stage, elapsed time, selected device, last success, last
+   failure, pending recovery, and direct next action.
+3. Add a compact Voice Lab dashboard with links to the relevant run report,
+   model/candidate view, or recovery control.
+4. Keep polling lightweight and reuse the existing polling infrastructure.
+
+Success criteria:
+
+- Dashboard survives missing/corrupt historical records.
+- Live state never replaces or mutates the shared `process_state` objects.
+- Recovery-required status takes precedence over ordinary success/failure text.
+- No new background worker or polling loop is introduced unnecessarily.
+
+Verification:
+
+- Idle, running, succeeded, failed, cancelled, stale-process, corrupt-history,
+  and checkpoint-recovery tests.
+- Frontend regression tests and release verifier.
+
+## Phase 5 — Sanitized diagnostics export
+
+Purpose: produce a useful support bundle without leaking secrets or flooding
+reports with raw data.
+
+Plan:
+
+1. Define a versioned diagnostics schema containing runtime/build versions,
+   sanitized device/config summary, current health, latest run summary, and
+   relevant log file identifiers.
+2. Centralize recursive redaction for keys, URLs, credentials, home paths, and
+   environment-derived secrets.
+3. Enforce per-section and total size limits; truncate with explicit markers.
+4. Add Copy Diagnostics and Download Diagnostics actions in Voice Lab.
+5. Refer users to Pinokio's native Get Help/session bundle for full logs rather
+   than duplicating that supervisor feature.
+
+Success criteria:
+
+- Known and nested secret forms are removed.
+- Output is deterministic, bounded, versioned, and useful offline.
+- Diagnostics generation is read-only and works after a failed run.
+
+Verification:
+
+- Tests with API keys, bearer/basic auth, credentials in URLs, nested secrets,
+  local paths, oversized logs, malformed records, and Unicode.
+- Security-focused review, API/frontend tests, and release verifier.
+
+## Phase 6 — Evaluation history and human review
+
+Purpose: retain bounded decision evidence and combine automated scores with
+human listening judgments.
+
+Plan:
+
+1. Define a versioned, append-only evaluation-decision record bound to existing
+   evidence hashes and build identity.
+2. Preserve a bounded history of evaluation outcomes across reruns, promotion,
+   and rollback without copying large checkpoint files.
+3. Add optional blind A/B presentation with stable randomized labels per review.
+4. Store rating, preference, and short notes only after validating that the
+   referenced evidence is still current.
+5. Reveal production/candidate identities after the decision and keep automated
+   recommendation separate from human preference.
+6. Add explicit history cleanup with count/disk reporting.
+
+Success criteria:
+
+- Stale or changed evidence cannot receive a new rating.
+- Blind labels do not disclose identity before submission.
+- Human feedback never automatically promotes a checkpoint.
+- History is bounded, attributable to evidence, and safely removable.
+
+Verification:
+
+- Hash mismatch, replay/stale submission, label stability, malformed notes,
+  promotion/rollback history, concurrent writes, and retention tests.
+- Frontend tests and release verifier.
+
+## Phase 7 — Stale-browser build detection
+
+Purpose: identify a browser tab serving old frontend code after a backend update.
+
+Plan:
+
+1. Embed a frontend build identifier when serving the page, using the same
+   runtime build source as the backend.
+2. Compare it periodically with `/api/system/stats` using existing system polling.
+3. Show a non-destructive refresh-required banner when identifiers differ.
+4. Never auto-refresh during active edits or work; provide an explicit action.
+5. Treat unknown/unavailable build identifiers as informational, not mismatch.
+
+Success criteria:
+
+- Matching, mismatching, and unavailable identifiers behave distinctly.
+- The comparison adds no new polling timer.
+- Unsaved user work is never discarded automatically.
+
+Verification:
+
+- Frontend rendering tests for match/mismatch/unknown and active-work states.
+- Runtime/API tests and release verifier.
+
+## Phase 8 — Launcher supervisor integration tests
+
+Purpose: verify real Pinokio-style readiness and failure parsing rather than
+only checking launcher source strings.
+
+Plan:
+
+1. Create a small isolated test harness that runs fake Python servers/processes
+   emitting the exact readiness and failure signals used by `start.js`.
+2. Cover successful dynamic URL capture, import failure, traceback, FastAPI
+   startup failure, address-in-use failure, and early clean exit.
+3. Verify failure patterns cannot match normal healthy output accidentally.
+4. Keep the real launcher structure locked to the Pinokio server example:
+   daemon, relative path, dynamic port, `done: true`, and
+   `local.set` from `input.event[1]`.
+5. Document how to run the harness without starting a second Alexandria server.
+
+Success criteria:
+
+- Every supported failure exits visibly before URL publication.
+- Healthy readiness captures the full URL and keeps the daemon alive.
+- Tests do not bind fixed ports or depend on an installed GPU/model.
+- Pinokio launcher guidance and exit checklist remain satisfied.
+
+Verification:
+
+- Harness test matrix on available platforms/CI.
+- Existing launcher contract tests, JavaScript load check, and release verifier.
+
+## Execution order and dependencies
+
+Execute phases in numerical order. Phase 1 supplies real evidence for the
+preflight design. Phase 2 feeds Phase 3's persisted request record. Phase 3 is
+the source for Phase 4 and Phase 5. Phase 6 relies on the existing version-2
+evaluation evidence but is independent of diagnostics export. Phase 7 reuses
+runtime visibility. Phase 8 is last because it validates the final launcher and
+documentation surface.
+
+If Phase 1 finds a correctness defect, fix it in a narrowly scoped PR before
+continuing and record that inserted PR in the ledger rather than folding an
+unrelated fix into a later phase.
+
+## Per-phase update template
+
+After each significant step, append or update the phase with:
+
+```text
+Status:
+Branch / PR:
+Completed:
+Verified behavior:
+Tests run (including skips):
+Real artifacts or reports:
+Deviations / discoveries:
+Remaining:
+Next action:
+```
+
+## Final completion criteria
+
+- All eight ledger rows are `Complete`, or an explicitly approved deferral is
+  recorded with its reason and risk.
+- All PRs are merged and `main` passes the release verifier.
+- At least one real ROCm Voice Lab run has a retained validation report.
+- Diagnostics are demonstrably sanitized and bounded.
+- No active recovery journal, temporary validation process, or uncommitted
+  project change remains.
