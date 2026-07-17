@@ -2,7 +2,6 @@
 """Generate fixed LoRA probes and write resumable, warning-only evaluations."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,11 +19,13 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from config_settings import load_app_config
+from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_evidence_error,
+                           get_evaluation_spec_sha256, get_file_sha256)
 from tts import TTSEngine
 from utils import atomic_json_write
 
 
-EVALUATION_VERSION = 1
+EVALUATION_VERSION = EVALUATION_EVIDENCE_VERSION
 PROBES = (
     ("narration", "The ancient library stood quietly beneath a sky filled with stars."),
     ("dialogue", "I understand the danger, but we cannot abandon them now."),
@@ -40,11 +41,7 @@ def apply_evaluation_seed(seed: int) -> None:
 
 
 def get_checkpoint_sha256(checkpoint_dir: str) -> str:
-    digest = hashlib.sha256()
-    with open(os.path.join(checkpoint_dir, "adapter_model.safetensors"), "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    return get_file_sha256(os.path.join(checkpoint_dir, "adapter_model.safetensors"))
 
 
 def partition_unique_candidates(adapter_dir: str, candidates_root: str):
@@ -125,13 +122,16 @@ def get_speaker_similarity(model, reference_path: str, probe_path: str,
 
 
 def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
-    return (
-        result.get("version") == EVALUATION_VERSION
-        and [item.get("id") for item in result.get("probes", [])]
-        == [probe_id for probe_id, _text in PROBES]
-        and all(os.path.isfile(os.path.join(adapter_dir, item.get("audio_file", "")))
-                for item in result.get("probes", []))
-    )
+    try:
+        return (
+            [item.get("id") for item in result.get("probes", [])]
+            == [probe_id for probe_id, _text in PROBES]
+            and get_evidence_error(
+                result, adapter_dir,
+                get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS)) is None
+        )
+    except (OSError, ValueError):
+        return False
 
 
 def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
@@ -163,12 +163,20 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
         warnings = get_warnings(metrics)
         probe_results.append({
             "id": probe_id, "text": text, "audio_file": filename, "seed": probe_seed,
+            "audio_sha256": get_file_sha256(output_path),
             "metrics": metrics, "warnings": warnings,
         })
 
     warnings = sorted({warning for result in probe_results for warning in result["warnings"]})
     return {
         "version": EVALUATION_VERSION,
+        "evidence": {
+            "checkpoint_sha256": get_checkpoint_sha256(adapter_dir),
+            "reference_audio_sha256": get_file_sha256(reference_path),
+            "evaluation_spec_sha256": get_evaluation_spec_sha256(
+                PROBES, EVALUATION_SEED, THRESHOLDS),
+            "evaluator": "evaluate_lora.py",
+        },
         "status": "warning" if warnings else "pass",
         "warning_only": True,
         "warnings": warnings,

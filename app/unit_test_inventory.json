@@ -145,6 +145,7 @@
   "test_lora_candidate_promotion": [
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_deletion_refuses_pending_checkpoint_recovery",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_status_and_explicit_deletion",
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_refuses_evidence_after_checkpoint_changes",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_refuses_mismatched_seed",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_refuses_missing_candidate_audio",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_comparison_returns_matched_audio_and_metrics_without_mutation",
@@ -168,6 +169,7 @@
     "test_lora_evaluation.LoraEvaluationTests.test_candidate_recommendation_prefers_quality_and_never_promotes",
     "test_lora_evaluation.LoraEvaluationTests.test_checkpoint_partition_skips_production_and_candidate_duplicates",
     "test_lora_evaluation.LoraEvaluationTests.test_manifest_candidate_records_match_retained_recommendation",
+    "test_lora_evaluation.LoraEvaluationTests.test_resume_refuses_legacy_evidence",
     "test_lora_evaluation.LoraEvaluationTests.test_resume_requires_version_probes_and_audio_files",
     "test_lora_evaluation.LoraEvaluationTests.test_warning_thresholds_are_warning_only"
   ],

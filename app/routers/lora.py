@@ -39,6 +39,7 @@ from hf_utils import (
     fetch_builtin_manifest,
     is_adapter_downloaded,
 )
+from lora_evidence import get_evidence_error
 from utils import atomic_json_write, file_lock, get_unique_id, is_path_inside, secure_filename
 
 
@@ -206,6 +207,14 @@ def _get_lora_candidate_comparison(adapter_id: str, models_dir: str,
         os.path.join(adapter_dir, "evaluation.json"))
     candidate_result = _load_comparison_evaluation(
         os.path.join(candidate_dir, "evaluation.json"))
+    for result, checkpoint_dir in ((production_result, adapter_dir),
+                                   (candidate_result, candidate_dir)):
+        try:
+            evidence_error = get_evidence_error(result, checkpoint_dir)
+        except (OSError, ValueError):
+            evidence_error = "evaluation integrity evidence could not be verified"
+        if evidence_error:
+            raise HTTPException(status_code=409, detail=evidence_error)
     adapter_url = quote(adapter_id, safe="")
     candidate_url = quote(candidate_id, safe="")
     production_probes = _get_probe_comparison(

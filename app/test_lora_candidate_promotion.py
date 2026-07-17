@@ -8,6 +8,8 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from routers import lora
+from lora_evidence import (EVALUATION_EVIDENCE_VERSION,
+                           get_evaluation_spec_sha256, get_file_sha256)
 
 
 class LoraCandidatePromotionTests(unittest.TestCase):
@@ -290,20 +292,41 @@ class LoraCandidatePromotionTests(unittest.TestCase):
         candidate.mkdir(parents=True)
         adapter.mkdir(parents=True, exist_ok=True)
         (adapter / "probe.wav").write_bytes(b"production")
+        (adapter / "adapter_model.safetensors").write_bytes(b"production checkpoint")
+        (adapter / "ref_sample.wav").write_bytes(b"production reference")
+        (candidate / "adapter_model.safetensors").write_bytes(b"candidate checkpoint")
+        (candidate / "ref_sample.wav").write_bytes(b"candidate reference")
         if candidate_audio == "probe.wav":
             (candidate / candidate_audio).write_bytes(b"candidate")
         probe = {"id": "neutral", "text": "Matched text", "seed": 42,
                  "audio_file": "probe.wav",
                  "metrics": {"speaker_similarity": 0.91}}
+        probe["audio_sha256"] = get_file_sha256(str(adapter / "probe.wav"))
+        spec_hash = get_evaluation_spec_sha256(
+            (("neutral", "Matched text"),), 42, {})
         (adapter / "evaluation.json").write_text(json.dumps({
-            "probes": [probe],
+            "version": EVALUATION_EVIDENCE_VERSION,
+            "evidence": {
+                "checkpoint_sha256": get_file_sha256(
+                    str(adapter / "adapter_model.safetensors")),
+                "reference_audio_sha256": get_file_sha256(str(adapter / "ref_sample.wav")),
+                "evaluation_spec_sha256": spec_hash,
+            }, "probes": [probe],
             "candidate_recommendation": {
                 "reason": "Candidate scored higher", "ranking": ["epoch_002"]},
         }))
         candidate_probe = {**probe, "seed": candidate_seed,
                            "audio_file": candidate_audio}
+        if candidate_audio == "probe.wav":
+            candidate_probe["audio_sha256"] = get_file_sha256(str(candidate / candidate_audio))
         (candidate / "evaluation.json").write_text(json.dumps({
-            "probes": [candidate_probe],
+            "version": EVALUATION_EVIDENCE_VERSION,
+            "evidence": {
+                "checkpoint_sha256": get_file_sha256(
+                    str(candidate / "adapter_model.safetensors")),
+                "reference_audio_sha256": get_file_sha256(str(candidate / "ref_sample.wav")),
+                "evaluation_spec_sha256": spec_hash,
+            }, "probes": [candidate_probe],
         }))
         manifest = models / "manifest.json"
         manifest.write_text(json.dumps([{
@@ -351,7 +374,20 @@ class LoraCandidatePromotionTests(unittest.TestCase):
                     "voice", str(models), str(manifest))
 
             self.assertEqual(409, raised.exception.status_code)
-            self.assertIn("audio is missing", raised.exception.detail)
+            self.assertIn("probe audio is invalid", raised.exception.detail)
+
+    def test_comparison_refuses_evidence_after_checkpoint_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models, manifest = self._write_comparison_fixture(tmp)
+            Path(models, "voice", "candidates", "epoch_002",
+                 "adapter_model.safetensors").write_bytes(b"changed")
+
+            with self.assertRaises(HTTPException) as raised:
+                lora._get_lora_candidate_comparison(
+                    "voice", str(models), str(manifest))
+
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertIn("does not match", raised.exception.detail)
 
 
 if __name__ == "__main__":
