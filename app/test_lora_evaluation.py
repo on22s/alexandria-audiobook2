@@ -25,6 +25,7 @@ class LoraEvaluationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             adapter_dir = Path(tmp, "voice")
             adapter_dir.mkdir()
+            (adapter_dir / "adapter_model.safetensors").write_bytes(b"checkpoint")
             sf.write(adapter_dir / "ref_sample.wav", np.ones(8000) * 0.1, 16000)
             with (patch.object(evaluation, "get_speaker_similarity", return_value=0.9),
                   patch.object(evaluation, "apply_evaluation_seed") as apply_seed):
@@ -32,6 +33,10 @@ class LoraEvaluationTests(unittest.TestCase):
                     {"id": "voice"}, tmp, FakeEngine(), object(), "cpu")
 
         self.assertEqual("pass", result["status"])
+        self.assertEqual(evaluation.EVALUATION_VERSION, result["version"])
+        self.assertEqual(64, len(result["evidence"]["checkpoint_sha256"]))
+        self.assertTrue(all(len(probe["audio_sha256"]) == 64
+                            for probe in result["probes"]))
         self.assertEqual(["narration", "dialogue"],
                          [probe["id"] for probe in result["probes"]])
         self.assertTrue(all(probe["metrics"]["speaker_similarity"] == 0.9
@@ -124,14 +129,35 @@ class LoraEvaluationTests(unittest.TestCase):
 
     def test_resume_requires_version_probes_and_audio_files(self):
         with tempfile.TemporaryDirectory() as tmp:
-            result = {"version": evaluation.EVALUATION_VERSION, "probes": []}
+            Path(tmp, "adapter_model.safetensors").write_bytes(b"checkpoint")
+            Path(tmp, "ref_sample.wav").write_bytes(b"reference")
+            result = {"version": evaluation.EVALUATION_VERSION, "probes": [],
+                      "evidence": {
+                          "checkpoint_sha256": evaluation.get_file_sha256(
+                              str(Path(tmp, "adapter_model.safetensors"))),
+                          "reference_audio_sha256": evaluation.get_file_sha256(
+                              str(Path(tmp, "ref_sample.wav"))),
+                          "evaluation_spec_sha256": evaluation.get_evaluation_spec_sha256(
+                              evaluation.PROBES, evaluation.EVALUATION_SEED,
+                              evaluation.THRESHOLDS),
+                      }}
             for probe_id, _text in evaluation.PROBES:
                 filename = f"evaluation_{probe_id}.wav"
                 Path(tmp, filename).write_bytes(b"audio")
-                result["probes"].append({"id": probe_id, "audio_file": filename})
+                result["probes"].append({
+                    "id": probe_id, "audio_file": filename,
+                    "audio_sha256": evaluation.get_file_sha256(str(Path(tmp, filename))),
+                })
             self.assertTrue(evaluation.is_complete_evaluation(result, tmp))
             Path(tmp, "evaluation_dialogue.wav").unlink()
             self.assertFalse(evaluation.is_complete_evaluation(result, tmp))
+
+    def test_resume_refuses_legacy_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "adapter_model.safetensors").write_bytes(b"checkpoint")
+            Path(tmp, "ref_sample.wav").write_bytes(b"reference")
+            legacy = {"version": 1, "probes": []}
+            self.assertFalse(evaluation.is_complete_evaluation(legacy, tmp))
 
 
 if __name__ == "__main__":
