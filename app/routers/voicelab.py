@@ -33,7 +33,7 @@ from core import (
     claim_gpu_task,
     process_state,
 )
-from utils import atomic_json_write
+from utils import atomic_json_write, safe_load_json
 from voicelab_settings import get_profiler_paths
 
 
@@ -43,7 +43,8 @@ router = APIRouter()
 
 ## ── Voice Lab: end-to-end audiobook → named LoRA pipeline ─────────────────────
 #
-# Orchestrates the five post-preparer stages as a single sequential job:
+# Orchestrates the six post-preparer stages as a single sequential job:
+#   quality → audit_voice_datasets.py            (this repo, ROCm env)
 #   dedup   → voice_analysis.py --phase dedup   (this repo, ROCm env)
 #   train   → batch_train_lora.py               (this repo, ROCm env)
 #   evaluate→ evaluate_lora.py                  (this repo, ROCm env)
@@ -55,7 +56,7 @@ router = APIRouter()
 # interpreter path is machine-specific and lives in a small editable config file
 # rather than being hardcoded.
 
-VOICELAB_STAGES = ("dedup", "train", "evaluate", "profile", "name")
+VOICELAB_STAGES = ("quality", "dedup", "train", "evaluate", "profile", "name")
 
 
 def _rocm_env(rocm_python: str) -> dict:
@@ -116,7 +117,7 @@ class VoiceLabConfig(BaseModel):
 
 class VoiceLabRequest(BaseModel):
     zips_dir: Optional[str] = None                 # narrator-subfolder root; default from config
-    stages: List[str] = Field(default=list(VOICELAB_STAGES), max_length=5)
+    stages: List[str] = Field(default=list(VOICELAB_STAGES), max_length=6)
     device: Optional[Literal["cuda", "cpu"]] = None
     target_loss: float = Field(4.15, gt=0, le=100)
     max_epochs: int = Field(6, ge=1, le=100)
@@ -231,6 +232,7 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
         narrators.append({"name": name, "zip_count": len(zips)})
 
     deduped_dir = os.path.join(root, "_deduped")
+    quality_summary = safe_load_json(os.path.join(root, "_quality", "summary.json"), default={})
     deduped_zips = (
         [f for f in os.listdir(deduped_dir) if f.lower().endswith(".zip")]
         if os.path.isdir(deduped_dir) else []
@@ -250,6 +252,8 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
         "narrators": narrators,
         "deduped_exists": os.path.isdir(deduped_dir),
         "deduped_count": len(deduped_zips),
+        "quality": {"zip_count": quality_summary.get("zip_count", 0),
+                    "warning_clip_count": quality_summary.get("warning_clip_count", 0)},
         "manifest": {"trained": trained, "evaluated": evaluated,
                      "profiled": profiled, "unnamed": unnamed},
     }
@@ -268,6 +272,10 @@ def _voicelab_build_commands(req: VoiceLabRequest, cfg: dict, zips_dir: str):
     rocm_env = _rocm_env(rocm)
 
     steps = []
+    if "quality" in req.stages:
+        cmd = [rocm, "-u", os.path.join(ROOT_DIR, "audit_voice_datasets.py"),
+               "--zips2", zips_dir]
+        steps.append(("quality", cmd, ROOT_DIR, rocm_env))
     if "dedup" in req.stages:
         cmd = [rocm, "-u", os.path.join(ROOT_DIR, "voice_analysis.py"),
                "--phase", "dedup", "--zips2", zips_dir]
@@ -322,13 +330,13 @@ def _revalidate_voicelab_runtime(zips_dir: str, rocm_python: str,
     """Recheck mutable filesystem prerequisites immediately before subprocess launch."""
     error = _revalidate_voicelab_paths(
         (zips_dir, "zips_dir"),
-        (rocm_python if any(stage in stages for stage in ("dedup", "train", "evaluate", "profile"))
+        (rocm_python if any(stage in stages for stage in ("quality", "dedup", "train", "evaluate", "profile"))
          else None, "rocm_python"),
         (profiler_model if "profile" in stages else None, "profiler_model"),
     )
     if error:
         return error
-    if any(stage in stages for stage in ("dedup", "train", "evaluate", "profile")) and not (
+    if any(stage in stages for stage in ("quality", "dedup", "train", "evaluate", "profile")) and not (
             os.path.isfile(rocm_python) and os.access(rocm_python, os.X_OK)):
         return HTTPException(status_code=400,
                              detail=f"ROCm interpreter not found or not executable: {rocm_python}")
@@ -365,7 +373,7 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
     _validate_voicelab_path(zips_dir, "zips_dir")
 
     # Validate prerequisites up front with actionable errors
-    needs_rocm = any(s in request.stages for s in ("dedup", "train", "evaluate", "profile"))
+    needs_rocm = any(s in request.stages for s in ("quality", "dedup", "train", "evaluate", "profile"))
     if needs_rocm:
         if not cfg["rocm_python"]:
             raise HTTPException(status_code=400,
@@ -387,7 +395,8 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
                             detail=f"No _deduped folder in {zips_dir}; run the dedup stage first.")
     # These ship with this repo, so a miss means a broken install, not
     # misconfiguration - there is no path for the user to correct.
-    for s, fname in (("train", "batch_train_lora.py"),
+    for s, fname in (("quality", "audit_voice_datasets.py"),
+                     ("train", "batch_train_lora.py"),
                      ("evaluate", "evaluate_lora.py"),
                      ("profile", "voice_profiler.py")):
         if s in request.stages and not os.path.isfile(os.path.join(ROOT_DIR, fname)):
