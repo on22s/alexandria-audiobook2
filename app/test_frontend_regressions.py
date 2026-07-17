@@ -12,6 +12,14 @@ from fastapi.testclient import TestClient
 
 
 class FrontendTests(unittest.TestCase):
+    def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
+        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
+            encoding="utf-8")
+        for required in ("sys-build", "sys-build-val", "stats.runtime",
+                         "runtime.short_revision", "runtime.packages",
+                         "Revision unavailable"):
+            self.assertIn(required, frontend)
+
     def test_lora_candidate_comparison_is_advisory_and_separate_from_promotion(self):
         frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
             encoding="utf-8")
