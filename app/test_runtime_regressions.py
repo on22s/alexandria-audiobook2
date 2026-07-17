@@ -36,6 +36,27 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_concurrent_identical_uploads_keep_one_canonical_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = os.path.join(tmp, "uploads")
+            os.makedirs(uploads)
+
+            async def upload():
+                source = _Upload([b"same concurrent book"])
+                source.filename = "book.txt"
+                return await script_module.upload_file(source)
+
+            async def upload_both():
+                return await asyncio.gather(upload(), upload())
+
+            with patch.object(script_module, "UPLOADS_DIR", uploads), \
+                 patch.object(script_module, "DATA_DIR", tmp):
+                results = asyncio.run(upload_both())
+
+            self.assertEqual([False, True], sorted(result["reused"] for result in results))
+            self.assertEqual(1, len(os.listdir(uploads)))
+            self.assertEqual(results[0]["stored_filename"], results[1]["stored_filename"])
+
     def test_identical_script_upload_reuses_existing_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads = os.path.join(tmp, "uploads")

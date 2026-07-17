@@ -172,6 +172,7 @@
     "test_runtime_regressions.RuntimeTests.test_builtin_manifest_normalization_skips_bad_entries",
     "test_runtime_regressions.RuntimeTests.test_cancel_escalates_process_group_after_grace_period",
     "test_runtime_regressions.RuntimeTests.test_cancel_force_stops_subprocess_that_ignores_sigterm",
+    "test_runtime_regressions.RuntimeTests.test_concurrent_identical_uploads_keep_one_canonical_file",
     "test_runtime_regressions.RuntimeTests.test_dataset_builder_save_rejects_done_sample_with_missing_audio",
     "test_runtime_regressions.RuntimeTests.test_delete_saved_script_removes_generation_companions",
     "test_runtime_regressions.RuntimeTests.test_ensemble_rejects_nested_ensemble",
