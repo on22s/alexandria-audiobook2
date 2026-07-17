@@ -75,6 +75,23 @@ class VoiceLabHealthTests(unittest.TestCase):
             self.assertEqual("train", out["active_run"]["stage"])
             self.assertGreaterEqual(out["active_run"]["elapsed_seconds"], 0)
             self.assertEqual("Wait for train to finish.", out["next_action"])
+            # ETA fields are always present on an active run (may be None).
+            self.assertIn("eta_seconds", out["active_run"])
+            self.assertIn("progress", out["active_run"])
+
+    def test_active_run_reports_eta_from_shared_estimator(self):
+        import time
+        with tempfile.TemporaryDirectory() as h, tempfile.TemporaryDirectory() as m:
+            _write_run(h, "run_eta", "running", _iso(-60),
+                       stages=[{"name": "train", "started_at": _iso(-60)}])
+            state = {"running": True, "run_id": "run_eta", "current_task_idx": 0,
+                     "tasks": [{"name": "train", "status": "running"}],
+                     "start_time": time.time() - 60, "logs": ["Progress: 1/4"]}
+            out = self._build(state=state, history_dir=h, models_dir=m,
+                              manifest_path=_empty_manifest(m))
+            # 1/4 done in 60s -> a positive ETA and a progress marker.
+            self.assertGreater(out["active_run"]["eta_seconds"], 0)
+            self.assertIsNotNone(out["active_run"]["progress"])
 
     def test_newest_of_each_kind_is_selected(self):
         with tempfile.TemporaryDirectory() as h, tempfile.TemporaryDirectory() as m:

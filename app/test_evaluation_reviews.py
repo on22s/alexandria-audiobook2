@@ -190,6 +190,26 @@ class HistoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual([], er.list_reviews(d, "never_reviewed"))
 
+    def test_summarize_tallies_preferences(self):
+        with tempfile.TemporaryDirectory() as d:
+            # Force known roles by using non-blind sessions (A == production).
+            for choice, _role in (("A", "production"), ("B", "candidate"),
+                                   ("B", "candidate"), ("tie", "tie")):
+                sess = _mk(d, blind=False)
+                er.submit(d, "voice_x", sess["session_id"], choice, _fp())
+            summary = er.summarize(d, "voice_x")
+            self.assertEqual(4, summary["count"])
+            self.assertEqual(1, summary["preferred_production"])
+            self.assertEqual(2, summary["preferred_candidate"])
+            self.assertEqual(1, summary["tie"])
+            self.assertIsNotNone(summary["latest_at"])
+
+    def test_summarize_empty_is_zeroed(self):
+        with tempfile.TemporaryDirectory() as d:
+            summary = er.summarize(d, "never_reviewed")
+            self.assertEqual(0, summary["count"])
+            self.assertIsNone(summary["latest_at"])
+
 
 class SafetyTests(unittest.TestCase):
     def test_module_cannot_promote_or_touch_manifest(self):

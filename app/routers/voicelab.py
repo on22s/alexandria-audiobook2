@@ -26,6 +26,7 @@ from core import (
     VOICELAB_CONFIG_PATH,
     VOICELAB_DEFAULTS,
     _batch_cancel_helper,
+    _compute_eta,
     _init_batch_state,
     _init_task_log,
     _load_manifest,
@@ -356,6 +357,8 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
         if isinstance(idx, int) and 0 <= idx < len(stage_records):
             stage_started = stage_records[idx].get("started_at")
         elapsed = _elapsed_seconds(stage_started or (active_record or {}).get("started_at"))
+        # Reuse the shared progress/ETA estimator (no new logic, no new poll).
+        eta = _compute_eta(state)
         active = {
             "run_id": run_id,
             "stage": stage_name,
@@ -363,6 +366,8 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
             "stage_count": len(tasks),
             "paused": paused,
             "elapsed_seconds": elapsed,
+            "eta_seconds": eta.get("eta_seconds"),
+            "progress": eta.get("progress"),
         }
 
     last_success = next((_summarize_history_run(r) for r in runs
