@@ -49,6 +49,7 @@
   ],
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_design_manifest_hashes_description_text_and_seed",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
@@ -408,6 +409,7 @@
   "test_tts_benchmark": [
     "test_tts_benchmark.TTSBenchmarkTests.test_clone_case_separates_prompt_and_generation",
     "test_tts_benchmark.TTSBenchmarkTests.test_custom_voice_case_uses_production_engine_call",
+    "test_tts_benchmark.TTSBenchmarkTests.test_design_case_moves_preview_into_benchmark_output",
     "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_rejects_non_pcm16_input",
     "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_reports_duration_throughput_and_audio_health",
     "test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",

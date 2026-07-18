@@ -174,3 +174,29 @@ def build_tts_clone_manifest(fixtures, root_dir, repetitions=1, targets=None,
             "quality_thresholds": {"min_duration_seconds": 0.1,
                                    "max_silence_ratio": 0.98,
                                    "max_clipping_ratio": 0.01}}
+
+
+def build_tts_design_manifest(fixtures, repetitions=1, targets=None,
+                              max_new_tokens=2048):
+    """Build deterministic VoiceDesign preview fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one VoiceDesign fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        selected = {"voice_type": "design", "text": fixture.get("text"),
+                    "description": fixture.get("description"),
+                    "seed": fixture.get("seed", 0)}
+        if any(not isinstance(selected[key], str) or not selected[key].strip()
+               for key in ("text", "description")):
+            raise ValueError("VoiceDesign text and description must be non-empty")
+        if not isinstance(selected["seed"], int) or selected["seed"] < 0:
+            raise ValueError("VoiceDesign seed must be a non-negative integer")
+        selected.update({"id": fixture.get("id") or f"design-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "tts_generation",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {"max_new_tokens": max_new_tokens},
+            "quality_thresholds": {"min_duration_seconds": 0.1,
+                                   "max_silence_ratio": 0.98,
+                                   "max_clipping_ratio": 0.01}}

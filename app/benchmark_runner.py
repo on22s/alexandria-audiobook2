@@ -24,7 +24,9 @@ from review_script import check_text_loss, diff_entries, review_batch
 
 
 def _validate_tts_fixture(fixture, root_dir=None):
-    if fixture.get("voice_type", "custom") == "clone":
+    if fixture.get("voice_type") == "design":
+        keys = ("voice_type", "text", "description", "seed")
+    elif fixture.get("voice_type", "custom") == "clone":
         keys = ("voice_type", "text", "speaker", "seed", "ref_audio",
                 "ref_audio_sha256", "ref_text")
     else:
