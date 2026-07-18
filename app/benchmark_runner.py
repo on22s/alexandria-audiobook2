@@ -23,6 +23,7 @@ from utils import is_path_inside
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
 import generate_personas
+from find_nicknames import find_nicknames
 
 
 def _validate_tts_fixture(fixture, root_dir=None):
@@ -694,6 +695,60 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
                 fixture, client, llm["model_name"], status.get("context_length"))
             report["cases"].append({"fixture_id": fixture["id"],
                                     "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _validate_nickname_fixture(fixture):
+    content = {key: fixture[key] for key in
+               ("entries", "expected_aliases", "existing_aliases")}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    return content
+
+
+def run_nickname_detection_benchmark(manifest, environment, report_path, state,
+                                     config_path, root_dir):
+    """Run production context-aware alias discovery against configured LLM."""
+    target = manifest["targets"][0]
+    config = load_app_config(config_path)
+    llm, status = _get_llm_benchmark_target(config, target)
+    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
+    context_length = status.get("context_length") or 4096
+    concurrency = status.get("parallel") or 1
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        _validate_nickname_fixture(fixture)
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            started = time.monotonic()
+            aliases, evidence = find_nicknames(
+                client, llm["model_name"], fixture["entries"],
+                existing_aliases=fixture["existing_aliases"],
+                context_length=context_length, concurrency=concurrency)
+            expected = fixture["expected_aliases"]
+            correct = sum(aliases.get(key) == value for key, value in expected.items())
+            precision = correct / len(aliases) if aliases else 0.0
+            recall = correct / len(expected)
+            evidence_by_label = {str(key).strip().lower(): value
+                                 for key, value in evidence.items()}
+            evidence_coverage = sum(bool(evidence_by_label.get(key.lower()))
+                                    for key in expected) / len(expected)
+            quality = {"passed": precision == 1.0 and recall == 1.0
+                       and evidence_coverage == 1.0,
+                       "precision": precision, "recall": recall,
+                       "evidence_coverage": evidence_coverage}
+            report["cases"].append({
+                "fixture_id": fixture["id"], "repetition": repetition,
+                "status": "passed" if quality["passed"] else "failed",
+                "elapsed_seconds": round(time.monotonic() - started, 3),
+                "context_length": context_length, "concurrency": concurrency,
+                "aliases": aliases, "evidence": evidence, "quality": quality})
             save_benchmark_report(report_path, report)
     for task in state["tasks"]:
         task["status"] = "done"

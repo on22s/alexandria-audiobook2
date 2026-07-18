@@ -439,3 +439,29 @@ def build_persona_generation_manifest(fixtures, repetitions=1, targets=None):
     return {"schema_version": 1, "stage": "persona_generation",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {"max_retries": 0}}
+
+
+def build_nickname_detection_manifest(fixtures, repetitions=1, targets=None):
+    """Build self-contained alias-evidence fixtures with expected mappings."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one nickname fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        entries = copy.deepcopy(fixture.get("entries"))
+        expected = copy.deepcopy(fixture.get("expected_aliases"))
+        if not isinstance(entries, list) or len(entries) < 2 or any(
+                not isinstance(entry, dict) or not isinstance(entry.get("speaker"), str)
+                or not isinstance(entry.get("text"), str) for entry in entries):
+            raise ValueError("nickname entries require speaker and text strings")
+        if not isinstance(expected, dict) or not expected or any(
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in expected.items()):
+            raise ValueError("expected_aliases must be a non-empty string mapping")
+        selected = {"entries": entries, "expected_aliases": expected,
+                    "existing_aliases": copy.deepcopy(fixture.get("existing_aliases") or {})}
+        selected.update({"id": fixture.get("id") or f"nicknames-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "nickname_detection",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}
