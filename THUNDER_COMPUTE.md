@@ -167,6 +167,23 @@ same seed, so equal-input wall time is the primary comparison: local was
 **2.41× faster**. The measured optimum is cap 8 on both machines; A100 capacity
 did not permit useful scaling beyond it for this mixed-length workload.
 
+#### Base-model voice cloning
+
+The production clone path used the same hash-verified Watson reference audio
+and transcript on both machines. Three short/medium/long target texts were run
+twice with fixed seeds and a 1,024-token cap. Model loading, reusable clone
+prompt construction, and generation were timed separately.
+
+| Environment | Passed | Base load | Prompt build | Six generations | Aggregate audio throughput |
+|---|---:|---:|---:|---:|---:|
+| RX 9070 XT local | 6/6 | 6.44 s | 0.99 s | 44.8 s | 1.15× realtime |
+| A100 80 GB Thunder | 6/6 | 30.14 s | 7.20 s | 228.3 s | 0.25× realtime |
+
+All outputs were valid 24 kHz mono PCM, deterministic within each backend,
+non-silent, and unclipped. For equal target inputs, local generation was
+**5.09× faster**. Keep serial Base-model cloning local with these Torch/Qwen
+stacks. Native clone batching remains a separate measurement.
+
 ---
 
 ## Case study: Voice Lab — estimated, and keep it local anyway
