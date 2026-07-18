@@ -15,7 +15,8 @@ from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
 from script_repair import build_deterministic_repair
 from source_normalization import normalize_known_source_corruptions
-from speaker_identity import stabilize_speaker_identities
+from speaker_identity import (build_speaker_consistency_report,
+                              stabilize_speaker_identities)
 from script_preflight import audit_script, audit_unicode_text
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
                    get_app_config_path, is_generic_speaker, safe_load_json)
@@ -54,6 +55,7 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
             "entry_count": len(item["entries"]),
             "quality": item["quality"],
             "adaptively_split": item.get("adaptively_split", False),
+            "attempts": item.get("attempts", []),
         } for item in accepted_chunks],
         **details,
     }
@@ -441,9 +443,35 @@ def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
     return "retry_same_budget"
 
 
+def is_severe_chunk_truncation(quality):
+    """Return whether quality evidence matches the cheap early-stop failure."""
+    metrics = quality.get("metrics", {})
+    codes = {finding.get("code") for finding in quality.get("findings", [])}
+    return (metrics.get("output_source_ratio", 1.0) < 0.6
+            and "low_source_token_recall" in codes
+            and "low_ordered_trigram_recall" in codes)
+
+
+def get_chunk_retry_action(quality, consecutive_severe, allow_early_split=False):
+    """Choose whether a failed generation attempt should retry or split."""
+    if (allow_early_split and is_severe_chunk_truncation(quality)
+            and consecutive_severe >= 2):
+        return "split"
+    return "retry"
+
+
+def record_attempt_context(observer, attempt, phase, split_part=None):
+    """Label one live attempt record before handing it to its observer."""
+    attempt["phase"] = phase
+    if split_part is not None:
+        attempt["split_part"] = split_part
+    observer(attempt)
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
-                         transform_entries=None, attempt_observer=None):
+                         transform_entries=None, attempt_observer=None,
+                         retry_decider=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -454,9 +482,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     """
     retry_feedback = None
     requested_max = params.max_tokens
+    consecutive_severe = 0
     for attempt in range(max_retries + 1):
         t0 = time.time()
         truncation_retry_available = False
+        attempt_record = None
         try:
             base_messages = [
                 {"role": "system", "content": sys_prompt},
@@ -513,7 +543,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
             print(f" | took {time.time() - t0:.1f}s")
             if attempt_observer:
-                attempt_observer({
+                attempt_record = {
                     "attempt": attempt + 1,
                     "elapsed_seconds": round(time.time() - t0, 3),
                     "finish_reason": finish_reason,
@@ -522,7 +552,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
                     "error": None,
-                })
+                }
+                attempt_observer(attempt_record)
 
             if finish_reason == "length":
                 print(f"  WARNING: Response was truncated (hit effective max_tokens={effective_max}). Consider optimizing LM Studio context.")
@@ -597,12 +628,21 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if validate_entries:
                 quality = validate_entries(entries)
                 if not quality["passed"]:
+                    if attempt_record is not None:
+                        attempt_record["outcome"] = "quality_rejected"
+                        attempt_record["failure_codes"] = [
+                            finding.get("code") for finding in quality.get("findings", [])]
+                        attempt_record["quality_metrics"] = quality.get("metrics", {})
                     retry_feedback = json.dumps(quality["findings"], ensure_ascii=False)
                     metrics = quality.get("metrics", {})
                     completion_tokens = (getattr(usage, "completion_tokens", None)
                                          if usage else None)
                     retry_policy = get_quality_retry_policy(
                         finish_reason, completion_tokens, effective_max, quality)
+                    if retry_policy == "retry_same_budget" and is_severe_chunk_truncation(quality):
+                        consecutive_severe += 1
+                    else:
+                        consecutive_severe = 0
                     if attempt < max_retries and retry_policy == "increase_tokens":
                         next_max = get_next_retry_max_tokens(
                             requested_max, "incomplete_output", params.hard_max_tokens)
@@ -614,6 +654,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
+                    if (retry_policy == "retry_same_budget" and retry_decider
+                            and retry_decider(quality, consecutive_severe) == "split"):
+                        print("  Repeated severe truncation; switching to adaptive split")
+                        return []
                     if attempt < max_retries:
                         print("Retrying...")
                         continue
@@ -625,6 +669,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 return []
             if attempt > 0:
                 print(f"  Succeeded on retry {attempt + 1}")
+            if attempt_record is not None:
+                attempt_record["outcome"] = "accepted"
             return entries
 
         print(f"Warning: Could not parse {label} response as JSON (attempt {attempt + 1})")
@@ -715,7 +761,8 @@ def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
 
 
 def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
-                  previous_entries=None, max_retries=4, attempt_observer=None):
+                  previous_entries=None, max_retries=4, attempt_observer=None,
+                  allow_early_split=False):
     """Process a text chunk and return JSON script entries.
 
     max_retries=4 (5 total attempts) rather than the previous 2 (3 attempts):
@@ -756,6 +803,10 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
         transform_entries=prepare_entries,
         attempt_observer=attempt_observer,
+        retry_decider=(
+            (lambda quality, attempt_number: get_chunk_retry_action(
+                quality, attempt_number, allow_early_split=True))
+            if allow_early_split else None),
     )
 
 
@@ -775,7 +826,7 @@ def split_failed_chunk(chunk, minimum_chars=800):
 
 
 def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
-                             params, previous_entries=None):
+                             params, previous_entries=None, attempt_observer=None):
     """Try a full chunk, then one bounded natural-boundary split on exhaustion.
 
     Each split half gets its own independent retry budget. Measured on real
@@ -791,7 +842,12 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
     Rule 9), that one unlucky sample cost the rest of the book's chunks too.
     """
     entries = process_chunk(client, model_name, chunk, chunk_num, total_chunks,
-                            params, previous_entries=previous_entries)
+                            params, previous_entries=previous_entries,
+                            allow_early_split=True,
+                            attempt_observer=(
+                                (lambda attempt: record_attempt_context(
+                                    attempt_observer, attempt, "full"))
+                                if attempt_observer else None))
     if entries:
         return entries, False
     parts = split_failed_chunk(chunk)
@@ -805,7 +861,11 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
         context_entries = list(previous_entries or []) + combined
         part_entries = process_chunk(
             client, model_name, part, chunk_num, total_chunks, params,
-            previous_entries=context_entries)
+            previous_entries=context_entries,
+            attempt_observer=(
+                (lambda attempt, part_number=part_number: record_attempt_context(
+                    attempt_observer, attempt, "split", part_number))
+                if attempt_observer else None))
         if not part_entries:
             print(f"  Adaptive split part {part_number}/{len(parts)} failed")
             any_part_failed = True
@@ -952,9 +1012,11 @@ def main():
 
         chunk_start = time.monotonic()
         previous = all_entries if len(all_entries) > 0 else None
+        chunk_attempts = []
         entries, adaptively_split = process_chunk_adaptively(
             client, model_name, chunk, i, total_chunks, gen_params,
             previous_entries=previous,
+            attempt_observer=chunk_attempts.append,
         )
         chunk_elapsed = time.monotonic() - chunk_start
         chunk_times.append(chunk_elapsed)
@@ -963,7 +1025,8 @@ def main():
             save_generation_quality_manifest(output_path, build_generation_quality_manifest(
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
-                failure="chunk_failed_after_retries", response_log=response_log))
+                failure="chunk_failed_after_retries", response_log=response_log,
+                failed_chunk_attempts=chunk_attempts))
             print(f"Error: chunk {i}/{total_chunks} failed validation after retries; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
@@ -985,6 +1048,7 @@ def main():
             "entries": entries,
             "quality": quality,
             "adaptively_split": adaptively_split,
+            "attempts": chunk_attempts,
         })
         save_generation_checkpoint(output_path, fingerprint, accepted_chunks)
         print(f"  Got {len(entries)} entries (chunk took {chunk_elapsed:.0f}s)")
@@ -1025,6 +1089,8 @@ def main():
         final_repairs={"changes": final_repair["changes"],
                        "unresolved": final_repair["unresolved"]},
         speaker_identity_review=identity_review,
+        speaker_consistency=build_speaker_consistency_report(
+            all_entries, identity_review),
     )
     save_generation_quality_manifest(output_path, final_manifest)
     if final_manifest["status"] != "verified":

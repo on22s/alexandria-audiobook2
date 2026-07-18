@@ -60,6 +60,28 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual(json.loads(complete), result)
 
+    def test_process_chunk_default_budget_stops_after_exactly_five_attempts(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([
+            {"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
+        calls = 0
+
+        def create(**_kwargs):
+            nonlocal calls
+            calls += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=incomplete), finish_reason="stop")],
+                usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual([], result)
+        self.assertEqual(5, calls)
+
     def test_attempt_observer_receives_token_and_finish_metrics(self):
         source = "one two three four five"
         response = json.dumps([{"speaker": "NARRATOR", "text": source,
@@ -80,6 +102,21 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual("stop", attempts[0]["finish_reason"])
         self.assertEqual(12, attempts[0]["prompt_tokens"])
         self.assertEqual(8, attempts[0]["completion_tokens"])
+        self.assertEqual("accepted", attempts[0]["outcome"])
+
+    def test_attempt_observer_records_quality_rejection_codes(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([
+            {"speaker": "NARRATOR", "text": "word0", "instruct": "neutral"}])
+        attempts = []
+
+        generate_script.process_chunk(
+            self._client_with_responses([incomplete]), "model", source, 1, 1,
+            generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
+            max_retries=0, attempt_observer=attempts.append)
+
+        self.assertEqual("quality_rejected", attempts[0]["outcome"])
+        self.assertIn("low_source_token_recall", attempts[0]["failure_codes"])
 
     def test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason(self):
         source = " ".join(f"word{index}" for index in range(20))
@@ -91,6 +128,29 @@ class LlmReviewTests(unittest.TestCase):
             client, "model", source, 1, 1, params, max_retries=1)
 
         self.assertEqual([], result)
+
+    def test_early_split_decider_stops_full_chunk_after_second_severe_failure(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([
+            {"speaker": "NARRATOR", "text": "word0", "instruct": "neutral"}])
+        calls = 0
+
+        def create(**_kwargs):
+            nonlocal calls
+            calls += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=incomplete), finish_reason="stop")],
+                usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1,
+            generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
+            allow_early_split=True)
+
+        self.assertEqual([], result)
+        self.assertEqual(2, calls)
 
     def test_token_budget_uses_fallback_without_verified_context(self):
         self.assertEqual(4096, get_effective_max_tokens(4096, None, [], 16000))
