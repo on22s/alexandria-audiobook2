@@ -96,8 +96,8 @@ Parallel 2 was 59% slower, so the safety policy stopped before 4/8/16. For
 this exact A100/Gemma/LM Studio combination, **parallel 1 is the measured
 optimum**. The practical recommendation is to keep Gemma script generation on
 the local RX 9070 XT; use this A100 only when VRAM/CUDA or a different measured
-workload justifies it. Script review, TTS, and Voice Lab still require their
-own benchmarks—do not extrapolate these decode results to training.
+workload justifies it. TTS and Voice Lab require their own benchmarks—do not
+extrapolate these decode results to training.
 
 ### A100 script-review benchmark — 2026-07-18
 
@@ -115,7 +115,34 @@ Both preserved structure and stayed within the production 95–105% text-loss
 gate. Thunder provided no reliability advantage in this cohort and was almost
 exactly 2× slower. **Keep Gemma script review local** for this model/runtime.
 This reinforces the script-generation result but still says nothing about
-Torch/CUDA TTS or LoRA training performance.
+LoRA training performance.
+
+### A100 CustomVoice TTS benchmark — 2026-07-18
+
+The production `TTSEngine.generate_custom_voice` path was measured with the
+same three short/medium/long narration fixtures, fixed seeds, 1,024 generated
+token cap, and two repetitions per fixture. Model loading and generation were
+timed separately. Both environments lacked `flash-attn` and used the manual
+PyTorch attention path; local used Torch 2.10.0+ROCm 7.0 and Thunder used Torch
+2.7.0+CUDA 12.6. LM Studio remained resident on both machines.
+
+| Environment | Passed | Cached model load | Warm audio throughput | Clipped outputs |
+|---|---:|---:|---:|---:|
+| RX 9070 XT local | 6/6 | 6.2 s | 1.18 audio-sec/wall-sec | 0/6 |
+| A100 80 GB Thunder | 6/6 | 21.8 s | 0.28 audio-sec/wall-sec | 0/6 |
+
+The fixed seed produced identical hashes across repetitions on each machine;
+cross-backend hashes and durations differed slightly, which is expected from
+different Torch/GPU kernels. All WAVs were valid 24 kHz mono PCM, non-silent,
+and unclipped.
+
+For this exact serial CustomVoice path, the local RX 9070 XT delivered about
+**4.2× more audio per wall-clock second** and was already faster than realtime;
+the A100 ran at only about 15% utilization during observation. The A100's large
+VRAM capacity therefore did not translate into single-stream speed. Keep serial
+CustomVoice generation local with this software stack. Native list batching
+and LoRA training remain separate cohorts; the A100's extra VRAM may matter
+there, so this result must not be extrapolated to them.
 
 ---
 
