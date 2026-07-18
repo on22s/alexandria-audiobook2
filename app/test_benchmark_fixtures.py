@@ -7,6 +7,7 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_persona_generation_manifest,
                                 build_nickname_detection_manifest,
                                 build_export_manifest,
+                                build_dataset_builder_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
@@ -219,6 +220,17 @@ class BenchmarkFixtureTests(unittest.TestCase):
         self.assertEqual("audacity_export", manifest["stage"])
         self.assertEqual(hashlib.sha256(b"one").hexdigest(),
                          fixture["audio_sha256"]["one.wav"])
+
+    def test_dataset_builder_manifest_embeds_seeded_samples(self):
+        samples = [{"emotion": "calm", "text": "Hello."}]
+        manifest = build_dataset_builder_manifest([{
+            "description": "Warm voice", "samples": samples,
+            "global_seed": 42, "seeds": [7]}])
+        samples[0]["text"] = "changed"
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("dataset_builder", manifest["stage"])
+        self.assertEqual("Hello.", fixture["samples"][0]["text"])
+        self.assertEqual([7], fixture["seeds"])
 
 
 if __name__ == "__main__":

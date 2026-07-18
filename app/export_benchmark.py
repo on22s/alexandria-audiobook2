@@ -57,15 +57,24 @@ def execute_payload(payload):
                 result["status"] = "failed"
         else:
             probe = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries",
-                 "format=duration:stream=codec_name", "-of", "json", artifact],
+                ["ffprobe", "-v", "error", "-show_chapters", "-show_entries",
+                 "format=duration:stream=codec_name:chapter=start_time,end_time,tags",
+                 "-of", "json", artifact],
                 capture_output=True, text=True, timeout=30, check=False)
             if probe.returncode:
                 raise RuntimeError(probe.stderr.strip() or "ffprobe failed")
             media = json.loads(probe.stdout)
             result["media"] = media
             codecs = [stream.get("codec_name") for stream in media.get("streams", [])]
-            if "aac" not in codecs or float(media.get("format", {}).get("duration", 0)) <= 0:
+            chapters = media.get("chapters", [])
+            expected_chapters = len(chunks) if fixture["per_chunk_chapters"] else None
+            chapters_valid = bool(chapters) and all(
+                float(chapter.get("end_time", 0)) > float(chapter.get("start_time", 0))
+                and (chapter.get("tags") or {}).get("title") for chapter in chapters)
+            if ("aac" not in codecs
+                    or float(media.get("format", {}).get("duration", 0)) <= 0
+                    or not chapters_valid
+                    or (expected_chapters is not None and len(chapters) != expected_chapters)):
                 result["status"] = "failed"
         return result
 

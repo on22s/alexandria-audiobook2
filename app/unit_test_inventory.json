@@ -49,16 +49,17 @@
   ],
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_dataset_builder_manifest_embeds_seeded_samples",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_dedup_manifest_hashes_two_volumes_of_audio",
-    "test_benchmark_fixtures.BenchmarkFixtureTests.test_export_manifest_hashes_every_audio_file",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_design_manifest_hashes_description_text_and_seed",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_export_manifest_hashes_every_audio_file",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_manifest_hashes_all_required_adapter_artifacts",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_training_manifest_hashes_selected_audio_and_metadata",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_naming_manifest_embeds_profile_entries",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_nickname_manifest_embeds_expected_aliases",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_persona_manifest_embeds_script_and_derives_speakers",
-    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
-    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_preparer_manifest_hashes_audio_and_pins_model_revision",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_profiling_manifest_hashes_zip_and_model",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
@@ -431,6 +432,11 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_thunder_benchmark_documentation": [
+    "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
+    "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_guide_links_canonical_summary_and_preserves_scope_limits",
+    "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_summary_covers_every_registered_stage"
+  ],
   "test_tts_benchmark": [
     "test_tts_benchmark.TTSBenchmarkTests.test_clone_case_separates_prompt_and_generation",
     "test_tts_benchmark.TTSBenchmarkTests.test_custom_voice_case_uses_production_engine_call",
