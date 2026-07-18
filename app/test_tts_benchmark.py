@@ -88,6 +88,11 @@ class TTSBenchmarkTests(unittest.TestCase):
                 self.batch_seed = batch_seed
                 return {"completed": [], "failed": [], "peak_vram_gb": 13.83}
 
+            def run_clone_benchmark_batch(self, chunks, voice_config, output_dir,
+                                          batch_seed=-1):
+                self.clone_batch_seed = batch_seed
+                return {"completed": [], "failed": [], "peak_vram_gb": 14.25}
+
             def _clear_gpu_cache(self):
                 pass
 
@@ -100,6 +105,14 @@ class TTSBenchmarkTests(unittest.TestCase):
                 engine, {}, [16], tmp, n_chunks_per_run=1)
         self.assertEqual(13.83, results[0]["peak_vram_gb"])
         self.assertEqual(42, engine.batch_seed)
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.dict(sys.modules, {"torch": fake_torch}), \
+             patch.object(tts_vram_benchmark, "vram_state", return_value={}):
+            clone_results = tts_vram_benchmark.run_sweep(
+                engine, {}, [8], tmp, n_chunks_per_run=1, voice_type="clone")
+        self.assertEqual(14.25, clone_results[0]["peak_vram_gb"])
+        self.assertEqual(42, engine.clone_batch_seed)
 
     def test_vram_results_create_nested_output_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
