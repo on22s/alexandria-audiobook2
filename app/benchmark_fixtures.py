@@ -465,3 +465,32 @@ def build_nickname_detection_manifest(fixtures, repetitions=1, targets=None):
     return {"schema_version": 1, "stage": "nickname_detection",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_export_manifest(stage, fixtures, root_dir, repetitions=1, targets=None):
+    """Build immutable Audacity or M4B export fixtures from existing WAVs."""
+    if stage not in {"audacity_export", "m4b_export"}:
+        raise ValueError("export stage must be audacity_export or m4b_export")
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one export fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        chunks = copy.deepcopy(fixture.get("chunks"))
+        if not isinstance(chunks, list) or not chunks:
+            raise ValueError("export chunks must be a non-empty list")
+        audio_sha256 = {}
+        for chunk in chunks:
+            relative_path = chunk.get("audio_path") if isinstance(chunk, dict) else None
+            path = os.path.abspath(os.path.join(root_dir, relative_path or ""))
+            if not relative_path or not is_path_inside(path, root_dir) or not os.path.isfile(path):
+                raise ValueError("export audio must be a file inside the project")
+            with open(path, "rb") as audio_file:
+                audio_sha256[relative_path] = hashlib.sha256(audio_file.read()).hexdigest()
+        selected = {"chunks": chunks, "audio_sha256": audio_sha256,
+                    "per_chunk_chapters": fixture.get("per_chunk_chapters", True)}
+        selected.update({"id": fixture.get("id") or f"{stage}-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": stage,
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

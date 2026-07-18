@@ -50,6 +50,7 @@
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_dedup_manifest_hashes_two_volumes_of_audio",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_export_manifest_hashes_every_audio_file",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_design_manifest_hashes_description_text_and_seed",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_manifest_hashes_all_required_adapter_artifacts",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_training_manifest_hashes_selected_audio_and_metadata",
