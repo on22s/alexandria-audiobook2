@@ -7,7 +7,8 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
-                                build_tts_generation_manifest)
+                                build_tts_generation_manifest,
+                                build_tts_lora_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
@@ -106,6 +107,20 @@ class BenchmarkFixtureTests(unittest.TestCase):
         fixture = manifest["fixtures"][0]
         self.assertEqual("design", fixture["voice_type"])
         self.assertEqual(64, len(fixture["sha256"]))
+
+    def test_lora_manifest_hashes_all_required_adapter_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "adapter")
+            adapter.mkdir()
+            for name in ("adapter_config.json", "adapter_model.safetensors",
+                         "ref_sample.wav", "training_meta.json"):
+                Path(adapter, name).write_bytes(name.encode())
+            manifest = build_tts_lora_manifest([{
+                "text": "Welcome.", "instruct": "Warmly.",
+                "adapter_path": "adapter", "seed": 6}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("lora", fixture["voice_type"])
+        self.assertEqual(4, len(fixture["adapter_artifact_sha256"]))
 
 
 if __name__ == "__main__":

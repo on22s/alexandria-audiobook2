@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 import unittest
 import wave
@@ -8,7 +9,8 @@ from unittest.mock import patch
 import numpy as np
 
 from tts_benchmark import (measure_wav, run_clone_voice_case,
-                           run_custom_voice_case, run_design_voice_case)
+                           run_custom_voice_case, run_design_voice_case,
+                           run_lora_voice_case)
 import tts_vram_benchmark
 
 
@@ -170,6 +172,46 @@ class TTSBenchmarkTests(unittest.TestCase):
                 str(output_path), load_model=True)
             self.assertTrue(output_path.is_file())
             self.assertFalse(Path(tmp, "preview.wav").exists())
+        self.assertEqual(0.1, metrics["duration_seconds"])
+
+    def test_lora_case_verifies_adapter_and_uses_production_call(self):
+        class FakeEngine:
+            def _init_local_lora(self, adapter_path):
+                self.loaded = adapter_path
+                return "model"
+
+            def _ensure_lora_prompt(self, adapter_path, model, ref_text):
+                self.prompt = (adapter_path, model, ref_text)
+
+            def generate_lora_voice(self, text, instruct, voice_data, path):
+                self.call = (text, instruct, voice_data)
+                with wave.open(path, "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(np.ones(2400, dtype="<i2").tobytes())
+                return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "adapter")
+            adapter.mkdir()
+            hashes = {}
+            for name in ("adapter_config.json", "adapter_model.safetensors",
+                         "ref_sample.wav", "training_meta.json"):
+                content = (b'{"ref_sample_text":"Reference words."}'
+                           if name == "training_meta.json" else name.encode())
+                Path(adapter, name).write_bytes(content)
+                hashes[name] = hashlib.sha256(content).hexdigest()
+            engine = FakeEngine()
+            fake_torch = type("FakeTorch", (), {"manual_seed": lambda seed: None})
+            with patch.dict(sys.modules, {"torch": fake_torch}):
+                metrics = run_lora_voice_case(engine, {
+                    "text": "Hello.", "instruct": "Warmly.", "seed": 3,
+                    "adapter_path": "adapter", "adapter_artifact_sha256": hashes},
+                    str(Path(tmp, "out.wav")), tmp, load_model=True)
+        self.assertEqual("Hello.", engine.call[0])
+        self.assertEqual("Reference words.", engine.prompt[2])
+        self.assertIn("prompt_build_seconds", metrics)
         self.assertEqual(0.1, metrics["duration_seconds"])
 
 

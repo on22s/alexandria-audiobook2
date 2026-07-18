@@ -36,6 +36,32 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 "id": "tts", "sha256": "stale", "text": "Hello",
                 "instruct": "Neutral", "speaker": "N", "voice": "Ryan", "seed": 0})
 
+    def test_remote_lora_adapter_is_staged_once_and_payload_is_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp, "adapter")
+            adapter.mkdir()
+            hashes = {}
+            for name in ("adapter_config.json", "adapter_model.safetensors",
+                         "ref_sample.wav", "training_meta.json"):
+                content = name.encode()
+                Path(adapter, name).write_bytes(content)
+                hashes[name] = hashlib.sha256(content).hexdigest()
+            payload = {"fixtures": [
+                {"voice_type": "lora", "adapter_path": "adapter",
+                 "adapter_artifact_sha256": hashes},
+                {"voice_type": "lora", "adapter_path": "adapter",
+                 "adapter_artifact_sha256": hashes}]}
+            completed = type("Result", (), {
+                "returncode": 0, "stdout": "", "stderr": ""})()
+            with patch.object(benchmark_runner.subprocess, "run",
+                              return_value=completed) as run:
+                staged = benchmark_runner._stage_remote_tts_assets(
+                    payload, tmp, "tnr-0")
+        self.assertEqual(6, run.call_count)
+        self.assertEqual("adapter", payload["fixtures"][0]["adapter_path"])
+        self.assertTrue(staged["fixtures"][0]["adapter_path"].startswith(
+            "/tmp/alexandria-tts-benchmark-assets/lora-"))
+
     def test_runner_persists_each_successful_repetition(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture_path = Path(tmp, "fixture.txt")

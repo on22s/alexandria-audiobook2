@@ -1057,21 +1057,7 @@ class TTSEngine:
 
             model = self._init_local_lora(adapter_path)
 
-            # Build or reuse voice clone prompt for this adapter
-            if adapter_path not in self._lora_prompt_cache:
-                audio_array, sample_rate = sf.read(ref_wav_path)
-                if audio_array.ndim > 1:
-                    audio_array = audio_array.mean(axis=1)
-                print(f"Creating clone prompt for LoRA adapter...")
-                prompt = model.create_voice_clone_prompt(
-                    ref_audio=(audio_array, sample_rate),
-                    ref_text=ref_text,
-                    x_vector_only_mode=True,
-                )
-                self._lora_prompt_cache[adapter_path] = prompt
-                print(f"Clone prompt cached for LoRA adapter.")
-
-            prompt = self._lora_prompt_cache[adapter_path]
+            prompt = self._ensure_lora_prompt(adapter_path, model, ref_text)
 
             # Build instruct_ids so the Base model can follow style prompts
             gen_extra = {}
@@ -1109,6 +1095,22 @@ class TTSEngine:
             print(f"Error generating LoRA voice: {e}")
             traceback.print_exc()
             return False
+
+    def _ensure_lora_prompt(self, adapter_path, model, ref_text):
+        """Build and cache the clone prompt used by LoRA inference."""
+        if adapter_path not in self._lora_prompt_cache:
+            audio_array, sample_rate = sf.read(os.path.join(adapter_path, "ref_sample.wav"))
+            if audio_array.ndim > 1:
+                audio_array = audio_array.mean(axis=1)
+            print("Creating clone prompt for LoRA adapter...")
+            prompt = model.create_voice_clone_prompt(
+                ref_audio=(audio_array, sample_rate),
+                ref_text=ref_text,
+                x_vector_only_mode=True,
+            )
+            self._lora_prompt_cache[adapter_path] = prompt
+            print("Clone prompt cached for LoRA adapter.")
+        return self._lora_prompt_cache[adapter_path]
 
     # ── Batch generation ─────────────────────────────────────────
 
@@ -1718,20 +1720,7 @@ class TTSEngine:
 
                 model = self._init_local_lora(adapter_path)
 
-                if adapter_path not in self._lora_prompt_cache:
-                    audio_array, sample_rate = sf.read(ref_wav_path)
-                    if audio_array.ndim > 1:
-                        audio_array = audio_array.mean(axis=1)
-                    print(f"Creating clone prompt for LoRA adapter...")
-                    prompt = model.create_voice_clone_prompt(
-                        ref_audio=(audio_array, sample_rate),
-                        ref_text=ref_text,
-                        x_vector_only_mode=True,
-                    )
-                    self._lora_prompt_cache[adapter_path] = prompt
-                    print(f"Clone prompt cached for LoRA adapter.")
-
-                prompt = self._lora_prompt_cache[adapter_path]
+                prompt = self._ensure_lora_prompt(adapter_path, model, ref_text)
             except Exception as e:
                 print(f"  Error loading LoRA adapter {os.path.basename(adapter_path)}: {e}")
                 for chunk in group:
