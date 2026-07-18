@@ -168,6 +168,38 @@ def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_pyt
     return build_environment_fingerprint("thunder", observations)
 
 
+def _torch_major_minor(version_string):
+    """Return "MAJOR.MINOR" from a Torch version string, stripping any
+    build suffix (e.g. "2.10.0+rocm7.0" -> "2.10"), or None if unparseable."""
+    if not version_string:
+        return None
+    parts = str(version_string).split("+")[0].split(".")
+    if len(parts) < 2:
+        return None
+    return f"{parts[0]}.{parts[1]}"
+
+
+def verify_comparable_environments(local_env, thunder_env):
+    """Raise if local and Thunder fingerprints ran different Torch builds.
+
+    Comparative TTS/LoRA/VoiceLab timings are only meaningful if both sides
+    ran the same Torch minor version; a ROCm vs. CUDA build mismatch (seen in
+    the 2026-07-18 campaign: local Torch 2.10.0+rocm7.0 vs. Thunder Torch
+    2.7.0+cu126) silently turns a hardware comparison into a software-stack
+    comparison instead. Fingerprints that don't carry a Torch version (the
+    LLM-only stages, which don't run this app's Torch in-process) are skipped.
+    """
+    local_torch = (local_env.get("details", {}).get("packages", {}) or {}).get("torch")
+    thunder_torch = (thunder_env.get("details", {}).get("packages", {}) or {}).get("torch")
+    if not local_torch or not thunder_torch:
+        return
+    if _torch_major_minor(local_torch) != _torch_major_minor(thunder_torch):
+        raise ValueError(
+            f"local Torch {local_torch} and Thunder Torch {thunder_torch} are "
+            "different builds; a comparative benchmark would measure the "
+            "software stack, not the GPU. Align both environments before running.")
+
+
 def collect_cpu_environment(root_dir, target, ssh_alias=None):
     """Fingerprint a standard-library-only local or remote benchmark runtime."""
     runtime = get_runtime_info(root_dir)

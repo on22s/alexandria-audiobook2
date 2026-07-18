@@ -68,6 +68,45 @@ compute-heavy. The benchmark did not profile the cause; possible contributors
 include setup, data, small-batch, kernel, and framework overhead. Do not promote a theoretical compute advantage into a
 placement rule without a production-shaped measurement.
 
+### Known confounds in this campaign
+
+Four gaps were found in this campaign's own harness after the fact. None of
+them mean the numbers below are fabricated, but none of them were controlled
+for either — treat every conclusion in this section as provisional until a
+rerun addresses them:
+
+- **Torch/CUDA build mismatch.** Local ran Torch 2.10.0+ROCm7.0; Thunder ran
+  an older Torch 2.7.0+CUDA12.6. Every TTS/LoRA/VoiceLab comparison below was
+  measured across two different software stacks, not just two GPUs. The
+  benchmark harness now fingerprints both sides' Torch version and
+  (`benchmark_environment.verify_comparable_environments`) raises loudly if
+  they diverge when both are collected in one preflight — align the
+  Thunder image's Torch build before the next run so this actually passes.
+- **No utilization instrumentation existed for NVIDIA.** The "A100 ran at
+  only about 15% utilization" note under CustomVoice below was an ad-hoc,
+  unrepeated observation — `gpu_stats.py` had `rocm_smi_utilization` for AMD
+  only. `tts_benchmark.py` now samples `mean_gpu_utilization_pct` via the new
+  `gpu_stats.sample_gpu_utilization()` (NVIDIA or AMD, whichever is present)
+  during every generation call, so future runs get this as a real metric
+  instead of an eyeballed aside.
+- **LLM-based benchmarks timed the network round trip, not just decode.**
+  Script generation/review, persona, and nickname detection all call the
+  configured LM Studio endpoint directly; for the "thunder" target that's an
+  internet round trip through the SSH-forwarded HTTPS tunnel, with no
+  baseline to separate it from compute. Most visible in nickname detection's
+  sub-2-second totals, where a single RTT can double the reported time. Every
+  LLM-stage runner now records one `network_rtt_seconds` baseline probe (a
+  bare `models.list()` call) alongside each report, so a future writeup can
+  read `elapsed_seconds` as latency-plus-compute instead of pure compute.
+- **Every TTS/LoRA/VoiceLab benchmark is single-stream or small-batch**
+  (serial six-generation runs, batch caps ≤16 below) — the shape an A100 is
+  weakest at and a consumer GPU is strongest at. Nothing here tests the
+  throughput-at-scale regime datacenter GPUs are built for. The existing
+  `tts_vram_benchmark.py --sizes 32 64` (its `--sizes` flag already accepts
+  any cap list — no code change needed) has not yet been run on Thunder at
+  those larger caps; that's the recommended next experiment before treating
+  "local wins TTS" as true at every batch size, not just ≤16.
+
 ### Measured placement matrix — 2026-07-18
 
 These are fixture-scale calibration results, not promises for every model or book.

@@ -49,6 +49,21 @@ class BenchmarkApiTests(unittest.TestCase):
         remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model")
         self.assertEqual("ready", result["benchmark_state"])
 
+    def test_preflight_rejects_mismatched_torch_builds_across_targets(self):
+        config = {"llm_local": {"model_name": "local-model"},
+                  "llm_remote": {"model_name": "remote-model"},
+                  "llm_remote_ssh": "tnr-0"}
+        with patch.object(benchmark, "load_app_config", return_value=config), \
+             patch.object(benchmark, "check_global_gpu_lock"), \
+             patch.object(benchmark, "collect_local_environment", return_value={
+                 "target": "local", "sha256": "one",
+                 "details": {"packages": {"torch": "2.10.0+rocm7.0"}}}), \
+             patch.object(benchmark, "collect_thunder_environment", return_value={
+                 "target": "thunder", "sha256": "two",
+                 "details": {"packages": {"torch": "2.7.0+cu126"}}}):
+            with self.assertRaisesRegex(ValueError, "different builds"):
+                benchmark._build_benchmark_preflight(_request(["local", "thunder"]))
+
     def test_preflight_route_reports_validation_failure_as_400(self):
         request = _request()
         request.manifest["stage"] = "unknown"

@@ -38,6 +38,60 @@ def rocm_smi_utilization(card_data: dict) -> Optional[float]:
     return None
 
 
+def nvidia_smi_utilization(timeout=5):
+    """Sample the primary NVIDIA GPU's utilization percent via nvidia-smi, or
+    None if the binary is missing, times out, exits non-zero, or produces
+    unparseable output. Mirrors rocm_smi_utilization's failure handling so
+    NVIDIA hosts (e.g. Thunder) can capture a comparable metric to AMD's.
+    """
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        logger.debug("nvidia-smi not found")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.debug(f"nvidia-smi timed out after {timeout}s")
+        return None
+    except Exception as e:
+        logger.debug(f"nvidia-smi unexpected error: {e}")
+        return None
+    if result.returncode != 0:
+        logger.debug(f"nvidia-smi returned error: {result.returncode}, stderr: {result.stderr}")
+        return None
+    first_line = next((line.strip() for line in result.stdout.splitlines() if line.strip()), None)
+    if not first_line:
+        return None
+    try:
+        return float(first_line)
+    except ValueError:
+        return None
+
+
+def sample_gpu_utilization(rocm_smi_path="rocm-smi", timeout=2):
+    """Best-effort GPU utilization percent for whichever backend is present
+    (NVIDIA via nvidia-smi, AMD via rocm-smi), or None if neither succeeds.
+
+    Single dispatch point so callers (e.g. tts_benchmark.py, run either
+    locally or on Thunder) don't need to know in advance which backend the
+    host they're running on actually has.
+    """
+    nvidia_value = nvidia_smi_utilization(timeout=timeout)
+    if nvidia_value is not None:
+        return nvidia_value
+    data = run_rocm_smi_json(["--showuse"], rocm_smi_path=rocm_smi_path, timeout=timeout)
+    if not data:
+        return None
+    for card_data in data.values():
+        if isinstance(card_data, dict):
+            value = rocm_smi_utilization(card_data)
+            if value is not None:
+                return value
+    return None
+
+
 OOM_MARKERS = (
     "out of memory", "outofmemory", "cuda out of memory", "cuda error",
     "hip out of memory", "hip error", "cublas_status_alloc_failed",

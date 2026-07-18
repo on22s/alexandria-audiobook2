@@ -685,6 +685,8 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
     llm, status = _get_llm_benchmark_target(config, target)
     client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
+    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    save_benchmark_report(report_path, report)
     completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
     for fixture in manifest["fixtures"]:
         _validate_persona_fixture(fixture)
@@ -720,6 +722,8 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     context_length = status.get("context_length") or 4096
     concurrency = status.get("parallel") or 1
     report = load_resumable_benchmark_report(report_path, manifest, environment)
+    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    save_benchmark_report(report_path, report)
     completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
     for fixture in manifest["fixtures"]:
         _validate_nickname_fixture(fixture)
@@ -914,6 +918,25 @@ def _load_text_fixture(fixture, uploads_dir):
     return text
 
 
+def _measure_llm_network_rtt(client):
+    """Baseline round-trip time against the same base_url a benchmark case
+    will call, using the cheapest request the OpenAI-compatible API exposes.
+
+    A case's elapsed_seconds is call-latency-plus-compute, not pure compute
+    - for the "thunder" target that latency includes an internet round trip
+    through the SSH-forwarded HTTPS tunnel. Most visible on short calls
+    (e.g. nickname detection's sub-2-second totals), where a single RTT can
+    double the reported time. Returns None if the probe itself fails, so a
+    transient failure here doesn't block the real benchmark case.
+    """
+    started = time.monotonic()
+    try:
+        client.models.list()
+    except Exception:
+        return None
+    return round(time.monotonic() - started, 3)
+
+
 def _get_llm_benchmark_target(config, target):
     if target == "local":
         llm = config.get("llm_local") or config.get("llm") or {}
@@ -954,6 +977,8 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
         context_length=status.get("context_length"))
     client = OpenAI(base_url=llm.get("base_url"), api_key=llm.get("api_key", "local"))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
+    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    save_benchmark_report(report_path, report)
     completed = {(case["fixture_id"], case["repetition"])
                  for case in report.get("cases", [])}
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
@@ -1034,6 +1059,8 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
         context_length=status.get("context_length"))
     client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
+    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    save_benchmark_report(report_path, report)
     completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     thresholds = manifest.get("quality_thresholds") or {}

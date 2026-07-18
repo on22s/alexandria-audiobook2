@@ -77,6 +77,22 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
             benchmark_environment._get_lmstudio_observations(
                 {"available": True, "loaded": False}, "model")
 
+    def test_verify_comparable_environments_rejects_torch_minor_mismatch(self):
+        local_env = {"details": {"packages": {"torch": "2.10.0+rocm7.0"}}}
+        thunder_env = {"details": {"packages": {"torch": "2.7.0+cu126"}}}
+        with self.assertRaisesRegex(ValueError, "different builds"):
+            benchmark_environment.verify_comparable_environments(local_env, thunder_env)
+
+    def test_verify_comparable_environments_allows_matching_torch_minor(self):
+        local_env = {"details": {"packages": {"torch": "2.10.0+rocm7.0"}}}
+        thunder_env = {"details": {"packages": {"torch": "2.10.1+cu126"}}}
+        benchmark_environment.verify_comparable_environments(local_env, thunder_env)
+
+    def test_verify_comparable_environments_skips_fingerprints_without_torch(self):
+        local_env = {"details": {"packages": {}}}
+        thunder_env = {"details": {}}
+        benchmark_environment.verify_comparable_environments(local_env, thunder_env)
+
     def test_thunder_tts_rejects_checkout_that_does_not_match(self):
         payload = {"hostname": "thunder", "python_version": "3.11",
                    "torch": "2.7", "qwen_tts": "1"}
