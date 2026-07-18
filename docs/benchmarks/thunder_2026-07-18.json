@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "campaign_date": "2026-07-18",
+  "environments": {"local": "AMD Radeon RX 9070 XT 16 GB / ROCm", "thunder": "NVIDIA A100 80 GB / CUDA"},
+  "results": {
+    "script_generation": {"measured_scope": "9 production calls", "local": "366.6 s; 5/9 passed", "thunder": "677.8 s; 7/9 passed", "source_prs": [162]},
+    "script_review": {"measured_scope": "9 production review batches", "local": "243.8 s", "thunder": "501.1 s", "source_prs": [162]},
+    "persona_generation": {"measured_scope": "production discovery and compile fixture", "local": "39.885 s", "thunder": "17.557 s", "source_prs": [164]},
+    "nickname_detection": {"measured_scope": "one contextual alias fixture", "local": "0.796 s", "thunder": "1.782 s", "source_prs": [164]},
+    "tts_generation": {"measured_scope": "CustomVoice, clone, VoiceDesign, and LoRA production paths", "local": "won every measured cohort", "thunder": "lost every measured cohort", "source_prs": [166, 168, 170, 172]},
+    "voicelab_preparer": {"measured_scope": "ASR phase only; alignment and annotation were not benchmarked", "local": "11.24 s", "thunder": "21.72 s", "source_prs": [174]},
+    "voicelab_dedup": {"measured_scope": "production dedup; two volumes and 8 samples", "local": "10.19 s", "thunder": "19.09 s", "source_prs": [174]},
+    "voicelab_training": {"measured_scope": "production LoRA training; 8 samples and 1 epoch", "local": "2.1 s", "thunder": "6.5 s", "source_prs": [176]},
+    "voicelab_profiling": {"measured_scope": "cold production profile with identical Qwen2.5 14B Q6 model bytes", "local": "6.936 s", "thunder": "78.689 s", "source_prs": [178]},
+    "voicelab_naming": {"measured_scope": "production naming; three collision cases", "local": "0.0216 s", "thunder": "0.0541 s", "source_prs": [178]},
+    "dataset_builder": {"measured_scope": "production batch orchestration over VoiceDesign", "local": "16.095 s; 2/2 completed", "thunder": "pending; retry result was not captured", "source_prs": [182]},
+    "audacity_export": {"measured_scope": "production export with member and label validation", "local": "0.040 s", "thunder": "0.063 s", "source_prs": [180]},
+    "m4b_export": {"measured_scope": "production export with AAC, duration, exact chapter count, positive intervals, and nonempty titles", "local": "0.167 s", "thunder": "0.247 s", "source_prs": [180, 182]}
+  },
+  "provenance": {"profiling_model_sha256": "18cd6b7d5feb00c57ff81ede8f2164ffd86be90dbee9c05bf09ded1ab179740d", "notes": "Fixture-scale results. Pending values are explicit and must not be described as measured."}
+}

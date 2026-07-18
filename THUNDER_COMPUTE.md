@@ -16,7 +16,7 @@ nothing is billing.
 > so long locally that the wall-clock matters more than the dollars.
 > Everything else: stay local.
 
-At **$0.35/hr for an A6000**, cost is rarely the deciding factor for a few
+At **$0.35/hr for an A6000** (price checked 2026-07-18), cost is rarely the deciding factor for a few
 hours of work. The deciding factors are **VRAM**, **CUDA**, and **wall-clock**.
 
 ---
@@ -48,7 +48,8 @@ hours of work. The deciding factors are **VRAM**, **CUDA**, and **wall-clock**.
 This is measured, not theoretical, and it's the most counter-intuitive thing
 here:
 
-> On the Thunder **A6000**, review with `concurrency`/`parallel` **> 1 was
+> In a historical Thunder **A6000** run whose raw report is not versioned,
+> review with `concurrency`/`parallel` **> 1 was
 > slower** than 1 — and **crashed at 4**. Keep concurrency at **1**. Don't
 > auto-scale `parallel`.
 
@@ -63,16 +64,17 @@ speed or fan-out improves without measuring the exact model/runtime.
 
 The bottleneck depends on the full software path, not GPU specifications alone.
 The A100 lost the measured LoRA-training calibration despite training being
-compute-heavy: setup, data, small-batch, kernel, and framework overhead dominated
-this bounded workload. Do not promote a theoretical compute advantage into a
+compute-heavy. The benchmark did not profile the cause; possible contributors
+include setup, data, small-batch, kernel, and framework overhead. Do not promote a theoretical compute advantage into a
 placement rule without a production-shaped measurement.
 
-### Complete measured placement matrix — 2026-07-18
+### Measured placement matrix — 2026-07-18
 
 These are fixture-scale calibration results, not promises for every model or book.
 They do answer the placement question for the tested RX 9070 XT/ROCm and A100
-80 GB/CUDA environments. Dataset Builder generation is not repeated because it
-calls the already-measured production VoiceDesign method.
+80 GB/CUDA environments. The canonical machine-readable summary is
+[`docs/benchmarks/thunder_2026-07-18.json`](docs/benchmarks/thunder_2026-07-18.json).
+Pending entries remain explicit rather than being inferred from a component.
 
 | Workload | Local | A100 Thunder | Measured decision |
 |---|---:|---:|---|
@@ -85,6 +87,7 @@ calls the already-measured production VoiceDesign method.
 | Base clone, six generations | 44.8 s | 228.3 s | Local, 5.09× faster |
 | Clone native batch, cap 8 | 37.3 s | 107.8 s | Local, 2.89× faster |
 | VoiceDesign, six generations | 40.7 s | 173.9 s | Local, 4.27× faster |
+| Dataset Builder production batch, 2 samples | 16.095 s, 2/2 complete | Pending; retry result was not captured | No cross-machine decision yet |
 | LoRA TTS warm generation | 5.48 s | 32.05 s | Local, 5.85× faster |
 | LoRA training, 8 samples / 1 epoch | 2.1 s | 6.5 s | Local, 3.10× faster |
 | Voice Lab preparer ASR | 11.24 s | 21.72 s | Local, 1.93× faster |
@@ -92,7 +95,7 @@ calls the already-measured production VoiceDesign method.
 | Voice Lab profiling, cold | 6.936 s | 78.689 s | Local, 11.35× faster |
 | Voice Lab naming | 0.0216 s | 0.0541 s | Local, 2.50× faster |
 | Audacity export | 0.040 s | 0.063 s | Local, 1.58× faster |
-| M4B export | 0.230 s | 0.260 s | Local, 1.13× faster |
+| M4B export | 0.167 s | 0.247 s | Local, 1.48× faster |
 
 Quality checks passed on both machines for the completed cohorts: valid audio,
 hash-verified inputs, structural script/review gates, exact canonical Voice Lab
@@ -131,6 +134,11 @@ optimum**. The practical recommendation is to keep Gemma script generation on
 the local RX 9070 XT; use this A100 only when VRAM/CUDA or a different measured
 workload justifies it. Do not extrapolate these decode results to TTS, training,
 or Voice Lab; their separate measured results are recorded below.
+
+The current protected `REMOTE_IDEAL_SETTINGS` still configures `parallel: 2`,
+and remote self-healing can restore that value. The measured parallel-1 result
+is advisory until that safety-sensitive production setting is deliberately
+changed and validated; this guide does not silently override it.
 
 ### A100 script-review benchmark — 2026-07-18
 
@@ -275,7 +283,7 @@ The advanced persona benchmark intentionally captured the preview boundary
 instead of generating TTS again. Each target performed one discovery call and
 two compilation calls over the same two-speaker fixture. Thunder completed in
 17.557 s versus 39.885 s locally: **Thunder was 2.27× faster**, with 100% speaker
-and evidence coverage on both. This was the A100's only measured speed win.
+and evidence coverage on both. This was the A100's only measured wall-clock speed win.
 
 Nickname detection used one explicit contextual `BETTY → BEATRICE` case. Local
 completed in 0.796 s versus 1.782 s remotely. Both achieved precision 1.0,
@@ -285,17 +293,18 @@ Thunder for larger persona discovery/compile cohorts after measuring them.
 ### CPU exports
 
 Audacity and M4B were run on Thunder instead of being dismissed from GPU specs.
-Local still won: 0.040 s versus 0.063 s for Audacity, and 0.230 s versus 0.260 s
-for M4B. Audacity member/label structure matched exactly. Both M4Bs contained
-AAC audio and chapter metadata with durations of 15.620 s and 15.621 s. Binary
+Local still won: 0.040 s versus 0.063 s for Audacity, and 0.167 s versus 0.247 s
+for the strengthened M4B rerun. Audacity member/label structure matched exactly.
+Both M4Bs contained AAC audio and exactly two positive-duration, titled chapters. Binary
 hashes differed because ZIP timestamps and FFmpeg versions are platform-specific.
 
 ---
 
-## Case study: Voice Lab — measured end to end by stage
+## Case study: Voice Lab — measured components by stage
 
-Voice Lab is no longer speculative. Each distinct stage ran locally and on the
-same A100 80 GB instance through a production-backed, hash-verified fixture.
+The listed Voice Lab components ran locally and on the same A100 80 GB instance
+through production-backed, hash-verified fixtures. The preparer result covers
+only its ASR phase; alignment and annotation were not benchmarked.
 
 | Stage | Local | A100 Thunder | Quality comparison |
 |---|---:|---:|---|
@@ -305,8 +314,8 @@ same A100 80 GB instance through a production-backed, hash-verified fixture.
 | Profiling, cold Qwen2.5 14B Q6 | 6.936 s | 78.689 s | Acoustic metrics identical; both casting lines valid |
 | Naming, three collision cases | 0.0216 s | 0.0541 s | Byte-identical manifests and identical directory names |
 
-The measured conclusion is stronger than the old estimate: **keep the entire
-tested Voice Lab pipeline local for speed**, not merely because remote setup is
+The measured conclusion is stronger than the old estimate: **keep the tested
+Voice Lab components local for speed**, not merely because remote setup is
 awkward. The bounded LoRA training calibration was 3.10× faster locally, and
 profiling was 11.35× faster locally. Transfer and provisioning overhead were
 excluded from those timed case results, so including them only strengthens the
@@ -317,6 +326,11 @@ does prove that GPU specifications alone were a bad predictor for this stack.
 If a substantially larger dataset OOMs on the 16 GB card, Thunder remains a
 capacity escape hatch; benchmark that new dataset shape before treating the A100
 as a throughput upgrade.
+
+Production Voice Lab jobs launched from the UI remain local-only. The SSH
+benchmark adapters are calibration infrastructure, not production remote-job
+routing. Using Thunder as a capacity escape hatch currently requires a manual
+workflow; automatic Voice Lab dispatch to Thunder has not been built.
 
 ### Profiling phase breakdown
 
@@ -333,19 +347,21 @@ still differ slightly across ROCm/CUDA backends; acoustic values matched exactly
 
 ---
 
-## 5. Picking a GPU (real pricing, per hour)
+## 5. Picking a GPU (pricing checked 2026-07-18, per hour)
 
 | GPU | $/hr | Use when |
 |---|---|---|
 | **a6000_x1** | **0.35** | Cheapest capacity/CUDA escape hatch. Historical review concurrency above 1 regressed; do not assume speed. |
 | l40_x1 | 0.79 | Only if you've measured it beating the A6000 for your job. |
 | l40s | 0.99 | Same — measure first. |
-| a100xl_x1 | 1.09 | 80 GB capacity and CUDA. In this campaign it won only persona generation; it lost the measured LoRA-training calibration. |
+| a100xl_x1 | 1.09 | 80 GB capacity and CUDA. In this campaign its only wall-clock win was persona generation; it lost the measured LoRA-training calibration. |
 | h100_x1 | 2.19 | Unmeasured in this project. Rent only for a workload that justifies a new calibration. |
 | *_x2 / _x4 / _x8 | 2–23 | **Not for this project.** See §4 — you can't use the parallelism. |
 
 Storage: disk $0.0003/GB/hr, snapshots $0.00006849/GB/hr (snapshots are ~4×
 cheaper than a running disk and ~1000× cheaper than a running A6000).
+Check Thunder's current [pricing](https://www.thundercompute.com/pricing) and
+[billing documentation](https://www.thundercompute.com/docs/billing) before renting.
 
 ---
 

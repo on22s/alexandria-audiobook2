@@ -494,3 +494,31 @@ def build_export_manifest(stage, fixtures, root_dir, repetitions=1, targets=None
     return {"schema_version": 1, "stage": stage,
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_dataset_builder_manifest(fixtures, repetitions=1, targets=None):
+    """Build self-contained VoiceDesign batch-orchestration fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one Dataset Builder fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        samples = copy.deepcopy(fixture.get("samples"))
+        if not isinstance(samples, list) or not samples or any(
+                not isinstance(sample, dict)
+                or not isinstance(sample.get("text"), str)
+                or not isinstance(sample.get("emotion", ""), str)
+                for sample in samples):
+            raise ValueError("Dataset Builder samples require text and emotion strings")
+        selected = {"description": fixture.get("description", "Benchmark voice"),
+                    "samples": samples,
+                    "global_seed": fixture.get("global_seed", 42),
+                    "seeds": copy.deepcopy(fixture.get("seeds"))}
+        if selected["seeds"] is not None and (not isinstance(selected["seeds"], list)
+                or len(selected["seeds"]) != len(samples)):
+            raise ValueError("Dataset Builder seeds must match the sample count")
+        selected.update({"id": fixture.get("id") or f"dataset-builder-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "dataset_builder",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

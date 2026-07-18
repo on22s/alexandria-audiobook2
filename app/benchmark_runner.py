@@ -830,6 +830,61 @@ def run_export_benchmark(manifest, environment, report_path, state,
     return report
 
 
+def _run_dataset_builder_worker(fixture, target, settings, root_dir, ssh_alias,
+                                tts_config):
+    content = {key: fixture[key] for key in
+               ("description", "samples", "global_seed", "seeds")}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    if target == "local":
+        python_executable = settings.get("local_python") or sys.executable
+        worker = os.path.join(root_dir, "app", "dataset_builder_benchmark.py")
+        prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python")
+        if not remote_root or not python_executable or not ssh_alias:
+            raise ValueError("Thunder Dataset Builder requires remote_root, remote_python, and SSH alias")
+        worker = os.path.join(remote_root, "app", "dataset_builder_benchmark.py")
+        prefix = ["ssh", ssh_alias]
+    payload = {"fixture": fixture, "tts": tts_config}
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    worker_command = [python_executable, worker, "--payload", encoded]
+    command = worker_command if not prefix else [*prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True,
+                            timeout=3600, check=False)
+    marker = "DATASET_BUILDER_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or
+                            "Dataset Builder worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_dataset_builder_benchmark(manifest, environment, report_path, state,
+                                  config_path, root_dir):
+    """Run the production Dataset Builder batch route locally or on Thunder."""
+    target = manifest["targets"][0]
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_dataset_builder_worker(
+                fixture, target, manifest.get("settings") or {}, root_dir,
+                (config.get("llm_remote_ssh") or "").strip(), config.get("tts") or {})
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
 def _load_text_fixture(fixture, uploads_dir):
     path = os.path.abspath(fixture.get("path") or "")
     if not path or not is_path_inside(path, uploads_dir) or not os.path.isfile(path):
