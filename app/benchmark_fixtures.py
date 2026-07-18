@@ -316,3 +316,45 @@ def build_voicelab_preparer_manifest(fixtures, root_dir, repetitions=1,
     return {"schema_version": 1, "stage": "voicelab_preparer",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_voicelab_dedup_manifest(fixtures, root_dir, repetitions=1,
+                                  targets=None):
+    """Build immutable two-volume ECAPA dedup calibration fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one dedup fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        dataset_path = os.path.abspath(os.path.join(root_dir, fixture.get("dataset_path") or ""))
+        metadata_path = os.path.join(dataset_path, "metadata.jsonl")
+        if not is_path_inside(dataset_path, root_dir) or not os.path.isfile(metadata_path):
+            raise ValueError("dedup source dataset must be inside the project")
+        samples_per_volume = fixture.get("samples_per_volume", 4)
+        if not isinstance(samples_per_volume, int) or samples_per_volume < 1:
+            raise ValueError("dedup samples_per_volume must be positive")
+        with open(metadata_path, "rb") as metadata_file:
+            metadata_raw = metadata_file.read()
+        entries = [json.loads(line) for line in metadata_raw.decode("utf-8").splitlines()
+                   if line.strip()][:samples_per_volume * 2]
+        if len(entries) < samples_per_volume * 2:
+            raise ValueError("dedup source dataset has too few samples")
+        audio_hashes = {}
+        for entry in entries:
+            relative_path = entry.get("audio_filepath") or entry.get("audio")
+            audio_path = os.path.abspath(os.path.join(dataset_path, relative_path or ""))
+            if not relative_path or not is_path_inside(audio_path, dataset_path) or not os.path.isfile(audio_path):
+                raise ValueError("dedup sample audio is missing or outside the dataset")
+            with open(audio_path, "rb") as audio_file:
+                audio_hashes[relative_path] = hashlib.sha256(audio_file.read()).hexdigest()
+        selected = {"dataset_path": os.path.relpath(dataset_path, root_dir),
+                    "metadata_sha256": hashlib.sha256(metadata_raw).hexdigest(),
+                    "samples_per_volume": samples_per_volume,
+                    "audio_sha256": audio_hashes,
+                    "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+                    "seed": fixture.get("seed", 42)}
+        selected.update({"id": fixture.get("id") or f"dedup-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "voicelab_dedup",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

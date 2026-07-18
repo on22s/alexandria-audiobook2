@@ -51,6 +51,13 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 "audio_sha256": "x", "limit": 1, "language": "en",
                 "model_revision": "revision"}, ".")
 
+    def test_dedup_fixture_drift_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hash changed"):
+            benchmark_runner._validate_dedup_fixture({
+                "id": "dedup", "sha256": "stale", "dataset_path": "dataset",
+                "metadata_sha256": "x", "samples_per_volume": 2,
+                "audio_sha256": {}, "model_id": "model", "seed": 42}, ".")
+
     def test_remote_lora_adapter_is_staged_once_and_payload_is_rewritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             adapter = Path(tmp, "adapter")

@@ -12,6 +12,7 @@ from benchmark_environment import (collect_local_environment,
                                    collect_thunder_environment,
                                    collect_thunder_tts_environment)
 from benchmark_runner import (run_script_generation_benchmark,
+                              run_dedup_benchmark,
                               run_lora_training_benchmark,
                               run_preparer_benchmark,
                               run_script_review_benchmark,
@@ -47,12 +48,12 @@ def _build_benchmark_preflight(request):
     config = load_app_config(CONFIG_PATH)
     environments = {}
     for target in manifest["targets"]:
-        if manifest["stage"] in {"tts_generation", "voicelab_training", "voicelab_preparer"}:
+        if manifest["stage"] in {"tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup"}:
             settings = manifest.get("settings") or {}
             if target == "local":
                 environments[target] = collect_local_tts_environment(
                     ROOT_DIR, settings.get("local_python")
-                    if manifest["stage"] == "voicelab_preparer" else None)
+                    if manifest["stage"] in {"voicelab_preparer", "voicelab_dedup"} else None)
             else:
                 environments[target] = collect_thunder_tts_environment(
                     ROOT_DIR, (config.get("llm_remote_ssh") or "").strip(),
@@ -93,7 +94,7 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] not in {"script_generation", "script_review", "tts_generation", "voicelab_training", "voicelab_preparer"} or len(manifest["targets"]) != 1:
+    if manifest["stage"] not in {"script_generation", "script_review", "tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup"} or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
                             detail="Benchmark runs require a supported stage and exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
@@ -120,8 +121,11 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         elif manifest["stage"] == "voicelab_training":
             run_lora_training_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
-        else:
+        elif manifest["stage"] == "voicelab_preparer":
             run_preparer_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
+        else:
+            run_dedup_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
 
     background_tasks.add_task(_run_claimed_background_task, "benchmark", _run)
