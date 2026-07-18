@@ -47,6 +47,40 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual([], generate_script.split_failed_chunk("short text"))
         self.assertEqual([], generate_script.split_failed_chunk("x" * 2000))
 
+    def test_adaptive_split_still_attempts_second_half_after_first_half_fails(self):
+        # Regression: a real overnight batch run lost 71/78 remaining chunks of
+        # one book because the first split half failed and the second half was
+        # never even attempted, even though live reproduction testing showed
+        # this content has a real (measured ~40%) per-attempt success rate --
+        # one unlucky sample on half 1 must not forfeit half 2's independent
+        # chance. The whole chunk is still reported as failed (checkpoint/
+        # resume requires every accepted chunk to be gapless), but part 2 must
+        # have been genuinely tried.
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        with patch.object(generate_script, "process_chunk",
+                          side_effect=[[], [], [_entry("second, tried anyway")]]) as process:
+            entries, split = generate_script.process_chunk_adaptively(
+                object(), "model", source, 1, 1, generate_script.LLMGenParams(),
+                previous_entries=[_entry("Earlier")])
+        self.assertEqual([], entries)
+        self.assertTrue(split)
+        # original + part 1 + part 2 -- part 2 must have been called.
+        self.assertEqual(3, process.call_count)
+        self.assertEqual([_entry("Earlier")],
+                         process.call_args_list[2].kwargs["previous_entries"])
+
+    def test_adaptive_split_fails_cleanly_when_both_halves_fail(self):
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        with patch.object(generate_script, "process_chunk",
+                          side_effect=[[], [], []]) as process:
+            entries, split = generate_script.process_chunk_adaptively(
+                object(), "model", source, 1, 1, generate_script.LLMGenParams())
+        self.assertEqual([], entries)
+        self.assertTrue(split)
+        self.assertEqual(3, process.call_count)
+
     def test_book_request_preflight_uses_real_chunks_and_parallel_slots(self):
         report = generate_script.build_book_request_preflight(
             ["short text", "x" * 6000], "system", "{context}\n{chunk}",

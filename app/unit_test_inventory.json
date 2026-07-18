@@ -25,8 +25,10 @@
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
   ],
   "test_chunk_quality": [
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_refuses_short_or_boundaryless_chunk",
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_still_attempts_second_half_after_first_half_fails",
     "test_chunk_quality.ChunkQualityTests.test_book_request_preflight_reports_context_miss",
     "test_chunk_quality.ChunkQualityTests.test_book_request_preflight_uses_real_chunks_and_parallel_slots",
     "test_chunk_quality.ChunkQualityTests.test_boundary_allows_lowest_calibrated_intact_coverage",
