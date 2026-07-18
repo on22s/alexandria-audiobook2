@@ -9,6 +9,7 @@ import copy
 import shlex
 import subprocess
 import sys
+import tempfile
 
 from openai import OpenAI
 
@@ -21,6 +22,7 @@ from lmstudio_settings import get_lmstudio_status, get_remote_lmstudio_status
 from utils import is_path_inside
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
+import generate_personas
 
 
 def _validate_tts_fixture(fixture, root_dir=None):
@@ -601,6 +603,95 @@ def run_naming_benchmark(manifest, environment, report_path, state,
             result = _run_naming_worker(
                 fixture, target, manifest.get("settings") or {}, root_dir,
                 (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _validate_persona_fixture(fixture):
+    content = {key: fixture[key] for key in ("entries", "speakers", "batch_size")}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    return content
+
+
+def _run_persona_case(fixture, client, model_name, context_length):
+    """Run production advanced persona LLM phases without duplicating TTS."""
+    _validate_persona_fixture(fixture)
+    entries = fixture["entries"]
+    speakers = fixture["speakers"]
+    samples = {speaker: [entry["text"] for entry in entries
+                         if entry["speaker"] == speaker] for speaker in speakers}
+    captures = {}
+    voice_config = {}
+    discovery_calls = 0
+    compile_calls = 0
+    started = time.monotonic()
+    with tempfile.TemporaryDirectory(prefix="alexandria-persona-") as root:
+        ref_dir = os.path.join(root, "refs")
+        os.makedirs(ref_dir)
+        for batch_number, (batch_start, batch) in enumerate(
+                generate_personas._batch_entries(entries, fixture["batch_size"]), 1):
+            prompt = generate_personas._build_batch_discovery_prompt(
+                batch_start, batch, speakers)
+            characters = generate_personas._discover_batch_characters(
+                client, model_name, prompt, batch, batch_number, context_length)
+            discovery_calls += 1
+            generate_personas._write_batch_character_refs(
+                ref_dir, characters, speakers, batch_number)
+
+        original_save = generate_personas._save_generated_preview
+        original_sleep = generate_personas.time.sleep
+        def capture_preview(_root, _engine, _config, speaker, description, ref_text):
+            captures[speaker] = {"description": description, "ref_text": ref_text}
+            return True
+        try:
+            generate_personas._save_generated_preview = capture_preview
+            generate_personas.time.sleep = lambda _seconds: None
+            for speaker in speakers:
+                generate_personas._compile_persona(
+                    client, model_name, None, voice_config, root, ref_dir, speaker,
+                    samples, generate_personas.PERSONA_SYSTEM_PROMPT,
+                    generate_personas.PERSONA_ADVANCED_PROMPT, context_length)
+                compile_calls += 1
+        finally:
+            generate_personas._save_generated_preview = original_save
+            generate_personas.time.sleep = original_sleep
+        refs = {speaker: generate_personas._load_character_ref(ref_dir, speaker)
+                for speaker in speakers}
+    complete = all(captures.get(speaker, {}).get("description")
+                   and captures[speaker].get("ref_text")
+                   and refs[speaker].get("observations") for speaker in speakers)
+    return {"status": "passed" if complete else "failed",
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "discovery_calls": discovery_calls, "compile_calls": compile_calls,
+            "personas": captures,
+            "quality": {"passed": complete,
+                        "speaker_coverage": sum(speaker in captures for speaker in speakers) / len(speakers),
+                        "evidence_coverage": sum(bool(refs[speaker].get("observations"))
+                                                 for speaker in speakers) / len(speakers)}}
+
+
+def run_persona_generation_benchmark(manifest, environment, report_path, state,
+                                     config_path, root_dir):
+    """Run advanced persona discovery and compilation against configured LLM."""
+    target = manifest["targets"][0]
+    config = load_app_config(config_path)
+    llm, status = _get_llm_benchmark_target(config, target)
+    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        _validate_persona_fixture(fixture)
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_persona_case(
+                fixture, client, llm["model_name"], status.get("context_length"))
             report["cases"].append({"fixture_id": fixture["id"],
                                     "repetition": repetition, **result})
             save_benchmark_report(report_path, report)

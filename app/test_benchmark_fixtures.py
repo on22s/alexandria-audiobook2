@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from benchmark_fixtures import (build_script_generation_manifest,
+                                build_persona_generation_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
@@ -185,6 +186,16 @@ class BenchmarkFixtureTests(unittest.TestCase):
         entries[0]["id"] = "changed"
         self.assertEqual("voicelab_naming", manifest["stage"])
         self.assertEqual("raw", manifest["fixtures"][0]["entries"][0]["id"])
+
+    def test_persona_manifest_embeds_script_and_derives_speakers(self):
+        entries = [{"speaker": "NARRATOR", "text": "A door opened."},
+                   {"speaker": "ALICE", "text": "Who is there?"}]
+        manifest = build_persona_generation_manifest([{"entries": entries}])
+        entries[1]["text"] = "changed"
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("persona_generation", manifest["stage"])
+        self.assertEqual(["ALICE"], fixture["speakers"])
+        self.assertEqual("Who is there?", fixture["entries"][1]["text"])
 
 
 if __name__ == "__main__":
