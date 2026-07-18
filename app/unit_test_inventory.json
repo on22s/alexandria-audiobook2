@@ -54,6 +54,7 @@
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_training_manifest_hashes_selected_audio_and_metadata",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_preparer_manifest_hashes_audio_and_pins_model_revision",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_source_drift_is_rejected",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction",
@@ -64,6 +65,7 @@
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_lora_training_fixture_drift_is_rejected",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_preparer_fixture_drift_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_remote_clone_assets_are_staged_once_and_payload_is_rewritten",
     "test_benchmark_runner.BenchmarkRunnerTests.test_remote_lora_adapter_is_staged_once_and_payload_is_rewritten",
     "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
@@ -290,6 +292,10 @@
   "test_multi_process_state": [
     "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
+  ],
+  "test_preparer_benchmark": [
+    "test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
+    "test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
   ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",

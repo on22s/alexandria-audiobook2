@@ -10,6 +10,7 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_tts_generation_manifest,
                                 build_tts_lora_manifest,
                                 build_lora_training_manifest)
+from benchmark_fixtures import build_voicelab_preparer_manifest
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
@@ -137,6 +138,16 @@ class BenchmarkFixtureTests(unittest.TestCase):
         fixture = manifest["fixtures"][0]
         self.assertEqual("voicelab_training", manifest["stage"])
         self.assertEqual(2, len(fixture["audio_sha256"]))
+
+    def test_preparer_manifest_hashes_audio_and_pins_model_revision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "audio.wav").write_bytes(b"audio")
+            manifest = build_voicelab_preparer_manifest([{
+                "audio_path": "audio.wav", "limit": 1}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("voicelab_preparer", manifest["stage"])
+        self.assertEqual(hashlib.sha256(b"audio").hexdigest(), fixture["audio_sha256"])
+        self.assertEqual(40, len(fixture["model_revision"]))
 
 
 if __name__ == "__main__":
