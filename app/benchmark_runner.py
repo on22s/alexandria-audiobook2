@@ -95,6 +95,29 @@ def _validate_preparer_fixture(fixture, root_dir):
     return content
 
 
+def _validate_dedup_fixture(fixture, root_dir):
+    keys = ("dataset_path", "metadata_sha256", "samples_per_volume",
+            "audio_sha256", "model_id", "seed")
+    content = {key: fixture[key] for key in keys}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    dataset_path = os.path.abspath(os.path.join(root_dir, fixture["dataset_path"]))
+    if not is_path_inside(dataset_path, root_dir):
+        raise ValueError("dedup source dataset is outside the project")
+    metadata_path = os.path.join(dataset_path, "metadata.jsonl")
+    with open(metadata_path, "rb") as metadata_file:
+        if hashlib.sha256(metadata_file.read()).hexdigest() != fixture["metadata_sha256"]:
+            raise ValueError("dedup metadata hash changed")
+    for relative_path, expected in fixture["audio_sha256"].items():
+        audio_path = os.path.abspath(os.path.join(dataset_path, relative_path))
+        if not is_path_inside(audio_path, dataset_path) or not os.path.isfile(audio_path):
+            raise ValueError("dedup audio is outside the dataset or missing")
+        with open(audio_path, "rb") as audio_file:
+            if hashlib.sha256(audio_file.read()).hexdigest() != expected:
+                raise ValueError(f"dedup audio hash changed: {relative_path}")
+    return content
+
+
 def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
     if target == "local":
         worker_payload = payload
@@ -361,6 +384,79 @@ def run_preparer_benchmark(manifest, environment, report_path, state,
             if (fixture["id"], repetition) in completed:
                 continue
             result = _run_preparer_worker(
+                fixture, target, manifest.get("settings") or {}, root_dir,
+                (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
+    worker_fixture = copy.deepcopy(fixture)
+    if target == "local":
+        python_executable = settings.get("local_python")
+        if not python_executable:
+            raise ValueError("local dedup benchmark requires local_python")
+        worker_fixture["root_dir"] = root_dir
+        analysis_script = os.path.join(root_dir, "voice_analysis.py")
+        worker_script = os.path.join(root_dir, "app", "dedup_benchmark.py")
+        command_prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python")
+        if not remote_root or not python_executable or not ssh_alias:
+            raise ValueError("Thunder dedup requires remote_root, remote_python, and SSH alias")
+        remote_source = f"/tmp/alexandria-dedup-{fixture['sha256']}"
+        source_dir = os.path.join(root_dir, fixture["dataset_path"])
+        files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
+        for relative_path in files:
+            remote_path = os.path.join(remote_source, relative_path)
+            mkdir = subprocess.run(["ssh", ssh_alias, "mkdir", "-p",
+                                    os.path.dirname(remote_path)], capture_output=True,
+                                   text=True, timeout=30, check=False)
+            if mkdir.returncode:
+                raise RuntimeError(mkdir.stderr.strip() or "could not create remote dedup fixture")
+            transfer = subprocess.run(["scp", os.path.join(source_dir, relative_path),
+                                       f"{ssh_alias}:{remote_path}"], capture_output=True,
+                                      text=True, timeout=300, check=False)
+            if transfer.returncode:
+                raise RuntimeError(transfer.stderr.strip() or "dedup fixture transfer failed")
+        worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
+        analysis_script = os.path.join(remote_root, "voice_analysis.py")
+        worker_script = os.path.join(remote_root, "app", "dedup_benchmark.py")
+        command_prefix = ["ssh", ssh_alias]
+    payload = {"fixture": worker_fixture, "python": python_executable,
+               "analysis_script": analysis_script}
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    worker_command = [python_executable, worker_script, "--payload", encoded]
+    command = worker_command if not command_prefix else [*command_prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600, check=False)
+    marker = "DEDUP_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or "dedup worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_dedup_benchmark(manifest, environment, report_path, state,
+                        config_path, root_dir):
+    """Run production Voice Lab dedup locally or on Thunder."""
+    target = manifest["targets"][0]
+    for fixture in manifest["fixtures"]:
+        _validate_dedup_fixture(fixture, root_dir)
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report.get("cases", [])}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_dedup_worker(
                 fixture, target, manifest.get("settings") or {}, root_dir,
                 (config.get("llm_remote_ssh") or "").strip())
             report["cases"].append({"fixture_id": fixture["id"],

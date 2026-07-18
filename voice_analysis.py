@@ -779,11 +779,14 @@ def main():
         "--device", type=normalize_device, default="auto",
         help="Force a specific device (default: auto-detect)",
     )
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducible sample selection")
     parser.add_argument(
         "--then-analyze", action="store_true", dest="then_analyze",
         help="After --phase dedup completes, automatically chain into analyze phase",
     )
     args = parser.parse_args()
+    random.seed(args.seed)
 
     device = resolve_device(args.device)
     print(f"Device: {device}  |  ROCm HIP: {getattr(torch.version, 'hip', 'N/A')}")

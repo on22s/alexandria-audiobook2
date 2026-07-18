@@ -9,8 +9,9 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_tts_design_manifest,
                                 build_tts_generation_manifest,
                                 build_tts_lora_manifest,
-                                build_lora_training_manifest)
-from benchmark_fixtures import build_voicelab_preparer_manifest
+                                build_lora_training_manifest,
+                                build_voicelab_dedup_manifest,
+                                build_voicelab_preparer_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
@@ -148,6 +149,21 @@ class BenchmarkFixtureTests(unittest.TestCase):
         self.assertEqual("voicelab_preparer", manifest["stage"])
         self.assertEqual(hashlib.sha256(b"audio").hexdigest(), fixture["audio_sha256"])
         self.assertEqual(40, len(fixture["model_revision"]))
+
+    def test_dedup_manifest_hashes_two_volumes_of_audio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = Path(tmp, "dataset")
+            dataset.mkdir()
+            lines = []
+            for index in range(4):
+                name = f"{index}.wav"
+                Path(dataset, name).write_bytes(name.encode())
+                lines.append(f'{{"audio_filepath":"{name}","text":"Line {index}"}}')
+            Path(dataset, "metadata.jsonl").write_text("\n".join(lines) + "\n")
+            manifest = build_voicelab_dedup_manifest([{
+                "dataset_path": "dataset", "samples_per_volume": 2}], tmp)
+        self.assertEqual("voicelab_dedup", manifest["stage"])
+        self.assertEqual(4, len(manifest["fixtures"][0]["audio_sha256"]))
 
 
 if __name__ == "__main__":

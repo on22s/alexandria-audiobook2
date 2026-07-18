@@ -49,6 +49,7 @@
   ],
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_dedup_manifest_hashes_two_volumes_of_audio",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_design_manifest_hashes_description_text_and_seed",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_manifest_hashes_all_required_adapter_artifacts",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_training_manifest_hashes_selected_audio_and_metadata",
@@ -62,6 +63,7 @@
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_tts_manifest_rejects_random_seed"
   ],
   "test_benchmark_runner": [
+    "test_benchmark_runner.BenchmarkRunnerTests.test_dedup_fixture_drift_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_lora_training_fixture_drift_is_rejected",
@@ -119,6 +121,10 @@
     "test_config_regressions.ConfigTests.test_llm_normalization_returns_copy_without_mutating_profile",
     "test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
+  ],
+  "test_dedup_benchmark": [
+    "test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
+    "test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
   ],
   "test_evaluation_reviews": [
     "test_evaluation_reviews.BlindSessionTests.test_blind_assignment_varies_across_sessions",
