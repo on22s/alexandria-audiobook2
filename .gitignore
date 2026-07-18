@@ -8,6 +8,8 @@ app/env/
 !.github/
 !.gitignore
 !.dockerignore
+!.githooks/
+!.githooks/pre-commit
 !.claude/
 .claude/*
 !.claude/skills/

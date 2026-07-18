@@ -388,20 +388,35 @@ async def llm_test(profile: Optional[LLMConfig] = None):
 
 # Endpoints
 
+# Cache the stamped index.html so we don't re-read + re-string-replace the
+# ~300 KB file on every page load. Keyed by (file mtime, build revision) so an
+# edited file or a new build recomputes automatically.
+_INDEX_HTML_CACHE = {"key": None, "html": None}
+
+
 @router.get("/")
 async def read_index():
     # Stamp the page with the build it was served from so a tab left open across
     # a backend update can detect it is running stale frontend code (Phase 7).
     # Same runtime build source the backend reports at /api/system/stats.
-    with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as handle:
-        html = handle.read()
+    index_path = os.path.join(STATIC_DIR, "index.html")
     build = get_runtime_info(ROOT_DIR).get("short_revision") or ""
-    # Replace only the meta-tag stamp, not the JS placeholder literal the
-    # frontend compares against (a blanket replace would rewrite that guard and
-    # permanently disable stale detection on served pages).
-    html = html.replace('content="__APP_BUILD__"', f'content="{build}"', 1)
+    try:
+        mtime = os.path.getmtime(index_path)
+    except OSError:
+        mtime = None
+    key = (mtime, build)
+    if _INDEX_HTML_CACHE["key"] != key:
+        with open(index_path, encoding="utf-8") as handle:
+            html = handle.read()
+        # Replace only the meta-tag stamp, not the JS placeholder literal the
+        # frontend compares against (a blanket replace would rewrite that guard
+        # and permanently disable stale detection on served pages).
+        html = html.replace('content="__APP_BUILD__"', f'content="{build}"', 1)
+        _INDEX_HTML_CACHE["key"] = key
+        _INDEX_HTML_CACHE["html"] = html
     return HTMLResponse(
-        html,
+        _INDEX_HTML_CACHE["html"],
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
 

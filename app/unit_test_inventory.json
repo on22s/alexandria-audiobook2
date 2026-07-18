@@ -282,6 +282,7 @@
     "test_runtime_regressions.RuntimeTests.test_generate_batch_routes_ensemble_to_sequential_path",
     "test_runtime_regressions.RuntimeTests.test_gpu_stats_cache_preserves_rocm_fallback_result",
     "test_runtime_regressions.RuntimeTests.test_identical_script_upload_reuses_existing_file",
+    "test_runtime_regressions.RuntimeTests.test_index_html_is_cached_until_mtime_or_build_changes",
     "test_runtime_regressions.RuntimeTests.test_index_stamps_empty_build_when_revision_unavailable",
     "test_runtime_regressions.RuntimeTests.test_index_stamps_served_build_for_stale_tab_detection",
     "test_runtime_regressions.RuntimeTests.test_lora_cancel_idle_reports_not_running",

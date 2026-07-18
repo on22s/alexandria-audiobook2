@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Opt-in snapshot guard. Enable with:  git config core.hooksPath .githooks
+#
+# Regenerate-checks the API-contract and unit-test-inventory snapshots so drift
+# is caught at commit time instead of surfacing later as a release-verifier
+# failure. Best-effort: if the app venv isn't present it skips rather than
+# blocking the commit.
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+PY="$ROOT/app/env/bin/python"
+if [ ! -x "$PY" ]; then
+  echo "pre-commit: app/env interpreter not found; skipping snapshot checks." >&2
+  exit 0
+fi
+cd "$ROOT/app"
+if ! "$PY" update_api_contract_snapshots.py --check; then
+  echo "pre-commit: API contract drift. Run: python update_api_contract_snapshots.py" >&2
+  exit 1
+fi
+if ! "$PY" update_test_inventory.py --check; then
+  echo "pre-commit: unit-test inventory drift. Run: python update_test_inventory.py" >&2
+  exit 1
+fi
