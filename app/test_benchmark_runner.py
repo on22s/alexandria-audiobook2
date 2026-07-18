@@ -44,6 +44,13 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 "epochs": 1, "seed": 42, "lr": 1e-6, "lora_r": 8,
                 "lora_alpha": 16, "grad_accum": 1, "language": "english"}, ".")
 
+    def test_preparer_fixture_drift_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hash changed"):
+            benchmark_runner._validate_preparer_fixture({
+                "id": "prep", "sha256": "stale", "audio_path": "audio.wav",
+                "audio_sha256": "x", "limit": 1, "language": "en",
+                "model_revision": "revision"}, ".")
+
     def test_remote_lora_adapter_is_staged_once_and_payload_is_rewritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             adapter = Path(tmp, "adapter")

@@ -287,3 +287,32 @@ def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None
     return {"schema_version": 1, "stage": "voicelab_training",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_voicelab_preparer_manifest(fixtures, root_dir, repetitions=1,
+                                     targets=None):
+    """Build immutable ASR calibration fixtures for the Voice Lab preparer."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one preparer fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        audio_path = os.path.abspath(os.path.join(root_dir, fixture.get("audio_path") or ""))
+        if not is_path_inside(audio_path, root_dir) or not os.path.isfile(audio_path):
+            raise ValueError("preparer audio must be a file inside the project")
+        with open(audio_path, "rb") as audio_file:
+            audio_sha256 = hashlib.sha256(audio_file.read()).hexdigest()
+        selected = {"audio_path": os.path.relpath(audio_path, root_dir),
+                    "audio_sha256": audio_sha256,
+                    "limit": fixture.get("limit", 1),
+                    "language": fixture.get("language", "en"),
+                    "model_revision": "f6b48018ad95afcf85637f433dc0fc4f4672ce34"}
+        if not isinstance(selected["limit"], int) or selected["limit"] < 1:
+            raise ValueError("preparer limit must be positive")
+        if not isinstance(selected["language"], str) or not selected["language"].strip():
+            raise ValueError("preparer language must be non-empty")
+        selected.update({"id": fixture.get("id") or f"preparer-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "voicelab_preparer",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

@@ -111,21 +111,22 @@ def collect_thunder_environment(root_dir, ssh_alias, model_name):
     return build_environment_fingerprint("thunder", observations)
 
 
-def collect_local_tts_environment(root_dir):
+def collect_local_tts_environment(root_dir, python_executable=None):
     """Fingerprint the Python environment that will execute local TTS."""
     runtime = get_runtime_info(root_dir)
     gpu_name, backend = get_gpu_name_and_backend()
-    probe = subprocess.run([sys.executable, "-c",
-                            "import json,torch,qwen_tts; print(json.dumps({'torch':torch.__version__,'qwen_tts':getattr(qwen_tts,'__version__','unknown')}))"],
+    python_executable = python_executable or sys.executable
+    probe = subprocess.run([python_executable, "-c",
+                            "import json,platform,torch,qwen_tts; print(json.dumps({'python':platform.python_version(),'torch':torch.__version__,'qwen_tts':getattr(qwen_tts,'__version__','unknown')}))"],
                            capture_output=True, text=True, timeout=20, check=False)
     if probe.returncode or not gpu_name or not backend:
         raise ValueError(probe.stderr.strip() or "local TTS environment is unavailable")
     packages = json.loads(probe.stdout.splitlines()[-1])
     return build_environment_fingerprint("local", {
         "hostname": platform.node(), "gpu_name": gpu_name, "backend": backend,
-        "python_version": platform.python_version(), "git_commit": runtime["revision"],
+        "python_version": packages.pop("python"), "git_commit": runtime["revision"],
         "worktree": _get_local_worktree_identity(root_dir), "packages": packages,
-        "python_executable": sys.executable})
+        "python_executable": python_executable})
 
 
 def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_python):

@@ -46,6 +46,7 @@ def resolve_cuda_device(torch_module):
 # Force llama_cpp to load first to ensure system ROCm libs are prioritized over torch's bundled ones.
 # Do NOT defer this import — llama_cpp's ggml_cuda_init() must bind to the system HIP libs before
 # torch's bundled copies get loaded, otherwise ROCm detection fails at runtime.
+Llama = None
 try:
     import llama_cpp as _llama_cpp_mod
     _llama_lib_dir = os.path.join(os.path.dirname(_llama_cpp_mod.__file__), "lib")
@@ -188,6 +189,7 @@ def log_torch_info():
 INSANELY_FAST_WHISPER_AVAILABLE = False
 WHISPERX_AVAILABLE = False
 TRANSFORMERS_WHISPER_AVAILABLE = False
+WAV2VEC2_MODEL_REVISION = "f6b48018ad95afcf85637f433dc0fc4f4672ce34"
 
 INSANELY_FAST_WHISPER_AVAILABLE = os.path.exists(
     os.path.join(script_dir, "insanely-fast-whisper-rocm")
@@ -223,8 +225,7 @@ except ImportError as e:
 if LLAMA_CPP_AVAILABLE:
     logger.info("✓ llama-cpp-python available")
 else:
-    logger.critical("llama-cpp-python required. Install with: pip install llama-cpp-python")
-    sys.exit(1)
+    logger.info("llama-cpp-python unavailable; ASR phase remains available")
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("whisperx").setLevel(logging.ERROR)
@@ -418,10 +419,12 @@ def validate_inputs(args):
         sys.exit(1)
     logger.debug(f"Audio file exists: {args.audio}")
 
-    if not os.path.exists(args.model):
+    needs_annotation_model = getattr(args, "phase", None) != "asr"
+    if needs_annotation_model and not os.path.exists(args.model):
         _missing_path_hint("--model", args.model)
         sys.exit(1)
-    logger.debug(f"Model file exists: {args.model}")
+    if needs_annotation_model:
+        logger.debug(f"Model file exists: {args.model}")
 
     # Validate fallback eagerly so we fail fast on a typo'd path
     if args.fallback_model and not os.path.exists(args.fallback_model):
@@ -548,8 +551,10 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         # supposed to be loud (see resolve_cuda_device).
         device_str = resolve_cuda_device(torch_module)
 
-        processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
-        model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
+        processor = Wav2Vec2Processor.from_pretrained(
+            "facebook/wav2vec2-large-960h", revision=WAV2VEC2_MODEL_REVISION)
+        model = Wav2Vec2ForCTC.from_pretrained(
+            "facebook/wav2vec2-large-960h", revision=WAV2VEC2_MODEL_REVISION)
         model = model.to(device_str)
         model.eval()
 
@@ -2950,6 +2955,7 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
     logger.info("=" * 70)
     logger.info(f"✓ ALL VOLUMES COMPLETED.")
 def main():
+    global WAV2VEC2_MODEL_REVISION
     parser = argparse.ArgumentParser(
         description="Alexandria Master Preparer - ROCm Compatible"
     )
@@ -2970,6 +2976,8 @@ def main():
                              "Higher values (3-5) reduce LLM overhead by ~30-50%% but "
                              "increase prompt length. Set to 1 for per-chunk annotation.")
     parser.add_argument("--lang", default="en")
+    parser.add_argument("--asr-model-revision", default=WAV2VEC2_MODEL_REVISION,
+                        help="Pinned Wav2Vec2 revision used for reproducible ASR")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of chunks to process")
     parser.add_argument("--phase", choices=["asr", "enrich", "annotate"], help="Run only a specific phase (internal use for ROCm isolation)")
     parser.add_argument("--asr-output", help="Path to save/load ASR word segments (default: dataset_temp/asr_segments.json)")
@@ -3031,14 +3039,18 @@ def main():
     parser.add_argument("--enrich-emotional-tone", action="store_true", help="Instruct LLM to extract emotional tone.")
 
     args = parser.parse_args()
+    WAV2VEC2_MODEL_REVISION = args.asr_model_revision
 
     if args.skip_annotation:
         parser.error("--skip-annotation is not implemented; omit it and provide --model")
     if args.auto_detect_speakers:
         parser.error("--auto-detect-speakers is not implemented; use --diarize")
 
-    if not args.model:
+    needs_annotation_model = args.phase != "asr"
+    if needs_annotation_model and not args.model:
         parser.error("--model is required")
+    if needs_annotation_model and not LLAMA_CPP_AVAILABLE:
+        parser.error("llama-cpp-python is required for annotation")
 
     if args.enrich_with_llm and not args.llm_model_path:
         parser.error("--llm-model-path is required when --enrich-with-llm is set.")

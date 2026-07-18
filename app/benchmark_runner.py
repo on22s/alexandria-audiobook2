@@ -81,6 +81,20 @@ def _validate_lora_training_fixture(fixture, root_dir):
     return content
 
 
+def _validate_preparer_fixture(fixture, root_dir):
+    keys = ("audio_path", "audio_sha256", "limit", "language", "model_revision")
+    content = {key: fixture[key] for key in keys}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    audio_path = os.path.abspath(os.path.join(root_dir, fixture["audio_path"]))
+    if not is_path_inside(audio_path, root_dir) or not os.path.isfile(audio_path):
+        raise ValueError("preparer audio is outside the project or missing")
+    with open(audio_path, "rb") as audio_file:
+        if hashlib.sha256(audio_file.read()).hexdigest() != fixture["audio_sha256"]:
+            raise ValueError("preparer audio hash changed")
+    return content
+
+
 def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
     if target == "local":
         worker_payload = payload
@@ -282,6 +296,71 @@ def run_lora_training_benchmark(manifest, environment, report_path, state,
             if (fixture["id"], repetition) in completed:
                 continue
             result = _run_lora_training_worker(
+                fixture, target, manifest.get("settings") or {}, root_dir,
+                (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _run_preparer_worker(fixture, target, settings, root_dir, ssh_alias):
+    worker_fixture = copy.deepcopy(fixture)
+    if target == "local":
+        python_executable = settings.get("local_python")
+        if not python_executable:
+            raise ValueError("local preparer benchmark requires local_python")
+        worker_fixture["root_dir"] = root_dir
+        preparer_script = os.path.join(root_dir, "alexandria_preparer_rocm_compatible.py")
+        worker_script = os.path.join(root_dir, "app", "preparer_benchmark.py")
+        command_prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python")
+        if not remote_root or not python_executable or not ssh_alias:
+            raise ValueError("Thunder preparer requires remote_root, remote_python, and SSH alias")
+        remote_audio = f"/tmp/alexandria-preparer-{fixture['audio_sha256']}.wav"
+        transfer = subprocess.run(
+            ["scp", os.path.join(root_dir, fixture["audio_path"]),
+             f"{ssh_alias}:{remote_audio}"], capture_output=True, text=True,
+            timeout=300, check=False)
+        if transfer.returncode:
+            raise RuntimeError(transfer.stderr.strip() or "preparer audio transfer failed")
+        worker_fixture.update({"root_dir": "/", "audio_path": remote_audio.lstrip("/")})
+        preparer_script = os.path.join(remote_root, "alexandria_preparer_rocm_compatible.py")
+        worker_script = os.path.join(remote_root, "app", "preparer_benchmark.py")
+        command_prefix = ["ssh", ssh_alias]
+    payload = {"fixture": worker_fixture, "python": python_executable,
+               "preparer_script": preparer_script}
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    worker_command = [python_executable, worker_script, "--payload", encoded]
+    command = worker_command if not command_prefix else [*command_prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600, check=False)
+    marker = "PREPARER_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or "preparer worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_preparer_benchmark(manifest, environment, report_path, state,
+                           config_path, root_dir):
+    """Run the preparer's production ASR phase locally or on Thunder."""
+    target = manifest["targets"][0]
+    for fixture in manifest["fixtures"]:
+        _validate_preparer_fixture(fixture, root_dir)
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report.get("cases", [])}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_preparer_worker(
                 fixture, target, manifest.get("settings") or {}, root_dir,
                 (config.get("llm_remote_ssh") or "").strip())
             report["cases"].append({"fixture_id": fixture["id"],
