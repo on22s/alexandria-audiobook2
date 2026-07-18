@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from tts_benchmark import measure_wav, run_custom_voice_case
+from tts_benchmark import (measure_wav, run_clone_voice_case,
+                           run_custom_voice_case)
 import tts_vram_benchmark
 
 
@@ -105,6 +106,35 @@ class TTSBenchmarkTests(unittest.TestCase):
             path = Path(tmp, "new", "nested", "results.json")
             tts_vram_benchmark.save_benchmark_results({"ok": True}, str(path))
             self.assertTrue(path.is_file())
+
+    def test_clone_case_separates_prompt_and_generation(self):
+        class FakeEngine:
+            def _init_local_clone(self):
+                pass
+
+            def _get_clone_prompt(self, speaker, config):
+                return "prompt"
+
+            def generate_clone_voice(self, text, speaker, config, path):
+                with wave.open(path, "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(np.ones(2400, dtype="<i2").tobytes())
+                return True
+
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp, "ref.wav")
+            ref.write_bytes(b"reference")
+            fixture = {"text": "Hello.", "speaker": "CLONE", "seed": 2,
+                       "ref_audio": "ref.wav", "ref_text": "Reference.",
+                       "ref_audio_sha256": hashlib.sha256(b"reference").hexdigest()}
+            metrics = run_clone_voice_case(
+                FakeEngine(), fixture, str(Path(tmp, "out.wav")), tmp,
+                load_model=True)
+        self.assertIn("prompt_build_seconds", metrics)
+        self.assertEqual(0.1, metrics["duration_seconds"])
 
 
 if __name__ == "__main__":

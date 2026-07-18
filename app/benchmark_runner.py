@@ -22,11 +22,22 @@ from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
 
 
-def _validate_tts_fixture(fixture):
-    content = {key: fixture[key] for key in
-               ("text", "instruct", "speaker", "voice", "seed")}
+def _validate_tts_fixture(fixture, root_dir=None):
+    if fixture.get("voice_type", "custom") == "clone":
+        keys = ("voice_type", "text", "speaker", "seed", "ref_audio",
+                "ref_audio_sha256", "ref_text")
+    else:
+        keys = ("text", "instruct", "speaker", "voice", "seed")
+    content = {key: fixture[key] for key in keys}
     if _hash_entries(content) != fixture.get("sha256"):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    if fixture.get("voice_type") == "clone" and root_dir:
+        path = os.path.abspath(os.path.join(root_dir, fixture["ref_audio"]))
+        if not is_path_inside(path, root_dir) or not os.path.isfile(path):
+            raise ValueError("clone reference audio is outside the project or missing")
+        with open(path, "rb") as ref_file:
+            if hashlib.sha256(ref_file.read()).hexdigest() != fixture["ref_audio_sha256"]:
+                raise ValueError("clone reference audio hash changed")
     return content
 
 
@@ -63,7 +74,7 @@ def run_tts_generation_benchmark(manifest, environment, report_path, state,
     settings = manifest.get("settings") or {}
     fixtures = []
     for fixture in manifest["fixtures"]:
-        _validate_tts_fixture(fixture)
+        _validate_tts_fixture(fixture, root_dir)
         fixtures.append(dict(fixture))
     config = load_app_config(config_path)
     report = load_resumable_benchmark_report(report_path, manifest, environment)

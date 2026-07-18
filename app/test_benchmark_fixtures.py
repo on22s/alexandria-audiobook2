@@ -5,6 +5,7 @@ from pathlib import Path
 
 from benchmark_fixtures import (build_script_generation_manifest,
                                 build_script_review_manifest,
+                                build_tts_clone_manifest,
                                 build_tts_generation_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
@@ -83,6 +84,18 @@ class BenchmarkFixtureTests(unittest.TestCase):
     def test_tts_manifest_rejects_random_seed(self):
         with self.assertRaisesRegex(ValueError, "non-negative"):
             build_tts_generation_manifest([{"text": "Hello.", "seed": -1}])
+
+    def test_clone_manifest_hashes_reference_audio_and_transcript(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp, "ref.wav")
+            ref.write_bytes(b"reference audio")
+            manifest = build_tts_clone_manifest([{
+                "text": "New words.", "ref_audio": "ref.wav",
+                "ref_text": "Words spoken in the reference.", "seed": 4}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("clone", fixture["voice_type"])
+        self.assertEqual(hashlib.sha256(b"reference audio").hexdigest(),
+                         fixture["ref_audio_sha256"])
 
 
 if __name__ == "__main__":
