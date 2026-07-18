@@ -9,6 +9,27 @@ import benchmark_runner
 
 
 class BenchmarkRunnerTests(unittest.TestCase):
+    def test_remote_clone_assets_are_staged_once_and_payload_is_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp, "ref.wav")
+            ref.write_bytes(b"audio")
+            digest = hashlib.sha256(b"audio").hexdigest()
+            payload = {"fixtures": [
+                {"voice_type": "clone", "ref_audio": "ref.wav",
+                 "ref_audio_sha256": digest},
+                {"voice_type": "clone", "ref_audio": "ref.wav",
+                 "ref_audio_sha256": digest}]}
+            completed = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            with patch.object(benchmark_runner.subprocess, "run",
+                              return_value=completed) as run:
+                staged = benchmark_runner._stage_remote_tts_assets(
+                    payload, tmp, "tnr-0")
+        self.assertEqual(2, run.call_count)
+        self.assertEqual("ref.wav", payload["fixtures"][0]["ref_audio"])
+        self.assertEqual(
+            f"/tmp/alexandria-tts-benchmark-assets/{digest}.wav",
+            staged["fixtures"][0]["ref_audio"])
+
     def test_tts_fixture_drift_is_rejected_before_worker(self):
         with self.assertRaisesRegex(ValueError, "hash changed"):
             benchmark_runner._validate_tts_fixture({

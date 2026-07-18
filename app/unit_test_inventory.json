@@ -60,6 +60,7 @@
   "test_benchmark_runner": [
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_remote_clone_assets_are_staged_once_and_payload_is_rewritten",
     "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
     "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
