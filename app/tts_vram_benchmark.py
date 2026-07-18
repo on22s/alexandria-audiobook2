@@ -15,7 +15,7 @@ Outputs:
 
 import argparse
 from config_settings import load_app_config
-import json
+from utils import atomic_json_write
 import os
 import random
 import sys
@@ -122,9 +122,10 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
         if cuda_ok:
             torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
-        batch_results = engine.run_benchmark_batch(chunks, voice_config, output_dir)
+        batch_results = engine.run_benchmark_batch(
+            chunks, voice_config, output_dir, batch_seed=42)
         elapsed = time.time() - t0
-        peak_gb = (torch.cuda.max_memory_allocated() / 1e9) if cuda_ok else 0.0
+        peak_gb = batch_results.get("peak_vram_gb", 0.0)
 
         n_done = len(batch_results["completed"])
         n_fail = len(batch_results["failed"])
@@ -217,6 +218,12 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
         print(f"  max_items={r['sub_batch_max_items']:>3}  "
               f"peak={r['peak_vram_gb']:.2f}GB  RTF={rtf_str}  [{status}]")
 
+
+def save_benchmark_results(output, out_path):
+    """Atomically save results, including to a new nested directory."""
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    atomic_json_write(output, out_path)
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -282,8 +289,7 @@ def main():
         "compiled": post_results,
     }
     out_path = os.path.join(APP_DIR, args.out)
-    with open(out_path, "w") as f:
-        json.dump(output, f, indent=2)
+    save_benchmark_results(output, out_path)
     print(f"\nRaw results saved to: {out_path}")
 
 
