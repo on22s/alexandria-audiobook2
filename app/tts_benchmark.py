@@ -96,6 +96,39 @@ def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=Fals
     return metrics
 
 
+def run_lora_voice_case(engine, fixture, output_path, root_dir, load_model=False):
+    """Exercise adapter loading, prompt construction, and production LoRA generation."""
+    adapter_path = os.path.abspath(os.path.join(root_dir, fixture["adapter_path"]))
+    for filename, expected in fixture["adapter_artifact_sha256"].items():
+        artifact_path = os.path.join(adapter_path, filename)
+        with open(artifact_path, "rb") as artifact_file:
+            if hashlib.sha256(artifact_file.read()).hexdigest() != expected:
+                raise ValueError(f"LoRA adapter artifact hash changed: {filename}")
+    voice_data = {"type": "lora", "adapter_path": adapter_path,
+                  "seed": fixture["seed"]}
+    load_started = time.monotonic()
+    model = engine._init_local_lora(adapter_path)
+    load_seconds = time.monotonic() - load_started
+    with open(os.path.join(adapter_path, "training_meta.json"), "r",
+              encoding="utf-8") as meta_file:
+        ref_text = json.load(meta_file).get("ref_sample_text", "")
+    prompt_started = time.monotonic()
+    engine._ensure_lora_prompt(adapter_path, model, ref_text)
+    prompt_seconds = time.monotonic() - prompt_started
+    import torch
+    torch.manual_seed(fixture["seed"])
+    generation_started = time.monotonic()
+    succeeded = engine.generate_lora_voice(
+        fixture["text"], fixture.get("instruct", ""), voice_data, output_path)
+    generation_seconds = time.monotonic() - generation_started
+    if not succeeded or not os.path.isfile(output_path):
+        raise RuntimeError("LoRA generation did not produce a WAV")
+    metrics = measure_wav(output_path, generation_seconds)
+    metrics["model_and_adapter_load_seconds"] = round(load_seconds, 3)
+    metrics["prompt_build_seconds"] = round(prompt_seconds, 3)
+    return metrics
+
+
 def run_design_voice_case(engine, fixture, output_path, load_model=False):
     """Exercise the production VoiceDesign preview call with a fixed seed."""
     load_started = time.monotonic()
@@ -134,6 +167,9 @@ def execute_payload(payload, output_dir):
                 if fixture.get("voice_type") == "design":
                     metrics = run_design_voice_case(
                         engine, fixture, path, load_model=first)
+                elif fixture.get("voice_type") == "lora":
+                    metrics = run_lora_voice_case(
+                        engine, fixture, path, root_dir, load_model=first)
                 elif fixture.get("voice_type", "custom") == "clone":
                     metrics = run_clone_voice_case(
                         engine, fixture, path, root_dir, load_model=first)

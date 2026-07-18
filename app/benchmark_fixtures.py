@@ -176,6 +176,48 @@ def build_tts_clone_manifest(fixtures, root_dir, repetitions=1, targets=None,
                                    "max_clipping_ratio": 0.01}}
 
 
+def build_tts_lora_manifest(fixtures, root_dir, repetitions=1, targets=None,
+                            max_new_tokens=2048):
+    """Build immutable LoRA fixtures including every required adapter artifact."""
+    required_files = ("adapter_config.json", "adapter_model.safetensors",
+                      "ref_sample.wav", "training_meta.json")
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one LoRA fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        adapter_path = os.path.abspath(os.path.join(
+            root_dir, fixture.get("adapter_path") or ""))
+        if not is_path_inside(adapter_path, root_dir) or not os.path.isdir(adapter_path):
+            raise ValueError("LoRA adapter must be a directory inside the project")
+        artifact_hashes = {}
+        for filename in required_files:
+            artifact_path = os.path.join(adapter_path, filename)
+            if not os.path.isfile(artifact_path):
+                raise ValueError(f"LoRA adapter is missing {filename}")
+            with open(artifact_path, "rb") as artifact_file:
+                artifact_hashes[filename] = hashlib.sha256(artifact_file.read()).hexdigest()
+        selected = {"voice_type": "lora", "text": fixture.get("text"),
+                    "instruct": fixture.get("instruct", "neutral"),
+                    "speaker": fixture.get("speaker", "LORA"),
+                    "seed": fixture.get("seed", 0),
+                    "adapter_path": os.path.relpath(adapter_path, root_dir),
+                    "adapter_artifact_sha256": artifact_hashes}
+        if any(not isinstance(selected[key], str) or not selected[key].strip()
+               for key in ("text", "instruct", "speaker")):
+            raise ValueError("LoRA text, instruct, and speaker must be non-empty")
+        if not isinstance(selected["seed"], int) or selected["seed"] < 0:
+            raise ValueError("LoRA seed must be a non-negative integer")
+        selected.update({"id": fixture.get("id") or f"lora-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "tts_generation",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {"max_new_tokens": max_new_tokens},
+            "quality_thresholds": {"min_duration_seconds": 0.1,
+                                   "max_silence_ratio": 0.98,
+                                   "max_clipping_ratio": 0.01}}
+
+
 def build_tts_design_manifest(fixtures, repetitions=1, targets=None,
                               max_new_tokens=2048):
     """Build deterministic VoiceDesign preview fixtures."""

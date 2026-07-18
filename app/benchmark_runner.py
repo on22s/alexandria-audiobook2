@@ -29,6 +29,9 @@ def _validate_tts_fixture(fixture, root_dir=None):
     elif fixture.get("voice_type", "custom") == "clone":
         keys = ("voice_type", "text", "speaker", "seed", "ref_audio",
                 "ref_audio_sha256", "ref_text")
+    elif fixture.get("voice_type") == "lora":
+        keys = ("voice_type", "text", "instruct", "speaker", "seed",
+                "adapter_path", "adapter_artifact_sha256")
     else:
         keys = ("text", "instruct", "speaker", "voice", "seed")
     content = {key: fixture[key] for key in keys}
@@ -41,6 +44,17 @@ def _validate_tts_fixture(fixture, root_dir=None):
         with open(path, "rb") as ref_file:
             if hashlib.sha256(ref_file.read()).hexdigest() != fixture["ref_audio_sha256"]:
                 raise ValueError("clone reference audio hash changed")
+    if fixture.get("voice_type") == "lora" and root_dir:
+        adapter_path = os.path.abspath(os.path.join(root_dir, fixture["adapter_path"]))
+        if not is_path_inside(adapter_path, root_dir) or not os.path.isdir(adapter_path):
+            raise ValueError("LoRA adapter is outside the project or missing")
+        for filename, expected in fixture["adapter_artifact_sha256"].items():
+            artifact_path = os.path.join(adapter_path, filename)
+            if not os.path.isfile(artifact_path):
+                raise ValueError(f"LoRA adapter is missing {filename}")
+            with open(artifact_path, "rb") as artifact_file:
+                if hashlib.sha256(artifact_file.read()).hexdigest() != expected:
+                    raise ValueError(f"LoRA adapter artifact hash changed: {filename}")
     return content
 
 
@@ -77,9 +91,10 @@ def _stage_remote_tts_assets(payload, root_dir, ssh_alias):
     if not ssh_alias:
         raise ValueError("Thunder SSH alias is required to stage TTS assets")
     staged = copy.deepcopy(payload)
-    clone_fixtures = [fixture for fixture in staged.get("fixtures", [])
-                      if fixture.get("voice_type") == "clone"]
-    if not clone_fixtures:
+    fixtures = staged.get("fixtures", [])
+    clone_fixtures = [fixture for fixture in fixtures if fixture.get("voice_type") == "clone"]
+    lora_fixtures = [fixture for fixture in fixtures if fixture.get("voice_type") == "lora"]
+    if not clone_fixtures and not lora_fixtures:
         return staged
     remote_dir = "/tmp/alexandria-tts-benchmark-assets"
     mkdir = subprocess.run(["ssh", ssh_alias, "mkdir", "-p", remote_dir],
@@ -99,6 +114,26 @@ def _stage_remote_tts_assets(payload, root_dir, ssh_alias):
                 raise RuntimeError(transfer.stderr.strip() or "clone reference transfer failed")
             copied.add(digest)
         fixture["ref_audio"] = remote_path
+    staged_adapters = set()
+    for fixture in lora_fixtures:
+        hashes = fixture["adapter_artifact_sha256"]
+        adapter_digest = _hash_entries(hashes)
+        remote_adapter = f"{remote_dir}/lora-{adapter_digest}"
+        if adapter_digest not in staged_adapters:
+            mkdir = subprocess.run(["ssh", ssh_alias, "mkdir", "-p", remote_adapter],
+                                   capture_output=True, text=True, timeout=30, check=False)
+            if mkdir.returncode:
+                raise RuntimeError(mkdir.stderr.strip() or "could not create remote adapter directory")
+            local_adapter = os.path.abspath(os.path.join(root_dir, fixture["adapter_path"]))
+            for filename in hashes:
+                transfer = subprocess.run(
+                    ["scp", os.path.join(local_adapter, filename),
+                     f"{ssh_alias}:{remote_adapter}/{filename}"], capture_output=True,
+                    text=True, timeout=300, check=False)
+                if transfer.returncode:
+                    raise RuntimeError(transfer.stderr.strip() or "LoRA adapter transfer failed")
+            staged_adapters.add(adapter_digest)
+        fixture["adapter_path"] = remote_adapter
     return staged
 
 
