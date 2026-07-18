@@ -150,6 +150,7 @@
     "test_llm_review_regressions.LlmReviewTests.test_llm_salvage_waits_until_retries_are_exhausted",
     "test_llm_review_regressions.LlmReviewTests.test_malformed_trailing_entry_array_is_rejected",
     "test_llm_review_regressions.LlmReviewTests.test_near_limit_incomplete_stop_increases_budget",
+    "test_llm_review_regressions.LlmReviewTests.test_process_chunk_default_budget_is_five_attempts",
     "test_llm_review_regressions.LlmReviewTests.test_response_log_is_isolated_by_run_id",
     "test_llm_review_regressions.LlmReviewTests.test_retry_budget_only_increases_for_incomplete_output",
     "test_llm_review_regressions.LlmReviewTests.test_review_help_does_not_advertise_unimplemented_source_mode",

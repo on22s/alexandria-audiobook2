@@ -715,8 +715,22 @@ def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
 
 
 def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
-                  previous_entries=None, max_retries=2, attempt_observer=None):
-    """Process a text chunk and return JSON script entries."""
+                  previous_entries=None, max_retries=4, attempt_observer=None):
+    """Process a text chunk and return JSON script entries.
+
+    max_retries=4 (5 total attempts) rather than the previous 2 (3 attempts):
+    live reproduction of two real overnight batch failures measured a genuine
+    ~40% single-attempt success rate on the specific class of content that
+    fails (the model occasionally stops a few lines into a chunk, right after
+    a short opening dialogue exchange, despite much more source remaining) --
+    NOT a 0% "impossible" case. At that rate 3 attempts succeeds ~78% of the
+    time; 5 attempts succeeds ~92%. This is worth the added budget because a
+    failing attempt is cheap here (the model stops in 2-10s when it's going to
+    fail, vs 60-100s for a real full-length generation) -- so the added
+    attempts cost little even in the worst case, while meaningfully reducing
+    how often a single unlucky run costs the rest of a book (checkpoint/resume
+    requires a gapless accepted-chunk prefix, Rule 9).
+    """
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
 

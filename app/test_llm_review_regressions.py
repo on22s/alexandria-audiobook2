@@ -40,6 +40,26 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual(complete, result)
 
+    def test_process_chunk_default_budget_is_five_attempts(self):
+        # Regression: default max_retries must stay 4 (5 total attempts), not
+        # silently regress to the old 2 (3 attempts). Live reproduction of two
+        # real overnight batch failures measured a genuine ~40% single-attempt
+        # success rate for the specific failure this budget exists to absorb
+        # (the model stopping a few lines into a chunk); 3 attempts recovers
+        # ~78% of the time, 5 attempts ~92%.
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([{"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
+        complete = json.dumps([{"speaker": "NARRATOR", "text": source, "instruct": "n"}])
+        # Fails 4 times, succeeds on the 5th -- only reachable if the default
+        # budget is actually 5 attempts, not 3.
+        client = self._client_with_responses(
+            [incomplete, incomplete, incomplete, incomplete, complete])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual(json.loads(complete), result)
+
     def test_attempt_observer_receives_token_and_finish_metrics(self):
         source = "one two three four five"
         response = json.dumps([{"speaker": "NARRATOR", "text": source,
