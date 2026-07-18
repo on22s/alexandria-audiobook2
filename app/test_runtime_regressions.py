@@ -32,6 +32,7 @@ from routers import scripts_library as scripts_library_module
 from routers import system as system_module
 from routers import voicelab as voicelab_module
 import utils
+from test_frontend_regressions import _read_frontend_source
 import hf_utils
 from test_support import _Upload
 
@@ -250,12 +251,21 @@ class RuntimeTests(unittest.TestCase):
             response = asyncio.run(system_module.read_index())
         body = response.body.decode("utf-8")
         self.assertIn('<meta name="app-build" content="abc1234">', body)
-        # Only the meta tag is stamped — the JS placeholder literal the frontend
-        # compares against MUST survive, or a blanket replace would rewrite the
-        # guard (PAGE_BUILD !== '<placeholder>') and permanently disable
-        # detection on served pages.
-        self.assertIn("'__APP_BUILD__'", body)
+        # The split static/js/app-*.js files are cache-busted the same way, via
+        # a "?v=" query placeholder on each <script src>.
+        self.assertIn('src="/static/js/app-core.js?v=abc1234"', body)
+        self.assertIn('src="/static/js/app-voicelab.js?v=abc1234"', body)
         self.assertNotIn('content="__APP_BUILD__"', body)
+        self.assertNotIn("?v=__APP_BUILD__", body)
+        # The JS placeholder literal the frontend compares against now lives in
+        # app-workbench.js (not index.html at all, since the split moved it out
+        # of the file read_index() touches) and MUST survive untouched — a
+        # blanket replace would rewrite the guard (PAGE_BUILD !== '<placeholder>')
+        # and permanently disable detection on served pages.
+        workbench_js = (Path(__file__).resolve().parent / "static" / "js"
+                        / "app-workbench.js").read_text(encoding="utf-8")
+        self.assertIn("'__APP_BUILD__'", workbench_js)
+        self.assertNotIn("'__APP_BUILD__'", body)
 
     def test_index_stamps_empty_build_when_revision_unavailable(self):
         # An unknown revision must render an empty stamp (informational), not the
@@ -265,12 +275,15 @@ class RuntimeTests(unittest.TestCase):
             response = asyncio.run(system_module.read_index())
         body = response.body.decode("utf-8")
         self.assertIn('<meta name="app-build" content="">', body)
+        self.assertIn('src="/static/js/app-core.js?v="', body)
         self.assertNotIn('content="__APP_BUILD__"', body)
+        self.assertNotIn("?v=__APP_BUILD__", body)
 
     def test_index_html_is_cached_until_mtime_or_build_changes(self):
         from unittest.mock import mock_open
         system_module._INDEX_HTML_CACHE.update(key=None, html=None)
         fake = ('<meta name="app-build" content="__APP_BUILD__">'
+                '<script src="/static/js/app-core.js?v=__APP_BUILD__"></script>'
                 '<script>b !== "__APP_BUILD__"</script>')
         opener = mock_open(read_data=fake)
         with patch("routers.system.open", opener, create=True), \
@@ -282,7 +295,10 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(1, opener.call_count)
             self.assertEqual(r1.body, r2.body)
             self.assertIn(b'content="rev1"', r1.body)
-            # The JS placeholder literal must survive (only the meta is stamped).
+            self.assertIn(b'?v=rev1', r1.body)
+            self.assertNotIn(b'?v=__APP_BUILD__', r1.body)
+            # The JS placeholder literal must survive (only the meta + script-src
+            # "?v=" query are stamped).
             self.assertIn(b'"__APP_BUILD__"', r1.body)
         # A changed file mtime invalidates the cache -> re-read.
         with patch("routers.system.open", opener, create=True), \
@@ -408,7 +424,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertIsNone(entries[0]["final_loss"])
 
     def test_lora_style_attribute_escapes_persisted_content(self):
-        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(encoding="utf-8")
+        html = _read_frontend_source()
         self.assertIn("value=\"${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}\"", html)
         self.assertIn("No downloaded voice matched the known gender; fallback used.", html)
         self.assertIn("Existing recurring voice retained despite a trait mismatch.", html)
