@@ -600,7 +600,8 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
 
 
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
-                 previous_tail=None, source_context=None, max_retries=2):
+                 previous_tail=None, source_context=None, max_retries=2,
+                 attempt_observer=None):
     """Send a batch of script entries through the LLM for review and correction.
 
     Returns the corrected entries, or None if every attempt failed (so the caller
@@ -631,6 +632,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         log_name="review_responses.log",
         label=f"BATCH {batch_num}/{total_batches}",
         max_retries=max_retries,
+        attempt_observer=attempt_observer,
     )
     return entries or None
 

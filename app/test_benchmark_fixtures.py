@@ -3,8 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark_fixtures import build_script_generation_manifest
-from benchmark_runner import _load_text_fixture
+from benchmark_fixtures import (build_script_generation_manifest,
+                                build_script_review_manifest)
+from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
 class BenchmarkFixtureTests(unittest.TestCase):
@@ -41,6 +42,33 @@ class BenchmarkFixtureTests(unittest.TestCase):
             path.write_text("Changed source.", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "source hash changed"):
                 _load_text_fixture(manifest["fixtures"][0], tmp)
+
+    def test_review_manifest_reconstructs_hashed_entry_slice(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.json")
+            entries = [{"speaker": "NARRATOR", "text": f"line {index}"}
+                       for index in range(30)]
+            path.write_text(json.dumps(entries), encoding="utf-8")
+            manifest = build_script_review_manifest(
+                [{"path": str(path), "entry_starts": [3]}], tmp, batch_size=4)
+            fixture = manifest["fixtures"][0]
+            reconstructed = _load_review_fixture(fixture, tmp)
+        self.assertEqual(entries[2:6], reconstructed)
+        self.assertEqual(entries[:2], fixture["previous_tail"])
+
+    def test_review_source_drift_is_rejected(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.json")
+            path.write_text(json.dumps([{"speaker": "N", "text": "one"}]),
+                            encoding="utf-8")
+            manifest = build_script_review_manifest(
+                [{"path": str(path), "entry_starts": [1]}], tmp)
+            path.write_text(json.dumps([{"speaker": "N", "text": "changed"}]),
+                            encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source hash changed"):
+                _load_review_fixture(manifest["fixtures"][0], tmp)
 
 
 if __name__ == "__main__":

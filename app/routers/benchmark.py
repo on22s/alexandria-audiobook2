@@ -9,9 +9,10 @@ from benchmark_core import (get_benchmark_preflight_id,
                             validate_benchmark_manifest)
 from benchmark_environment import (collect_local_environment,
                                    collect_thunder_environment)
-from benchmark_runner import run_script_generation_benchmark
+from benchmark_runner import (run_script_generation_benchmark,
+                              run_script_review_benchmark)
 from config_settings import load_app_config
-from core import (CONFIG_PATH, REPORTS_DIR, ROOT_DIR, UPLOADS_DIR,
+from core import (CONFIG_PATH, REPORTS_DIR, ROOT_DIR, SCRIPTS_DIR, UPLOADS_DIR,
                   _init_batch_state, _run_claimed_background_task, check_global_gpu_lock,
                   claim_gpu_task, process_state)
 
@@ -76,9 +77,9 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] != "script_generation" or len(manifest["targets"]) != 1:
+    if manifest["stage"] not in {"script_generation", "script_review"} or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
-                            detail="Script-generation runs require exactly one target.")
+                            detail="LLM benchmark runs require a supported stage and exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
     os.makedirs(report_dir, exist_ok=True)
     report_path = os.path.join(report_dir, f"{preflight['preflight_id']}.json")
@@ -90,9 +91,13 @@ async def benchmark_start(background_tasks: BackgroundTasks,
     state.update({"status": "running", "report_path": report_path})
 
     def _run():
-        run_script_generation_benchmark(
-            manifest, preflight["environments"][manifest["targets"][0]], report_path, state,
-            CONFIG_PATH, UPLOADS_DIR)
+        environment = preflight["environments"][manifest["targets"][0]]
+        if manifest["stage"] == "script_generation":
+            run_script_generation_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, UPLOADS_DIR)
+        else:
+            run_script_review_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, SCRIPTS_DIR)
 
     background_tasks.add_task(_run_claimed_background_task, "benchmark", _run)
     return {"status": "started", "report_path": report_path,

@@ -4,8 +4,9 @@ A decision guide for this project. **Default is local** — Thunder is the
 exception, not the baseline.
 
 Your hardware: **AMD Radeon RX 9070 XT** (16 GB, RDNA4/ROCm) running LM Studio
-at `localhost:1234`. Current `config.json`: `llm_mode: local`, no remote
-configured. As of writing, **no Thunder instances exist** (nothing billing).
+at `localhost:1234`. The app defaults to `llm_mode: local`; a Thunder remote
+profile may also be configured. Always check `tnr status` before assuming
+nothing is billing.
 
 ---
 
@@ -42,7 +43,7 @@ hours of work. The deciding factors are **VRAM**, **CUDA**, and **wall-clock**.
 
 ---
 
-## 4. Thunder buys you a *bigger, faster single stream* — not throughput
+## 4. Thunder buys VRAM and CUDA — speed must be measured
 
 This is measured, not theoretical, and it's the most counter-intuitive thing
 here:
@@ -57,13 +58,64 @@ renting a GPU. So going remote does **not** unlock concurrent requests. If you
 rent an A6000 expecting 4× throughput from parallelism, you will pay 4× and get
 less than 1×.
 
-Rent Thunder for **VRAM headroom, CUDA, and per-token speed**. Not for fan-out.
+Rent Thunder for **VRAM headroom and CUDA**. Do not assume either per-token
+speed or fan-out improves without measuring the exact model/runtime.
 
 Note the bottleneck depends on the workload: LLM **review/script-gen is decode,
 which is memory-bandwidth-bound** (so a faster GPU barely helps per-token, and
 parallelism hurts — above). **LoRA training is compute-bound** (matmul/backprop),
 which is the one place raw GPU throughput genuinely buys speed. Don't apply the
 "faster GPU barely helps" lesson to training — it's a different bottleneck.
+
+### A100 script-generation benchmark — 2026-07-18
+
+This is a small controlled cohort, not a universal GPU ranking. The same Gemma
+4 E4B Q8 model, three historical ~6,000-character chunks, three repetitions
+each, and `max_retries: 0` were used on both machines. Zero retries measures
+raw single-attempt reliability; it is not the production completion rate.
+
+| Environment | Passed | Total time | Mean successful call | Aggregate completion rate |
+|---|---:|---:|---:|---:|
+| RX 9070 XT, 32,768 context, parallel 2 | 5/9 | 366.6 s | 50.1 s | 61.5 tok/s |
+| A100 80 GB, 98,304 context, parallel 2 | 7/9 | 677.8 s | 94.0 s | 31.4 tok/s |
+| A100 80 GB, 32,768 context, parallel 2 | 6/9 | 1,032.7 s | 105.3 s | 20.6 tok/s |
+
+Failures were mostly stochastic early stops or structurally invalid output;
+the quality gates correctly rejected incomplete scripts. Reducing Thunder's
+context did **not** fix its single-stream speed, so the 98k KV allocation was
+not the demonstrated bottleneck.
+
+A production-shaped three-trial concurrency sweep at 32,768 context found:
+
+| LM Studio parallel / simultaneous requests | Median aggregate completion rate |
+|---|---:|
+| 1 / 1 | 43.5 tok/s |
+| 2 / 2 | 17.9 tok/s |
+
+Parallel 2 was 59% slower, so the safety policy stopped before 4/8/16. For
+this exact A100/Gemma/LM Studio combination, **parallel 1 is the measured
+optimum**. The practical recommendation is to keep Gemma script generation on
+the local RX 9070 XT; use this A100 only when VRAM/CUDA or a different measured
+workload justifies it. Script review, TTS, and Voice Lab still require their
+own benchmarks—do not extrapolate these decode results to training.
+
+### A100 script-review benchmark — 2026-07-18
+
+The production `review_batch` path was measured on three immutable 25-entry
+batches from Volumes 3, 9, and 10, with three repetitions and zero retries.
+Both environments used the same model and 32,768 context; Thunder used its
+measured parallel-1 optimum while local retained its parallel-2 configuration.
+
+| Environment | Passed | Total time | Mean batch | Aggregate completion rate | Mean word ratio |
+|---|---:|---:|---:|---:|---:|
+| RX 9070 XT local | 9/9 | 243.8 s | 27.1 s | 62.0 tok/s | 1.0002 |
+| A100 80 GB Thunder | 9/9 | 501.1 s | 55.7 s | 31.0 tok/s | 0.9973 |
+
+Both preserved structure and stayed within the production 95–105% text-loss
+gate. Thunder provided no reliability advantage in this cohort and was almost
+exactly 2× slower. **Keep Gemma script review local** for this model/runtime.
+This reinforces the script-generation result but still says nothing about
+Torch/CUDA TTS or LoRA training performance.
 
 ---
 

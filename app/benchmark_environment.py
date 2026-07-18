@@ -43,6 +43,8 @@ def _get_local_worktree_identity(root_dir):
 def _get_lmstudio_observations(status, model_name):
     if not status.get("available"):
         raise ValueError("LM Studio status is unavailable")
+    if not status.get("loaded"):
+        raise ValueError(f"LM Studio model is not loaded: {model_name}")
     return {"model_name": model_name, "model_loaded": status.get("loaded", False),
             "context_length": status.get("context_length"),
             "parallel": status.get("parallel")}
