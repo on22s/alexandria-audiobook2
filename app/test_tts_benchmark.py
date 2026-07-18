@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+import tts_benchmark
 from tts_benchmark import (measure_wav, run_clone_voice_case,
                            run_custom_voice_case, run_design_voice_case,
                            run_lora_voice_case)
@@ -71,6 +72,42 @@ class TTSBenchmarkTests(unittest.TestCase):
         self.assertEqual(1, engine.loaded)
         self.assertEqual("Hello.", engine.call[0])
         self.assertEqual(0.1, metrics["duration_seconds"])
+
+    def test_utilization_sampling_reports_mean_during_generation(self):
+        import time as time_module
+        with patch.object(tts_benchmark, "sample_gpu_utilization", return_value=50.0):
+            result, mean_utilization = tts_benchmark._run_with_utilization_sampling(
+                lambda: time_module.sleep(0.05), poll_interval=0.01)
+        self.assertIsNone(result)
+        self.assertEqual(50.0, mean_utilization)
+
+    def test_utilization_sampling_returns_none_when_backend_unavailable(self):
+        with patch.object(tts_benchmark, "sample_gpu_utilization", return_value=None):
+            result, mean_utilization = tts_benchmark._run_with_utilization_sampling(
+                lambda: "done", poll_interval=0.01)
+        self.assertEqual("done", result)
+        self.assertIsNone(mean_utilization)
+
+    def test_custom_voice_case_reports_mean_utilization(self):
+        class FakeEngine:
+            def _init_local_custom(self):
+                pass
+
+            def generate_custom_voice(self, text, instruct, speaker, config, path):
+                with wave.open(path, "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(np.ones(2400, dtype="<i2").tobytes())
+                return True
+
+        with patch.object(tts_benchmark, "sample_gpu_utilization", return_value=55.0), \
+             tempfile.TemporaryDirectory() as tmp:
+            metrics = run_custom_voice_case(
+                FakeEngine(), {"text": "Hello.", "instruct": "", "speaker": "N",
+                               "voice": "Ryan", "seed": 1},
+                str(Path(tmp, "out.wav")), load_model=True)
+        self.assertIn("mean_gpu_utilization_pct", metrics)
 
     def test_vram_sweep_uses_peak_across_all_sub_batches(self):
         class FakeCuda:

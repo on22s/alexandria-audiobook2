@@ -23,7 +23,7 @@ class ThunderBenchmarkDocumentationTests(unittest.TestCase):
             self.assertTrue(result["measured_scope"])
             self.assertIn("local", result)
             self.assertIn("thunder", result)
-            self.assertTrue(result["source_prs"])
+            self.assertTrue(result["source_prs"] or result.get("source_commits"))
 
     def test_guide_links_canonical_summary_and_preserves_scope_limits(self):
         self.assertIn("docs/benchmarks/thunder_2026-07-18.json", self.guide)

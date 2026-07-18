@@ -11,7 +11,8 @@ from benchmark_environment import (collect_local_environment,
                                    collect_local_tts_environment,
                                    collect_cpu_environment,
                                    collect_thunder_environment,
-                                   collect_thunder_tts_environment)
+                                   collect_thunder_tts_environment,
+                                   verify_comparable_environments)
 from benchmark_runner import (run_script_generation_benchmark,
                               run_dedup_benchmark,
                               run_lora_training_benchmark,
@@ -78,6 +79,8 @@ def _build_benchmark_preflight(request):
             ssh_alias = (config.get("llm_remote_ssh") or "").strip()
             environments[target] = collect_thunder_environment(
                 ROOT_DIR, ssh_alias, model_name)
+    if "local" in environments and "thunder" in environments:
+        verify_comparable_environments(environments["local"], environments["thunder"])
     return {"manifest": manifest, "environments": environments,
             "preflight_id": get_benchmark_preflight_id(manifest, environments),
             "benchmark_state": "ready"}

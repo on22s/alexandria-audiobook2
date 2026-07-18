@@ -84,6 +84,28 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertTrue(staged["fixtures"][0]["adapter_path"].startswith(
             "/tmp/alexandria-tts-benchmark-assets/lora-"))
 
+    def test_network_rtt_probe_returns_elapsed_seconds(self):
+        class FakeModels:
+            def list(self):
+                return None
+
+        class FakeClient:
+            models = FakeModels()
+
+        rtt = benchmark_runner._measure_llm_network_rtt(FakeClient())
+        self.assertIsInstance(rtt, float)
+        self.assertGreaterEqual(rtt, 0.0)
+
+    def test_network_rtt_probe_returns_none_when_probe_fails(self):
+        class FakeModels:
+            def list(self):
+                raise RuntimeError("unreachable")
+
+        class FakeClient:
+            models = FakeModels()
+
+        self.assertIsNone(benchmark_runner._measure_llm_network_rtt(FakeClient()))
+
     def test_runner_persists_each_successful_repetition(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture_path = Path(tmp, "fixture.txt")
@@ -113,6 +135,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             self.assertTrue(all(case["status"] == "passed" for case in report["cases"]))
             self.assertEqual("complete", state["status"])
             self.assertEqual("done", state["tasks"][0]["status"])
+            self.assertIn("network_rtt_seconds", report)
 
     def test_fixture_hash_change_fails_before_model_work(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,6 +202,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             self.assertEqual("passed", report["cases"][0]["status"])
             self.assertEqual(1.0, report["cases"][0]["quality"]["word_ratio"])
             self.assertEqual(1, report["cases"][0]["changes"]["instruct_changed"])
+            self.assertIn("network_rtt_seconds", report)
 
 
 if __name__ == "__main__":

@@ -6,12 +6,44 @@ import hashlib
 import json
 import os
 import shutil
+import threading
 import time
 import wave
 
 import numpy as np
 
 from tts import TTSEngine
+from gpu_stats import sample_gpu_utilization
+
+
+def _run_with_utilization_sampling(fn, poll_interval=0.2):
+    """Run fn() while polling GPU utilization every poll_interval seconds,
+    returning (fn's result, mean utilization percent or None if no samples
+    landed).
+
+    Lets a benchmark distinguish "the GPU was actually busy" from "wall
+    time was dominated by something else" instead of assuming compute-bound
+    just because the call took a long time.
+    """
+    samples = []
+    stop = threading.Event()
+
+    def _poll():
+        while not stop.is_set():
+            value = sample_gpu_utilization()
+            if value is not None:
+                samples.append(value)
+            stop.wait(poll_interval)
+
+    poller = threading.Thread(target=_poll, daemon=True)
+    poller.start()
+    try:
+        result = fn()
+    finally:
+        stop.set()
+        poller.join(timeout=1)
+    mean_utilization = round(sum(samples) / len(samples), 1) if samples else None
+    return result, mean_utilization
 
 
 def measure_wav(path, elapsed_seconds):
@@ -56,14 +88,15 @@ def run_custom_voice_case(engine, fixture, output_path, load_model=False):
         engine._init_local_custom()
     load_seconds = time.monotonic() - load_started
     generation_started = time.monotonic()
-    succeeded = engine.generate_custom_voice(
+    succeeded, mean_utilization = _run_with_utilization_sampling(lambda: engine.generate_custom_voice(
         fixture["text"], fixture.get("instruct", ""), fixture["speaker"],
-        voice_config, output_path)
+        voice_config, output_path))
     generation_seconds = time.monotonic() - generation_started
     if not succeeded or not os.path.isfile(output_path):
         raise RuntimeError("CustomVoice generation did not produce a WAV")
     metrics = measure_wav(output_path, generation_seconds)
     metrics["model_load_seconds"] = round(load_seconds, 3)
+    metrics["mean_gpu_utilization_pct"] = mean_utilization
     return metrics
 
 
@@ -85,14 +118,15 @@ def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=Fals
     engine._get_clone_prompt(fixture["speaker"], voice_config)
     prompt_seconds = time.monotonic() - prompt_started
     generation_started = time.monotonic()
-    succeeded = engine.generate_clone_voice(
-        fixture["text"], fixture["speaker"], voice_config, output_path)
+    succeeded, mean_utilization = _run_with_utilization_sampling(lambda: engine.generate_clone_voice(
+        fixture["text"], fixture["speaker"], voice_config, output_path))
     generation_seconds = time.monotonic() - generation_started
     if not succeeded or not os.path.isfile(output_path):
         raise RuntimeError("clone generation did not produce a WAV")
     metrics = measure_wav(output_path, generation_seconds)
     metrics.update({"model_load_seconds": round(load_seconds, 3),
-                    "prompt_build_seconds": round(prompt_seconds, 3)})
+                    "prompt_build_seconds": round(prompt_seconds, 3),
+                    "mean_gpu_utilization_pct": mean_utilization})
     return metrics
 
 
@@ -118,14 +152,15 @@ def run_lora_voice_case(engine, fixture, output_path, root_dir, load_model=False
     import torch
     torch.manual_seed(fixture["seed"])
     generation_started = time.monotonic()
-    succeeded = engine.generate_lora_voice(
-        fixture["text"], fixture.get("instruct", ""), voice_data, output_path)
+    succeeded, mean_utilization = _run_with_utilization_sampling(lambda: engine.generate_lora_voice(
+        fixture["text"], fixture.get("instruct", ""), voice_data, output_path))
     generation_seconds = time.monotonic() - generation_started
     if not succeeded or not os.path.isfile(output_path):
         raise RuntimeError("LoRA generation did not produce a WAV")
     metrics = measure_wav(output_path, generation_seconds)
     metrics["model_and_adapter_load_seconds"] = round(load_seconds, 3)
     metrics["prompt_build_seconds"] = round(prompt_seconds, 3)
+    metrics["mean_gpu_utilization_pct"] = mean_utilization
     return metrics
 
 
@@ -136,9 +171,10 @@ def run_design_voice_case(engine, fixture, output_path, load_model=False):
         engine._init_local_design()
     load_seconds = time.monotonic() - load_started
     generation_started = time.monotonic()
-    preview_path, _ = engine.generate_voice_design(
-        description=fixture["description"], sample_text=fixture["text"],
-        seed=fixture["seed"])
+    (preview_path, _), mean_utilization = _run_with_utilization_sampling(
+        lambda: engine.generate_voice_design(
+            description=fixture["description"], sample_text=fixture["text"],
+            seed=fixture["seed"]))
     generation_seconds = time.monotonic() - generation_started
     if not os.path.isfile(preview_path):
         raise RuntimeError("VoiceDesign generation did not produce a WAV")
@@ -146,6 +182,7 @@ def run_design_voice_case(engine, fixture, output_path, load_model=False):
     shutil.move(preview_path, output_path)
     metrics = measure_wav(output_path, generation_seconds)
     metrics["model_load_seconds"] = round(load_seconds, 3)
+    metrics["mean_gpu_utilization_pct"] = mean_utilization
     return metrics
 
 
