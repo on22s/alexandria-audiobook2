@@ -54,6 +54,7 @@
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_manifest_hashes_all_required_adapter_artifacts",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_lora_training_manifest_hashes_selected_audio_and_metadata",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_naming_manifest_embeds_profile_entries",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_persona_manifest_embeds_script_and_derives_speakers",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_preparer_manifest_hashes_audio_and_pins_model_revision",

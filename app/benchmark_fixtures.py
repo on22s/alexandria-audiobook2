@@ -410,3 +410,32 @@ def build_voicelab_naming_manifest(fixtures, repetitions=1, targets=None):
     return {"schema_version": 1, "stage": "voicelab_naming",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_persona_generation_manifest(fixtures, repetitions=1, targets=None):
+    """Build self-contained advanced-persona discovery fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one persona fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        entries = copy.deepcopy(fixture.get("entries"))
+        if not isinstance(entries, list) or not entries or any(
+                not isinstance(entry, dict) or not isinstance(entry.get("speaker"), str)
+                or not isinstance(entry.get("text"), str) for entry in entries):
+            raise ValueError("persona entries require speaker and text strings")
+        speakers = fixture.get("speakers") or list(dict.fromkeys(
+            entry["speaker"] for entry in entries
+            if entry["speaker"].upper() not in {"NARRATOR", "NARRATION", "NARRATIVE"}))
+        if not speakers or any(not isinstance(speaker, str) or not speaker.strip()
+                               for speaker in speakers):
+            raise ValueError("persona speakers must be non-empty strings")
+        selected = {"entries": entries, "speakers": speakers,
+                    "batch_size": fixture.get("batch_size", 40)}
+        if not isinstance(selected["batch_size"], int) or selected["batch_size"] < 1:
+            raise ValueError("persona batch_size must be positive")
+        selected.update({"id": fixture.get("id") or f"persona-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "persona_generation",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {"max_retries": 0}}
