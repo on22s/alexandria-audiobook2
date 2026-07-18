@@ -6,6 +6,7 @@ from pathlib import Path
 from benchmark_fixtures import (build_script_generation_manifest,
                                 build_persona_generation_manifest,
                                 build_nickname_detection_manifest,
+                                build_export_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
@@ -208,6 +209,16 @@ class BenchmarkFixtureTests(unittest.TestCase):
         fixture = manifest["fixtures"][0]
         self.assertEqual("nickname_detection", manifest["stage"])
         self.assertEqual({"BETTY": "BEATRICE"}, fixture["expected_aliases"])
+
+    def test_export_manifest_hashes_every_audio_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "one.wav").write_bytes(b"one")
+            manifest = build_export_manifest("audacity_export", [{"chunks": [{
+                "speaker": "ALICE", "text": "Hello", "audio_path": "one.wav"}]}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("audacity_export", manifest["stage"])
+        self.assertEqual(hashlib.sha256(b"one").hexdigest(),
+                         fixture["audio_sha256"]["one.wav"])
 
 
 if __name__ == "__main__":

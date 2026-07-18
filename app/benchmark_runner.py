@@ -756,6 +756,80 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     return report
 
 
+def _validate_export_fixture(fixture, root_dir):
+    content = {key: fixture[key] for key in
+               ("chunks", "audio_sha256", "per_chunk_chapters")}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    for relative_path, expected in fixture["audio_sha256"].items():
+        path = os.path.abspath(os.path.join(root_dir, relative_path))
+        if not is_path_inside(path, root_dir) or not os.path.isfile(path):
+            raise ValueError("export audio is outside the project or missing")
+        with open(path, "rb") as audio_file:
+            if hashlib.sha256(audio_file.read()).hexdigest() != expected:
+                raise ValueError(f"export audio hash changed: {relative_path}")
+
+
+def _run_export_worker(stage, fixture, target, settings, root_dir, ssh_alias):
+    _validate_export_fixture(fixture, root_dir)
+    if target == "local":
+        python_executable = settings.get("local_python") or sys.executable
+        source_root = root_dir
+        worker = os.path.join(root_dir, "app", "export_benchmark.py")
+        prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python")
+        if not remote_root or not python_executable or not ssh_alias:
+            raise ValueError("Thunder export requires remote_root, remote_python, and SSH alias")
+        source_root = f"/tmp/alexandria-export-{fixture['sha256']}"
+        for relative_path in fixture["audio_sha256"]:
+            remote_path = os.path.join(source_root, relative_path)
+            subprocess.run(["ssh", ssh_alias, "mkdir", "-p", os.path.dirname(remote_path)],
+                           capture_output=True, text=True, timeout=30, check=True)
+            subprocess.run(["scp", os.path.join(root_dir, relative_path),
+                            f"{ssh_alias}:{remote_path}"], capture_output=True,
+                           text=True, timeout=300, check=True)
+        worker = os.path.join(remote_root, "app", "export_benchmark.py")
+        prefix = ["ssh", ssh_alias]
+    payload = {"stage": stage, "fixture": fixture, "source_root": source_root}
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    worker_command = [python_executable, worker, "--payload", encoded]
+    command = worker_command if not prefix else [*prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True,
+                            timeout=900, check=False)
+    marker = "EXPORT_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or
+                            "export worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_export_benchmark(manifest, environment, report_path, state,
+                         config_path, root_dir):
+    """Run Audacity or M4B production exports locally or on Thunder."""
+    target = manifest["targets"][0]
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_export_worker(
+                manifest["stage"], fixture, target, manifest.get("settings") or {},
+                root_dir, (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
 def _load_text_fixture(fixture, uploads_dir):
     path = os.path.abspath(fixture.get("path") or "")
     if not path or not is_path_inside(path, uploads_dir) or not os.path.isfile(path):
