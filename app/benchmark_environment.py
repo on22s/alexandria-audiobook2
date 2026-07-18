@@ -5,6 +5,7 @@ import hashlib
 import platform
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 from benchmark_core import build_environment_fingerprint
@@ -107,4 +108,60 @@ def collect_thunder_environment(root_dir, ssh_alias, model_name):
                     "packages": runtime["packages"], "remote_platform": remote["platform"],
                     "lmstudio": _get_lmstudio_observations(
                         get_remote_lmstudio_status(ssh_alias, model_name), model_name)}
+    return build_environment_fingerprint("thunder", observations)
+
+
+def collect_local_tts_environment(root_dir):
+    """Fingerprint the Python environment that will execute local TTS."""
+    runtime = get_runtime_info(root_dir)
+    gpu_name, backend = get_gpu_name_and_backend()
+    probe = subprocess.run([sys.executable, "-c",
+                            "import json,torch,qwen_tts; print(json.dumps({'torch':torch.__version__,'qwen_tts':getattr(qwen_tts,'__version__','unknown')}))"],
+                           capture_output=True, text=True, timeout=20, check=False)
+    if probe.returncode or not gpu_name or not backend:
+        raise ValueError(probe.stderr.strip() or "local TTS environment is unavailable")
+    packages = json.loads(probe.stdout.splitlines()[-1])
+    return build_environment_fingerprint("local", {
+        "hostname": platform.node(), "gpu_name": gpu_name, "backend": backend,
+        "python_version": platform.python_version(), "git_commit": runtime["revision"],
+        "worktree": _get_local_worktree_identity(root_dir), "packages": packages,
+        "python_executable": sys.executable})
+
+
+def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_python):
+    """Fingerprint the exact remote checkout and Python used by the TTS worker."""
+    if not ssh_alias or not remote_root or not remote_python:
+        raise ValueError("Thunder TTS preflight requires SSH alias, remote_root, and remote_python")
+    code = ("import json,platform,torch,qwen_tts; print(json.dumps({"
+            "'hostname':platform.node(),'python_version':platform.python_version(),"
+            "'torch':torch.__version__,'qwen_tts':getattr(qwen_tts,'__version__','unknown')}))")
+    command = (f"{shlex.quote(remote_python)} -c {shlex.quote(code)} && "
+               f"git -C {shlex.quote(remote_root)} rev-parse HEAD && "
+               f"git -C {shlex.quote(remote_root)} status --porcelain=v1 -- app")
+    result = _ssh_run(ssh_alias, command, timeout=30, connect_timeout=10)
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode or len(lines) < 2:
+        raise ValueError(result.stderr.strip() or "remote TTS environment probe failed")
+    json_line = next((line for line in lines if line.startswith("{")), None)
+    if not json_line:
+        raise ValueError("remote TTS Python probe returned invalid JSON")
+    details = json.loads(json_line)
+    commit_index = next((index for index, line in enumerate(lines)
+                         if len(line) == 40 and all(c in "0123456789abcdef" for c in line)), None)
+    if commit_index is None:
+        raise ValueError("remote TTS git revision is unavailable")
+    dirty_lines = lines[commit_index + 1:]
+    gpu_name, backend = get_remote_gpu_name_and_backend(ssh_alias)
+    if not gpu_name or not backend:
+        raise ValueError("Thunder GPU/backend could not be identified")
+    runtime = get_runtime_info(root_dir)
+    if lines[commit_index] != runtime["revision"] or dirty_lines:
+        raise ValueError("remote TTS checkout must be clean and match the local git revision")
+    observations = {"hostname": details["hostname"], "gpu_name": gpu_name,
+                    "backend": backend, "python_version": details["python_version"],
+                    "git_commit": lines[commit_index], "remote_worktree_dirty": bool(dirty_lines),
+                    "orchestrator_git_commit": runtime["revision"],
+                    "orchestrator_worktree": _get_local_worktree_identity(root_dir),
+                    "packages": {"torch": details["torch"], "qwen_tts": details["qwen_tts"]},
+                    "python_executable": remote_python, "remote_root": remote_root}
     return build_environment_fingerprint("thunder", observations)

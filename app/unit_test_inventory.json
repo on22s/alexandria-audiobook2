@@ -29,7 +29,8 @@
     "test_benchmark_api.BenchmarkApiTests.test_preflight_is_blocked_while_an_existing_gpu_task_runs",
     "test_benchmark_api.BenchmarkApiTests.test_preflight_route_reports_validation_failure_as_400",
     "test_benchmark_api.BenchmarkApiTests.test_start_rejects_stale_preflight_before_claiming_gpu",
-    "test_benchmark_api.BenchmarkApiTests.test_status_never_exposes_live_process_objects"
+    "test_benchmark_api.BenchmarkApiTests.test_status_never_exposes_live_process_objects",
+    "test_benchmark_api.BenchmarkApiTests.test_tts_preflight_uses_tts_environment_not_lmstudio"
   ],
   "test_benchmark_core": [
     "test_benchmark_core.BenchmarkCoreTests.test_fingerprints_are_stable_and_change_with_environment",
@@ -43,14 +44,17 @@
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_environment_combines_runtime_gpu_and_model_status",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_worktree_identity_changes_with_untracked_source_content",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_remote_runtime_uses_last_nonempty_line_after_banner",
-    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_fails_when_model_status_is_unavailable"
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_fails_when_model_status_is_unavailable",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_tts_rejects_checkout_that_does_not_match"
   ],
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_source_drift_is_rejected",
-    "test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction"
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_tts_manifest_is_self_contained_and_hashes_generation_inputs",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_tts_manifest_rejects_random_seed"
   ],
   "test_benchmark_runner": [
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
@@ -58,7 +62,8 @@
     "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
     "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
-    "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_uses_remote_profile_and_status"
+    "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_uses_remote_profile_and_status",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_tts_fixture_drift_is_rejected_before_worker"
   ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
@@ -398,6 +403,11 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_tts_benchmark": [
+    "test_tts_benchmark.TTSBenchmarkTests.test_custom_voice_case_uses_production_engine_call",
+    "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_rejects_non_pcm16_input",
+    "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_reports_duration_throughput_and_audio_health"
+  ],
   "test_voice_clustering": [
     "test_voice_clustering.VoiceClusteringTests.test_clustering_is_invariant_to_input_order",
     "test_voice_clustering.VoiceClusteringTests.test_complete_link_prevents_similarity_chain_overmerge",

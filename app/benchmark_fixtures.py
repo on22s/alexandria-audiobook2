@@ -106,3 +106,37 @@ def build_script_review_manifest(specs, scripts_dir, repetitions=1,
             "fixtures": fixtures, "settings": {"max_retries": 0},
             "quality_thresholds": {"word_ratio_min": 0.95,
                                    "word_ratio_max": 1.05}}
+
+
+def build_tts_generation_manifest(fixtures, repetitions=1, targets=None,
+                                  max_new_tokens=2048):
+    """Build self-contained CustomVoice fixtures usable on either machine."""
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one TTS fixture is required")
+    normalized = []
+    for index, fixture in enumerate(fixtures, 1):
+        if not isinstance(fixture, dict):
+            raise ValueError("TTS fixtures must be objects")
+        selected = {"text": fixture.get("text"),
+                    "instruct": fixture.get("instruct", "neutral"),
+                    "speaker": fixture.get("speaker", "NARRATOR"),
+                    "voice": fixture.get("voice", "Ryan"),
+                    "seed": fixture.get("seed", 0)}
+        if not isinstance(selected["text"], str) or not selected["text"].strip():
+            raise ValueError("TTS fixture text must be non-empty")
+        if any(not isinstance(selected[key], str) or not selected[key].strip()
+               for key in ("instruct", "speaker", "voice")):
+            raise ValueError("TTS fixture instruct, speaker, and voice must be non-empty")
+        if not isinstance(selected["seed"], int) or selected["seed"] < 0:
+            raise ValueError("TTS fixture seed must be a non-negative integer")
+        digest = _hash_entries(selected)
+        selected.update({"id": fixture.get("id") or f"tts-{index}",
+                         "sha256": digest})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "tts_generation",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized,
+            "settings": {"max_new_tokens": max_new_tokens},
+            "quality_thresholds": {"min_duration_seconds": 0.1,
+                                   "max_silence_ratio": 0.98,
+                                   "max_clipping_ratio": 0.01}}
