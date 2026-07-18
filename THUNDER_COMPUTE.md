@@ -27,14 +27,14 @@ hours of work. The deciding factors are **VRAM**, **CUDA**, and **wall-clock**.
 |---|---|---|
 | **Model needs > 16 GB VRAM** | 9070 XT caps you at ~16 GB. Bigger models or long context won't load. | A6000 (48 GB), $0.35/hr |
 | **CUDA-only code** | Your card is ROCm. Anything that assumes CUDA kernels (some `xformers`/`triton`/`sageattention`/`flash-attn` builds, most upstream ML wheels) won't run. | A6000 / L40 |
-| **Multi-day batch review or script-gen** | A 6-volume Re:Zero-scale batch on one local GPU is a very long single stream. | A6000 |
 | **You need your desktop back** | Local LLM work pins the GPU; the global GPU lock blocks every other task in the app. | A6000 |
-| **LoRA training that OOMs or crawls locally** | Training wants headroom the 16 GB card doesn't have. Note: needs a **CUDA** torch env, not the sibling repo's ROCm one. | A6000, L40 if faster |
+| **Persona generation with the measured Gemma endpoint** | The A100 completed the production discovery/compile cohort 2.27× faster. | A100 80 GB |
+| **A workload that has actually OOMed locally** | The measured A100 was slower for every tested TTS and Voice Lab stage, including LoRA training. Use it only when capacity, not assumed speed, is the blocker. | Size for the observed VRAM need |
 
 ## 3. Do NOT use Thunder for
 
-- **CPU-only work.** `audacity_export` and `m4b_export` are in `NON_GPU_TASKS`
-  for a reason — they get nothing from a rented GPU.
+- **CPU-only work.** Audacity, M4B, and Voice Lab naming were measured on both
+  machines; local was faster in all three cases.
 - **Short or interactive jobs.** Setup overhead (create → SSH → load model →
   forward port) dwarfs a few minutes of inference.
 - **Chasing parallelism.** See §4 — this is the big one.
@@ -61,11 +61,44 @@ less than 1×.
 Rent Thunder for **VRAM headroom and CUDA**. Do not assume either per-token
 speed or fan-out improves without measuring the exact model/runtime.
 
-Note the bottleneck depends on the workload: LLM **review/script-gen is decode,
-which is memory-bandwidth-bound** (so a faster GPU barely helps per-token, and
-parallelism hurts — above). **LoRA training is compute-bound** (matmul/backprop),
-which is the one place raw GPU throughput genuinely buys speed. Don't apply the
-"faster GPU barely helps" lesson to training — it's a different bottleneck.
+The bottleneck depends on the full software path, not GPU specifications alone.
+The A100 lost the measured LoRA-training calibration despite training being
+compute-heavy: setup, data, small-batch, kernel, and framework overhead dominated
+this bounded workload. Do not promote a theoretical compute advantage into a
+placement rule without a production-shaped measurement.
+
+### Complete measured placement matrix — 2026-07-18
+
+These are fixture-scale calibration results, not promises for every model or book.
+They do answer the placement question for the tested RX 9070 XT/ROCm and A100
+80 GB/CUDA environments. Dataset Builder generation is not repeated because it
+calls the already-measured production VoiceDesign method.
+
+| Workload | Local | A100 Thunder | Measured decision |
+|---|---:|---:|---|
+| Script generation, 9 calls | 366.6 s, 5/9 pass | 677.8 s, 7/9 pass at 98k context | Local for throughput; quality remains stochastic |
+| Script review, 9 batches | 243.8 s | 501.1 s | Local, about 2.06× faster |
+| Persona discovery + compile | 39.885 s | 17.557 s | **Thunder, 2.27× faster** |
+| Nickname detection | 0.796 s | 1.782 s | Local, 2.24× faster |
+| CustomVoice warm throughput | 1.18× realtime | 0.28× realtime | Local, about 4.2× higher throughput |
+| CustomVoice native batch, cap 8 | 87.3 s | 210.6 s | Local, 2.41× faster |
+| Base clone, six generations | 44.8 s | 228.3 s | Local, 5.09× faster |
+| Clone native batch, cap 8 | 37.3 s | 107.8 s | Local, 2.89× faster |
+| VoiceDesign, six generations | 40.7 s | 173.9 s | Local, 4.27× faster |
+| LoRA TTS warm generation | 5.48 s | 32.05 s | Local, 5.85× faster |
+| LoRA training, 8 samples / 1 epoch | 2.1 s | 6.5 s | Local, 3.10× faster |
+| Voice Lab preparer ASR | 11.24 s | 21.72 s | Local, 1.93× faster |
+| Voice Lab dedup | 10.19 s | 19.09 s | Local, 1.87× faster |
+| Voice Lab profiling, cold | 6.936 s | 78.689 s | Local, 11.35× faster |
+| Voice Lab naming | 0.0216 s | 0.0541 s | Local, 2.50× faster |
+| Audacity export | 0.040 s | 0.063 s | Local, 1.58× faster |
+| M4B export | 0.230 s | 0.260 s | Local, 1.13× faster |
+
+Quality checks passed on both machines for the completed cohorts: valid audio,
+hash-verified inputs, structural script/review gates, exact canonical Voice Lab
+content where applicable, complete persona/evidence coverage, exact nickname
+mapping, valid Audacity contents, and parseable AAC/chapter M4B output. Cross-
+backend audio and compressed-container hashes are not expected to be identical.
 
 ### A100 script-generation benchmark — 2026-07-18
 
@@ -96,8 +129,8 @@ Parallel 2 was 59% slower, so the safety policy stopped before 4/8/16. For
 this exact A100/Gemma/LM Studio combination, **parallel 1 is the measured
 optimum**. The practical recommendation is to keep Gemma script generation on
 the local RX 9070 XT; use this A100 only when VRAM/CUDA or a different measured
-workload justifies it. TTS and Voice Lab require their own benchmarks—do not
-extrapolate these decode results to training.
+workload justifies it. Do not extrapolate these decode results to TTS, training,
+or Voice Lab; their separate measured results are recorded below.
 
 ### A100 script-review benchmark — 2026-07-18
 
@@ -142,7 +175,7 @@ the A100 ran at only about 15% utilization during observation. The A100's large
 VRAM capacity therefore did not translate into single-stream speed. Keep serial
 CustomVoice generation local with this software stack. Native list batching
 was measured separately below. LoRA training remains a separate cohort, so
-this result must not be extrapolated to it.
+that result was measured separately below.
 
 #### CustomVoice native-batch capacity
 
@@ -220,59 +253,83 @@ identical; do not treat CUDA VoiceDesign output as guaranteed bit-deterministic.
 Keep VoiceDesign previews and designed-voice chunk generation local with these
 software stacks.
 
+#### LoRA TTS inference
+
+The production LoRA path used the same hash-verified Watson adapter, seed, and
+prompt on both machines. It separately measured model/adapter load, reusable
+prompt construction, and warm generation.
+
+| Phase | RX 9070 XT | A100 Thunder |
+|---|---:|---:|
+| Model + adapter load | 4.54 s | 23.43 s |
+| Prompt build | 0.86 s | 7.02 s |
+| Warm generation | 5.48 s | 32.05 s |
+
+Local warm generation was **5.85× faster**. Both environments produced healthy,
+deterministic outputs across repetitions. Keep LoRA inference local with this
+adapter/model stack.
+
+### Persona and nickname LLM utilities
+
+The advanced persona benchmark intentionally captured the preview boundary
+instead of generating TTS again. Each target performed one discovery call and
+two compilation calls over the same two-speaker fixture. Thunder completed in
+17.557 s versus 39.885 s locally: **Thunder was 2.27× faster**, with 100% speaker
+and evidence coverage on both. This was the A100's only measured speed win.
+
+Nickname detection used one explicit contextual `BETTY → BEATRICE` case. Local
+completed in 0.796 s versus 1.782 s remotely. Both achieved precision 1.0,
+recall 1.0, and evidence coverage 1.0. Keep short nickname jobs local; consider
+Thunder for larger persona discovery/compile cohorts after measuring them.
+
+### CPU exports
+
+Audacity and M4B were run on Thunder instead of being dismissed from GPU specs.
+Local still won: 0.040 s versus 0.063 s for Audacity, and 0.230 s versus 0.260 s
+for M4B. Audacity member/label structure matched exactly. Both M4Bs contained
+AAC audio and chapter metadata with durations of 15.620 s and 15.621 s. Binary
+hashes differed because ZIP timestamps and FFmpeg versions are platform-specific.
+
 ---
 
-## Case study: Voice Lab — estimated, and keep it local anyway
+## Case study: Voice Lab — measured end to end by stage
 
-*(This section is reasoned from specs, **not benchmarked** like §4. Treat the
-numbers as order-of-magnitude.)*
+Voice Lab is no longer speculative. Each distinct stage ran locally and on the
+same A100 80 GB instance through a production-backed, hash-verified fixture.
 
-Voice Lab (dataset ZIPs → dedup → train → profile → name → named LoRA voices) is
-the **clearest keep-local case in the project**, for three structural reasons:
+| Stage | Local | A100 Thunder | Quality comparison |
+|---|---:|---:|---|
+| Preparer ASR, 36.08 s audio | 11.24 s | 21.72 s | Same 91-word normalized transcript; alignment floats differed |
+| Dedup, two volumes / 8 samples | 10.19 s | 19.09 s | Same cluster and identical canonical merged content |
+| LoRA training, 8 samples / 1 epoch | 2.1 s | 6.5 s | Zero OOM skips; both adapters hash-verified |
+| Profiling, cold Qwen2.5 14B Q6 | 6.936 s | 78.689 s | Acoustic metrics identical; both casting lines valid |
+| Naming, three collision cases | 0.0216 s | 0.0541 s | Byte-identical manifests and identical directory names |
 
-1. **It's a ROCm pipeline; Thunder is CUDA.** Every stage runs locally on the
-   9070 XT via the configured `rocm_python` interpreter. Going remote isn't a
-   toggle — it's re-provisioning a whole CUDA ML environment.
-2. **There is no remote plumbing for it.** The app's Local/Remote switch only
-   repoints the *LM Studio LLM endpoint*. Voice Lab stages run as local
-   subprocesses under the shared GPU lock — nothing routes them off-box.
-3. **Amdahl's law.** Only one of the four stages is the kind of work a faster
-   GPU accelerates.
+The measured conclusion is stronger than the old estimate: **keep the entire
+tested Voice Lab pipeline local for speed**, not merely because remote setup is
+awkward. The bounded LoRA training calibration was 3.10× faster locally, and
+profiling was 11.35× faster locally. Transfer and provisioning overhead were
+excluded from those timed case results, so including them only strengthens the
+local recommendation.
 
-| Stage | Bottleneck | Remote benefit |
-|---|---|---|
-| **Dedup** | speechbrain embeds (GPU) + umap (CPU) | small — and *pins you local*: `voice_analysis.py` needs speechbrain/umap/matplotlib/seaborn, only in the sibling `alexandria-audiobook.git/app/env`. |
-| **Train** | LoRA matmul/backprop — **compute-bound** | the only real win. `batch_train_lora.py` has no top-level third-party imports, so it's the one portable stage. |
-| **Profile** | `llama_cpp` decode (**bandwidth-bound**) + acoustic feats (CPU) | small — needs the local Qwen GGUF; same "decode barely speeds up" lesson as §4. |
-| **Name** | pure stdlib | none — already instant. |
+This does not prove that every future large training job is faster locally. It
+does prove that GPU specifications alone were a bad predictor for this stack.
+If a substantially larger dataset OOMs on the 16 GB card, Thunder remains a
+capacity escape hatch; benchmark that new dataset shape before treating the A100
+as a throughput upgrade.
 
-**How much would it actually benefit?**
+### Profiling phase breakdown
 
-- **Train on an A100:** ~2–3× the local card on paper. But LoRA training is
-  small-batch with heavy per-step/data-loading overhead that caps *any* GPU well
-  below peak — so realistically expect **2–4×**, and an **H100 would be only
-  marginally better than the A100** because that same overhead eats its extra
-  peak throughput. **With H100s sold out, the A100 is the right pick and you
-  lose very little.** (An A6000 would give almost nothing on Train.)
-- **A100 also helps Profile** more than an A6000 would (~2 TB/s vs ~768 GB/s ≈
-  ~3× local bandwidth vs "barely faster"), but Profile is a minor slice.
-- **End-to-end**, even a 3× Train win is diluted by the CPU/bandwidth-bound
-  stages to roughly **1.3–1.5×** — *before* subtracting overhead.
+The cold profiling result combined two very different workloads:
 
-**Why it's still net-negative for normal runs:** the overhead is unchanged by
-which GPU you rent — (a) shuttling GB of audio ZIPs up and adapters back, (b)
-rebuilding dedup's speechbrain/umap + profile's `llama_cpp` on CUDA per
-instance, (c) billing the whole setup+transfer time. For a small or mixed run
-that overhead **exceeds** the ~1.3–1.5× saved.
+| Phase | RX 9070 XT | A100 Thunder |
+|---|---:|---:|
+| GGUF model load | 4.246 s | 57.344 s |
+| Librosa acoustics | 1.307 s | 16.696 s |
+| llama.cpp description | 1.381 s | 4.642 s |
 
-**The one scenario where it pays off:** a **large standalone Train batch** —
-many narrators, dedup/profile already done locally, datasets shipped once. Then
-you skip the local-pinned stages, and the 2–4× lands on the part that dominates.
-
-**Before building any of this:** the cheap experiment is to time **one
-narrator's Train stage** locally vs. on a rented A100. That single number pins
-the real speedup; everything else is transfer/setup you can measure directly.
-Don't build the remote path on the estimates above — measure Train first.
+The exact 12.1 GB GGUF had matching SHA-256 on both machines. Seeded text can
+still differ slightly across ROCm/CUDA backends; acoustic values matched exactly.
 
 ---
 
@@ -280,11 +337,11 @@ Don't build the remote path on the estimates above — measure Train first.
 
 | GPU | $/hr | Use when |
 |---|---|---|
-| **a6000_x1** | **0.35** | **Default choice.** 48 GB, cheapest, benchmarked for this project's review workload. |
+| **a6000_x1** | **0.35** | Cheapest capacity/CUDA escape hatch. Historical review concurrency above 1 regressed; do not assume speed. |
 | l40_x1 | 0.79 | Only if you've measured it beating the A6000 for your job. |
 | l40s | 0.99 | Same — measure first. |
-| a100xl_x1 | 1.09 | **Best pick for a big LoRA-training batch** — compute-bound, ~2 TB/s, and in practice close to an H100 once small-batch overhead is factored in (see Voice Lab case study). |
-| h100_x1 | 2.19 | Marginally faster than the A100 for training here (overhead eats its extra peak). Often sold out — the A100 is the practical substitute. |
+| a100xl_x1 | 1.09 | 80 GB capacity and CUDA. In this campaign it won only persona generation; it lost the measured LoRA-training calibration. |
+| h100_x1 | 2.19 | Unmeasured in this project. Rent only for a workload that justifies a new calibration. |
 | *_x2 / _x4 / _x8 | 2–23 | **Not for this project.** See §4 — you can't use the parallelism. |
 
 Storage: disk $0.0003/GB/hr, snapshots $0.00006849/GB/hr (snapshots are ~4×
@@ -336,6 +393,25 @@ The workflow that follows from that:
 - **Port forwarding** follows `https://<uuid>-<port>.thundercompute.net`.
 - **One source of "is remote".** Use `lmstudio_settings.is_remote_llm` — never
   re-derive it (Rule 15; this already caused a real drift bug).
+- **The CUDA llama.cpp wheel needs NVIDIA library paths.** Thunder used
+  `llama-cpp-python==0.3.23` from the official CUDA 12.4 wheel index. Importing
+  it directly initially failed because `libcudart.so.12` was under the Python
+  environment's `site-packages/nvidia/*/lib` directories rather than the system
+  loader path. The persistent `/home/ubuntu/ttsenv/bin/python-cuda` wrapper
+  discovers those directories, prepends them to `LD_LIBRARY_PATH`, and then
+  executes `/home/ubuntu/ttsenv/bin/python`.
+- **Verify the actual GPU path, not just import success.** The wrapper was tested
+  with real GGUF inference: llama.cpp detected CUDA, offloaded the model to the
+  A100, and generated tokens. The profiling benchmark then exercised the same
+  wrapper end to end.
+- **Use the same model bytes.** The profiling comparison used
+  `Qwen2.5-14B-Instruct-Q6_K.gguf` on both machines, SHA-256
+  `18cd6b7d5feb00c57ff81ede8f2164ffd86be90dbee9c05bf09ded1ab179740d`.
+  Thunder also had a different Gemma GGUF; it was not substituted for the fair
+  profiling comparison.
+- **M4B requires FFmpeg/FFprobe.** The A100 image did not include FFmpeg. The
+  export comparison installed Ubuntu FFmpeg 4.4.2. Preflight this dependency on
+  a fresh instance instead of discovering it after staging audio.
 
 ---
 
@@ -343,10 +419,12 @@ The workflow that follows from that:
 
 Before renting:
 
-- [ ] Is this actually GPU-bound? (If it's an export → **stop, stay local**.)
+- [ ] Is this actually GPU-bound? (Exports were measured on both machines and
+      local won; use Thunder only if the remote placement serves another need.)
 - [ ] Does it need >16 GB VRAM or CUDA? (If no → **probably stay local**.)
 - [ ] Is the local run long enough that hours matter? (If no → **stay local**.)
-- [ ] Am I expecting a parallelism win? (If yes → **re-read §4, I'm not getting one**.)
+- [ ] Am I expecting a parallelism win? (If yes → re-read §4 and measure the
+      exact endpoint; the A100/Gemma optimum was parallel 1.)
 
 After the job:
 
