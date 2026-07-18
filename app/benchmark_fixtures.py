@@ -358,3 +358,55 @@ def build_voicelab_dedup_manifest(fixtures, root_dir, repetitions=1,
     return {"schema_version": 1, "stage": "voicelab_dedup",
             "targets": targets or ["local"], "repetitions": repetitions,
             "fixtures": normalized, "settings": {}}
+
+
+def build_voicelab_profiling_manifest(fixtures, root_dir, repetitions=1,
+                                      targets=None):
+    """Build immutable acoustic + GGUF Voice Lab profiling fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one profiling fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        zip_path = os.path.abspath(os.path.join(root_dir, fixture.get("zip_path") or ""))
+        model_path = os.path.abspath(os.path.join(root_dir, fixture.get("model_path") or ""))
+        if not is_path_inside(zip_path, root_dir) or not os.path.isfile(zip_path):
+            raise ValueError("profiling zip must be a file inside the project")
+        if not is_path_inside(model_path, root_dir) or not os.path.isfile(model_path):
+            raise ValueError("profiling model must be a file inside the project")
+        with open(zip_path, "rb") as source_file:
+            zip_sha256 = hashlib.sha256(source_file.read()).hexdigest()
+        with open(model_path, "rb") as model_file:
+            model_sha256 = hashlib.sha256(model_file.read()).hexdigest()
+        selected = {"zip_path": os.path.relpath(zip_path, root_dir),
+                    "zip_sha256": zip_sha256,
+                    "model_path": os.path.relpath(model_path, root_dir),
+                    "model_sha256": model_sha256,
+                    "dataset_id": fixture.get("dataset_id", "narrator_benchmark_voice_book_char1_vol01"),
+                    "seed": fixture.get("seed", 42)}
+        selected.update({"id": fixture.get("id") or f"profiling-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "voicelab_profiling",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}
+
+
+def build_voicelab_naming_manifest(fixtures, repetitions=1, targets=None):
+    """Build self-contained deterministic Voice Lab naming fixtures."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one naming fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        entries = copy.deepcopy(fixture.get("entries"))
+        if not isinstance(entries, list) or not entries or any(
+                not isinstance(entry, dict) or not entry.get("id")
+                or not entry.get("dataset_id") or not entry.get("voice_profile")
+                for entry in entries):
+            raise ValueError("naming entries require id, dataset_id, and voice_profile")
+        selected = {"entries": entries}
+        selected.update({"id": fixture.get("id") or f"naming-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "voicelab_naming",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

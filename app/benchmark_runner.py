@@ -118,6 +118,23 @@ def _validate_dedup_fixture(fixture, root_dir):
     return content
 
 
+def _validate_profiling_fixture(fixture, root_dir):
+    keys = ("zip_path", "zip_sha256", "model_path", "model_sha256",
+            "dataset_id", "seed")
+    content = {key: fixture[key] for key in keys}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    for path_key, hash_key in (("zip_path", "zip_sha256"),
+                               ("model_path", "model_sha256")):
+        path = os.path.abspath(os.path.join(root_dir, fixture[path_key]))
+        if not is_path_inside(path, root_dir) or not os.path.isfile(path):
+            raise ValueError(f"profiling {path_key} is outside the project or missing")
+        with open(path, "rb") as source_file:
+            if hashlib.sha256(source_file.read()).hexdigest() != fixture[hash_key]:
+                raise ValueError(f"profiling {path_key} hash changed")
+    return content
+
+
 def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
     if target == "local":
         worker_payload = payload
@@ -457,6 +474,131 @@ def run_dedup_benchmark(manifest, environment, report_path, state,
             if (fixture["id"], repetition) in completed:
                 continue
             result = _run_dedup_worker(
+                fixture, target, manifest.get("settings") or {}, root_dir,
+                (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _run_profiling_worker(fixture, target, settings, root_dir, ssh_alias):
+    zip_path = os.path.join(root_dir, fixture["zip_path"])
+    if target == "local":
+        python_executable = settings.get("local_python")
+        worker_root = root_dir
+        worker_zip = zip_path
+        model_path = os.path.join(root_dir, fixture["model_path"])
+        worker_script = os.path.join(root_dir, "app", "profiling_benchmark.py")
+        prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python")
+        model_path = settings.get("remote_model_path")
+        if not remote_root or not python_executable or not model_path or not ssh_alias:
+            raise ValueError("Thunder profiling requires remote_root, remote_python, remote_model_path, and SSH alias")
+        worker_root = remote_root
+        worker_zip = f"/tmp/alexandria-profiling-{fixture['zip_sha256']}.zip"
+        transfer = subprocess.run(["scp", zip_path, f"{ssh_alias}:{worker_zip}"],
+                                  capture_output=True, text=True, timeout=300, check=False)
+        if transfer.returncode:
+            raise RuntimeError(transfer.stderr.strip() or "profiling fixture transfer failed")
+        verify = subprocess.run(["ssh", ssh_alias, "sha256sum", model_path],
+                                capture_output=True, text=True, timeout=300, check=False)
+        observed = verify.stdout.strip().split()[0] if verify.returncode == 0 and verify.stdout.strip() else ""
+        if observed != fixture["model_sha256"]:
+            raise ValueError("Thunder profiling model hash does not match the fixture")
+        worker_script = os.path.join(remote_root, "app", "profiling_benchmark.py")
+        prefix = ["ssh", ssh_alias]
+    if not python_executable:
+        raise ValueError("profiling benchmark requires a Python executable")
+    payload = {"fixture": fixture, "root_dir": worker_root,
+               "zip_path": worker_zip, "model_path": model_path}
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    worker_command = [python_executable, worker_script, "--payload", encoded]
+    command = worker_command if not prefix else [*prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True,
+                            timeout=3600, check=False)
+    marker = "PROFILING_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or
+                            "profiling worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_profiling_benchmark(manifest, environment, report_path, state,
+                            config_path, root_dir):
+    """Run production Voice Lab acoustics and GGUF description generation."""
+    target = manifest["targets"][0]
+    for fixture in manifest["fixtures"]:
+        _validate_profiling_fixture(fixture, root_dir)
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_profiling_worker(
+                fixture, target, manifest.get("settings") or {}, root_dir,
+                (config.get("llm_remote_ssh") or "").strip())
+            report["cases"].append({"fixture_id": fixture["id"],
+                                    "repetition": repetition, **result})
+            save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
+
+
+def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
+    if _hash_entries({"entries": fixture["entries"]}) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    if target == "local":
+        python_executable = settings.get("local_python") or sys.executable
+        script = os.path.join(root_dir, "name_voices.py")
+        worker = os.path.join(root_dir, "app", "naming_benchmark.py")
+        prefix = []
+    else:
+        remote_root = settings.get("remote_root")
+        python_executable = settings.get("remote_python") or "python3"
+        if not remote_root or not ssh_alias:
+            raise ValueError("Thunder naming requires remote_root and SSH alias")
+        script = os.path.join(remote_root, "name_voices.py")
+        worker = os.path.join(remote_root, "app", "naming_benchmark.py")
+        prefix = ["ssh", ssh_alias]
+    payload = {"fixture": fixture, "python": python_executable, "script": script}
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    worker_command = [python_executable, worker, "--payload", encoded]
+    command = worker_command if not prefix else [*prefix,
+        " ".join(shlex.quote(part) for part in worker_command)]
+    result = subprocess.run(command, capture_output=True, text=True,
+                            timeout=120, check=False)
+    marker = "NAMING_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        raise RuntimeError((result.stderr.strip() or result.stdout.strip() or
+                            "naming worker failed")[-4000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_naming_benchmark(manifest, environment, report_path, state,
+                         config_path, root_dir):
+    """Run deterministic production Voice Lab naming locally or remotely."""
+    target = manifest["targets"][0]
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    for fixture in manifest["fixtures"]:
+        for repetition in range(1, manifest["repetitions"] + 1):
+            if (fixture["id"], repetition) in completed:
+                continue
+            result = _run_naming_worker(
                 fixture, target, manifest.get("settings") or {}, root_dir,
                 (config.get("llm_remote_ssh") or "").strip())
             report["cases"].append({"fixture_id": fixture["id"],
