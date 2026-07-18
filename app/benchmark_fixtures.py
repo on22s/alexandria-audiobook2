@@ -140,3 +140,37 @@ def build_tts_generation_manifest(fixtures, repetitions=1, targets=None,
             "quality_thresholds": {"min_duration_seconds": 0.1,
                                    "max_silence_ratio": 0.98,
                                    "max_clipping_ratio": 0.01}}
+
+
+def build_tts_clone_manifest(fixtures, root_dir, repetitions=1, targets=None,
+                             max_new_tokens=2048):
+    """Build immutable Base-model clone fixtures from repository audio."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one clone fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        ref_path = os.path.abspath(os.path.join(root_dir, fixture.get("ref_audio") or ""))
+        if not is_path_inside(ref_path, root_dir) or not os.path.isfile(ref_path):
+            raise ValueError("clone reference audio must be a file inside the project")
+        relative_ref = os.path.relpath(ref_path, root_dir)
+        with open(ref_path, "rb") as ref_file:
+            ref_digest = hashlib.sha256(ref_file.read()).hexdigest()
+        selected = {"voice_type": "clone", "text": fixture.get("text"),
+                    "speaker": fixture.get("speaker", "CLONE"),
+                    "seed": fixture.get("seed", 0), "ref_audio": relative_ref,
+                    "ref_audio_sha256": ref_digest,
+                    "ref_text": fixture.get("ref_text")}
+        if any(not isinstance(selected[key], str) or not selected[key].strip()
+               for key in ("text", "speaker", "ref_text")):
+            raise ValueError("clone text, speaker, and ref_text must be non-empty")
+        if not isinstance(selected["seed"], int) or selected["seed"] < 0:
+            raise ValueError("clone seed must be a non-negative integer")
+        selected.update({"id": fixture.get("id") or f"clone-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "tts_generation",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {"max_new_tokens": max_new_tokens},
+            "quality_thresholds": {"min_duration_seconds": 0.1,
+                                   "max_silence_ratio": 0.98,
+                                   "max_clipping_ratio": 0.01}}

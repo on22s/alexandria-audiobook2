@@ -1,11 +1,15 @@
 import tempfile
 import unittest
 import wave
+import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
-from tts_benchmark import measure_wav, run_custom_voice_case
+from tts_benchmark import (measure_wav, run_clone_voice_case,
+                           run_custom_voice_case)
+import tts_vram_benchmark
 
 
 class TTSBenchmarkTests(unittest.TestCase):
@@ -64,6 +68,72 @@ class TTSBenchmarkTests(unittest.TestCase):
                 engine, fixture, str(Path(tmp, "out.wav")), load_model=True)
         self.assertEqual(1, engine.loaded)
         self.assertEqual("Hello.", engine.call[0])
+        self.assertEqual(0.1, metrics["duration_seconds"])
+
+    def test_vram_sweep_uses_peak_across_all_sub_batches(self):
+        class FakeCuda:
+            @staticmethod
+            def is_available():
+                return True
+
+            @staticmethod
+            def reset_peak_memory_stats():
+                pass
+
+        class FakeEngine:
+            def set_sub_batch_size(self, size):
+                pass
+
+            def run_benchmark_batch(self, chunks, voice_config, output_dir, batch_seed=-1):
+                self.batch_seed = batch_seed
+                return {"completed": [], "failed": [], "peak_vram_gb": 13.83}
+
+            def _clear_gpu_cache(self):
+                pass
+
+        fake_torch = type("FakeTorch", (), {"cuda": FakeCuda})
+        engine = FakeEngine()
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.dict(sys.modules, {"torch": fake_torch}), \
+             patch.object(tts_vram_benchmark, "vram_state", return_value={}):
+            results = tts_vram_benchmark.run_sweep(
+                engine, {}, [16], tmp, n_chunks_per_run=1)
+        self.assertEqual(13.83, results[0]["peak_vram_gb"])
+        self.assertEqual(42, engine.batch_seed)
+
+    def test_vram_results_create_nested_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "new", "nested", "results.json")
+            tts_vram_benchmark.save_benchmark_results({"ok": True}, str(path))
+            self.assertTrue(path.is_file())
+
+    def test_clone_case_separates_prompt_and_generation(self):
+        class FakeEngine:
+            def _init_local_clone(self):
+                pass
+
+            def _get_clone_prompt(self, speaker, config):
+                return "prompt"
+
+            def generate_clone_voice(self, text, speaker, config, path):
+                with wave.open(path, "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(np.ones(2400, dtype="<i2").tobytes())
+                return True
+
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp, "ref.wav")
+            ref.write_bytes(b"reference")
+            fixture = {"text": "Hello.", "speaker": "CLONE", "seed": 2,
+                       "ref_audio": "ref.wav", "ref_text": "Reference.",
+                       "ref_audio_sha256": hashlib.sha256(b"reference").hexdigest()}
+            metrics = run_clone_voice_case(
+                FakeEngine(), fixture, str(Path(tmp, "out.wav")), tmp,
+                load_model=True)
+        self.assertIn("prompt_build_seconds", metrics)
         self.assertEqual(0.1, metrics["duration_seconds"])
 
 

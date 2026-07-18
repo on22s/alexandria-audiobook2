@@ -66,11 +66,41 @@ def run_custom_voice_case(engine, fixture, output_path, load_model=False):
     return metrics
 
 
+def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=False):
+    """Exercise Base-model prompt construction and cached clone generation."""
+    ref_path = os.path.abspath(os.path.join(root_dir, fixture["ref_audio"]))
+    with open(ref_path, "rb") as ref_file:
+        if hashlib.sha256(ref_file.read()).hexdigest() != fixture["ref_audio_sha256"]:
+            raise ValueError("clone reference audio hash changed")
+    voice_config = {fixture["speaker"]: {
+        "type": "clone", "seed": fixture["seed"], "ref_audio": ref_path,
+        "ref_text": fixture["ref_text"],
+    }}
+    load_started = time.monotonic()
+    if load_model:
+        engine._init_local_clone()
+    load_seconds = time.monotonic() - load_started
+    prompt_started = time.monotonic()
+    engine._get_clone_prompt(fixture["speaker"], voice_config)
+    prompt_seconds = time.monotonic() - prompt_started
+    generation_started = time.monotonic()
+    succeeded = engine.generate_clone_voice(
+        fixture["text"], fixture["speaker"], voice_config, output_path)
+    generation_seconds = time.monotonic() - generation_started
+    if not succeeded or not os.path.isfile(output_path):
+        raise RuntimeError("clone generation did not produce a WAV")
+    metrics = measure_wav(output_path, generation_seconds)
+    metrics.update({"model_load_seconds": round(load_seconds, 3),
+                    "prompt_build_seconds": round(prompt_seconds, 3)})
+    return metrics
+
+
 def execute_payload(payload, output_dir):
     """Run all cases with one engine so warm timings match production use."""
     config = {"tts": dict(payload.get("tts") or {})}
     config["tts"].update({"mode": "local", "compile_codec": False})
     engine = TTSEngine(config)
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cases = []
     first = True
     os.makedirs(output_dir, exist_ok=True)
@@ -80,7 +110,12 @@ def execute_payload(payload, output_dir):
         for repetition in repetitions:
             path = os.path.join(output_dir, f"{fixture['id']}-{repetition}.wav")
             try:
-                metrics = run_custom_voice_case(engine, fixture, path, load_model=first)
+                if fixture.get("voice_type", "custom") == "clone":
+                    metrics = run_clone_voice_case(
+                        engine, fixture, path, root_dir, load_model=first)
+                else:
+                    metrics = run_custom_voice_case(
+                        engine, fixture, path, load_model=first)
                 status, error = "passed", None
             except Exception as exc:
                 metrics, status, error = {}, "failed", str(exc)

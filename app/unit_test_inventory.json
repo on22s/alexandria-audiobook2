@@ -48,6 +48,7 @@
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_tts_rejects_checkout_that_does_not_match"
   ],
   "test_benchmark_fixtures": [
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
@@ -59,6 +60,7 @@
   "test_benchmark_runner": [
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_remote_clone_assets_are_staged_once_and_payload_is_rewritten",
     "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
     "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
@@ -404,9 +406,12 @@
   ],
   "test_support": [],
   "test_tts_benchmark": [
+    "test_tts_benchmark.TTSBenchmarkTests.test_clone_case_separates_prompt_and_generation",
     "test_tts_benchmark.TTSBenchmarkTests.test_custom_voice_case_uses_production_engine_call",
     "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_rejects_non_pcm16_input",
-    "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_reports_duration_throughput_and_audio_health"
+    "test_tts_benchmark.TTSBenchmarkTests.test_measure_wav_reports_duration_throughput_and_audio_health",
+    "test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",
+    "test_tts_benchmark.TTSBenchmarkTests.test_vram_sweep_uses_peak_across_all_sub_batches"
   ],
   "test_voice_clustering": [
     "test_voice_clustering.VoiceClusteringTests.test_clustering_is_invariant_to_input_order",

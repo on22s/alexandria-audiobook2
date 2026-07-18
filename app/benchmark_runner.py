@@ -5,6 +5,7 @@ import os
 import time
 import json
 import base64
+import copy
 import shlex
 import subprocess
 import sys
@@ -22,16 +23,31 @@ from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
 
 
-def _validate_tts_fixture(fixture):
-    content = {key: fixture[key] for key in
-               ("text", "instruct", "speaker", "voice", "seed")}
+def _validate_tts_fixture(fixture, root_dir=None):
+    if fixture.get("voice_type", "custom") == "clone":
+        keys = ("voice_type", "text", "speaker", "seed", "ref_audio",
+                "ref_audio_sha256", "ref_text")
+    else:
+        keys = ("text", "instruct", "speaker", "voice", "seed")
+    content = {key: fixture[key] for key in keys}
     if _hash_entries(content) != fixture.get("sha256"):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    if fixture.get("voice_type") == "clone" and root_dir:
+        path = os.path.abspath(os.path.join(root_dir, fixture["ref_audio"]))
+        if not is_path_inside(path, root_dir) or not os.path.isfile(path):
+            raise ValueError("clone reference audio is outside the project or missing")
+        with open(path, "rb") as ref_file:
+            if hashlib.sha256(ref_file.read()).hexdigest() != fixture["ref_audio_sha256"]:
+                raise ValueError("clone reference audio hash changed")
     return content
 
 
 def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
-    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    if target == "local":
+        worker_payload = payload
+    else:
+        worker_payload = _stage_remote_tts_assets(payload, root_dir, ssh_alias)
+    encoded = base64.b64encode(json.dumps(worker_payload).encode("utf-8")).decode("ascii")
     if target == "local":
         command = [sys.executable, os.path.join(root_dir, "app", "tts_benchmark.py"),
                    "--payload", encoded, "--output-dir", output_dir]
@@ -54,6 +70,36 @@ def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
     return json.loads(lines[-1][len(marker):])
 
 
+def _stage_remote_tts_assets(payload, root_dir, ssh_alias):
+    """Copy hash-verified runtime assets to a stable remote temp directory."""
+    if not ssh_alias:
+        raise ValueError("Thunder SSH alias is required to stage TTS assets")
+    staged = copy.deepcopy(payload)
+    clone_fixtures = [fixture for fixture in staged.get("fixtures", [])
+                      if fixture.get("voice_type") == "clone"]
+    if not clone_fixtures:
+        return staged
+    remote_dir = "/tmp/alexandria-tts-benchmark-assets"
+    mkdir = subprocess.run(["ssh", ssh_alias, "mkdir", "-p", remote_dir],
+                           capture_output=True, text=True, timeout=30, check=False)
+    if mkdir.returncode:
+        raise RuntimeError(mkdir.stderr.strip() or "could not create remote asset directory")
+    copied = set()
+    for fixture in clone_fixtures:
+        digest = fixture["ref_audio_sha256"]
+        source = os.path.abspath(os.path.join(root_dir, fixture["ref_audio"]))
+        remote_path = f"{remote_dir}/{digest}.wav"
+        if digest not in copied:
+            transfer = subprocess.run(
+                ["scp", source, f"{ssh_alias}:{remote_path}"], capture_output=True,
+                text=True, timeout=120, check=False)
+            if transfer.returncode:
+                raise RuntimeError(transfer.stderr.strip() or "clone reference transfer failed")
+            copied.add(digest)
+        fixture["ref_audio"] = remote_path
+    return staged
+
+
 def run_tts_generation_benchmark(manifest, environment, report_path, state,
                                  config_path, root_dir):
     """Run the same production CustomVoice worker locally or through SSH."""
@@ -63,7 +109,7 @@ def run_tts_generation_benchmark(manifest, environment, report_path, state,
     settings = manifest.get("settings") or {}
     fixtures = []
     for fixture in manifest["fixtures"]:
-        _validate_tts_fixture(fixture)
+        _validate_tts_fixture(fixture, root_dir)
         fixtures.append(dict(fixture))
     config = load_app_config(config_path)
     report = load_resumable_benchmark_report(report_path, manifest, environment)

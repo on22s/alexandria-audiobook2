@@ -141,8 +141,48 @@ For this exact serial CustomVoice path, the local RX 9070 XT delivered about
 the A100 ran at only about 15% utilization during observation. The A100's large
 VRAM capacity therefore did not translate into single-stream speed. Keep serial
 CustomVoice generation local with this software stack. Native list batching
-and LoRA training remain separate cohorts; the A100's extra VRAM may matter
-there, so this result must not be extrapolated to them.
+was measured separately below. LoRA training remains a separate cohort, so
+this result must not be extrapolated to it.
+
+#### CustomVoice native-batch capacity
+
+The production `_local_batch_custom` path was swept with 16 identical
+mixed-length source chunks on each machine. Caps above 8 did not help: at 16,
+length-ratio splitting still produced two sub-batches and autoregressive
+padding reduced throughput. The initial capacity sweep found:
+
+| Batch cap | RX 9070 XT realtime | A100 realtime | A100 failures |
+|---:|---:|---:|---:|
+| 2 | 1.71× | 0.47× | 0/16 |
+| 4 | 3.12× | 0.86× | 0/16 |
+| 8 | 4.93× | 1.32× | 0/16 |
+| 16 | 4.03× | 0.89× | 0/16 |
+
+That sweep exposed two measurement defects: the tool reported only the final
+sub-batch's VRAM peak and did not fix the TTS seed. Both were corrected before
+the confirmation run. With `batch_seed=42` and cap 8, local completed all 16
+inputs in **87.3s** at 9.64 GB peak; the A100 completed them in **210.6s** at
+10.12 GB peak. Output durations differ across ROCm/CUDA kernels even with the
+same seed, so equal-input wall time is the primary comparison: local was
+**2.41× faster**. The measured optimum is cap 8 on both machines; A100 capacity
+did not permit useful scaling beyond it for this mixed-length workload.
+
+#### Base-model voice cloning
+
+The production clone path used the same hash-verified Watson reference audio
+and transcript on both machines. Three short/medium/long target texts were run
+twice with fixed seeds and a 1,024-token cap. Model loading, reusable clone
+prompt construction, and generation were timed separately.
+
+| Environment | Passed | Base load | Prompt build | Six generations | Aggregate audio throughput |
+|---|---:|---:|---:|---:|---:|
+| RX 9070 XT local | 6/6 | 6.44 s | 0.99 s | 44.8 s | 1.15× realtime |
+| A100 80 GB Thunder | 6/6 | 30.14 s | 7.20 s | 228.3 s | 0.25× realtime |
+
+All outputs were valid 24 kHz mono PCM, deterministic within each backend,
+non-silent, and unclipped. For equal target inputs, local generation was
+**5.09× faster**. Keep serial Base-model cloning local with these Torch/Qwen
+stacks. Native clone batching remains a separate measurement.
 
 ---
 
