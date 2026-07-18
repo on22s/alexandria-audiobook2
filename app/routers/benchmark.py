@@ -9,12 +9,15 @@ from benchmark_core import (get_benchmark_preflight_id,
                             validate_benchmark_manifest)
 from benchmark_environment import (collect_local_environment,
                                    collect_local_tts_environment,
+                                   collect_cpu_environment,
                                    collect_thunder_environment,
                                    collect_thunder_tts_environment)
 from benchmark_runner import (run_script_generation_benchmark,
                               run_dedup_benchmark,
                               run_lora_training_benchmark,
+                              run_naming_benchmark,
                               run_preparer_benchmark,
+                              run_profiling_benchmark,
                               run_script_review_benchmark,
                               run_tts_generation_benchmark)
 from config_settings import load_app_config
@@ -48,12 +51,17 @@ def _build_benchmark_preflight(request):
     config = load_app_config(CONFIG_PATH)
     environments = {}
     for target in manifest["targets"]:
-        if manifest["stage"] in {"tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup"}:
+        if manifest["stage"] == "voicelab_naming":
+            environments[target] = collect_cpu_environment(
+                ROOT_DIR, target, (config.get("llm_remote_ssh") or "").strip()
+                if target == "thunder" else None)
+            continue
+        if manifest["stage"] in {"tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling"}:
             settings = manifest.get("settings") or {}
             if target == "local":
                 environments[target] = collect_local_tts_environment(
                     ROOT_DIR, settings.get("local_python")
-                    if manifest["stage"] in {"voicelab_preparer", "voicelab_dedup"} else None)
+                    if manifest["stage"] in {"voicelab_preparer", "voicelab_dedup", "voicelab_profiling"} else None)
             else:
                 environments[target] = collect_thunder_tts_environment(
                     ROOT_DIR, (config.get("llm_remote_ssh") or "").strip(),
@@ -94,7 +102,7 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] not in {"script_generation", "script_review", "tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup"} or len(manifest["targets"]) != 1:
+    if manifest["stage"] not in {"script_generation", "script_review", "tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling", "voicelab_naming"} or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
                             detail="Benchmark runs require a supported stage and exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
@@ -124,8 +132,14 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         elif manifest["stage"] == "voicelab_preparer":
             run_preparer_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
-        else:
+        elif manifest["stage"] == "voicelab_dedup":
             run_dedup_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
+        elif manifest["stage"] == "voicelab_profiling":
+            run_profiling_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
+        else:
+            run_naming_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
 
     background_tasks.add_task(_run_claimed_background_task, "benchmark", _run)

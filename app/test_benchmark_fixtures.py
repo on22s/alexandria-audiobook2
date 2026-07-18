@@ -11,6 +11,8 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_tts_lora_manifest,
                                 build_lora_training_manifest,
                                 build_voicelab_dedup_manifest,
+                                build_voicelab_profiling_manifest,
+                                build_voicelab_naming_manifest,
                                 build_voicelab_preparer_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
@@ -164,6 +166,25 @@ class BenchmarkFixtureTests(unittest.TestCase):
                 "dataset_path": "dataset", "samples_per_volume": 2}], tmp)
         self.assertEqual("voicelab_dedup", manifest["stage"])
         self.assertEqual(4, len(manifest["fixtures"][0]["audio_sha256"]))
+
+    def test_profiling_manifest_hashes_zip_and_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "voice.zip").write_bytes(b"zip")
+            Path(tmp, "model.gguf").write_bytes(b"model")
+            manifest = build_voicelab_profiling_manifest([{
+                "zip_path": "voice.zip", "model_path": "model.gguf"}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("voicelab_profiling", manifest["stage"])
+        self.assertEqual(hashlib.sha256(b"zip").hexdigest(), fixture["zip_sha256"])
+        self.assertEqual(hashlib.sha256(b"model").hexdigest(), fixture["model_sha256"])
+
+    def test_naming_manifest_embeds_profile_entries(self):
+        entries = [{"id": "raw", "dataset_id": "raw",
+                    "voice_profile": "Warm baritone — best for 40s fantasy heroes"}]
+        manifest = build_voicelab_naming_manifest([{"entries": entries}])
+        entries[0]["id"] = "changed"
+        self.assertEqual("voicelab_naming", manifest["stage"])
+        self.assertEqual("raw", manifest["fixtures"][0]["entries"][0]["id"])
 
 
 if __name__ == "__main__":

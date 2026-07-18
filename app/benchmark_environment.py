@@ -166,3 +166,26 @@ def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_pyt
                     "packages": {"torch": details["torch"], "qwen_tts": details["qwen_tts"]},
                     "python_executable": remote_python, "remote_root": remote_root}
     return build_environment_fingerprint("thunder", observations)
+
+
+def collect_cpu_environment(root_dir, target, ssh_alias=None):
+    """Fingerprint a standard-library-only local or remote benchmark runtime."""
+    runtime = get_runtime_info(root_dir)
+    if target == "local":
+        hostname = platform.node()
+        python_version = platform.python_version()
+        platform_details = runtime["platform"]
+    elif target == "thunder":
+        if not ssh_alias:
+            raise ValueError("Thunder SSH alias is required")
+        remote = _get_remote_runtime_observations(ssh_alias)
+        hostname = remote["hostname"]
+        python_version = remote["python_version"]
+        platform_details = remote["platform"]
+    else:
+        raise ValueError("CPU benchmark target must be local or thunder")
+    return build_environment_fingerprint(target, {
+        "hostname": hostname, "gpu_name": "none", "backend": "cpu",
+        "python_version": python_version, "git_commit": runtime["revision"],
+        "worktree": _get_local_worktree_identity(root_dir),
+        "platform": platform_details})
