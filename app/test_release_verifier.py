@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import re
@@ -259,7 +261,11 @@ class ReleaseVerifierTests(unittest.TestCase):
                  side_effect=ValueError("token=do-not-store compilation failed"),
              ):
             report_path = Path(tmp) / "report.json"
-            self.assertEqual(1, verify_release.main(["--json-report", str(report_path)]))
+            # Suppress the simulated "RELEASE VERIFICATION FAILED" that main()
+            # prints; otherwise it leaks into the suite output and reads like a
+            # real failure on every run.
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, verify_release.main(["--json-report", str(report_path)]))
 
             report = json.loads(report_path.read_text(encoding="utf-8"))
 
@@ -272,9 +278,10 @@ class ReleaseVerifierTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(verify_release, "compile_python_files", side_effect=KeyboardInterrupt):
             report_path = Path(tmp) / "report.json"
-            self.assertEqual(
-                130, verify_release.main(["--json-report", str(report_path)])
-            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    130, verify_release.main(["--json-report", str(report_path)])
+                )
             report = json.loads(report_path.read_text(encoding="utf-8"))
 
         self.assertEqual("failed", report["status"])

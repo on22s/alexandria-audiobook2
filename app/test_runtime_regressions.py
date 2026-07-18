@@ -267,6 +267,31 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn('<meta name="app-build" content="">', body)
         self.assertNotIn('content="__APP_BUILD__"', body)
 
+    def test_index_html_is_cached_until_mtime_or_build_changes(self):
+        from unittest.mock import mock_open
+        system_module._INDEX_HTML_CACHE.update(key=None, html=None)
+        fake = ('<meta name="app-build" content="__APP_BUILD__">'
+                '<script>b !== "__APP_BUILD__"</script>')
+        opener = mock_open(read_data=fake)
+        with patch("routers.system.open", opener, create=True), \
+             patch.object(system_module.os.path, "getmtime", return_value=111.0), \
+             patch.object(system_module, "get_runtime_info", return_value={"short_revision": "rev1"}):
+            r1 = asyncio.run(system_module.read_index())
+            r2 = asyncio.run(system_module.read_index())
+            # Second request served from cache — the file is read only once.
+            self.assertEqual(1, opener.call_count)
+            self.assertEqual(r1.body, r2.body)
+            self.assertIn(b'content="rev1"', r1.body)
+            # The JS placeholder literal must survive (only the meta is stamped).
+            self.assertIn(b'"__APP_BUILD__"', r1.body)
+        # A changed file mtime invalidates the cache -> re-read.
+        with patch("routers.system.open", opener, create=True), \
+             patch.object(system_module.os.path, "getmtime", return_value=222.0), \
+             patch.object(system_module, "get_runtime_info", return_value={"short_revision": "rev1"}):
+            asyncio.run(system_module.read_index())
+            self.assertEqual(2, opener.call_count)
+        system_module._INDEX_HTML_CACHE.update(key=None, html=None)
+
     def test_system_stats_does_not_block_eta_requests(self):
         async def exercise_requests():
             probe_started = threading.Event()

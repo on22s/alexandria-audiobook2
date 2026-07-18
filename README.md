@@ -1073,6 +1073,22 @@ Alexandria/
 └── README.md
 ```
 
+## Contributing
+
+The API-contract and unit-test-inventory snapshots (`app/api_contract/`,
+`app/unit_test_inventory.json`) must be regenerated whenever you add a route or a
+test, or the release verifier (`app/verify_release.py`) fails on drift. To catch
+this at commit time, enable the opt-in git hook:
+
+```
+git config core.hooksPath .githooks
+```
+
+It runs `update_api_contract_snapshots.py --check` and
+`update_test_inventory.py --check` before each commit and tells you which
+regenerate command to run. It skips silently if the `app/env` interpreter isn't
+present, so it never blocks a commit on a missing venv.
+
 ## Acknowledgements
 
 - [Ayush Naphade](https://github.com/aayushnaphade) — Persona generation, speaker alias resolution, and contextual script review ([PR #42](https://github.com/Finrandojin/alexandria-audiobook/pull/42)). Check out his project [Lily](https://lily.rayoneai.in/) — looking forward to seeing where it goes!
