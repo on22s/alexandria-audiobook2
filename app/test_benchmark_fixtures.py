@@ -5,6 +5,7 @@ from pathlib import Path
 
 from benchmark_fixtures import (build_script_generation_manifest,
                                 build_persona_generation_manifest,
+                                build_nickname_detection_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
@@ -196,6 +197,17 @@ class BenchmarkFixtureTests(unittest.TestCase):
         self.assertEqual("persona_generation", manifest["stage"])
         self.assertEqual(["ALICE"], fixture["speakers"])
         self.assertEqual("Who is there?", fixture["entries"][1]["text"])
+
+    def test_nickname_manifest_embeds_expected_aliases(self):
+        entries = [{"speaker": "BEATRICE", "text": "Hello."},
+                   {"speaker": "BETTY", "text": "Hi."}]
+        expected = {"BETTY": "BEATRICE"}
+        manifest = build_nickname_detection_manifest([{
+            "entries": entries, "expected_aliases": expected}])
+        expected["BETTY"] = "changed"
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("nickname_detection", manifest["stage"])
+        self.assertEqual({"BETTY": "BEATRICE"}, fixture["expected_aliases"])
 
 
 if __name__ == "__main__":

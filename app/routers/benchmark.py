@@ -17,6 +17,7 @@ from benchmark_runner import (run_script_generation_benchmark,
                               run_lora_training_benchmark,
                               run_naming_benchmark,
                               run_persona_generation_benchmark,
+                              run_nickname_detection_benchmark,
                               run_preparer_benchmark,
                               run_profiling_benchmark,
                               run_script_review_benchmark,
@@ -103,7 +104,7 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] not in {"script_generation", "script_review", "persona_generation", "tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling", "voicelab_naming"} or len(manifest["targets"]) != 1:
+    if manifest["stage"] not in {"script_generation", "script_review", "persona_generation", "nickname_detection", "tts_generation", "voicelab_training", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling", "voicelab_naming"} or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
                             detail="Benchmark runs require a supported stage and exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
@@ -126,6 +127,9 @@ async def benchmark_start(background_tasks: BackgroundTasks,
                 manifest, environment, report_path, state, CONFIG_PATH, SCRIPTS_DIR)
         elif manifest["stage"] == "persona_generation":
             run_persona_generation_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
+        elif manifest["stage"] == "nickname_detection":
+            run_nickname_detection_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
         elif manifest["stage"] == "tts_generation":
             run_tts_generation_benchmark(
