@@ -9,6 +9,12 @@ import benchmark_runner
 
 
 class BenchmarkRunnerTests(unittest.TestCase):
+    def test_tts_fixture_drift_is_rejected_before_worker(self):
+        with self.assertRaisesRegex(ValueError, "hash changed"):
+            benchmark_runner._validate_tts_fixture({
+                "id": "tts", "sha256": "stale", "text": "Hello",
+                "instruct": "Neutral", "speaker": "N", "voice": "Ryan", "seed": 0})
+
     def test_runner_persists_each_successful_repetition(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture_path = Path(tmp, "fixture.txt")

@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 from benchmark_fixtures import (build_script_generation_manifest,
-                                build_script_review_manifest)
+                                build_script_review_manifest,
+                                build_tts_generation_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
@@ -69,6 +70,19 @@ class BenchmarkFixtureTests(unittest.TestCase):
                             encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "source hash changed"):
                 _load_review_fixture(manifest["fixtures"][0], tmp)
+
+    def test_tts_manifest_is_self_contained_and_hashes_generation_inputs(self):
+        manifest = build_tts_generation_manifest([{
+            "id": "short", "text": "The door opened.",
+            "instruct": "Quiet, tense narration.", "voice": "Ryan", "seed": 7}])
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("tts_generation", manifest["stage"])
+        self.assertEqual("The door opened.", fixture["text"])
+        self.assertEqual(64, len(fixture["sha256"]))
+
+    def test_tts_manifest_rejects_random_seed(self):
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            build_tts_generation_manifest([{"text": "Hello.", "seed": -1}])
 
 
 if __name__ == "__main__":

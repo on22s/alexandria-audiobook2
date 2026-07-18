@@ -8,9 +8,12 @@ from pydantic import BaseModel
 from benchmark_core import (get_benchmark_preflight_id,
                             validate_benchmark_manifest)
 from benchmark_environment import (collect_local_environment,
-                                   collect_thunder_environment)
+                                   collect_local_tts_environment,
+                                   collect_thunder_environment,
+                                   collect_thunder_tts_environment)
 from benchmark_runner import (run_script_generation_benchmark,
-                              run_script_review_benchmark)
+                              run_script_review_benchmark,
+                              run_tts_generation_benchmark)
 from config_settings import load_app_config
 from core import (CONFIG_PATH, REPORTS_DIR, ROOT_DIR, SCRIPTS_DIR, UPLOADS_DIR,
                   _init_batch_state, _run_claimed_background_task, check_global_gpu_lock,
@@ -42,6 +45,15 @@ def _build_benchmark_preflight(request):
     config = load_app_config(CONFIG_PATH)
     environments = {}
     for target in manifest["targets"]:
+        if manifest["stage"] == "tts_generation":
+            settings = manifest.get("settings") or {}
+            if target == "local":
+                environments[target] = collect_local_tts_environment(ROOT_DIR)
+            else:
+                environments[target] = collect_thunder_tts_environment(
+                    ROOT_DIR, (config.get("llm_remote_ssh") or "").strip(),
+                    settings.get("remote_root"), settings.get("remote_python"))
+            continue
         model_name = _get_model_name(config, target)
         if target == "local":
             environments[target] = collect_local_environment(ROOT_DIR, model_name)
@@ -77,9 +89,9 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] not in {"script_generation", "script_review"} or len(manifest["targets"]) != 1:
+    if manifest["stage"] not in {"script_generation", "script_review", "tts_generation"} or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
-                            detail="LLM benchmark runs require a supported stage and exactly one target.")
+                            detail="Benchmark runs require a supported stage and exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
     os.makedirs(report_dir, exist_ok=True)
     report_path = os.path.join(report_dir, f"{preflight['preflight_id']}.json")
@@ -95,9 +107,12 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         if manifest["stage"] == "script_generation":
             run_script_generation_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, UPLOADS_DIR)
-        else:
+        elif manifest["stage"] == "script_review":
             run_script_review_benchmark(
                 manifest, environment, report_path, state, CONFIG_PATH, SCRIPTS_DIR)
+        else:
+            run_tts_generation_benchmark(
+                manifest, environment, report_path, state, CONFIG_PATH, ROOT_DIR)
 
     background_tasks.add_task(_run_claimed_background_task, "benchmark", _run)
     return {"status": "started", "report_path": report_path,

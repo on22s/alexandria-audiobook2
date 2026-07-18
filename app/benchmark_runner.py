@@ -4,6 +4,10 @@ import hashlib
 import os
 import time
 import json
+import base64
+import shlex
+import subprocess
+import sys
 
 from openai import OpenAI
 
@@ -16,6 +20,97 @@ from lmstudio_settings import get_lmstudio_status, get_remote_lmstudio_status
 from utils import is_path_inside
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from review_script import check_text_loss, diff_entries, review_batch
+
+
+def _validate_tts_fixture(fixture):
+    content = {key: fixture[key] for key in
+               ("text", "instruct", "speaker", "voice", "seed")}
+    if _hash_entries(content) != fixture.get("sha256"):
+        raise ValueError(f"fixture {fixture.get('id')} hash changed")
+    return content
+
+
+def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    if target == "local":
+        command = [sys.executable, os.path.join(root_dir, "app", "tts_benchmark.py"),
+                   "--payload", encoded, "--output-dir", output_dir]
+    else:
+        remote_root = settings.get("remote_root")
+        remote_python = settings.get("remote_python")
+        if not remote_root or not remote_python or not ssh_alias:
+            raise ValueError("Thunder TTS requires remote_root, remote_python, and SSH alias")
+        remote_command = " ".join(shlex.quote(part) for part in [
+            remote_python, os.path.join(remote_root, "app", "tts_benchmark.py"),
+            "--payload", encoded, "--output-dir", output_dir])
+        command = ["ssh", ssh_alias, remote_command]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600,
+                            check=False)
+    marker = "TTS_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        detail = result.stderr.strip() or result.stdout.strip() or "TTS worker failed"
+        raise RuntimeError(detail[-2000:])
+    return json.loads(lines[-1][len(marker):])
+
+
+def run_tts_generation_benchmark(manifest, environment, report_path, state,
+                                 config_path, root_dir):
+    """Run the same production CustomVoice worker locally or through SSH."""
+    if manifest["stage"] != "tts_generation" or len(manifest["targets"]) != 1:
+        raise ValueError("TTS runs require exactly one target")
+    target = manifest["targets"][0]
+    settings = manifest.get("settings") or {}
+    fixtures = []
+    for fixture in manifest["fixtures"]:
+        _validate_tts_fixture(fixture)
+        fixtures.append(dict(fixture))
+    config = load_app_config(config_path)
+    report = load_resumable_benchmark_report(report_path, manifest, environment)
+    completed = {(case["fixture_id"], case["repetition"])
+                 for case in report.get("cases", [])}
+    pending_fixtures = []
+    for fixture in fixtures:
+        missing = [repetition for repetition in range(1, manifest["repetitions"] + 1)
+                   if (fixture["id"], repetition) not in completed]
+        if missing:
+            pending = dict(fixture)
+            pending["repetition_numbers"] = missing
+            pending_fixtures.append(pending)
+    if not pending_fixtures:
+        for task in state["tasks"]:
+            task["status"] = "done"
+        state["status"] = "complete"
+        return report
+    if state.get("cancel"):
+        state["status"] = "cancelled"
+        return report
+    tts_config = dict(config.get("tts") or {})
+    tts_config["max_new_tokens"] = settings.get(
+        "max_new_tokens", tts_config.get("max_new_tokens", 2048))
+    payload = {"tts": tts_config, "fixtures": pending_fixtures,
+               "repetitions": manifest["repetitions"]}
+    output_dir = (os.path.join(os.path.dirname(report_path), "audio",
+                               os.path.splitext(os.path.basename(report_path))[0])
+                  if target == "local" else settings.get("remote_output_dir",
+                                                         "/tmp/alexandria-tts-benchmark"))
+    cases = _run_tts_worker(payload, target, settings, root_dir, output_dir,
+                            (config.get("llm_remote_ssh") or "").strip())
+    thresholds = manifest.get("quality_thresholds") or {}
+    for case in cases:
+        metrics = case.get("metrics") or {}
+        quality = bool(case["status"] == "passed"
+                       and metrics.get("duration_seconds", 0) >= thresholds.get("min_duration_seconds", 0.1)
+                       and metrics.get("silence_ratio", 1) <= thresholds.get("max_silence_ratio", 0.98)
+                       and metrics.get("clipping_ratio", 1) <= thresholds.get("max_clipping_ratio", 0.01))
+        case["quality"] = {"passed": quality}
+        case["status"] = "passed" if quality else "failed"
+        report["cases"].append(case)
+        save_benchmark_report(report_path, report)
+    for task in state["tasks"]:
+        task["status"] = "done"
+    state["status"] = "complete"
+    return report
 
 
 def _load_text_fixture(fixture, uploads_dir):

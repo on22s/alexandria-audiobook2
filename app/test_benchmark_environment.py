@@ -77,6 +77,21 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
             benchmark_environment._get_lmstudio_observations(
                 {"available": True, "loaded": False}, "model")
 
+    def test_thunder_tts_rejects_checkout_that_does_not_match(self):
+        payload = {"hostname": "thunder", "python_version": "3.11",
+                   "torch": "2.7", "qwen_tts": "1"}
+        result = type("Result", (), {"returncode": 0,
+                      "stdout": "banner\n" + json.dumps(payload) + "\n" + "d" * 40 + "\n",
+                      "stderr": ""})()
+        with patch.object(benchmark_environment, "_ssh_run", return_value=result), \
+             patch.object(benchmark_environment, "get_remote_gpu_name_and_backend",
+                          return_value=("A100", "cuda")), \
+             patch.object(benchmark_environment, "get_runtime_info",
+                          return_value={"revision": "a" * 40}):
+            with self.assertRaisesRegex(ValueError, "match the local git revision"):
+                benchmark_environment.collect_thunder_tts_environment(
+                    "/repo", "tnr-0", "/remote", "/venv/python")
+
 
 if __name__ == "__main__":
     unittest.main()

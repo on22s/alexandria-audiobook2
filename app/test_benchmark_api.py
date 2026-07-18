@@ -15,6 +15,23 @@ def _request(targets=None):
 
 
 class BenchmarkApiTests(unittest.TestCase):
+    def test_tts_preflight_uses_tts_environment_not_lmstudio(self):
+        request = benchmark.BenchmarkPreflightRequest(manifest={
+            "schema_version": 1, "stage": "tts_generation", "targets": ["thunder"],
+            "fixtures": [{"id": "tts", "sha256": "abc"}],
+            "settings": {"remote_root": "/remote", "remote_python": "/venv/python"}})
+        with patch.object(benchmark, "load_app_config",
+                          return_value={"llm_remote_ssh": "tnr-0"}), \
+             patch.object(benchmark, "check_global_gpu_lock"), \
+             patch.object(benchmark, "collect_thunder_tts_environment",
+                          return_value={"target": "thunder", "sha256": "tts"}) as collect, \
+             patch.object(benchmark, "collect_thunder_environment") as lmstudio:
+            result = benchmark._build_benchmark_preflight(request)
+        collect.assert_called_once_with(
+            benchmark.ROOT_DIR, "tnr-0", "/remote", "/venv/python")
+        lmstudio.assert_not_called()
+        self.assertEqual("ready", result["benchmark_state"])
+
     def test_preflight_collects_each_requested_environment(self):
         config = {"llm_local": {"model_name": "local-model"},
                   "llm_remote": {"model_name": "remote-model"},
