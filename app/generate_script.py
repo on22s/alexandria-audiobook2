@@ -762,7 +762,20 @@ def split_failed_chunk(chunk, minimum_chars=800):
 
 def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
                              params, previous_entries=None):
-    """Try a full chunk, then one bounded natural-boundary split on exhaustion."""
+    """Try a full chunk, then one bounded natural-boundary split on exhaustion.
+
+    Each split half gets its own independent retry budget. Measured on real
+    production failures: a single attempt on this class of content has roughly
+    a 40-60% failure rate even at tuned sampling params (the model occasionally
+    "stops" a few lines into a chunk despite the source having much more left),
+    so one half failing is not rare and is not evidence the other half will
+    fail too. Earlier code returned as soon as the first half failed without
+    ever attempting the second half, which meant a single unlucky sample on
+    part 1 could silently forfeit the model's independent, often-good chance
+    on part 2 -- and since the caller treats any empty result as fatal for the
+    whole book (checkpoint/resume requires a gapless accepted-chunk prefix,
+    Rule 9), that one unlucky sample cost the rest of the book's chunks too.
+    """
     entries = process_chunk(client, model_name, chunk, chunk_num, total_chunks,
                             params, previous_entries=previous_entries)
     if entries:
@@ -773,6 +786,7 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
     print(f"  Adaptive split: chunk {chunk_num}/{total_chunks} -> "
           f"{len(parts[0])} + {len(parts[1])} chars")
     combined = []
+    any_part_failed = False
     for part_number, part in enumerate(parts, 1):
         context_entries = list(previous_entries or []) + combined
         part_entries = process_chunk(
@@ -780,8 +794,11 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
             previous_entries=context_entries)
         if not part_entries:
             print(f"  Adaptive split part {part_number}/{len(parts)} failed")
-            return [], True
+            any_part_failed = True
+            continue
         combined.extend(part_entries)
+    if any_part_failed:
+        return [], True
     if not validate_chunk_quality(chunk, combined)["passed"]:
         print("  Adaptive split recombination failed original-chunk validation")
         return [], True
