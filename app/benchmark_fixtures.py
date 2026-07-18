@@ -242,3 +242,48 @@ def build_tts_design_manifest(fixtures, repetitions=1, targets=None,
             "quality_thresholds": {"min_duration_seconds": 0.1,
                                    "max_silence_ratio": 0.98,
                                    "max_clipping_ratio": 0.01}}
+
+
+def build_lora_training_manifest(fixtures, root_dir, repetitions=1, targets=None):
+    """Build immutable calibration fixtures from production training datasets."""
+    normalized = []
+    if not isinstance(fixtures, list) or not fixtures:
+        raise ValueError("at least one LoRA training fixture is required")
+    for index, fixture in enumerate(fixtures, 1):
+        dataset_path = os.path.abspath(os.path.join(root_dir, fixture.get("dataset_path") or ""))
+        metadata_path = os.path.join(dataset_path, "metadata.jsonl")
+        if not is_path_inside(dataset_path, root_dir) or not os.path.isfile(metadata_path):
+            raise ValueError("LoRA training dataset must be inside the project")
+        sample_count = fixture.get("sample_count", 8)
+        if not isinstance(sample_count, int) or sample_count < 1:
+            raise ValueError("LoRA training sample_count must be positive")
+        with open(metadata_path, "rb") as metadata_file:
+            metadata_raw = metadata_file.read()
+        entries = [json.loads(line) for line in metadata_raw.decode("utf-8").splitlines()
+                   if line.strip()][:sample_count]
+        if len(entries) < sample_count:
+            raise ValueError("LoRA training dataset has too few samples")
+        audio_hashes = {}
+        for entry in entries:
+            relative_audio = entry.get("audio_filepath") or entry.get("audio")
+            audio_path = os.path.abspath(os.path.join(dataset_path, relative_audio or ""))
+            if not relative_audio or not is_path_inside(audio_path, dataset_path) or not os.path.isfile(audio_path):
+                raise ValueError("LoRA training sample audio is missing or outside the dataset")
+            with open(audio_path, "rb") as audio_file:
+                audio_hashes[relative_audio] = hashlib.sha256(audio_file.read()).hexdigest()
+        selected = {"dataset_path": os.path.relpath(dataset_path, root_dir),
+                    "metadata_sha256": hashlib.sha256(metadata_raw).hexdigest(),
+                    "sample_count": sample_count, "audio_sha256": audio_hashes,
+                    "epochs": fixture.get("epochs", 1), "seed": fixture.get("seed", 42),
+                    "lr": fixture.get("lr", 1e-6), "lora_r": fixture.get("lora_r", 8),
+                    "lora_alpha": fixture.get("lora_alpha", 16),
+                    "grad_accum": fixture.get("grad_accum", 1),
+                    "language": fixture.get("language", "english")}
+        if selected["epochs"] < 1 or selected["lora_r"] < 1 or selected["lora_alpha"] < 1 or selected["grad_accum"] < 1:
+            raise ValueError("LoRA training hyperparameters must be positive")
+        selected.update({"id": fixture.get("id") or f"lora-training-{index}",
+                         "sha256": _hash_entries(selected)})
+        normalized.append(selected)
+    return {"schema_version": 1, "stage": "voicelab_training",
+            "targets": targets or ["local"], "repetitions": repetitions,
+            "fixtures": normalized, "settings": {}}

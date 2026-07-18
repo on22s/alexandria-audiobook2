@@ -8,7 +8,8 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_tts_clone_manifest,
                                 build_tts_design_manifest,
                                 build_tts_generation_manifest,
-                                build_tts_lora_manifest)
+                                build_tts_lora_manifest,
+                                build_lora_training_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
@@ -121,6 +122,21 @@ class BenchmarkFixtureTests(unittest.TestCase):
         fixture = manifest["fixtures"][0]
         self.assertEqual("lora", fixture["voice_type"])
         self.assertEqual(4, len(fixture["adapter_artifact_sha256"]))
+
+    def test_lora_training_manifest_hashes_selected_audio_and_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = Path(tmp, "dataset")
+            dataset.mkdir()
+            Path(dataset, "one.wav").write_bytes(b"one")
+            Path(dataset, "two.wav").write_bytes(b"two")
+            Path(dataset, "metadata.jsonl").write_text(
+                '{"audio_filepath":"one.wav","text":"One"}\n'
+                '{"audio_filepath":"two.wav","text":"Two"}\n', encoding="utf-8")
+            manifest = build_lora_training_manifest([{
+                "dataset_path": "dataset", "sample_count": 2}], tmp)
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("voicelab_training", manifest["stage"])
+        self.assertEqual(2, len(fixture["audio_sha256"]))
 
 
 if __name__ == "__main__":
