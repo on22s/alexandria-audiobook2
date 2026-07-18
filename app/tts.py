@@ -1262,6 +1262,11 @@ class TTSEngine:
         """Run a benchmark batch generation. Public wrapper for _local_batch_custom."""
         return self._local_batch_custom(chunks, voice_config, output_dir, batch_seed)
 
+    def run_clone_benchmark_batch(self, chunks, voice_config, output_dir,
+                                  batch_seed=-1):
+        """Run a benchmark batch through the production clone implementation."""
+        return self._local_batch_clone(chunks, voice_config, output_dir, batch_seed)
+
     def enable_codec_compilation(self):
         """Enable torch.compile for codec. Public wrapper for internal compilation."""
         if hasattr(self, '_compile_codec_enabled') and hasattr(self, '_compile_codec'):
@@ -1528,6 +1533,7 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
+        batch_peak_vram_gb = 0.0
 
         # Group chunks by speaker
         speaker_groups = {}
@@ -1583,6 +1589,7 @@ class TTSEngine:
                     # (matches _local_batch_custom); otherwise random each run.
                     if batch_seed >= 0:
                         torch.manual_seed(batch_seed)
+                    torch.cuda.reset_peak_memory_stats()
                     t_start = time.time()
                     wavs_list, sr = model.generate_voice_clone(
                         text=sb_texts,
@@ -1591,6 +1598,9 @@ class TTSEngine:
                         max_new_tokens=self._max_new_tokens,
                     )
                     gen_time = time.time() - t_start
+                    peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                    batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                    print(f"  Peak VRAM clone sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                     if wavs_list is None:
                         for idx in sb_indices:
@@ -1630,6 +1640,7 @@ class TTSEngine:
 
 
 
+        results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
         return results
 
     def _local_batch_lora(self, chunks, voice_config, output_dir, batch_seed=-1):

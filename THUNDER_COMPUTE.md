@@ -182,7 +182,23 @@ prompt construction, and generation were timed separately.
 All outputs were valid 24 kHz mono PCM, deterministic within each backend,
 non-silent, and unclipped. For equal target inputs, local generation was
 **5.09× faster**. Keep serial Base-model cloning local with these Torch/Qwen
-stacks. Native clone batching remains a separate measurement.
+stacks.
+
+The native clone batch path was then swept with the same 16 deterministic
+mixed-length inputs used for CustomVoice:
+
+| Batch cap | RX 9070 XT time / realtime / peak | A100 time / realtime / peak |
+|---:|---:|---:|
+| 2 | 80.5 s / 1.91× / 6.13 GB | 322.3 s / 0.47× / 5.72 GB |
+| 4 | 45.5 s / 3.45× / 7.17 GB | 183.7 s / 0.84× / 7.21 GB |
+| 8 | **37.3 s / 4.27× / 9.25 GB** | **107.8 s / 1.43× / 10.17 GB** |
+| 16 | 40.1 s / 3.88× / 11.84 GB | 153.5 s / 1.02× / 13.87 GB |
+
+All 128 outputs across both machines and four caps completed successfully.
+Cap 8 is the measured optimum on both GPUs. At that shared optimum, local was
+**2.89× faster by equal-input wall time**. Cap 16 regressed because the final
+three long chunks formed a slower second sub-batch; the A100 still had roughly
+67 GB unused, so extra capacity was not the answer.
 
 ---
 

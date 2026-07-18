@@ -104,7 +104,8 @@ def get_benchmark_engine_config(tts_config):
 # Benchmark runner
 # ---------------------------------------------------------------------------
 
-def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32):
+def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32,
+              voice_type="custom"):
     """Run _local_batch_custom for each batch size, capture timing and VRAM."""
     results = []
 
@@ -122,8 +123,12 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
         if cuda_ok:
             torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
-        batch_results = engine.run_benchmark_batch(
-            chunks, voice_config, output_dir, batch_seed=42)
+        if voice_type == "clone":
+            batch_results = engine.run_clone_benchmark_batch(
+                chunks, voice_config, output_dir, batch_seed=42)
+        else:
+            batch_results = engine.run_benchmark_batch(
+                chunks, voice_config, output_dir, batch_seed=42)
         elapsed = time.time() - t0
         peak_gb = batch_results.get("peak_vram_gb", 0.0)
 
@@ -239,7 +244,13 @@ def main():
                         help="chunks per sweep run (default 32)")
     parser.add_argument("--out", default="benchmark_results.json",
                         help="output JSON path")
+    parser.add_argument("--voice-type", choices=("custom", "clone"),
+                        default="custom")
+    parser.add_argument("--clone-ref-audio")
+    parser.add_argument("--clone-ref-text")
     args = parser.parse_args()
+    if args.voice_type == "clone" and args.compile:
+        parser.error("--compile is not supported for clone sweeps")
 
     # Load config
     tts_cfg = load_app_config(CONFIG_PATH).get("tts", {})
@@ -256,26 +267,37 @@ def main():
 
     # Force model load and capture footprint
     print("\nLoading model (this will show VRAM footprint)...")
-    _ = engine._init_local_custom()
+    if args.voice_type == "clone":
+        if not args.clone_ref_audio or not args.clone_ref_text:
+            parser.error("clone mode requires --clone-ref-audio and --clone-ref-text")
+        _ = engine._init_local_clone()
+    else:
+        _ = engine._init_local_custom()
     snap_post = vram_state()
     model_vram_gb = (snap_post["allocated_gb"] - snap_pre["allocated_gb"]) if (snap_pre and snap_post) else 0
     total_gb = snap_post["total_gb"] if snap_post else 0
     print(f"\nModel VRAM footprint: {model_vram_gb:.2f} GB  (total GPU: {total_gb:.1f} GB)")
-    print("Warming model before timed sweeps...")
-    engine.ensure_custom_warmup(engine._local_custom_model)
-
-    voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
+    if args.voice_type == "custom":
+        print("Warming model before timed sweeps...")
+        engine.ensure_custom_warmup(engine._local_custom_model)
+        voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
+    else:
+        voice_config = {"NARRATOR": {"type": "clone", "seed": 42,
+                        "ref_audio": args.clone_ref_audio,
+                        "ref_text": args.clone_ref_text}}
 
     with tempfile.TemporaryDirectory() as output_dir:
         print(f"\n--- Baseline sweep (compile_codec=False) ---")
-        pre_results = run_sweep(engine, voice_config, args.sizes, output_dir, args.chunks)
+        pre_results = run_sweep(engine, voice_config, args.sizes, output_dir,
+                                args.chunks, args.voice_type)
 
         post_results = []
         if args.compile:
             print(f"\n--- Compiling codec ---")
             engine.enable_codec_compilation()
             print(f"\n--- Post-compile sweep ---")
-            post_results = run_sweep(engine, voice_config, args.sizes, output_dir, args.chunks)
+            post_results = run_sweep(engine, voice_config, args.sizes, output_dir,
+                                     args.chunks, args.voice_type)
 
     print_summary(pre_results, post_results, model_vram_gb, total_gb)
 
@@ -285,6 +307,7 @@ def main():
         "total_vram_gb": total_gb,
         "model_vram_gb": round(model_vram_gb, 2),
         "compile_tested": args.compile,
+        "voice_type": args.voice_type,
         "baseline": pre_results,
         "compiled": post_results,
     }
