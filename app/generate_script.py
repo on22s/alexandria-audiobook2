@@ -580,7 +580,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "finish_reason": None, "requested_max_tokens": requested_max,
                                   "effective_max_tokens": None, "prompt_tokens": None,
                                   "completion_tokens": None,
-                                  "error": f"{type(e).__name__}: {e}"})
+                                  "error": f"{type(e).__name__}: {e}",
+                                  "outcome": "api_error",
+                                  "failure_codes": ["api_error"]})
             print(f"Error calling LLM API (attempt {attempt + 1}) after {time.time() - t0:.1f}s: {e}")
             if attempt < max_retries:
                 continue
@@ -590,6 +592,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         try:
             json_text = clean_json_string(text)
         except AdjacentArrayOverlapError as exc:
+            if attempt_record is not None:
+                attempt_record["outcome"] = "response_rejected"
+                attempt_record["failure_codes"] = ["adjacent_array_overlap"]
             retry_feedback = f"adjacent_array_overlap: {exc}"
             print(f"Warning: {label} repeats text across adjacent arrays "
                   f"(attempt {attempt + 1}): {exc}")
@@ -599,12 +604,24 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             return []
 
         if not json_text:
+            if attempt_record is not None:
+                attempt_record["outcome"] = "response_rejected"
+                attempt_record["failure_codes"] = ["missing_json_array"]
             print(f"Warning: Could not find JSON array in {label} response (attempt {attempt + 1})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
                 print("Retrying...")
                 continue
-            print(f"Response preview: {text[:300]}...")
-            return []
+            # Last-attempt recovery: clean_json_string deliberately rejects
+            # ambiguous multi-array structure, but repair_json_array can still
+            # extract complete objects from the raw array region. It remains
+            # safe only because the normal transform + deterministic quality
+            # gates below must accept the reconstructed source in full.
+            array_start = text.find("[")
+            if array_start == -1:
+                print(f"Response preview: {text[:300]}...")
+                return []
+            json_text = text[array_start:]
+            print("  Trying quality-gated raw-array salvage after retries exhausted")
 
         # Try to parse, with repair attempts
         entries = repair_json_array(json_text)
@@ -613,6 +630,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if transform_entries:
                 transformed = transform_entries(entries)
                 if transformed.get("unresolved"):
+                    if attempt_record is not None:
+                        attempt_record["outcome"] = "response_rejected"
+                        attempt_record["failure_codes"] = ["unresolved_deterministic_repairs"]
                     retry_feedback = "unresolved_safe_repair"
                     print(f"Warning: {label} has unresolved deterministic repairs "
                           f"(attempt {attempt + 1}): {transformed['unresolved']}")
@@ -663,6 +683,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         continue
                     return []
             if finish_reason == "length":
+                if attempt_record is not None:
+                    attempt_record["outcome"] = "response_rejected"
+                    attempt_record["failure_codes"] = ["token_truncated"]
                 if attempt < max_retries and truncation_retry_available:
                     print("Retrying truncated response with a larger token budget...")
                     continue
@@ -670,10 +693,15 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if attempt > 0:
                 print(f"  Succeeded on retry {attempt + 1}")
             if attempt_record is not None:
+                if attempt_record.get("failure_codes"):
+                    attempt_record["recovery_codes"] = attempt_record.pop("failure_codes")
                 attempt_record["outcome"] = "accepted"
             return entries
 
         print(f"Warning: Could not parse {label} response as JSON (attempt {attempt + 1})")
+        if attempt_record is not None:
+            attempt_record["outcome"] = "response_rejected"
+            attempt_record["failure_codes"] = ["malformed_json"]
         print(f"JSON preview: {json_text[:300]}...")
 
         if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
@@ -698,6 +726,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print(f"Regex-salvaged response failed quality validation: {codes}")
                     return []
             print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
+            if attempt_record is not None:
+                attempt_record["outcome"] = "accepted"
+                attempt_record["recovery_codes"] = attempt_record.pop(
+                    "failure_codes", ["malformed_json"])
             return salvaged_entries
 
     return []

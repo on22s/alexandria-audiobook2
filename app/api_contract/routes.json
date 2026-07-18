@@ -1374,5 +1374,41 @@
     "name": "voicelab_resume",
     "path": "/api/voicelab/resume",
     "type": "APIRoute"
+  },
+  {
+    "index": 154,
+    "methods": [
+      "POST"
+    ],
+    "name": "benchmark_preflight",
+    "path": "/api/benchmark/preflight",
+    "type": "APIRoute"
+  },
+  {
+    "index": 155,
+    "methods": [
+      "POST"
+    ],
+    "name": "benchmark_start",
+    "path": "/api/benchmark/start",
+    "type": "APIRoute"
+  },
+  {
+    "index": 156,
+    "methods": [
+      "POST"
+    ],
+    "name": "benchmark_cancel",
+    "path": "/api/benchmark/cancel",
+    "type": "APIRoute"
+  },
+  {
+    "index": 157,
+    "methods": [
+      "GET"
+    ],
+    "name": "benchmark_status",
+    "path": "/api/benchmark/status",
+    "type": "APIRoute"
   }
 ]
