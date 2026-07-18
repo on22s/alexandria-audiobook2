@@ -211,13 +211,17 @@ class LlmReviewTests(unittest.TestCase):
 
         client = SimpleNamespace(chat=SimpleNamespace(
             completions=SimpleNamespace(create=create)))
+        attempts = []
         result = generate_script.call_llm_for_entries(
             client, "model", "system", "text", generate_script.LLMGenParams(),
-            "test_responses.log", "TEST", max_retries=1)
+            "test_responses.log", "TEST", max_retries=1,
+            attempt_observer=attempts.append)
 
         self.assertEqual(complete, result)
         self.assertNotIn("adjacent_array_overlap", prompts[0])
         self.assertIn("adjacent_array_overlap", prompts[1])
+        self.assertEqual(["adjacent_array_overlap"], attempts[0]["failure_codes"])
+        self.assertEqual("accepted", attempts[1]["outcome"])
 
     def test_two_word_adjacent_array_boundary_is_not_treated_as_overlap(self):
         first = [{"speaker": "NARRATOR", "text": "before repeated words",
@@ -238,6 +242,41 @@ class LlmReviewTests(unittest.TestCase):
             json.dumps(first) + " malformed " + json.dumps(second))
 
         self.assertIsNone(generate_script.repair_json_array(cleaned))
+
+    def test_exhausted_ambiguous_arrays_use_quality_gated_raw_salvage(self):
+        source = "one two three four five six"
+        first = [{"speaker": "NARRATOR", "text": "one two three",
+                  "instruct": "neutral"}]
+        second = [{"speaker": "NARRATOR", "text": "four five six",
+                   "instruct": "neutral"}]
+        response = json.dumps(first) + "\nmodel commentary\n" + json.dumps(second)
+        attempts = []
+
+        result = generate_script.process_chunk(
+            self._client_with_responses([response]), "model", source, 1, 1,
+            generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
+            max_retries=0, attempt_observer=attempts.append)
+
+        self.assertEqual(source, " ".join(entry["text"] for entry in result))
+        self.assertEqual("accepted", attempts[0]["outcome"])
+        self.assertEqual(["missing_json_array"], attempts[0]["recovery_codes"])
+        self.assertNotIn("failure_codes", attempts[0])
+
+    def test_exhausted_incomplete_raw_salvage_still_fails_quality_gate(self):
+        source = "one two three four five six seven eight nine ten"
+        incomplete = [{"speaker": "NARRATOR", "text": "one two",
+                       "instruct": "neutral"}]
+        response = json.dumps(incomplete) + "\nmodel commentary\n[{broken}]"
+        attempts = []
+
+        result = generate_script.process_chunk(
+            self._client_with_responses([response]), "model", source, 1, 1,
+            generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
+            max_retries=0, attempt_observer=attempts.append)
+
+        self.assertEqual([], result)
+        self.assertEqual("quality_rejected", attempts[0]["outcome"])
+        self.assertIn("low_source_token_recall", attempts[0]["failure_codes"])
 
     def test_bracketed_trailing_prose_does_not_discard_valid_array(self):
         entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]

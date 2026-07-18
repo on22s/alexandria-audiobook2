@@ -1,0 +1,60 @@
+import hashlib
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import benchmark_core
+import benchmark_runner
+
+
+class BenchmarkRunnerTests(unittest.TestCase):
+    def test_runner_persists_each_successful_repetition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture_path = Path(tmp, "fixture.txt")
+            fixture_path.write_text("one two three four five", encoding="utf-8")
+            digest = hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+            manifest = {"schema_version": 1, "stage": "script_generation",
+                        "targets": ["local"], "repetitions": 2,
+                        "fixtures": [{"id": "fixture", "sha256": digest,
+                                      "path": str(fixture_path)}]}
+            environment = benchmark_core.build_environment_fingerprint("local", {
+                "hostname": "host", "gpu_name": "gpu", "backend": "rocm",
+                "python_version": "3.10", "git_commit": "abc"})
+            state = {"cancel": False, "logs": [],
+                     "tasks": [{"fixture_id": "fixture", "status": "pending"}]}
+            entries = [{"speaker": "NARRATOR", "text": "one two three four five",
+                        "instruct": "Neutral."}]
+            with patch.object(benchmark_runner, "load_app_config", return_value={
+                    "llm_local": {"model_name": "model", "base_url": "http://local"}}), \
+                 patch.object(benchmark_runner, "get_lmstudio_status", return_value={
+                     "available": True, "loaded": True, "context_length": 8192}), \
+                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "process_chunk", return_value=entries):
+                report = benchmark_runner.run_script_generation_benchmark(
+                    manifest, environment, str(Path(tmp, "report.json")), state,
+                    str(Path(tmp, "config.json")), tmp)
+            self.assertEqual(2, len(report["cases"]))
+            self.assertTrue(all(case["status"] == "passed" for case in report["cases"]))
+            self.assertEqual("complete", state["status"])
+            self.assertEqual("done", state["tasks"][0]["status"])
+
+    def test_fixture_hash_change_fails_before_model_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "fixture.txt")
+            path.write_text("changed", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash changed"):
+                benchmark_runner._load_text_fixture(
+                    {"id": "fixture", "sha256": "old", "path": str(path)}, tmp)
+
+    def test_fixture_outside_uploads_is_rejected(self):
+        with tempfile.TemporaryDirectory() as uploads, tempfile.TemporaryDirectory() as other:
+            path = Path(other, "fixture.txt")
+            path.write_text("text", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "inside uploads"):
+                benchmark_runner._load_text_fixture(
+                    {"id": "fixture", "sha256": "unused", "path": str(path)}, uploads)
+
+
+if __name__ == "__main__":
+    unittest.main()

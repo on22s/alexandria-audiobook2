@@ -159,6 +159,10 @@ from routers.voicelab import router as voicelab_router
 
 app.include_router(voicelab_router)
 
+from routers.benchmark import router as benchmark_router
+
+app.include_router(benchmark_router)
+
 
 if __name__ == "__main__":
     import uvicorn

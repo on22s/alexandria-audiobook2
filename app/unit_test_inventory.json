@@ -24,6 +24,36 @@
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
   ],
+  "test_benchmark_api": [
+    "test_benchmark_api.BenchmarkApiTests.test_preflight_collects_each_requested_environment",
+    "test_benchmark_api.BenchmarkApiTests.test_preflight_is_blocked_while_an_existing_gpu_task_runs",
+    "test_benchmark_api.BenchmarkApiTests.test_preflight_route_reports_validation_failure_as_400",
+    "test_benchmark_api.BenchmarkApiTests.test_start_rejects_stale_preflight_before_claiming_gpu",
+    "test_benchmark_api.BenchmarkApiTests.test_status_never_exposes_live_process_objects"
+  ],
+  "test_benchmark_core": [
+    "test_benchmark_core.BenchmarkCoreTests.test_fingerprints_are_stable_and_change_with_environment",
+    "test_benchmark_core.BenchmarkCoreTests.test_manifest_validation_normalizes_defaults_and_targets",
+    "test_benchmark_core.BenchmarkCoreTests.test_manifest_validation_rejects_unknown_stage_and_bad_fixture",
+    "test_benchmark_core.BenchmarkCoreTests.test_report_resume_requires_exact_manifest_and_environment",
+    "test_benchmark_core.BenchmarkCoreTests.test_stage_registry_is_copied_and_covers_voice_lab"
+  ],
+  "test_benchmark_environment": [
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_environment_combines_runtime_gpu_and_model_status",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_worktree_identity_changes_with_untracked_source_content",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_remote_runtime_uses_last_nonempty_line_after_banner",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_fails_when_model_status_is_unavailable"
+  ],
+  "test_benchmark_fixtures": [
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction"
+  ],
+  "test_benchmark_runner": [
+    "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition"
+  ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_labels_full_and_split_attempt_telemetry",
@@ -148,6 +178,8 @@
     "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response",
     "test_llm_review_regressions.LlmReviewTests.test_context_clamped_truncation_does_not_retry",
     "test_llm_review_regressions.LlmReviewTests.test_early_split_decider_stops_full_chunk_after_second_severe_failure",
+    "test_llm_review_regressions.LlmReviewTests.test_exhausted_ambiguous_arrays_use_quality_gated_raw_salvage",
+    "test_llm_review_regressions.LlmReviewTests.test_exhausted_incomplete_raw_salvage_still_fails_quality_gate",
     "test_llm_review_regressions.LlmReviewTests.test_hard_capped_truncation_does_not_retry",
     "test_llm_review_regressions.LlmReviewTests.test_incomplete_stop_does_not_increase_unspent_token_budget",
     "test_llm_review_regressions.LlmReviewTests.test_length_retries_progressively_increase_api_budget",

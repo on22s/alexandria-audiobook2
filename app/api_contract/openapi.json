@@ -217,6 +217,61 @@
         "title": "BatchScriptTask",
         "type": "object"
       },
+      "BenchmarkPreflightRequest": {
+        "properties": {
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "remote_repo_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Repo Path"
+          }
+        },
+        "required": [
+          "manifest"
+        ],
+        "title": "BenchmarkPreflightRequest",
+        "type": "object"
+      },
+      "BenchmarkStartRequest": {
+        "properties": {
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "preflight_id": {
+            "title": "Preflight Id",
+            "type": "string"
+          },
+          "remote_repo_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Repo Path"
+          }
+        },
+        "required": [
+          "manifest",
+          "preflight_id"
+        ],
+        "title": "BenchmarkStartRequest",
+        "type": "object"
+      },
       "Body_clone_voices_upload_api_clone_voices_upload_post": {
         "properties": {
           "file": {
@@ -1924,6 +1979,110 @@
           }
         },
         "summary": "Get Audiobook M4B"
+      }
+    },
+    "/api/benchmark/cancel": {
+      "post": {
+        "operationId": "benchmark_cancel_api_benchmark_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Benchmark Cancel"
+      }
+    },
+    "/api/benchmark/preflight": {
+      "post": {
+        "operationId": "benchmark_preflight_api_benchmark_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkPreflightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Benchmark Preflight"
+      }
+    },
+    "/api/benchmark/start": {
+      "post": {
+        "operationId": "benchmark_start_api_benchmark_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Benchmark Start"
+      }
+    },
+    "/api/benchmark/status": {
+      "get": {
+        "operationId": "benchmark_status_api_benchmark_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Benchmark Status"
       }
     },
     "/api/cancel_audio": {
