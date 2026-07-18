@@ -41,6 +41,36 @@ def stabilize_speaker_identities(entries, established_speakers=None):
             "speakers": canonicals}
 
 
+def build_speaker_consistency_report(entries, identity_review=None):
+    """Summarize speaker usage and uncertain variants without merging them."""
+    usage = {}
+    for index, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            continue
+        speaker = str(entry.get("speaker") or "").strip()
+        if not speaker:
+            continue
+        item = usage.setdefault(speaker, {"speaker": speaker, "entry_count": 0,
+                                          "first_entry_numbers": []})
+        item["entry_count"] += 1
+        if len(item["first_entry_numbers"]) < 5:
+            item["first_entry_numbers"].append(index)
+    suggestions = []
+    seen = set()
+    for item in identity_review or []:
+        key = (item.get("speaker"), tuple(candidate.get("speaker")
+               for candidate in item.get("candidates", [])))
+        if key in seen:
+            continue
+        seen.add(key)
+        suggestions.append({"speaker": item.get("speaker"),
+                            "candidates": item.get("candidates", []),
+                            "example_entry_number": item.get("entry_number")})
+    return {"speaker_count": len(usage),
+            "speakers": sorted(usage.values(), key=lambda item: item["speaker"]),
+            "review_suggestions": suggestions}
+
+
 def _identity_key(value):
     return re.sub(r"[^\w]+", "", str(value or "").casefold(), flags=re.UNICODE)
 

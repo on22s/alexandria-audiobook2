@@ -26,6 +26,7 @@
   ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_labels_full_and_split_attempt_telemetry",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_refuses_short_or_boundaryless_chunk",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_still_attempts_second_half_after_first_half_fails",
@@ -46,6 +47,7 @@
     "test_chunk_quality.ChunkQualityTests.test_malformed_and_empty_entries_fail_structural_checks",
     "test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_fails_recall",
     "test_chunk_quality.ChunkQualityTests.test_quality_manifest_summarizes_chunks_without_copying_entries",
+    "test_chunk_quality.ChunkQualityTests.test_retry_action_splits_only_repeated_severe_truncation",
     "test_chunk_quality.ChunkQualityTests.test_source_cyrillic_is_reported_but_only_new_cyrillic_blocks",
     "test_chunk_quality.ChunkQualityTests.test_source_unsupported_adjacent_block_is_explicitly_reported",
     "test_chunk_quality.ChunkQualityTests.test_volume_10_style_early_stop_fails_all_coverage_signals"
@@ -140,10 +142,12 @@
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_retries_with_specific_feedback",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_arrays_are_combined_in_order",
     "test_llm_review_regressions.LlmReviewTests.test_attempt_observer_receives_token_and_finish_metrics",
+    "test_llm_review_regressions.LlmReviewTests.test_attempt_observer_records_quality_rejection_codes",
     "test_llm_review_regressions.LlmReviewTests.test_bracketed_trailing_prose_does_not_discard_valid_array",
     "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_exhaustion_returns_failure_even_with_stop_reason",
     "test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response",
     "test_llm_review_regressions.LlmReviewTests.test_context_clamped_truncation_does_not_retry",
+    "test_llm_review_regressions.LlmReviewTests.test_early_split_decider_stops_full_chunk_after_second_severe_failure",
     "test_llm_review_regressions.LlmReviewTests.test_hard_capped_truncation_does_not_retry",
     "test_llm_review_regressions.LlmReviewTests.test_incomplete_stop_does_not_increase_unspent_token_budget",
     "test_llm_review_regressions.LlmReviewTests.test_length_retries_progressively_increase_api_budget",
@@ -151,6 +155,7 @@
     "test_llm_review_regressions.LlmReviewTests.test_malformed_trailing_entry_array_is_rejected",
     "test_llm_review_regressions.LlmReviewTests.test_near_limit_incomplete_stop_increases_budget",
     "test_llm_review_regressions.LlmReviewTests.test_process_chunk_default_budget_is_five_attempts",
+    "test_llm_review_regressions.LlmReviewTests.test_process_chunk_default_budget_stops_after_exactly_five_attempts",
     "test_llm_review_regressions.LlmReviewTests.test_response_log_is_isolated_by_run_id",
     "test_llm_review_regressions.LlmReviewTests.test_retry_budget_only_increases_for_incomplete_output",
     "test_llm_review_regressions.LlmReviewTests.test_review_help_does_not_advertise_unimplemented_source_mode",
@@ -349,6 +354,7 @@
     "test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
   ],
   "test_speaker_identity": [
+    "test_speaker_identity.SpeakerIdentityTests.test_consistency_report_counts_usage_and_deduplicates_suggestions",
     "test_speaker_identity.SpeakerIdentityTests.test_distinct_names_are_not_reported",
     "test_speaker_identity.SpeakerIdentityTests.test_safe_variants_reuse_first_established_spelling_without_mutation",
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"

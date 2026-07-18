@@ -47,6 +47,25 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual([], generate_script.split_failed_chunk("short text"))
         self.assertEqual([], generate_script.split_failed_chunk("x" * 2000))
 
+    def test_retry_action_splits_only_repeated_severe_truncation(self):
+        severe = {"metrics": {"output_source_ratio": 0.2}, "findings": [
+            {"code": "low_source_token_recall"},
+            {"code": "low_ordered_trigram_recall"},
+        ]}
+        mild = {"metrics": {"output_source_ratio": 0.8}, "findings": [
+            {"code": "low_source_token_recall"},
+            {"code": "low_ordered_trigram_recall"},
+        ]}
+
+        self.assertEqual("retry", generate_script.get_chunk_retry_action(
+            severe, 1, allow_early_split=True))
+        self.assertEqual("split", generate_script.get_chunk_retry_action(
+            severe, 2, allow_early_split=True))
+        self.assertEqual("retry", generate_script.get_chunk_retry_action(
+            severe, 2, allow_early_split=False))
+        self.assertEqual("retry", generate_script.get_chunk_retry_action(
+            mild, 2, allow_early_split=True))
+
     def test_adaptive_split_still_attempts_second_half_after_first_half_fails(self):
         # Regression: a real overnight batch run lost 71/78 remaining chunks of
         # one book because the first split half failed and the second half was
@@ -126,6 +145,29 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual(1, manifest["accepted_chunk_count"])
         self.assertEqual(1, manifest["chunks"][0]["entry_count"])
         self.assertNotIn("entries", manifest["chunks"][0])
+        self.assertEqual([], manifest["chunks"][0]["attempts"])
+
+    def test_adaptive_split_labels_full_and_split_attempt_telemetry(self):
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        attempts = []
+
+        def process(*_args, **kwargs):
+            attempt = {"attempt": 1}
+            kwargs["attempt_observer"](attempt)
+            attempt["outcome"] = "quality_rejected"
+            return []
+
+        with patch.object(generate_script, "process_chunk", side_effect=process):
+            generate_script.process_chunk_adaptively(
+                object(), "model", source, 1, 1, generate_script.LLMGenParams(),
+                attempt_observer=attempts.append)
+
+        self.assertEqual(["full", "split", "split"],
+                         [attempt["phase"] for attempt in attempts])
+        self.assertEqual([1, 2], [attempt["split_part"] for attempt in attempts[1:]])
+        self.assertTrue(all(attempt["outcome"] == "quality_rejected"
+                            for attempt in attempts))
 
     def test_known_source_corruption_normalizes_with_location_evidence(self):
         original = "First line.\nTake саге now."
