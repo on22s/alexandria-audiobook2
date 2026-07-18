@@ -72,6 +72,11 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
                 benchmark_environment.collect_thunder_environment(
                     "/repo", "tnr-0", "model")
 
+    def test_lmstudio_observations_reject_an_unloaded_model(self):
+        with self.assertRaisesRegex(ValueError, "model is not loaded"):
+            benchmark_environment._get_lmstudio_observations(
+                {"available": True, "loaded": False}, "model")
+
 
 if __name__ == "__main__":
     unittest.main()

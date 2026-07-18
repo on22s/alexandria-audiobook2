@@ -39,6 +39,7 @@
     "test_benchmark_core.BenchmarkCoreTests.test_stage_registry_is_copied_and_covers_voice_lab"
   ],
   "test_benchmark_environment": [
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_lmstudio_observations_reject_an_unloaded_model",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_environment_combines_runtime_gpu_and_model_status",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_worktree_identity_changes_with_untracked_source_content",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_remote_runtime_uses_last_nonempty_line_after_banner",
@@ -47,11 +48,14 @@
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_reconstructs_hashed_production_chunks",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_manifest_rejects_out_of_range_chunk",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
+    "test_benchmark_fixtures.BenchmarkFixtureTests.test_review_source_drift_is_rejected",
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction"
   ],
   "test_benchmark_runner": [
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
     "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_uses_remote_profile_and_status"
