@@ -223,17 +223,6 @@
             "additionalProperties": true,
             "title": "Manifest",
             "type": "object"
-          },
-          "remote_repo_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Remote Repo Path"
           }
         },
         "required": [
@@ -252,17 +241,6 @@
           "preflight_id": {
             "title": "Preflight Id",
             "type": "string"
-          },
-          "remote_repo_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Remote Repo Path"
           }
         },
         "required": [

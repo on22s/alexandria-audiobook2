@@ -2,8 +2,6 @@
 
 import asyncio
 import os
-from typing import Optional
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
@@ -23,7 +21,6 @@ router = APIRouter()
 
 class BenchmarkPreflightRequest(BaseModel):
     manifest: dict
-    remote_repo_path: Optional[str] = None
 
 
 class BenchmarkStartRequest(BenchmarkPreflightRequest):
@@ -50,7 +47,7 @@ def _build_benchmark_preflight(request):
         else:
             ssh_alias = (config.get("llm_remote_ssh") or "").strip()
             environments[target] = collect_thunder_environment(
-                ssh_alias, request.remote_repo_path, model_name)
+                ROOT_DIR, ssh_alias, model_name)
     return {"manifest": manifest, "environments": environments,
             "preflight_id": get_benchmark_preflight_id(manifest, environments),
             "benchmark_state": "ready"}
@@ -79,9 +76,9 @@ async def benchmark_start(background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409,
                             detail="Benchmark inputs or environment changed; review a fresh preflight.")
     manifest = preflight["manifest"]
-    if manifest["stage"] != "script_generation" or manifest["targets"] != ["local"]:
+    if manifest["stage"] != "script_generation" or len(manifest["targets"]) != 1:
         raise HTTPException(status_code=400,
-                            detail="Only local script-generation execution is implemented.")
+                            detail="Script-generation runs require exactly one target.")
     report_dir = os.path.join(REPORTS_DIR, "benchmarks")
     os.makedirs(report_dir, exist_ok=True)
     report_path = os.path.join(report_dir, f"{preflight['preflight_id']}.json")
@@ -94,7 +91,7 @@ async def benchmark_start(background_tasks: BackgroundTasks,
 
     def _run():
         run_script_generation_benchmark(
-            manifest, preflight["environments"]["local"], report_path, state,
+            manifest, preflight["environments"][manifest["targets"][0]], report_path, state,
             CONFIG_PATH, UPLOADS_DIR)
 
     background_tasks.add_task(_run_claimed_background_task, "benchmark", _run)

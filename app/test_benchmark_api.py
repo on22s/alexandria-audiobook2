@@ -7,12 +7,11 @@ from fastapi import HTTPException
 from routers import benchmark
 
 
-def _request(targets=None, remote_repo_path=None):
+def _request(targets=None):
     return benchmark.BenchmarkPreflightRequest(
         manifest={"schema_version": 1, "stage": "script_generation",
                   "targets": targets or ["local"],
-                  "fixtures": [{"id": "chunk", "sha256": "abc"}]},
-        remote_repo_path=remote_repo_path)
+                  "fixtures": [{"id": "chunk", "sha256": "abc"}]})
 
 
 class BenchmarkApiTests(unittest.TestCase):
@@ -27,10 +26,10 @@ class BenchmarkApiTests(unittest.TestCase):
              patch.object(benchmark, "collect_thunder_environment",
                           return_value={"target": "thunder", "sha256": "two"}) as remote:
             result = benchmark._build_benchmark_preflight(
-                _request(["local", "thunder"], "/remote/repo"))
+                _request(["local", "thunder"]))
         lock.assert_called_once_with("benchmark")
         local.assert_called_once_with(benchmark.ROOT_DIR, "local-model")
-        remote.assert_called_once_with("tnr-0", "/remote/repo", "remote-model")
+        remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model")
         self.assertEqual("ready", result["benchmark_state"])
 
     def test_preflight_route_reports_validation_failure_as_400(self):
