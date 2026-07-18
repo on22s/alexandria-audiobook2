@@ -413,6 +413,11 @@ async def read_index():
         # frontend compares against (a blanket replace would rewrite that guard
         # and permanently disable stale detection on served pages).
         html = html.replace('content="__APP_BUILD__"', f'content="{build}"', 1)
+        # Cache-bust the split static/js/*.js files the same targeted way: only
+        # the "?v=__APP_BUILD__" query placeholder is replaced, so a browser
+        # that cached an old app-*.js after a deploy fetches the new one once
+        # the served index.html carries the new build's query string.
+        html = html.replace("?v=__APP_BUILD__", f"?v={build}")
         _INDEX_HTML_CACHE["key"] = key
         _INDEX_HTML_CACHE["html"] = html
     return HTMLResponse(

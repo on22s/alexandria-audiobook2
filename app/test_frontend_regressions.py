@@ -10,41 +10,96 @@ import config_settings
 import utils
 from fastapi.testclient import TestClient
 
+# Frontend JS was split out of index.html's one inline <script> into a few
+# static/js/app-*.js files (kept in their original relative order) to reduce
+# merge-conflict surface on high-churn areas (training/review, voice lab).
+# This helper reproduces the pre-split "one big string" view so every existing
+# string-presence assertion below keeps working unchanged against the split
+# files, without each test needing to know about the new layout.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+_FRONTEND_JS_FILES = (
+    "app-core.js", "app-scripts.js", "app-training.js",
+    "app-workbench.js", "app-voicelab.js", "app-reports.js",
+)
+
+
+def _read_frontend_source():
+    html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    js = "".join((_STATIC_DIR / "js" / name).read_text(encoding="utf-8")
+                 for name in _FRONTEND_JS_FILES)
+    return html + js
+
+
+class FrontendJsSplitTests(unittest.TestCase):
+    def test_split_js_files_exist_are_referenced_in_order_and_non_empty(self):
+        # The split files must exist, be non-empty, and be referenced by
+        # index.html as plain <script src> tags (no defer/async/module — those
+        # would change execution-order semantics relative to the original
+        # single inline block) in the exact original relative order.
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        positions = []
+        for name in _FRONTEND_JS_FILES:
+            path = _STATIC_DIR / "js" / name
+            self.assertTrue(path.is_file(), f"missing {path}")
+            self.assertGreater(path.stat().st_size, 0, f"{path} is empty")
+            tag = f'src="/static/js/{name}?v=__APP_BUILD__"'
+            self.assertIn(tag, html)
+            self.assertNotIn(f'defer src="/static/js/{name}',
+                             html.replace(tag, tag))  # no defer on this tag
+            positions.append(html.index(tag))
+        self.assertEqual(positions, sorted(positions),
+                         "script tags must appear in the original file order")
+        for name in _FRONTEND_JS_FILES:
+            self.assertNotIn(f'<script src="/static/js/{name}" defer', html)
+            self.assertNotIn(f'<script src="/static/js/{name}" async', html)
+            self.assertNotIn(f'type="module" src="/static/js/{name}"', html)
+
+    def test_cross_file_forward_reference_lands_in_a_later_script_tag(self):
+        # reattachRunningPollers (app-workbench.js, called at page-init time,
+        # behind an awaited network fetch) calls pollVoicelab, which is defined
+        # in app-voicelab.js — a chunk loaded AFTER app-workbench.js. This is
+        # safe only because the call happens after the await resolves, by which
+        # point every <script> tag has already finished loading (see plan for
+        # the full reasoning) — and only because app-voicelab.js is still
+        # ordered after app-workbench.js. This test pins that ordering so a
+        # future reshuffle can't silently break the forward reference.
+        workbench = (_STATIC_DIR / "js" / "app-workbench.js").read_text(encoding="utf-8")
+        voicelab = (_STATIC_DIR / "js" / "app-voicelab.js").read_text(encoding="utf-8")
+        self.assertIn("pollVoicelab();", workbench)
+        self.assertIn("function pollVoicelab()", voicelab)
+        html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        self.assertLess(html.index("app-workbench.js"), html.index("app-voicelab.js"))
+
 
 class FrontendTests(unittest.TestCase):
     def test_voicelab_requires_visible_preflight_before_start(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("vl-preflight", "/api/voicelab/preflight",
                          "renderVoicelabPreflight", "preflight.preflight_id"):
             self.assertIn(required, frontend)
 
     def test_voicelab_health_dashboard_is_rendered_and_wired(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("vl-health", "vl-health-body", "renderVoicelabHealth",
                          "refreshVoicelabHealth", "/api/voicelab/health",
                          "openLoraModelsTab", "pending_recovery"):
             self.assertIn(required, frontend)
 
     def test_voicelab_diagnostics_actions_are_present_and_sanitized(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("copyVoicelabDiagnostics", "downloadVoicelabDiagnostics",
                          "/api/voicelab/diagnostics", "Copy diagnostics",
                          "Download diagnostics"):
             self.assertIn(required, frontend)
 
     def test_review_summary_and_health_eta_are_rendered(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("renderReviewSummary", "review_summary", "human review",
                          "prefer candidate", "active.eta_seconds", "left"):
             self.assertIn(required, frontend)
 
     def test_stale_build_banner_is_wired_without_a_new_timer(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ('name="app-build"', "__APP_BUILD__", "stale-build-banner",
                          "PAGE_BUILD", "checkStaleBuild", "location.reload()"):
             self.assertIn(required, frontend)
@@ -55,16 +110,14 @@ class FrontendTests(unittest.TestCase):
         self.assertNotIn("setInterval(checkStaleBuild", frontend)
 
     def test_runtime_build_and_package_versions_are_visible_in_navbar(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("sys-build", "sys-build-val", "stats.runtime",
                          "runtime.short_revision", "runtime.packages",
                          "Revision unavailable"):
             self.assertIn(required, frontend)
 
     def test_lora_candidate_comparison_is_advisory_and_separate_from_promotion(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in (
                 "lora-comparison-panel", "openLoraCandidateComparison",
                 "/comparison", "Advisory only", "Production", "Candidate",
@@ -72,8 +125,7 @@ class FrontendTests(unittest.TestCase):
             self.assertIn(required, frontend)
 
     def test_blind_human_review_is_present_and_kept_separate_from_automated(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("openLoraBlindReview", "submitLoraBlindReview",
                          "renderBlindReviewResult", "openLoraReviewHistory",
                          "clearLoraReviewHistory", "/review/session",
@@ -84,16 +136,14 @@ class FrontendTests(unittest.TestCase):
             self.assertIn(required, frontend)
 
     def test_lora_candidate_lifecycle_summary_is_rendered(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in ("renderCandidateSummary", "candidate_summary",
                          "awaiting evaluation", "candidate promoted",
                          "duplicate skipped", "production unchanged"):
             self.assertIn(required, frontend)
 
     def test_script_ui_reuses_uploads_and_sends_collision_policy(self):
-        frontend = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8")
+        frontend = _read_frontend_source()
         for required in (
                 "existing-upload-select", "script-existing-uploads", "/api/uploads/select",
                 "script-collision-policy", "collision_policy: collisionPolicy",
@@ -181,7 +231,7 @@ class FrontendTests(unittest.TestCase):
                 self.assertNotEqual(401, client.get(path, headers=headers).status_code)
 
     def test_frontend_wires_preparer_duration_and_lora_cancel(self):
-        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(encoding="utf-8")
+        html = _read_frontend_source()
         self.assertIn("min_chunk_duration: getNumFieldValue('prep-min-chunk-duration', 2)", html)
         self.assertIn("id=\"btn-lora-cancel\"", html)
         self.assertIn("/api/lora/train/cancel", html)
@@ -197,9 +247,7 @@ class FrontendTests(unittest.TestCase):
         self.assertNotIn("id=\"prep-skip-annotation\"", html)
 
     def test_frontend_renders_config_warnings_as_text_and_refreshes_after_save(self):
-        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        html = _read_frontend_source()
         self.assertIn('id="config-warning-banner"', html)
         self.assertIn('id="config-warning-msg"', html)
         start = html.index("function renderConfigWarnings(config)")
@@ -211,9 +259,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("renderConfigWarnings(savedConfig);", html)
 
     def test_frontend_config_controls_match_backend_schema(self):
-        html = (Path(__file__).resolve().parent / "static" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        html = _read_frontend_source()
         input_tags = {
             match.group(1): match.group(0)
             for match in re.finditer(r'<input\b[^>]*\bid="([^"]+)"[^>]*>', html)
