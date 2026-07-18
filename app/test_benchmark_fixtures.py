@@ -6,6 +6,7 @@ from pathlib import Path
 from benchmark_fixtures import (build_script_generation_manifest,
                                 build_script_review_manifest,
                                 build_tts_clone_manifest,
+                                build_tts_design_manifest,
                                 build_tts_generation_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
 
@@ -96,6 +97,15 @@ class BenchmarkFixtureTests(unittest.TestCase):
         self.assertEqual("clone", fixture["voice_type"])
         self.assertEqual(hashlib.sha256(b"reference audio").hexdigest(),
                          fixture["ref_audio_sha256"])
+
+    def test_design_manifest_hashes_description_text_and_seed(self):
+        manifest = build_tts_design_manifest([{
+            "text": "Welcome home.",
+            "description": "A warm, low baritone with gentle authority.",
+            "seed": 9}])
+        fixture = manifest["fixtures"][0]
+        self.assertEqual("design", fixture["voice_type"])
+        self.assertEqual(64, len(fixture["sha256"]))
 
 
 if __name__ == "__main__":

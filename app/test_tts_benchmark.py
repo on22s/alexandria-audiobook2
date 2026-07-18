@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 
 from tts_benchmark import (measure_wav, run_clone_voice_case,
-                           run_custom_voice_case)
+                           run_custom_voice_case, run_design_voice_case)
 import tts_vram_benchmark
 
 
@@ -147,6 +147,29 @@ class TTSBenchmarkTests(unittest.TestCase):
                 FakeEngine(), fixture, str(Path(tmp, "out.wav")), tmp,
                 load_model=True)
         self.assertIn("prompt_build_seconds", metrics)
+        self.assertEqual(0.1, metrics["duration_seconds"])
+
+    def test_design_case_moves_preview_into_benchmark_output(self):
+        class FakeEngine:
+            def _init_local_design(self):
+                pass
+
+            def generate_voice_design(self, description, sample_text, seed):
+                preview = Path(tmp, "preview.wav")
+                with wave.open(str(preview), "wb") as output:
+                    output.setnchannels(1)
+                    output.setsampwidth(2)
+                    output.setframerate(24000)
+                    output.writeframes(np.ones(2400, dtype="<i2").tobytes())
+                return str(preview), 24000
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp, "results", "design.wav")
+            metrics = run_design_voice_case(FakeEngine(), {
+                "text": "Hello.", "description": "Warm voice.", "seed": 5},
+                str(output_path), load_model=True)
+            self.assertTrue(output_path.is_file())
+            self.assertFalse(Path(tmp, "preview.wav").exists())
         self.assertEqual(0.1, metrics["duration_seconds"])
 
 

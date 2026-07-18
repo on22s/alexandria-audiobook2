@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import time
 import wave
 
@@ -95,6 +96,26 @@ def run_clone_voice_case(engine, fixture, output_path, root_dir, load_model=Fals
     return metrics
 
 
+def run_design_voice_case(engine, fixture, output_path, load_model=False):
+    """Exercise the production VoiceDesign preview call with a fixed seed."""
+    load_started = time.monotonic()
+    if load_model:
+        engine._init_local_design()
+    load_seconds = time.monotonic() - load_started
+    generation_started = time.monotonic()
+    preview_path, _ = engine.generate_voice_design(
+        description=fixture["description"], sample_text=fixture["text"],
+        seed=fixture["seed"])
+    generation_seconds = time.monotonic() - generation_started
+    if not os.path.isfile(preview_path):
+        raise RuntimeError("VoiceDesign generation did not produce a WAV")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    shutil.move(preview_path, output_path)
+    metrics = measure_wav(output_path, generation_seconds)
+    metrics["model_load_seconds"] = round(load_seconds, 3)
+    return metrics
+
+
 def execute_payload(payload, output_dir):
     """Run all cases with one engine so warm timings match production use."""
     config = {"tts": dict(payload.get("tts") or {})}
@@ -110,7 +131,10 @@ def execute_payload(payload, output_dir):
         for repetition in repetitions:
             path = os.path.join(output_dir, f"{fixture['id']}-{repetition}.wav")
             try:
-                if fixture.get("voice_type", "custom") == "clone":
+                if fixture.get("voice_type") == "design":
+                    metrics = run_design_voice_case(
+                        engine, fixture, path, load_model=first)
+                elif fixture.get("voice_type", "custom") == "clone":
                     metrics = run_clone_voice_case(
                         engine, fixture, path, root_dir, load_model=first)
                 else:

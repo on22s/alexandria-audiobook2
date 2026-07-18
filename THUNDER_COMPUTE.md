@@ -200,6 +200,26 @@ Cap 8 is the measured optimum on both GPUs. At that shared optimum, local was
 three long chunks formed a slower second sub-batch; the A100 still had roughly
 67 GB unused, so extra capacity was not the answer.
 
+#### VoiceDesign previews
+
+The production `generate_voice_design` call was measured with three distinct
+voice descriptions and short/medium/long target texts, two fixed-seed
+repetitions each, and a 1,024-token cap. The benchmark includes the real preview
+WAV creation and moves that file into the benchmark output directory.
+
+| Environment | Passed | Cached model load | Six generations | Aggregate audio throughput |
+|---|---:|---:|---:|---:|
+| RX 9070 XT local | 6/6 | 6.07 s | 40.7 s | 1.15× realtime |
+| A100 80 GB Thunder | 6/6 | 24.21 s | 173.9 s | 0.27× realtime |
+
+Local VoiceDesign generation was **4.27× faster by equal-input wall time**.
+All outputs were valid, non-silent, and unclipped. Local repetitions were
+bit-identical. One A100 medium repetition differed by tiny sample-level values
+despite the fixed seed, while its duration and health metrics were effectively
+identical; do not treat CUDA VoiceDesign output as guaranteed bit-deterministic.
+Keep VoiceDesign previews and designed-voice chunk generation local with these
+software stacks.
+
 ---
 
 ## Case study: Voice Lab — estimated, and keep it local anyway
