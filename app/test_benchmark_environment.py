@@ -47,13 +47,12 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
 
     def test_remote_runtime_uses_last_nonempty_line_after_banner(self):
         payload = {"hostname": "thunder", "python_version": "3.11",
-                   "platform": {"system": "Linux"}, "git_commit": "def"}
+                   "platform": {"system": "Linux"}}
         result = type("Result", (), {"returncode": 0,
                       "stdout": "decorative banner\n" + json.dumps(payload) + "\n",
                       "stderr": ""})()
         with patch.object(benchmark_environment, "_ssh_run", return_value=result) as run:
-            observations = benchmark_environment._get_remote_runtime_observations(
-                "tnr-0", "/remote/repo")
+            observations = benchmark_environment._get_remote_runtime_observations("tnr-0")
         self.assertEqual(payload, observations)
         self.assertIn("python3 -c", run.call_args.args[1])
 
@@ -63,11 +62,15 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
                                         "platform": {}, "git_commit": "def"}), \
              patch.object(benchmark_environment, "get_remote_gpu_name_and_backend",
                           return_value=("A6000", "cuda")), \
+             patch.object(benchmark_environment, "get_runtime_info", return_value={
+                 "revision": "abc", "python": "3.10", "platform": {}, "packages": {}}), \
+             patch.object(benchmark_environment, "_get_local_worktree_identity",
+                          return_value={"dirty": False, "sha256": "tree"}), \
              patch.object(benchmark_environment, "get_remote_lmstudio_status",
                           return_value={"available": False}):
             with self.assertRaisesRegex(ValueError, "LM Studio status is unavailable"):
                 benchmark_environment.collect_thunder_environment(
-                    "tnr-0", "/remote/repo", "model")
+                    "/repo", "tnr-0", "model")
 
 
 if __name__ == "__main__":

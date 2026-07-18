@@ -55,6 +55,26 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 benchmark_runner._load_text_fixture(
                     {"id": "fixture", "sha256": "unused", "path": str(path)}, uploads)
 
+    def test_thunder_target_uses_remote_profile_and_status(self):
+        config = {"llm_remote_ssh": "tnr-0", "llm_remote": {
+            "model_name": "remote-model", "base_url": "http://thunder/v1"}}
+        with patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                "available": True, "loaded": True, "context_length": 65536}) as status, \
+             patch.object(benchmark_runner, "get_lmstudio_status") as local_status:
+            llm, observed = benchmark_runner._get_script_generation_target(
+                config, "thunder")
+        status.assert_called_once_with("tnr-0", "remote-model")
+        local_status.assert_not_called()
+        self.assertEqual("http://thunder/v1", llm["base_url"])
+        self.assertEqual(65536, observed["context_length"])
+
+    def test_thunder_target_fails_loudly_when_endpoint_is_unconfigured(self):
+        with patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                "available": False, "loaded": False}):
+            with self.assertRaisesRegex(ValueError, "endpoint is not configured"):
+                benchmark_runner._get_script_generation_target(
+                    {"llm_remote": {}, "llm_remote_ssh": "tnr-0"}, "thunder")
+
 
 if __name__ == "__main__":
     unittest.main()

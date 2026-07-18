@@ -52,7 +52,9 @@
   "test_benchmark_runner": [
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
     "test_benchmark_runner.BenchmarkRunnerTests.test_fixture_outside_uploads_is_rejected",
-    "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition"
+    "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_uses_remote_profile_and_status"
   ],
   "test_chunk_quality": [
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",

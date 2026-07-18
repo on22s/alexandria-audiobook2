@@ -11,7 +11,7 @@ from benchmark_fixtures import get_normalized_source_chunks
 from chunk_quality import validate_chunk_quality
 from config_settings import load_app_config
 from generate_script import LLMGenParams, process_chunk
-from lmstudio_settings import get_lmstudio_status
+from lmstudio_settings import get_lmstudio_status, get_remote_lmstudio_status
 from utils import is_path_inside
 
 
@@ -44,19 +44,34 @@ def _load_text_fixture(fixture, uploads_dir):
     return text
 
 
+def _get_script_generation_target(config, target):
+    if target == "local":
+        llm = config.get("llm_local") or config.get("llm") or {}
+        status = get_lmstudio_status(llm.get("model_name"))
+    elif target == "thunder":
+        llm = config.get("llm_remote") or {}
+        status = get_remote_lmstudio_status(
+            (config.get("llm_remote_ssh") or "").strip(), llm.get("model_name"))
+    else:
+        raise ValueError(f"unsupported script-generation target: {target}")
+    if not llm.get("base_url") or not llm.get("model_name"):
+        raise ValueError(f"{target} LLM endpoint is not configured")
+    if not status.get("available") or not status.get("loaded"):
+        raise ValueError(f"{target} LM Studio model is not ready")
+    return llm, status
+
+
 def run_script_generation_benchmark(manifest, environment, report_path, state,
                                     config_path, uploads_dir):
     """Run local script-generation cases and persist after every repetition."""
-    if manifest["stage"] != "script_generation" or manifest["targets"] != ["local"]:
-        raise ValueError("initial script-generation adapter supports local-only manifests")
+    if manifest["stage"] != "script_generation" or len(manifest["targets"]) != 1:
+        raise ValueError("script-generation runs require exactly one target")
+    target = manifest["targets"][0]
     config = load_app_config(config_path)
-    llm = config.get("llm_local") or config.get("llm") or {}
+    llm, status = _get_script_generation_target(config, target)
     generation = config.get("generation") or {}
     prompts = config.get("prompts") or {}
     model_name = llm.get("model_name")
-    status = get_lmstudio_status(model_name)
-    if not status.get("available") or not status.get("loaded"):
-        raise ValueError("local LM Studio model is not ready")
     params = LLMGenParams(
         system_prompt=prompts.get("system_prompt"),
         user_prompt_template=prompts.get("user_prompt"),

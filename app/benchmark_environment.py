@@ -67,16 +67,14 @@ def collect_local_environment(root_dir, model_name):
     return build_environment_fingerprint("local", observations)
 
 
-def _get_remote_runtime_observations(ssh_alias, remote_repo_path):
-    """Read one JSON line from the remote host after any login banner."""
+def _get_remote_runtime_observations(ssh_alias):
+    """Read one JSON line from the inference host after any login banner."""
     probe = (
-        "import json,platform,subprocess,sys; p=sys.argv[1]; "
-        "r=subprocess.run(['git','-C',p,'rev-parse','HEAD'],capture_output=True,text=True); "
         "print(json.dumps({'hostname':platform.node(),'python_version':platform.python_version(),"
-        "'platform':{'system':platform.system(),'release':platform.release(),'machine':platform.machine()},"
-        "'git_commit':r.stdout.strip() if r.returncode==0 else None}))"
+        "'platform':{'system':platform.system(),'release':platform.release(),'machine':platform.machine()}}))"
     )
-    command = f"python3 -c {shlex.quote(probe)} {shlex.quote(remote_repo_path)}"
+    probe = "import json,platform; " + probe
+    command = f"python3 -c {shlex.quote(probe)}"
     result = _ssh_run(ssh_alias, command, timeout=20, connect_timeout=10)
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode or not lines:
@@ -85,20 +83,26 @@ def _get_remote_runtime_observations(ssh_alias, remote_repo_path):
         observations = json.loads(lines[-1])
     except json.JSONDecodeError as exc:
         raise ValueError("remote runtime probe returned invalid JSON") from exc
-    if not observations.get("git_commit"):
-        raise ValueError("remote repository revision could not be identified")
     return observations
 
 
-def collect_thunder_environment(ssh_alias, remote_repo_path, model_name):
-    """Collect Thunder identity through the established safe SSH helpers."""
-    if not ssh_alias or not remote_repo_path:
-        raise ValueError("Thunder SSH alias and remote repository path are required")
-    observations = _get_remote_runtime_observations(ssh_alias, remote_repo_path)
+def collect_thunder_environment(root_dir, ssh_alias, model_name):
+    """Fingerprint local orchestration plus the Thunder inference host."""
+    if not ssh_alias:
+        raise ValueError("Thunder SSH alias is required")
+    remote = _get_remote_runtime_observations(ssh_alias)
+    runtime = get_runtime_info(root_dir)
+    if not runtime.get("revision"):
+        raise ValueError("local git revision could not be identified")
     gpu_name, backend = get_remote_gpu_name_and_backend(ssh_alias)
     if not gpu_name or not backend:
         raise ValueError("Thunder GPU/backend could not be identified")
-    observations.update({"gpu_name": gpu_name, "backend": backend,
-                         "lmstudio": _get_lmstudio_observations(
-                             get_remote_lmstudio_status(ssh_alias, model_name), model_name)})
+    observations = {"hostname": remote["hostname"], "gpu_name": gpu_name,
+                    "backend": backend, "python_version": runtime["python"],
+                    "git_commit": runtime["revision"],
+                    "worktree": _get_local_worktree_identity(root_dir),
+                    "orchestrator_platform": runtime["platform"],
+                    "packages": runtime["packages"], "remote_platform": remote["platform"],
+                    "lmstudio": _get_lmstudio_observations(
+                        get_remote_lmstudio_status(ssh_alias, model_name), model_name)}
     return build_environment_fingerprint("thunder", observations)
