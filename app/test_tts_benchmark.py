@@ -203,10 +203,12 @@ class TTSBenchmarkTests(unittest.TestCase):
                 Path(adapter, name).write_bytes(content)
                 hashes[name] = hashlib.sha256(content).hexdigest()
             engine = FakeEngine()
-            metrics = run_lora_voice_case(engine, {
-                "text": "Hello.", "instruct": "Warmly.", "seed": 3,
-                "adapter_path": "adapter", "adapter_artifact_sha256": hashes},
-                str(Path(tmp, "out.wav")), tmp, load_model=True)
+            fake_torch = type("FakeTorch", (), {"manual_seed": lambda seed: None})
+            with patch.dict(sys.modules, {"torch": fake_torch}):
+                metrics = run_lora_voice_case(engine, {
+                    "text": "Hello.", "instruct": "Warmly.", "seed": 3,
+                    "adapter_path": "adapter", "adapter_artifact_sha256": hashes},
+                    str(Path(tmp, "out.wav")), tmp, load_model=True)
         self.assertEqual("Hello.", engine.call[0])
         self.assertEqual("Reference words.", engine.prompt[2])
         self.assertIn("prompt_build_seconds", metrics)
