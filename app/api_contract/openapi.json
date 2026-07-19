@@ -5273,6 +5273,23 @@
         "summary": "Get Eta Status"
       }
     },
+    "/api/status/version": {
+      "get": {
+        "description": "What git commit is this running process actually executing.\n\nA server started before a code change lands keeps running the old code\nwith no visible sign of it - this makes that checkable directly instead\nof discovering it indirectly (e.g. an expected new response field just\nnot showing up).",
+        "operationId": "get_version_api_status_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Version"
+      }
+    },
     "/api/status/{task_name}": {
       "get": {
         "operationId": "get_status_api_status__task_name__get",

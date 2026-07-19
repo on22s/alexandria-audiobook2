@@ -29,6 +29,9 @@
     "test_benchmark_api.BenchmarkApiTests.test_preflight_is_blocked_while_an_existing_gpu_task_runs",
     "test_benchmark_api.BenchmarkApiTests.test_preflight_rejects_mismatched_torch_builds_across_targets",
     "test_benchmark_api.BenchmarkApiTests.test_preflight_route_reports_validation_failure_as_400",
+    "test_benchmark_api.BenchmarkApiTests.test_single_target_preflight_checks_against_persisted_baseline",
+    "test_benchmark_api.BenchmarkApiTests.test_single_target_preflight_flags_stale_baseline",
+    "test_benchmark_api.BenchmarkApiTests.test_single_target_preflight_passes_with_matching_persisted_baseline",
     "test_benchmark_api.BenchmarkApiTests.test_start_rejects_stale_preflight_before_claiming_gpu",
     "test_benchmark_api.BenchmarkApiTests.test_status_never_exposes_live_process_objects",
     "test_benchmark_api.BenchmarkApiTests.test_tts_preflight_uses_tts_environment_not_lmstudio"
@@ -41,6 +44,10 @@
     "test_benchmark_core.BenchmarkCoreTests.test_stage_registry_is_copied_and_covers_voice_lab"
   ],
   "test_benchmark_environment": [
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_baseline_load_returns_none_when_target_never_saved",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_baseline_round_trips_through_save_and_load",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_baseline_save_preserves_other_targets",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_baseline_staleness_uses_collected_at",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_lmstudio_observations_reject_an_unloaded_model",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_environment_combines_runtime_gpu_and_model_status",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_worktree_identity_changes_with_untracked_source_content",
@@ -270,7 +277,16 @@
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_local_settings_use_verified_target_without_mutating",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_remote_settings_use_remote_target_without_status_call",
     "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
-    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom"
+    "test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_apply_remote_settings_ensures_server_before_loading",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_apply_remote_settings_fails_loud_when_server_cannot_start",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_ensure_remote_server_running_skips_start_when_already_bound",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_ensure_remote_server_running_starts_server_when_not_bound",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_remote_status_omits_server_reachable_without_port",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_remote_status_reports_server_reachable_when_port_given",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_false_when_only_localhost",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_none_on_ssh_failure",
+    "test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_true_when_listening_on_all_interfaces"
   ],
   "test_lora_candidate_promotion": [
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_backup_deletion_refuses_pending_checkpoint_recovery",
@@ -446,6 +462,9 @@
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],
   "test_support": [],
+  "test_system_version": [
+    "test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
+  ],
   "test_thunder_benchmark_documentation": [
     "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
     "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_guide_links_canonical_summary_and_preserves_scope_limits",

@@ -6,6 +6,7 @@ import time
 import traceback
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
@@ -63,6 +64,18 @@ async def get_run_history_entry(run_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return record
+
+
+@router.get("/api/status/version")
+async def get_version():
+    """What git commit is this running process actually executing.
+
+    A server started before a code change lands keeps running the old code
+    with no visible sign of it - this makes that checkable directly instead
+    of discovering it indirectly (e.g. an expected new response field just
+    not showing up).
+    """
+    return get_runtime_info(ROOT_DIR)
 
 # --- System Helpers ---
 
@@ -316,7 +329,9 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
             raise HTTPException(status_code=400, detail=(
                 "Remote optimize needs an SSH host alias (e.g. 'tnr-0'). Set it in "
                 "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
-        ok, msg = await asyncio.to_thread(apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable)
+        remote_port = urlparse(cfg.get("base_url", "")).port or 1234
+        ok, msg = await asyncio.to_thread(
+            apply_remote_lmstudio_settings, ssh_alias, model_name, req.enable, remote_port)
         if not ok:
             log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
             raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))

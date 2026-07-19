@@ -161,7 +161,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
              patch.object(benchmark_runner, "get_lmstudio_status") as local_status:
             llm, observed = benchmark_runner._get_llm_benchmark_target(
                 config, "thunder")
-        status.assert_called_once_with("tnr-0", "remote-model")
+        status.assert_called_once_with("tnr-0", "remote-model", port=1234)
         local_status.assert_not_called()
         self.assertEqual("http://thunder/v1", llm["base_url"])
         self.assertEqual(65536, observed["context_length"])

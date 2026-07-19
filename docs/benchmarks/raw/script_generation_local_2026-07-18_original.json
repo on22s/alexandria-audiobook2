@@ -1,0 +1,476 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "schema_version": 1,
+    "stage": "script_generation",
+    "targets": [
+      "local"
+    ],
+    "repetitions": 3,
+    "fixtures": [
+      {
+        "id": "Arc 3 - Volume 9-chunk-7",
+        "sha256": "fd4a3e298b298694740f9fcb4f31abfa2dad62fdd24bc1f9dfb72989f94ee158",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/uploads/Arc 3 - Volume 9.txt",
+        "source_sha256": "2f62ed285bcbe2d685085579c9cfc2f5448d19e606346a1bcd188755519ee6e2",
+        "chunk_number": 7,
+        "total_chunks": 78,
+        "chunk_size": 6000,
+        "previous_entries": [
+          {
+            "speaker": "FERRIS",
+            "text": "Sorry. I didn’t think my tuning with Ia and Nes would be in error… There’s also the fact that Ia seems rather fond of you. Perhaps you have a high compatibility with spirits.",
+            "instruct": "Apologetic, warm tone; conversational pace, sounding genuinely pleased."
+          },
+          {
+            "speaker": "JULIUS",
+            "text": "Save that stuff for later. We can take our time with that talk once everything’s over.",
+            "instruct": "Calm, slightly dismissive tone; measured delivery, steering the conversation forward."
+          }
+        ]
+      },
+      {
+        "id": "Arc 4 - Volume 10-chunk-15",
+        "sha256": "57dba06d17474ab235ca656b44fd4b92b7b407f6d7eb40cb092cd80cee3446e9",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/uploads/Arc 4 - Volume 10.txt",
+        "source_sha256": "401e01eba1af0820ae6380fa626bc0051952259772be48699b56d4f31fc7b6cd",
+        "chunk_number": 15,
+        "total_chunks": 80,
+        "chunk_size": 6000,
+        "previous_entries": [
+          {
+            "speaker": "NARRATOR",
+            "text": "The resulting silence threw Subaru off.",
+            "instruct": "Slightly breathless pacing; conveying confusion and shock."
+          },
+          {
+            "speaker": "NARRATOR",
+            "text": "Her expression was shorn of ferocious anger and sadness, and perhaps confusion and everything else.",
+            "instruct": "Descriptive, measured tone; a slight dip in vocal energy."
+          },
+          {
+            "speaker": "NARRATOR",
+            "text": "The sight made Subaru’s breath catch as if he were out of air Beatrice gave a long, deep sigh.",
+            "instruct": "A sudden intake of breath followed by a drawn-out, heavy exhalation."
+          }
+        ]
+      },
+      {
+        "id": "Arc 4 - Volume 10-chunk-34",
+        "sha256": "1fbdb168b4e45c22f88581250f9287ae4d0c92a8cb3fec3ff73a9486a473f5c9",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/uploads/Arc 4 - Volume 10.txt",
+        "source_sha256": "401e01eba1af0820ae6380fa626bc0051952259772be48699b56d4f31fc7b6cd",
+        "chunk_number": 34,
+        "total_chunks": 80,
+        "chunk_size": 6000,
+        "previous_entries": [
+          {
+            "speaker": "SUBARU",
+            "text": "“Isn’t it dangerous to spread around scary trivia like that?”",
+            "instruct": "Concerned reflection; slightly worried inflection, questioning the risk of sharing such potent knowledge."
+          },
+          {
+            "speaker": "OTTO",
+            "text": "“It’s not like it’s gonna leak outside. But the old hag says it’s the tomb of the Witch of Greed, so there ain’t no mistake. It’s just like, ‘Peromio festered from the point he heard it.’”",
+            "instruct": "Confident rebuttal; firm delivery, quoting the adage with a slight, knowing emphasis."
+          },
+          {
+            "speaker": "SUBARU",
+            "text": "“Not that I’m really interested in what was festering, but I take it you don’t know the fine details?”",
+            "instruct": "Slightly dismissive curiosity; tone shifts from concern to intellectual probing, challenging Otto's certainty."
+          }
+        ]
+      }
+    ],
+    "settings": {
+      "max_retries": 0
+    },
+    "quality_thresholds": {
+      "source_token_recall": 0.9,
+      "ordered_trigram_recall": 0.9
+    }
+  },
+  "manifest_sha256": "434774732ffb84025af140d566dbbc1df0959b5133426fb8c4ba89b36370c60f",
+  "environment": {
+    "target": "local",
+    "details": {
+      "hostname": "mitch-linux",
+      "gpu_name": "AMD Radeon RX 9070 XT",
+      "backend": "rocm",
+      "python_version": "3.10.20",
+      "git_commit": "4a790b05a9c98b5a4b6f70105d9688ebdfb23bc1",
+      "worktree": {
+        "dirty": true,
+        "sha256": "8d30a5b4a10e14d3bf751d131a4fb04a4928b0f4d58318dbee9ecade4f0eb1e1"
+      },
+      "platform": {
+        "system": "Linux",
+        "release": "6.18.36-1-MANJARO",
+        "machine": "x86_64"
+      },
+      "packages": {
+        "torch": "2.10.0+rocm7.0",
+        "qwen-tts": "0.1.1",
+        "transformers": "4.57.3",
+        "peft": "0.18.1",
+        "fastapi": "0.128.0"
+      },
+      "lmstudio": {
+        "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+        "model_loaded": true,
+        "context_length": 32768,
+        "parallel": 2
+      }
+    },
+    "sha256": "b16e63c3a260f613490c6db409ceed3c9d6efb3c50440e58fec97c5019bb39d1"
+  },
+  "cases": [
+    {
+      "fixture_id": "Arc 3 - Volume 9-chunk-7",
+      "repetition": 1,
+      "status": "passed",
+      "elapsed_seconds": 49.555,
+      "entry_count": 59,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 49.546,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2617,
+          "completion_tokens": 3108,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1076,
+          "output_tokens": 1076,
+          "source_token_recall": 1.0,
+          "ordered_trigram_recall": 1.0,
+          "output_source_ratio": 1.0
+        },
+        "source_cyrillic": [],
+        "findings": []
+      }
+    },
+    {
+      "fixture_id": "Arc 3 - Volume 9-chunk-7",
+      "repetition": 2,
+      "status": "failed",
+      "elapsed_seconds": 3.273,
+      "entry_count": 0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 3.27,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2617,
+          "completion_tokens": 159,
+          "error": null,
+          "outcome": "quality_rejected",
+          "failure_codes": [
+            "low_source_token_recall",
+            "low_ordered_trigram_recall",
+            "output_source_ratio"
+          ],
+          "quality_metrics": {
+            "source_tokens": 1076,
+            "output_tokens": 71,
+            "source_token_recall": 0.066,
+            "ordered_trigram_recall": 0.0642,
+            "output_source_ratio": 0.066
+          }
+        }
+      ],
+      "quality": {
+        "passed": false,
+        "metrics": {
+          "source_tokens": 0,
+          "output_tokens": 0,
+          "source_token_recall": 0.0,
+          "ordered_trigram_recall": 0.0,
+          "output_source_ratio": 0.0
+        },
+        "source_cyrillic": [],
+        "findings": [
+          {
+            "code": "missing_entries",
+            "message": "Response contains no entries."
+          }
+        ]
+      }
+    },
+    {
+      "fixture_id": "Arc 3 - Volume 9-chunk-7",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 51.728,
+      "entry_count": 59,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 51.718,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2617,
+          "completion_tokens": 3245,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1076,
+          "output_tokens": 1076,
+          "source_token_recall": 1.0,
+          "ordered_trigram_recall": 1.0,
+          "output_source_ratio": 1.0
+        },
+        "source_cyrillic": [],
+        "findings": []
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-15",
+      "repetition": 1,
+      "status": "failed",
+      "elapsed_seconds": 47.95,
+      "entry_count": 0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 47.944,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2703,
+          "completion_tokens": 2946,
+          "error": null,
+          "outcome": "quality_rejected",
+          "failure_codes": [
+            "low_source_token_recall",
+            "low_ordered_trigram_recall",
+            "output_source_ratio"
+          ],
+          "quality_metrics": {
+            "source_tokens": 1080,
+            "output_tokens": 939,
+            "source_token_recall": 0.8694,
+            "ordered_trigram_recall": 0.8673,
+            "output_source_ratio": 0.8694
+          }
+        }
+      ],
+      "quality": {
+        "passed": false,
+        "metrics": {
+          "source_tokens": 0,
+          "output_tokens": 0,
+          "source_token_recall": 0.0,
+          "ordered_trigram_recall": 0.0,
+          "output_source_ratio": 0.0
+        },
+        "source_cyrillic": [],
+        "findings": [
+          {
+            "code": "missing_entries",
+            "message": "Response contains no entries."
+          }
+        ]
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-15",
+      "repetition": 2,
+      "status": "failed",
+      "elapsed_seconds": 61.134,
+      "entry_count": 0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 61.132,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2703,
+          "completion_tokens": 3753,
+          "error": null,
+          "outcome": "response_rejected",
+          "failure_codes": [
+            "adjacent_array_overlap"
+          ]
+        }
+      ],
+      "quality": {
+        "passed": false,
+        "metrics": {
+          "source_tokens": 0,
+          "output_tokens": 0,
+          "source_token_recall": 0.0,
+          "ordered_trigram_recall": 0.0,
+          "output_source_ratio": 0.0
+        },
+        "source_cyrillic": [],
+        "findings": [
+          {
+            "code": "missing_entries",
+            "message": "Response contains no entries."
+          }
+        ]
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-15",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 55.238,
+      "entry_count": 64,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 55.23,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2703,
+          "completion_tokens": 3344,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1080,
+          "output_tokens": 1076,
+          "source_token_recall": 0.9963,
+          "ordered_trigram_recall": 0.9944,
+          "output_source_ratio": 0.9963
+        },
+        "source_cyrillic": [],
+        "findings": []
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-34",
+      "repetition": 1,
+      "status": "failed",
+      "elapsed_seconds": 3.611,
+      "entry_count": 0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 3.609,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2765,
+          "completion_tokens": 181,
+          "error": null,
+          "outcome": "quality_rejected",
+          "failure_codes": [
+            "low_source_token_recall",
+            "low_ordered_trigram_recall",
+            "output_source_ratio"
+          ],
+          "quality_metrics": {
+            "source_tokens": 1076,
+            "output_tokens": 51,
+            "source_token_recall": 0.0474,
+            "ordered_trigram_recall": 0.0456,
+            "output_source_ratio": 0.0474
+          }
+        }
+      ],
+      "quality": {
+        "passed": false,
+        "metrics": {
+          "source_tokens": 0,
+          "output_tokens": 0,
+          "source_token_recall": 0.0,
+          "ordered_trigram_recall": 0.0,
+          "output_source_ratio": 0.0
+        },
+        "source_cyrillic": [],
+        "findings": [
+          {
+            "code": "missing_entries",
+            "message": "Response contains no entries."
+          }
+        ]
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-34",
+      "repetition": 2,
+      "status": "passed",
+      "elapsed_seconds": 47.088,
+      "entry_count": 43,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 47.08,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2765,
+          "completion_tokens": 2888,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1076,
+          "output_tokens": 1077,
+          "source_token_recall": 1.0,
+          "ordered_trigram_recall": 0.9991,
+          "output_source_ratio": 1.0009
+        },
+        "source_cyrillic": [],
+        "findings": []
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-chunk-34",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 47.056,
+      "entry_count": 47,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 47.048,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 2765,
+          "completion_tokens": 2906,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1076,
+          "output_tokens": 1079,
+          "source_token_recall": 1.0,
+          "ordered_trigram_recall": 0.9991,
+          "output_source_ratio": 1.0028
+        },
+        "source_cyrillic": [],
+        "findings": []
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import platform
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from benchmark_core import build_environment_fingerprint
@@ -14,6 +15,9 @@ from lmstudio_settings import (_ssh_run, get_gpu_name_and_backend,
                                get_remote_gpu_name_and_backend,
                                get_remote_lmstudio_status)
 from runtime_info import get_runtime_info
+from utils import atomic_json_write, safe_load_json
+
+BASELINE_STALE_SECONDS = 24 * 60 * 60
 
 
 def _get_local_worktree_identity(root_dir):
@@ -198,6 +202,34 @@ def verify_comparable_environments(local_env, thunder_env):
             f"local Torch {local_torch} and Thunder Torch {thunder_torch} are "
             "different builds; a comparative benchmark would measure the "
             "software stack, not the GPU. Align both environments before running.")
+
+
+def save_environment_baseline(target, environment, path):
+    """Persist the most recently collected fingerprint for `target`.
+
+    A later single-target preflight for the OTHER target can then check
+    comparability against this instead of only against a sibling collected
+    in the same call - real callers never request both targets in one
+    preflight, so that same-call check never actually fired in practice.
+    """
+    baselines = safe_load_json(path, default={}) or {}
+    baselines[target] = {"environment": environment, "collected_at": time.time()}
+    atomic_json_write(baselines, path)
+
+
+def load_environment_baseline(target, path):
+    """Return {"environment": ..., "collected_at": ...} for target, or None
+    if nothing has been saved yet (first run ever, or a CPU/LLM-only stage
+    that never collects a Torch-carrying fingerprint)."""
+    baselines = safe_load_json(path, default={}) or {}
+    return baselines.get(target)
+
+
+def is_baseline_stale(baseline_entry, now=None):
+    """True if a baseline is old enough that it might not reflect the
+    machine's current state (e.g. a Torch upgrade since it was collected)."""
+    now = now if now is not None else time.time()
+    return (now - baseline_entry.get("collected_at", 0)) > BASELINE_STALE_SECONDS
 
 
 def collect_cpu_environment(root_dir, target, ssh_alias=None):

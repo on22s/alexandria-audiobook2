@@ -121,6 +121,16 @@ document, which has not yet been rerun.
   those larger caps; that's the recommended next experiment before treating
   "local wins TTS" as true at every batch size, not just ≤16.
 
+**Archiving convention:** only 2 of this campaign's 13 stages had their
+original `reports/benchmarks/<preflight_id>.json` files still around when
+they were needed again today — the other 11 had been cleaned up after their
+numbers were transcribed into this doc, so reconstructing their exact
+fixtures took real effort. Going forward, archive a stage's report to
+[`docs/benchmarks/raw/`](docs/benchmarks/raw/) (git-tracked, see its
+`README.md`) before the scratch copy can be removed, so any stage's numbers
+can be re-verified or rerun later without redoing fixture selection from
+scratch.
+
 ### Measured placement matrix — 2026-07-18
 
 These are fixture-scale calibration results, not promises for every model or book.

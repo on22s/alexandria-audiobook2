@@ -12,6 +12,9 @@ from benchmark_environment import (collect_local_environment,
                                    collect_cpu_environment,
                                    collect_thunder_environment,
                                    collect_thunder_tts_environment,
+                                   is_baseline_stale,
+                                   load_environment_baseline,
+                                   save_environment_baseline,
                                    verify_comparable_environments)
 from benchmark_runner import (run_script_generation_benchmark,
                               run_dedup_benchmark,
@@ -50,18 +53,26 @@ def _get_model_name(config, target):
     return model_name
 
 
+ENVIRONMENT_BASELINE_PATH = os.path.join(REPORTS_DIR, "benchmarks", "environment_baselines.json")
+_OTHER_TARGET = {"local": "thunder", "thunder": "local"}
+
+
 def _build_benchmark_preflight(request):
     manifest = validate_benchmark_manifest(request.manifest)
     check_global_gpu_lock("benchmark")
     config = load_app_config(CONFIG_PATH)
     environments = {}
+    stale_baseline = False
+    is_tts_family = manifest["stage"] in {
+        "tts_generation", "dataset_builder", "voicelab_training",
+        "voicelab_preparer", "voicelab_dedup", "voicelab_profiling"}
     for target in manifest["targets"]:
         if manifest["stage"] in {"voicelab_naming", "audacity_export", "m4b_export"}:
             environments[target] = collect_cpu_environment(
                 ROOT_DIR, target, (config.get("llm_remote_ssh") or "").strip()
                 if target == "thunder" else None)
             continue
-        if manifest["stage"] in {"tts_generation", "dataset_builder", "voicelab_training", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling"}:
+        if is_tts_family:
             settings = manifest.get("settings") or {}
             if target == "local":
                 environments[target] = collect_local_tts_environment(
@@ -79,11 +90,27 @@ def _build_benchmark_preflight(request):
             ssh_alias = (config.get("llm_remote_ssh") or "").strip()
             environments[target] = collect_thunder_environment(
                 ROOT_DIR, ssh_alias, model_name)
-    if "local" in environments and "thunder" in environments:
+    if is_tts_family:
+        # Real callers only ever request one target per preflight, so a
+        # same-call sibling is almost never present - persist each collected
+        # fingerprint and compare against the OTHER target's last known one
+        # instead, or this check would never actually fire in practice.
+        for target, environment in environments.items():
+            save_environment_baseline(target, environment, ENVIRONMENT_BASELINE_PATH)
+            other_baseline = load_environment_baseline(
+                _OTHER_TARGET[target], ENVIRONMENT_BASELINE_PATH)
+            if other_baseline is not None:
+                verify_comparable_environments(environment, other_baseline["environment"])
+                if is_baseline_stale(other_baseline):
+                    stale_baseline = True
+    elif "local" in environments and "thunder" in environments:
         verify_comparable_environments(environments["local"], environments["thunder"])
-    return {"manifest": manifest, "environments": environments,
-            "preflight_id": get_benchmark_preflight_id(manifest, environments),
-            "benchmark_state": "ready"}
+    result = {"manifest": manifest, "environments": environments,
+              "preflight_id": get_benchmark_preflight_id(manifest, environments),
+              "benchmark_state": "ready"}
+    if stale_baseline:
+        result["stale_baseline"] = True
+    return result
 
 
 @router.post("/api/benchmark/preflight")

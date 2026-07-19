@@ -265,7 +265,50 @@ def get_lmstudio_status(model_name):
     return status
 
 
-def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
+def _remote_server_bound(ssh_alias, port, timeout=10):
+    """True if a process on ssh_alias is listening on 0.0.0.0:<port>
+    specifically (not 127.0.0.1:<port> - that distinction IS the bug this
+    guards against: an LM Studio server bound to localhost only is
+    unreachable through the forwarded HTTPS tunnel, but still looks
+    "loaded" to `lms ps`). Returns None on SSH failure - callers should
+    treat that as "unknown", not "unreachable".
+
+    Pure read (Rule 16) - never starts anything; see
+    ensure_remote_server_running for the mutating counterpart.
+    """
+    try:
+        result = _ssh_run(ssh_alias, "ss -tlnp", timeout=timeout, connect_timeout=10)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    needle = f"0.0.0.0:{port} "
+    return any(needle in line for line in result.stdout.splitlines())
+
+
+def ensure_remote_server_running(ssh_alias, port, timeout=30):
+    """Start LM Studio's server bound to 0.0.0.0:<port> on ssh_alias if it
+    isn't already - `apply_remote_lmstudio_settings`'s `lms load` only
+    loads a model into an already-running server; it never starts the
+    server itself, so a stopped or localhost-only-bound server "succeeds"
+    while staying unreachable through the forwarded tunnel.
+
+    Returns (success, message). Never raises.
+    """
+    if _remote_server_bound(ssh_alias, port, timeout=10):
+        return True, f"Server already bound on 0.0.0.0:{port}"
+    remote_cmd = f"lms server start --port {port} --bind 0.0.0.0"
+    try:
+        result = _ssh_run(ssh_alias, remote_cmd, timeout=timeout, connect_timeout=15)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return False, f"SSH to '{ssh_alias}' failed: {e}"
+    if result.returncode != 0:
+        return False, (result.stderr.strip() or result.stdout.strip()
+                       or f"ssh exited {result.returncode}")
+    return True, f"Started server on 0.0.0.0:{port}"
+
+
+def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20, port=None):
     """Like get_lmstudio_status, but for a remote LM Studio reached over SSH
     (ssh_alias e.g. "tnr-0", from config.json's llm_remote_ssh).
 
@@ -274,6 +317,12 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
     get_lmstudio_status's local IDEAL_SETTINGS comparison. Best-effort: never
     raises, returns available=False on any SSH/parse failure or if ssh_alias
     isn't configured.
+
+    `loaded: True` here only means `lms ps` sees the model in memory - it
+    does NOT mean the HTTP server is reachable (a server bound to
+    127.0.0.1 or not running at all still reports a loaded model). Pass
+    `port` to also get a `server_reachable` field; omitted by default so
+    existing callers that don't have a port handy are unaffected.
     """
     if not ssh_alias:
         return {"available": False, "loaded": False, "context_length": None,
@@ -285,7 +334,10 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20):
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False}
 
-    return _parse_lms_ps_output(result.stdout, model_name, REMOTE_IDEAL_SETTINGS)
+    status = _parse_lms_ps_output(result.stdout, model_name, REMOTE_IDEAL_SETTINGS)
+    if port is not None:
+        status["server_reachable"] = _remote_server_bound(ssh_alias, port, timeout=timeout)
+    return status
 
 
 _remote_status_cache = {}  # (ssh_alias, model_name) -> (timestamp, status_dict)
@@ -470,14 +522,22 @@ def apply_lmstudio_settings(model_name, ideal=True, ttl=3600):
     return True, f"Reloaded {model_name} with {label} settings{detail}"
 
 
-def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True):
+def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234):
     """Reload model_name on a remote LM Studio host via SSH (`lms` over `tnr-N`).
 
     Returns (success, message). The forwarded OpenAI /v1 port can't change load
     settings, so we drive the remote `lms` CLI directly. Never raises. Unlike
     apply_lmstudio_settings, this intentionally does not pass `--ttl` - that's
     today's existing remote semantics, not an oversight.
+
+    Ensures the server itself is bound to 0.0.0.0:<port> before loading -
+    `lms load` only loads a model into an already-running server, so without
+    this a stopped or localhost-only-bound server used to "succeed" here
+    while staying unreachable through the forwarded tunnel.
     """
+    server_ok, server_msg = ensure_remote_server_running(ssh_alias, port)
+    if not server_ok:
+        return False, f"Could not start remote server: {server_msg}"
     settings = REMOTE_IDEAL_SETTINGS if ideal else REMOTE_DEFAULT_SETTINGS
     # model_name is shlex.quote()'d (not hand-wrapped in '...') since it comes
     # from user-editable config with no character restrictions - a bare
