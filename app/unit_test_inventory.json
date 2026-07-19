@@ -392,6 +392,17 @@
     "test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
     "test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
   ],
+  "test_preparer_speaker_detection": [
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_all_single_speaker_windows_is_single",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_any_multi_window_makes_the_file_multi",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_dominant_only_window_is_single_speaker",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_eighty_twenty_window_is_multi_speaker",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_empty_window_is_single_and_safe",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_unstable_labels_across_windows_do_not_fake_multi",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_short_file_returns_empty_plan",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_ten_hour_book_gets_three_spread_windows",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_windows_are_clamped_inside_the_file"
+  ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
