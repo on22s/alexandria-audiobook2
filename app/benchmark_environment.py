@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+import os
 import platform
 import shlex
 import subprocess
@@ -212,6 +213,7 @@ def save_environment_baseline(target, environment, path):
     in the same call - real callers never request both targets in one
     preflight, so that same-call check never actually fired in practice.
     """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     baselines = safe_load_json(path, default={}) or {}
     baselines[target] = {"environment": environment, "collected_at": time.time()}
     atomic_json_write(baselines, path)
