@@ -820,7 +820,7 @@
                         <div class="mb-3">
                             <label class="form-label">Select Files (TXT, MD, EPUB)</label>
                             <input type="file" class="form-control" id="script-batch-files" accept=".txt,.md,.epub" multiple onchange="onScriptBatchFilesChange()">
-                            <label class="form-label mt-3" for="script-existing-uploads">Also reuse existing uploads</label>
+                            <label class="form-label mt-3">Also reuse existing uploads</label>
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(true)">Select all</button>
                                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(false)">Clear</button>
@@ -833,7 +833,7 @@
                                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSort('reverse')" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i>Reverse</button>
                                 <span class="small text-muted ms-auto" id="script-batch-selected-count">0 selected</span>
                             </div>
-                            <select class="form-select" id="script-existing-uploads" multiple size="6" onchange="onScriptBatchFilesChange()"></select>
+                            <div id="script-existing-uploads" class="border rounded p-2" style="max-height:200px;overflow-y:auto;"></div>
                             <label class="form-label mt-3" for="script-collision-policy">When a saved script already exists</label>
                             <select class="form-select" id="script-collision-policy">
                                 <option value="cancel">Skip it (safest)</option>

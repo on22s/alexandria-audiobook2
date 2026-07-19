@@ -100,6 +100,31 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertTrue(split)
         self.assertEqual(3, process.call_count)
 
+    def test_adaptive_split_recurses_when_a_half_itself_needs_splitting(self):
+        # Regression for a live 2026-07-19 failure: a chunk that still fails
+        # after being split in half must have ITS failing half split again,
+        # not given up on -- the same "a smaller target has an independent
+        # chance" logic that justifies splitting at all, applied recursively.
+        section = lambda label: f"{label} intro. " + "Word word word. " * 120
+        source = section("First") + "\n\n" + section("Second")
+        part1, part2 = generate_script.split_failed_chunk(source)
+        part1a, part1b = generate_script.split_failed_chunk(part1)
+        part1a_entries = [_entry(part1a)]
+        part1b_entries = [_entry(part1b)]
+        part2_entries = [_entry(part2)]
+        with patch.object(generate_script, "process_chunk", side_effect=[
+                [],               # whole chunk fails
+                [],               # part 1 (whole) fails
+                part1a_entries,   # part 1's own first sub-split half succeeds
+                part1b_entries,   # part 1's own second sub-split half succeeds
+                part2_entries,    # part 2 (whole) succeeds, never needed a split
+        ]) as process:
+            entries, split = generate_script.process_chunk_adaptively(
+                object(), "model", source, 1, 1, generate_script.LLMGenParams())
+        self.assertTrue(split)
+        self.assertEqual(part1a_entries + part1b_entries + part2_entries, entries)
+        self.assertEqual(5, process.call_count)
+
     def test_book_request_preflight_uses_real_chunks_and_parallel_slots(self):
         report = generate_script.build_book_request_preflight(
             ["short text", "x" * 6000], "system", "{context}\n{chunk}",

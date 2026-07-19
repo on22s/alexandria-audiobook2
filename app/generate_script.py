@@ -939,7 +939,7 @@ def split_failed_chunk(chunk, minimum_chars=800):
 
 def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
                              params, previous_entries=None, attempt_observer=None):
-    """Try a full chunk, then one bounded natural-boundary split on exhaustion.
+    """Try a full chunk, then a bounded natural-boundary split on exhaustion.
 
     Each split half gets its own independent retry budget. Measured on real
     production failures: a single attempt on this class of content has roughly
@@ -952,6 +952,16 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
     on part 2 -- and since the caller treats any empty result as fatal for the
     whole book (checkpoint/resume requires a gapless accepted-chunk prefix,
     Rule 9), that one unlucky sample cost the rest of the book's chunks too.
+
+    Splitting recurses: a part that itself exhausts its retry budget is split
+    again rather than given up on. Diagnosed live (2026-07-19): a chunk failed
+    identically across 3 independent full-book runs, oscillating between
+    near-perfect (89-93% recall) and near-total collapse (1-11%) on otherwise
+    identical retries -- not content-driven (the source text is unremarkable),
+    so a smaller target has a real independent chance the original size didn't
+    get. `split_failed_chunk`'s own minimum_chars floor (refuses to split
+    below 1,600 chars) already bounds the recursion depth, so no new depth
+    limit is needed here.
     """
     entries = process_chunk(client, model_name, chunk, chunk_num, total_chunks,
                             params, previous_entries=previous_entries,
@@ -971,7 +981,7 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
     any_part_failed = False
     for part_number, part in enumerate(parts, 1):
         context_entries = list(previous_entries or []) + combined
-        part_entries = process_chunk(
+        part_entries, _ = process_chunk_adaptively(
             client, model_name, part, chunk_num, total_chunks, params,
             previous_entries=context_entries,
             attempt_observer=(
