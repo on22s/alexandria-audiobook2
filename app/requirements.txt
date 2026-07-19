@@ -16,4 +16,7 @@ transformers==4.57.3
 peft==0.18.1
 python-multipart==0.0.32
 aiofiles==24.1.0
-mutagen
+# Only consumed by alexandria_preparer_rocm_compatible.py's WAV tagging, which
+# runs in the Voice Lab "rocm_python" interpreter env - install it there too
+# (it is optional: the preparer skips tagging with a warning when missing).
+mutagen==1.47.0
