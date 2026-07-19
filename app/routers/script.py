@@ -1147,11 +1147,12 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 state["tasks"][i]["status"] = "failed"
                 continue
             if action == "version":
-                safe_stem = os.path.splitext(os.path.basename(output_path))[0]
                 if was_reserved and request.collision_policy == "replace":
                     state["logs"].append(
                         f"[{i+1}] '{safe_stem}.json' collides with an output already "
-                        "produced by this batch — versioning instead of replacing.")
+                        "produced by this batch — writing "
+                        f"'{os.path.basename(output_path)}' instead of replacing.")
+                safe_stem = os.path.splitext(os.path.basename(output_path))[0]
             elif action == "backup":
                 backup = backup_file_with_timestamp(output_path)
                 state["logs"].append(
