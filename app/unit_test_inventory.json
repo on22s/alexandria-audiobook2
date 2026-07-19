@@ -368,7 +368,10 @@
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_interruption_before_manifest_save_recovers_files_and_manifest",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_new_promotion_prunes_older_backup_after_commit",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_preserves_and_rolls_back_production",
-    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation"
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_promote_returns_400_while_another_gpu_task_is_running",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_running_flag_resets_after_promote_raises",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_running_flag_resets_after_successful_promote"
   ],
   "test_lora_candidate_retention": [
     "test_lora_candidate_retention.LoraCandidateRetentionTests.test_candidate_save_is_bounded_and_does_not_mutate_records_input",
