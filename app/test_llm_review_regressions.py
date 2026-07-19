@@ -413,6 +413,93 @@ class LlmReviewTests(unittest.TestCase):
         self.assertIn("stopping early", prompts[1])
         self.assertIn("about 30%", prompts[1])
 
+    def test_is_near_miss_recall_true_above_threshold(self):
+        self.assertTrue(generate_script._is_near_miss_recall(
+            {"source_token_recall": 0.86}))
+        self.assertTrue(generate_script._is_near_miss_recall(
+            {"source_token_recall": 0.75}))
+
+    def test_is_near_miss_recall_false_below_threshold_or_missing(self):
+        self.assertFalse(generate_script._is_near_miss_recall(
+            {"source_token_recall": 0.5}))
+        self.assertFalse(generate_script._is_near_miss_recall(
+            {"source_token_recall": 0.05}))
+        self.assertFalse(generate_script._is_near_miss_recall({}))
+        self.assertFalse(generate_script._is_near_miss_recall(None))
+
+    def test_retry_feedback_near_miss_uses_different_wording(self):
+        quality = {"metrics": {"source_token_recall": 0.86},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.86}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("close but only covered about 86%", message)
+        self.assertNotIn("stopping early", message)
+        self.assertNotIn("ENTIRE", message)
+
+    def test_retry_feedback_catastrophic_keeps_original_wording(self):
+        quality = {"metrics": {"source_token_recall": 0.11},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.11}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("stopping early", message)
+        self.assertIn("ENTIRE", message)
+        self.assertNotIn("close but", message)
+
+    def test_process_chunk_grants_bonus_retry_after_near_miss_final_attempt(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        # 5 catastrophic-then-near-miss responses to exhaust the default
+        # budget (max_retries=4, 5 attempts), then a complete 6th (bonus).
+        tiny = json.dumps([{"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
+        near_miss = json.dumps([{"speaker": "NARRATOR", "text": " ".join(
+            f"word{index}" for index in range(16)), "instruct": "n"}])
+        complete = json.dumps([{"speaker": "NARRATOR", "text": source, "instruct": "n"}])
+        client = self._client_with_responses(
+            [tiny, tiny, tiny, tiny, near_miss, complete])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual(json.loads(complete), result)
+
+    def test_process_chunk_bonus_retry_is_exactly_one_attempt(self):
+        source = " ".join(f"word{index}" for index in range(20))
+        tiny = json.dumps([{"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
+        near_miss = json.dumps([{"speaker": "NARRATOR", "text": " ".join(
+            f"word{index}" for index in range(16)), "instruct": "n"}])
+        # Final regular attempt (5th) is a near miss; the bonus (6th) call
+        # is ALSO a near miss - must not grant a second bonus.
+        client = self._client_with_responses(
+            [tiny, tiny, tiny, tiny, near_miss, near_miss])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual([], result)
+
+    def test_process_chunk_no_bonus_retry_for_catastrophic_final_attempt(self):
+        # Regression guard: matches
+        # test_process_chunk_default_budget_stops_after_exactly_five_attempts's
+        # fixture shape exactly - every attempt is catastrophic (~5% recall,
+        # not a near miss), so no bonus call should ever fire.
+        source = " ".join(f"word{index}" for index in range(20))
+        incomplete = json.dumps([
+            {"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
+        calls = 0
+
+        def create(**_kwargs):
+            nonlocal calls
+            calls += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=incomplete), finish_reason="stop")],
+                usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
+
+        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
+
+        self.assertEqual([], result)
+        self.assertEqual(5, calls)
+
     def test_near_limit_incomplete_stop_increases_budget(self):
         quality = {"metrics": {"output_source_ratio": 0.2},
                    "findings": [{"code": "output_source_ratio"}]}

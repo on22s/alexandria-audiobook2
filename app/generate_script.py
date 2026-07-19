@@ -468,6 +468,28 @@ def record_attempt_context(observer, attempt, phase, split_part=None):
     observer(attempt)
 
 
+NEAR_MISS_RECALL_THRESHOLD = 0.75
+
+
+def _is_near_miss_recall(metrics):
+    """True if source coverage was close to (but under) chunk_quality.py's
+    0.90 pass threshold - distinguishes an almost-complete, imprecise
+    response from catastrophic early-stop truncation. Shared by
+    _build_retry_feedback_message (wording) and process_chunk (bonus-retry
+    eligibility) so both use the same definition of "near miss" (Rule 15).
+
+    Diagnosed live (2026-07-19): a chunk's retry sequence hit 11%, 11%,
+    11%, then 86% recall on attempt 4 (its last) - a near-complete
+    response one attempt away from passing - then regressed to 5% because
+    the retry message told it "you barely started, redo everything" when
+    it hadn't.
+    """
+    if not metrics:
+        return False
+    recall = metrics.get("source_token_recall")
+    return recall is not None and recall >= NEAR_MISS_RECALL_THRESHOLD
+
+
 def _build_retry_feedback_message(quality):
     """Plain-English retry instruction instead of a raw JSON findings dump -
     the model has to act on this, not parse it. Diagnosed from a real
@@ -488,8 +510,14 @@ def _build_retry_feedback_message(quality):
                         "output_source_ratio"}
     codes = {finding.get("code") for finding in findings}
     if codes & truncation_codes:
-        recall = quality.get("metrics", {}).get("source_token_recall")
+        metrics = quality.get("metrics", {})
+        recall = metrics.get("source_token_recall")
         coverage = f"about {recall * 100:.0f}%" if recall is not None else "too little"
+        if _is_near_miss_recall(metrics):
+            return (f"Your previous response was close but only covered {coverage} "
+                    "of the source text, missing some content or phrasing precisely. "
+                    "Review it and produce a complete, precise conversion of the "
+                    "entire chunk, filling in whatever was missing.")
         return (f"Your previous response covered only {coverage} of the source "
                 "text before stopping early. Convert the ENTIRE source chunk "
                 "from beginning to end this time - do not stop partway through "
@@ -859,19 +887,39 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
                 "changes": structural["changes"] + identities["changes"],
                 "unresolved": [], "review": identities["review"]}
 
-    return call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
-        log_name="llm_responses.log",
-        label=f"CHUNK {chunk_num}/{total_chunks}",
-        max_retries=max_retries,
-        validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
-        transform_entries=prepare_entries,
-        attempt_observer=attempt_observer,
-        retry_decider=(
-            (lambda quality, attempt_number: get_chunk_retry_action(
-                quality, attempt_number, allow_early_split=True))
-            if allow_early_split else None),
-    )
+    local_attempts = []
+
+    def observe(attempt):
+        local_attempts.append(attempt)
+        if attempt_observer:
+            attempt_observer(attempt)
+
+    def call(retries):
+        return call_llm_for_entries(
+            client, model_name, sys_prompt, user_prompt, params,
+            log_name="llm_responses.log",
+            label=f"CHUNK {chunk_num}/{total_chunks}",
+            max_retries=retries,
+            validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+            transform_entries=prepare_entries,
+            attempt_observer=observe,
+            retry_decider=(
+                (lambda quality, attempt_number: get_chunk_retry_action(
+                    quality, attempt_number, allow_early_split=True))
+                if allow_early_split and retries else None),
+        )
+
+    entries = call(max_retries)
+    # One bonus attempt when the model came very close on its last try -
+    # diagnosed live (2026-07-19): a chunk hit 86% recall on its final
+    # attempt (one attempt away from the 90% pass threshold), then the
+    # retry budget was already exhausted. See _is_near_miss_recall.
+    if not entries and local_attempts and _is_near_miss_recall(
+            local_attempts[-1].get("quality_metrics")):
+        print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
+              "granting one bonus retry")
+        entries = call(0)
+    return entries
 
 
 def split_failed_chunk(chunk, minimum_chars=800):
