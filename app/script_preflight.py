@@ -1,5 +1,6 @@
 """Read-only, deterministic checks for annotated audiobook scripts."""
 
+import difflib
 import re
 import unicodedata
 from collections import Counter
@@ -97,6 +98,62 @@ def find_adjacent_duplicate_blocks(texts, source_text):
     return findings
 
 
+def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90):
+    """Adjacent entry pairs that are near-duplicates of each other but not
+    supported by the source - likely model re-generation at a seam.
+
+    Non-blocking evidence only: findings are always ``manual_review``, never
+    a rejection - a fallback net for paraphrased seam repeats that slip past
+    the exact ``find_adjacent_duplicate_blocks`` check. Deliberately NOT
+    wired into ``chunk_quality.validate_chunk_quality`` - any finding there
+    sets ``passed: False`` and triggers a retry, which would turn this
+    non-blocking net into a blocking gate.
+    """
+    findings = []
+    occupied = set()
+    for finding in find_adjacent_duplicate_blocks(texts, source_text):
+        occupied.update(number - 1 for number in finding["entry_numbers"])
+
+    source_normalized = _normalize_words(source_text) if source_text else ""
+    for index in range(len(texts) - 1):
+        if index in occupied or (index + 1) in occupied:
+            continue
+        first, second = texts[index], texts[index + 1]
+        if len(first) < 8 or len(second) < 8:
+            continue
+        first_words = _WORD_RE.findall(first)
+        second_words = _WORD_RE.findall(second)
+        if len(first_words) < 5 or len(second_words) < 5:
+            continue
+        ratio = difflib.SequenceMatcher(None, first_words, second_words, autojunk=False).ratio()
+        if ratio < minimum_ratio:
+            continue
+
+        if source_text:
+            # Identical text used twice needs two occurrences in the source to be
+            # "genuinely repeated prose"; one occurrence can't back both uses.
+            required_occurrences = 2 if first == second else 1
+            first_supported = source_normalized.count(_normalize_words(first)) >= required_occurrences
+            second_supported = source_normalized.count(_normalize_words(second)) >= required_occurrences
+            if first_supported and second_supported:
+                continue
+            source_checked = True
+            source_supported = [first_supported, second_supported]
+        else:
+            source_checked = False
+            source_supported = None
+
+        findings.append(_finding(
+            "manual_review", "adjacent_near_duplicate",
+            f"Entries {index + 1}-{index + 2} are near-duplicates of each other.",
+            [index + 1, index + 2],
+            similarity=round(ratio, 4),
+            source_checked=source_checked,
+            source_supported=source_supported,
+        ))
+    return findings
+
+
 def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     """Return deterministic findings without modifying ``entries``."""
     findings = []
@@ -155,6 +212,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             ))
 
     findings.extend(find_adjacent_duplicate_blocks(texts, source_text))
+    findings.extend(find_adjacent_near_duplicate_entries(texts, source_text))
 
     nonempty_instructions = [value for value in instructions if value]
     if len(nonempty_instructions) >= 20:

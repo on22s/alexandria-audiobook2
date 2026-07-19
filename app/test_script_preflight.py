@@ -148,6 +148,72 @@ class ScriptPreflightTests(unittest.TestCase):
 
         self.assertNotIn("adjacent_duplicate_block", {f["code"] for f in report["findings"]})
 
+    def test_flags_paraphrased_adjacent_pair_as_non_blocking_manual_review(self):
+        first = "The old sailor walked slowly down the narrow creaking wooden pier before dawn."
+        second = "The old sailor walked slowly down the narrow creaking wooden dock before dawn."
+
+        report = audit_script([_entry(first), _entry(second)], source_text=first)
+
+        near_dup = next(f for f in report["findings"] if f["code"] == "adjacent_near_duplicate")
+        self.assertEqual([1, 2], near_dup["entry_numbers"])
+        self.assertEqual("manual_review", near_dup["severity"])
+        self.assertGreaterEqual(near_dup["details"]["similarity"], 0.90)
+        self.assertTrue(report["can_apply_repairs"])
+
+    def test_flags_identical_adjacent_pair_too_short_for_block_detector(self):
+        line = "A repeated sentence of decent length here."
+
+        report = audit_script([_entry(line), _entry(line)], source_text=line)
+
+        near_dup = next(f for f in report["findings"] if f["code"] == "adjacent_near_duplicate")
+        self.assertEqual([1, 2], near_dup["entry_numbers"])
+        self.assertEqual(1.0, near_dup["details"]["similarity"])
+
+    def test_does_not_flag_near_duplicate_when_both_sides_are_source_backed(self):
+        line = "The captain repeated the same warning twice."
+        source = f"{line} {line}"
+
+        report = audit_script([_entry(line), _entry(line)], source_text=source)
+
+        self.assertNotIn("adjacent_near_duplicate", {f["code"] for f in report["findings"]})
+
+    def test_does_not_flag_short_echo_as_near_duplicate(self):
+        report = audit_script([_entry("No."), _entry("No.")])
+
+        self.assertNotIn("adjacent_near_duplicate", {f["code"] for f in report["findings"]})
+
+    def test_near_duplicate_skips_entries_already_covered_by_exact_block(self):
+        block = [_entry("A sufficiently long first line."), _entry("A sufficiently long second line.")]
+        source = "A sufficiently long first line. A sufficiently long second line."
+
+        report = audit_script(block + block, source)
+
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("adjacent_duplicate_block", codes)
+        self.assertNotIn("adjacent_near_duplicate", codes)
+
+    def test_does_not_flag_distinct_adjacent_entries_as_near_duplicate(self):
+        entries = [_entry("The weather in the mountains was cold and clear this morning."),
+                   _entry("My favorite recipe requires flour sugar eggs and melted butter today.")]
+
+        report = audit_script(entries)
+
+        self.assertNotIn("adjacent_near_duplicate", {f["code"] for f in report["findings"]})
+
+    def test_audit_script_surfaces_near_duplicate_alongside_other_manual_review_findings(self):
+        first = "The old sailor walked slowly down the narrow creaking wooden pier before dawn."
+        second = "The old sailor walked slowly down the narrow creaking wooden dock before dawn."
+        entries = [_entry(first), _entry(second), _entry("Some other line entirely.", instruct="")]
+
+        report = audit_script(entries, source_text=first)
+
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("adjacent_near_duplicate", codes)
+        self.assertIn("missing_instruction", codes)
+        near_dup = next(f for f in report["findings"] if f["code"] == "adjacent_near_duplicate")
+        self.assertEqual([1, 2], near_dup["entry_numbers"])
+        self.assertGreaterEqual(report["counts"]["manual_review"], 2)
+
     def test_reuses_generic_speaker_policy_and_only_reports_narration_for_character(self):
         entries = [_entry("Subaru looked toward the door.", "Guard 2"),
                    _entry("Subaru looked toward the door.", "Narrator")]
