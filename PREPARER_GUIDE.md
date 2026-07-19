@@ -274,6 +274,21 @@ Add metadata to transcript chunks before annotation using a local GGUF LLM.
 - `--enrich-narration-style` — Instruct LLM to extract narration style (e.g. "calm", "energetic", "sad", "questioning")
 - `--enrich-emotional-tone` — Instruct LLM to extract emotional tone (e.g. "happy", "anxious", "neutral", "excited")
 
+### Speaker diarization (optional)
+Attribute transcribed words to diarized speakers via pyannote.audio. Requires
+extra dependencies (`pip install -r requirements-diarization.txt` **into the
+same interpreter that runs the preparer** — see that file's comments for the
+version ceiling) and a Hugging Face token that has accepted the terms for
+`pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`.
+- `--diarize` — Always run full speaker diarization over the whole audio
+- `--auto-detect-speakers` — First run a cheap sampled pre-check (three 120 s
+  windows, ~2-3 min) and only run the full, expensive diarization pass when a
+  window shows a second speaker with ≥10% of that window's speech time.
+  Skipped (falls back to full diarization) for audio under 15 minutes or when
+  the pre-check can't run. An explicit `--diarize` wins over this flag.
+- `--hf-token TOKEN` — Hugging Face token (default: `HF_TOKEN` env var);
+  required by both flags above
+
 ### Source-guided chunking (optional)
 Pass an EPUB or text file matching the audiobook to fix ASR mistranscriptions
 at source and drop audio-only material before the LLM step.
