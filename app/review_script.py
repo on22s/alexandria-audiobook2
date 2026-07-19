@@ -15,6 +15,7 @@ from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
 from lmstudio_settings import ensure_ideal_settings, get_current_status, get_effective_max_tokens
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
+from speaker_identity import resolve_speaker_label
 
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
@@ -370,12 +371,10 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
             registry = {}
     existing_canonicals = sorted(set(registry.values())) if registry else []
 
-    # Case-insensitive map from a label spelling to the actual label in this script
-    label_by_norm = {sp.strip().lower(): sp for sp in samples}
-
     def _resolve_label(name):
-        """Return the actual speaker label matching `name` (case-insensitively), or None."""
-        return label_by_norm.get((name or "").strip().lower())
+        """Return the actual speaker label that `name` refers to (using the
+        same normalization generation uses), or None."""
+        return resolve_speaker_label(name, samples.keys())
 
     # Pre-seed forced merges from the alias file for labels present in this script
     forced_map = {}
@@ -439,7 +438,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         variant, canonical = variant.strip(), canonical.strip()
         if not variant or not canonical:
             continue
-        actual = _resolve_label(variant)  # case-insensitive match to a real label
+        actual = _resolve_label(variant)  # normalized match to a real label
         if not actual or actual == canonical:
             continue
         if actual.upper() == "NARRATOR" or canonical.upper() == "NARRATOR":

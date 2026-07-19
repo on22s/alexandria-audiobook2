@@ -46,6 +46,18 @@ class ParseAliasResponseTests(unittest.TestCase):
         self.assertEqual({"SUBARU": "NATSUKI"}, parsed)
         self.assertNotIn("[near-miss]", output)
 
+    def test_punctuation_variant_resolves_via_shared_normalization(self):
+        # "MR SMITH" and "MR. SMITH" share the same _identity_key (casefold +
+        # strip non-word chars), so the shared resolver must match them even
+        # though a plain .strip().lower() comparison would not.
+        raw = json.dumps({"aliases": {"MR SMITH": "SUBARU"}, "evidence": {}})
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            parsed, _evidence = find_nicknames._parse_alias_response(
+                raw, ["NARRATOR", "SUBARU", "MR. SMITH"])
+        self.assertEqual({"MR. SMITH": "SUBARU"}, parsed)
+        self.assertNotIn("[near-miss]", buffer.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
