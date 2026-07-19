@@ -39,7 +39,6 @@ app/output_audio_cloned/
 app/output_audio/
 app/torch-constraints.txt
 /AGENTS.md
-/CLAUDE.md
 /GEMINI.md
 /QWEN.md
 /SPEC.md
