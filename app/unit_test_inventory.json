@@ -189,6 +189,13 @@
     "test_evaluation_reviews.SubmitTests.test_unknown_session_is_rejected",
     "test_evaluation_reviews.SubmitTests.test_wrong_adapter_for_session_is_rejected"
   ],
+  "test_find_nicknames": [
+    "test_find_nicknames.ParseAliasResponseTests.test_clean_miss_variant_is_dropped_silently",
+    "test_find_nicknames.ParseAliasResponseTests.test_exact_variant_resolves_case_insensitively",
+    "test_find_nicknames.ParseAliasResponseTests.test_near_miss_canonical_is_reported_but_mapping_kept",
+    "test_find_nicknames.ParseAliasResponseTests.test_near_miss_variant_is_dropped_but_reported",
+    "test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent"
+  ],
   "test_frontend_regressions": [
     "test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
     "test_frontend_regressions.FrontendJsSplitTests.test_split_js_files_exist_are_referenced_in_order_and_non_empty",

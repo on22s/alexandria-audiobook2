@@ -26,6 +26,10 @@ from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from review_script import _is_group_label
 
+# Reuse the codebase's one near-miss-label similarity check (Rule 15) — here it
+# only *reports* dropped near-misses; alias resolution itself stays exact-match.
+from speaker_identity import _uncertain_candidates
+
 
 NICKNAME_SYSTEM_PROMPT = (
     "You are an expert at character identity resolution in narrated fiction. "
@@ -132,6 +136,18 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
     return speakers, samples, cooccur
 
 
+def _warn_near_miss_label(role, label, speakers):
+    """Report (never act on) a model-proposed label that isn't an exact match
+    but closely resembles a real speaker label, so a silently dropped alias is
+    visible in the task log and human-fixable in the aliases file."""
+    candidates = _uncertain_candidates(label, speakers)
+    if candidates:
+        best = candidates[0]
+        print(f"  [near-miss] {role} '{label}' matches no label exactly; "
+              f"closest is '{best['speaker']}' (similarity {best['similarity']}) - "
+              f"not merged, exact matches only")
+
+
 def _parse_alias_response(raw, speakers):
     """Normalize one LLM response into (aliases, evidence) maps.
 
@@ -155,8 +171,11 @@ def _parse_alias_response(raw, speakers):
             continue
         actual_variant = label_by_norm.get(variant.lower())
         if not actual_variant:  # only aliases that actually appear as a label
+            _warn_near_miss_label("variant", variant, speakers)
             continue
         # Prefer an existing label spelling for the canonical when one matches
+        if canonical.lower() not in label_by_norm:
+            _warn_near_miss_label("canonical", canonical, speakers)
         canonical = label_by_norm.get(canonical.lower(), canonical)
         if actual_variant == canonical:
             continue
