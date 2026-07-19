@@ -144,17 +144,87 @@ tables) that would generalize better as more corrupted-source patterns are
 discovered over time, without losing the auditability this file's design
 explicitly prioritizes (see "Ground rules" above)?
 
-### 6. Character/voice name deduplication — search these on your own
+### 6. Character/voice name deduplication (text) — search these on your own
 
 Not yet traced in detail this session, but worth checking for the same
 "hand-rolled fuzzy matching" pattern: `app/find_nicknames.py` (speaker-alias
 detection), the "merge duplicate character names" feature referenced in
 `app/static/index.html`/`app/static/js/app-*.js` (character merging across a
 whole batch), and `voice_library.json`-related matching in `app/app.py`'s
-`/api/voice_library/apply*` routes. Also check the Voice Lab pipeline's
-`voice_analysis.py --phase dedup` (dedup of generated audio samples,
-described in project memory as embedding/clustering-based, not text) for
-whether its clustering approach (if any) is a reasonable choice.
+`/api/voice_library/apply*` routes.
+
+### 7. Voice Lab audio-matching pipeline (repo root, not `app/`)
+
+Correcting an earlier assumption in this doc: this pipeline is **not** in
+the sibling repo — `voice_analysis.py`, `voice_clustering.py`,
+`voice_profiler.py`, and `audit_voice_datasets.py` all live at this repo's
+**root** (not `app/`), invoked via a configurable ROCm Python interpreter
+from `routers/voicelab.py` (see the stage comment at `routers/voicelab.py:63`).
+Read all four before concluding anything — this section only reports what
+was found by directly reading `voice_analysis.py` and `voice_clustering.py`
+this session; `voice_profiler.py`/`audit_voice_datasets.py` deserve the same
+depth of read.
+
+**What's already using the right tool (don't touch):**
+`voice_analysis.py`'s `run_dedup`/`run_analyze` extract SpeechBrain
+ECAPA-TDNN speaker embeddings, then correctly reach for established
+libraries rather than hand-rolling: pairwise cosine similarity via
+`scipy.spatial.distance.cdist` (`voice_analysis.py:286`), prosody divergence
+via `scipy.stats.wasserstein_distance` (proper Earth Mover's Distance,
+`voice_analysis.py:583`), and dimensionality-reduction visualization via the
+real `umap-learn` package (`voice_analysis.py:627`). This is a good example
+of the codebase doing this right already — cite it as a positive baseline
+when judging the areas below, not something to "improve."
+
+**What's hand-rolled and worth a second look:** `voice_clustering.py`'s
+`cluster_voices` (called from `voice_analysis.py:314`) is a from-scratch
+**complete-link agglomerative clustering** implementation over the
+similarity matrix above — a named, well-known algorithm, but reimplemented
+in a plain Python loop that rescans all cluster pairs every merge iteration,
+rather than using `scipy.cluster.hierarchy.linkage(method="complete")` +
+`fcluster` (the same algorithm, in optimized code already imported
+elsewhere in this same file via `scipy.spatial.distance`). The complication:
+`cluster_voices` also supports manual `merge`/`split` overrides
+(`load_cluster_overrides`) applied as hard constraints before/around the
+threshold-based merging — check whether scipy's clustering can be
+post-processed to honor the same overrides, or whether that constraint
+logic is exactly why this was hand-rolled in the first place (in which case,
+say so and don't recommend the swap).
+
+**Multi-speaker handling — exists, but check the details:** initially
+thought this was a confirmed gap after grepping only the four Voice Lab
+scripts above (none of them handle it) — but the *upstream* Preparer stage
+(`alexandria_preparer_rocm_compatible.py`, repo root, invoked from
+`app/routers/preparer.py`) already integrates real **pyannote.audio speaker
+diarization** (`diarize_audio`, `~line 916`, using the published
+`pyannote/speaker-diarization-3.1` model) plus `_assign_speakers_to_words`
+(`~line 2785`) to attribute each transcribed word to a diarized speaker
+turn. So this pipeline already reaches for an established, real diarization
+algorithm rather than needing one recommended — it is not hand-rolled.
+What's worth checking instead: diarization is **opt-in** behind `--diarize`
+(off by default, `~line 3030`), and a *different*, unimplemented flag,
+`--auto-detect-speakers` ("auto-detect narrator count," `~line 3032`),
+explicitly errors out telling the user to use `--diarize` instead
+(`~line 3045`) — meaning there's no automatic "does this audio need
+diarization at all" decision, only a manual switch. Whether that gap (an
+automatic single-vs-multi-speaker detector deciding whether to run the
+expensive diarization pass) is worth an algorithm is a fair question — e.g.
+a cheap pre-check via the same speaker-embedding clustering already used
+in `voice_analysis.py` (area 7 above), applied to windows within one clip
+instead of across clips, could answer "does this file need diarization"
+without the user needing to know to ask for it. Read
+`alexandria_preparer_rocm_compatible.py` end to end before proposing
+anything here — this section is based on a partial read (found via
+targeted grep, not a full pass), unlike areas 1-6 above.
+
+**Text-audio "matching" in `voice_profiler.py`**: `get_ref_text`/
+`extract_epub_passage`/`_TextExtractor` (`voice_profiler.py:307-419`) pulls
+a representative EPUB passage per dataset for an LLM narrator-description
+prompt — this is passage *extraction*, not literal text-audio alignment
+(the codebase is aware forced alignment is out of scope: see the comment at
+`app/tts.py:65`, "Word-level alignment would need forced alignment and is
+out of scope" — a deliberate prior decision, not an oversight; don't
+recommend forced alignment without addressing why that comment exists).
 
 ## Deliverable
 
