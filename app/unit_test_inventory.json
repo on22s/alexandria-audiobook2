@@ -115,6 +115,7 @@
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_labels_full_and_split_attempt_telemetry",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recombines_and_carries_context",
+    "test_chunk_quality.ChunkQualityTests.test_adaptive_split_recurses_when_a_half_itself_needs_splitting",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_refuses_short_or_boundaryless_chunk",
     "test_chunk_quality.ChunkQualityTests.test_adaptive_split_still_attempts_second_half_after_first_half_fails",
     "test_chunk_quality.ChunkQualityTests.test_book_request_preflight_reports_context_miss",
