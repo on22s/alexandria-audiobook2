@@ -14,7 +14,7 @@ from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
 from script_repair import build_deterministic_repair
-from source_normalization import normalize_known_source_corruptions
+from source_normalization import normalize_known_source_corruptions, strip_known_front_matter
 from speaker_identity import (build_speaker_consistency_report,
                               stabilize_speaker_identities)
 from script_preflight import audit_script, audit_unicode_text
@@ -1022,6 +1022,10 @@ def main():
     if source_normalizations:
         print(f"Normalized {len(source_normalizations)} known source corruption(s) in memory; "
               "the upload was not modified.")
+    book_content, front_matter_removed = strip_known_front_matter(book_content)
+    if front_matter_removed:
+        print(f"Stripped {front_matter_removed['removed_chars']} characters of known "
+              "front matter (translator's note / table of contents) before generation")
     source_unicode = audit_unicode_text(book_content)
     print(f"Source scripts: {', '.join(source_unicode['scripts']) or 'none'}; "
           f"NFC normalized: {source_unicode['is_nfc']}")

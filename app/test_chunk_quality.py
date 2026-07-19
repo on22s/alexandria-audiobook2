@@ -213,6 +213,50 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual("пар", changes[0]["before"])
         self.assertEqual("nap", changes[0]["after"])
 
+    def test_strip_known_front_matter_removes_manifesto_and_toc(self):
+        # Regression for a live 2026-07-19 failure: every "wn" upload in the
+        # corpus opens with this fan-compiler's translator's-note essay and
+        # chapter listing, which isn't dialogue or narration -- the
+        # annotation model can't handle it and chunk 1 failed near-zero
+        # recall no matter how many times it was retried or split. Confirmed
+        # across 5 real "wn" files that the first "Original ... Chapter -
+        # Complete." / "Original Translation by ..." marker pair is always
+        # immediately followed by the real chapter 1 prose.
+        source = (
+            "﻿Manifesto.\n\n"
+            "Hello, this is a translator. Some notes about this project.\n\n"
+            "P.S. Much thanks to Joy Kirbs from Discord for aiding me in redesigning the covers.\n\n"
+            "Table of Contents for Volume 1.\n\n"
+            "Chapter 1 - The Beginning.\n\n"
+            "Original Web Novel Chapter ― Complete.\n\n"
+            "Original Translation by Someone ― Complete.\n\n"
+            "The dragon carriage rattles along quietly as it continues down the highway."
+        )
+
+        stripped, removed = generate_script.strip_known_front_matter(source)
+
+        self.assertEqual(
+            "The dragon carriage rattles along quietly as it continues down the highway.",
+            stripped)
+        self.assertGreater(removed["removed_chars"], 0)
+        self.assertTrue(source.startswith("﻿Manifesto."))
+
+    def test_strip_known_front_matter_leaves_normal_books_untouched(self):
+        source = "The dragon carriage rattles along quietly as it continues down the highway."
+
+        stripped, removed = generate_script.strip_known_front_matter(source)
+
+        self.assertEqual(source, stripped)
+        self.assertIsNone(removed)
+
+    def test_strip_known_front_matter_leaves_unrecognized_manifesto_shape_untouched(self):
+        source = "Manifesto.\n\nSome other kind of front matter with no known anchor.\n\nStory text."
+
+        stripped, removed = generate_script.strip_known_front_matter(source)
+
+        self.assertEqual(source, stripped)
+        self.assertIsNone(removed)
+
     def test_generation_repairs_empty_silence_before_quality_acceptance(self):
         source = "First spoken line. Following spoken line."
         response_entries = [
