@@ -190,6 +190,11 @@
             "title": "Collision Policy",
             "type": "string"
           },
+          "strip_front_matter": {
+            "default": true,
+            "title": "Strip Front Matter",
+            "type": "boolean"
+          },
           "tasks": {
             "items": {
               "$ref": "#/components/schemas/BatchScriptTask"
@@ -723,6 +728,17 @@
           }
         },
         "title": "GeneratePersonasRequest",
+        "type": "object"
+      },
+      "GenerateScriptRequest": {
+        "properties": {
+          "strip_front_matter": {
+            "default": true,
+            "title": "Strip Front Matter",
+            "type": "boolean"
+          }
+        },
+        "title": "GenerateScriptRequest",
         "type": "object"
       },
       "GenerationConfig": {
@@ -3065,6 +3081,23 @@
     "/api/generate_script": {
       "post": {
         "operationId": "generate_script_api_generate_script_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateScriptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -3073,6 +3106,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Generate Script"

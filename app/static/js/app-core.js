@@ -797,7 +797,7 @@
             _resetPauseBtn('btn-pause-script');
 
             try {
-                await API.post('/api/generate_script', {});
+                await API.post('/api/generate_script', { strip_front_matter: _isStripFrontMatterChecked() });
                 pollLogs('script', 'script-logs', () => {
                     if (!scriptBatchPoller) { genBtn.disabled = false; }
                     cancelBtn.style.display = 'none';
@@ -1052,7 +1052,8 @@
 
                 statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
                 await API.post('/api/generate_script/batch/start', {
-                    tasks, collision_policy: collisionPolicy
+                    tasks, collision_policy: collisionPolicy,
+                    strip_front_matter: _isStripFrontMatterChecked()
                 });
                 _pollScriptBatchLogs();
             } catch (e) {
@@ -1117,6 +1118,10 @@
         // --- Single review (with pause/cancel + character-name merging) ---
         function _isReviewDedupeChecked() {
             const cb = document.getElementById('review-dedupe-speakers');
+            return cb ? cb.checked : true;
+        }
+        function _isStripFrontMatterChecked() {
+            const cb = document.getElementById('script-strip-front-matter');
             return cb ? cb.checked : true;
         }
         function _showReviewControls(show) {
