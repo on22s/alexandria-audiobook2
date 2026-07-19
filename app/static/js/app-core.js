@@ -734,7 +734,8 @@
                 ).join('');
                 document.getElementById('existing-upload-select').innerHTML =
                     '<option value="">Choose an existing TXT/MD file…</option>' + options;
-                document.getElementById('script-existing-uploads').innerHTML = options;
+                scriptBatchUploads = uploads;
+                renderScriptBatchUploads();
             } catch (e) {
                 console.debug('Existing upload list unavailable', e);
             }
@@ -910,7 +911,26 @@
 
         // --- Script Batch Mode ---
         let scriptBatchQueue = [];
+        let scriptBatchUploads = [];
         let scriptBatchPoller = null;
+
+        // Checkboxes instead of a native <select multiple> - selecting a
+        // subset of a multi-select normally requires ctrl/shift-click, which
+        // doesn't work over a remote-desktop session with no modifier keys.
+        // Reuses _renderScriptCheckboxList (also used by the review-batch and
+        // cast-bulk pickers) via its keyField/renderLabel/onchange/emptyMessage
+        // options instead of a parallel duplicate implementation.
+        function renderScriptBatchUploads() {
+            _renderScriptCheckboxList(scriptBatchUploads, {
+                containerId: 'script-existing-uploads',
+                checkClass: 'script-batch-upload-check',
+                idPrefix: 'script-batch-upload-',
+                keyField: 'filename',
+                onchange: 'onScriptBatchFilesChange()',
+                emptyMessage: 'No existing uploads found.',
+                renderLabel: (item) => `${escapeHtml(item.filename)} (${Math.ceil(item.size / 1024)} KB)`,
+            });
+        }
 
         window.toggleScriptBatchMode = () => {
             const isBatch = document.getElementById('script-batch-mode').checked;
@@ -921,7 +941,7 @@
 
         window.onScriptBatchFilesChange = () => {
             const files = document.getElementById('script-batch-files').files;
-            const existing = [...document.getElementById('script-existing-uploads').selectedOptions];
+            const existing = [...document.querySelectorAll('.script-batch-upload-check:checked')];
             const tbody = document.getElementById('script-batch-queue-body');
             tbody.innerHTML = '';
             scriptBatchQueue = [];
@@ -943,44 +963,35 @@
                 tbody.appendChild(row);
                 scriptBatchQueue.push({ file });
             });
-            existing.forEach((option) => {
+            existing.forEach((checkbox) => {
                 const i = scriptBatchQueue.length;
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(option.value)} <span class="text-muted">(existing)</span></td>
+                    <td class="text-truncate" style="max-width:350px;">${escapeHtml(checkbox.dataset.name)} <span class="text-muted">(existing)</span></td>
                     <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
-                scriptBatchQueue.push({ storedFilename: option.value });
+                scriptBatchQueue.push({ storedFilename: checkbox.dataset.name });
             });
         };
 
-        window.scriptBatchSelectAll = (on) => {
-            document.querySelectorAll('#script-existing-uploads option').forEach(option => {
-                option.selected = on;
-            });
-            onScriptBatchFilesChange();
-        };
+        window.scriptBatchSelectAll = (on) => _selectAllCheckboxes(
+            'script-batch-upload-check', on, onScriptBatchFilesChange);
 
         window.scriptBatchSort = (mode) => {
-            const select = document.getElementById('script-existing-uploads');
-            const uploads = [...select.options].map(option => ({
-                // Ignore the upload extension and duplicate suffix when finding
-                // a book's volume number ("Volume 10_3.txt" is volume 10).
-                name: option.value.replace(/\.[^.]+$/, '').replace(/_\d+$/, ''),
-                value: option.value,
-                label: option.textContent,
-                selected: option.selected,
+            // `name` is only needed transiently for _sortScriptList's
+            // comparator (it ignores the upload extension and duplicate
+            // suffix when finding a book's volume number - "Volume
+            // 10_3.txt" is volume 10) - dropped again before persisting
+            // back into scriptBatchUploads since nothing else reads it.
+            const sortable = scriptBatchUploads.map(item => ({
+                name: item.filename.replace(/\.[^.]+$/, '').replace(/_\d+$/, ''),
+                filename: item.filename,
+                size: item.size,
             }));
-            _sortScriptList(uploads, mode);
-            select.innerHTML = '';
-            uploads.forEach(upload => {
-                const option = document.createElement('option');
-                option.value = upload.value;
-                option.textContent = upload.label;
-                option.selected = upload.selected;
-                select.appendChild(option);
-            });
+            _sortScriptList(sortable, mode);
+            scriptBatchUploads = sortable.map(({ filename, size }) => ({ filename, size }));
+            renderScriptBatchUploads();
             onScriptBatchFilesChange();
         };
 
@@ -1198,23 +1209,42 @@
         // checkboxes the user already ticked (re-rendering rebuilds the inputs,
         // so capture selection first). `extra(i)` optionally renders trailing
         // per-row markup (e.g. a status indicator).
-        function _renderScriptCheckboxList(scripts, { containerId, checkClass, idPrefix, extra }) {
+        function _renderScriptCheckboxList(items, { containerId, checkClass, idPrefix, extra,
+                                                     keyField = 'name', renderLabel, onchange,
+                                                     emptyMessage }) {
             const container = document.getElementById(containerId);
-            if (!scripts.length) {
-                container.innerHTML = '<span class="text-muted small">No saved scripts found. Generate or save scripts first.</span>';
+            if (!items.length) {
+                container.innerHTML = `<span class="text-muted small">${emptyMessage ||
+                    'No saved scripts found. Generate or save scripts first.'}</span>`;
                 return;
             }
             const checked = new Set(
                 Array.from(document.querySelectorAll(`.${checkClass}:checked`)).map(cb => cb.dataset.name)
             );
-            container.innerHTML = scripts.map((s, i) => `
+            container.innerHTML = items.map((item, i) => {
+                const key = item[keyField];
+                const label = renderLabel ? renderLabel(item)
+                    : `${escapeHtml(item.name)} ${item.has_voice_config ? '<span class="badge bg-info ms-1">voices</span>' : ''}`;
+                return `
                 <div class="form-check${extra ? ' d-flex align-items-center justify-content-between' : ''}">
                     <div>
-                        <input class="form-check-input ${checkClass}" type="checkbox" id="${idPrefix}${i}" data-name="${escapeHtml(s.name)}" ${checked.has(s.name) ? 'checked' : ''}>
-                        <label class="form-check-label small" for="${idPrefix}${i}">${escapeHtml(s.name)} ${s.has_voice_config ? '<span class="badge bg-info ms-1">voices</span>' : ''}</label>
+                        <input class="form-check-input ${checkClass}" type="checkbox" id="${idPrefix}${i}" data-name="${escapeHtml(key)}"${onchange ? ` onchange="${onchange}"` : ''} ${checked.has(key) ? 'checked' : ''}>
+                        <label class="form-check-label small" for="${idPrefix}${i}">${label}</label>
                     </div>
                     ${extra ? extra(i) : ''}
-                </div>`).join('');
+                </div>`;
+            }).join('');
+        }
+
+        // Shared by every checkbox-list picker's "Select all"/"Clear" pair
+        // (script-batch-uploads, review-batch, cast-bulk). `onchange` is
+        // optional - programmatically setting `.checked` doesn't fire a
+        // checkbox's own inline onchange handler, so callers that need a
+        // refresh after a bulk toggle (script-batch-uploads) pass one; the
+        // others don't need it, same as before this helper existed.
+        function _selectAllCheckboxes(checkClass, on, onchange) {
+            document.querySelectorAll(`.${checkClass}`).forEach(cb => { cb.checked = on; });
+            if (onchange) { onchange(); }
         }
 
         // Trailing number in a script name for numeric ("1→10") sorting,
@@ -1260,9 +1290,7 @@
             renderReviewBatchList();
         };
 
-        window.reviewBatchSelectAll = (on) => {
-            document.querySelectorAll('.review-batch-check').forEach(cb => { cb.checked = on; });
-        };
+        window.reviewBatchSelectAll = (on) => _selectAllCheckboxes('review-batch-check', on);
 
         async function startBatchReview() {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
@@ -2260,9 +2288,7 @@
             renderCastBulkList();
         };
 
-        window.castBulkSelectAll = (on) => {
-            document.querySelectorAll('.cast-bulk-check').forEach(cb => { cb.checked = on; });
-        };
+        window.castBulkSelectAll = (on) => _selectAllCheckboxes('cast-bulk-check', on);
 
         // Fuzzy-match the union of characters across the selected books, then
         // render the same review table as openCastApply but for all of them at once.

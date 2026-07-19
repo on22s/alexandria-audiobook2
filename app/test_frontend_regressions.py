@@ -151,14 +151,18 @@ class FrontendTests(unittest.TestCase):
                 "scriptBatchSelectAll(true)", "scriptBatchSelectAll(false)",
                 "scriptBatchSort('num-asc')", "scriptBatchSort('reverse')",
                 "script-batch-selected-count", "Failed books keep validated checkpoints",
-                "completed, ${failed} failed, ${cancelled} cancelled"):
+                "completed, ${failed} failed, ${cancelled} cancelled",
+                # Checkboxes instead of a native <select multiple> - selecting a
+                # subset normally requires ctrl/shift-click, unusable over a
+                # remote-desktop session with no modifier keys.
+                "script-batch-upload-check", "renderScriptBatchUploads"):
             self.assertIn(required, frontend)
 
         sort_start = frontend.index("window.scriptBatchSort =")
         sort_end = frontend.index("window.cancelBatchScript", sort_start)
         sort_function = frontend[sort_start:sort_end]
-        self.assertIn("option.selected", sort_function)
-        self.assertIn("_sortScriptList(uploads, mode)", sort_function)
+        self.assertIn("_sortScriptList(sortable, mode)", sort_function)
+        self.assertIn("renderScriptBatchUploads();", sort_function)
         self.assertIn("replace(/_\\d+$/, '')", sort_function)
         self.assertIn("onScriptBatchFilesChange();", sort_function)
 
