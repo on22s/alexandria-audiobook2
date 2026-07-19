@@ -130,6 +130,10 @@
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_rejects_unvalidated_chunk",
     "test_chunk_quality.ChunkQualityTests.test_generation_checkpoint_roundtrip_requires_validated_matching_chunks",
     "test_chunk_quality.ChunkQualityTests.test_generation_repairs_empty_silence_before_quality_acceptance",
+    "test_chunk_quality.ChunkQualityTests.test_homoglyph_all_cyrillic_lookalike_word_is_normalized",
+    "test_chunk_quality.ChunkQualityTests.test_homoglyph_leaves_genuine_cyrillic_text_untouched",
+    "test_chunk_quality.ChunkQualityTests.test_homoglyph_word_normalizes_with_location_evidence",
+    "test_chunk_quality.ChunkQualityTests.test_homoglyph_word_with_unmappable_character_is_untouched",
     "test_chunk_quality.ChunkQualityTests.test_introduced_hiragana_reports_codepoint",
     "test_chunk_quality.ChunkQualityTests.test_known_source_corruption_normalizes_with_location_evidence",
     "test_chunk_quality.ChunkQualityTests.test_known_source_nap_corruption_is_normalized",
@@ -188,6 +192,13 @@
     "test_evaluation_reviews.SubmitTests.test_tie_is_supported",
     "test_evaluation_reviews.SubmitTests.test_unknown_session_is_rejected",
     "test_evaluation_reviews.SubmitTests.test_wrong_adapter_for_session_is_rejected"
+  ],
+  "test_find_nicknames": [
+    "test_find_nicknames.ParseAliasResponseTests.test_clean_miss_variant_is_dropped_silently",
+    "test_find_nicknames.ParseAliasResponseTests.test_exact_variant_resolves_case_insensitively",
+    "test_find_nicknames.ParseAliasResponseTests.test_near_miss_canonical_is_reported_but_mapping_kept",
+    "test_find_nicknames.ParseAliasResponseTests.test_near_miss_variant_is_dropped_but_reported",
+    "test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent"
   ],
   "test_frontend_regressions": [
     "test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
@@ -384,6 +395,17 @@
   "test_preparer_benchmark": [
     "test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
     "test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
+  ],
+  "test_preparer_speaker_detection": [
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_all_single_speaker_windows_is_single",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_any_multi_window_makes_the_file_multi",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_dominant_only_window_is_single_speaker",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_eighty_twenty_window_is_multi_speaker",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_empty_window_is_single_and_safe",
+    "test_preparer_speaker_detection.IsMultiSpeakerTests.test_unstable_labels_across_windows_do_not_fake_multi",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_short_file_returns_empty_plan",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_ten_hour_book_gets_three_spread_windows",
+    "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_windows_are_clamped_inside_the_file"
   ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",

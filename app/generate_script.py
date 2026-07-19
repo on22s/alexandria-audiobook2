@@ -14,7 +14,9 @@ from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
 from script_repair import build_deterministic_repair
-from source_normalization import normalize_known_source_corruptions, strip_known_front_matter
+from source_normalization import (normalize_homoglyph_words,
+                                  normalize_known_source_corruptions,
+                                  strip_known_front_matter)
 from speaker_identity import (build_speaker_consistency_report,
                               stabilize_speaker_identities)
 from script_preflight import audit_script, audit_unicode_text
@@ -1036,6 +1038,8 @@ def main():
     # Fix encoding artifacts
     book_content = fix_mojibake(book_content)
     book_content, source_normalizations = normalize_known_source_corruptions(book_content)
+    book_content, homoglyph_normalizations = normalize_homoglyph_words(book_content)
+    source_normalizations.extend(homoglyph_normalizations)
     if source_normalizations:
         print(f"Normalized {len(source_normalizations)} known source corruption(s) in memory; "
               "the upload was not modified.")

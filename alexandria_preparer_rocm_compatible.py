@@ -913,33 +913,45 @@ def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str =
             except Exception as e:
                 logger.warning(f"Failed to clean up temp directory: {e}")
 
-def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda") -> list:
-    """Perform speaker diarization using pyannote.audio.
-    Requires a Hugging Face token with access to pyannote/speaker-diarization-3.1.
-    """
+def _load_diarization_pipeline(hf_token: str, device: str):
+    """Load the pyannote diarization pipeline once, or return None with the
+    reason logged. Shared by the full diarization pass and the sampled
+    speaker-detection pre-check so the model is only loaded once per run."""
     try:
         from pyannote.audio import Pipeline
         import torch as torch_module
     except ImportError:
         logger.error("pyannote.audio not installed. Diarization skipped.")
-        return []
+        return None
 
     if not hf_token:
         logger.warning("No Hugging Face token provided. Diarization requires a token for model access.")
         logger.warning("Pass --hf-token or set HF_TOKEN environment variable.")
-        return []
+        return None
 
     logger.info(f"▶ Initializing pyannote.audio diarization (device={device})...")
+    pipeline = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        token=hf_token
+    )
+    if pipeline is None:
+        raise ValueError("Failed to load pyannote pipeline. Check your token and model permissions.")
+
+    pipeline.to(torch_module.device(device))
+    return pipeline
+
+
+def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
+                  pipeline=None) -> list:
+    """Perform speaker diarization using pyannote.audio.
+    Requires a Hugging Face token with access to pyannote/speaker-diarization-3.1.
+    """
     try:
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            token=hf_token
-        )
         if pipeline is None:
-            raise ValueError("Failed to load pyannote pipeline. Check your token and model permissions.")
-            
-        pipeline.to(torch_module.device(device))
-        
+            pipeline = _load_diarization_pipeline(hf_token, device)
+        if pipeline is None:
+            return []
+
         logger.info(f"Running diarization on {audio_path}...")
         t0 = time.monotonic()
         diarization = pipeline(audio_path)
@@ -963,6 +975,108 @@ def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda") -
         logger.error(f"✗ Diarization failed: {e}")
         logger.debug(traceback.format_exc())
         return []
+
+
+DETECTION_WINDOW_SECS = 120
+DETECTION_WINDOW_COUNT = 3
+DETECTION_MIN_DURATION_SECS = 15 * 60
+DETECTION_MIN_SECONDARY_RATIO = 0.10
+
+
+def _plan_detection_windows(duration_secs: float,
+                            window_secs: float = DETECTION_WINDOW_SECS,
+                            count: int = DETECTION_WINDOW_COUNT) -> list:
+    """Plan (start, stop) sample windows spread through the audio for the
+    speaker-detection pre-check. Returns [] for audio shorter than
+    DETECTION_MIN_DURATION_SECS, where sampling gains nothing over just
+    diarizing the whole file."""
+    if duration_secs < DETECTION_MIN_DURATION_SECS or count < 1:
+        return []
+    windows = []
+    for index in range(count):
+        center = duration_secs * (index + 0.5) / count
+        start = max(0.0, min(center - window_secs / 2, duration_secs - window_secs))
+        windows.append((start, start + window_secs))
+    return windows
+
+
+def _is_multi_speaker(window_results: list,
+                      min_secondary_ratio: float = DETECTION_MIN_SECONDARY_RATIO) -> tuple:
+    """Decide single- vs multi-speaker from per-window diarization talk times.
+
+    Each window_result is {"start", "end", "speaker_seconds": {label: secs}}.
+    The decision is strictly per-window - pyannote speaker labels are NOT
+    stable across separate pipeline runs, so talk times must never be
+    aggregated across windows by label. A window is multi-speaker when >=2
+    speakers each hold >= min_secondary_ratio of that window's speech time;
+    the file is multi-speaker when any window is. Returns (verdict, evidence).
+    """
+    verdict = False
+    evidence = []
+    for window in window_results:
+        talk = window.get("speaker_seconds") or {}
+        total = sum(talk.values())
+        qualified = [label for label, seconds in talk.items()
+                     if total and seconds / total >= min_secondary_ratio]
+        window_multi = len(qualified) >= 2
+        verdict = verdict or window_multi
+        evidence.append({
+            "start": window.get("start"),
+            "end": window.get("end"),
+            "speaker_seconds": {label: round(seconds, 1)
+                                for label, seconds in sorted(talk.items())},
+            "multi_speaker": window_multi,
+        })
+    return verdict, evidence
+
+
+def detect_speaker_count(audio_24k_path: str, hf_token: str, device: str,
+                         duration_secs: float) -> tuple:
+    """Sampled diarization pre-check for --auto-detect-speakers.
+
+    Runs the pyannote pipeline on a few short windows instead of the whole
+    audiobook and returns (verdict, evidence, pipeline): verdict True =
+    multi-speaker, False = single narrator, None = pre-check could not run
+    (short file, pipeline unavailable, or read/diarize failure) and the
+    caller should fall back to full diarization. The loaded pipeline is
+    returned so a follow-up full pass does not load the model twice.
+    """
+    windows = _plan_detection_windows(duration_secs)
+    if not windows:
+        logger.info("  Audio shorter than %ds; skipping sampled detection in favor of full diarization.",
+                    DETECTION_MIN_DURATION_SECS)
+        return None, [], None
+    pipeline = _load_diarization_pipeline(hf_token, device)
+    if pipeline is None:
+        return None, [], None
+
+    import torch as torch_module  # import known good: _load_diarization_pipeline imported it
+
+    try:
+        sample_rate = sf.info(audio_24k_path).samplerate
+        window_results = []
+        for start, stop in windows:
+            data, _ = sf.read(audio_24k_path, start=int(start * sample_rate),
+                              stop=int(stop * sample_rate), dtype="float32",
+                              always_2d=False)
+            waveform = torch_module.from_numpy(data).unsqueeze(0)
+            diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            speaker_seconds = {}
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                speaker_seconds[speaker] = speaker_seconds.get(speaker, 0.0) + (turn.end - turn.start)
+            window_results.append({"start": start, "end": stop,
+                                   "speaker_seconds": speaker_seconds})
+            logger.info(f"  Window {start:.0f}-{stop:.0f}s: "
+                        f"{len(speaker_seconds)} speaker(s), talk time "
+                        + ", ".join(f"{label}={seconds:.1f}s"
+                                    for label, seconds in sorted(speaker_seconds.items())))
+    except Exception as e:
+        logger.error(f"✗ Speaker detection failed: {e}")
+        logger.debug(traceback.format_exc())
+        return None, [], pipeline
+
+    verdict, evidence = _is_multi_speaker(window_results)
+    return verdict, evidence, pipeline
 
 
 def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, limit: int = None) -> tuple:
@@ -3043,8 +3157,8 @@ def main():
 
     if args.skip_annotation:
         parser.error("--skip-annotation is not implemented; omit it and provide --model")
-    if args.auto_detect_speakers:
-        parser.error("--auto-detect-speakers is not implemented; use --diarize")
+    if args.auto_detect_speakers and not args.hf_token:
+        parser.error("--auto-detect-speakers requires --hf-token or the HF_TOKEN environment variable")
 
     needs_annotation_model = args.phase != "asr"
     if needs_annotation_model and not args.model:
@@ -3214,11 +3328,33 @@ def main():
 
             progress.complete()
 
-            # Diarize speakers if requested
-            if args.diarize:
+            # Diarize speakers if requested. --auto-detect-speakers first runs a
+            # cheap sampled pre-check to decide whether the full pass is needed;
+            # an explicit --diarize wins and skips the pre-check.
+            run_diarization = args.diarize
+            detection_pipeline = None
+            if args.auto_detect_speakers and not args.diarize:
+                progress.start("Detect speakers")
+                device_str = resolve_cuda_device(_lazy_import_torch())
+                verdict, evidence, detection_pipeline = detect_speaker_count(
+                    audio_24k_path, args.hf_token, device=device_str,
+                    duration_secs=duration_secs)
+                if verdict is False:
+                    logger.info(f"  ✓ Single narrator detected across {len(evidence)} sampled "
+                                "window(s); skipping full diarization.")
+                elif verdict is True:
+                    logger.info(f"  ✓ Multiple speakers detected in sampled window(s); "
+                                "running full diarization.")
+                else:
+                    logger.info("  Pre-check inconclusive; falling back to full diarization.")
+                run_diarization = verdict is not False
+                progress.complete()
+
+            if run_diarization:
                 progress.start("Diarize speakers")
                 device_str = resolve_cuda_device(_lazy_import_torch())
-                speaker_segments = diarize_audio(audio_24k_path, args.hf_token, device=device_str)
+                speaker_segments = diarize_audio(audio_24k_path, args.hf_token, device=device_str,
+                                                 pipeline=detection_pipeline)
                 if speaker_segments:
                     diarization_path = os.path.join(temp_dir, "diarization.json")
                     with open(diarization_path, "w") as f:
@@ -3227,6 +3363,10 @@ def main():
                 else:
                     logger.warning("  ⚠ Diarization produced no segments. Continuing without speaker data.")
                 progress.complete()
+
+            if detection_pipeline is not None:
+                detection_pipeline = None
+                clear_vram()
 
             progress.start("Transcribe audio")
             word_segments, detected_lang = choose_and_transcribe(audio_16k, device, args.lang, limit=args.limit)
