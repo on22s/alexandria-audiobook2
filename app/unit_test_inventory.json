@@ -53,10 +53,15 @@
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_local_worktree_identity_changes_with_untracked_source_content",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_remote_runtime_uses_last_nonempty_line_after_banner",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_fails_when_model_status_is_unavailable",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_skips_checkout_check_without_remote_root",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_environment_verifies_checkout_when_remote_root_given",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_thunder_tts_rejects_checkout_that_does_not_match",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_comparable_environments_allows_matching_torch_minor",
     "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_comparable_environments_rejects_torch_minor_mismatch",
-    "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_comparable_environments_skips_fingerprints_without_torch"
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_comparable_environments_skips_fingerprints_without_torch",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_remote_checkout_accepts_clean_matching_tree",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_remote_checkout_rejects_dirty_tree",
+    "test_benchmark_environment.BenchmarkEnvironmentTests.test_verify_remote_checkout_rejects_revision_mismatch"
   ],
   "test_benchmark_fixtures": [
     "test_benchmark_fixtures.BenchmarkFixtureTests.test_clone_manifest_hashes_reference_audio_and_transcript",
@@ -86,11 +91,22 @@
     "test_benchmark_runner.BenchmarkRunnerTests.test_lora_training_fixture_drift_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_network_rtt_probe_returns_elapsed_seconds",
     "test_benchmark_runner.BenchmarkRunnerTests.test_network_rtt_probe_returns_none_when_probe_fails",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_nickname_detection_thunder_target_dispatches_to_worker",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_pending_fixtures_with_repetitions_omits_fully_completed",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_pending_fixtures_with_repetitions_only_returns_missing",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_persona_generation_thunder_target_dispatches_to_worker",
     "test_benchmark_runner.BenchmarkRunnerTests.test_preparer_fixture_drift_is_rejected",
     "test_benchmark_runner.BenchmarkRunnerTests.test_remote_clone_assets_are_staged_once_and_payload_is_rewritten",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_remote_llm_base_url_defaults_to_1234",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_remote_llm_base_url_extracts_configured_port",
     "test_benchmark_runner.BenchmarkRunnerTests.test_remote_lora_adapter_is_staged_once_and_payload_is_rewritten",
     "test_benchmark_runner.BenchmarkRunnerTests.test_review_runner_records_text_loss_and_change_metrics",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_run_llm_worker_builds_ssh_command_and_parses_marker",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_run_llm_worker_raises_with_stderr_on_failure",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_run_llm_worker_requires_remote_settings",
     "test_benchmark_runner.BenchmarkRunnerTests.test_runner_persists_each_successful_repetition",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_script_generation_thunder_target_dispatches_to_worker",
+    "test_benchmark_runner.BenchmarkRunnerTests.test_script_review_thunder_target_dispatches_to_worker",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_fails_loudly_when_endpoint_is_unconfigured",
     "test_benchmark_runner.BenchmarkRunnerTests.test_thunder_target_uses_remote_profile_and_status",
     "test_benchmark_runner.BenchmarkRunnerTests.test_tts_fixture_drift_is_rejected_before_worker"
@@ -219,6 +235,14 @@
     "test_launcher_supervisor.LauncherSupervisorTests.test_import_error_breaks",
     "test_launcher_supervisor.LauncherSupervisorTests.test_module_not_found_breaks_before_any_url",
     "test_launcher_supervisor.LauncherSupervisorTests.test_traceback_breaks"
+  ],
+  "test_llm_benchmark_worker": [
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_nickname_detection_stage_reuses_run_nickname_case",
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_persona_generation_stage_reuses_run_persona_case",
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_script_generation_stage_calls_process_chunk_per_repetition",
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_script_review_stage_calls_review_batch_per_repetition",
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_unsupported_stage_raises",
+    "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_uses_repetitions_default_when_fixture_omits_numbers"
   ],
   "test_llm_review_regressions": [
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_is_rejected",

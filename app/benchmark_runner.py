@@ -6,6 +6,7 @@ import time
 import json
 import base64
 import copy
+import dataclasses
 import shlex
 import subprocess
 import sys
@@ -680,7 +681,9 @@ def _run_persona_case(fixture, client, model_name, context_length):
 
 def run_persona_generation_benchmark(manifest, environment, report_path, state,
                                      config_path, root_dir):
-    """Run advanced persona discovery and compilation against configured LLM."""
+    """Run advanced persona discovery and compilation against configured LLM.
+    See run_script_generation_benchmark's docstring for the local-in-process
+    vs thunder-remote-worker split."""
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
@@ -691,6 +694,26 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
     completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
     for fixture in manifest["fixtures"]:
         _validate_persona_fixture(fixture)
+
+    if target == "thunder":
+        pending = _pending_fixtures_with_repetitions(
+            manifest["fixtures"], manifest["repetitions"], completed)
+        if pending:
+            payload = {"base_url": _remote_llm_base_url(llm), "api_key": llm.get("api_key", "local"),
+                       "model_name": llm["model_name"], "context_length": status.get("context_length"),
+                       "fixtures": pending}
+            cases = _run_llm_worker(
+                "persona_generation", payload, manifest.get("settings") or {},
+                (config.get("llm_remote_ssh") or "").strip())
+            for case in cases:
+                report["cases"].append(case)
+                save_benchmark_report(report_path, report)
+        for task in state["tasks"]:
+            task["status"] = "done"
+        state["status"] = "complete"
+        return report
+
+    for fixture in manifest["fixtures"]:
         for repetition in range(1, manifest["repetitions"] + 1):
             if (fixture["id"], repetition) in completed:
                 continue
@@ -713,9 +736,38 @@ def _validate_nickname_fixture(fixture):
     return content
 
 
+def _run_nickname_case(fixture, repetition, client, model_name, context_length, concurrency):
+    """Run one nickname-detection fixture/repetition and score it - shared
+    by the local in-process loop and llm_benchmark_worker.py's remote loop."""
+    started = time.monotonic()
+    aliases, evidence = find_nicknames(
+        client, model_name, fixture["entries"],
+        existing_aliases=fixture["existing_aliases"],
+        context_length=context_length, concurrency=concurrency)
+    expected = fixture["expected_aliases"]
+    correct = sum(aliases.get(key) == value for key, value in expected.items())
+    precision = correct / len(aliases) if aliases else 0.0
+    recall = correct / len(expected)
+    evidence_by_label = {str(key).strip().lower(): value
+                         for key, value in evidence.items()}
+    evidence_coverage = sum(bool(evidence_by_label.get(key.lower()))
+                            for key in expected) / len(expected)
+    quality = {"passed": precision == 1.0 and recall == 1.0
+               and evidence_coverage == 1.0,
+               "precision": precision, "recall": recall,
+               "evidence_coverage": evidence_coverage}
+    return {"fixture_id": fixture["id"], "repetition": repetition,
+            "status": "passed" if quality["passed"] else "failed",
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "context_length": context_length, "concurrency": concurrency,
+            "aliases": aliases, "evidence": evidence, "quality": quality}
+
+
 def run_nickname_detection_benchmark(manifest, environment, report_path, state,
                                      config_path, root_dir):
-    """Run production context-aware alias discovery against configured LLM."""
+    """Run production context-aware alias discovery against configured LLM.
+    See run_script_generation_benchmark's docstring for the local-in-process
+    vs thunder-remote-worker split."""
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
@@ -728,32 +780,32 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     completed = {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
     for fixture in manifest["fixtures"]:
         _validate_nickname_fixture(fixture)
+
+    if target == "thunder":
+        pending = _pending_fixtures_with_repetitions(
+            manifest["fixtures"], manifest["repetitions"], completed)
+        if pending:
+            payload = {"base_url": _remote_llm_base_url(llm), "api_key": llm.get("api_key", "local"),
+                       "model_name": llm["model_name"], "context_length": context_length,
+                       "concurrency": concurrency, "fixtures": pending}
+            cases = _run_llm_worker(
+                "nickname_detection", payload, manifest.get("settings") or {},
+                (config.get("llm_remote_ssh") or "").strip())
+            for case in cases:
+                report["cases"].append(case)
+                save_benchmark_report(report_path, report)
+        for task in state["tasks"]:
+            task["status"] = "done"
+        state["status"] = "complete"
+        return report
+
+    for fixture in manifest["fixtures"]:
         for repetition in range(1, manifest["repetitions"] + 1):
             if (fixture["id"], repetition) in completed:
                 continue
-            started = time.monotonic()
-            aliases, evidence = find_nicknames(
-                client, llm["model_name"], fixture["entries"],
-                existing_aliases=fixture["existing_aliases"],
-                context_length=context_length, concurrency=concurrency)
-            expected = fixture["expected_aliases"]
-            correct = sum(aliases.get(key) == value for key, value in expected.items())
-            precision = correct / len(aliases) if aliases else 0.0
-            recall = correct / len(expected)
-            evidence_by_label = {str(key).strip().lower(): value
-                                 for key, value in evidence.items()}
-            evidence_coverage = sum(bool(evidence_by_label.get(key.lower()))
-                                    for key in expected) / len(expected)
-            quality = {"passed": precision == 1.0 and recall == 1.0
-                       and evidence_coverage == 1.0,
-                       "precision": precision, "recall": recall,
-                       "evidence_coverage": evidence_coverage}
-            report["cases"].append({
-                "fixture_id": fixture["id"], "repetition": repetition,
-                "status": "passed" if quality["passed"] else "failed",
-                "elapsed_seconds": round(time.monotonic() - started, 3),
-                "context_length": context_length, "concurrency": concurrency,
-                "aliases": aliases, "evidence": evidence, "quality": quality})
+            case = _run_nickname_case(
+                fixture, repetition, client, llm["model_name"], context_length, concurrency)
+            report["cases"].append(case)
             save_benchmark_report(report_path, report)
     for task in state["tasks"]:
         task["status"] = "done"
@@ -938,6 +990,56 @@ def _measure_llm_network_rtt(client):
     return round(time.monotonic() - started, 3)
 
 
+def _pending_fixtures_with_repetitions(fixtures, repetitions, completed):
+    """Return fixtures still missing repetitions, each annotated with
+    repetition_numbers - mirrors run_tts_generation_benchmark's
+    pending_fixtures computation so a resumed run only re-dispatches what's
+    actually missing instead of the whole manifest."""
+    pending = []
+    for fixture in fixtures:
+        missing = [repetition for repetition in range(1, repetitions + 1)
+                   if (fixture["id"], repetition) not in completed]
+        if missing:
+            pending_fixture = dict(fixture)
+            pending_fixture["repetition_numbers"] = missing
+            pending.append(pending_fixture)
+    return pending
+
+
+def _remote_llm_base_url(llm):
+    """The URL llm_benchmark_worker.py should use FROM the remote host
+    itself - localhost, not the public forwarding URL. Reusing the
+    forwarding URL here would route the worker's calls back out through the
+    internet a second time, defeating the entire point of running it on
+    Thunder in the first place (see THUNDER_COMPUTE.md's network_rtt_seconds
+    confound)."""
+    port = urlparse(llm.get("base_url") or "").port or 1234
+    return f"http://localhost:{port}/v1"
+
+
+def _run_llm_worker(stage, payload, settings, ssh_alias):
+    """Run llm_benchmark_worker.py on the remote host for one batch of
+    pending fixtures/repetitions, returning the same case-dict shape the
+    local in-process path produces. Mirrors _run_tts_worker's SSH
+    invocation shape exactly."""
+    remote_root = settings.get("remote_root")
+    remote_python = settings.get("remote_python")
+    if not remote_root or not remote_python or not ssh_alias:
+        raise ValueError(f"Thunder {stage} requires remote_root, remote_python, and SSH alias")
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    remote_command = " ".join(shlex.quote(part) for part in [
+        remote_python, os.path.join(remote_root, "app", "llm_benchmark_worker.py"),
+        "--stage", stage, "--payload", encoded])
+    result = subprocess.run(["ssh", ssh_alias, remote_command], capture_output=True,
+                            text=True, timeout=3600, check=False)
+    marker = "LLM_BENCHMARK_RESULT="
+    lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
+    if result.returncode or not lines:
+        detail = result.stderr.strip() or result.stdout.strip() or "LLM benchmark worker failed"
+        raise RuntimeError(detail[-2000:])
+    return json.loads(lines[-1][len(marker):])
+
+
 def _get_llm_benchmark_target(config, target):
     if target == "local":
         llm = config.get("llm_local") or config.get("llm") or {}
@@ -961,9 +1063,37 @@ def _get_llm_benchmark_target(config, target):
     return llm, status
 
 
+def _run_script_generation_case(fixture, text, repetition, client, model_name,
+                                params, max_retries):
+    """Run one script-generation fixture/repetition and score it - shared by
+    the local in-process loop and llm_benchmark_worker.py's remote loop, so
+    scoring logic exists in exactly one place for both (Rule 15)."""
+    attempts = []
+    started = time.monotonic()
+    entries = process_chunk(
+        client, model_name, text, fixture.get("chunk_number", 1),
+        fixture.get("total_chunks", 1), params,
+        previous_entries=fixture.get("previous_entries") or None,
+        max_retries=max_retries,
+        attempt_observer=attempts.append)
+    quality = validate_chunk_quality(text, entries)
+    return {"fixture_id": fixture["id"], "repetition": repetition,
+            "status": "passed" if entries and quality["passed"] else "failed",
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "entry_count": len(entries), "attempts": attempts, "quality": quality}
+
+
 def run_script_generation_benchmark(manifest, environment, report_path, state,
                                     config_path, uploads_dir):
-    """Run local script-generation cases and persist after every repetition."""
+    """Run script-generation cases and persist after every repetition.
+
+    target=="local" runs in-process against localhost, same as always.
+    target=="thunder" dispatches the whole pending batch to
+    llm_benchmark_worker.py over SSH instead of calling the remote LM Studio
+    endpoint once per case from here - see THUNDER_COMPUTE.md's confounds
+    section on why per-call network round trips were baked into every prior
+    Thunder measurement.
+    """
     if manifest["stage"] != "script_generation" or len(manifest["targets"]) != 1:
         raise ValueError("script-generation runs require exactly one target")
     target = manifest["targets"][0]
@@ -991,10 +1121,39 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     if not isinstance(max_retries, int) or max_retries < 0:
         raise ValueError("script-generation max_retries must be a non-negative integer")
+
+    texts = {fixture["id"]: _load_text_fixture(fixture, uploads_dir)
+             for fixture in manifest["fixtures"]}
+
+    if target == "thunder":
+        if state.get("cancel"):
+            state["status"] = "cancelled"
+            return report
+        pending = _pending_fixtures_with_repetitions(
+            manifest["fixtures"], manifest["repetitions"], completed)
+        if pending:
+            payload = {"base_url": _remote_llm_base_url(llm), "api_key": llm.get("api_key", "local"),
+                       "model_name": model_name, "max_retries": max_retries,
+                       "params": dataclasses.asdict(params),
+                       "fixtures": [{**fixture, "text": texts[fixture["id"]]}
+                                   for fixture in pending]}
+            cases = _run_llm_worker(
+                "script_generation", payload, manifest.get("settings") or {},
+                (config.get("llm_remote_ssh") or "").strip())
+            for case in cases:
+                report["cases"].append(case)
+                save_benchmark_report(report_path, report)
+                state["logs"].append(
+                    f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
+        for task in state["tasks"]:
+            task["status"] = "done"
+        state["status"] = "complete"
+        return report
+
     for fixture_index, fixture in enumerate(manifest["fixtures"]):
         state["current_task_idx"] = fixture_index
         state["tasks"][fixture_index]["status"] = "running"
-        text = _load_text_fixture(fixture, uploads_dir)
+        text = texts[fixture["id"]]
         for repetition in range(1, manifest["repetitions"] + 1):
             if (fixture["id"], repetition) in completed:
                 continue
@@ -1002,19 +1161,8 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
                 state["status"] = "cancelled"
                 state["tasks"][fixture_index]["status"] = "cancelled"
                 return report
-            attempts = []
-            started = time.monotonic()
-            entries = process_chunk(
-                client, model_name, text, fixture.get("chunk_number", 1),
-                fixture.get("total_chunks", 1), params,
-                previous_entries=fixture.get("previous_entries") or None,
-                max_retries=max_retries,
-                attempt_observer=attempts.append)
-            quality = validate_chunk_quality(text, entries)
-            case = {"fixture_id": fixture["id"], "repetition": repetition,
-                    "status": "passed" if entries and quality["passed"] else "failed",
-                    "elapsed_seconds": round(time.monotonic() - started, 3),
-                    "entry_count": len(entries), "attempts": attempts, "quality": quality}
+            case = _run_script_generation_case(
+                fixture, text, repetition, client, model_name, params, max_retries)
             report["cases"].append(case)
             save_benchmark_report(report_path, report)
             state["logs"].append(
@@ -1046,13 +1194,43 @@ def _load_review_fixture(fixture, scripts_dir):
     return entries
 
 
+def _run_script_review_case(fixture, original, repetition, client, model_name,
+                            params, max_retries, lower, upper):
+    """Run one script-review fixture/repetition and score it - shared by the
+    local in-process loop and llm_benchmark_worker.py's remote loop."""
+    attempts = []
+    started = time.monotonic()
+    corrected = review_batch(
+        client, model_name, original, 1, 1, params,
+        previous_tail=fixture.get("previous_tail") or None,
+        max_retries=max_retries, attempt_observer=attempts.append)
+    corrected = corrected or []
+    text_ok, _, _, ratio = check_text_loss(
+        original, corrected, threshold=lower, upper_bound=upper)
+    structural_ok = bool(corrected) and all(
+        isinstance(entry, dict) and isinstance(entry.get("text"), str)
+        and isinstance(entry.get("speaker"), str) for entry in corrected)
+    return {"fixture_id": fixture["id"], "repetition": repetition,
+            "status": "passed" if text_ok and structural_ok else "failed",
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "entry_count": len(corrected), "attempts": attempts,
+            "quality": {"passed": text_ok and structural_ok,
+                        "word_ratio": round(ratio, 4),
+                        "text_loss_passed": text_ok,
+                        "structural_passed": structural_ok},
+            "changes": diff_entries(original, corrected)}
+
+
 def run_script_review_benchmark(manifest, environment, report_path, state,
                                 config_path, scripts_dir):
-    """Run production review batches and persist deterministic quality metrics."""
+    """Run production review batches and persist deterministic quality
+    metrics. See run_script_generation_benchmark's docstring for the
+    local-in-process vs thunder-remote-worker split."""
     if manifest["stage"] != "script_review" or len(manifest["targets"]) != 1:
         raise ValueError("script-review runs require exactly one target")
+    target = manifest["targets"][0]
     config = load_app_config(config_path)
-    llm, status = _get_llm_benchmark_target(config, manifest["targets"][0])
+    llm, status = _get_llm_benchmark_target(config, target)
     generation = config.get("generation") or {}
     prompts = config.get("prompts") or {}
     params = LLMGenParams(
@@ -1073,10 +1251,40 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
     thresholds = manifest.get("quality_thresholds") or {}
     lower = thresholds.get("word_ratio_min", 0.95)
     upper = thresholds.get("word_ratio_max", 1.05)
+
+    originals = {fixture["id"]: _load_review_fixture(fixture, scripts_dir)
+                for fixture in manifest["fixtures"]}
+
+    if target == "thunder":
+        if state.get("cancel"):
+            state["status"] = "cancelled"
+            return report
+        pending = _pending_fixtures_with_repetitions(
+            manifest["fixtures"], manifest["repetitions"], completed)
+        if pending:
+            payload = {"base_url": _remote_llm_base_url(llm), "api_key": llm.get("api_key", "local"),
+                       "model_name": llm["model_name"], "max_retries": max_retries,
+                       "params": dataclasses.asdict(params),
+                       "word_ratio_min": lower, "word_ratio_max": upper,
+                       "fixtures": [{**fixture, "original": originals[fixture["id"]]}
+                                   for fixture in pending]}
+            cases = _run_llm_worker(
+                "script_review", payload, manifest.get("settings") or {},
+                (config.get("llm_remote_ssh") or "").strip())
+            for case in cases:
+                report["cases"].append(case)
+                save_benchmark_report(report_path, report)
+                state["logs"].append(
+                    f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
+        for task in state["tasks"]:
+            task["status"] = "done"
+        state["status"] = "complete"
+        return report
+
     for fixture_index, fixture in enumerate(manifest["fixtures"]):
         state["current_task_idx"] = fixture_index
         state["tasks"][fixture_index]["status"] = "running"
-        original = _load_review_fixture(fixture, scripts_dir)
+        original = originals[fixture["id"]]
         for repetition in range(1, manifest["repetitions"] + 1):
             if (fixture["id"], repetition) in completed:
                 continue
@@ -1084,27 +1292,9 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
                 state["status"] = "cancelled"
                 state["tasks"][fixture_index]["status"] = "cancelled"
                 return report
-            attempts = []
-            started = time.monotonic()
-            corrected = review_batch(
-                client, llm["model_name"], original, 1, 1, params,
-                previous_tail=fixture.get("previous_tail") or None,
-                max_retries=max_retries, attempt_observer=attempts.append)
-            corrected = corrected or []
-            text_ok, _, _, ratio = check_text_loss(
-                original, corrected, threshold=lower, upper_bound=upper)
-            structural_ok = bool(corrected) and all(
-                isinstance(entry, dict) and isinstance(entry.get("text"), str)
-                and isinstance(entry.get("speaker"), str) for entry in corrected)
-            case = {"fixture_id": fixture["id"], "repetition": repetition,
-                    "status": "passed" if text_ok and structural_ok else "failed",
-                    "elapsed_seconds": round(time.monotonic() - started, 3),
-                    "entry_count": len(corrected), "attempts": attempts,
-                    "quality": {"passed": text_ok and structural_ok,
-                                "word_ratio": round(ratio, 4),
-                                "text_loss_passed": text_ok,
-                                "structural_passed": structural_ok},
-                    "changes": diff_entries(original, corrected)}
+            case = _run_script_review_case(
+                fixture, original, repetition, client, llm["model_name"],
+                params, max_retries, lower, upper)
             report["cases"].append(case)
             save_benchmark_report(report_path, report)
             state["logs"].append(

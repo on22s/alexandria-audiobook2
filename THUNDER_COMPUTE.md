@@ -99,19 +99,24 @@ document, which has not yet been rerun.
   instead of an eyeballed aside. Not yet exercised on real TTS hardware — only
   the LLM-based stages were rerun in this validation pass.
 - **LLM-based benchmarks timed the network round trip, not just decode.**
-  Script generation/review, persona, and nickname detection all call the
-  configured LM Studio endpoint directly; for the "thunder" target that's an
-  internet round trip through the SSH-forwarded HTTPS tunnel, with no
-  baseline to separate it from compute. Most visible in nickname detection's
-  sub-2-second totals, where a single RTT can double the reported time. Every
-  LLM-stage runner now records one `network_rtt_seconds` baseline probe (a
-  bare `models.list()` call) alongside each report, so a future writeup can
-  read `elapsed_seconds` as latency-plus-compute instead of pure compute.
-  **Validated 2026-07-18:** measured RTT was 0.083 s local vs. 0.53-0.54 s
-  Thunder (~6.5×) for both script generation and script review, confirming
-  the confound is real, though small relative to the multi-minute totals in
-  this specific rerun — it matters most for short calls like nickname
-  detection, which has not been rerun yet.
+  Script generation/review, persona, and nickname detection used to call the
+  configured LM Studio endpoint directly from the local orchestrator; for
+  the "thunder" target that baked an internet round trip through the
+  SSH-forwarded HTTPS tunnel into every single fixture×repetition call, not
+  just once. Most visible in nickname detection's sub-2-second totals, where
+  a single RTT can double the reported time. First mitigation
+  (2026-07-18): every LLM-stage runner records one `network_rtt_seconds`
+  baseline probe per report — measured 0.083 s local vs. 0.53-0.54 s Thunder
+  (~6.5×) for script generation/review, confirming the confound is real.
+  That only *measures* the confound, though, so the actual fix followed:
+  `llm_benchmark_worker.py` now runs the whole loop **on** the Thunder host
+  over SSH (mirroring the TTS/LoRA/VoiceLab worker pattern - stage, then run
+  remotely, hitting `localhost` from there instead of the public forwarding
+  URL), so the network only matters for the one SSH round trip that kicks
+  off a batch, not per LLM call. Available for all 4 LLM stages when a
+  manifest's `settings.remote_root`/`remote_python` are set, same as the
+  TTS-family stages. Not yet exercised on real hardware (no live Thunder
+  instance at the time this landed) - unit-tested with SSH mocked only.
 - **Every TTS/LoRA/VoiceLab benchmark is single-stream or small-batch**
   (serial six-generation runs, batch caps ≤16 below) — the shape an A100 is
   weakest at and a consumer GPU is strongest at. Nothing here tests the

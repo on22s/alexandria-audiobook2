@@ -88,8 +88,9 @@ def _build_benchmark_preflight(request):
             environments[target] = collect_local_environment(ROOT_DIR, model_name)
         else:
             ssh_alias = (config.get("llm_remote_ssh") or "").strip()
+            settings = manifest.get("settings") or {}
             environments[target] = collect_thunder_environment(
-                ROOT_DIR, ssh_alias, model_name)
+                ROOT_DIR, ssh_alias, model_name, remote_root=settings.get("remote_root"))
     if is_tts_family:
         # Real callers only ever request one target per preflight, so a
         # same-call sibling is almost never present - persist each collected
