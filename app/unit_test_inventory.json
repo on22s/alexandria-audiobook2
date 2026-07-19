@@ -22,7 +22,12 @@
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_serializes_when_per_slot_context_is_too_small",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_status_omits_all_live_process_objects",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits",
-    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_cancel_policy_skips_on_reserved_collision",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_no_collision_is_ok",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_replace_policy_backs_up_disk_only_collision",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_replace_policy_versions_reserved_collision_instead_of_overwriting",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_version_policy_suffixes_on_reserved_collision"
   ],
   "test_benchmark_api": [
     "test_benchmark_api.BenchmarkApiTests.test_preflight_collects_each_requested_environment",

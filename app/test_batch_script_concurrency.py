@@ -62,5 +62,54 @@ class BatchScriptConcurrencyTests(unittest.TestCase):
         self.assertEqual(16384, report["per_slot_context"])
 
 
+class ResolveBatchOutputPathTests(unittest.TestCase):
+    """Covers the Area 6 fix: a `replace`-policy collision with a *reserved*
+    (in-batch) output must never share a path with the job that reserved it."""
+
+    def test_no_collision_is_ok(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "book.json"))
+            resolved, action = script._resolve_batch_output_path(path, "replace", set())
+            self.assertEqual(path, resolved)
+            self.assertEqual("ok", action)
+
+    def test_cancel_policy_skips_on_reserved_collision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "book.json"))
+            reserved = {path}
+            resolved, action = script._resolve_batch_output_path(path, "cancel", reserved)
+            self.assertEqual(path, resolved)
+            self.assertEqual("skip", action)
+
+    def test_version_policy_suffixes_on_reserved_collision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "book.json"))
+            reserved = {path}
+            resolved, action = script._resolve_batch_output_path(path, "version", reserved)
+            self.assertEqual("version", action)
+            self.assertEqual(str(Path(tmp, "book_2.json")), resolved)
+
+    def test_replace_policy_versions_reserved_collision_instead_of_overwriting(self):
+        # Two same-stem inputs under collision_policy="replace": task 2's collision
+        # is with task 1's *reserved* output, not a disk file. Prior behavior fell
+        # through and returned the same path, so task 2 would silently overwrite
+        # task 1's output once both jobs ran.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "book.json"))
+            reserved = {path}
+            resolved, action = script._resolve_batch_output_path(path, "replace", reserved)
+            self.assertEqual("version", action)
+            self.assertNotEqual(path, resolved)
+            self.assertEqual(str(Path(tmp, "book_2.json")), resolved)
+
+    def test_replace_policy_backs_up_disk_only_collision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "book.json"))
+            Path(path).write_text("{}", encoding="utf-8")
+            resolved, action = script._resolve_batch_output_path(path, "replace", set())
+            self.assertEqual(path, resolved)
+            self.assertEqual("backup", action)
+
+
 if __name__ == "__main__":
     unittest.main()
