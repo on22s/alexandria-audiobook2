@@ -5,7 +5,8 @@ import subprocess
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+import tempfile
 
 import generate_script
 import core
@@ -845,3 +846,31 @@ class ReviewChangeDensityTests(unittest.TestCase):
         self.assertEqual(core._markdown_change_density_lines({
             "entries_before": 99, "entries_changed": 99,
         }), [])
+
+
+class DedupeSpeakersResolverTests(unittest.TestCase):
+    """Covers the Area 5 fix: dedupe_speakers' registry pre-seed must resolve
+    a punctuation/spacing variant to the label actually used in this script,
+    the same way generation's _identity_key normalization does."""
+
+    def test_registry_alias_resolves_via_shared_identity_normalization(self):
+        entries = [
+            {"speaker": "MR. SMITH", "text": "Hello there, stranger."},
+            {"speaker": "JOHN SMITH", "text": "Another line of dialogue."},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            registry_path = os.path.join(tmp, "aliases.json")
+            with open(registry_path, "w", encoding="utf-8") as f:
+                json.dump({"MR SMITH": "JOHN SMITH"}, f)
+
+            # Force the LLM step to fail so only the registry's forced aliases
+            # apply -- isolates the resolver fix from any model behavior.
+            client = MagicMock()
+            client.chat.completions.create.side_effect = RuntimeError("LLM unavailable")
+
+            mapping, renamed, changes = review_script.dedupe_speakers(
+                client, "model", entries, registry_path=registry_path)
+
+        self.assertEqual({"MR. SMITH": "JOHN SMITH"}, mapping)
+        self.assertEqual(1, renamed)
+        self.assertEqual([(0, "speaker", "JOHN SMITH")], changes)

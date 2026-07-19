@@ -966,6 +966,39 @@ def _get_versioned_script_path(path: str) -> str:
     return candidate
 
 
+def _resolve_batch_output_path(output_path, policy, reserved_outputs):
+    """Decide what happens to a batch job's output path given a collision.
+
+    Returns (path, action) where action is one of:
+      - "ok": no collision; use path as-is.
+      - "skip": collision policy is "cancel"; caller should skip the job.
+      - "version": path was suffixed to a versioned, non-colliding path.
+      - "backup": path is unchanged but the existing on-disk file should be
+        backed up before being overwritten.
+
+    A collision with a *reserved* (in-batch) output is never resolved by
+    "replace" -- replacing a file this same batch is about to produce is
+    never what "replace" means, so it is versioned instead, exactly like
+    the explicit "version" policy.
+    """
+    is_reserved = output_path in reserved_outputs
+    exists_on_disk = os.path.exists(output_path)
+    if not is_reserved and not exists_on_disk:
+        return output_path, "ok"
+    if policy == "cancel":
+        return output_path, "skip"
+    if policy == "version" or is_reserved:
+        candidate = _get_versioned_script_path(output_path) if exists_on_disk else output_path
+        base, extension = os.path.splitext(candidate)
+        counter = 2
+        while candidate in reserved_outputs:
+            candidate = f"{base}_{counter}{extension}"
+            counter += 1
+        return candidate, "version"
+    # policy == "replace" and the collision is disk-only (not reserved)
+    return output_path, "backup"
+
+
 def _resolve_batch_script_input(filename: str) -> str:
     safe_filename = secure_filename(filename)
     if not safe_filename:
@@ -1104,25 +1137,26 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             stem = os.path.splitext(os.path.basename(input_path))[0]
             safe_stem = secure_filename(stem) or f"batch_{i+1}"
             output_path = os.path.join(SCRIPTS_DIR, f"{safe_stem}.json")
-            if os.path.exists(output_path) or output_path in reserved_outputs:
-                if request.collision_policy == "cancel":
+            was_reserved = output_path in reserved_outputs
+            output_path, action = _resolve_batch_output_path(
+                output_path, request.collision_policy, reserved_outputs)
+            if action == "skip":
+                state["logs"].append(
+                    f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
+                    "Choose version or replace explicitly.")
+                state["tasks"][i]["status"] = "failed"
+                continue
+            if action == "version":
+                if was_reserved and request.collision_policy == "replace":
                     state["logs"].append(
-                        f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
-                        "Choose version or replace explicitly.")
-                    state["tasks"][i]["status"] = "failed"
-                    continue
-                if request.collision_policy == "version":
-                    output_path = _get_versioned_script_path(output_path)
-                    base, extension = os.path.splitext(output_path)
-                    counter = 2
-                    while output_path in reserved_outputs:
-                        output_path = f"{base}_{counter}{extension}"
-                        counter += 1
-                    safe_stem = os.path.splitext(os.path.basename(output_path))[0]
-                elif os.path.exists(output_path):
-                    backup = backup_file_with_timestamp(output_path)
-                    state["logs"].append(
-                        f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
+                        f"[{i+1}] '{safe_stem}.json' collides with an output already "
+                        "produced by this batch — writing "
+                        f"'{os.path.basename(output_path)}' instead of replacing.")
+                safe_stem = os.path.splitext(os.path.basename(output_path))[0]
+            elif action == "backup":
+                backup = backup_file_with_timestamp(output_path)
+                state["logs"].append(
+                    f"[{i+1}] Backed up existing script as '{os.path.basename(backup)}'.")
 
             reserved_outputs.add(output_path)
             jobs.append({"index": i, "filename": task.filename, "input_path": input_path,

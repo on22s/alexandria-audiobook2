@@ -22,7 +22,12 @@
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_serializes_when_per_slot_context_is_too_small",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_status_omits_all_live_process_objects",
     "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_two_workers_when_every_book_fits",
-    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report"
+    "test_batch_script_concurrency.BatchScriptConcurrencyTests.test_worker_compatibility_helper_uses_shared_report",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_cancel_policy_skips_on_reserved_collision",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_no_collision_is_ok",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_replace_policy_backs_up_disk_only_collision",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_replace_policy_versions_reserved_collision_instead_of_overwriting",
+    "test_batch_script_concurrency.ResolveBatchOutputPathTests.test_version_policy_suffixes_on_reserved_collision"
   ],
   "test_benchmark_api": [
     "test_benchmark_api.BenchmarkApiTests.test_preflight_collects_each_requested_environment",
@@ -198,7 +203,8 @@
     "test_find_nicknames.ParseAliasResponseTests.test_exact_variant_resolves_case_insensitively",
     "test_find_nicknames.ParseAliasResponseTests.test_near_miss_canonical_is_reported_but_mapping_kept",
     "test_find_nicknames.ParseAliasResponseTests.test_near_miss_variant_is_dropped_but_reported",
-    "test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent"
+    "test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent",
+    "test_find_nicknames.ParseAliasResponseTests.test_punctuation_variant_resolves_via_shared_normalization"
   ],
   "test_frontend_regressions": [
     "test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
@@ -263,6 +269,7 @@
     "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_uses_repetitions_default_when_fixture_omits_numbers"
   ],
   "test_llm_review_regressions": [
+    "test_llm_review_regressions.DedupeSpeakersResolverTests.test_registry_alias_resolves_via_shared_identity_normalization",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_is_rejected",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_retries_with_specific_feedback",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_arrays_are_combined_in_order",
@@ -361,7 +368,10 @@
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_interruption_before_manifest_save_recovers_files_and_manifest",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_new_promotion_prunes_older_backup_after_commit",
     "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_preserves_and_rolls_back_production",
-    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation"
+    "test_lora_candidate_promotion.LoraCandidatePromotionTests.test_promotion_refuses_production_recommendation",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_promote_returns_400_while_another_gpu_task_is_running",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_running_flag_resets_after_promote_raises",
+    "test_lora_candidate_promotion.LoraCheckpointSwapRouteClaimTests.test_running_flag_resets_after_successful_promote"
   ],
   "test_lora_candidate_retention": [
     "test_lora_candidate_retention.LoraCandidateRetentionTests.test_candidate_save_is_bounded_and_does_not_mutate_records_input",
@@ -526,6 +536,9 @@
   "test_speaker_identity": [
     "test_speaker_identity.SpeakerIdentityTests.test_consistency_report_counts_usage_and_deduplicates_suggestions",
     "test_speaker_identity.SpeakerIdentityTests.test_distinct_names_are_not_reported",
+    "test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_is_deterministic_on_duplicate_keys",
+    "test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_matches_punctuation_and_spacing_variants",
+    "test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_returns_none_when_no_match",
     "test_speaker_identity.SpeakerIdentityTests.test_safe_variants_reuse_first_established_spelling_without_mutation",
     "test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
   ],

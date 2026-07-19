@@ -440,8 +440,6 @@ def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
                   and completion_tokens >= effective_max * 0.9)
     if finish_reason == "length" or (incomplete and near_limit):
         return "increase_tokens"
-    if incomplete:
-        return "retry_same_budget"
     return "retry_same_budget"
 
 
@@ -930,6 +928,12 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     # diagnosed live (2026-07-19): a chunk hit 86% recall on its final
     # attempt (one attempt away from the 90% pass threshold), then the
     # retry budget was already exhausted. See _is_near_miss_recall.
+    # Two properties are deliberate, not oversights: this call passes no
+    # retry_feedback (a fresh call_llm_for_entries, same as the first
+    # attempt) - fresh samples measured 3/3 where feedback-looped retries
+    # looped instead; and it can never trigger an early split, since
+    # retry_decider is only wired up when `retries` is truthy above, and
+    # this call always passes max_retries=0.
     if not entries and local_attempts and _is_near_miss_recall(
             local_attempts[-1].get("quality_metrics")):
         print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
