@@ -113,6 +113,24 @@ approach can also produce *which specific words/spans were dropped* as
 output, which the current Counter-based approach cannot (it only produces an
 aggregate percentage), and whether that would let `_build_retry_feedback_message`
 (`app/generate_script.py`) give the model much more targeted retry feedback
+
+Related context worth reading alongside this area (not the same problem, but
+the same family): `app/find_nicknames.py`'s `collect_context` (`~line 82`)
+does its own from-scratch token-level text matching for a different
+purpose — finding entry lines where 2+ characters' name tokens co-occur, as
+alias-relationship evidence. It's already careful in a way worth noting as a
+*positive* example: it deliberately runs one independent regex search per
+name token (`~line 113`) instead of a single combined-alternation `findall`,
+specifically because `findall` consumes a match and would silently drop a
+real co-occurrence when one name is a prefix of another at the same text
+position (its own code comment gives the concrete example: "beat" vs
+"beatrice"). Contrast this with area 3's `_counter_recall`/`_ngrams`, which
+has no such prefix-collision guard by construction (`Counter`-based bag
+matching doesn't have this problem the same way, but doesn't have to think
+about it either) — worth noting in the report whether `collect_context`'s
+regex-per-token approach is the right tool here too, or whether it's solving
+a small enough problem (co-occurrence in entries already speaker-labeled,
+not raw NER over free text) that no change is warranted.
 than "you covered 82%, try again."
 
 ### 4. Adjacent-duplicate-block detection — `app/script_preflight.py:72`
@@ -144,14 +162,48 @@ tables) that would generalize better as more corrupted-source patterns are
 discovered over time, without losing the auditability this file's design
 explicitly prioritizes (see "Ground rules" above)?
 
-### 6. Character/voice name deduplication (text) — search these on your own
+### 6. Character/voice name deduplication (text)
 
-Not yet traced in detail this session, but worth checking for the same
-"hand-rolled fuzzy matching" pattern: `app/find_nicknames.py` (speaker-alias
-detection), the "merge duplicate character names" feature referenced in
-`app/static/index.html`/`app/static/js/app-*.js` (character merging across a
-whole batch), and `voice_library.json`-related matching in `app/app.py`'s
-`/api/voice_library/apply*` routes.
+**`app/find_nicknames.py`** — verified by direct read this session. Two
+distinct matching steps, not one:
+
+1. `collect_context` (`~line 82`): finds **co-occurrence evidence** — entry
+   lines where 2+ characters' name tokens both appear (e.g. a line
+   mentioning both "Subaru" and "Emilia" is evidence they might be
+   interacting/aliased). Implementation: strip parenthetical qualifiers and
+   stopwords from each speaker label (`_name_tokens`, `~line 75`), then run
+   one independent compiled word-boundary regex per token
+   (`re.compile(rf"\b{re.escape(tok)}")`, `~line 113`) against each entry's
+   lowercased text, rather than a single combined-alternation `findall`.
+   That choice is deliberate and already correct — the code comment
+   explains a real bug a combined-alternation approach would have (`findall`
+   consumes a match, so when one name is a text-prefix of another at the
+   same position, e.g. "beat" vs "beatrice", only the longer one would
+   register and a real co-occurrence would silently be dropped). This is
+   plain regex token-matching, not a "known algorithm" in the alignment/
+   clustering sense — assess whether it's already the right tool for this
+   narrow a job (co-occurrence over already speaker-labeled entries, not
+   open-vocabulary NER over raw text) rather than assuming it needs
+   upgrading.
+2. `_parse_alias_response` (`~line 135`): once the LLM proposes
+   variant→canonical alias mappings, resolves the model's possibly-different
+   casing back to the real speaker label via a plain `dict` keyed on
+   `.lower()` — exact match only, no fuzzy step here at all. If the model
+   returns a slightly misspelled/reworded version of a speaker label that
+   isn't an exact case-insensitive match, this silently drops it
+   (`label_by_norm.get(...)` returns `None` → `continue`). This is a
+   plausible real gap: `stabilize_speaker_identities`
+   (`app/speaker_identity.py`, area 1) already uses `difflib.SequenceMatcher`
+   for exactly this "resolve a near-miss label back to a known one" problem
+   elsewhere in this same codebase — worth checking whether the same
+   fuzzy-resolution step should apply here too, or whether it's deliberately
+   strict because a wrong alias merge is worse than a missed one (get the
+   reasoning from the surrounding code/tests before recommending a change).
+
+Also still worth checking (not yet traced): the "merge duplicate character
+names" feature referenced in `app/static/index.html`/`app/static/js/app-*.js`
+(character merging across a whole batch), and `voice_library.json`-related
+matching in `app/app.py`'s `/api/voice_library/apply*` routes.
 
 ### 7. Voice Lab audio-matching pipeline (repo root, not `app/`)
 
