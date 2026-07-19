@@ -3,6 +3,7 @@
 import re
 import unicodedata
 from collections import Counter
+from difflib import SequenceMatcher
 
 from script_preflight import find_adjacent_duplicate_blocks
 
@@ -11,6 +12,9 @@ MIN_SOURCE_TOKEN_RECALL = 0.90
 MIN_ORDERED_TRIGRAM_RECALL = 0.90
 MIN_OUTPUT_SOURCE_RATIO = 0.90
 MAX_OUTPUT_SOURCE_RATIO = 1.10
+MAX_MISSING_SPANS = 3
+MIN_MISSING_SPAN_TOKENS = 5
+MISSING_SPAN_PREVIEW_TOKENS = 12
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
 _CHARACTER_TOKEN_SCRIPTS = ("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI")
@@ -91,8 +95,12 @@ def validate_chunk_quality(source_text, entries):
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block occurs only once in the source."})
 
+    recall_codes = {"low_source_token_recall", "low_ordered_trigram_recall"}
+    missing_spans = (_missing_source_spans(source_tokens, output_tokens)
+                     if any(finding.get("code") in recall_codes for finding in findings)
+                     else [])
     return _report(source_count, output_count, recall, trigram_recall, ratio, findings,
-                   source_cyrillic=source_cyrillic)
+                   source_cyrillic=source_cyrillic, missing_spans=missing_spans)
 
 
 def _tokens(text):
@@ -111,6 +119,30 @@ def _ngrams(tokens, size):
     return list(zip(*(tokens[offset:] for offset in range(size))))
 
 
+def _missing_source_spans(source_tokens, output_tokens):
+    """Largest source token runs absent from the output, as retry evidence.
+
+    Aligns the two token sequences (SequenceMatcher, autojunk off) and keeps
+    the source side of ``delete``/``replace`` opcodes at least
+    MIN_MISSING_SPAN_TOKENS long. Previews use the recall metric's own
+    normalization (casefolded, punctuation-stripped tokens), not the original
+    source formatting.
+    """
+    matcher = SequenceMatcher(None, source_tokens, output_tokens, autojunk=False)
+    spans = []
+    for tag, source_start, source_end, _output_start, _output_end in matcher.get_opcodes():
+        if tag in ("delete", "replace") and source_end - source_start >= MIN_MISSING_SPAN_TOKENS:
+            spans.append({
+                "start_token": source_start,
+                "token_count": source_end - source_start,
+                "preview": " ".join(source_tokens[
+                    source_start:min(source_end,
+                                     source_start + MISSING_SPAN_PREVIEW_TOKENS)]),
+            })
+    spans.sort(key=lambda span: (-span["token_count"], span["start_token"]))
+    return spans[:MAX_MISSING_SPANS]
+
+
 def _counter_recall(source_items, output_items):
     if not source_items:
         return 1.0
@@ -120,7 +152,7 @@ def _counter_recall(source_items, output_items):
 
 
 def _report(source_count, output_count, recall, trigram_recall, ratio, findings,
-            source_cyrillic=None):
+            source_cyrillic=None, missing_spans=None):
     return {
         "passed": not findings,
         "metrics": {
@@ -131,5 +163,6 @@ def _report(source_count, output_count, recall, trigram_recall, ratio, findings,
             "output_source_ratio": round(ratio, 4),
         },
         "source_cyrillic": source_cyrillic or [],
+        "missing_source_spans": missing_spans or [],
         "findings": findings,
     }

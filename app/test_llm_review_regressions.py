@@ -442,6 +442,36 @@ class LlmReviewTests(unittest.TestCase):
         self.assertIn("stopping early", message)
         self.assertIn("ENTIRE", message)
         self.assertNotIn("close but", message)
+        self.assertNotIn("missing content includes", message)
+
+    def test_retry_feedback_catastrophic_quotes_missing_spans(self):
+        quality = {"metrics": {"source_token_recall": 0.11},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.11}],
+                   "missing_source_spans": [
+                       {"start_token": 50, "token_count": 40,
+                        "preview": "the queen turned to face the shattered gate"}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("stopping early", message)
+        self.assertIn('"the queen turned to face the shattered gate ..."', message)
+        self.assertIn("about 40 words", message)
+
+    def test_retry_feedback_near_miss_quotes_missing_spans(self):
+        quality = {"metrics": {"source_token_recall": 0.86},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.86}],
+                   "missing_source_spans": [
+                       {"start_token": 10, "token_count": 8, "preview": "a short lost aside"},
+                       {"start_token": 90, "token_count": 6, "preview": "another dropped phrase"}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("close but", message)
+        self.assertIn('"a short lost aside ..."', message)
+        self.assertIn('"another dropped phrase ..."', message)
+
+    def test_retry_feedback_unchanged_without_spans_key(self):
+        quality = {"metrics": {"source_token_recall": 0.86},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.86}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("close but only covered about 86%", message)
+        self.assertNotIn("missing content includes", message)
 
     def test_process_chunk_grants_bonus_retry_after_near_miss_final_attempt(self):
         source = " ".join(f"word{index}" for index in range(20))
