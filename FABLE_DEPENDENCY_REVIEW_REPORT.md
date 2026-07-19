@@ -14,7 +14,7 @@ through the PyPI/HF checks noted; I flag that wherever it matters.
 |---|---|---|
 | `mutagen` unpinned | policy | **Done** — pinned `==1.47.0`; also installed into the ROCm env, where its only real consumer (preparer WAV tagging) was silently skipping for lack of it |
 | `pyannote.audio` unpinned/undocumented | (a)+(b) | **Done** — `requirements-diarization.txt` pins `>=3.1,<4` with the live-verified reasons; PREPARER_GUIDE.md documents the flags/token — **live-verified breakage today** |
-| ROCm env torch mismatch | doc drift | Sibling `rocm_python` env actually runs **torch 2.7.0+rocm6.3**, not the 2.10.0+rocm7.0 that `app/CLAUDE.md`'s "verified 2026-07-14" note attributes to it (2.10.0+rocm7.0 is in **this** repo's `app/env`). Doc/memory correction needed, not a code change. |
+| Sibling ROCm env torch | doc gap | Sibling `rocm_python` env runs **torch 2.7.0+rocm6.3** (verified live) — older than this repo's `app/env` (2.10.0+rocm7.0). CLAUDE.md's 2026-07-14 note was about this repo's env and is correct; it just never said what the sibling runs, which is ambiguous enough to misread (I initially did). Fixed with a clarifying line in CLAUDE.md. |
 | `transformers==4.57.3` | (a) | Hold; v5 (5.14.1) is a major migration, do not drift into it |
 | `pydub==0.25.1` | (b) latent | Fine on Py3.10; hard-breaks on Python ≥3.13 (`audioop` removed) — replace on any Python bump |
 | CUDA torch 2.7.0 path | (a) | Upgrade next time the CUDA path is touched anyway (current stable: 2.13) |
