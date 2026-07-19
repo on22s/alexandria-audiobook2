@@ -177,6 +177,15 @@
     "test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
     "test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
   ],
+  "test_env_doctor": [
+    "test_env_doctor.EvaluateEnvTests.test_all_required_present_is_ok",
+    "test_env_doctor.EvaluateEnvTests.test_interpreter_not_found_fails_all_required",
+    "test_env_doctor.EvaluateEnvTests.test_optional_missing_passes_with_note",
+    "test_env_doctor.EvaluateEnvTests.test_optional_missing_without_note_still_passes",
+    "test_env_doctor.EvaluateEnvTests.test_required_missing_fails",
+    "test_env_doctor.EvaluateEnvTests.test_version_hint_match_has_no_note",
+    "test_env_doctor.EvaluateEnvTests.test_version_hint_mismatch_adds_note_but_still_ok"
+  ],
   "test_evaluation_reviews": [
     "test_evaluation_reviews.BlindSessionTests.test_blind_assignment_varies_across_sessions",
     "test_evaluation_reviews.BlindSessionTests.test_non_blind_session_is_deterministic",

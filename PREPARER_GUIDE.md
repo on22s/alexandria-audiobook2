@@ -288,6 +288,8 @@ version ceiling) and a Hugging Face token that has accepted the terms for
   the pre-check can't run. An explicit `--diarize` wins over this flag.
 - `--hf-token TOKEN` — Hugging Face token (default: `HF_TOKEN` env var);
   required by both flags above
+- Run `python3 env_doctor.py` (repo root) to check whether `pyannote.audio` is
+  installed in the interpreter you're about to run the preparer with.
 
 ### Source-guided chunking (optional)
 Pass an EPUB or text file matching the audiobook to fix ASR mistranscriptions
