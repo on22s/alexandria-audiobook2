@@ -25,3 +25,33 @@ def normalize_known_source_corruptions(text):
         return after
 
     return _KNOWN_RE.sub(replace, text), changes
+
+
+_FRONT_MATTER_ANCHOR = re.compile(
+    r"Original (?:Web Novel|Light Novel) Chapter\s*[―—-]\s*(?:In)?[Cc]omplete\.\s*\n+"
+    r"Original Translation by [^\n]+\.\s*\n+"
+)
+
+
+def strip_known_front_matter(text):
+    """Strip a known fan-compiler's non-narrative front matter (translator's
+    note + table of contents) when present, returning the story text and
+    evidence of what was removed without mutating the source file.
+
+    Scoped to one observed, stable compiler template (confirmed across 5
+    "wn" uploads): a "Manifesto." translator's essay and chapter listing,
+    ending right before the first "Original ... Chapter - Complete." /
+    "Original Translation by ..." marker pair, which is always immediately
+    followed by the real chapter 1 prose. This content isn't dialogue or
+    narration and was measured live to break chunk generation (near-zero
+    recall no matter how many times retried or split) since the annotation
+    model has no idea how to handle it. Returns the text unchanged (and
+    None) whenever the shape doesn't match, rather than guessing.
+    """
+    if not text.lstrip("﻿ \t\r\n").startswith("Manifesto."):
+        return text, None
+    match = _FRONT_MATTER_ANCHOR.search(text)
+    if not match:
+        return text, None
+    return text[match.end():], {"removed_chars": match.end(),
+                                 "removed_lines": text.count("\n", 0, match.end())}
