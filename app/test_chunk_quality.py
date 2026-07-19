@@ -390,6 +390,34 @@ class ChunkQualityTests(unittest.TestCase):
         report = validate_chunk_quality("Caf\u00e9", [_entry("Cafe\u0301")])
         self.assertTrue(report["passed"])
 
+    def test_dropped_middle_paragraph_reports_missing_span(self):
+        first = [f"alpha{index}" for index in range(50)]
+        dropped = [f"bravo{index}" for index in range(40)]
+        last = [f"charlie{index}" for index in range(50)]
+        source = " ".join(first + dropped + last)
+        entries = [_entry(" ".join(first)), _entry(" ".join(last))]
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertFalse(report["passed"])
+        span = report["missing_source_spans"][0]
+        self.assertEqual(50, span["start_token"])
+        self.assertEqual(40, span["token_count"])
+        self.assertEqual(" ".join(dropped[:12]), span["preview"])
+
+    def test_passing_report_has_no_missing_spans(self):
+        source = "One complete sentence appears here. Another sentence follows it."
+        report = validate_chunk_quality(source, [_entry(source)])
+        self.assertTrue(report["passed"])
+        self.assertEqual([], report["missing_source_spans"])
+
+    def test_missing_japanese_span_reports_character_preview(self):
+        report = validate_chunk_quality("\u5f7c\u306f\u3042\u308a\u304c\u3068\u3046\u3068\u8a00\u3063\u305f", [_entry("\u5f7c\u306f\u8a00\u3063\u305f")])
+        self.assertFalse(report["passed"])
+        span = report["missing_source_spans"][0]
+        self.assertEqual(6, span["token_count"])
+        self.assertEqual("\u3042 \u308a \u304c \u3068 \u3046 \u3068", span["preview"])
+
 
 if __name__ == "__main__":
     unittest.main()

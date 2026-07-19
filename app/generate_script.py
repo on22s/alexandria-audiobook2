@@ -490,6 +490,19 @@ def _is_near_miss_recall(metrics):
     return recall is not None and recall >= NEAR_MISS_RECALL_THRESHOLD
 
 
+def _describe_missing_spans(spans):
+    """Render chunk_quality.py's missing_source_spans as a plain-English
+    clause quoting where the dropped source content begins, so the retry
+    message points at specific text instead of only a coverage percentage.
+    Returns "" when there are no spans (message unchanged from before)."""
+    clauses = [f'the passage beginning "{span["preview"]} ..." '
+               f'(about {span["token_count"]} words)'
+               for span in spans or [] if span.get("preview")]
+    if not clauses:
+        return ""
+    return " The missing content includes " + "; ".join(clauses) + "."
+
+
 def _build_retry_feedback_message(quality):
     """Plain-English retry instruction instead of a raw JSON findings dump -
     the model has to act on this, not parse it. Diagnosed from a real
@@ -513,15 +526,16 @@ def _build_retry_feedback_message(quality):
         metrics = quality.get("metrics", {})
         recall = metrics.get("source_token_recall")
         coverage = f"about {recall * 100:.0f}%" if recall is not None else "too little"
+        spans_hint = _describe_missing_spans(quality.get("missing_source_spans"))
         if _is_near_miss_recall(metrics):
             return (f"Your previous response was close but only covered {coverage} "
                     "of the source text, missing some content or phrasing precisely. "
                     "Review it and produce a complete, precise conversion of the "
-                    "entire chunk, filling in whatever was missing.")
+                    "entire chunk, filling in whatever was missing." + spans_hint)
         return (f"Your previous response covered only {coverage} of the source "
                 "text before stopping early. Convert the ENTIRE source chunk "
                 "from beginning to end this time - do not stop partway through "
-                "and do not summarize any part of it.")
+                "and do not summarize any part of it." + spans_hint)
     messages = [finding["message"] for finding in findings if finding.get("message")]
     if messages:
         return " ".join(messages)
