@@ -355,6 +355,64 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual([], result)
         self.assertEqual([4096, 4096], calls)
 
+    def test_retry_feedback_for_truncation_cluster_is_plain_english(self):
+        quality = {"metrics": {"source_token_recall": 0.53},
+                   "findings": [{"code": "low_source_token_recall", "value": 0.53},
+                               {"code": "low_ordered_trigram_recall", "value": 0.51},
+                               {"code": "output_source_ratio", "value": 0.53}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("about 53%", message)
+        self.assertIn("stopping early", message)
+        self.assertNotIn("low_source_token_recall", message)
+        self.assertNotIn("{", message)
+
+    def test_retry_feedback_for_truncation_cluster_without_recall_metric(self):
+        quality = {"metrics": {}, "findings": [{"code": "output_source_ratio"}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertIn("too little", message)
+        self.assertIn("stopping early", message)
+
+    def test_retry_feedback_for_other_codes_uses_finding_messages(self):
+        quality = {"metrics": {}, "findings": [
+            {"code": "missing_fields", "message": "Entry is missing required fields."},
+            {"code": "empty_text", "message": "Entry contains no speakable text."}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertEqual(
+            "Entry is missing required fields. Entry contains no speakable text.",
+            message)
+
+    def test_retry_feedback_falls_back_to_json_when_no_messages_present(self):
+        # An unrelated code with no message, to exercise the defensive final
+        # fallback (truncation-cluster codes always short-circuit earlier).
+        quality = {"metrics": {}, "findings": [{"code": "some_future_code"}]}
+        message = generate_script._build_retry_feedback_message(quality)
+        self.assertEqual(json.dumps(quality["findings"], ensure_ascii=False), message)
+
+    def test_incomplete_stop_retry_prompt_uses_plain_english_not_raw_codes(self):
+        prompts = []
+        incomplete = json.dumps([{"speaker": "NARRATOR", "text": "one",
+                                  "instruct": "neutral"}])
+        usage = SimpleNamespace(prompt_tokens=100, completion_tokens=400)
+
+        def create(**kwargs):
+            prompts.append(kwargs["messages"][-1]["content"])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=incomplete), finish_reason="stop")],
+                usage=usage)
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        quality = lambda _entries: {"passed": False,
+            "metrics": {"source_token_recall": 0.3, "output_source_ratio": 0.1},
+            "findings": [{"code": "low_source_token_recall", "value": 0.3}]}
+
+        generate_script.call_llm_for_entries(
+            client, "model", "system", "text", generate_script.LLMGenParams(max_tokens=4096),
+            "test_responses.log", "TEST", max_retries=1, validate_entries=quality)
+
+        self.assertNotIn("low_source_token_recall", prompts[1])
+        self.assertIn("stopping early", prompts[1])
+        self.assertIn("about 30%", prompts[1])
+
     def test_near_limit_incomplete_stop_increases_budget(self):
         quality = {"metrics": {"output_source_ratio": 0.2},
                    "findings": [{"code": "output_source_ratio"}]}
