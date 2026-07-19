@@ -1,10 +1,21 @@
 import asyncio
+import tempfile
+import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
 
+import benchmark_environment
 from routers import benchmark
+
+
+def _tts_request(target, settings=None):
+    return benchmark.BenchmarkPreflightRequest(manifest={
+        "schema_version": 1, "stage": "tts_generation", "targets": [target],
+        "fixtures": [{"id": "tts", "sha256": "abc"}],
+        "settings": settings or {"remote_root": "/remote", "remote_python": "/venv/python"}})
 
 
 def _request(targets=None):
@@ -63,6 +74,75 @@ class BenchmarkApiTests(unittest.TestCase):
                  "details": {"packages": {"torch": "2.7.0+cu126"}}}):
             with self.assertRaisesRegex(ValueError, "different builds"):
                 benchmark._build_benchmark_preflight(_request(["local", "thunder"]))
+
+    def test_single_target_preflight_checks_against_persisted_baseline(self):
+        """Real callers only ever request one target per preflight - the
+        comparability check must fire against a PERSISTED baseline from an
+        earlier single-target run, not only a same-call sibling."""
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline_path = str(Path(tmp, "environment_baselines.json"))
+            with patch.object(benchmark, "ENVIRONMENT_BASELINE_PATH", baseline_path), \
+                 patch.object(benchmark, "load_app_config", return_value={"llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark, "check_global_gpu_lock"), \
+                 patch.object(benchmark, "collect_local_tts_environment", return_value={
+                     "target": "local", "sha256": "one",
+                     "details": {"packages": {"torch": "2.10.0+rocm7.0"}}}):
+                benchmark._build_benchmark_preflight(_tts_request("local"))
+
+            with patch.object(benchmark, "ENVIRONMENT_BASELINE_PATH", baseline_path), \
+                 patch.object(benchmark, "load_app_config", return_value={"llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark, "check_global_gpu_lock"), \
+                 patch.object(benchmark, "collect_thunder_tts_environment", return_value={
+                     "target": "thunder", "sha256": "two",
+                     "details": {"packages": {"torch": "2.7.0+cu126"}}}):
+                with self.assertRaisesRegex(ValueError, "different builds"):
+                    benchmark._build_benchmark_preflight(_tts_request("thunder"))
+
+    def test_single_target_preflight_passes_with_matching_persisted_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline_path = str(Path(tmp, "environment_baselines.json"))
+            with patch.object(benchmark, "ENVIRONMENT_BASELINE_PATH", baseline_path), \
+                 patch.object(benchmark, "load_app_config", return_value={"llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark, "check_global_gpu_lock"), \
+                 patch.object(benchmark, "collect_local_tts_environment", return_value={
+                     "target": "local", "sha256": "one",
+                     "details": {"packages": {"torch": "2.10.0+rocm7.0"}}}):
+                benchmark._build_benchmark_preflight(_tts_request("local"))
+
+            with patch.object(benchmark, "ENVIRONMENT_BASELINE_PATH", baseline_path), \
+                 patch.object(benchmark, "load_app_config", return_value={"llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark, "check_global_gpu_lock"), \
+                 patch.object(benchmark, "collect_thunder_tts_environment", return_value={
+                     "target": "thunder", "sha256": "two",
+                     "details": {"packages": {"torch": "2.10.1+cu126"}}}):
+                result = benchmark._build_benchmark_preflight(_tts_request("thunder"))
+        self.assertEqual("ready", result["benchmark_state"])
+        self.assertNotIn("stale_baseline", result)
+
+    def test_single_target_preflight_flags_stale_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline_path = str(Path(tmp, "environment_baselines.json"))
+            old_environment = {"target": "local", "sha256": "one",
+                               "details": {"packages": {"torch": "2.10.0+rocm7.0"}}}
+            benchmark_environment.save_environment_baseline(
+                "local", old_environment, baseline_path)
+            # Backdate the saved baseline past the staleness threshold.
+            import json
+            with open(baseline_path) as f:
+                baselines = json.load(f)
+            baselines["local"]["collected_at"] = (
+                time.time() - benchmark_environment.BASELINE_STALE_SECONDS - 1)
+            with open(baseline_path, "w") as f:
+                json.dump(baselines, f)
+
+            with patch.object(benchmark, "ENVIRONMENT_BASELINE_PATH", baseline_path), \
+                 patch.object(benchmark, "load_app_config", return_value={"llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark, "check_global_gpu_lock"), \
+                 patch.object(benchmark, "collect_thunder_tts_environment", return_value={
+                     "target": "thunder", "sha256": "two",
+                     "details": {"packages": {"torch": "2.10.1+cu126"}}}):
+                result = benchmark._build_benchmark_preflight(_tts_request("thunder"))
+        self.assertTrue(result.get("stale_baseline"))
 
     def test_preflight_route_reports_validation_failure_as_400(self):
         request = _request()

@@ -1,5 +1,8 @@
 import json
+import tempfile
+import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import benchmark_environment
@@ -92,6 +95,34 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
         local_env = {"details": {"packages": {}}}
         thunder_env = {"details": {}}
         benchmark_environment.verify_comparable_environments(local_env, thunder_env)
+
+    def test_baseline_round_trips_through_save_and_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "environment_baselines.json"))
+            environment = {"target": "local", "details": {"packages": {"torch": "2.10.0"}}}
+            benchmark_environment.save_environment_baseline("local", environment, path)
+            loaded = benchmark_environment.load_environment_baseline("local", path)
+        self.assertEqual(environment, loaded["environment"])
+        self.assertIn("collected_at", loaded)
+
+    def test_baseline_load_returns_none_when_target_never_saved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "environment_baselines.json"))
+            self.assertIsNone(benchmark_environment.load_environment_baseline("thunder", path))
+
+    def test_baseline_save_preserves_other_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, "environment_baselines.json"))
+            benchmark_environment.save_environment_baseline("local", {"a": 1}, path)
+            benchmark_environment.save_environment_baseline("thunder", {"b": 2}, path)
+            local_entry = benchmark_environment.load_environment_baseline("local", path)
+        self.assertEqual({"a": 1}, local_entry["environment"])
+
+    def test_baseline_staleness_uses_collected_at(self):
+        fresh = {"collected_at": time.time()}
+        stale = {"collected_at": time.time() - benchmark_environment.BASELINE_STALE_SECONDS - 1}
+        self.assertFalse(benchmark_environment.is_baseline_stale(fresh))
+        self.assertTrue(benchmark_environment.is_baseline_stale(stale))
 
     def test_thunder_tts_rejects_checkout_that_does_not_match(self):
         payload = {"hostname": "thunder", "python_version": "3.11",

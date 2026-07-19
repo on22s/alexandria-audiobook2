@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from urllib.parse import urlparse
 
 from openai import OpenAI
 
@@ -943,14 +944,20 @@ def _get_llm_benchmark_target(config, target):
         status = get_lmstudio_status(llm.get("model_name"))
     elif target == "thunder":
         llm = config.get("llm_remote") or {}
+        remote_port = urlparse(llm.get("base_url") or "").port or 1234
         status = get_remote_lmstudio_status(
-            (config.get("llm_remote_ssh") or "").strip(), llm.get("model_name"))
+            (config.get("llm_remote_ssh") or "").strip(), llm.get("model_name"),
+            port=remote_port)
     else:
         raise ValueError(f"unsupported LLM benchmark target: {target}")
     if not llm.get("base_url") or not llm.get("model_name"):
         raise ValueError(f"{target} LLM endpoint is not configured")
     if not status.get("available") or not status.get("loaded"):
         raise ValueError(f"{target} LM Studio model is not ready")
+    if status.get("server_reachable") is False:
+        raise ValueError(
+            f"{target} LM Studio model is loaded but its server isn't reachable "
+            "on the forwarded port (likely bound to 127.0.0.1 instead of 0.0.0.0)")
     return llm, status
 
 

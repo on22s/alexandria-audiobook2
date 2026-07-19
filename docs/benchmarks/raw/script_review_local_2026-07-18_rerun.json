@@ -1,0 +1,441 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "schema_version": 1,
+    "stage": "script_review",
+    "targets": [
+      "local"
+    ],
+    "repetitions": 3,
+    "fixtures": [
+      {
+        "id": "Arc 2 - Volume 3-entries-500-524",
+        "sha256": "314fbf99572132c9eb6a5289707e903c9323a4139ab515ab841911a0666e19e7",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/scripts/Arc 2 - Volume 3.json",
+        "source_sha256": "7ddaecf30c9e59eefb2bbab39fbbe011a45dc69efd964a8b6577303da05d4546",
+        "entry_start": 500,
+        "entry_count": 25,
+        "previous_tail": [
+          {
+            "speaker": "EMILIA",
+            "text": "Shh.",
+            "instruct": "Whispered command; extremely soft and gentle delivery, intimate and soothing."
+          },
+          {
+            "speaker": "NARRATOR",
+            "text": "Rem narrowed her eyes a bit, walking over as she looked at the two of them nestled close together on the floor.",
+            "instruct": "Observational narration; slightly curious tone, moving with subtle movement."
+          }
+        ]
+      },
+      {
+        "id": "Arc 3 - Volume 9-entries-500-524",
+        "sha256": "f3f105c7b54fbda3dbce24479773853f325d7c5ec351723faf99c53bc6b70b4f",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/scripts/Arc 3 - Volume 9.json",
+        "source_sha256": "127af05e3aa644ee00cf4641c8d58f2a005bf2eb44fc4ea0700c1dfe2b2f37b1",
+        "entry_start": 500,
+        "entry_count": 25,
+        "previous_tail": [
+          {
+            "speaker": "EMILIA",
+            "text": "You were…the gentleman who came with Ferris once, right?",
+            "instruct": "Inquisitive recognition; voice tinged with curiosity and slight confusion."
+          },
+          {
+            "speaker": "WILHELM",
+            "text": "Yes. I am called Wilhelm Trias, humble retainer of the House of Karsten. I have come today representing my liege.",
+            "instruct": "Formal declaration; deep, steady voice conveying aristocratic dignity and loyalty."
+          }
+        ]
+      },
+      {
+        "id": "Arc 4 - Volume 10-entries-500-524",
+        "sha256": "05cce348727a9b2ee1fcc8ead236485801515d4b2d7b89d9d26420e05fca0d5d",
+        "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/scripts/Arc 4 - Volume 10.json",
+        "source_sha256": "d252624a174187194c9a3f62decb0a96f007404de4f3919aea316813cd78674c",
+        "entry_start": 500,
+        "entry_count": 25,
+        "previous_tail": [
+          {
+            "speaker": "NARRATOR",
+            "text": "Emilia and Frederica smiled at one another, pleased to be reunited. Even then, Frederica hid her mouth behind her sleeve maybe Subaru’s rude words had given her something of a complex about it.",
+            "instruct": "Warm descriptive narration; conveying mutual happiness with a slight undercurrent of embarrassment."
+          },
+          {
+            "speaker": "NARRATOR",
+            "text": "Subaru was even more ashamed of his slip of the tongue, but Frederica spoke nothing of it as she motioned to the mansion with a hand.",
+            "instruct": "Action narration; quick and decisive tone, showing her moving past the incident."
+          }
+        ]
+      }
+    ],
+    "settings": {
+      "max_retries": 0
+    },
+    "quality_thresholds": {
+      "word_ratio_min": 0.95,
+      "word_ratio_max": 1.05
+    }
+  },
+  "manifest_sha256": "1dd7d576629a9182ac36d36699566bf5c605ea45631eabc90860a8fdc92e78dc",
+  "environment": {
+    "target": "local",
+    "details": {
+      "hostname": "mitch-linux",
+      "gpu_name": "AMD Radeon RX 9070 XT",
+      "backend": "rocm",
+      "python_version": "3.10.20",
+      "git_commit": "6319a72d43bf6127ebf68222d1feadca2db517bd",
+      "worktree": {
+        "dirty": false,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "platform": {
+        "system": "Linux",
+        "release": "6.18.36-1-MANJARO",
+        "machine": "x86_64"
+      },
+      "packages": {
+        "torch": "2.10.0+rocm7.0",
+        "qwen-tts": "0.1.1",
+        "transformers": "4.57.3",
+        "peft": "0.18.1",
+        "fastapi": "0.128.0"
+      },
+      "lmstudio": {
+        "model_name": "gemma-4-e4b-uncensored-hauhaucs-aggressive",
+        "model_loaded": true,
+        "context_length": 32768,
+        "parallel": 2
+      }
+    },
+    "sha256": "08a9ef3a59a965c9e7afa770cdd30234c2960fe759ce1465bf6dc2b1c39e01a8"
+  },
+  "cases": [
+    {
+      "fixture_id": "Arc 2 - Volume 3-entries-500-524",
+      "repetition": 1,
+      "status": "passed",
+      "elapsed_seconds": 24.31,
+      "entry_count": 25,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 24.309,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4056,
+          "completion_tokens": 1524,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 0,
+        "speaker_changed": 0,
+        "instruct_changed": 16,
+        "entries_changed": 16,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 25
+      }
+    },
+    {
+      "fixture_id": "Arc 2 - Volume 3-entries-500-524",
+      "repetition": 2,
+      "status": "passed",
+      "elapsed_seconds": 23.211,
+      "entry_count": 25,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 23.21,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4056,
+          "completion_tokens": 1532,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 0,
+        "speaker_changed": 0,
+        "instruct_changed": 7,
+        "entries_changed": 7,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 25
+      }
+    },
+    {
+      "fixture_id": "Arc 2 - Volume 3-entries-500-524",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 22.939,
+      "entry_count": 25,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 22.938,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4056,
+          "completion_tokens": 1502,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 0,
+        "speaker_changed": 0,
+        "instruct_changed": 10,
+        "entries_changed": 10,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 25
+      }
+    },
+    {
+      "fixture_id": "Arc 3 - Volume 9-entries-500-524",
+      "repetition": 1,
+      "status": "passed",
+      "elapsed_seconds": 27.508,
+      "entry_count": 25,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 27.507,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4224,
+          "completion_tokens": 1729,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 0,
+        "speaker_changed": 0,
+        "instruct_changed": 2,
+        "entries_changed": 2,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 25
+      }
+    },
+    {
+      "fixture_id": "Arc 3 - Volume 9-entries-500-524",
+      "repetition": 2,
+      "status": "passed",
+      "elapsed_seconds": 26.9,
+      "entry_count": 25,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 26.899,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4224,
+          "completion_tokens": 1740,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 2,
+        "speaker_changed": 0,
+        "instruct_changed": 2,
+        "entries_changed": 4,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 25
+      }
+    },
+    {
+      "fixture_id": "Arc 3 - Volume 9-entries-500-524",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 29.235,
+      "entry_count": 31,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 29.233,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4224,
+          "completion_tokens": 1892,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 0.9875,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 5,
+        "speaker_changed": 0,
+        "instruct_changed": 6,
+        "entries_changed": 7,
+        "entries_added": 6,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 31
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-entries-500-524",
+      "repetition": 1,
+      "status": "passed",
+      "elapsed_seconds": 27.648,
+      "entry_count": 26,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 27.647,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4277,
+          "completion_tokens": 1769,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0039,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 6,
+        "speaker_changed": 0,
+        "instruct_changed": 13,
+        "entries_changed": 16,
+        "entries_added": 1,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 26
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-entries-500-524",
+      "repetition": 2,
+      "status": "passed",
+      "elapsed_seconds": 27.986,
+      "entry_count": 26,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 27.985,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4277,
+          "completion_tokens": 1770,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 0.9981,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 1,
+        "speaker_changed": 0,
+        "instruct_changed": 15,
+        "entries_changed": 15,
+        "entries_added": 1,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 26
+      }
+    },
+    {
+      "fixture_id": "Arc 4 - Volume 10-entries-500-524",
+      "repetition": 3,
+      "status": "passed",
+      "elapsed_seconds": 28.531,
+      "entry_count": 26,
+      "attempts": [
+        {
+          "attempt": 1,
+          "elapsed_seconds": 28.53,
+          "finish_reason": "stop",
+          "requested_max_tokens": 10000,
+          "effective_max_tokens": 10000,
+          "prompt_tokens": 4277,
+          "completion_tokens": 1775,
+          "error": null,
+          "outcome": "accepted"
+        }
+      ],
+      "quality": {
+        "passed": true,
+        "word_ratio": 1.0039,
+        "text_loss_passed": true,
+        "structural_passed": true
+      },
+      "changes": {
+        "text_changed": 5,
+        "speaker_changed": 0,
+        "instruct_changed": 13,
+        "entries_changed": 15,
+        "entries_added": 1,
+        "entries_removed": 0,
+        "entries_original": 25,
+        "entries_corrected": 26
+      }
+    }
+  ],
+  "network_rtt_seconds": 0.083
+}
