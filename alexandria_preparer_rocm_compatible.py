@@ -930,10 +930,19 @@ def _load_diarization_pipeline(hf_token: str, device: str):
         return None
 
     logger.info(f"▶ Initializing pyannote.audio diarization (device={device})...")
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1",
-        token=hf_token
-    )
+    try:
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            token=hf_token
+        )
+    except TypeError:
+        # pyannote.audio 3.x only accepts use_auth_token; `token=` is 4.x.
+        # Without this fallback the TypeError is swallowed upstream as a
+        # generic "Diarization failed" on every pyannote 3.x install.
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=hf_token
+        )
     if pipeline is None:
         raise ValueError("Failed to load pyannote pipeline. Check your token and model permissions.")
 
