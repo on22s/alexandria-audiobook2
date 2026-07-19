@@ -468,6 +468,38 @@ def record_attempt_context(observer, attempt, phase, split_part=None):
     observer(attempt)
 
 
+def _build_retry_feedback_message(quality):
+    """Plain-English retry instruction instead of a raw JSON findings dump -
+    the model has to act on this, not parse it. Diagnosed from a real
+    production incident (2026-07-19): fresh single attempts against a known
+    failing chunk succeeded 3/3 live, but retries within a rejected session
+    kept producing near-identical tiny output across several tries - the
+    raw `json.dumps(quality["findings"])` dump this replaced gave the model
+    a list of validation codes to parse, not something to act on.
+
+    Falls back to each finding's own human-readable `message`
+    (chunk_quality.py already attaches one to every finding) for finding
+    types outside the dominant incomplete-output cluster, and to the
+    original JSON dump only if no messages exist at all (never worse than
+    before this change).
+    """
+    findings = quality.get("findings", [])
+    truncation_codes = {"low_source_token_recall", "low_ordered_trigram_recall",
+                        "output_source_ratio"}
+    codes = {finding.get("code") for finding in findings}
+    if codes & truncation_codes:
+        recall = quality.get("metrics", {}).get("source_token_recall")
+        coverage = f"about {recall * 100:.0f}%" if recall is not None else "too little"
+        return (f"Your previous response covered only {coverage} of the source "
+                "text before stopping early. Convert the ENTIRE source chunk "
+                "from beginning to end this time - do not stop partway through "
+                "and do not summarize any part of it.")
+    messages = [finding["message"] for finding in findings if finding.get("message")]
+    if messages:
+        return " ".join(messages)
+    return json.dumps(findings, ensure_ascii=False)
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
@@ -653,7 +685,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         attempt_record["failure_codes"] = [
                             finding.get("code") for finding in quality.get("findings", [])]
                         attempt_record["quality_metrics"] = quality.get("metrics", {})
-                    retry_feedback = json.dumps(quality["findings"], ensure_ascii=False)
+                    retry_feedback = _build_retry_feedback_message(quality)
                     metrics = quality.get("metrics", {})
                     completion_tokens = (getattr(usage, "completion_tokens", None)
                                          if usage else None)
