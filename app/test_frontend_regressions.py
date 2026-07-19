@@ -155,8 +155,17 @@ class FrontendTests(unittest.TestCase):
                 # Checkboxes instead of a native <select multiple> - selecting a
                 # subset normally requires ctrl/shift-click, unusable over a
                 # remote-desktop session with no modifier keys.
-                "script-batch-upload-check", "renderScriptBatchUploads"):
+                "script-batch-upload-check", "renderScriptBatchUploads",
+                # Toggle for stripping known non-narrative compiler front matter
+                # (translator's notes / tables of contents) before generation.
+                "script-strip-front-matter", "_isStripFrontMatterChecked",
+                "strip_front_matter: _isStripFrontMatterChecked()"):
             self.assertIn(required, frontend)
+
+        # Both the single and batch generate calls must send the toggle -
+        # not just one of them (a bare count check catches a copy-paste that
+        # only wires up one call site).
+        self.assertEqual(2, frontend.count("strip_front_matter: _isStripFrontMatterChecked()"))
 
         sort_start = frontend.index("window.scriptBatchSort =")
         sort_end = frontend.index("window.cancelBatchScript", sort_start)
