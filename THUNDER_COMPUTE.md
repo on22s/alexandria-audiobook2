@@ -73,22 +73,31 @@ placement rule without a production-shaped measurement.
 Four gaps were found in this campaign's own harness after the fact. None of
 them mean the numbers below are fabricated, but none of them were controlled
 for either — treat every conclusion in this section as provisional until a
-rerun addresses them:
+rerun addresses them. Script generation and script review (both targets) have
+since been rerun under the fixed harness — see the validation note below each
+of the first two bullets; the other two bullets (utilization sampling,
+throughput-at-scale) still apply to every TTS/LoRA/VoiceLab number in this
+document, which has not yet been rerun.
 
 - **Torch/CUDA build mismatch.** Local ran Torch 2.10.0+ROCm7.0; Thunder ran
   an older Torch 2.7.0+CUDA12.6. Every TTS/LoRA/VoiceLab comparison below was
   measured across two different software stacks, not just two GPUs. The
   benchmark harness now fingerprints both sides' Torch version and
   (`benchmark_environment.verify_comparable_environments`) raises loudly if
-  they diverge when both are collected in one preflight — align the
-  Thunder image's Torch build before the next run so this actually passes.
+  they diverge when both are collected in one preflight. **Validated
+  2026-07-18:** Thunder's Torch was upgraded in place to 2.10.0+CUDA12.6
+  (matching local's minor version; torchaudio/triton/CUDA deps updated
+  alongside it, transformers/peft/qwen_tts untouched and reimport clean) and
+  the preflight check passed cleanly for the script generation/review rerun.
+  TTS/LoRA/VoiceLab stages have not been rerun against the aligned Torch yet.
 - **No utilization instrumentation existed for NVIDIA.** The "A100 ran at
   only about 15% utilization" note under CustomVoice below was an ad-hoc,
   unrepeated observation — `gpu_stats.py` had `rocm_smi_utilization` for AMD
   only. `tts_benchmark.py` now samples `mean_gpu_utilization_pct` via the new
   `gpu_stats.sample_gpu_utilization()` (NVIDIA or AMD, whichever is present)
   during every generation call, so future runs get this as a real metric
-  instead of an eyeballed aside.
+  instead of an eyeballed aside. Not yet exercised on real TTS hardware — only
+  the LLM-based stages were rerun in this validation pass.
 - **LLM-based benchmarks timed the network round trip, not just decode.**
   Script generation/review, persona, and nickname detection all call the
   configured LM Studio endpoint directly; for the "thunder" target that's an
@@ -98,6 +107,11 @@ rerun addresses them:
   LLM-stage runner now records one `network_rtt_seconds` baseline probe (a
   bare `models.list()` call) alongside each report, so a future writeup can
   read `elapsed_seconds` as latency-plus-compute instead of pure compute.
+  **Validated 2026-07-18:** measured RTT was 0.083 s local vs. 0.53-0.54 s
+  Thunder (~6.5×) for both script generation and script review, confirming
+  the confound is real, though small relative to the multi-minute totals in
+  this specific rerun — it matters most for short calls like nickname
+  detection, which has not been rerun yet.
 - **Every TTS/LoRA/VoiceLab benchmark is single-stream or small-batch**
   (serial six-generation runs, batch caps ≤16 below) — the shape an A100 is
   weakest at and a consumer GPU is strongest at. Nothing here tests the
@@ -117,8 +131,8 @@ Pending entries remain explicit rather than being inferred from a component.
 
 | Workload | Local | A100 Thunder | Measured decision |
 |---|---:|---:|---|
-| Script generation, 9 calls | 366.6 s, 5/9 pass | 677.8 s, 7/9 pass at 98k context | Local for throughput; quality remains stochastic |
-| Script review, 9 batches | 243.8 s | 501.1 s | Local, about 2.06× faster |
+| Script generation, 9 calls | 329.5 s, 7/9 pass | 679.4 s, 7/9 pass at 98k context | Local for throughput; quality remains stochastic |
+| Script review, 9 batches | 238.3 s | 474.3 s | Local, about 2.0× faster |
 | Persona discovery + compile | 39.885 s | 17.557 s | **Thunder, 2.27× faster** |
 | Nickname detection | 0.796 s | 1.782 s | Local, 2.24× faster |
 | CustomVoice warm throughput | 1.18× realtime | 0.28× realtime | Local, about 4.2× higher throughput |
@@ -151,8 +165,8 @@ raw single-attempt reliability; it is not the production completion rate.
 
 | Environment | Passed | Total time | Mean successful call | Aggregate completion rate |
 |---|---:|---:|---:|---:|
-| RX 9070 XT, 32,768 context, parallel 2 | 5/9 | 366.6 s | 50.1 s | 61.5 tok/s |
-| A100 80 GB, 98,304 context, parallel 2 | 7/9 | 677.8 s | 94.0 s | 31.4 tok/s |
+| RX 9070 XT, 32,768 context, parallel 2 | 7/9 | 329.5 s | 43.9 s | 65.5 tok/s |
+| A100 80 GB, 98,304 context, parallel 2 | 7/9 | 679.4 s | 94.9 s | 32.9 tok/s |
 | A100 80 GB, 32,768 context, parallel 2 | 6/9 | 1,032.7 s | 105.3 s | 20.6 tok/s |
 
 Failures were mostly stochastic early stops or structurally invalid output;
@@ -188,8 +202,8 @@ measured parallel-1 optimum while local retained its parallel-2 configuration.
 
 | Environment | Passed | Total time | Mean batch | Aggregate completion rate | Mean word ratio |
 |---|---:|---:|---:|---:|---:|
-| RX 9070 XT local | 9/9 | 243.8 s | 27.1 s | 62.0 tok/s | 1.0002 |
-| A100 80 GB Thunder | 9/9 | 501.1 s | 55.7 s | 31.0 tok/s | 0.9973 |
+| RX 9070 XT local | 9/9 | 238.3 s | 26.5 s | 63.9 tok/s | 0.9993 |
+| A100 80 GB Thunder | 9/9 | 474.3 s | 52.7 s | 32.0 tok/s | 0.9978 |
 
 Both preserved structure and stayed within the production 95–105% text-loss
 gate. Thunder provided no reliability advantage in this cohort and was almost

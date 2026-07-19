@@ -3,8 +3,8 @@
   "campaign_date": "2026-07-18",
   "environments": {"local": "AMD Radeon RX 9070 XT 16 GB / ROCm", "thunder": "NVIDIA A100 80 GB / CUDA"},
   "results": {
-    "script_generation": {"measured_scope": "9 production calls", "local": "366.6 s; 5/9 passed", "thunder": "677.8 s; 7/9 passed", "source_prs": [168]},
-    "script_review": {"measured_scope": "9 production review batches", "local": "243.8 s", "thunder": "501.1 s", "source_prs": [169]},
+    "script_generation": {"measured_scope": "9 production calls; rerun under Torch-aligned environment with network_rtt_seconds baseline", "local": "329.5 s; 7/9 passed; network_rtt_seconds 0.083", "thunder": "679.4 s; 7/9 passed; network_rtt_seconds 0.534", "source_prs": [168, 184]},
+    "script_review": {"measured_scope": "9 production review batches; rerun under Torch-aligned environment with network_rtt_seconds baseline", "local": "238.3 s; network_rtt_seconds 0.083", "thunder": "474.3 s; network_rtt_seconds 0.536", "source_prs": [169, 184]},
     "persona_generation": {"measured_scope": "production discovery and compile fixture", "local": "39.885 s", "thunder": "17.557 s", "source_prs": [179]},
     "nickname_detection": {"measured_scope": "one contextual alias fixture", "local": "0.796 s", "thunder": "1.782 s", "source_prs": [180]},
     "tts_generation": {"measured_scope": "CustomVoice, clone, VoiceDesign, and LoRA production paths", "local": "won every measured cohort", "thunder": "lost every measured cohort", "source_prs": [170, 171, 172, 173, 174]},
