@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 import tempfile
@@ -8,6 +9,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from routers import lora
+from core import process_state
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION,
                            get_evaluation_spec_sha256, get_file_sha256)
 
@@ -435,6 +437,73 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             self.assertEqual("promoted", summary["state"])
             self.assertEqual(0, summary["retained_count"])
             self.assertFalse(summary["production_unchanged"])
+
+
+class LoraCheckpointSwapRouteClaimTests(unittest.TestCase):
+    """Covers the Area 2 fix: the promote/rollback/recover routes must
+    atomically claim the GPU lock (not just check-then-act), and must always
+    release it, on both success and failure."""
+
+    def _write_checkpoint(self, root, marker):
+        Path(root).mkdir(parents=True, exist_ok=True)
+        for filename in lora.PROMOTION_FILES:
+            Path(root, filename).write_bytes(f"{marker}:{filename}".encode())
+
+    def setUp(self):
+        self._script_running = process_state["script"]["running"]
+        self._lora_training_state = dict(process_state["lora_training"])
+
+    def tearDown(self):
+        process_state["script"]["running"] = self._script_running
+        process_state["lora_training"].clear()
+        process_state["lora_training"].update(self._lora_training_state)
+
+    def test_promote_returns_400_while_another_gpu_task_is_running(self):
+        process_state["script"]["running"] = True
+
+        with self.assertRaises(HTTPException) as raised:
+            asyncio.run(lora.lora_promote_candidate("voice"))
+
+        self.assertEqual(400, raised.exception.status_code)
+        self.assertFalse(process_state["lora_training"]["running"])
+
+    def test_running_flag_resets_after_successful_promote(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            adapter = models / "voice"
+            candidate = adapter / "candidates" / "epoch_002"
+            manifest_path = models / "manifest.json"
+            self._write_checkpoint(adapter, "production")
+            self._write_checkpoint(candidate, "candidate")
+            manifest_path.write_text(json.dumps([{
+                "id": "voice",
+                "evaluation": {"recommended_candidate": "epoch_002"},
+                "evaluation_candidates": [{"id": "epoch_002"}],
+            }]))
+
+            with patch.object(lora, "LORA_MODELS_DIR", str(models)), \
+                 patch.object(lora, "LORA_MODELS_MANIFEST", str(manifest_path)):
+                result = asyncio.run(lora.lora_promote_candidate("voice"))
+
+        self.assertEqual("promoted", result["status"])
+        self.assertFalse(process_state["lora_training"]["running"])
+
+    def test_running_flag_resets_after_promote_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp, "models")
+            models.mkdir()
+            manifest_path = models / "manifest.json"
+            manifest_path.write_text(json.dumps([{
+                "id": "voice", "evaluation": {"recommended_candidate": "production"},
+            }]))
+
+            with patch.object(lora, "LORA_MODELS_DIR", str(models)), \
+                 patch.object(lora, "LORA_MODELS_MANIFEST", str(manifest_path)):
+                with self.assertRaises(HTTPException) as raised:
+                    asyncio.run(lora.lora_promote_candidate("voice"))
+
+        self.assertEqual(409, raised.exception.status_code)
+        self.assertFalse(process_state["lora_training"]["running"])
 
 
 if __name__ == "__main__":

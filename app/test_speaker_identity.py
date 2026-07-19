@@ -2,6 +2,7 @@ import copy
 import unittest
 
 from speaker_identity import (build_speaker_consistency_report,
+                              resolve_speaker_label,
                               stabilize_speaker_identities)
 
 
@@ -51,6 +52,23 @@ class SpeakerIdentityTests(unittest.TestCase):
             [_entry("EMILIA"), _entry("VILLAGER 2"), _entry("SUBARU'S MOTHER")],
             ["SUBARU", "VILLAGER 1"])
         self.assertEqual([], result["review"])
+
+    def test_resolve_speaker_label_matches_punctuation_and_spacing_variants(self):
+        labels = ["MR. SMITH", "NARRATOR"]
+        self.assertEqual("MR. SMITH", resolve_speaker_label("MR SMITH", labels))
+        self.assertEqual("MR. SMITH", resolve_speaker_label("mr smith", labels))
+        self.assertEqual("MR. SMITH", resolve_speaker_label("Mr.Smith", labels))
+
+    def test_resolve_speaker_label_returns_none_when_no_match(self):
+        self.assertIsNone(resolve_speaker_label("NOBODY", ["MR. SMITH", "NARRATOR"]))
+        self.assertIsNone(resolve_speaker_label("", ["MR. SMITH"]))
+
+    def test_resolve_speaker_label_is_deterministic_on_duplicate_keys(self):
+        # Both labels normalize to the same identity key; sorted order picks
+        # the same winner every time regardless of input iteration order.
+        labels = ["Mr Smith", "MR. SMITH"]
+        self.assertEqual("MR. SMITH", resolve_speaker_label("mr smith", labels))
+        self.assertEqual("MR. SMITH", resolve_speaker_label("mr smith", list(reversed(labels))))
 
 
 if __name__ == "__main__":

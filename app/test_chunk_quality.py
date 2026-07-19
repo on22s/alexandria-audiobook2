@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 from chunk_quality import validate_chunk_quality
 import generate_script
-from source_normalization import normalize_known_source_corruptions
+from source_normalization import (normalize_homoglyph_words,
+                                  normalize_known_source_corruptions)
 
 
 def _entry(text, speaker="NARRATOR", instruct="Read naturally."):
@@ -212,6 +213,45 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual("She intended to nap until their arrival.", normalized)
         self.assertEqual("пар", changes[0]["before"])
         self.assertEqual("nap", changes[0]["after"])
+
+    def test_homoglyph_word_normalizes_with_location_evidence(self):
+        padding = "The narrator continued speaking calmly for a while. " * 10
+        original = padding + "\nSubаru answered."  # Cyrillic а
+
+        normalized, changes = normalize_homoglyph_words(original)
+
+        self.assertEqual(padding + "\nSubaru answered.", normalized)
+        self.assertEqual(1, len(changes))
+        self.assertEqual(("Subаru", "Subaru", "homoglyph", 2, 1),
+                         (changes[0]["before"], changes[0]["after"],
+                          changes[0]["rule"], changes[0]["line"],
+                          changes[0]["column"]))
+
+    def test_homoglyph_all_cyrillic_lookalike_word_is_normalized(self):
+        padding = "The narrator continued speaking calmly for a while. " * 40
+        normalized, changes = normalize_homoglyph_words(
+            padding + "He would саге for them.")  # all-Cyrillic lookalikes
+
+        self.assertTrue(normalized.endswith("He would care for them."))
+        self.assertEqual([("саге", "care")],
+                         [(change["before"], change["after"]) for change in changes])
+
+    def test_homoglyph_leaves_genuine_cyrillic_text_untouched(self):
+        original = "Он сказал привет и ушёл домой рано утром."
+
+        normalized, changes = normalize_homoglyph_words(original)
+
+        self.assertEqual(original, normalized)
+        self.assertEqual([], changes)
+
+    def test_homoglyph_word_with_unmappable_character_is_untouched(self):
+        padding = "The narrator continued speaking calmly for a while. " * 10
+        original = padding + "Subжru answered."  # ж has no Latin homoglyph
+
+        normalized, changes = normalize_homoglyph_words(original)
+
+        self.assertEqual(original, normalized)
+        self.assertEqual([], changes)
 
     def test_strip_known_front_matter_removes_manifesto_and_toc(self):
         # Regression for a live 2026-07-19 failure: every "wn" upload in the

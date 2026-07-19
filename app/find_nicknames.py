@@ -28,7 +28,7 @@ from review_script import _is_group_label
 
 # Reuse the codebase's one near-miss-label similarity check (Rule 15) — here it
 # only *reports* dropped near-misses; alias resolution itself stays exact-match.
-from speaker_identity import _uncertain_candidates
+from speaker_identity import _uncertain_candidates, resolve_speaker_label
 
 
 NICKNAME_SYSTEM_PROMPT = (
@@ -161,7 +161,6 @@ def _parse_alias_response(raw, speakers):
     raw_aliases = data.get("aliases", data) if isinstance(data, dict) else {}
     evidence = data.get("evidence", {}) if isinstance(data, dict) else {}
 
-    label_by_norm = {sp.strip().lower(): sp for sp in speakers}
     aliases = {}
     for variant, canonical in (raw_aliases or {}).items():
         if not isinstance(variant, str) or not isinstance(canonical, str):
@@ -169,14 +168,15 @@ def _parse_alias_response(raw, speakers):
         variant, canonical = variant.strip(), canonical.strip()
         if not variant or not canonical:
             continue
-        actual_variant = label_by_norm.get(variant.lower())
+        actual_variant = resolve_speaker_label(variant, speakers)
         if not actual_variant:  # only aliases that actually appear as a label
             _warn_near_miss_label("variant", variant, speakers)
             continue
         # Prefer an existing label spelling for the canonical when one matches
-        if canonical.lower() not in label_by_norm:
+        resolved_canonical = resolve_speaker_label(canonical, speakers)
+        if resolved_canonical is None:
             _warn_near_miss_label("canonical", canonical, speakers)
-        canonical = label_by_norm.get(canonical.lower(), canonical)
+        canonical = resolved_canonical if resolved_canonical is not None else canonical
         if actual_variant == canonical:
             continue
         if actual_variant.upper() == "NARRATOR" or canonical.upper() == "NARRATOR":

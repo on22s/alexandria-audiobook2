@@ -880,9 +880,12 @@ async def lora_cleanup_reviews(adapter_id: str):
 @router.post("/api/lora/models/{adapter_id}/promote")
 async def lora_promote_candidate(adapter_id: str):
     """Promote the evaluated recommendation while preserving production for rollback."""
-    check_global_gpu_lock("lora_training")
-    result = await asyncio.to_thread(
-        _promote_lora_candidate, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    claim_gpu_task("lora_training")
+    try:
+        result = await asyncio.to_thread(
+            _promote_lora_candidate, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    finally:
+        process_state["lora_training"]["running"] = False
     project_manager.engine = None
     gc.collect()
     logger.info("LoRA candidate promoted: %s <- %s", adapter_id, result["candidate"])
@@ -892,9 +895,12 @@ async def lora_promote_candidate(adapter_id: str):
 @router.post("/api/lora/models/{adapter_id}/rollback-promotion")
 async def lora_rollback_promotion(adapter_id: str):
     """Restore the production checkpoint preserved by the last promotion."""
-    check_global_gpu_lock("lora_training")
-    result = await asyncio.to_thread(
-        _rollback_lora_promotion, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    claim_gpu_task("lora_training")
+    try:
+        result = await asyncio.to_thread(
+            _rollback_lora_promotion, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    finally:
+        process_state["lora_training"]["running"] = False
     project_manager.engine = None
     gc.collect()
     logger.info("LoRA promotion rolled back: %s", adapter_id)
@@ -904,9 +910,12 @@ async def lora_rollback_promotion(adapter_id: str):
 @router.post("/api/lora/models/{adapter_id}/recover-checkpoint-swap")
 async def lora_recover_checkpoint_swap(adapter_id: str):
     """Restore production after a process interruption left a swap journal."""
-    check_global_gpu_lock("lora_training")
-    result = await asyncio.to_thread(
-        _recover_checkpoint_swap, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    claim_gpu_task("lora_training")
+    try:
+        result = await asyncio.to_thread(
+            _recover_checkpoint_swap, adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST)
+    finally:
+        process_state["lora_training"]["running"] = False
     project_manager.engine = None
     gc.collect()
     logger.warning("Recovered interrupted LoRA checkpoint swap: %s", adapter_id)

@@ -75,6 +75,20 @@ def _identity_key(value):
     return re.sub(r"[^\w]+", "", str(value or "").casefold(), flags=re.UNICODE)
 
 
+def resolve_speaker_label(name, labels):
+    """Return the label in `labels` that `name` refers to under the same
+    normalization generation uses (_identity_key: casefold + strip all
+    non-word characters), or None if none match. Deterministic on duplicate
+    keys: labels are considered in sorted order, first match wins."""
+    key = _identity_key(name)
+    if not key:
+        return None
+    for label in sorted(labels):
+        if _identity_key(label) == key:
+            return label
+    return None
+
+
 def _uncertain_candidates(speaker, canonicals):
     key = _identity_key(speaker)
     results = []

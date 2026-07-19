@@ -14,7 +14,9 @@ from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
 from script_repair import build_deterministic_repair
-from source_normalization import normalize_known_source_corruptions, strip_known_front_matter
+from source_normalization import (normalize_homoglyph_words,
+                                  normalize_known_source_corruptions,
+                                  strip_known_front_matter)
 from speaker_identity import (build_speaker_consistency_report,
                               stabilize_speaker_identities)
 from script_preflight import audit_script, audit_unicode_text
@@ -438,8 +440,6 @@ def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
                   and completion_tokens >= effective_max * 0.9)
     if finish_reason == "length" or (incomplete and near_limit):
         return "increase_tokens"
-    if incomplete:
-        return "retry_same_budget"
     return "retry_same_budget"
 
 
@@ -928,6 +928,12 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     # diagnosed live (2026-07-19): a chunk hit 86% recall on its final
     # attempt (one attempt away from the 90% pass threshold), then the
     # retry budget was already exhausted. See _is_near_miss_recall.
+    # Two properties are deliberate, not oversights: this call passes no
+    # retry_feedback (a fresh call_llm_for_entries, same as the first
+    # attempt) - fresh samples measured 3/3 where feedback-looped retries
+    # looped instead; and it can never trigger an early split, since
+    # retry_decider is only wired up when `retries` is truthy above, and
+    # this call always passes max_retries=0.
     if not entries and local_attempts and _is_near_miss_recall(
             local_attempts[-1].get("quality_metrics")):
         print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
@@ -1036,6 +1042,8 @@ def main():
     # Fix encoding artifacts
     book_content = fix_mojibake(book_content)
     book_content, source_normalizations = normalize_known_source_corruptions(book_content)
+    book_content, homoglyph_normalizations = normalize_homoglyph_words(book_content)
+    source_normalizations.extend(homoglyph_normalizations)
     if source_normalizations:
         print(f"Normalized {len(source_normalizations)} known source corruption(s) in memory; "
               "the upload was not modified.")
