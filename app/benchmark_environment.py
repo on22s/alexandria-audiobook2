@@ -94,8 +94,42 @@ def _get_remote_runtime_observations(ssh_alias):
     return observations
 
 
-def collect_thunder_environment(root_dir, ssh_alias, model_name):
-    """Fingerprint local orchestration plus the Thunder inference host."""
+def _verify_remote_checkout(root_dir, ssh_alias, remote_root):
+    """Raise if remote_root's git checkout isn't clean and at the exact
+    local HEAD commit. Needed by anything that runs code ON the remote host
+    - collect_thunder_tts_environment already has its own inline version of
+    this check (combined with a torch/qwen_tts probe in one SSH round trip);
+    this is the standalone version for callers that don't need that probe,
+    e.g. collect_thunder_environment now that LLM-stage benchmarks can also
+    run their worker on the remote host (see llm_benchmark_worker.py)."""
+    command = (f"git -C {shlex.quote(remote_root)} rev-parse HEAD && "
+               f"git -C {shlex.quote(remote_root)} status --porcelain=v1 -- app")
+    result = _ssh_run(ssh_alias, command, timeout=20, connect_timeout=10)
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode or not lines:
+        raise ValueError(result.stderr.strip() or "remote checkout probe failed")
+    commit_index = next((index for index, line in enumerate(lines)
+                         if len(line) == 40 and all(c in "0123456789abcdef" for c in line)), None)
+    if commit_index is None:
+        raise ValueError("remote git revision is unavailable")
+    dirty_lines = lines[commit_index + 1:]
+    runtime = get_runtime_info(root_dir)
+    if lines[commit_index] != runtime["revision"] or dirty_lines:
+        raise ValueError("remote checkout must be clean and match the local git revision")
+    return lines[commit_index]
+
+
+def collect_thunder_environment(root_dir, ssh_alias, model_name, remote_root=None):
+    """Fingerprint local orchestration plus the Thunder inference host.
+
+    remote_root is optional and only relevant to stages that dispatch a
+    worker script onto the remote host (script_generation, script_review,
+    persona_generation, nickname_detection via llm_benchmark_worker.py) -
+    when given, verifies that checkout is clean and matches local HEAD
+    before returning, so a stale/dirty remote checkout fails the preflight
+    instead of silently running old code (see PR #186's version-endpoint
+    gap for why this class of bug is worth guarding against directly).
+    """
     if not ssh_alias:
         raise ValueError("Thunder SSH alias is required")
     remote = _get_remote_runtime_observations(ssh_alias)
@@ -105,6 +139,8 @@ def collect_thunder_environment(root_dir, ssh_alias, model_name):
     gpu_name, backend = get_remote_gpu_name_and_backend(ssh_alias)
     if not gpu_name or not backend:
         raise ValueError("Thunder GPU/backend could not be identified")
+    remote_commit = (_verify_remote_checkout(root_dir, ssh_alias, remote_root)
+                     if remote_root else None)
     observations = {"hostname": remote["hostname"], "gpu_name": gpu_name,
                     "backend": backend, "python_version": runtime["python"],
                     "git_commit": runtime["revision"],
@@ -113,6 +149,8 @@ def collect_thunder_environment(root_dir, ssh_alias, model_name):
                     "packages": runtime["packages"], "remote_platform": remote["platform"],
                     "lmstudio": _get_lmstudio_observations(
                         get_remote_lmstudio_status(ssh_alias, model_name), model_name)}
+    if remote_commit is not None:
+        observations["remote_checkout_commit"] = remote_commit
     return build_environment_fingerprint("thunder", observations)
 
 

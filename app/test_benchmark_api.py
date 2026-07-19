@@ -57,7 +57,7 @@ class BenchmarkApiTests(unittest.TestCase):
                 _request(["local", "thunder"]))
         lock.assert_called_once_with("benchmark")
         local.assert_called_once_with(benchmark.ROOT_DIR, "local-model")
-        remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model")
+        remote.assert_called_once_with(benchmark.ROOT_DIR, "tnr-0", "remote-model", remote_root=None)
         self.assertEqual("ready", result["benchmark_state"])
 
     def test_preflight_rejects_mismatched_torch_builds_across_targets(self):

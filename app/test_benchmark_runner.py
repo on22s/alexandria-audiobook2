@@ -204,6 +204,181 @@ class BenchmarkRunnerTests(unittest.TestCase):
             self.assertEqual(1, report["cases"][0]["changes"]["instruct_changed"])
             self.assertIn("network_rtt_seconds", report)
 
+    def test_pending_fixtures_with_repetitions_only_returns_missing(self):
+        fixtures = [{"id": "a"}, {"id": "b"}]
+        completed = {("a", 1)}
+        pending = benchmark_runner._pending_fixtures_with_repetitions(
+            fixtures, 2, completed)
+        self.assertEqual(["a", "b"], [f["id"] for f in pending])
+        self.assertEqual([2], pending[0]["repetition_numbers"])
+        self.assertEqual([1, 2], pending[1]["repetition_numbers"])
+
+    def test_pending_fixtures_with_repetitions_omits_fully_completed(self):
+        pending = benchmark_runner._pending_fixtures_with_repetitions(
+            [{"id": "a"}], 1, {("a", 1)})
+        self.assertEqual([], pending)
+
+    def test_remote_llm_base_url_extracts_configured_port(self):
+        url = benchmark_runner._remote_llm_base_url(
+            {"base_url": "https://uuid-1234.thundercompute.net:5555/v1"})
+        self.assertEqual("http://localhost:5555/v1", url)
+
+    def test_remote_llm_base_url_defaults_to_1234(self):
+        url = benchmark_runner._remote_llm_base_url({"base_url": ""})
+        self.assertEqual("http://localhost:1234/v1", url)
+
+    def test_run_llm_worker_requires_remote_settings(self):
+        with self.assertRaisesRegex(ValueError, "requires remote_root"):
+            benchmark_runner._run_llm_worker("script_generation", {}, {}, "tnr-0")
+
+    def test_run_llm_worker_builds_ssh_command_and_parses_marker(self):
+        completed = type("Result", (), {
+            "returncode": 0,
+            "stdout": 'LLM_BENCHMARK_RESULT=[{"fixture_id":"f","repetition":1,"status":"passed"}]',
+            "stderr": ""})()
+        with patch.object(benchmark_runner.subprocess, "run",
+                          return_value=completed) as run:
+            cases = benchmark_runner._run_llm_worker(
+                "nickname_detection", {"model_name": "m"},
+                {"remote_root": "/remote", "remote_python": "/venv/python"}, "tnr-0")
+        self.assertEqual([{"fixture_id": "f", "repetition": 1, "status": "passed"}], cases)
+        command = run.call_args.args[0]
+        self.assertEqual(["ssh", "tnr-0"], command[:2])
+        self.assertIn("llm_benchmark_worker.py", command[2])
+        self.assertIn("--stage nickname_detection", command[2])
+
+    def test_run_llm_worker_raises_with_stderr_on_failure(self):
+        completed = type("Result", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
+        with patch.object(benchmark_runner.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                benchmark_runner._run_llm_worker(
+                    "nickname_detection", {}, {"remote_root": "/r", "remote_python": "/p"},
+                    "tnr-0")
+
+    def test_script_generation_thunder_target_dispatches_to_worker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture_path = Path(tmp, "fixture.txt")
+            fixture_path.write_text("one two three four five", encoding="utf-8")
+            digest = hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+            manifest = {"schema_version": 1, "stage": "script_generation",
+                       "targets": ["thunder"], "repetitions": 1,
+                       "settings": {"remote_root": "/remote", "remote_python": "/venv/python"},
+                       "fixtures": [{"id": "fixture", "sha256": digest,
+                                    "path": str(fixture_path)}]}
+            environment = benchmark_core.build_environment_fingerprint("thunder", {
+                "hostname": "host", "gpu_name": "gpu", "backend": "cuda",
+                "python_version": "3.10", "git_commit": "abc"})
+            state = {"cancel": False, "logs": [],
+                    "tasks": [{"fixture_id": "fixture", "status": "pending"}]}
+            worker_case = {"fixture_id": "fixture", "repetition": 1, "status": "passed"}
+            with patch.object(benchmark_runner, "load_app_config", return_value={
+                    "llm_remote": {"model_name": "model", "base_url": "http://thunder/v1"},
+                    "llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                     "available": True, "loaded": True, "context_length": 8192}), \
+                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "_run_llm_worker",
+                              return_value=[worker_case]) as run_worker:
+                report = benchmark_runner.run_script_generation_benchmark(
+                    manifest, environment, str(Path(tmp, "report.json")), state,
+                    str(Path(tmp, "config.json")), tmp)
+            self.assertEqual([worker_case], report["cases"])
+            self.assertEqual("complete", state["status"])
+            run_worker.assert_called_once()
+            self.assertEqual("script_generation", run_worker.call_args.args[0])
+            payload = run_worker.call_args.args[1]
+            self.assertEqual("http://localhost:1234/v1", payload["base_url"])
+            self.assertEqual("one two three four five", payload["fixtures"][0]["text"])
+
+    def test_script_review_thunder_target_dispatches_to_worker(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "book.json")
+            original = [{"speaker": "NARRATOR", "text": "one two three",
+                        "instruct": "Neutral."}]
+            path.write_text(json.dumps(original), encoding="utf-8")
+            from benchmark_fixtures import build_script_review_manifest
+            manifest = build_script_review_manifest(
+                [{"path": str(path), "entry_starts": [1]}], tmp, targets=["thunder"])
+            manifest["settings"] = {"remote_root": "/remote", "remote_python": "/venv/python"}
+            environment = benchmark_core.build_environment_fingerprint("thunder", {
+                "hostname": "host", "gpu_name": "gpu", "backend": "cuda",
+                "python_version": "3.10", "git_commit": "abc"})
+            state = {"cancel": False, "logs": [],
+                    "tasks": [{"fixture_id": "fixture", "status": "pending"}]}
+            worker_case = {"fixture_id": manifest["fixtures"][0]["id"],
+                           "repetition": 1, "status": "passed"}
+            with patch.object(benchmark_runner, "load_app_config", return_value={
+                    "llm_remote": {"model_name": "model", "base_url": "http://thunder/v1"},
+                    "llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                     "available": True, "loaded": True, "context_length": 8192}), \
+                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "_run_llm_worker",
+                              return_value=[worker_case]) as run_worker:
+                report = benchmark_runner.run_script_review_benchmark(
+                    manifest, environment, str(Path(tmp, "report.json")), state,
+                    str(Path(tmp, "config.json")), tmp)
+            self.assertEqual([worker_case], report["cases"])
+            payload = run_worker.call_args.args[1]
+            self.assertEqual(original, payload["fixtures"][0]["original"])
+
+    def test_persona_generation_thunder_target_dispatches_to_worker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = {"schema_version": 1, "stage": "persona_generation",
+                       "targets": ["thunder"], "repetitions": 1,
+                       "settings": {"remote_root": "/remote", "remote_python": "/venv/python"},
+                       "fixtures": [{"id": "f1", "entries": [], "speakers": ["A"],
+                                    "batch_size": 1, "sha256": "x"}]}
+            with patch.object(benchmark_runner, "_hash_entries", return_value="x"):
+                environment = benchmark_core.build_environment_fingerprint("thunder", {
+                    "hostname": "host", "gpu_name": "gpu", "backend": "cuda",
+                    "python_version": "3.10", "git_commit": "abc"})
+                state = {"cancel": False, "logs": [], "tasks": []}
+                worker_case = {"fixture_id": "f1", "repetition": 1, "status": "passed"}
+                with patch.object(benchmark_runner, "load_app_config", return_value={
+                        "llm_remote": {"model_name": "model", "base_url": "http://thunder/v1"},
+                        "llm_remote_ssh": "tnr-0"}), \
+                     patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                         "available": True, "loaded": True, "context_length": 8192}), \
+                     patch.object(benchmark_runner, "OpenAI"), \
+                     patch.object(benchmark_runner, "_run_llm_worker",
+                                  return_value=[worker_case]) as run_worker:
+                    report = benchmark_runner.run_persona_generation_benchmark(
+                        manifest, environment, str(Path(tmp, "report.json")), state,
+                        str(Path(tmp, "config.json")), tmp)
+            self.assertEqual([worker_case], report["cases"])
+            run_worker.assert_called_once_with(
+                "persona_generation", run_worker.call_args.args[1],
+                manifest["settings"], "tnr-0")
+
+    def test_nickname_detection_thunder_target_dispatches_to_worker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = {"schema_version": 1, "stage": "nickname_detection",
+                       "targets": ["thunder"], "repetitions": 1,
+                       "settings": {"remote_root": "/remote", "remote_python": "/venv/python"},
+                       "fixtures": [{"id": "f1", "entries": [], "expected_aliases": {},
+                                    "existing_aliases": {}, "sha256": "x"}]}
+            worker_case = {"fixture_id": "f1", "repetition": 1, "status": "passed"}
+            with patch.object(benchmark_runner, "_hash_entries", return_value="x"), \
+                 patch.object(benchmark_runner, "load_app_config", return_value={
+                     "llm_remote": {"model_name": "model", "base_url": "http://thunder/v1"},
+                     "llm_remote_ssh": "tnr-0"}), \
+                 patch.object(benchmark_runner, "get_remote_lmstudio_status", return_value={
+                     "available": True, "loaded": True, "context_length": 8192}), \
+                 patch.object(benchmark_runner, "OpenAI"), \
+                 patch.object(benchmark_runner, "_run_llm_worker",
+                              return_value=[worker_case]) as run_worker:
+                environment = benchmark_core.build_environment_fingerprint("thunder", {
+                    "hostname": "host", "gpu_name": "gpu", "backend": "cuda",
+                    "python_version": "3.10", "git_commit": "abc"})
+                state = {"cancel": False, "logs": [], "tasks": []}
+                report = benchmark_runner.run_nickname_detection_benchmark(
+                    manifest, environment, str(Path(tmp, "report.json")), state,
+                    str(Path(tmp, "config.json")), tmp)
+            self.assertEqual([worker_case], report["cases"])
+            run_worker.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
