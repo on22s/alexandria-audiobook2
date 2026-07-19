@@ -3,6 +3,22 @@
     "test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
   ],
+  "test_analyze_generation_attempts": [
+    "test_analyze_generation_attempts.AttemptCountDistributionTests.test_splits_accepted_and_failed_chunks",
+    "test_analyze_generation_attempts.DefaultScriptsDirTests.test_defaults_to_repo_root_scripts",
+    "test_analyze_generation_attempts.ExtractChunkRecordsTests.test_accepted_chunks_from_chunks_list",
+    "test_analyze_generation_attempts.ExtractChunkRecordsTests.test_complete_manifest_has_no_failed_record",
+    "test_analyze_generation_attempts.ExtractChunkRecordsTests.test_failed_manifest_adds_one_failed_record",
+    "test_analyze_generation_attempts.LoadManifestsTests.test_malformed_manifest_skipped_with_warning",
+    "test_analyze_generation_attempts.LoadManifestsTests.test_missing_dir_returns_warning",
+    "test_analyze_generation_attempts.RecallBandTests.test_band_edges",
+    "test_analyze_generation_attempts.RecallHistogramTests.test_missing_recall_metric_skipped",
+    "test_analyze_generation_attempts.RecallHistogramTests.test_only_quality_rejected_attempts_counted",
+    "test_analyze_generation_attempts.RecoveryByBandTests.test_accepted_before_rejected_does_not_count",
+    "test_analyze_generation_attempts.RecoveryByBandTests.test_later_accepted_attempt_counts_as_recovery",
+    "test_analyze_generation_attempts.RecoveryByBandTests.test_no_later_accepted_attempt_is_not_recovery",
+    "test_analyze_generation_attempts.SplitOutcomesTests.test_counts_only_adaptively_split_chunks"
+  ],
   "test_api_contract_regressions": [
     "test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
