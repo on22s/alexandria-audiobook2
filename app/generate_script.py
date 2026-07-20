@@ -51,12 +51,19 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
         "fingerprint": fingerprint,
         "source_normalizations": source_normalizations,
         "accepted_chunk_count": len(accepted_chunks),
+        # Persist how many chunks were salvaged by the exhaustion-only
+        # trigram-only near-miss path (see chunk_quality.is_trigram_only_near_miss)
+        # so completed-book rescue counts survive in the manifest instead of only
+        # in the per-run checkpoint (cleared on success) and the stdout log.
+        "near_miss_accepted_count": sum(
+            1 for item in accepted_chunks if item.get("near_miss_accepted")),
         "chunks": [{
             "chunk_number": item["chunk_number"],
             "source_sha256": item["source_sha256"],
             "entry_count": len(item["entries"]),
             "quality": item["quality"],
             "adaptively_split": item.get("adaptively_split", False),
+            "near_miss_accepted": item.get("near_miss_accepted", False),
             "attempts": item.get("attempts", []),
         } for item in accepted_chunks],
         **details,

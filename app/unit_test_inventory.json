@@ -162,6 +162,7 @@
     "test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_fails_recall",
     "test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_reports_character_preview",
     "test_chunk_quality.ChunkQualityTests.test_passing_report_has_no_missing_spans",
+    "test_chunk_quality.ChunkQualityTests.test_quality_manifest_persists_near_miss_accepted_chunks",
     "test_chunk_quality.ChunkQualityTests.test_quality_manifest_summarizes_chunks_without_copying_entries",
     "test_chunk_quality.ChunkQualityTests.test_retry_action_splits_only_repeated_severe_truncation",
     "test_chunk_quality.ChunkQualityTests.test_source_cyrillic_is_reported_but_only_new_cyrillic_blocks",
