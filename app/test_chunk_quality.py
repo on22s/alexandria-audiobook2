@@ -459,5 +459,144 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual("\u3042 \u308a \u304c \u3068 \u3046 \u3068", span["preview"])
 
 
+def _trigram_near_miss_text(word_count=100, swap_stride=25):
+    """Reproduce every source word (unigram recall 1.0, ratio 1.0) but swap a
+    few adjacent pairs so ordered-trigram recall lands in the near-miss band
+    [ACCEPT_TRIGRAM_NEAR_MISS_FLOOR, MIN_ORDERED_TRIGRAM_RECALL). Deterministic."""
+    words = [f"word{index}" for index in range(word_count)]
+    index = 0
+    while index + 1 < word_count:
+        words[index], words[index + 1] = words[index + 1], words[index]
+        index += swap_stride
+    return " ".join(f"word{index}" for index in range(word_count)), " ".join(words)
+
+
+def _always_returns(payload):
+    from types import SimpleNamespace
+    import json
+    content = json.dumps(payload)
+
+    def create(**_kwargs):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=content), finish_reason="stop")], usage=None)
+
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+class TrigramNearMissAcceptanceTests(unittest.TestCase):
+    def test_predicate_accepts_only_trigram_only_failure_at_or_above_floor(self):
+        from chunk_quality import (is_trigram_only_near_miss,
+                                    ACCEPT_TRIGRAM_NEAR_MISS_FLOOR)
+
+        def report(passed, codes, trigram):
+            return {"passed": passed,
+                    "findings": [{"code": code} for code in codes],
+                    "metrics": {"ordered_trigram_recall": trigram}}
+
+        self.assertFalse(is_trigram_only_near_miss(report(True, [], 0.99)))
+        self.assertTrue(is_trigram_only_near_miss(
+            report(False, ["low_ordered_trigram_recall"], ACCEPT_TRIGRAM_NEAR_MISS_FLOOR)))
+        self.assertTrue(is_trigram_only_near_miss(
+            report(False, ["low_ordered_trigram_recall"], 0.88)))
+        self.assertFalse(is_trigram_only_near_miss(
+            report(False, ["low_ordered_trigram_recall"],
+                   ACCEPT_TRIGRAM_NEAR_MISS_FLOOR - 0.01)))
+        # Any second defect (truncation, ratio, etc.) disqualifies it.
+        self.assertFalse(is_trigram_only_near_miss(
+            report(False, ["low_ordered_trigram_recall", "low_source_token_recall"], 0.88)))
+
+    def test_real_validator_produces_a_trigram_only_near_miss(self):
+        from chunk_quality import is_trigram_only_near_miss
+        source, near_miss = _trigram_near_miss_text()
+        report = validate_chunk_quality(source, [_entry(near_miss)])
+
+        self.assertTrue(is_trigram_only_near_miss(report))
+        self.assertEqual({"low_ordered_trigram_recall"},
+                         {finding["code"] for finding in report["findings"]})
+        self.assertGreaterEqual(report["metrics"]["source_token_recall"], 0.90)
+
+    def test_near_miss_accepted_only_after_full_and_split_exhaustion(self):
+        # An unsplittable chunk (too short for split_failed_chunk) whose every
+        # attempt is a trigram-only near-miss: full retries exhaust, no split is
+        # possible, so the captured near-miss is accepted rather than failing.
+        source, near_miss = _trigram_near_miss_text()
+        self.assertEqual([], generate_script.split_failed_chunk(source))  # can't split
+        client = _always_returns([_entry(near_miss)])
+        params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.1, 1)
+
+        entries, adaptively_split = generate_script.process_chunk_adaptively(
+            client, "model", source, 1, 1, params)
+
+        self.assertTrue(entries)
+        self.assertFalse(adaptively_split)
+        self.assertFalse(validate_chunk_quality(source, entries)["passed"])
+        from chunk_quality import is_trigram_only_near_miss
+        self.assertTrue(is_trigram_only_near_miss(validate_chunk_quality(source, entries)))
+
+    def test_near_miss_not_accepted_when_a_later_attempt_passes_cleanly(self):
+        # Regression guard for zero blast radius: if a clean pass is still
+        # reachable, the near-miss fallback must NOT pre-empt it.
+        source, near_miss = _trigram_near_miss_text()
+        clean = [_entry(source)]
+        client = generate_script_test_client([[_entry(near_miss)], clean])
+        params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.1, 1)
+
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1, params, max_retries=1)
+
+        self.assertEqual(clean, result)
+
+    def test_split_recombination_accepted_as_near_miss(self):
+        # The V23/V25 case: the full chunk never reaches near-miss quality (it
+        # truncates), but each smaller split half does, and the recombined whole
+        # lands as a trigram-only near-miss. Must be accepted, not forfeited.
+        from types import SimpleNamespace
+        import json
+        import re
+        # 300 words across sentence boundaries so split_failed_chunk can split.
+        words = [f"word{index}" for index in range(300)]
+        source = ". ".join(" ".join(words[i:i + 10]) for i in range(0, 300, 10)) + "."
+
+        def create(**kwargs):
+            chunk_words = re.findall(r"word\d+", kwargs["messages"][-1]["content"])
+            if len(chunk_words) > 200:                 # the full chunk: truncate
+                payload = [_entry(" ".join(chunk_words[:3]))]
+            else:                                      # a split half: near-miss echo
+                swapped = list(chunk_words)
+                i = 0
+                while i + 1 < len(swapped):
+                    swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+                    i += 30
+                payload = [_entry(" ".join(swapped))]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(payload)),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams("system", "{chunk}", 400, 0.1, 1)
+
+        entries, adaptively_split = generate_script.process_chunk_adaptively(
+            client, "model", source, 1, 1, params)
+
+        self.assertTrue(entries)
+        self.assertTrue(adaptively_split)
+        from chunk_quality import is_trigram_only_near_miss
+        self.assertTrue(is_trigram_only_near_miss(validate_chunk_quality(source, entries)))
+
+    def test_hard_failure_is_not_rescued_as_near_miss(self):
+        # Severe truncation (fails source-token recall too) is never a near-miss,
+        # so an unsplittable all-truncation chunk still fails outright.
+        source = " ".join(f"word{index}" for index in range(100))
+        truncated = [_entry("word0 word1 word2")]
+        client = _always_returns(truncated)
+        params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.1, 1)
+
+        entries, _ = generate_script.process_chunk_adaptively(
+            client, "model", source, 1, 1, params)
+
+        self.assertEqual([], entries)
+
+
 if __name__ == "__main__":
     unittest.main()
