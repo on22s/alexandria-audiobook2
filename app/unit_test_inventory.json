@@ -169,7 +169,13 @@
     "test_chunk_quality.ChunkQualityTests.test_strip_known_front_matter_leaves_normal_books_untouched",
     "test_chunk_quality.ChunkQualityTests.test_strip_known_front_matter_leaves_unrecognized_manifesto_shape_untouched",
     "test_chunk_quality.ChunkQualityTests.test_strip_known_front_matter_removes_manifesto_and_toc",
-    "test_chunk_quality.ChunkQualityTests.test_volume_10_style_early_stop_fails_all_coverage_signals"
+    "test_chunk_quality.ChunkQualityTests.test_volume_10_style_early_stop_fails_all_coverage_signals",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_hard_failure_is_not_rescued_as_near_miss",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_near_miss_accepted_only_after_full_and_split_exhaustion",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_near_miss_not_accepted_when_a_later_attempt_passes_cleanly",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_predicate_accepts_only_trigram_only_failure_at_or_above_floor",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_real_validator_produces_a_trigram_only_near_miss",
+    "test_chunk_quality.TrigramNearMissAcceptanceTests.test_split_recombination_accepted_as_near_miss"
   ],
   "test_config_regressions": [
     "test_config_regressions.ConfigTests.test_app_config_loader_ignores_invalid_legacy_values_without_writing",

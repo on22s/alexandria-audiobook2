@@ -12,6 +12,10 @@ MIN_SOURCE_TOKEN_RECALL = 0.90
 MIN_ORDERED_TRIGRAM_RECALL = 0.90
 MIN_OUTPUT_SOURCE_RATIO = 0.90
 MAX_OUTPUT_SOURCE_RATIO = 1.10
+# Exhaustion-only acceptance floor for an otherwise-complete conversion whose
+# sole defect is ordered-trigram recall. NOT a pass threshold: the 0.90 gate
+# above is unchanged. See is_trigram_only_near_miss.
+ACCEPT_TRIGRAM_NEAR_MISS_FLOOR = 0.84
 MAX_MISSING_SPANS = 3
 MIN_MISSING_SPAN_TOKENS = 5
 MISSING_SPAN_PREVIEW_TOKENS = 12
@@ -101,6 +105,33 @@ def validate_chunk_quality(source_text, entries):
                      else [])
     return _report(source_count, output_count, recall, trigram_recall, ratio, findings,
                    source_cyrillic=source_cyrillic, missing_spans=missing_spans)
+
+
+def is_trigram_only_near_miss(quality):
+    """True when a *failed* report's sole defect is ordered-trigram recall in
+    [ACCEPT_TRIGRAM_NEAR_MISS_FLOOR, MIN_ORDERED_TRIGRAM_RECALL).
+
+    Such a report is a complete, correct-length conversion - >=0.90 source-token
+    recall and an in-band output/source ratio are implied, since either would
+    have raised its own finding - that only lightly reordered or reworded the
+    source, the inherent cost of turning prose into speaker-tagged annotations
+    on dialogue-dense passages. generate_script.py accepts one of these ONLY
+    after full retries AND adaptive split are both exhausted, never as a
+    first-class pass, so the 0.90 gate stays intact for every recoverable chunk.
+
+    Floor calibrated 2026-07-20 against real failed-book manifests: recovers the
+    six books stuck at 0.85-0.89 trigram, admits zero collapse-group output
+    (those always also fail source-token recall), and changes zero
+    already-accepted chunks. Shared by call_llm_for_entries (candidate capture)
+    and the post-return gate (acceptance) so both use one definition (Rule 15).
+    """
+    if not quality or quality.get("passed"):
+        return False
+    codes = {finding.get("code") for finding in quality.get("findings") or []}
+    if codes != {"low_ordered_trigram_recall"}:
+        return False
+    trigram = (quality.get("metrics") or {}).get("ordered_trigram_recall")
+    return trigram is not None and trigram >= ACCEPT_TRIGRAM_NEAR_MISS_FLOOR
 
 
 def _tokens(text):

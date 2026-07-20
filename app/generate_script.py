@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass
 from openai import OpenAI
 from config_settings import load_app_config
-from chunk_quality import validate_chunk_quality
+from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
@@ -545,7 +545,7 @@ def _build_retry_feedback_message(quality):
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
-                         retry_decider=None):
+                         retry_decider=None, near_miss_sink=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -722,6 +722,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if validate_entries:
                 quality = validate_entries(entries)
                 if not quality["passed"]:
+                    if near_miss_sink is not None and is_trigram_only_near_miss(quality):
+                        best = (near_miss_sink[0][1]["metrics"]["ordered_trigram_recall"]
+                                if near_miss_sink else -1.0)
+                        if quality["metrics"]["ordered_trigram_recall"] > best:
+                            near_miss_sink[:] = [(entries, quality)]
                     if attempt_record is not None:
                         attempt_record["outcome"] = "quality_rejected"
                         attempt_record["failure_codes"] = [
@@ -868,7 +873,7 @@ def build_book_request_preflight(chunks, system_prompt, user_prompt_template,
 
 def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
                   previous_entries=None, max_retries=4, attempt_observer=None,
-                  allow_early_split=False):
+                  allow_early_split=False, near_miss_sink=None):
     """Process a text chunk and return JSON script entries.
 
     max_retries=4 (5 total attempts) rather than the previous 2 (3 attempts):
@@ -921,6 +926,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
                 (lambda quality, attempt_number: get_chunk_retry_action(
                     quality, attempt_number, allow_early_split=True))
                 if allow_early_split and retries else None),
+            near_miss_sink=near_miss_sink,
         )
 
     entries = call(max_retries)
@@ -983,9 +989,15 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
     below 1,600 chars) already bounds the recursion depth, so no new depth
     limit is needed here.
     """
+    # Captures the best full-chunk trigram-only near-miss (see
+    # is_trigram_only_near_miss). Only accepted below if BOTH the full-chunk
+    # retries and the adaptive split fail, so it never changes a chunk that
+    # recovers by any means (Rule 9): a chunk that passes at 0.90 - full retry
+    # or split - always takes a success return before the fallback is reached.
+    near_miss = []
     entries = process_chunk(client, model_name, chunk, chunk_num, total_chunks,
                             params, previous_entries=previous_entries,
-                            allow_early_split=True,
+                            allow_early_split=True, near_miss_sink=near_miss,
                             attempt_observer=(
                                 (lambda attempt: record_attempt_context(
                                     attempt_observer, attempt, "full"))
@@ -994,7 +1006,7 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
         return entries, False
     parts = split_failed_chunk(chunk)
     if not parts:
-        return [], False
+        return _accept_near_miss(near_miss, chunk_num, total_chunks), False
     print(f"  Adaptive split: chunk {chunk_num}/{total_chunks} -> "
           f"{len(parts[0])} + {len(parts[1])} chars")
     combined = []
@@ -1014,11 +1026,43 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
             continue
         combined.extend(part_entries)
     if any_part_failed:
-        return [], True
-    if not validate_chunk_quality(chunk, combined)["passed"]:
+        return _accept_near_miss(near_miss, chunk_num, total_chunks), True
+    combined_quality = validate_chunk_quality(chunk, combined)
+    if not combined_quality["passed"]:
+        # The recombined halves clear the 0.90 gate for most split recoveries.
+        # When they instead land as a whole-chunk trigram-only near-miss - the
+        # case where the model only reaches near-complete quality on the smaller
+        # split targets, never on the full chunk (e.g. real books whose sole
+        # near-miss telemetry is in the split phase) - accept it here rather than
+        # forfeiting the whole book. Still exhaustion-only and zero blast radius:
+        # a combined result that passes 0.90 takes the success return below
+        # unchanged, so no already-accepted chunk is affected.
+        if is_trigram_only_near_miss(combined_quality):
+            print(f"  Adaptive split recombination accepted as trigram-only near-miss "
+                  f"(ordered_trigram_recall="
+                  f"{combined_quality['metrics']['ordered_trigram_recall']})")
+            return combined, True
         print("  Adaptive split recombination failed original-chunk validation")
-        return [], True
+        return _accept_near_miss(near_miss, chunk_num, total_chunks), True
     return combined, True
+
+
+def _accept_near_miss(near_miss, chunk_num, total_chunks):
+    """Return a captured full-chunk trigram-only near-miss's entries as a last
+    resort after full retries and adaptive split are both exhausted, else [].
+
+    This is the ONLY place the near-miss is accepted, and only on failure-return
+    paths, so a chunk that recovers by any means never reaches it (zero change
+    to already-accepted chunks). The caller's post-return gate re-checks the
+    same is_trigram_only_near_miss condition before committing the chunk.
+    """
+    if not near_miss:
+        return []
+    entries, quality = near_miss[0]
+    print(f"  CHUNK {chunk_num}/{total_chunks} accepted as trigram-only near-miss "
+          f"after full exhaustion (ordered_trigram_recall="
+          f"{quality['metrics']['ordered_trigram_recall']})")
+    return entries
 
 def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
@@ -1185,7 +1229,12 @@ def main():
             sys.exit(1)
 
         quality = validate_chunk_quality(chunk, entries)
-        if not quality["passed"]:
+        # process_chunk_adaptively only ever returns entries that either pass the
+        # 0.90 gate or are an exhaustion-time trigram-only near-miss. Re-check the
+        # same condition here (Rule 15) before committing: a hard failure still
+        # aborts the book, a near-miss is accepted and flagged for telemetry.
+        near_miss_accepted = not quality["passed"] and is_trigram_only_near_miss(quality)
+        if not quality["passed"] and not near_miss_accepted:
             save_generation_quality_manifest(output_path, build_generation_quality_manifest(
                 "failed", fingerprint, accepted_chunks, source_normalizations,
                 total_chunks=total_chunks, failed_chunk=i,
@@ -1194,6 +1243,9 @@ def main():
             print(f"Error: chunk {i}/{total_chunks} failed post-return validation; "
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
+        if near_miss_accepted:
+            print(f"  Chunk {i}/{total_chunks} accepted as trigram-only near-miss "
+                  f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
         all_entries.extend(entries)
         accepted_chunks.append({
             "chunk_number": i,
@@ -1201,6 +1253,7 @@ def main():
             "entries": entries,
             "quality": quality,
             "adaptively_split": adaptively_split,
+            "near_miss_accepted": near_miss_accepted,
             "attempts": chunk_attempts,
         })
         save_generation_checkpoint(output_path, fingerprint, accepted_chunks)
