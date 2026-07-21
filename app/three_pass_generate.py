@@ -46,6 +46,16 @@ def iter_entry_batches(entries, batch_size=BATCH_SIZE):
         yield entries[start:start + batch_size]
 
 
+def resolve_chunk_size(cli_value, config_value):
+    """Resolve the effective chunk size (CLI overrides config) and validate it.
+    Guards BOTH sources (finding #14): a bad config chunk_size previously slipped
+    through because only the CLI value was checked. Raises ValueError on < 1."""
+    chunk_size = cli_value if cli_value is not None else config_value
+    if not isinstance(chunk_size, int) or chunk_size < 1:
+        raise ValueError(f"chunk_size must be an integer >= 1 (got {chunk_size!r})")
+    return chunk_size
+
+
 def next_attribute_batch(segmented, start, batch_size=BATCH_SIZE):
     """Slice the next pass-2 batch starting at `start`, up to batch_size, but stop
     before admitting a second entry whose normalized text duplicates one already
@@ -499,11 +509,21 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             new_named = attribute_batch(client, model_name, batch, params,
                                         roster=roster, on_exhaustion=on_exhaustion)
             named.extend(new_named)
-            for entry in new_named:
-                speaker = (entry.get("speaker") or "").strip().upper()
-                if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
-                    roster_seen.add(speaker)
-                    roster.append(speaker)
+            if on_exhaustion == "fallback":
+                # The fallback path runs stabilize_speaker_identities, which can
+                # canonicalize names in ways the incremental upper()/strip() update
+                # wouldn't track (finding #15). Rebuild the roster authoritatively
+                # from `named` so it can never drift. (Only in fallback/production
+                # mode; the fail/testing path never falls back, so it keeps the
+                # fast incremental update below.)
+                roster = build_roster(named)
+                roster_seen = set(roster)
+            else:
+                for entry in new_named:
+                    speaker = (entry.get("speaker") or "").strip().upper()
+                    if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
+                        roster_seen.add(speaker)
+                        roster.append(speaker)
             save("attribute")
     except PassExhausted:
         passes["attribute"] = {"elapsed_s": round(time.time() - attr_start, 3),
@@ -551,10 +571,11 @@ def main():
     config = load_app_config(get_app_config_path(data_dir, root, app_dir))
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
-    if args.chunk_size is not None and args.chunk_size < 1:
-        print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
+    try:
+        chunk_size = resolve_chunk_size(args.chunk_size, gen.get("chunk_size", 6000))
+    except ValueError as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
-    chunk_size = args.chunk_size if args.chunk_size is not None else gen.get("chunk_size", 6000)
     base_url = llm.get("base_url", "http://localhost:1234/v1")
     model_name = llm.get("model_name")
     llm_mode = config.get("llm_mode", "local")

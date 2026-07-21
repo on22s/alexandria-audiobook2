@@ -28,6 +28,18 @@ class PassHelperTests(unittest.TestCase):
         seg = [{"type": "NARRATOR", "text": f"line {i}"} for i in range(60)]
         self.assertEqual(tp.BATCH_SIZE, len(tp.next_attribute_batch(seg, 0)))
 
+    def test_resolve_chunk_size_cli_overrides_config(self):
+        self.assertEqual(3000, tp.resolve_chunk_size(3000, 6000))
+        self.assertEqual(6000, tp.resolve_chunk_size(None, 6000))
+
+    def test_resolve_chunk_size_rejects_bad_config_value(self):
+        with self.assertRaises(ValueError):
+            tp.resolve_chunk_size(None, 0)      # bad config value now caught
+        with self.assertRaises(ValueError):
+            tp.resolve_chunk_size(-5, 6000)     # bad CLI value still caught
+        with self.assertRaises(ValueError):
+            tp.resolve_chunk_size(None, "big")  # non-int config
+
     def test_roster_collects_uppercase_non_narrator_speakers(self):
         entries = [{"speaker": "NARRATOR"}, {"speaker": "ELENA"},
                    {"speaker": "MARCUS"}, {"speaker": "ELENA"}, {"speaker": "UNKNOWN"}]
@@ -116,6 +128,21 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual({"speaker", "text", "instruct"}, set(entries[0].keys()))
         self.assertEqual("ELENA", entries[1]["speaker"])
         self.assertEqual("Firm, quiet demand.", entries[1]["instruct"])
+
+    def test_fallback_mode_completes_and_rebuilds_roster(self):
+        # Exercises on_exhaustion="fallback": an unnameable SPOKEN line degrades
+        # to UNKNOWN (no PassExhausted), and the pass-2 loop takes the
+        # roster-rebuild branch (finding #15) without crashing.
+        source = "Hi there friend."
+        seg = [{"type": "SPOKEN", "text": "Hi there friend."}]
+        bad = [{"speaker": "NARRATOR", "text": "Hi there friend."}]  # never names it
+        instr = [{"speaker": "UNKNOWN", "text": "Hi there friend.", "instruct": "z"}]
+        client = _client_returning([seg, bad, bad, bad, bad, instr])
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000,
+                                    on_exhaustion="fallback")
+        self.assertEqual(1, len(entries))
+        self.assertEqual("UNKNOWN", entries[0]["speaker"])
 
     def test_segment_accepts_trigram_only_near_miss_on_exhaustion(self):
         words = [f"word{i}" for i in range(100)]
