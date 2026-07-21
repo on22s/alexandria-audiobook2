@@ -166,6 +166,35 @@ class FreezeEnforcementTests(unittest.TestCase):
         self.assertEqual("Tell me the truth.", out[0]["text"])
         self.assertEqual("ELENA", out[0]["speaker"])
 
+    def test_attribute_preserves_pause_after_and_drops_type(self):
+        frozen = [{"type": "NARRATOR", "text": "The room was cold.", "pause_after": 1000}]
+        named = [{"speaker": "NARRATOR", "text": "The room was cold."}]
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
+                         max_tokens=500, temperature=0.1)
+        out = tp.attribute_batch(_client_returning([named]), "m", frozen, p, roster=[])
+        self.assertEqual(1000, out[0]["pause_after"])
+        self.assertNotIn("type", out[0])
+        self.assertEqual("NARRATOR", out[0]["speaker"])
+
+    def test_attribute_fallback_preserves_pause_after(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me.", "pause_after": 500}]
+        bad = [{"speaker": "NARRATOR", "text": "Tell me."}]  # never names the spoken line
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
+                         max_tokens=500, temperature=0.1)
+        out = tp.attribute_batch(_client_returning([bad]), "m", frozen, p, roster=[],
+                                 max_retries=1, on_exhaustion="fallback")
+        self.assertEqual(500, out[0]["pause_after"])
+        self.assertNotIn("type", out[0])
+
+    def test_instruct_preserves_pause_after(self):
+        prior = [{"speaker": "NARRATOR", "text": "The room was cold.", "pause_after": 1000}]
+        good = [{"speaker": "NARRATOR", "text": "The room was cold.", "instruct": "Cold."}]
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
+                         max_tokens=500, temperature=0.1)
+        out = tp.instruct_batch(_client_returning([good]), "m", prior, p)
+        self.assertEqual(1000, out[0]["pause_after"])
+        self.assertEqual("Cold.", out[0]["instruct"])
+
     def test_instruct_reconstructs_speaker_and_text_from_prior(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
         # Passes validation (same speaker, normalize-equal text) but text carries

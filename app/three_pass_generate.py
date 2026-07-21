@@ -91,12 +91,14 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         # that only normalized-equal (dropped punctuation, injected zero-width
         # chars) can never reach the output. Count/order already checked by
         # validate_attribution's freeze_check.
-        return [{"speaker": n.get("speaker"), "text": f["text"]}
+        return [{**{k: v for k, v in f.items() if k != "type"},
+                 "speaker": n.get("speaker")}
                 for f, n in zip(frozen_batch, named)]
     if on_exhaustion == "fail":
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
-    seeded = [{"speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN",
-               "text": e["text"]} for e in frozen_batch]
+    seeded = [{**{k: v for k, v in e.items() if k != "type"},
+               "speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN"}
+              for e in frozen_batch]
     return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
 
 
@@ -119,10 +121,9 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
     if annotated:
         # Enforce the freeze: keep speaker+text byte-exact from prior, take only
         # the LLM's instruct. Guarantees pass 3 can never alter text or speaker.
-        return [{"speaker": p["speaker"], "text": p["text"],
-                 "instruct": a.get("instruct")} for p, a in zip(prior_batch, annotated)]
-    return [{"speaker": e["speaker"], "text": e["text"],
-             "instruct": default_instruct(e)} for e in prior_batch]
+        return [{**p, "instruct": a.get("instruct")}
+                for p, a in zip(prior_batch, annotated)]
+    return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
 
 
 def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_sink=None):
