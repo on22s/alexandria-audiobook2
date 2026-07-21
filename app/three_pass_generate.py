@@ -3,6 +3,7 @@ A side-by-side alternative to generate_script.py's single pass; the single-pass
 path is untouched. See docs/superpowers/specs/2026-07-21-three-pass-script-generation-design.md."""
 
 import argparse
+import json
 import os
 import sys
 
@@ -44,3 +45,37 @@ def build_roster(entries):
 def default_instruct(entry):
     speaker = (entry.get("speaker") or "").strip().upper()
     return NARRATOR_DEFAULT_INSTRUCT if speaker == "NARRATOR" else CHARACTER_DEFAULT_INSTRUCT
+
+
+class PassExhausted(Exception):
+    """A pass-2/3 batch could not produce valid output within its retry budget.
+    In testing mode (on_exhaustion='fail') this aborts the book so the real
+    failure rate is visible."""
+
+
+def attribute_batch(client, model_name, frozen_batch, params, roster,
+                    max_retries=3, on_exhaustion="fail"):
+    """Assign speakers to one batch of frozen {type,text} entries. Enforces the
+    text freeze; retries on invalid output. On exhaustion: 'fail' raises
+    PassExhausted (testing default); 'fallback' keeps frozen text and labels
+    unresolved SPOKEN spans UNKNOWN via stabilize_speaker_identities."""
+    sys_prompt, usr_template = load_attribute_prompts()
+    if params.system_prompt:
+        sys_prompt = params.system_prompt
+    if params.user_prompt_template:
+        usr_template = params.user_prompt_template
+    batch_json = json.dumps([{"type": e["type"], "text": e["text"]}
+                             for e in frozen_batch], ensure_ascii=False)
+    user_prompt = usr_template.format(roster=", ".join(roster) or "(none yet)",
+                                      batch=batch_json)
+    named = call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
+        validate_entries=lambda entries: validate_attribution(frozen_batch, entries))
+    if named:
+        return named
+    if on_exhaustion == "fail":
+        raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
+    seeded = [{"speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN",
+               "text": e["text"]} for e in frozen_batch]
+    return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
