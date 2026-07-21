@@ -894,6 +894,27 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual({"speaker", "text", "instruct"}, set(entries[0].keys()))
         self.assertEqual("ELENA", entries[1]["speaker"])
         self.assertEqual("Firm, quiet demand.", entries[1]["instruct"])
+
+    def test_segment_accepts_trigram_only_near_miss_on_exhaustion(self):
+        # A chunk too short to split whose every attempt is a complete but
+        # lightly-reordered conversion (>=0.90 recall, trigram in [0.82,0.90))
+        # must be accepted rather than failing pass 1. Build a source and a
+        # reordered echo that lands in the near-miss band.
+        words = [f"word{i}" for i in range(100)]
+        source = " ".join(words)
+        self.assertEqual([], tp.split_failed_chunk(source))  # unsplittable
+        swapped = list(words)
+        i = 0
+        while i + 1 < len(swapped):
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+            i += 25
+        near = [{"type": "NARRATOR", "text": " ".join(swapped)}]
+        # every attempt returns the same near-miss
+        client = _client_returning([near, near, near, near, near, near, near])
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        out = tp.segment_chunk_adaptively(client, "m", source, params)
+        self.assertTrue(out)
+        self.assertFalse(tp.validate_segment_quality(source, out)["passed"])
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -901,13 +922,25 @@ class EndToEndTests(unittest.TestCase):
 Run: `cd app && env/bin/python -m unittest test_three_pass_generate.EndToEndTests -v 2>&1 | tail -5`
 Expected: FAIL — no attribute `run_three_pass`.
 
-- [ ] **Step 3: Add `segment_chunk` and `run_three_pass` to `three_pass_generate.py`**
+- [ ] **Step 3: Add `segment_chunk`, `segment_chunk_adaptively`, and `run_three_pass`**
+
+`segment_chunk_adaptively` gives pass 1 the SAME near-miss acceptance +
+adaptive-split recursion the single-pass path has, reusing the shared
+validator-agnostic primitives from `generate_script` (`split_failed_chunk`,
+`is_trigram_only_near_miss`) rather than touching `process_chunk`. Add these
+imports at the top of `three_pass_generate.py`:
 
 ```python
-def segment_chunk(client, model_name, chunk, params, max_retries=4):
-    """Pass 1: one source chunk -> [{type,text}]. Uses the segment fidelity gate.
-    Returns [] on exhaustion (caller treats empty as a book failure, like the
-    single-pass path)."""
+from generate_script import split_failed_chunk, is_trigram_only_near_miss
+from pass_quality import validate_segment_quality  # already imported; keep one copy
+```
+
+```python
+def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_sink=None):
+    """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
+    segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
+    (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
+    exhaustion."""
     sys_prompt, usr_template = load_segment_prompts()
     if params.system_prompt:
         sys_prompt = params.system_prompt
@@ -917,18 +950,58 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4):
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="SEGMENT", max_retries=max_retries,
-        validate_entries=lambda entries: validate_segment_quality(chunk, entries))
+        validate_entries=lambda entries: validate_segment_quality(chunk, entries),
+        near_miss_sink=near_miss_sink)
+
+
+def _accept_segment_near_miss(near_miss):
+    if not near_miss:
+        return []
+    entries, quality = near_miss[0]
+    print("  SEGMENT accepted as trigram-only near-miss "
+          f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+    return entries
+
+
+def segment_chunk_adaptively(client, model_name, chunk, params):
+    """Pass 1 with the full safety net: full-chunk attempt, then a
+    natural-boundary split whose halves each recurse, and exhaustion-only
+    trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
+    the segment gate. Returns [{type,text}] or [] (book failure)."""
+    near_miss = []
+    entries = segment_chunk(client, model_name, chunk, params, near_miss_sink=near_miss)
+    if entries:
+        return entries
+    parts = split_failed_chunk(chunk)
+    if not parts:
+        return _accept_segment_near_miss(near_miss)
+    print(f"  Adaptive split (segment): -> {len(parts[0])} + {len(parts[1])} chars")
+    combined, any_failed = [], False
+    for part in parts:
+        part_entries = segment_chunk_adaptively(client, model_name, part, params)
+        if not part_entries:
+            any_failed = True
+            continue
+        combined.extend(part_entries)
+    if any_failed:
+        return _accept_segment_near_miss(near_miss)
+    combined_quality = validate_segment_quality(chunk, combined)
+    if not combined_quality["passed"]:
+        if is_trigram_only_near_miss(combined_quality):
+            return combined
+        return _accept_segment_near_miss(near_miss)
+    return combined
 
 
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail"):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk (book failure)."""
-    # Pass 1: segment every chunk.
+    # Pass 1: segment every chunk (with near-miss + adaptive split).
     chunks = split_into_chunks(source_text, max_size=chunk_size)
     segmented = []
     for i, chunk in enumerate(chunks, 1):
-        seg = segment_chunk(client, model_name, chunk, params)
+        seg = segment_chunk_adaptively(client, model_name, chunk, params)
         if not seg:
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i}/{len(chunks)}")
         segmented.extend(seg)
@@ -955,6 +1028,151 @@ Expected: PASS.
 ```bash
 cd app && git add three_pass_generate.py test_three_pass_generate.py
 git commit -m "Add three-pass pass 1 (segment) and full run_three_pass orchestration"
+```
+
+---
+
+## Task 9B: Per-pass checkpoint & resume
+
+Save progress after each pass-1 chunk and each pass-2 / pass-3 batch, and resume
+mid-flow after a crash. Checkpoint is keyed by a fingerprint distinct from
+single-pass, so it never collides with or resumes from a single-pass checkpoint.
+
+**Files:**
+- Modify: `app/three_pass_generate.py`
+- Test: `app/test_three_pass_generate.py`
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+import os, tempfile
+
+
+class CheckpointTests(unittest.TestCase):
+    def _payloads(self):
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
+                 {"speaker": "ELENA", "text": "Tell me the truth."}]
+        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
+                       "instruct": "Cold."},
+                      {"speaker": "ELENA", "text": "Tell me the truth.",
+                       "instruct": "Firm."}]
+        return seg, named, instructed
+
+    def test_completed_stage_is_not_recomputed_on_resume(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg, named, instructed = self._payloads()
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            # First run: crash after pass 1 by making pass 2 raise.
+            crashing = _client_returning([seg])  # only pass-1 payload; pass 2 will StopIteration
+            with self.assertRaises(StopIteration):
+                tp.run_three_pass(crashing, "m", source, params, chunk_size=6000,
+                                  output_path=out)
+            cp = tp.three_pass_checkpoint_path(out)
+            self.assertTrue(os.path.exists(cp))
+            # Resume: a client that ONLY provides pass-2 and pass-3 payloads.
+            # If pass 1 were recomputed it would StopIteration; it must not be.
+            resume_client = _client_returning([named, instructed])
+            entries = tp.run_three_pass(resume_client, "m", source, params,
+                                        chunk_size=6000, output_path=out)
+            self.assertEqual(2, len(entries))
+            self.assertEqual("ELENA", entries[1]["speaker"])
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd app && env/bin/python -m unittest test_three_pass_generate.CheckpointTests -v 2>&1 | tail -5`
+Expected: FAIL — `run_three_pass()` has no `output_path` param / `three_pass_checkpoint_path` missing.
+
+- [ ] **Step 3: Add checkpoint helpers and thread them through `run_three_pass`**
+
+```python
+import hashlib
+from utils import atomic_json_write, safe_load_json
+
+
+def three_pass_checkpoint_path(output_path):
+    return output_path + ".threepass_checkpoint.json"
+
+
+def three_pass_fingerprint(source_text, model_name, chunk_size):
+    digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    return {"source_sha256": digest, "model_name": model_name,
+            "chunk_size": chunk_size, "pipeline": "three_pass"}
+
+
+def _load_three_pass_checkpoint(output_path, fingerprint):
+    data = safe_load_json(three_pass_checkpoint_path(output_path), None)
+    if not isinstance(data, dict) or data.get("fingerprint") != fingerprint:
+        return None
+    return data
+
+
+def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
+                                chunks_done, named, annotated):
+    atomic_json_write({"fingerprint": fingerprint, "stage": stage,
+                       "chunks_done": chunks_done, "segmented": segmented,
+                       "named": named, "annotated": annotated},
+                      three_pass_checkpoint_path(output_path))
+```
+
+Then replace the `run_three_pass` body (from Task 9) with a checkpoint-aware
+version. The signature gains `output_path=None`; when `None`, it behaves exactly
+as before (no checkpointing — the pure in-memory path the earlier tests use):
+
+```python
+def run_three_pass(client, model_name, source_text, params, chunk_size,
+                   on_exhaustion="fail", output_path=None):
+    chunks = split_into_chunks(source_text, max_size=chunk_size)
+    fingerprint = three_pass_fingerprint(source_text, model_name, chunk_size)
+    state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
+    segmented = state["segmented"] if state else []
+    chunks_done = state["chunks_done"] if state else 0
+    named = state["named"] if state else []
+    annotated = state["annotated"] if state else []
+
+    def save(stage):
+        if output_path:
+            _save_three_pass_checkpoint(output_path, fingerprint, stage,
+                                        segmented, chunks_done, named, annotated)
+
+    # Pass 1 — resume from chunks_done.
+    for i in range(chunks_done, len(chunks)):
+        seg = segment_chunk_adaptively(client, model_name, chunks[i], params)
+        if not seg:
+            raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
+        segmented.extend(seg)
+        chunks_done = i + 1
+        save("segment")
+    # Pass 2 — resume from len(named) entries (batch-aligned slices of segmented).
+    while len(named) < len(segmented):
+        batch = segmented[len(named):len(named) + BATCH_SIZE]
+        named.extend(attribute_batch(client, model_name, batch, params,
+                                     roster=build_roster(named),
+                                     on_exhaustion=on_exhaustion))
+        save("attribute")
+    # Pass 3 — resume from len(annotated).
+    while len(annotated) < len(named):
+        batch = named[len(annotated):len(annotated) + BATCH_SIZE]
+        annotated.extend(instruct_batch(client, model_name, batch, params))
+        save("instruct")
+    save("done")
+    return annotated
+```
+
+- [ ] **Step 4: Run to verify it passes (and the earlier end-to-end still passes)**
+
+Run: `cd app && env/bin/python -m unittest test_three_pass_generate -v 2>&1 | tail -3`
+Expected: PASS (helpers + Pass2 + Pass3 + EndToEnd + Checkpoint tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd app && git add three_pass_generate.py test_three_pass_generate.py
+git commit -m "Add per-pass checkpoint and resume to three-pass generation"
 ```
 
 ---
@@ -1005,16 +1223,17 @@ def main():
                     api_key=llm.get("api_key", "local"))
     model_name = llm.get("model_name")
 
+    output_path = args.output or os.path.join(root, "annotated_script.json")
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
-                                 on_exhaustion=args.pass2_on_exhaustion)
+                                 on_exhaustion=args.pass2_on_exhaustion,
+                                 output_path=output_path)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
 
-    output_path = args.output or os.path.join(root, "annotated_script.json")
     with open(output_path, "w", encoding="utf-8") as fh:
         json.dump(entries, fh, ensure_ascii=False, indent=2)
     print(f"Wrote {len(entries)} entries to {output_path}")
@@ -1120,35 +1339,9 @@ Note: `ab_test/` is gitignored, so `-f` is required (mirrors how the other ab_te
 
 ---
 
-## Known simplifications in this first build (deviations from the spec — confirm before executing)
-
-The spec described two mechanisms this plan **intentionally omits from the first
-build** to keep it focused on testing the core hypothesis. Both are called out
-so the choice is explicit, not accidental:
-
-1. **No checkpoint/resume.** The spec specified per-pass, per-batch
-   checkpoint/resume. `run_three_pass` (Task 9) runs entirely in memory — a crash
-   loses progress. Rationale: the acceptance test is a single book, cheap to
-   restart; resume is only worth building once the approach is proven. If the
-   real (non-test) generation of long books is wanted before that, add resume as
-   a follow-up plan.
-
-2. **Pass 1 uses basic retries, not near-miss/adaptive-split.** The spec said
-   pass 1 would reuse the single-pass near-miss acceptance and adaptive-split
-   recursion. `segment_chunk` (Task 9) instead uses `call_llm_for_entries`'s
-   plain retry budget. Rationale: this makes the acceptance A/B a **conservative**
-   test — three-pass pass 1 runs *without* the safety nets that single-pass
-   enjoys, so a three-pass win is unambiguous. If three-pass *loses*, the next
-   step is to wire the nets into pass 1 (generalizing `process_chunk_adaptively`
-   to take a pluggable validator — `validate_segment_quality` emits the same
-   finding codes `is_trigram_only_near_miss` checks, so it is compatible) and
-   retest before concluding splitting failed.
-
 ## Deferred follow-ups (from the spec — do NOT do in this plan)
 
 - After the acceptance A/B validates three-pass, flip the `--pass2-on-exhaustion`
   default and the config default from `"fail"` to `"fallback"`.
 - If three-pass proves strictly better, promote it to the default generator and
   retire the single-pass prompt path (spec scope option B).
-- Add per-pass checkpoint/resume and pass-1 near-miss/adaptive-split (the two
-  simplifications above) if the approach is validated.
