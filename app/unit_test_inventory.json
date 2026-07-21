@@ -631,6 +631,7 @@
     "test_three_pass_generate.RecombinationAcceptanceTests.test_accepts_recombination_when_trigram_only_defect_at_seam",
     "test_three_pass_generate.RecombinationAcceptanceTests.test_recombination_floor_predicate_rejects_below_floor",
     "test_three_pass_generate.RecombinationAcceptanceTests.test_rejects_recombination_on_real_recall_loss",
+    "test_three_pass_generate.RescueBudgetTests.test_custom_windows_control_rescue_attempts",
     "test_three_pass_generate.RescueBudgetTests.test_oversized_window_is_skipped_and_no_call_made",
     "test_three_pass_generate.RescueBudgetTests.test_window_fits_returns_true_when_context_unknown",
     "test_three_pass_generate.SegmentRepairTypeSafetyTests.test_segment_repair_does_not_merge_empty_across_type",

@@ -322,6 +322,24 @@ class RescueBudgetTests(unittest.TestCase):
         p = LLMGenParams(max_tokens=500, temperature=0.1)  # context_length None
         self.assertTrue(tp._rescue_prompt_fits("x" * 100000, "y" * 6000, "", 500, p))
 
+    def test_custom_windows_control_rescue_attempts(self):
+        # finding #12: windows are configurable. A single small window means at
+        # most one segmentation attempt (here it fails -> one call, then []).
+        attempts = {"n": 0}
+
+        def create(**_kwargs):
+            attempts["n"] += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content="[]"), finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        p = LLMGenParams(max_tokens=500, temperature=0.1)  # no context_length cap
+        out = tp.rescue_chunk_with_context(client, "m", ["small chunk"], 0, p,
+                                           windows=(100,), max_retries=0)
+        self.assertEqual([], out)
+        self.assertEqual(1, attempts["n"], "one window x (max_retries=0 -> 1 attempt)")
+
     def test_oversized_window_is_skipped_and_no_call_made(self):
         big = "c " * 15000  # ~30k chars -> prompt+output tokens >> 8192
         calls = {"n": 0}

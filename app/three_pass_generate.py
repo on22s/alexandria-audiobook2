@@ -157,6 +157,28 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
 
 
+def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
+                  label, max_retries, near_miss_sink, validate=None):
+    """Shared body for every pass-1 segment call (plain and context-rescue):
+    the segment repair transform, the segment fidelity gate (optionally wrapped),
+    and trigram-only near-miss capture. Callers build sys_prompt/user_prompt so
+    the two paths can't diverge in how they invoke the gate (findings #10, #11)."""
+    if validate is None:
+        validate = lambda entries: validate_segment_quality(chunk, entries)
+    return call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log", label=label, max_retries=max_retries,
+        # Same deterministic structural repair (unicode-homoglyph fixups) the
+        # single-pass path runs before its gate, so pass 1 doesn't waste a retry
+        # on issues single-pass silently repairs. build_deterministic_repair is
+        # text-only, so it applies unchanged to the {type,text} segment shape.
+        # merge_empty_into_pause=False so empty units reach the gate (finding #7).
+        transform_entries=lambda entries: build_deterministic_repair(
+            entries, chunk, merge_empty_into_pause=False),
+        validate_entries=validate,
+        near_miss_sink=near_miss_sink)
+
+
 def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_sink=None):
     """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
     segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
@@ -168,17 +190,8 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_si
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
     user_prompt = usr_template.format(chunk=chunk)
-    return call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
-        log_name="llm_responses.log", label="SEGMENT", max_retries=max_retries,
-        # Same deterministic structural repair (unicode-homoglyph fixups) the
-        # single-pass path runs before its gate, so pass 1 doesn't waste a retry
-        # on issues single-pass silently repairs. build_deterministic_repair is
-        # text-only, so it applies unchanged to the {type,text} segment shape.
-        transform_entries=lambda entries: build_deterministic_repair(
-            entries, chunk, merge_empty_into_pause=False),
-        validate_entries=lambda entries: validate_segment_quality(chunk, entries),
-        near_miss_sink=near_miss_sink)
+    return _call_segment(client, model_name, chunk, sys_prompt, user_prompt,
+                         params, "SEGMENT", max_retries, near_miss_sink)
 
 
 def _accept_segment_near_miss(near_miss):
@@ -250,8 +263,10 @@ def segment_chunk_adaptively(client, model_name, chunk, params, resolution_sink=
 
 
 # Escalating context windows (chars of surrounding source) tried, in order, as a
-# last resort when a chunk exhausts normal retries + adaptive split.
+# last resort when a chunk exhausts normal retries + adaptive split. Defaults;
+# overridable via generation config (context_rescue_windows / _retries).
 _CONTEXT_RESCUE_WINDOWS = (2000, 4000, 6000)
+_CONTEXT_RESCUE_MAX_RETRIES = 2
 _CONTEXT_SEGMENT_USER = (
     "The text between the CONTEXT markers below is surrounding material from the "
     "same book, given ONLY as reference for narrative flow and continuity. DO NOT "
@@ -314,13 +329,9 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
                 "message": "An entry reproduced reference-context text absent from the target chunk."}]
         return report
 
-    return call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
-        log_name="llm_responses.log", label="SEGMENT+CTX", max_retries=max_retries,
-        transform_entries=lambda entries: build_deterministic_repair(
-            entries, chunk, merge_empty_into_pause=False),
-        validate_entries=validate,
-        near_miss_sink=near_miss_sink)
+    return _call_segment(client, model_name, chunk, sys_prompt, user_prompt,
+                         params, "SEGMENT+CTX", max_retries, near_miss_sink,
+                         validate=validate)
 
 
 def _tail_join(parts, limit):
@@ -362,20 +373,24 @@ def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
 
 
 def rescue_chunk_with_context(client, model_name, chunks, index, params,
-                              resolution_sink=None):
-    """When chunk `index` fails normal segmentation, retry it up to 3 times with
-    escalating surrounding-source context. Accepts a clean pass, else the best
-    trigram-only near-miss any window produced. Returns entries or []. When
-    resolution_sink is given, appends the resolution
-    (context_rescue:<window> / context_rescue_near_miss / fail). Windows whose
-    prompt would exceed the model's context budget are skipped (finding #4)."""
-    max_window = max(_CONTEXT_RESCUE_WINDOWS)
+                              resolution_sink=None, windows=None, max_retries=None):
+    """When chunk `index` fails normal segmentation, retry it with escalating
+    surrounding-source context. Accepts a clean pass, else the best trigram-only
+    near-miss any window produced. Returns entries or []. When resolution_sink is
+    given, appends the resolution (context_rescue:<window> /
+    context_rescue_near_miss / fail). Windows whose prompt would exceed the
+    model's context budget are skipped (finding #4). `windows` and `max_retries`
+    default to the module constants when None (finding #12: config-tunable)."""
+    windows = windows or _CONTEXT_RESCUE_WINDOWS
+    if max_retries is None:
+        max_retries = _CONTEXT_RESCUE_MAX_RETRIES
+    max_window = max(windows)
     before_all = _tail_join(chunks[:index], max_window)
     after_all = _head_join(chunks[index + 1:], max_window)
     sys_prompt, _ = load_segment_prompts()
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
-    for window in _CONTEXT_RESCUE_WINDOWS:
+    for window in windows:
         before, after = before_all[-window:], after_all[:window]
         if not _rescue_prompt_fits(chunks[index], before, after, overhead_chars, params):
             print(f"  context rescue {window}-char window skipped "
@@ -384,7 +399,7 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
         near_miss = []
         seg = segment_chunk_with_context(
             client, model_name, chunks[index],
-            before, after, params, near_miss_sink=near_miss)
+            before, after, params, max_retries=max_retries, near_miss_sink=near_miss)
         if seg:
             print(f"  chunk {index + 1}/{len(chunks)} rescued with "
                   f"{window}-char surrounding context (clean pass)")
@@ -472,11 +487,13 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
 
 
 def run_three_pass(client, model_name, source_text, params, chunk_size,
-                   on_exhaustion="fail", output_path=None):
+                   on_exhaustion="fail", output_path=None,
+                   context_windows=None, context_rescue_retries=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
-    it; when None, runs purely in memory."""
+    it; when None, runs purely in memory. context_windows / context_rescue_retries
+    override the context-rescue defaults (finding #12)."""
     chunks = split_into_chunks(source_text, max_size=chunk_size)
     fingerprint = three_pass_fingerprint(source_text, model_name, chunk_size)
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
@@ -510,7 +527,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "
                   "trying escalating surrounding-source context")
             seg = rescue_chunk_with_context(client, model_name, chunks, i, params,
-                                            resolution_sink=sink)
+                                            resolution_sink=sink,
+                                            windows=context_windows,
+                                            max_retries=context_rescue_retries)
         resolutions.append(sink[-1] if sink else "fail")
         if not seg:
             passes["segment"] = {"elapsed_s": round(time.time() - seg_start, 3),
@@ -618,13 +637,20 @@ def main():
         context_length=lm_status.get("context_length"))
     client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
+    # Context-rescue tuning (finding #12): config-overridable, else defaults.
+    cfg_windows = gen.get("context_rescue_windows")
+    context_windows = tuple(cfg_windows) if cfg_windows else None
+    context_rescue_retries = gen.get("context_rescue_retries")
+
     output_path = args.output or os.path.join(root, "annotated_script.json")
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  on_exhaustion=args.pass2_on_exhaustion,
-                                 output_path=output_path)
+                                 output_path=output_path,
+                                 context_windows=context_windows,
+                                 context_rescue_retries=context_rescue_retries)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
