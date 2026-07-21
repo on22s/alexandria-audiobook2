@@ -4,7 +4,16 @@
 
 **Goal:** Fix the 15 code-review-20 findings against the freeze/recombination/context-rescue work, then re-run the full three-pass A/B on corrected code.
 
-**Context:** Findings came from reviewing `b6ee477..HEAD`. Two are bugs introduced by my own fixes (pause_after drop, recombination-floor bypass). Order: correctness first, then observability, then efficiency/cleanup, then re-A/B.
+**Context:** Findings came from reviewing `b6ee477..HEAD`. Two are bugs introduced by my own fixes (pause_after drop, recombination-floor bypass).
+
+**Execution order (updated per user):** Task 0 (stop the rough A/B) → **Task 9
+FIRST (telemetry manifest)** so every subsequent fix and the clean re-run are
+analyzable from structured data instead of log-grepping → then correctness
+(Tasks 1-8) → efficiency (Task 10) → cleanup (Task 11) → re-run the A/B entirely
+(Task 12). Tasks keep their numbers below; only the order changed. Task 9's
+per-chunk resolution fields should be added as the fixes land (e.g. once the
+recombination floor is restored and context-bleed guard exists, the manifest
+records those outcomes too).
 
 ---
 
