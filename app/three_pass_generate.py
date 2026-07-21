@@ -194,6 +194,56 @@ def segment_chunk_adaptively(client, model_name, chunk, params):
     return combined
 
 
+# Escalating context windows (chars of surrounding source) tried, in order, as a
+# last resort when a chunk exhausts normal retries + adaptive split.
+_CONTEXT_RESCUE_WINDOWS = (2000, 4000, 6000)
+_CONTEXT_SEGMENT_USER = (
+    "The text between the CONTEXT markers below is surrounding material from the "
+    "same book, given ONLY as reference for narrative flow and continuity. DO NOT "
+    "convert it and DO NOT include any of it in your output.\n\n"
+    "=== CONTEXT BEFORE (reference only) ===\n{before}\n=== END CONTEXT ===\n\n"
+    "=== CONTEXT AFTER (reference only) ===\n{after}\n=== END CONTEXT ===\n\n"
+    "Now convert ONLY the SOURCE TEXT below into the JSON array of "
+    '{{"type","text"}} units. Your output must cover exactly the SOURCE TEXT and '
+    "nothing from the context.\n\nSOURCE TEXT:\n{chunk}"
+)
+
+
+def segment_chunk_with_context(client, model_name, chunk, before, after, params,
+                               max_retries=2):
+    """Last-resort pass-1 retry: give the model surrounding SOURCE text (before /
+    after the failing chunk, reference-only) for narrative flow, but validate that
+    the output still covers ONLY the target chunk. Returns [{type,text}] or []."""
+    sys_prompt, _ = load_segment_prompts()
+    if params.system_prompt:
+        sys_prompt = params.system_prompt
+    user_prompt = _CONTEXT_SEGMENT_USER.format(before=before or "(start of book)",
+                                               after=after or "(end of book)",
+                                               chunk=chunk)
+    return call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log", label="SEGMENT+CTX", max_retries=max_retries,
+        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
+        validate_entries=lambda entries: validate_segment_quality(chunk, entries))
+
+
+def rescue_chunk_with_context(client, model_name, chunks, index, params):
+    """When chunk `index` fails normal segmentation, retry it up to 3 times with
+    escalating surrounding-source context. Returns entries or []."""
+    before_all = "".join(chunks[:index])
+    after_all = "".join(chunks[index + 1:])
+    for window in _CONTEXT_RESCUE_WINDOWS:
+        seg = segment_chunk_with_context(
+            client, model_name, chunks[index],
+            before_all[-window:], after_all[:window], params)
+        if seg:
+            print(f"  chunk {index + 1}/{len(chunks)} rescued with "
+                  f"{window}-char surrounding context")
+            return seg
+        print(f"  context rescue at {window} chars did not pass; escalating")
+    return []
+
+
 def three_pass_checkpoint_path(output_path):
     return output_path + ".threepass_checkpoint.json"
 
@@ -241,6 +291,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # Pass 1 — resume from chunks_done.
     for i in range(chunks_done, len(chunks)):
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params)
+        if not seg:
+            # Last resort: retry with escalating surrounding-source context.
+            print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "
+                  "trying escalating surrounding-source context")
+            seg = rescue_chunk_with_context(client, model_name, chunks, i, params)
         if not seg:
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)
