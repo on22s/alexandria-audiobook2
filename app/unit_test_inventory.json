@@ -600,6 +600,8 @@
     "test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],
   "test_three_pass_generate": [
+    "test_three_pass_generate.BoundedContextJoinTests.test_join_bounded_does_not_materialize_whole_book",
+    "test_three_pass_generate.BoundedContextJoinTests.test_tail_and_head_join_match_naive_slice",
     "test_three_pass_generate.CheckpointTests.test_completed_stage_is_not_recomputed_on_resume",
     "test_three_pass_generate.ContextBleedTests.test_bleed_helper_flags_context_only_entry",
     "test_three_pass_generate.ContextBleedTests.test_bleed_helper_ignores_short_generic_line",

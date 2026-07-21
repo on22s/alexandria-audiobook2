@@ -297,6 +297,26 @@ class ContextBleedTests(unittest.TestCase):
         self.assertEqual([], out)
 
 
+class BoundedContextJoinTests(unittest.TestCase):
+    def test_tail_and_head_join_match_naive_slice(self):
+        chunks = [f"chunk{i}_" * 50 for i in range(20)]  # ~300 chars each
+        index = 12
+        for window in tp._CONTEXT_RESCUE_WINDOWS:
+            naive_before = "".join(chunks[:index])[-window:]
+            naive_after = "".join(chunks[index + 1:])[:window]
+            bounded_before = tp._tail_join(chunks[:index], max(tp._CONTEXT_RESCUE_WINDOWS))[-window:]
+            bounded_after = tp._head_join(chunks[index + 1:], max(tp._CONTEXT_RESCUE_WINDOWS))[:window]
+            self.assertEqual(naive_before, bounded_before)
+            self.assertEqual(naive_after, bounded_after)
+
+    def test_join_bounded_does_not_materialize_whole_book(self):
+        chunks = ["x" * 1000 for _ in range(100)]  # 100k-char "book"
+        joined = tp._tail_join(chunks[:50], max(tp._CONTEXT_RESCUE_WINDOWS))
+        # Only enough trailing chunks to cover the max window, not all 50.
+        self.assertLess(len(joined), 50 * 1000)
+        self.assertGreaterEqual(len(joined), max(tp._CONTEXT_RESCUE_WINDOWS))
+
+
 class RescueBudgetTests(unittest.TestCase):
     def test_window_fits_returns_true_when_context_unknown(self):
         p = LLMGenParams(max_tokens=500, temperature=0.1)  # context_length None

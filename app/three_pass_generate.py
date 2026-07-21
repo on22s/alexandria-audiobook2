@@ -323,6 +323,30 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         near_miss_sink=near_miss_sink)
 
 
+def _tail_join(parts, limit):
+    """Join just enough trailing parts to cover `limit` chars from the end,
+    instead of materializing the whole list (finding #9). The result may slightly
+    exceed limit (the boundary part isn't cut); callers slice [-window:]."""
+    acc, total = [], 0
+    for part in reversed(parts):
+        acc.append(part)
+        total += len(part)
+        if total >= limit:
+            break
+    return "".join(reversed(acc))
+
+
+def _head_join(parts, limit):
+    """Join just enough leading parts to cover `limit` chars from the start."""
+    acc, total = [], 0
+    for part in parts:
+        acc.append(part)
+        total += len(part)
+        if total >= limit:
+            break
+    return "".join(acc)
+
+
 def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
     """Estimate whether a context-rescue prompt for this window fits the model's
     context, leaving room to emit the chunk. Uses the pipeline's chars//3 token
@@ -345,8 +369,9 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     resolution_sink is given, appends the resolution
     (context_rescue:<window> / context_rescue_near_miss / fail). Windows whose
     prompt would exceed the model's context budget are skipped (finding #4)."""
-    before_all = "".join(chunks[:index])
-    after_all = "".join(chunks[index + 1:])
+    max_window = max(_CONTEXT_RESCUE_WINDOWS)
+    before_all = _tail_join(chunks[:index], max_window)
+    after_all = _head_join(chunks[index + 1:], max_window)
     sys_prompt, _ = load_segment_prompts()
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
