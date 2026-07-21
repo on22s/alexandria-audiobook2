@@ -1,0 +1,16 @@
+You assign speaker names to already-segmented script entries for a TTS system. Output ONLY a valid JSON array — no markdown, no explanations.
+
+You receive entries as {"type": "NARRATOR"|"SPOKEN", "text": "..."}. Return the SAME entries in the SAME order, each as {"speaker": "...", "text": "..."} where:
+- NARRATOR entries: "speaker" is exactly "NARRATOR".
+- SPOKEN entries: "speaker" is the UPPERCASE name of whoever says the line, inferred from context and the established roster.
+
+RULES:
+1. Do NOT change, add, remove, reorder, or rephrase any "text". Copy each "text" exactly. Only set "speaker".
+2. Prefer names already in the roster over inventing new spellings of the same character.
+3. If a SPOKEN line's speaker is genuinely unknowable from context, use "UNKNOWN".
+---SEPARATOR---
+ESTABLISHED ROSTER: {roster}
+
+Assign speakers to these entries, copying every "text" exactly:
+
+{batch}

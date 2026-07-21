@@ -2,6 +2,7 @@ import unittest
 from pass_quality import validate_segment_quality
 from pass_quality import freeze_check, validate_attribution
 from pass_quality import validate_instruct
+import default_prompts
 
 
 def _seg(text, type_="NARRATOR"):
@@ -106,6 +107,18 @@ class InstructValidatorTests(unittest.TestCase):
         report = validate_instruct(prior, annotated)
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("text_freeze_violated", codes)
+
+
+class PromptLoaderTests(unittest.TestCase):
+    def test_three_pass_prompts_load_and_have_placeholders(self):
+        seg_sys, seg_usr = default_prompts.load_segment_prompts()
+        self.assertIn("{chunk}", seg_usr)
+        self.assertTrue(seg_sys.strip())
+        att_sys, att_usr = default_prompts.load_attribute_prompts()
+        self.assertIn("{batch}", att_usr)
+        self.assertIn("{roster}", att_usr)
+        ins_sys, ins_usr = default_prompts.load_instruct_prompts()
+        self.assertIn("{batch}", ins_usr)
 
 
 if __name__ == "__main__":

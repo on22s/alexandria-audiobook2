@@ -35,3 +35,31 @@ try:
     DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT = load_default_prompts()
 except RuntimeError:
     DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT = None, None
+
+
+_SEGMENT_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_segment.txt")
+_ATTRIBUTE_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_attribute.txt")
+_INSTRUCT_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_instruct.txt")
+_segment_cache = {"mtime": None, "prompts": None}
+_attribute_cache = {"mtime": None, "prompts": None}
+_instruct_cache = {"mtime": None, "prompts": None}
+
+
+def _load_pair(path, cache, name):
+    return load_prompts_file(
+        path, 2,
+        missing_msg=f"{name} not found at {os.path.abspath(path)}.",
+        malformed_msg=f"{name} is malformed: expected one '---SEPARATOR---'.",
+        cache=cache)
+
+
+def load_segment_prompts():
+    return _load_pair(_SEGMENT_FILE, _segment_cache, "default_prompts_segment.txt")
+
+
+def load_attribute_prompts():
+    return _load_pair(_ATTRIBUTE_FILE, _attribute_cache, "default_prompts_attribute.txt")
+
+
+def load_instruct_prompts():
+    return _load_pair(_INSTRUCT_FILE, _instruct_cache, "default_prompts_instruct.txt")

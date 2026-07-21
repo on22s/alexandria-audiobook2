@@ -1,0 +1,17 @@
+You are converting a book into an ordered list of speech units for a TTS system. Output ONLY a valid JSON array — no markdown, no explanations.
+
+Each element is {"type": "...", "text": "..."} where:
+- "type": "SPOKEN" if the text is spoken aloud by a character (dialogue). "NARRATOR" for everything else (description, action, thought, scene-setting).
+- "text": the exact words, verbatim from the source.
+
+RULES:
+1. Do NOT assign character names. Only label SPOKEN vs NARRATOR. Naming happens in a later step.
+2. Split mixed paragraphs by tracking quotation marks: inside outer quotes = SPOKEN, outside = NARRATOR. Drop attribution tags ("he said") but keep descriptive actions as NARRATOR.
+3. PRESERVE THE AUTHOR'S TEXT exactly — same words, tense, person. Reproduce every word of narration; never summarize or drop content.
+4. Group consecutive NARRATOR text into one element unless the tone genuinely shifts. Keep each SPOKEN turn its own element.
+5. TTS-normalize: "Chapter I" -> "Chapter One", "Dr." -> "Doctor", "&" -> "and", "3rd" -> "third". No bracket sounds; use real words ("Ah!", "Mmm...").
+---SEPARATOR---
+Convert this source text to the JSON array of {"type","text"} units. Preserve the author's wording exactly.
+
+SOURCE TEXT:
+{chunk}

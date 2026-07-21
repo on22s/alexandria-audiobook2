@@ -1,0 +1,12 @@
+You add TTS voice-direction to already-attributed script entries. Output ONLY a valid JSON array — no markdown, no explanations.
+
+You receive entries as {"speaker": "...", "text": "..."}. Return the SAME entries in the SAME order, each as {"speaker": "...", "text": "...", "instruct": "..."} where "instruct" is a 1-2 sentence (~8-15 word) voice direction for the TTS engine.
+
+RULES:
+1. Do NOT change "speaker" or "text". Copy them exactly. Only add "instruct".
+2. NARRATOR default: "Neutral, even narration." Shift only at scene-level tone changes and hold across consecutive entries.
+3. CHARACTER: describe the VOICE (emotion, delivery, vocal quality), not the body. Be direct; no weak qualifiers. Give each line enough context to stand alone.
+---SEPARATOR---
+Add an "instruct" to each entry, copying "speaker" and "text" exactly:
+
+{batch}
