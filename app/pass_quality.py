@@ -97,3 +97,19 @@ def validate_attribution(frozen_entries, named_entries):
                 findings.append({"code": "narrator_renamed", "entry_number": i,
                                  "value": speaker})
     return {"passed": not findings, "findings": findings}
+
+
+def validate_instruct(prior_entries, annotated_entries):
+    """Pass 3 gate. Enforces the freeze on text AND speaker (pass 3 may only add
+    instruct), and requires a non-empty instruct on every entry."""
+    findings = []
+    ok, reason = freeze_check(prior_entries, annotated_entries)
+    if not ok:
+        findings.append({"code": "text_freeze_violated", "message": reason})
+        return {"passed": False, "findings": findings}
+    for i, (prior, ann) in enumerate(zip(prior_entries, annotated_entries), 1):
+        if (ann.get("speaker") or "") != (prior.get("speaker") or ""):
+            findings.append({"code": "speaker_changed", "entry_number": i})
+        if not (ann.get("instruct") or "").strip():
+            findings.append({"code": "missing_instruct", "entry_number": i})
+    return {"passed": not findings, "findings": findings}

@@ -1,6 +1,7 @@
 import unittest
 from pass_quality import validate_segment_quality
 from pass_quality import freeze_check, validate_attribution
+from pass_quality import validate_instruct
 
 
 def _seg(text, type_="NARRATOR"):
@@ -74,6 +75,35 @@ class FreezeAndAttributionTests(unittest.TestCase):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
         named = [{"speaker": "ELENA", "text": "Tell me now."}]
         report = validate_attribution(frozen, named)
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("text_freeze_violated", codes)
+
+
+class InstructValidatorTests(unittest.TestCase):
+    def test_passes_when_all_have_instruct(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        annotated = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "Firm, quiet."}]
+        report = validate_instruct(prior, annotated)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_fails_when_instruct_missing_or_empty(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        annotated = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "  "}]
+        report = validate_instruct(prior, annotated)
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("missing_instruct", codes)
+
+    def test_fails_when_speaker_changed(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        annotated = [{"speaker": "MARCUS", "text": "Tell me.", "instruct": "Firm."}]
+        report = validate_instruct(prior, annotated)
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("speaker_changed", codes)
+
+    def test_fails_on_text_drift(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        annotated = [{"speaker": "ELENA", "text": "Tell me now.", "instruct": "Firm."}]
+        report = validate_instruct(prior, annotated)
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("text_freeze_violated", codes)
 
