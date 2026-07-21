@@ -208,6 +208,33 @@ class FreezeEnforcementTests(unittest.TestCase):
         self.assertEqual("Firm.", out[0]["instruct"])
 
 
+class ContextBleedTests(unittest.TestCase):
+    def test_bleed_helper_flags_context_only_entry(self):
+        chunk = " ".join(f"c{i}" for i in range(200))
+        ctx = "the quiet harbor lay still under the morning fog and gulls"
+        entries = [{"type": "NARRATOR", "text": chunk},
+                   {"type": "SPOKEN", "text": ctx}]
+        self.assertTrue(tp._output_has_context_bleed(entries, chunk, ctx, ""))
+
+    def test_bleed_helper_ignores_short_generic_line(self):
+        chunk = " ".join(f"c{i}" for i in range(200))
+        entries = [{"type": "NARRATOR", "text": chunk}, {"type": "SPOKEN", "text": "Yes."}]
+        self.assertFalse(tp._output_has_context_bleed(entries, chunk, "Yes.", ""))
+
+    def test_context_rescue_rejects_bleeding_output(self):
+        chunk = " ".join(f"c{i}" for i in range(200))
+        ctx = "the quiet harbor lay still under the morning fog and gulls"
+        # Target-correct segmentation PLUS a leaked context sentence: passes
+        # recall/trigram/ratio but must be rejected as context bleed -> [].
+        payload = [{"type": "NARRATOR", "text": chunk},
+                   {"type": "SPOKEN", "text": ctx}]
+        client = _client_returning([payload, payload, payload])
+        params = LLMGenParams(system_prompt="s", max_tokens=800, temperature=0.1)
+        out = tp.segment_chunk_with_context(client, "m", chunk, ctx, "", params,
+                                            max_retries=1)
+        self.assertEqual([], out)
+
+
 class ManifestTests(unittest.TestCase):
     def test_manifest_records_clean_resolution_counts_and_timing(self):
         source = "The room was cold. \"Tell me the truth.\""

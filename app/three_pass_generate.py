@@ -22,6 +22,7 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (validate_segment_quality, validate_attribution,
                           validate_instruct)
+from review_script import normalize_text
 from config_settings import load_app_config
 from lmstudio_settings import ensure_ideal_settings
 from utils import (get_runtime_data_dir, get_app_config_path,
@@ -232,6 +233,28 @@ _CONTEXT_SEGMENT_USER = (
 )
 
 
+_CONTEXT_BLEED_MIN_CHARS = 40
+
+
+def _output_has_context_bleed(entries, chunk, before, after):
+    """True if any entry's text clearly leaked from the reference context: it
+    appears (normalized) in before+after but NOT in the target chunk. Conservative
+    - only entries with >= _CONTEXT_BLEED_MIN_CHARS of normalized text count, so a
+    short generic line ("Yes.") that legitimately recurs in both context and chunk
+    doesn't trip a false rejection."""
+    chunk_norm = normalize_text(chunk)
+    context_norm = normalize_text((before or "") + " " + (after or ""))
+    if not context_norm:
+        return False
+    for entry in entries:
+        text_norm = normalize_text(str((entry or {}).get("text") or "")
+                                   if isinstance(entry, dict) else "")
+        if (len(text_norm) >= _CONTEXT_BLEED_MIN_CHARS
+                and text_norm in context_norm and text_norm not in chunk_norm):
+            return True
+    return False
+
+
 def segment_chunk_with_context(client, model_name, chunk, before, after, params,
                                max_retries=2, near_miss_sink=None):
     """Last-resort pass-1 retry: give the model surrounding SOURCE text (before /
@@ -245,11 +268,26 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
     user_prompt = _CONTEXT_SEGMENT_USER.format(before=before or "(start of book)",
                                                after=after or "(end of book)",
                                                chunk=chunk)
+
+    def validate(entries):
+        # Fidelity gate PLUS a context-bleed guard: a target-correct output that
+        # also pastes a reference-context sentence can otherwise pass recall /
+        # trigram / ratio (the leaked sentence adds output but doesn't drop source
+        # recall), so reject clear context-only entries as a validation failure.
+        report = validate_segment_quality(chunk, entries)
+        if report["passed"] and _output_has_context_bleed(entries, chunk, before, after):
+            report = dict(report)
+            report["passed"] = False
+            report["findings"] = list(report["findings"]) + [{
+                "code": "context_bleed",
+                "message": "An entry reproduced reference-context text absent from the target chunk."}]
+        return report
+
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="SEGMENT+CTX", max_retries=max_retries,
         transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
-        validate_entries=lambda entries: validate_segment_quality(chunk, entries),
+        validate_entries=validate,
         near_miss_sink=near_miss_sink)
 
 
