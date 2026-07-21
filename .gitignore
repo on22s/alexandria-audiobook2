@@ -169,3 +169,8 @@ ab_test/
 ab_test_cs3000/
 ab_test_cs6000/
 ab_test_threepass/
+
+# runtime A/B: keep scripts tracked, ignore generated run outputs
+ab_test_runtime/vulkan/
+ab_test_runtime/rocm/
+ab_test_runtime/run.log
