@@ -46,6 +46,25 @@ def iter_entry_batches(entries, batch_size=BATCH_SIZE):
         yield entries[start:start + batch_size]
 
 
+def next_attribute_batch(segmented, start, batch_size=BATCH_SIZE):
+    """Slice the next pass-2 batch starting at `start`, up to batch_size, but stop
+    before admitting a second entry whose normalized text duplicates one already
+    in this batch. Two identical-normalized-text entries in one attribution call
+    can be reordered by the model without freeze_check noticing (identical text
+    passes positionally), mis-binding their speakers (finding #5). Keeping each
+    batch duplicate-free makes that swap impossible with no added model burden.
+    Deterministic in `segmented`, so checkpoint resume recomputes the same
+    boundaries. Always returns at least one entry."""
+    batch, seen = [], set()
+    for entry in segmented[start:start + batch_size]:
+        key = normalize_text(str(entry.get("text") or ""))
+        if key in seen:
+            break
+        seen.add(key)
+        batch.append(entry)
+    return batch
+
+
 def build_roster(entries):
     """Ordered unique UPPERCASE speaker names seen so far, excluding NARRATOR and
     the UNKNOWN placeholder — fed to pass 2 for naming consistency."""
@@ -474,7 +493,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     attr_start = time.time()
     try:
         while len(named) < len(segmented):
-            batch = segmented[len(named):len(named) + BATCH_SIZE]
+            batch = next_attribute_batch(segmented, len(named))
             new_named = attribute_batch(client, model_name, batch, params,
                                         roster=roster, on_exhaustion=on_exhaustion)
             named.extend(new_named)

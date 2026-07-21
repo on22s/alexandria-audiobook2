@@ -14,6 +14,19 @@ class PassHelperTests(unittest.TestCase):
         batches = list(tp.iter_entry_batches(entries, batch_size=25))
         self.assertEqual([25, 25, 5], [len(b) for b in batches])
 
+    def test_next_attribute_batch_isolates_duplicate_text(self):
+        seg = [{"type": "SPOKEN", "text": "Yes."},
+               {"type": "SPOKEN", "text": "Yes."},
+               {"type": "NARRATOR", "text": "He left the room."}]
+        b0 = tp.next_attribute_batch(seg, 0)
+        self.assertEqual(["Yes."], [e["text"] for e in b0])  # 2nd "Yes." excluded
+        b1 = tp.next_attribute_batch(seg, 1)
+        self.assertEqual(["Yes.", "He left the room."], [e["text"] for e in b1])
+
+    def test_next_attribute_batch_caps_at_batch_size(self):
+        seg = [{"type": "NARRATOR", "text": f"line {i}"} for i in range(60)]
+        self.assertEqual(tp.BATCH_SIZE, len(tp.next_attribute_batch(seg, 0)))
+
     def test_roster_collects_uppercase_non_narrator_speakers(self):
         entries = [{"speaker": "NARRATOR"}, {"speaker": "ELENA"},
                    {"speaker": "MARCUS"}, {"speaker": "ELENA"}, {"speaker": "UNKNOWN"}]
