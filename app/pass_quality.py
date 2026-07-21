@@ -3,6 +3,7 @@ instruct). Segment reuses recall_core for source-fidelity scoring; attribute and
 instruct enforce a hard per-entry text freeze (they may only add fields)."""
 
 from recall_core import tokens, ngrams, counter_recall
+from review_script import normalize_text
 
 MIN_SOURCE_TOKEN_RECALL = 0.90
 MIN_ORDERED_TRIGRAM_RECALL = 0.90
@@ -62,3 +63,37 @@ def _report(source_count, output_count, recall, trigram, ratio, findings):
         },
         "findings": findings,
     }
+
+
+def freeze_check(frozen_entries, new_entries):
+    """Return (ok, reason). ok iff new_entries has the same count as
+    frozen_entries and each new entry's text matches the frozen text under
+    normalize_text (case/punctuation/whitespace-insensitive, same comparison
+    review uses). new_entries may add fields; it may not change or reorder text."""
+    if len(new_entries) != len(frozen_entries):
+        return False, f"count {len(new_entries)} != frozen {len(frozen_entries)}"
+    for i, (frozen, new) in enumerate(zip(frozen_entries, new_entries), 1):
+        if normalize_text(new.get("text", "")) != normalize_text(frozen.get("text", "")):
+            return False, f"entry {i} text changed"
+    return True, ""
+
+
+def validate_attribution(frozen_entries, named_entries):
+    """Pass 2 gate. Enforces the freeze, then requires every SPOKEN span to have
+    a non-empty speaker other than NARRATOR, and every NARRATOR span to stay
+    NARRATOR."""
+    findings = []
+    ok, reason = freeze_check(frozen_entries, named_entries)
+    if not ok:
+        findings.append({"code": "text_freeze_violated", "message": reason})
+        return {"passed": False, "findings": findings}
+    for i, (frozen, named) in enumerate(zip(frozen_entries, named_entries), 1):
+        speaker = (named.get("speaker") or "").strip()
+        if frozen["type"] == "SPOKEN":
+            if not speaker or speaker.upper() == "NARRATOR":
+                findings.append({"code": "spoken_not_named", "entry_number": i})
+        else:  # NARRATOR
+            if speaker.upper() != "NARRATOR":
+                findings.append({"code": "narrator_renamed", "entry_number": i,
+                                 "value": speaker})
+    return {"passed": not findings, "findings": findings}
