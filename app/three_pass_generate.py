@@ -79,3 +79,25 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     seeded = [{"speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN",
                "text": e["text"]} for e in frozen_batch]
     return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
+
+
+def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
+    """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
+    on text+speaker. On exhaustion, attaches a default instruct per entry so
+    pass 3 never fails the book."""
+    sys_prompt, usr_template = load_instruct_prompts()
+    if params.system_prompt:
+        sys_prompt = params.system_prompt
+    if params.user_prompt_template:
+        usr_template = params.user_prompt_template
+    batch_json = json.dumps([{"speaker": e["speaker"], "text": e["text"]}
+                             for e in prior_batch], ensure_ascii=False)
+    user_prompt = usr_template.format(batch=batch_json)
+    annotated = call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
+        validate_entries=lambda entries: validate_instruct(prior_batch, entries))
+    if annotated:
+        return annotated
+    return [{"speaker": e["speaker"], "text": e["text"],
+             "instruct": default_instruct(e)} for e in prior_batch]

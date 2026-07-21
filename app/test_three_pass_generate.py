@@ -60,5 +60,26 @@ class Pass2Tests(unittest.TestCase):
                                max_retries=1, on_exhaustion="fail")
 
 
+class Pass3Tests(unittest.TestCase):
+    def _params(self):
+        return LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
+                            max_tokens=500, temperature=0.1)
+
+    def test_adds_instruct_and_freezes(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        good = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "Firm, quiet."}]
+        client = _client_returning([good])
+        out = tp.instruct_batch(client, "m", prior, self._params())
+        self.assertEqual("Firm, quiet.", out[0]["instruct"])
+
+    def test_falls_back_to_default_instruct_on_exhaustion(self):
+        prior = [{"speaker": "NARRATOR", "text": "The room was cold."}]
+        bad = [{"speaker": "NARRATOR", "text": "The room was cold.", "instruct": ""}]
+        client = _client_returning([bad, bad])
+        out = tp.instruct_batch(client, "m", prior, self._params(), max_retries=1)
+        self.assertEqual("Neutral, even narration.", out[0]["instruct"])
+        self.assertEqual("The room was cold.", out[0]["text"])
+
+
 if __name__ == "__main__":
     unittest.main()
