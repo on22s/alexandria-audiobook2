@@ -37,6 +37,17 @@ _VERIFIED_LOCAL_PROFILES = {
         # overestimates it so transient backend workspaces remain covered.
         "bytes_per_extra_context_token": 16 * 1024,
     },
+    # A 9B (6.55 GB on disk) that leaves ample room for a full 32768 context on
+    # a ~16 GB card - added for the script-gen A/B so it runs at the same
+    # context as gemma instead of the 8192 fallback the 27B is stuck at. The
+    # get_safe_local_settings VRAM guard still gates the actual load, so an
+    # over-tight moment falls back to 8192 rather than risking OOM.
+    "qwen3.5-9b-uncensored-hauhaucs-aggressive": {
+        "context_length": 32768,
+        "parallel": 1,
+        "model_vram_bytes": int(7.20 * 1024 ** 3),
+        "bytes_per_extra_context_token": 16 * 1024,
+    },
 }
 _LOCAL_VRAM_RESERVE_BYTES = 2 * 1024 ** 3
 

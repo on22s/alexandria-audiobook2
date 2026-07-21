@@ -172,6 +172,22 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual(1, manifest["chunks"][0]["entry_count"])
         self.assertNotIn("entries", manifest["chunks"][0])
         self.assertEqual([], manifest["chunks"][0]["attempts"])
+        # Near-miss telemetry defaults to False/0 when nothing was salvaged.
+        self.assertFalse(manifest["chunks"][0]["near_miss_accepted"])
+        self.assertEqual(0, manifest["near_miss_accepted_count"])
+
+    def test_quality_manifest_persists_near_miss_accepted_chunks(self):
+        accepted = [
+            {"chunk_number": 1, "source_sha256": "a", "entries": [_entry("x")],
+             "quality": {"passed": True}},
+            {"chunk_number": 2, "source_sha256": "b", "entries": [_entry("y")],
+             "quality": {"passed": False}, "near_miss_accepted": True},
+        ]
+        manifest = generate_script.build_generation_quality_manifest(
+            "complete", {"source_sha256": "book"}, accepted, [])
+        self.assertEqual(1, manifest["near_miss_accepted_count"])
+        self.assertFalse(manifest["chunks"][0]["near_miss_accepted"])
+        self.assertTrue(manifest["chunks"][1]["near_miss_accepted"])
 
     def test_adaptive_split_labels_full_and_split_attempt_telemetry(self):
         source = ("First section " + "word " * 200 + ".\n\n" +

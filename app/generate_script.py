@@ -51,12 +51,19 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
         "fingerprint": fingerprint,
         "source_normalizations": source_normalizations,
         "accepted_chunk_count": len(accepted_chunks),
+        # Persist how many chunks were salvaged by the exhaustion-only
+        # trigram-only near-miss path (see chunk_quality.is_trigram_only_near_miss)
+        # so completed-book rescue counts survive in the manifest instead of only
+        # in the per-run checkpoint (cleared on success) and the stdout log.
+        "near_miss_accepted_count": sum(
+            1 for item in accepted_chunks if item.get("near_miss_accepted")),
         "chunks": [{
             "chunk_number": item["chunk_number"],
             "source_sha256": item["source_sha256"],
             "entry_count": len(item["entries"]),
             "quality": item["quality"],
             "adaptively_split": item.get("adaptively_split", False),
+            "near_miss_accepted": item.get("near_miss_accepted", False),
             "attempts": item.get("attempts", []),
         } for item in accepted_chunks],
         **details,
@@ -1071,6 +1078,11 @@ def main():
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction, default=True,
                          help="Strip known non-narrative compiler front matter (translator's "
                               "note / table of contents) before generation")
+    parser.add_argument("--chunk-size", type=int, default=None,
+                         help="Override generation.chunk_size (chars per LLM call) for this "
+                              "run only, without editing config.json. Smaller chunks shorten "
+                              "each call's output. The chunk size is part of the generation "
+                              "fingerprint, so a different value starts a fresh checkpoint.")
     args = parser.parse_args()
 
     input_file_path = args.input_file
@@ -1130,6 +1142,12 @@ def main():
     # Load generation settings
     generation_config = config.get("generation") or {}
     chunk_size = generation_config.get("chunk_size", 3000)
+    if args.chunk_size is not None:
+        if args.chunk_size < 1:
+            print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
+            sys.exit(1)
+        print(f"Chunk size overridden via --chunk-size: {chunk_size} -> {args.chunk_size}")
+        chunk_size = args.chunk_size
     max_tokens = generation_config.get("max_tokens", 4096)
     temperature = generation_config.get("temperature", 0.6)
     top_p = generation_config.get("top_p", 0.8)
