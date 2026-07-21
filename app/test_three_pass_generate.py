@@ -81,5 +81,41 @@ class Pass3Tests(unittest.TestCase):
         self.assertEqual("The room was cold.", out[0]["text"])
 
 
+class EndToEndTests(unittest.TestCase):
+    def test_three_passes_assemble_final_entries(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
+                 {"speaker": "ELENA", "text": "Tell me the truth."}]
+        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
+                       "instruct": "Cold, still narration."},
+                      {"speaker": "ELENA", "text": "Tell me the truth.",
+                       "instruct": "Firm, quiet demand."}]
+        client = _client_returning([seg, named, instructed])
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000)
+        self.assertEqual(2, len(entries))
+        self.assertEqual({"speaker", "text", "instruct"}, set(entries[0].keys()))
+        self.assertEqual("ELENA", entries[1]["speaker"])
+        self.assertEqual("Firm, quiet demand.", entries[1]["instruct"])
+
+    def test_segment_accepts_trigram_only_near_miss_on_exhaustion(self):
+        words = [f"word{i}" for i in range(100)]
+        source = " ".join(words)
+        self.assertEqual([], tp.split_failed_chunk(source))  # unsplittable
+        swapped = list(words)
+        i = 0
+        while i + 1 < len(swapped):
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+            i += 25
+        near = [{"type": "NARRATOR", "text": " ".join(swapped)}]
+        client = _client_returning([near, near, near, near, near, near, near])
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        out = tp.segment_chunk_adaptively(client, "m", source, params)
+        self.assertTrue(out)
+        self.assertFalse(tp.validate_segment_quality(source, out)["passed"])
+
+
 if __name__ == "__main__":
     unittest.main()

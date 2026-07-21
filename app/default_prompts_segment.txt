@@ -11,7 +11,7 @@ RULES:
 4. Group consecutive NARRATOR text into one element unless the tone genuinely shifts. Keep each SPOKEN turn its own element.
 5. TTS-normalize: "Chapter I" -> "Chapter One", "Dr." -> "Doctor", "&" -> "and", "3rd" -> "third". No bracket sounds; use real words ("Ah!", "Mmm...").
 ---SEPARATOR---
-Convert this source text to the JSON array of {"type","text"} units. Preserve the author's wording exactly.
+Convert this source text to the JSON array of {{"type","text"}} units. Preserve the author's wording exactly.
 
 SOURCE TEXT:
 {chunk}

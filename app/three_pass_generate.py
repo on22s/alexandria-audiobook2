@@ -10,7 +10,8 @@ import sys
 from openai import OpenAI
 
 from generate_script import (call_llm_for_entries, split_into_chunks,
-                             fix_mojibake, LLMGenParams)
+                             fix_mojibake, LLMGenParams,
+                             split_failed_chunk, is_trigram_only_near_miss)
 from source_normalization import (normalize_known_source_corruptions,
                                   strip_known_front_matter)
 from speaker_identity import stabilize_speaker_identities
@@ -101,3 +102,85 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
         return annotated
     return [{"speaker": e["speaker"], "text": e["text"],
              "instruct": default_instruct(e)} for e in prior_batch]
+
+
+def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_sink=None):
+    """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
+    segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
+    (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
+    exhaustion."""
+    sys_prompt, usr_template = load_segment_prompts()
+    if params.system_prompt:
+        sys_prompt = params.system_prompt
+    if params.user_prompt_template:
+        usr_template = params.user_prompt_template
+    user_prompt = usr_template.format(chunk=chunk)
+    return call_llm_for_entries(
+        client, model_name, sys_prompt, user_prompt, params,
+        log_name="llm_responses.log", label="SEGMENT", max_retries=max_retries,
+        validate_entries=lambda entries: validate_segment_quality(chunk, entries),
+        near_miss_sink=near_miss_sink)
+
+
+def _accept_segment_near_miss(near_miss):
+    if not near_miss:
+        return []
+    entries, quality = near_miss[0]
+    print("  SEGMENT accepted as trigram-only near-miss "
+          f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+    return entries
+
+
+def segment_chunk_adaptively(client, model_name, chunk, params):
+    """Pass 1 with the full safety net: full-chunk attempt, then a
+    natural-boundary split whose halves each recurse, and exhaustion-only
+    trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
+    the segment gate. Returns [{type,text}] or [] (book failure)."""
+    near_miss = []
+    entries = segment_chunk(client, model_name, chunk, params, near_miss_sink=near_miss)
+    if entries:
+        return entries
+    parts = split_failed_chunk(chunk)
+    if not parts:
+        return _accept_segment_near_miss(near_miss)
+    print(f"  Adaptive split (segment): -> {len(parts[0])} + {len(parts[1])} chars")
+    combined, any_failed = [], False
+    for part in parts:
+        part_entries = segment_chunk_adaptively(client, model_name, part, params)
+        if not part_entries:
+            any_failed = True
+            continue
+        combined.extend(part_entries)
+    if any_failed:
+        return _accept_segment_near_miss(near_miss)
+    combined_quality = validate_segment_quality(chunk, combined)
+    if not combined_quality["passed"]:
+        if is_trigram_only_near_miss(combined_quality):
+            return combined
+        return _accept_segment_near_miss(near_miss)
+    return combined
+
+
+def run_three_pass(client, model_name, source_text, params, chunk_size,
+                   on_exhaustion="fail"):
+    """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
+    RuntimeError if pass 1 exhausts a chunk (book failure)."""
+    # Pass 1: segment every chunk (with near-miss + adaptive split).
+    chunks = split_into_chunks(source_text, max_size=chunk_size)
+    segmented = []
+    for i, chunk in enumerate(chunks, 1):
+        seg = segment_chunk_adaptively(client, model_name, chunk, params)
+        if not seg:
+            raise RuntimeError(f"pass 1 (segment) failed on chunk {i}/{len(chunks)}")
+        segmented.extend(seg)
+    # Pass 2: name in wide entry-batches, carrying the growing roster.
+    named = []
+    for batch in iter_entry_batches(segmented):
+        named.extend(attribute_batch(client, model_name, batch, params,
+                                     roster=build_roster(named),
+                                     on_exhaustion=on_exhaustion))
+    # Pass 3: instruct in wide entry-batches.
+    annotated = []
+    for batch in iter_entry_batches(named):
+        annotated.extend(instruct_batch(client, model_name, batch, params))
+    return annotated
