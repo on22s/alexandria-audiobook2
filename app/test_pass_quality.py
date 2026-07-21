@@ -2,7 +2,7 @@ from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
 from pass_quality import validate_segment_quality
 from pass_quality import freeze_check, validate_attribution
-from pass_quality import validate_instruct
+from pass_quality import validate_instruct, index_head_check
 import default_prompts
 
 
@@ -61,53 +61,85 @@ class FreezeAndAttributionTests(unittest.TestCase):
     def test_attribution_passes_when_all_spoken_named(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold."},
                   {"type": "SPOKEN", "text": "Tell me."}]
-        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
-                 {"speaker": "ELENA", "text": "Tell me."}]
-        report = validate_attribution(frozen, named)
+        resp = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                {"n": 1, "head": "Tell me.", "speaker": "ELENA"}]
+        report = validate_attribution(frozen, resp)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_attribution_passes_when_response_reordered_by_index(self):
+        # Binding is by index, so a reordered response still validates + binds.
+        frozen = [{"type": "NARRATOR", "text": "The room was cold."},
+                  {"type": "SPOKEN", "text": "Tell me."}]
+        resp = [{"n": 1, "head": "Tell me.", "speaker": "ELENA"},
+                {"n": 0, "head": "The room was", "speaker": "NARRATOR"}]
+        report = validate_attribution(frozen, resp)
         self.assertTrue(report["passed"], report["findings"])
 
     def test_attribution_fails_when_spoken_left_as_narrator(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
-        named = [{"speaker": "NARRATOR", "text": "Tell me."}]
-        report = validate_attribution(frozen, named)
+        resp = [{"n": 0, "head": "Tell me.", "speaker": "NARRATOR"}]
+        report = validate_attribution(frozen, resp)
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("spoken_not_named", codes)
 
-    def test_attribution_fails_on_text_drift(self):
+    def test_attribution_fails_on_head_anchor_mismatch(self):
+        # Model answered about the wrong line -> head doesn't match the frozen start.
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
-        named = [{"speaker": "ELENA", "text": "Tell me now."}]
-        report = validate_attribution(frozen, named)
+        resp = [{"n": 0, "head": "Something else entirely", "speaker": "ELENA"}]
+        report = validate_attribution(frozen, resp)
         codes = {f["code"] for f in report["findings"]}
-        self.assertIn("text_freeze_violated", codes)
+        self.assertIn("alignment_violated", codes)
+
+    def test_attribution_fails_on_duplicate_or_missing_index(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me."},
+                  {"type": "SPOKEN", "text": "Now go."}]
+        resp = [{"n": 0, "head": "Tell me.", "speaker": "ELENA"},
+                {"n": 0, "head": "Tell me.", "speaker": "ELENA"}]  # dup 0, index 1 missing
+        report = validate_attribution(frozen, resp)
+        codes = {f["code"] for f in report["findings"]}
+        self.assertIn("alignment_violated", codes)
+
+
+class IndexHeadCheckTests(unittest.TestCase):
+    def test_reproduces_gemma_drift_survives(self):
+        # The exact class of failure that crashed the run: the model would drift
+        # on a long line's full text. Under the new contract it only echoes the
+        # head + speaker, so a correct head/speaker validates regardless of what
+        # it would have done to the body.
+        frozen = [{"type": "NARRATOR",
+                   "text": "The strength in those clinging fingers was weak, and not "
+                           "even Beatrice knew what she was trying to do with this touch."}]
+        resp = [{"n": 0, "head": "The strength in those", "speaker": "NARRATOR"}]
+        ok, reason, ordered = index_head_check(frozen, resp)
+        self.assertTrue(ok, reason)
+        self.assertEqual(0, ordered[0]["n"])
+
+    def test_punctuation_only_line_needs_no_head(self):
+        frozen = [{"type": "SPOKEN", "text": "――――."}]
+        ok, _, _ = index_head_check(frozen, [{"n": 0, "head": "", "speaker": "RYUZU"}])
+        self.assertTrue(ok)
 
 
 class InstructValidatorTests(unittest.TestCase):
     def test_passes_when_all_have_instruct(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        annotated = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "Firm, quiet."}]
-        report = validate_instruct(prior, annotated)
+        resp = [{"n": 0, "head": "Tell me.", "instruct": "Firm, quiet."}]
+        report = validate_instruct(prior, resp)
         self.assertTrue(report["passed"], report["findings"])
 
     def test_fails_when_instruct_missing_or_empty(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        annotated = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "  "}]
-        report = validate_instruct(prior, annotated)
+        resp = [{"n": 0, "head": "Tell me.", "instruct": "  "}]
+        report = validate_instruct(prior, resp)
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("missing_instruct", codes)
 
-    def test_fails_when_speaker_changed(self):
+    def test_fails_on_head_anchor_mismatch(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        annotated = [{"speaker": "MARCUS", "text": "Tell me.", "instruct": "Firm."}]
-        report = validate_instruct(prior, annotated)
+        resp = [{"n": 0, "head": "Completely different words", "instruct": "Firm."}]
+        report = validate_instruct(prior, resp)
         codes = {f["code"] for f in report["findings"]}
-        self.assertIn("speaker_changed", codes)
-
-    def test_fails_on_text_drift(self):
-        prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        annotated = [{"speaker": "ELENA", "text": "Tell me now.", "instruct": "Firm."}]
-        report = validate_instruct(prior, annotated)
-        codes = {f["code"] for f in report["findings"]}
-        self.assertIn("text_freeze_violated", codes)
+        self.assertIn("alignment_violated", codes)
 
 
 class PromptLoaderTests(unittest.TestCase):
@@ -139,9 +171,9 @@ class GateParityAndMessagesTests(unittest.TestCase):
 
     def test_attribution_and_instruct_findings_carry_message(self):
         att = validate_attribution([{"type": "SPOKEN", "text": "Hi."}],
-                                   [{"speaker": "NARRATOR", "text": "Hi."}])
+                                   [{"n": 0, "head": "Hi.", "speaker": "NARRATOR"}])
         ins = validate_instruct([{"speaker": "X", "text": "Hi."}],
-                                [{"speaker": "X", "text": "Hi.", "instruct": ""}])
+                                [{"n": 0, "head": "Hi.", "instruct": ""}])
         for f in att["findings"] + ins["findings"]:
             self.assertIn("message", f)
 

@@ -73,8 +73,8 @@ class Pass2Tests(unittest.TestCase):
     def test_attributes_a_batch_and_freezes_text(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold."},
                   {"type": "SPOKEN", "text": "Tell me."}]
-        good = [{"speaker": "NARRATOR", "text": "The room was cold."},
-                {"speaker": "ELENA", "text": "Tell me."}]
+        good = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                {"n": 1, "head": "Tell me.", "speaker": "ELENA"}]
         client = _client_returning([good])
         out = tp.attribute_batch(client, "m", frozen, self._params(), roster=[])
         self.assertEqual(["NARRATOR", "ELENA"], [e["speaker"] for e in out])
@@ -82,7 +82,7 @@ class Pass2Tests(unittest.TestCase):
 
     def test_pass2_fail_mode_raises_when_exhausted(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
-        bad = [{"speaker": "NARRATOR", "text": "Tell me."}]
+        bad = [{"n": 0, "head": "Tell me.", "speaker": "NARRATOR"}]
         client = _client_returning([bad, bad, bad, bad])
         with self.assertRaises(tp.PassExhausted):
             tp.attribute_batch(client, "m", frozen, self._params(), roster=[],
@@ -96,14 +96,14 @@ class Pass3Tests(unittest.TestCase):
 
     def test_adds_instruct_and_freezes(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        good = [{"speaker": "ELENA", "text": "Tell me.", "instruct": "Firm, quiet."}]
+        good = [{"n": 0, "head": "Tell me.", "instruct": "Firm, quiet."}]
         client = _client_returning([good])
         out = tp.instruct_batch(client, "m", prior, self._params())
         self.assertEqual("Firm, quiet.", out[0]["instruct"])
 
     def test_falls_back_to_default_instruct_on_exhaustion(self):
         prior = [{"speaker": "NARRATOR", "text": "The room was cold."}]
-        bad = [{"speaker": "NARRATOR", "text": "The room was cold.", "instruct": ""}]
+        bad = [{"n": 0, "head": "The room was", "instruct": ""}]
         client = _client_returning([bad, bad])
         out = tp.instruct_batch(client, "m", prior, self._params(), max_retries=1)
         self.assertEqual("Neutral, even narration.", out[0]["instruct"])
@@ -115,12 +115,10 @@ class EndToEndTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
-                 {"speaker": "ELENA", "text": "Tell me the truth."}]
-        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
-                       "instruct": "Cold, still narration."},
-                      {"speaker": "ELENA", "text": "Tell me the truth.",
-                       "instruct": "Firm, quiet demand."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
         client = _client_returning([seg, named, instructed])
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000)
@@ -135,8 +133,8 @@ class EndToEndTests(unittest.TestCase):
         # roster-rebuild branch (finding #15) without crashing.
         source = "Hi there friend."
         seg = [{"type": "SPOKEN", "text": "Hi there friend."}]
-        bad = [{"speaker": "NARRATOR", "text": "Hi there friend."}]  # never names it
-        instr = [{"speaker": "UNKNOWN", "text": "Hi there friend.", "instruct": "z"}]
+        bad = [{"n": 0, "head": "Hi there friend", "speaker": "NARRATOR"}]  # never names it
+        instr = [{"n": 0, "head": "Hi there friend", "instruct": "z"}]
         client = _client_returning([seg, bad, bad, bad, bad, instr])
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         entries = tp.run_three_pass(client, "m", source, params, chunk_size=6000,
@@ -165,12 +163,10 @@ class CheckpointTests(unittest.TestCase):
     def _payloads(self):
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
-                 {"speaker": "ELENA", "text": "Tell me the truth."}]
-        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
-                       "instruct": "Cold."},
-                      {"speaker": "ELENA", "text": "Tell me the truth.",
-                       "instruct": "Firm."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         return seg, named, instructed
 
     def test_completed_stage_is_not_recomputed_on_resume(self):
@@ -197,19 +193,38 @@ if __name__ == "__main__":
 
 
 class FreezeEnforcementTests(unittest.TestCase):
-    def test_attribute_reconstructs_text_byte_exact_from_frozen(self):
+    def test_attribute_text_comes_byte_exact_from_frozen(self):
+        # The model no longer returns text at all - only {n, head, speaker} - so
+        # the output text is always the frozen text verbatim, and nothing the
+        # model does to a body can corrupt it.
         frozen = [{"type": "SPOKEN", "text": "Tell me the truth."}]
-        # LLM echoes normalized-equal but corrupted text (zero-width + spaces)
-        evil = [{"speaker": "ELENA", "text": "Tell me the truth.​  "}]
+        resp = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
         p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
                          max_tokens=500, temperature=0.1)
-        out = tp.attribute_batch(_client_returning([evil]), "m", frozen, p, roster=[])
+        out = tp.attribute_batch(_client_returning([resp]), "m", frozen, p, roster=[])
         self.assertEqual("Tell me the truth.", out[0]["text"])
         self.assertEqual("ELENA", out[0]["speaker"])
 
+    def test_attribute_survives_gemma_style_body_drift(self):
+        # Reproduction of the failure that crashed the real run: a weak model that
+        # would have mangled a long line's body. Under the index+head contract it
+        # only echoes the head + speaker, so the batch validates and the frozen
+        # text is preserved byte-exact - no more "entry N text changed" abort.
+        frozen = [{"type": "NARRATOR",
+                   "text": "The strength in those clinging fingers was weak, and not "
+                           "even Beatrice knew what she was trying to do."},
+                  {"type": "SPOKEN", "text": "Thank you―― Goodbye, Betty."}]
+        resp = [{"n": 0, "head": "The strength in those", "speaker": "NARRATOR"},
+                {"n": 1, "head": "Thank you―― Goodbye,", "speaker": "RYUZU"}]
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
+                         max_tokens=800, temperature=0.1)
+        out = tp.attribute_batch(_client_returning([resp]), "m", frozen, p, roster=[])
+        self.assertEqual(frozen[0]["text"], out[0]["text"])
+        self.assertEqual("RYUZU", out[1]["speaker"])
+
     def test_attribute_preserves_pause_after_and_drops_type(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold.", "pause_after": 1000}]
-        named = [{"speaker": "NARRATOR", "text": "The room was cold."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"}]
         p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
                          max_tokens=500, temperature=0.1)
         out = tp.attribute_batch(_client_returning([named]), "m", frozen, p, roster=[])
@@ -219,7 +234,7 @@ class FreezeEnforcementTests(unittest.TestCase):
 
     def test_attribute_fallback_preserves_pause_after(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me.", "pause_after": 500}]
-        bad = [{"speaker": "NARRATOR", "text": "Tell me."}]  # never names the spoken line
+        bad = [{"n": 0, "head": "Tell me.", "speaker": "NARRATOR"}]  # never names the spoken line
         p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
                          max_tokens=500, temperature=0.1)
         out = tp.attribute_batch(_client_returning([bad]), "m", frozen, p, roster=[],
@@ -229,23 +244,24 @@ class FreezeEnforcementTests(unittest.TestCase):
 
     def test_instruct_preserves_pause_after(self):
         prior = [{"speaker": "NARRATOR", "text": "The room was cold.", "pause_after": 1000}]
-        good = [{"speaker": "NARRATOR", "text": "The room was cold.", "instruct": "Cold."}]
+        good = [{"n": 0, "head": "The room was", "instruct": "Cold."}]
         p = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
                          max_tokens=500, temperature=0.1)
         out = tp.instruct_batch(_client_returning([good]), "m", prior, p)
         self.assertEqual(1000, out[0]["pause_after"])
         self.assertEqual("Cold.", out[0]["instruct"])
 
-    def test_instruct_reconstructs_speaker_and_text_from_prior(self):
+    def test_instruct_keeps_speaker_and_text_from_prior(self):
+        # Pass 3 returns only {n, head, instruct}; speaker and text come byte-exact
+        # from the prior entry, so neither can change.
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
-        # Passes validation (same speaker, normalize-equal text) but text carries
-        # an injected zero-width space; reconstruction must restore prior's text.
-        echoed = [{"speaker": "ELENA", "text": "Tell me.​", "instruct": "Firm."}]
+        resp = [{"n": 0, "head": "Tell me.", "instruct": "Firm."}]
         p = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
                          max_tokens=500, temperature=0.1)
-        out = tp.instruct_batch(_client_returning([echoed]), "m", prior, p)
+        out = tp.instruct_batch(_client_returning([resp]), "m", prior, p)
         self.assertEqual("ELENA", out[0]["speaker"])
-        self.assertEqual("Tell me.", out[0]["text"])  # byte-exact, no zero-width
+        self.assertEqual("Tell me.", out[0]["text"])
+        self.assertEqual("Firm.", out[0]["instruct"])
         self.assertEqual("Firm.", out[0]["instruct"])
 
 
@@ -362,12 +378,10 @@ class ManifestTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
-                 {"speaker": "ELENA", "text": "Tell me the truth."}]
-        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
-                       "instruct": "Cold."},
-                      {"speaker": "ELENA", "text": "Tell me the truth.",
-                       "instruct": "Firm."}]
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
+                      {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         client = _client_returning([seg, named, instructed])
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         with tempfile.TemporaryDirectory() as d:

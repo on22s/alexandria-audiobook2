@@ -22,7 +22,7 @@ from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (validate_segment_quality, validate_attribution,
-                          validate_instruct)
+                          validate_instruct, index_head_check)
 from review_script import normalize_text
 from config_settings import load_app_config
 from lmstudio_settings import ensure_ideal_settings
@@ -108,8 +108,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
-    batch_json = json.dumps([{"type": e["type"], "text": e["text"]}
-                             for e in frozen_batch], ensure_ascii=False)
+    batch_json = json.dumps([{"n": i, "type": e["type"], "text": e["text"]}
+                             for i, e in enumerate(frozen_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(roster=", ".join(roster) or "(none yet)",
                                       batch=batch_json)
     named = call_llm_for_entries(
@@ -117,14 +117,13 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
         validate_entries=lambda entries: validate_attribution(frozen_batch, entries))
     if named:
-        # Enforce the freeze, don't just validate it: rebuild each entry from the
-        # trusted frozen text (byte-exact) + the LLM's assigned speaker, so text
-        # that only normalized-equal (dropped punctuation, injected zero-width
-        # chars) can never reach the output. Count/order already checked by
-        # validate_attribution's freeze_check.
+        # The model returned only {n, head, speaker} (never full text, so it can't
+        # corrupt it). Bind by the validated index order and keep the frozen text
+        # byte-exact; take only the assigned speaker.
+        _, _, ordered = index_head_check(frozen_batch, named)
         return [{**{k: v for k, v in f.items() if k != "type"},
-                 "speaker": n.get("speaker")}
-                for f, n in zip(frozen_batch, named)]
+                 "speaker": item.get("speaker")}
+                for f, item in zip(frozen_batch, ordered)]
     if on_exhaustion == "fail":
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
     seeded = [{**{k: v for k, v in e.items() if k != "type"},
@@ -142,18 +141,19 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
-    batch_json = json.dumps([{"speaker": e["speaker"], "text": e["text"]}
-                             for e in prior_batch], ensure_ascii=False)
+    batch_json = json.dumps([{"n": i, "speaker": e["speaker"], "text": e["text"]}
+                             for i, e in enumerate(prior_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(batch=batch_json)
     annotated = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
         validate_entries=lambda entries: validate_instruct(prior_batch, entries))
     if annotated:
-        # Enforce the freeze: keep speaker+text byte-exact from prior, take only
-        # the LLM's instruct. Guarantees pass 3 can never alter text or speaker.
-        return [{**p, "instruct": a.get("instruct")}
-                for p, a in zip(prior_batch, annotated)]
+        # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
+        # from prior (bound by validated index order); take only the instruct.
+        _, _, ordered = index_head_check(prior_batch, annotated)
+        return [{**p, "instruct": item.get("instruct")}
+                for p, item in zip(prior_batch, ordered)]
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
 
 
