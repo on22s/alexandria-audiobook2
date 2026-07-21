@@ -1,4 +1,6 @@
 import unittest
+import os
+import tempfile
 import three_pass_generate as tp
 import json
 from types import SimpleNamespace
@@ -115,6 +117,37 @@ class EndToEndTests(unittest.TestCase):
         out = tp.segment_chunk_adaptively(client, "m", source, params)
         self.assertTrue(out)
         self.assertFalse(tp.validate_segment_quality(source, out)["passed"])
+
+
+class CheckpointTests(unittest.TestCase):
+    def _payloads(self):
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
+                 {"speaker": "ELENA", "text": "Tell me the truth."}]
+        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
+                       "instruct": "Cold."},
+                      {"speaker": "ELENA", "text": "Tell me the truth.",
+                       "instruct": "Firm."}]
+        return seg, named, instructed
+
+    def test_completed_stage_is_not_recomputed_on_resume(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg, named, instructed = self._payloads()
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            crashing = _client_returning([seg])  # only pass-1 payload; pass 2 exhausts retries
+            with self.assertRaises(tp.PassExhausted):
+                tp.run_three_pass(crashing, "m", source, params, chunk_size=6000,
+                                  output_path=out)
+            cp = tp.three_pass_checkpoint_path(out)
+            self.assertTrue(os.path.exists(cp))
+            resume_client = _client_returning([named, instructed])
+            entries = tp.run_three_pass(resume_client, "m", source, params,
+                                        chunk_size=6000, output_path=out)
+            self.assertEqual(2, len(entries))
+            self.assertEqual("ELENA", entries[1]["speaker"])
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ A side-by-side alternative to generate_script.py's single pass; the single-pass
 path is untouched. See docs/superpowers/specs/2026-07-21-three-pass-script-generation-design.md."""
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -20,7 +21,8 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
 from pass_quality import (validate_segment_quality, validate_attribution,
                           validate_instruct)
 from config_settings import load_app_config
-from utils import get_runtime_data_dir, get_app_config_path
+from utils import (get_runtime_data_dir, get_app_config_path,
+                   atomic_json_write, safe_load_json)
 
 BATCH_SIZE = 25
 NARRATOR_DEFAULT_INSTRUCT = "Neutral, even narration."
@@ -161,26 +163,69 @@ def segment_chunk_adaptively(client, model_name, chunk, params):
     return combined
 
 
+def three_pass_checkpoint_path(output_path):
+    return output_path + ".threepass_checkpoint.json"
+
+
+def three_pass_fingerprint(source_text, model_name, chunk_size):
+    digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    return {"source_sha256": digest, "model_name": model_name,
+            "chunk_size": chunk_size, "pipeline": "three_pass"}
+
+
+def _load_three_pass_checkpoint(output_path, fingerprint):
+    data = safe_load_json(three_pass_checkpoint_path(output_path), None)
+    if not isinstance(data, dict) or data.get("fingerprint") != fingerprint:
+        return None
+    return data
+
+
+def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
+                                chunks_done, named, annotated):
+    atomic_json_write({"fingerprint": fingerprint, "stage": stage,
+                       "chunks_done": chunks_done, "segmented": segmented,
+                       "named": named, "annotated": annotated},
+                      three_pass_checkpoint_path(output_path))
+
+
 def run_three_pass(client, model_name, source_text, params, chunk_size,
-                   on_exhaustion="fail"):
+                   on_exhaustion="fail", output_path=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
-    RuntimeError if pass 1 exhausts a chunk (book failure)."""
-    # Pass 1: segment every chunk (with near-miss + adaptive split).
+    RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
+    checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
+    it; when None, runs purely in memory."""
     chunks = split_into_chunks(source_text, max_size=chunk_size)
-    segmented = []
-    for i, chunk in enumerate(chunks, 1):
-        seg = segment_chunk_adaptively(client, model_name, chunk, params)
+    fingerprint = three_pass_fingerprint(source_text, model_name, chunk_size)
+    state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
+    segmented = state["segmented"] if state else []
+    chunks_done = state["chunks_done"] if state else 0
+    named = state["named"] if state else []
+    annotated = state["annotated"] if state else []
+
+    def save(stage):
+        if output_path:
+            _save_three_pass_checkpoint(output_path, fingerprint, stage,
+                                        segmented, chunks_done, named, annotated)
+
+    # Pass 1 — resume from chunks_done.
+    for i in range(chunks_done, len(chunks)):
+        seg = segment_chunk_adaptively(client, model_name, chunks[i], params)
         if not seg:
-            raise RuntimeError(f"pass 1 (segment) failed on chunk {i}/{len(chunks)}")
+            raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)
-    # Pass 2: name in wide entry-batches, carrying the growing roster.
-    named = []
-    for batch in iter_entry_batches(segmented):
+        chunks_done = i + 1
+        save("segment")
+    # Pass 2 — resume from len(named) entries (batch-aligned slices of segmented).
+    while len(named) < len(segmented):
+        batch = segmented[len(named):len(named) + BATCH_SIZE]
         named.extend(attribute_batch(client, model_name, batch, params,
                                      roster=build_roster(named),
                                      on_exhaustion=on_exhaustion))
-    # Pass 3: instruct in wide entry-batches.
-    annotated = []
-    for batch in iter_entry_batches(named):
+        save("attribute")
+    # Pass 3 — resume from len(annotated).
+    while len(annotated) < len(named):
+        batch = named[len(annotated):len(annotated) + BATCH_SIZE]
         annotated.extend(instruct_batch(client, model_name, batch, params))
+        save("instruct")
+    save("done")
     return annotated
