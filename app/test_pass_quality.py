@@ -148,3 +148,15 @@ class GateParityAndMessagesTests(unittest.TestCase):
     def test_segment_thresholds_are_shared_with_chunk_quality(self):
         import chunk_quality
         self.assertIs(MIN_ORDERED_TRIGRAM_RECALL, chunk_quality.MIN_ORDERED_TRIGRAM_RECALL)
+
+    def test_introduced_unicode_finding_uses_dict_shape(self):
+        # Must match chunk_quality's shape: characters are dicts with
+        # character/codepoint/name, not bare "U+XXXX" strings, so consumers
+        # that read finding["characters"][0]["character"] don't KeyError.
+        src = "the quick brown fox jumps over the lazy dog today"
+        rep = validate_segment_quality(src, [{"type": "NARRATOR", "text": src + " café"}])
+        uni = [f for f in rep["findings"] if f["code"] == "unsupported_unicode_character"]
+        self.assertTrue(uni, "expected an unsupported_unicode_character finding")
+        char = uni[0]["characters"][0]
+        self.assertEqual({"character", "codepoint", "name"}, set(char.keys()))
+        self.assertEqual("é", char["character"])

@@ -36,7 +36,9 @@ def _introduced_character_findings(source_text, output_text, entries):
                          and not ("Ѐ" <= char <= "ӿ")})
     if introduced:
         findings.append({"code": "unsupported_unicode_character",
-                         "characters": [f"U+{ord(char):04X}" for char in introduced],
+                         "characters": [{"character": char, "codepoint": f"U+{ord(char):04X}",
+                                         "name": unicodedata.name(char, "UNKNOWN")}
+                                        for char in introduced],
                          "message": "Response introduced non-ASCII letters absent from the source."})
     entry_texts = [" ".join(str(e.get("text") or "").split()).casefold()
                    if isinstance(e, dict) else "" for e in entries]
