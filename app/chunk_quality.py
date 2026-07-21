@@ -2,9 +2,9 @@
 
 import re
 import unicodedata
-from collections import Counter
 from difflib import SequenceMatcher
 
+from recall_core import tokens as _tokens, ngrams as _ngrams, counter_recall as _counter_recall
 from script_preflight import find_adjacent_duplicate_blocks
 
 
@@ -24,9 +24,7 @@ ACCEPT_TRIGRAM_NEAR_MISS_FLOOR = 0.82
 MAX_MISSING_SPANS = 3
 MIN_MISSING_SPAN_TOKENS = 5
 MISSING_SPAN_PREVIEW_TOKENS = 12
-_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
-_CHARACTER_TOKEN_SCRIPTS = ("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI")
 
 
 def validate_chunk_quality(source_text, entries):
@@ -141,22 +139,6 @@ def is_trigram_only_near_miss(quality):
     return trigram is not None and trigram >= ACCEPT_TRIGRAM_NEAR_MISS_FLOOR
 
 
-def _tokens(text):
-    normalized = unicodedata.normalize("NFC", str(text or "")).casefold()
-    tokens = []
-    for word in _TOKEN_RE.findall(normalized):
-        if any(unicodedata.name(char, "").startswith(_CHARACTER_TOKEN_SCRIPTS)
-               for char in word):
-            tokens.extend(char for char in word if char.isalnum())
-        else:
-            tokens.append(word)
-    return tokens
-
-
-def _ngrams(tokens, size):
-    return list(zip(*(tokens[offset:] for offset in range(size))))
-
-
 def _missing_source_spans(source_tokens, output_tokens):
     """Largest source token runs absent from the output, as retry evidence.
 
@@ -179,14 +161,6 @@ def _missing_source_spans(source_tokens, output_tokens):
             })
     spans.sort(key=lambda span: (-span["token_count"], span["start_token"]))
     return spans[:MAX_MISSING_SPANS]
-
-
-def _counter_recall(source_items, output_items):
-    if not source_items:
-        return 1.0
-    source = Counter(source_items)
-    output = Counter(output_items)
-    return sum(min(count, output.get(item, 0)) for item, count in source.items()) / sum(source.values())
 
 
 def _report(source_count, output_count, recall, trigram_recall, ratio, findings,
