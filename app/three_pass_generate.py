@@ -22,6 +22,7 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
 from pass_quality import (validate_segment_quality, validate_attribution,
                           validate_instruct)
 from config_settings import load_app_config
+from lmstudio_settings import ensure_ideal_settings
 from utils import (get_runtime_data_dir, get_app_config_path,
                    atomic_json_write, safe_load_json)
 
@@ -285,15 +286,22 @@ def main():
         print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
         sys.exit(1)
     chunk_size = args.chunk_size if args.chunk_size is not None else gen.get("chunk_size", 6000)
+    base_url = llm.get("base_url", "http://localhost:1234/v1")
+    model_name = llm.get("model_name")
+    llm_mode = config.get("llm_mode", "local")
+    # Self-heal LM Studio: load model_name at its verified context if nothing is
+    # loaded / settings are stale, mirroring generate_script.py. Without this a
+    # fresh `lms unload` leaves no model loaded and every call 400s.
+    _, lm_status, heal_msg = ensure_ideal_settings(
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
+    print(heal_msg)
     params = LLMGenParams(
         max_tokens=gen.get("max_tokens", 10000),
         temperature=gen.get("temperature", 0.6),
         top_p=gen.get("top_p", 0.8),
         top_k=gen.get("top_k"), min_p=gen.get("min_p"),
-        context_length=None)
-    client = OpenAI(base_url=llm.get("base_url", "http://localhost:1234/v1"),
-                    api_key=llm.get("api_key", "local"))
-    model_name = llm.get("model_name")
+        context_length=lm_status.get("context_length"))
+    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
     output_path = args.output or os.path.join(root, "annotated_script.json")
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
