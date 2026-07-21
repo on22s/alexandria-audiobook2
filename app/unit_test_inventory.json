@@ -425,6 +425,24 @@
     "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],
+  "test_pass_quality": [
+    "test_pass_quality.FreezeAndAttributionTests.test_attribution_fails_on_text_drift",
+    "test_pass_quality.FreezeAndAttributionTests.test_attribution_fails_when_spoken_left_as_narrator",
+    "test_pass_quality.FreezeAndAttributionTests.test_attribution_passes_when_all_spoken_named",
+    "test_pass_quality.FreezeAndAttributionTests.test_freeze_fails_on_count_mismatch",
+    "test_pass_quality.FreezeAndAttributionTests.test_freeze_fails_when_text_altered",
+    "test_pass_quality.FreezeAndAttributionTests.test_freeze_ignores_punctuation_and_case",
+    "test_pass_quality.FreezeAndAttributionTests.test_freeze_passes_when_text_identical",
+    "test_pass_quality.InstructValidatorTests.test_fails_on_text_drift",
+    "test_pass_quality.InstructValidatorTests.test_fails_when_instruct_missing_or_empty",
+    "test_pass_quality.InstructValidatorTests.test_fails_when_speaker_changed",
+    "test_pass_quality.InstructValidatorTests.test_passes_when_all_have_instruct",
+    "test_pass_quality.PromptLoaderTests.test_three_pass_prompts_load_and_have_placeholders",
+    "test_pass_quality.SegmentQualityTests.test_complete_segment_passes",
+    "test_pass_quality.SegmentQualityTests.test_invalid_type_value_fails",
+    "test_pass_quality.SegmentQualityTests.test_missing_type_field_fails",
+    "test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
+  ],
   "test_preparer_benchmark": [
     "test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
     "test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
@@ -575,6 +593,18 @@
   "test_support": [],
   "test_system_version": [
     "test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
+  ],
+  "test_three_pass_generate": [
+    "test_three_pass_generate.CheckpointTests.test_completed_stage_is_not_recomputed_on_resume",
+    "test_three_pass_generate.EndToEndTests.test_segment_accepts_trigram_only_near_miss_on_exhaustion",
+    "test_three_pass_generate.EndToEndTests.test_three_passes_assemble_final_entries",
+    "test_three_pass_generate.Pass2Tests.test_attributes_a_batch_and_freezes_text",
+    "test_three_pass_generate.Pass2Tests.test_pass2_fail_mode_raises_when_exhausted",
+    "test_three_pass_generate.Pass3Tests.test_adds_instruct_and_freezes",
+    "test_three_pass_generate.Pass3Tests.test_falls_back_to_default_instruct_on_exhaustion",
+    "test_three_pass_generate.PassHelperTests.test_batches_split_entries_by_size",
+    "test_three_pass_generate.PassHelperTests.test_default_instruct_by_type",
+    "test_three_pass_generate.PassHelperTests.test_roster_collects_uppercase_non_narrator_speakers"
   ],
   "test_thunder_benchmark_documentation": [
     "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
