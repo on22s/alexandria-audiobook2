@@ -16,6 +16,7 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
 from source_normalization import (normalize_known_source_corruptions,
                                   strip_known_front_matter)
 from speaker_identity import stabilize_speaker_identities
+from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (validate_segment_quality, validate_attribution,
@@ -76,7 +77,13 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
         validate_entries=lambda entries: validate_attribution(frozen_batch, entries))
     if named:
-        return named
+        # Enforce the freeze, don't just validate it: rebuild each entry from the
+        # trusted frozen text (byte-exact) + the LLM's assigned speaker, so text
+        # that only normalized-equal (dropped punctuation, injected zero-width
+        # chars) can never reach the output. Count/order already checked by
+        # validate_attribution's freeze_check.
+        return [{"speaker": n.get("speaker"), "text": f["text"]}
+                for f, n in zip(frozen_batch, named)]
     if on_exhaustion == "fail":
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
     seeded = [{"speaker": "NARRATOR" if e["type"] == "NARRATOR" else "UNKNOWN",
@@ -101,7 +108,10 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
         validate_entries=lambda entries: validate_instruct(prior_batch, entries))
     if annotated:
-        return annotated
+        # Enforce the freeze: keep speaker+text byte-exact from prior, take only
+        # the LLM's instruct. Guarantees pass 3 can never alter text or speaker.
+        return [{"speaker": p["speaker"], "text": p["text"],
+                 "instruct": a.get("instruct")} for p, a in zip(prior_batch, annotated)]
     return [{"speaker": e["speaker"], "text": e["text"],
              "instruct": default_instruct(e)} for e in prior_batch]
 
@@ -120,6 +130,11 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_si
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="SEGMENT", max_retries=max_retries,
+        # Same deterministic structural repair (unicode-homoglyph fixups) the
+        # single-pass path runs before its gate, so pass 1 doesn't waste a retry
+        # on issues single-pass silently repairs. build_deterministic_repair is
+        # text-only, so it applies unchanged to the {type,text} segment shape.
+        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
         validate_entries=lambda entries: validate_segment_quality(chunk, entries),
         near_miss_sink=near_miss_sink)
 
@@ -216,11 +231,20 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         chunks_done = i + 1
         save("segment")
     # Pass 2 — resume from len(named) entries (batch-aligned slices of segmented).
+    # Maintain a running roster (set for O(1) membership + list for order) updated
+    # per batch, instead of rescanning the whole `named` prefix every batch.
+    roster = build_roster(named)
+    roster_seen = set(roster)
     while len(named) < len(segmented):
         batch = segmented[len(named):len(named) + BATCH_SIZE]
-        named.extend(attribute_batch(client, model_name, batch, params,
-                                     roster=build_roster(named),
-                                     on_exhaustion=on_exhaustion))
+        new_named = attribute_batch(client, model_name, batch, params,
+                                    roster=roster, on_exhaustion=on_exhaustion)
+        named.extend(new_named)
+        for entry in new_named:
+            speaker = (entry.get("speaker") or "").strip().upper()
+            if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
+                roster_seen.add(speaker)
+                roster.append(speaker)
         save("attribute")
     # Pass 3 — resume from len(annotated).
     while len(annotated) < len(named):
@@ -257,7 +281,10 @@ def main():
     config = load_app_config(get_app_config_path(data_dir, root, app_dir))
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
-    chunk_size = args.chunk_size or gen.get("chunk_size", 6000)
+    if args.chunk_size is not None and args.chunk_size < 1:
+        print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
+        sys.exit(1)
+    chunk_size = args.chunk_size if args.chunk_size is not None else gen.get("chunk_size", 6000)
     params = LLMGenParams(
         max_tokens=gen.get("max_tokens", 10000),
         temperature=gen.get("temperature", 0.6),

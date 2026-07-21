@@ -1,3 +1,4 @@
+from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
 from pass_quality import validate_segment_quality
 from pass_quality import freeze_check, validate_attribution
@@ -123,3 +124,27 @@ class PromptLoaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GateParityAndMessagesTests(unittest.TestCase):
+    def test_segment_gate_rejects_introduced_cyrillic(self):
+        src = "the quick brown fox jumps over the lazy dog today"
+        rep = validate_segment_quality(src, [{"type": "NARRATOR", "text": src.replace("fox", "fох")}])
+        self.assertIn("unsupported_cyrillic", {f["code"] for f in rep["findings"]})
+
+    def test_segment_findings_carry_message(self):
+        rep = validate_segment_quality("a b c", [{"type": "MARCUS", "text": "a b c"}])
+        for f in rep["findings"]:
+            self.assertIn("message", f, f"finding {f['code']} lacks a message")
+
+    def test_attribution_and_instruct_findings_carry_message(self):
+        att = validate_attribution([{"type": "SPOKEN", "text": "Hi."}],
+                                   [{"speaker": "NARRATOR", "text": "Hi."}])
+        ins = validate_instruct([{"speaker": "X", "text": "Hi."}],
+                                [{"speaker": "X", "text": "Hi.", "instruct": ""}])
+        for f in att["findings"] + ins["findings"]:
+            self.assertIn("message", f)
+
+    def test_segment_thresholds_are_shared_with_chunk_quality(self):
+        import chunk_quality
+        self.assertIs(MIN_ORDERED_TRIGRAM_RECALL, chunk_quality.MIN_ORDERED_TRIGRAM_RECALL)

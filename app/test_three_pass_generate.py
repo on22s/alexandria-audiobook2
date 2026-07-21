@@ -152,3 +152,27 @@ class CheckpointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FreezeEnforcementTests(unittest.TestCase):
+    def test_attribute_reconstructs_text_byte_exact_from_frozen(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me the truth."}]
+        # LLM echoes normalized-equal but corrupted text (zero-width + spaces)
+        evil = [{"speaker": "ELENA", "text": "Tell me the truth.​  "}]
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{roster}{batch}",
+                         max_tokens=500, temperature=0.1)
+        out = tp.attribute_batch(_client_returning([evil]), "m", frozen, p, roster=[])
+        self.assertEqual("Tell me the truth.", out[0]["text"])
+        self.assertEqual("ELENA", out[0]["speaker"])
+
+    def test_instruct_reconstructs_speaker_and_text_from_prior(self):
+        prior = [{"speaker": "ELENA", "text": "Tell me."}]
+        # Passes validation (same speaker, normalize-equal text) but text carries
+        # an injected zero-width space; reconstruction must restore prior's text.
+        echoed = [{"speaker": "ELENA", "text": "Tell me.​", "instruct": "Firm."}]
+        p = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
+                         max_tokens=500, temperature=0.1)
+        out = tp.instruct_batch(_client_returning([echoed]), "m", prior, p)
+        self.assertEqual("ELENA", out[0]["speaker"])
+        self.assertEqual("Tell me.", out[0]["text"])  # byte-exact, no zero-width
+        self.assertEqual("Firm.", out[0]["instruct"])
