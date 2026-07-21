@@ -173,8 +173,23 @@ def segment_chunk_adaptively(client, model_name, chunk, params):
         return _accept_segment_near_miss(near_miss)
     combined_quality = validate_segment_quality(chunk, combined)
     if not combined_quality["passed"]:
-        if is_trigram_only_near_miss(combined_quality):
+        codes = {f.get("code") for f in combined_quality["findings"]}
+        m = combined_quality["metrics"]
+        # Both halves already passed their own segment gate (we only reach here
+        # when any_failed is False), so the recombined whole has adequate content
+        # coverage. A whole-chunk trigram dip - even below the near-miss floor -
+        # when trigram is the ONLY defect is a split-seam artifact, not lost
+        # content, so accept it rather than discarding two good halves. Recall /
+        # ratio / cyrillic / duplicate defects are NOT waived (those are real).
+        if codes == {"low_ordered_trigram_recall"}:
+            print(f"  Adaptive split (segment) recombination accepted: both halves "
+                  f"passed, trigram-only defect at seam "
+                  f"(trigram={m['ordered_trigram_recall']} recall={m['source_token_recall']})")
             return combined
+        # Diagnostic: log exactly why a recombination was rejected so we can tell
+        # trigram-seam brittleness from real content loss / duplication.
+        print(f"  Adaptive split (segment) recombination REJECTED: codes={sorted(codes)} "
+              f"metrics={m}")
         return _accept_segment_near_miss(near_miss)
     return combined
 

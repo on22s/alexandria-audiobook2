@@ -1,3 +1,4 @@
+import re
 import unittest
 import os
 import tempfile
@@ -176,3 +177,60 @@ class FreezeEnforcementTests(unittest.TestCase):
         self.assertEqual("ELENA", out[0]["speaker"])
         self.assertEqual("Tell me.", out[0]["text"])  # byte-exact, no zero-width
         self.assertEqual("Firm.", out[0]["instruct"])
+
+
+class RecombinationAcceptanceTests(unittest.TestCase):
+    def _splittable_source(self, n=400):
+        words = [f"w{i}" for i in range(n)]
+        return words, ". ".join(" ".join(words[i:i+8]) for i in range(0, n, 8)) + "."
+
+    def test_accepts_recombination_when_trigram_only_defect_at_seam(self):
+        # Full chunk fails hard (no near-miss) -> splits. Each half echoes all its
+        # words but lightly reordered -> each half is recall-1.0/trigram-reduced
+        # (passes its own near-miss gate), and the recombined whole is
+        # recall-1.0 with trigram below the gate: a trigram-only seam defect the
+        # fix must accept instead of discarding both good halves.
+        words, source = self._splittable_source(400)
+        self.assertTrue(tp.split_failed_chunk(source))  # confirm it splits
+
+        def create(**kwargs):
+            cw = re.findall(r"w\d+", kwargs["messages"][-1]["content"])
+            if len(cw) > 300:                      # full chunk -> truncate hard
+                payload = [{"type": "NARRATOR", "text": " ".join(cw[:5])}]
+            else:                                   # split half -> all words, reordered
+                sw = list(cw); i = 0
+                while i + 1 < len(sw):
+                    sw[i], sw[i+1] = sw[i+1], sw[i]; i += 25
+                payload = [{"type": "NARRATOR", "text": " ".join(sw)}]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(payload)),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = LLMGenParams(max_tokens=800, temperature=0.1)
+        out = tp.segment_chunk_adaptively(client, "m", source, params)
+        self.assertTrue(out, "recombination with trigram-only seam defect must be accepted")
+        q = tp.validate_segment_quality(source, out)
+        self.assertGreaterEqual(q["metrics"]["source_token_recall"], 0.9)  # content all there
+
+    def test_rejects_recombination_on_real_recall_loss(self):
+        # Each half drops ~60% of its words -> combined recall low = real content
+        # loss (not a seam artifact) -> must NOT be accepted.
+        words, source = self._splittable_source(400)
+
+        def create(**kwargs):
+            cw = re.findall(r"w\d+", kwargs["messages"][-1]["content"])
+            if len(cw) > 300:
+                payload = [{"type": "NARRATOR", "text": " ".join(cw[:5])}]
+            else:
+                payload = [{"type": "NARRATOR", "text": " ".join(cw[:max(3, len(cw)*4//10)])}]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(payload)),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = LLMGenParams(max_tokens=800, temperature=0.1)
+        out = tp.segment_chunk_adaptively(client, "m", source, params)
+        self.assertEqual([], out)  # real recall loss is not waived by the fix

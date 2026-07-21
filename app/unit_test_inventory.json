@@ -610,7 +610,9 @@
     "test_three_pass_generate.Pass3Tests.test_falls_back_to_default_instruct_on_exhaustion",
     "test_three_pass_generate.PassHelperTests.test_batches_split_entries_by_size",
     "test_three_pass_generate.PassHelperTests.test_default_instruct_by_type",
-    "test_three_pass_generate.PassHelperTests.test_roster_collects_uppercase_non_narrator_speakers"
+    "test_three_pass_generate.PassHelperTests.test_roster_collects_uppercase_non_narrator_speakers",
+    "test_three_pass_generate.RecombinationAcceptanceTests.test_accepts_recombination_when_trigram_only_defect_at_seam",
+    "test_three_pass_generate.RecombinationAcceptanceTests.test_rejects_recombination_on_real_recall_loss"
   ],
   "test_thunder_benchmark_documentation": [
     "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
