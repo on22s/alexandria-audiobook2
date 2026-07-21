@@ -479,13 +479,17 @@ RULES:
 1. Do NOT change, add, remove, reorder, or rephrase any "text". Copy each "text" exactly. Only set "speaker".
 2. Prefer names already in the roster over inventing new spellings of the same character.
 3. If a SPOKEN line's speaker is genuinely unknowable from context, use "UNKNOWN".
-
-ESTABLISHED ROSTER: {roster}
 ---SEPARATOR---
+ESTABLISHED ROSTER: {roster}
+
 Assign speakers to these entries, copying every "text" exactly:
 
 {batch}
 ```
+
+(Note: `{roster}` and `{batch}` both live in the USER half — pass 2's runtime
+formats only the user template via `.format(roster=..., batch=...)`, matching how
+segment/instruct format only their user templates.)
 
 - [ ] **Step 3: Create `app/default_prompts_instruct.txt`**
 
