@@ -6,6 +6,7 @@ import three_pass_generate as tp
 import json
 from types import SimpleNamespace
 from generate_script import LLMGenParams
+from script_repair import build_deterministic_repair
 
 
 class PassHelperTests(unittest.TestCase):
@@ -219,6 +220,27 @@ class FreezeEnforcementTests(unittest.TestCase):
         self.assertEqual("ELENA", out[0]["speaker"])
         self.assertEqual("Tell me.", out[0]["text"])  # byte-exact, no zero-width
         self.assertEqual("Firm.", out[0]["instruct"])
+
+
+class SegmentRepairTypeSafetyTests(unittest.TestCase):
+    def test_segment_repair_does_not_merge_empty_across_type(self):
+        # An empty SPOKEN unit between a NARRATOR and a SPOKEN entry must NOT be
+        # converted into a pause on the NARRATOR + dropped before the gate; it
+        # should stay so validate_segment_quality's empty_text finding sees it.
+        entries = [{"type": "NARRATOR", "text": "He spoke softly."},
+                   {"type": "SPOKEN", "text": ""},
+                   {"type": "SPOKEN", "text": "Hello."}]
+        res = build_deterministic_repair(entries, "He spoke softly. Hello.",
+                                         merge_empty_into_pause=False)
+        self.assertEqual(3, len(res["entries"]))
+        self.assertNotIn("pause_after", res["entries"][0])
+
+    def test_single_pass_default_still_merges_empty_into_pause(self):
+        entries = [{"speaker": "NARRATOR", "text": "He spoke softly."},
+                   {"speaker": "ELENA", "text": ""}]
+        res = build_deterministic_repair(entries, "He spoke softly.")
+        self.assertEqual(1, len(res["entries"]))  # empty dropped
+        self.assertEqual(1000, res["entries"][0]["pause_after"])
 
 
 class ContextBleedTests(unittest.TestCase):

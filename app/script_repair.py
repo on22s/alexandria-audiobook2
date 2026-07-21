@@ -17,8 +17,14 @@ _CYRILLIC_HOMOGLYPHS = str.maketrans({
 EXPLICIT_SILENCE_MS = 1000
 
 
-def build_deterministic_repair(entries, source_text):
-    """Return repaired copies and evidence; never mutate the supplied entries."""
+def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True):
+    """Return repaired copies and evidence; never mutate the supplied entries.
+
+    merge_empty_into_pause (default True, single-pass behavior): convert an empty
+    entry into a pause_after on its previous entry and drop it. The three-pass
+    segment stage passes False: an empty {type,text} unit there should be surfaced
+    by the segment gate's empty_text finding, not silently merged into a
+    possibly different-typed neighbor before the gate ever sees it (finding #7)."""
     repaired = copy.deepcopy(entries)
     changes = []
     unresolved = []
@@ -74,8 +80,9 @@ def build_deterministic_repair(entries, source_text):
             "removed_entry_numbers": list(range(second_start, second_start + block_size)),
             "source_occurrences": 1,
         })
-    empty_indexes = [index for index, entry in enumerate(repaired)
-                     if isinstance(entry, dict) and not str(entry.get("text") or "").strip()]
+    empty_indexes = ([index for index, entry in enumerate(repaired)
+                      if isinstance(entry, dict) and not str(entry.get("text") or "").strip()]
+                     if merge_empty_into_pause else [])
     for index in empty_indexes:
         if index == 0:
             unresolved.append({"entry_number": 1, "reason": "empty_first_entry"})

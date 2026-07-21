@@ -165,7 +165,8 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_si
         # single-pass path runs before its gate, so pass 1 doesn't waste a retry
         # on issues single-pass silently repairs. build_deterministic_repair is
         # text-only, so it applies unchanged to the {type,text} segment shape.
-        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
+        transform_entries=lambda entries: build_deterministic_repair(
+            entries, chunk, merge_empty_into_pause=False),
         validate_entries=lambda entries: validate_segment_quality(chunk, entries),
         near_miss_sink=near_miss_sink)
 
@@ -306,7 +307,8 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="SEGMENT+CTX", max_retries=max_retries,
-        transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
+        transform_entries=lambda entries: build_deterministic_repair(
+            entries, chunk, merge_empty_into_pause=False),
         validate_entries=validate,
         near_miss_sink=near_miss_sink)
 
