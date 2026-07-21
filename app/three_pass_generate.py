@@ -41,11 +41,6 @@ def _record_resolution(sink, value):
         sink.append(value)
 
 
-def iter_entry_batches(entries, batch_size=BATCH_SIZE):
-    for start in range(0, len(entries), batch_size):
-        yield entries[start:start + batch_size]
-
-
 def resolve_chunk_size(cli_value, config_value):
     """Resolve the effective chunk size (CLI overrides config) and validate it.
     Guards BOTH sources (finding #14): a bad config chunk_size previously slipped
@@ -102,7 +97,7 @@ class PassExhausted(Exception):
 
 
 def attribute_batch(client, model_name, frozen_batch, params, roster,
-                    max_retries=3, on_exhaustion="fail"):
+                    max_retries=3, on_exhaustion="fail", neighbor_contexts=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -112,8 +107,10 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
-    batch_json = json.dumps([{"n": i, "type": e["type"], "text": e["text"]}
-                             for i, e in enumerate(frozen_batch)], ensure_ascii=False)
+    neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
+    batch_json = json.dumps([
+        {"n": i, "type": e["type"], "text": e["text"], **neighbor_contexts[i]}
+        for i, e in enumerate(frozen_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(roster=", ".join(roster) or "(none yet)",
                                       batch=batch_json)
     validated = {}
@@ -146,7 +143,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
 
 
-def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
+def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
+                   neighbor_contexts=None):
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
@@ -155,8 +153,10 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
-    batch_json = json.dumps([{"n": i, "speaker": e["speaker"], "text": e["text"]}
-                             for i, e in enumerate(prior_batch)], ensure_ascii=False)
+    neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
+    batch_json = json.dumps([
+        {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
+        for i, e in enumerate(prior_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(batch=batch_json)
     validated = {}
 
@@ -316,11 +316,22 @@ def _output_has_context_bleed(entries, chunk, before, after):
     context_norm = normalize_text((before or "") + " " + (after or ""))
     if not context_norm:
         return False
+    context_tokens = context_norm.split()
+    chunk_tokens = chunk_norm.split()
+    chunk_spans = {tuple(chunk_tokens[i:i + 8])
+                   for i in range(max(0, len(chunk_tokens) - 7))}
+    context_spans = {tuple(context_tokens[i:i + 8])
+                     for i in range(max(0, len(context_tokens) - 7))}
     for entry in entries:
         text_norm = normalize_text(str((entry or {}).get("text") or "")
                                    if isinstance(entry, dict) else "")
         if (len(text_norm) >= _CONTEXT_BLEED_MIN_CHARS
                 and text_norm in context_norm and text_norm not in chunk_norm):
+            return True
+        entry_tokens = text_norm.split()
+        entry_spans = {tuple(entry_tokens[i:i + 8])
+                       for i in range(max(0, len(entry_tokens) - 7))}
+        if (entry_spans & context_spans) - chunk_spans:
             return True
     return False
 
@@ -345,7 +356,7 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         # trigram / ratio (the leaked sentence adds output but doesn't drop source
         # recall), so reject clear context-only entries as a validation failure.
         report = validate_segment_quality(chunk, entries)
-        if report["passed"] and _output_has_context_bleed(entries, chunk, before, after):
+        if _output_has_context_bleed(entries, chunk, before, after):
             report = dict(report)
             report["passed"] = False
             report["findings"] = list(report["findings"]) + [{
@@ -492,10 +503,25 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
     atomic_json_write(manifest, three_pass_manifest_path(output_path))
 
 
-def three_pass_fingerprint(source_text, model_name, chunk_size):
+def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
+                           on_exhaustion="fail", context_windows=None,
+                           context_rescue_retries=None, endpoint=None):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
-    return {"source_sha256": digest, "model_name": model_name,
-            "chunk_size": chunk_size, "pipeline": "three_pass"}
+    settings = {
+        "model_name": model_name, "chunk_size": chunk_size,
+        "endpoint": endpoint, "on_exhaustion": on_exhaustion,
+        "context_windows": context_windows,
+        "context_rescue_retries": context_rescue_retries,
+        "pipeline_version": 2,
+    }
+    if params is not None:
+        settings.update({name: getattr(params, name, None) for name in (
+            "system_prompt", "user_prompt_template", "max_tokens", "temperature",
+            "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
+            "context_length", "hard_max_tokens")})
+    encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return {"source_sha256": digest, "settings_sha256": hashlib.sha256(encoded).hexdigest(),
+            "model_name": model_name, "pipeline": "three_pass"}
 
 
 def _load_three_pass_checkpoint(output_path, fingerprint):
@@ -518,14 +544,16 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
 
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
-                   context_windows=None, context_rescue_retries=None):
+                   context_windows=None, context_rescue_retries=None, endpoint=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
     it; when None, runs purely in memory. context_windows / context_rescue_retries
     override the context-rescue defaults (finding #12)."""
     chunks = split_into_chunks(source_text, max_size=chunk_size)
-    fingerprint = three_pass_fingerprint(source_text, model_name, chunk_size)
+    fingerprint = three_pass_fingerprint(
+        source_text, model_name, chunk_size, params, on_exhaustion,
+        context_windows, context_rescue_retries, endpoint)
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
@@ -599,8 +627,13 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             if not pending:
                 continue
             batch = [entry for _, entry in pending]
+            contexts = [{"previous_context": segmented[index - 1] if index else None,
+                         "next_context": segmented[index + 1]
+                         if index + 1 < len(segmented) else None}
+                        for index, _ in pending]
             new_named = attribute_batch(client, model_name, batch, params,
-                                        roster=roster, on_exhaustion=on_exhaustion)
+                                        roster=roster, on_exhaustion=on_exhaustion,
+                                        neighbor_contexts=contexts)
             for (index, _), entry in zip(pending, new_named):
                 named[index] = entry
             if on_exhaustion == "fallback":
@@ -641,7 +674,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         if not pending:
             continue
         batch = [entry for _, entry in pending]
-        new_annotated = instruct_batch(client, model_name, batch, params)
+        contexts = [{"previous_context": named[index - 1] if index else None,
+                     "next_context": named[index + 1]
+                     if index + 1 < len(named) else None}
+                    for index, _ in pending]
+        new_annotated = instruct_batch(client, model_name, batch, params,
+                                       neighbor_contexts=contexts)
         for (index, _), entry in zip(pending, new_annotated):
             annotated[index] = entry
         elapsed_s["instruct"] = inst_base + time.time() - inst_start
@@ -715,13 +753,13 @@ def main():
                                  on_exhaustion=args.pass2_on_exhaustion,
                                  output_path=output_path,
                                  context_windows=context_windows,
-                                 context_rescue_retries=context_rescue_retries)
+                                 context_rescue_retries=context_rescue_retries,
+                                 endpoint=base_url)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
 
-    with open(output_path, "w", encoding="utf-8") as fh:
-        json.dump(entries, fh, ensure_ascii=False, indent=2)
+    atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
 
 

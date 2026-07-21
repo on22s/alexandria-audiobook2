@@ -10,11 +10,6 @@ from script_repair import build_deterministic_repair
 
 
 class PassHelperTests(unittest.TestCase):
-    def test_batches_split_entries_by_size(self):
-        entries = [{"text": str(i)} for i in range(55)]
-        batches = list(tp.iter_entry_batches(entries, batch_size=25))
-        self.assertEqual([25, 25, 5], [len(b) for b in batches])
-
     def test_unique_batches_isolate_duplicates_without_collapsing_prefix(self):
         seg = [{"type": "SPOKEN", "text": "Yes."},
                {"type": "SPOKEN", "text": "Yes."},
@@ -80,6 +75,23 @@ class Pass2Tests(unittest.TestCase):
         out = tp.attribute_batch(client, "m", frozen, self._params(), roster=[])
         self.assertEqual(["NARRATOR", "ELENA"], [e["speaker"] for e in out])
         self.assertEqual("Tell me.", out[1]["text"])
+
+    def test_attribute_prompt_includes_read_only_neighbor_context(self):
+        seen = {}
+        good = [{"n": 0, "head": "Yes", "speaker": "ELENA"}]
+        def create(**kwargs):
+            seen["prompt"] = kwargs["messages"][-1]["content"]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(good)), finish_reason="stop")],
+                usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        tp.attribute_batch(client, "m", [{"type": "SPOKEN", "text": "Yes."}],
+                           self._params(), roster=[], neighbor_contexts=[{
+                               "previous_context": {"type": "SPOKEN", "text": "Did you?"},
+                               "next_context": {"type": "NARRATOR", "text": "She nodded."}}])
+        self.assertIn("Did you?", seen["prompt"])
+        self.assertIn("She nodded.", seen["prompt"])
 
     def test_pass2_fail_mode_raises_when_exhausted(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
@@ -161,6 +173,11 @@ class EndToEndTests(unittest.TestCase):
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_fingerprint_changes_with_output_affecting_settings(self):
+        first = LLMGenParams(max_tokens=500, temperature=0.1)
+        second = LLMGenParams(max_tokens=500, temperature=0.9)
+        self.assertNotEqual(tp.three_pass_fingerprint("text", "m", 6000, first),
+                            tp.three_pass_fingerprint("text", "m", 6000, second))
     def _payloads(self):
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
@@ -194,7 +211,7 @@ class CheckpointTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=500, temperature=0.1)
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
-            fingerprint = tp.three_pass_fingerprint(source, "m", 6000)
+            fingerprint = tp.three_pass_fingerprint(source, "m", 6000, params)
             tp._save_three_pass_checkpoint(
                 out, fingerprint, "segment", seg, 1, [], [],
                 resolutions=["context_rescue:2000"],
@@ -216,7 +233,7 @@ class CheckpointTests(unittest.TestCase):
                {"n": 1, "head": "Tell me the", "speaker": "NARRATOR"}]
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "book.json")
-            fingerprint = tp.three_pass_fingerprint(source, "m", 6000)
+            fingerprint = tp.three_pass_fingerprint(source, "m", 6000, params)
             tp._save_three_pass_checkpoint(
                 out, fingerprint, "segment", seg, 1, [], [],
                 resolutions=["clean"], elapsed_s={"segment": 2.0, "attribute": 4.0})
@@ -340,6 +357,12 @@ class ContextBleedTests(unittest.TestCase):
         entries = [{"type": "NARRATOR", "text": chunk}, {"type": "SPOKEN", "text": "Yes."}]
         self.assertFalse(tp._output_has_context_bleed(entries, chunk, "Yes.", ""))
 
+    def test_bleed_helper_flags_context_appended_inside_target_entry(self):
+        chunk = " ".join(f"c{i}" for i in range(200))
+        ctx = "the quiet harbor lay perfectly still beneath the pale morning fog"
+        entries = [{"type": "NARRATOR", "text": chunk + " " + ctx}]
+        self.assertTrue(tp._output_has_context_bleed(entries, chunk, ctx, ""))
+
     def test_context_rescue_rejects_bleeding_output(self):
         chunk = " ".join(f"c{i}" for i in range(200))
         ctx = "the quiet harbor lay still under the morning fog and gulls"
@@ -352,6 +375,23 @@ class ContextBleedTests(unittest.TestCase):
         out = tp.segment_chunk_with_context(client, "m", chunk, ctx, "", params,
                                             max_retries=1)
         self.assertEqual([], out)
+
+    def test_context_bleed_is_not_captured_as_trigram_near_miss(self):
+        words = [f"word{i}" for i in range(200)]
+        chunk = " ".join(words)
+        swapped = words[:]
+        for i in range(0, len(swapped) - 1, 25):
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        ctx = "the quiet harbor lay perfectly still beneath the pale morning fog"
+        payload = [{"type": "NARRATOR", "text": " ".join(swapped)},
+                   {"type": "NARRATOR", "text": ctx}]
+        sink = []
+        out = tp.segment_chunk_with_context(
+            _client_returning([payload]), "m", chunk, ctx, "",
+            LLMGenParams(max_tokens=500, temperature=0.1), max_retries=0,
+            near_miss_sink=sink)
+        self.assertEqual([], out)
+        self.assertEqual([], sink)
 
 
 class BoundedContextJoinTests(unittest.TestCase):

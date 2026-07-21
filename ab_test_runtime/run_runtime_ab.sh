@@ -15,6 +15,7 @@ OUT="${OUT:-/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtim
 PY="${PY:-$APP/env/bin/python}"; LMS="${LMS:-/home/fakemitch/.lmstudio/bin/lms}"
 MASTER="$OUT/run.log"
 REPEATS="${REPEATS:-3}"
+RUN_FAILURES=0
 cd "$APP" || exit 1
 BOOK="Arc 4 - Volume 10wn"
 GEMMA="gemma-4-e4b-uncensored-hauhaucs-aggressive"
@@ -24,22 +25,42 @@ VULKAN="llama.cpp-linux-x86_64-vulkan-avx2@2.26.0"
 ROCM="llama.cpp-linux-x86_64-amd-rocm-avx2@2.26.0"
 
 set_model () { "$PY" - "$1" <<'PY'
-import json, os, sys, tempfile
-p = "config.json"
-with open(p, encoding="utf-8") as fh:
-    c = json.load(fh)
+import json, os, sys
+from utils import atomic_json_write, get_app_config_path, get_runtime_data_dir
+app = os.getcwd(); root = os.path.dirname(app)
+p = get_app_config_path(get_runtime_data_dir(root), root, app)
+with open(p, encoding="utf-8") as fh: c = json.load(fh)
+if c.get("llm_mode", "local") != "local":
+    raise SystemExit("runtime A/B requires llm_mode=local")
+base = str((c.get("llm") or {}).get("base_url", ""))
+if not any(host in base for host in ("localhost", "127.0.0.1")):
+    raise SystemExit(f"runtime A/B requires a local LM Studio base_url, got {base!r}")
 c.setdefault("llm", {})["model_name"] = sys.argv[1]
-fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".tmp", dir=".")
+atomic_json_write(c, p)
+PY
+}
+
+get_model () { "$PY" - <<'PY'
+import json, os
+from utils import get_app_config_path, get_runtime_data_dir
+app = os.getcwd(); root = os.path.dirname(app)
+p = get_app_config_path(get_runtime_data_dir(root), root, app)
+with open(p, encoding="utf-8") as fh: print((json.load(fh).get("llm") or {}).get("model_name", ""))
+PY
+}
+
+is_complete () { "$PY" - "$1" "$2" <<'PY'
+import json, os, sys
+out, model = sys.argv[1:]
+manifest = out + ".threepass_manifest.json"
 try:
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(c, fh, indent=2)
-        fh.write("\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, p)
-finally:
-    if os.path.exists(tmp):
-        os.unlink(tmp)
+    with open(out, encoding="utf-8") as fh: entries = json.load(fh)
+    with open(manifest, encoding="utf-8") as fh: data = json.load(fh)
+except (OSError, ValueError):
+    raise SystemExit(1)
+ok = isinstance(entries, list) and data.get("status") == "complete"
+ok = ok and (data.get("fingerprint") or {}).get("model_name") == model
+raise SystemExit(0 if ok else 1)
 PY
 }
 
@@ -65,7 +86,7 @@ run_arm () {  # backend tag model
   for r in $(seq 1 "$REPEATS"); do
     dir="$OUT/$backend/$tag/rep$r"; mkdir -p "$dir"
     out="$dir/$BOOK.json"
-    if [ -f "$out" ]; then echo "=== [$backend/$tag/rep$r] already complete ===" | tee -a "$MASTER"; continue; fi
+    if is_complete "$out" "$model"; then echo "=== [$backend/$tag/rep$r] already complete ===" | tee -a "$MASTER"; continue; fi
     "$LMS" unload --all >/dev/null 2>&1
     echo "=== [$backend/$tag/rep$r] $model start $(date -Is) ===" | tee -a "$MASTER"
     if "$PY" three_pass_generate.py "uploads/$BOOK.txt" --pass2-on-exhaustion fail \
@@ -73,6 +94,7 @@ run_arm () {  # backend tag model
       code=0
     else
       code=$?
+      RUN_FAILURES=$((RUN_FAILURES + 1))
     fi
     echo "=== [$backend/$tag/rep$r] exit=$code $(date -Is) ===" | tee -a "$MASTER"
   done
@@ -88,11 +110,19 @@ phase () {  # backend engine
 }
 
 main () {
+  ORIGINAL_MODEL="$(get_model)"
+  set_model "$ORIGINAL_MODEL"  # preflight effective config/mode before any runtime mutation
+  trap 'set_model "$ORIGINAL_MODEL"' EXIT
   echo "########## RUNTIME A/B START $(date -Is) (REPEATS=$REPEATS) ##########" | tee -a "$MASTER"
   phase vulkan "$VULKAN"
   phase rocm   "$ROCM"
-  set_model "$GEMMA"
+  if [ "$RUN_FAILURES" -gt 0 ]; then
+    echo "########## RUNTIME A/B INCOMPLETE failures=$RUN_FAILURES $(date -Is) ##########" | tee -a "$MASTER" >&2
+    return 1
+  fi
   echo "########## RUNTIME A/B COMPLETE $(date -Is) ##########" | tee -a "$MASTER"
+  trap - EXIT
+  set_model "$ORIGINAL_MODEL"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

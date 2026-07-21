@@ -60,6 +60,9 @@ class GenerationConfig(BaseModel):
     presence_penalty: float = Field(default=0.0, ge=-2, le=2)
     banned_tokens: List[str] = Field(default_factory=list)
     merge_narrators: bool = False
+    context_rescue_windows: List[Annotated[int, Field(gt=0)]] = Field(
+        default_factory=lambda: [2000, 4000, 6000], min_length=1)
+    context_rescue_retries: int = Field(default=2, ge=0)
 
 
 class PromptConfig(BaseModel):

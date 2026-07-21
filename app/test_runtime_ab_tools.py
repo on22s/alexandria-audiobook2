@@ -18,6 +18,11 @@ spec.loader.exec_module(analyzer)
 
 
 class RuntimeAbAnalyzerTests(unittest.TestCase):
+    def test_failed_runs_do_not_lower_completed_wall_mean(self):
+        base = {"tok_per_sec": 5, "rescued": 0, "near_miss": 0, "recombined": 0}
+        group = [{**base, "status": "complete", "wall_s": 100},
+                 {**base, "status": "failed", "wall_s": 1}]
+        self.assertEqual(100, analyzer.aggregate_group(group)["wall_s"])
     def test_malformed_passes_and_zero_metrics_do_not_crash_or_disappear(self):
         with tempfile.TemporaryDirectory() as rep:
             manifest = {"status": "complete", "passes": ["bad"],
@@ -77,14 +82,47 @@ class RuntimeAbRunnerTests(unittest.TestCase):
             os.mkdir(app)
             os.mkdir(out)
             with open(os.path.join(app, "config.json"), "w") as fh:
-                json.dump({"llm": {"model_name": "old"}}, fh)
+                json.dump({"llm_mode": "local", "llm": {
+                    "model_name": "old", "base_url": "http://127.0.0.1:1234/v1"}}, fh)
             command = f"source {RUNNER!r}; set_model new-model"
             env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
-                   "PY": sys.executable}
+                   "PY": sys.executable,
+                   "PYTHONPATH": os.path.join(ROOT, "app")}
             subprocess.run(["bash", "-c", command], env=env, check=True)
             with open(os.path.join(app, "config.json")) as fh:
                 config = json.load(fh)
         self.assertEqual("new-model", config["llm"]["model_name"])
+
+    def test_set_model_rejects_remote_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = os.path.join(tmp, "app"); out = os.path.join(tmp, "out")
+            os.mkdir(app); os.mkdir(out)
+            with open(os.path.join(app, "config.json"), "w") as fh:
+                json.dump({"llm_mode": "remote", "llm": {
+                    "model_name": "old", "base_url": "https://remote/v1"}}, fh)
+            env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
+                   "PY": sys.executable, "PYTHONPATH": os.path.join(ROOT, "app")}
+            result = subprocess.run(["bash", "-c", f"source {RUNNER!r}; set_model new"],
+                                    env=env, text=True, capture_output=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("llm_mode=local", result.stderr)
+
+    def test_failed_arm_is_counted_for_nonzero_final_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = os.path.join(tmp, "app"); out = os.path.join(tmp, "out")
+            os.mkdir(app); os.mkdir(out); os.mkdir(os.path.join(app, "uploads"))
+            with open(os.path.join(app, "config.json"), "w") as fh:
+                json.dump({"llm_mode": "local", "llm": {
+                    "model_name": "old", "base_url": "http://127.0.0.1:1234/v1"}}, fh)
+            wrapper = os.path.join(tmp, "python-wrapper")
+            self._write_executable(wrapper, "#!/bin/sh\n"
+                                   f"if [ \"$1\" = - ]; then exec {sys.executable!r} \"$@\"; fi\n"
+                                   "exit 7\n")
+            env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
+                   "PY": wrapper, "PYTHONPATH": os.path.join(ROOT, "app"), "REPEATS": "1"}
+            command = f"source {RUNNER!r}; run_arm test tag model; test \"$RUN_FAILURES\" -eq 1"
+            result = subprocess.run(["bash", "-c", command], env=env)
+        self.assertEqual(0, result.returncode)
 
 
 if __name__ == "__main__":

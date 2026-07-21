@@ -893,3 +893,12 @@ class PassSpecificSalvageTests(unittest.TestCase):
         for config_value in (0, -1, "3000", True):
             with self.assertRaises(ValueError):
                 generate_script.get_valid_chunk_size(config_value)
+
+    def test_review_rejects_text_only_salvage_even_when_word_count_matches(self):
+        original = [{"speaker": "NARRATOR", "text": "one two three four five",
+                     "instruct": "Neutral."}]
+        client = LlmReviewTests._client_with_responses([
+            '[{"text":"one two three four five"}, BROKEN]'])
+        params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
+        self.assertIsNone(review_script.review_batch(
+            client, "m", original, 1, 1, params, max_retries=0))

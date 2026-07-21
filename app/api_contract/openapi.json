@@ -756,6 +756,21 @@
             "title": "Chunk Size",
             "type": "integer"
           },
+          "context_rescue_retries": {
+            "default": 2,
+            "minimum": 0.0,
+            "title": "Context Rescue Retries",
+            "type": "integer"
+          },
+          "context_rescue_windows": {
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Context Rescue Windows",
+            "type": "array"
+          },
           "max_tokens": {
             "default": 4096,
             "minimum": 256.0,

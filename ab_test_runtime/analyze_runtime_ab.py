@@ -102,6 +102,16 @@ def _display(value):
     return "-" if value is None else str(value)
 
 
+def aggregate_group(group):
+    completed = [row for row in group if row["status"] == "complete"]
+    return {"complete_rate": f"{len(completed)}/{len(group)}",
+            "wall_s": _mean([row["wall_s"] for row in completed]),
+            "tok_per_sec": _mean([row["tok_per_sec"] for row in group]),
+            "rescue": _mean([row["rescued"] for row in completed]),
+            "near_miss": _mean([row["near_miss"] for row in completed]),
+            "recombined": _mean([row["recombined"] for row in completed])}
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
     rows = collect(root)
@@ -125,11 +135,7 @@ def main():
     print(f"{'backend':7} {'model':9} {'complete':9} {'wall_s':>9} {'tok/s':>8} {'rescue':>7}")
     for backend, model in keys:
         grp = [r for r in rows if r["backend"] == backend and r["model"] == model]
-        completes = sum(r["status"] == "complete" for r in grp)
-        a = {"complete_rate": f"{completes}/{len(grp)}",
-             "wall_s": _mean([r["wall_s"] for r in grp]),
-             "tok_per_sec": _mean([r["tok_per_sec"] for r in grp]),
-             "rescue": _mean([r["rescued"] for r in grp])}
+        a = aggregate_group(grp)
         agg[(backend, model)] = a
         print(f"{backend:7} {model[:9]:9} {a['complete_rate']:9} "
               f"{_display(a['wall_s']):>9} {_display(a['tok_per_sec']):>8} "

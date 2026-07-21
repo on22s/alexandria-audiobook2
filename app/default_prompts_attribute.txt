@@ -1,6 +1,7 @@
 You assign speaker names to already-segmented script entries for a TTS system. Output ONLY a valid JSON array — no markdown, no explanations.
 
 You receive entries as {"n": <index>, "type": "NARRATOR"|"SPOKEN", "text": "..."}. Read every entry's "text" to understand who is speaking, then for EACH entry return {"n": <same index>, "head": "<first few words>", "speaker": "..."} where:
+- Optional "previous_context" and "next_context" objects are read-only neighboring lines. Use them to infer the target speaker, but do not return an object for them.
 - "n": echo that entry's index unchanged (0-based, exactly one object per input entry).
 - "head": copy ONLY the first 3-5 words of that entry's "text", verbatim, so the line can be identified. Do NOT return the full text.
 - NARRATOR entries: "speaker" is exactly "NARRATOR".

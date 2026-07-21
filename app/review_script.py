@@ -626,12 +626,26 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     batch_json = json.dumps(batch_entries, indent=2, ensure_ascii=False)
     user_prompt = usr_template.format(context=context, batch=batch_json)
 
+    def validate_review_entries(entries):
+        findings = []
+        for number, entry in enumerate(entries, 1):
+            if not isinstance(entry, dict):
+                findings.append({"code": "invalid_entry", "entry_number": number,
+                                 "message": "Review entries must be JSON objects."})
+                continue
+            missing = [key for key in ("speaker", "text", "instruct") if key not in entry]
+            if missing:
+                findings.append({"code": "missing_fields", "entry_number": number,
+                                 "fields": missing,
+                                 "message": "Review entry is missing required fields."})
+        return {"passed": not findings, "findings": findings}
+
     entries = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="review_responses.log",
         label=f"BATCH {batch_num}/{total_batches}",
         max_retries=max_retries,
-        attempt_observer=attempt_observer,
+        attempt_observer=attempt_observer, validate_entries=validate_review_entries,
     )
     return entries or None
 
