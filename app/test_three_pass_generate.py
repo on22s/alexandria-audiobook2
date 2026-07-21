@@ -179,6 +179,63 @@ class FreezeEnforcementTests(unittest.TestCase):
         self.assertEqual("Firm.", out[0]["instruct"])
 
 
+class ManifestTests(unittest.TestCase):
+    def test_manifest_records_clean_resolution_counts_and_timing(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        named = [{"speaker": "NARRATOR", "text": "The room was cold."},
+                 {"speaker": "ELENA", "text": "Tell me the truth."}]
+        instructed = [{"speaker": "NARRATOR", "text": "The room was cold.",
+                       "instruct": "Cold."},
+                      {"speaker": "ELENA", "text": "Tell me the truth.",
+                       "instruct": "Firm."}]
+        client = _client_returning([seg, named, instructed])
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            tp.run_three_pass(client, "m", source, params, chunk_size=6000, output_path=out)
+            man = json.load(open(tp.three_pass_manifest_path(out)))
+        self.assertEqual("complete", man["status"])
+        self.assertEqual("clean", man["chunks"][0]["resolution"])
+        self.assertEqual(0, man["counts"]["context_rescued"])
+        self.assertEqual(0, man["counts"]["near_miss_accepted"])
+        for pass_name in ("segment", "attribute", "instruct"):
+            self.assertIn("elapsed_s", man["passes"][pass_name])
+            self.assertEqual("complete", man["passes"][pass_name]["status"])
+
+    def test_manifest_written_on_failure_with_failing_chunk(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg = [{"type": "NARRATOR", "text": "The room was cold."},
+               {"type": "SPOKEN", "text": "Tell me the truth."}]
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            crashing = _client_returning([seg])  # pass 2 exhausts -> failure
+            with self.assertRaises(tp.PassExhausted):
+                tp.run_three_pass(crashing, "m", source, params=LLMGenParams(
+                    max_tokens=500, temperature=0.1), chunk_size=6000, output_path=out)
+            man = json.load(open(tp.three_pass_manifest_path(out)))
+        self.assertEqual("failed", man["status"])
+        self.assertEqual("attribute", man["failed_pass"])
+
+    def test_resolution_sink_records_near_miss(self):
+        words = [f"word{i}" for i in range(100)]
+        source = " ".join(words)
+        self.assertEqual([], tp.split_failed_chunk(source))
+        swapped = list(words)
+        i = 0
+        while i + 1 < len(swapped):
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+            i += 25
+        near = [{"type": "NARRATOR", "text": " ".join(swapped)}]
+        client = _client_returning([near] * 7)
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        sink = []
+        out = tp.segment_chunk_adaptively(client, "m", source, params, resolution_sink=sink)
+        self.assertTrue(out)
+        self.assertEqual(["near_miss"], sink)
+
+
 class RecombinationAcceptanceTests(unittest.TestCase):
     def _splittable_source(self, n=400):
         words = [f"w{i}" for i in range(n)]
@@ -213,6 +270,19 @@ class RecombinationAcceptanceTests(unittest.TestCase):
         self.assertTrue(out, "recombination with trigram-only seam defect must be accepted")
         q = tp.validate_segment_quality(source, out)
         self.assertGreaterEqual(q["metrics"]["source_token_recall"], 0.9)  # content all there
+
+    def test_recombination_floor_predicate_rejects_below_floor(self):
+        # The recombination branch now gates on is_trigram_only_near_miss, which
+        # enforces the 0.82 floor - a trigram-only defect BELOW the floor (heavy
+        # reorder / real loss) must NOT be waived, only one within [0.82, 0.90).
+        below = {"passed": False,
+                 "findings": [{"code": "low_ordered_trigram_recall"}],
+                 "metrics": {"ordered_trigram_recall": 0.60}}
+        within = {"passed": False,
+                  "findings": [{"code": "low_ordered_trigram_recall"}],
+                  "metrics": {"ordered_trigram_recall": 0.85}}
+        self.assertFalse(tp.is_trigram_only_near_miss(below))
+        self.assertTrue(tp.is_trigram_only_near_miss(within))
 
     def test_rejects_recombination_on_real_recall_loss(self):
         # Each half drops ~60% of its words -> combined recall low = real content

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 
 from openai import OpenAI
 
@@ -29,6 +30,13 @@ from utils import (get_runtime_data_dir, get_app_config_path,
 BATCH_SIZE = 25
 NARRATOR_DEFAULT_INSTRUCT = "Neutral, even narration."
 CHARACTER_DEFAULT_INSTRUCT = "Natural, in-character delivery."
+
+
+def _record_resolution(sink, value):
+    """Append a per-chunk pass-1 resolution to the telemetry sink, if one is
+    provided. `sink` is a per-chunk list; callers read its last entry."""
+    if sink is not None:
+        sink.append(value)
 
 
 def iter_entry_batches(entries, batch_size=BATCH_SIZE):
@@ -149,18 +157,30 @@ def _accept_segment_near_miss(near_miss):
     return entries
 
 
-def segment_chunk_adaptively(client, model_name, chunk, params):
+def _resolved_near_miss(near_miss, resolution_sink):
+    """Accept the exhaustion near-miss (if any) and record the resolution."""
+    entries = _accept_segment_near_miss(near_miss)
+    _record_resolution(resolution_sink, "near_miss" if entries else "fail")
+    return entries
+
+
+def segment_chunk_adaptively(client, model_name, chunk, params, resolution_sink=None):
     """Pass 1 with the full safety net: full-chunk attempt, then a
     natural-boundary split whose halves each recurse, and exhaustion-only
     trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
-    the segment gate. Returns [{type,text}] or [] (book failure)."""
+    the segment gate. Returns [{type,text}] or [] (book failure). When
+    resolution_sink is given, appends exactly one resolution string describing
+    how the chunk was handled (clean / adaptive_split / recombination_near_miss /
+    near_miss / fail). Only the top-level call should pass a sink; recursive
+    part-calls do not, so inner resolutions don't pollute the record."""
     near_miss = []
     entries = segment_chunk(client, model_name, chunk, params, near_miss_sink=near_miss)
     if entries:
+        _record_resolution(resolution_sink, "clean")
         return entries
     parts = split_failed_chunk(chunk)
     if not parts:
-        return _accept_segment_near_miss(near_miss)
+        return _resolved_near_miss(near_miss, resolution_sink)
     print(f"  Adaptive split (segment): -> {len(parts[0])} + {len(parts[1])} chars")
     combined, any_failed = [], False
     for part in parts:
@@ -170,27 +190,29 @@ def segment_chunk_adaptively(client, model_name, chunk, params):
             continue
         combined.extend(part_entries)
     if any_failed:
-        return _accept_segment_near_miss(near_miss)
+        return _resolved_near_miss(near_miss, resolution_sink)
     combined_quality = validate_segment_quality(chunk, combined)
     if not combined_quality["passed"]:
         codes = {f.get("code") for f in combined_quality["findings"]}
         m = combined_quality["metrics"]
         # Both halves already passed their own segment gate (we only reach here
         # when any_failed is False), so the recombined whole has adequate content
-        # coverage. A whole-chunk trigram dip - even below the near-miss floor -
-        # when trigram is the ONLY defect is a split-seam artifact, not lost
-        # content, so accept it rather than discarding two good halves. Recall /
-        # ratio / cyrillic / duplicate defects are NOT waived (those are real).
-        if codes == {"low_ordered_trigram_recall"}:
+        # coverage. A whole-chunk trigram dip when trigram is the ONLY defect is a
+        # split-seam artifact, not lost content - accept it if it still clears the
+        # trigram-only near-miss floor rather than discarding two good halves.
+        # Recall / ratio / cyrillic / duplicate defects are NOT waived (real).
+        if is_trigram_only_near_miss(combined_quality):
             print(f"  Adaptive split (segment) recombination accepted: both halves "
-                  f"passed, trigram-only defect at seam "
+                  f"passed, trigram-only near-miss at seam "
                   f"(trigram={m['ordered_trigram_recall']} recall={m['source_token_recall']})")
+            _record_resolution(resolution_sink, "recombination_near_miss")
             return combined
         # Diagnostic: log exactly why a recombination was rejected so we can tell
         # trigram-seam brittleness from real content loss / duplication.
         print(f"  Adaptive split (segment) recombination REJECTED: codes={sorted(codes)} "
               f"metrics={m}")
-        return _accept_segment_near_miss(near_miss)
+        return _resolved_near_miss(near_miss, resolution_sink)
+    _record_resolution(resolution_sink, "adaptive_split")
     return combined
 
 
@@ -230,10 +252,13 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         near_miss_sink=near_miss_sink)
 
 
-def rescue_chunk_with_context(client, model_name, chunks, index, params):
+def rescue_chunk_with_context(client, model_name, chunks, index, params,
+                              resolution_sink=None):
     """When chunk `index` fails normal segmentation, retry it up to 3 times with
     escalating surrounding-source context. Accepts a clean pass, else the best
-    trigram-only near-miss any window produced. Returns entries or []."""
+    trigram-only near-miss any window produced. Returns entries or []. When
+    resolution_sink is given, appends the resolution
+    (context_rescue:<window> / context_rescue_near_miss / fail)."""
     before_all = "".join(chunks[:index])
     after_all = "".join(chunks[index + 1:])
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
@@ -245,6 +270,7 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params):
         if seg:
             print(f"  chunk {index + 1}/{len(chunks)} rescued with "
                   f"{window}-char surrounding context (clean pass)")
+            _record_resolution(resolution_sink, f"context_rescue:{window}")
             return seg
         if near_miss:
             trig = near_miss[0][1]["metrics"]["ordered_trigram_recall"]
@@ -261,12 +287,49 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params):
         print(f"  chunk {index + 1}/{len(chunks)} rescued with context as "
               f"trigram-only near-miss "
               f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+        _record_resolution(resolution_sink, "context_rescue_near_miss")
         return entries
+    _record_resolution(resolution_sink, "fail")
     return []
 
 
 def three_pass_checkpoint_path(output_path):
     return output_path + ".threepass_checkpoint.json"
+
+
+def three_pass_manifest_path(output_path):
+    return output_path + ".threepass_manifest.json"
+
+
+def _resolution_counts(resolutions):
+    """Roll per-chunk resolution strings up into summary counts."""
+    return {
+        "near_miss_accepted": sum(r == "near_miss" for r in resolutions),
+        "context_rescued": sum(r.startswith("context_rescue") for r in resolutions),
+        "split_recombined": sum(r in ("adaptive_split", "recombination_near_miss")
+                                for r in resolutions),
+    }
+
+
+def _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                    failed_pass=None, failed_chunk=None):
+    """Persist the run manifest next to the output so results are analyzable from
+    structured data instead of log-grepping."""
+    if not output_path:
+        return
+    manifest = {
+        "fingerprint": fingerprint,
+        "status": status,
+        "chunks": [{"index": i + 1, "resolution": r}
+                   for i, r in enumerate(resolutions)],
+        "counts": _resolution_counts(resolutions),
+        "passes": passes,
+    }
+    if failed_pass is not None:
+        manifest["failed_pass"] = failed_pass
+    if failed_chunk is not None:
+        manifest["failed_chunk"] = failed_chunk
+    atomic_json_write(manifest, three_pass_manifest_path(output_path))
 
 
 def three_pass_fingerprint(source_text, model_name, chunk_size):
@@ -309,41 +372,73 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             _save_three_pass_checkpoint(output_path, fingerprint, stage,
                                         segmented, chunks_done, named, annotated)
 
+    # Per-chunk pass-1 resolutions for the manifest. Chunks already segmented on
+    # a prior run (resumed from checkpoint) are recorded as "resumed".
+    resolutions = ["resumed"] * chunks_done
+    passes = {}
+
+    def emit_manifest(status, failed_pass=None, failed_chunk=None):
+        _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                        failed_pass=failed_pass, failed_chunk=failed_chunk)
+
     # Pass 1 — resume from chunks_done.
+    seg_start = time.time()
     for i in range(chunks_done, len(chunks)):
-        seg = segment_chunk_adaptively(client, model_name, chunks[i], params)
+        sink = []
+        seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
+                                       resolution_sink=sink)
         if not seg:
             # Last resort: retry with escalating surrounding-source context.
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "
                   "trying escalating surrounding-source context")
-            seg = rescue_chunk_with_context(client, model_name, chunks, i, params)
+            seg = rescue_chunk_with_context(client, model_name, chunks, i, params,
+                                            resolution_sink=sink)
+        resolutions.append(sink[-1] if sink else "fail")
         if not seg:
+            passes["segment"] = {"elapsed_s": round(time.time() - seg_start, 3),
+                                 "status": "failed"}
+            emit_manifest("failed", failed_pass="segment", failed_chunk=i + 1)
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)
         chunks_done = i + 1
         save("segment")
+    passes["segment"] = {"elapsed_s": round(time.time() - seg_start, 3),
+                         "status": "complete"}
     # Pass 2 — resume from len(named) entries (batch-aligned slices of segmented).
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
     roster = build_roster(named)
     roster_seen = set(roster)
-    while len(named) < len(segmented):
-        batch = segmented[len(named):len(named) + BATCH_SIZE]
-        new_named = attribute_batch(client, model_name, batch, params,
-                                    roster=roster, on_exhaustion=on_exhaustion)
-        named.extend(new_named)
-        for entry in new_named:
-            speaker = (entry.get("speaker") or "").strip().upper()
-            if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
-                roster_seen.add(speaker)
-                roster.append(speaker)
-        save("attribute")
+    attr_start = time.time()
+    try:
+        while len(named) < len(segmented):
+            batch = segmented[len(named):len(named) + BATCH_SIZE]
+            new_named = attribute_batch(client, model_name, batch, params,
+                                        roster=roster, on_exhaustion=on_exhaustion)
+            named.extend(new_named)
+            for entry in new_named:
+                speaker = (entry.get("speaker") or "").strip().upper()
+                if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
+                    roster_seen.add(speaker)
+                    roster.append(speaker)
+            save("attribute")
+    except PassExhausted:
+        passes["attribute"] = {"elapsed_s": round(time.time() - attr_start, 3),
+                               "status": "failed"}
+        emit_manifest("failed", failed_pass="attribute")
+        raise
+    passes["attribute"] = {"elapsed_s": round(time.time() - attr_start, 3),
+                           "status": "complete"}
     # Pass 3 — resume from len(annotated).
+    inst_start = time.time()
     while len(annotated) < len(named):
         batch = named[len(annotated):len(annotated) + BATCH_SIZE]
         annotated.extend(instruct_batch(client, model_name, batch, params))
         save("instruct")
+    passes["instruct"] = {"elapsed_s": round(time.time() - inst_start, 3),
+                          "status": "complete"}
     save("done")
+    emit_manifest("complete")
     return annotated
 
 
