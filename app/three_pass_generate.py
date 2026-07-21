@@ -210,10 +210,12 @@ _CONTEXT_SEGMENT_USER = (
 
 
 def segment_chunk_with_context(client, model_name, chunk, before, after, params,
-                               max_retries=2):
+                               max_retries=2, near_miss_sink=None):
     """Last-resort pass-1 retry: give the model surrounding SOURCE text (before /
     after the failing chunk, reference-only) for narrative flow, but validate that
-    the output still covers ONLY the target chunk. Returns [{type,text}] or []."""
+    the output still covers ONLY the target chunk. Captures a trigram-only
+    near-miss into near_miss_sink like the normal segment path. Returns
+    [{type,text}] or []."""
     sys_prompt, _ = load_segment_prompts()
     if params.system_prompt:
         sys_prompt = params.system_prompt
@@ -224,23 +226,42 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="SEGMENT+CTX", max_retries=max_retries,
         transform_entries=lambda entries: build_deterministic_repair(entries, chunk),
-        validate_entries=lambda entries: validate_segment_quality(chunk, entries))
+        validate_entries=lambda entries: validate_segment_quality(chunk, entries),
+        near_miss_sink=near_miss_sink)
 
 
 def rescue_chunk_with_context(client, model_name, chunks, index, params):
     """When chunk `index` fails normal segmentation, retry it up to 3 times with
-    escalating surrounding-source context. Returns entries or []."""
+    escalating surrounding-source context. Accepts a clean pass, else the best
+    trigram-only near-miss any window produced. Returns entries or []."""
     before_all = "".join(chunks[:index])
     after_all = "".join(chunks[index + 1:])
+    best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in _CONTEXT_RESCUE_WINDOWS:
+        near_miss = []
         seg = segment_chunk_with_context(
             client, model_name, chunks[index],
-            before_all[-window:], after_all[:window], params)
+            before_all[-window:], after_all[:window], params, near_miss_sink=near_miss)
         if seg:
             print(f"  chunk {index + 1}/{len(chunks)} rescued with "
-                  f"{window}-char surrounding context")
+                  f"{window}-char surrounding context (clean pass)")
             return seg
-        print(f"  context rescue at {window} chars did not pass; escalating")
+        if near_miss:
+            trig = near_miss[0][1]["metrics"]["ordered_trigram_recall"]
+            best = (best_near_miss[0][1]["metrics"]["ordered_trigram_recall"]
+                    if best_near_miss else -1.0)
+            if trig > best:
+                best_near_miss = near_miss
+            print(f"  context rescue at {window} chars: trigram-only near-miss "
+                  f"{trig} captured; escalating")
+        else:
+            print(f"  context rescue at {window} chars did not pass; escalating")
+    if best_near_miss:
+        entries, quality = best_near_miss[0]
+        print(f"  chunk {index + 1}/{len(chunks)} rescued with context as "
+              f"trigram-only near-miss "
+              f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+        return entries
     return []
 
 
