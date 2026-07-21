@@ -56,23 +56,27 @@ def resolve_chunk_size(cli_value, config_value):
     return chunk_size
 
 
-def next_attribute_batch(segmented, start, batch_size=BATCH_SIZE):
-    """Slice the next pass-2 batch starting at `start`, up to batch_size, but stop
-    before admitting a second entry whose normalized text duplicates one already
-    in this batch. Two identical-normalized-text entries in one attribution call
-    can be reordered by the model without freeze_check noticing (identical text
-    passes positionally), mis-binding their speakers (finding #5). Keeping each
-    batch duplicate-free makes that swap impossible with no added model burden.
-    Deterministic in `segmented`, so checkpoint resume recomputes the same
-    boundaries. Always returns at least one entry."""
-    batch, seen = [], set()
-    for entry in segmented[start:start + batch_size]:
-        key = normalize_text(str(entry.get("text") or ""))
-        if key in seen:
-            break
-        seen.add(key)
-        batch.append(entry)
-    return batch
+def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
+    """Yield index/entry batches with unique normalized text.
+
+    Each consecutive `batch_size` window is greedily colored into the fewest
+    duplicate-free calls. Unlike stopping at the first repeated short line, this
+    keeps the other entries in the window batched and preserves bounded source
+    locality. Returned indices let callers restore source order."""
+    for window_start in range(0, len(entries), batch_size):
+        batches = []
+        for index in range(window_start, min(window_start + batch_size, len(entries))):
+            entry = entries[index]
+            key = normalize_text(str(entry.get("text") or ""))
+            for batch, seen in batches:
+                if key not in seen:
+                    batch.append((index, entry))
+                    seen.add(key)
+                    break
+            else:
+                batches.append(([(index, entry)], {key}))
+        for batch, _ in batches:
+            yield batch
 
 
 def build_roster(entries):
@@ -112,15 +116,25 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                              for i, e in enumerate(frozen_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(roster=", ".join(roster) or "(none yet)",
                                       batch=batch_json)
+    validated = {}
+
+    def validate(entries):
+        report = validate_attribution(frozen_batch, entries)
+        if report["passed"]:
+            validated["ordered"] = index_head_check(frozen_batch, entries)[2]
+        return report
+
     named = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
-        validate_entries=lambda entries: validate_attribution(frozen_batch, entries))
+        validate_entries=validate)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
         # byte-exact; take only the assigned speaker.
-        _, _, ordered = index_head_check(frozen_batch, named)
+        ordered = validated.get("ordered")
+        if ordered is None:
+            raise RuntimeError("validated attribution response lost its index binding")
         return [{**{k: v for k, v in f.items() if k != "type"},
                  "speaker": item.get("speaker")}
                 for f, item in zip(frozen_batch, ordered)]
@@ -144,14 +158,24 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3):
     batch_json = json.dumps([{"n": i, "speaker": e["speaker"], "text": e["text"]}
                              for i, e in enumerate(prior_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(batch=batch_json)
+    validated = {}
+
+    def validate(entries):
+        report = validate_instruct(prior_batch, entries)
+        if report["passed"]:
+            validated["ordered"] = index_head_check(prior_batch, entries)[2]
+        return report
+
     annotated = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
-        validate_entries=lambda entries: validate_instruct(prior_batch, entries))
+        validate_entries=validate)
     if annotated:
         # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
         # from prior (bound by validated index order); take only the instruct.
-        _, _, ordered = index_head_check(prior_batch, annotated)
+        ordered = validated.get("ordered")
+        if ordered is None:
+            raise RuntimeError("validated instruct response lost its index binding")
         return [{**p, "instruct": item.get("instruct")}
                 for p, item in zip(prior_batch, ordered)]
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
@@ -388,6 +412,8 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     before_all = _tail_join(chunks[:index], max_window)
     after_all = _head_join(chunks[index + 1:], max_window)
     sys_prompt, _ = load_segment_prompts()
+    if params.system_prompt:
+        sys_prompt = params.system_prompt
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in windows:
@@ -445,7 +471,7 @@ def _resolution_counts(resolutions):
 
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
-                    failed_pass=None, failed_chunk=None):
+                    failed_pass=None, failed_chunk=None, legacy_resume=False):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -457,6 +483,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                    for i, r in enumerate(resolutions)],
         "counts": _resolution_counts(resolutions),
         "passes": passes,
+        "legacy_resume": legacy_resume,
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -479,10 +506,13 @@ def _load_three_pass_checkpoint(output_path, fingerprint):
 
 
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
-                                chunks_done, named, annotated):
+                                chunks_done, named, annotated, resolutions=None,
+                                elapsed_s=None):
     atomic_json_write({"fingerprint": fingerprint, "stage": stage,
                        "chunks_done": chunks_done, "segmented": segmented,
-                       "named": named, "annotated": annotated},
+                       "named": named, "annotated": annotated,
+                       "resolutions": resolutions or [],
+                       "elapsed_s": elapsed_s or {}},
                       three_pass_checkpoint_path(output_path))
 
 
@@ -501,23 +531,32 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     chunks_done = state["chunks_done"] if state else 0
     named = state["named"] if state else []
     annotated = state["annotated"] if state else []
+    legacy_resume = bool(state and "resolutions" not in state)
+    resolutions = (list(state.get("resolutions", [])) if state
+                   else [])
+    # A failed chunk may have been checkpointed for timing. It is retried on
+    # resume, so discard its provisional resolution and replace it with the
+    # eventual outcome instead of emitting two manifest rows for one chunk.
+    resolutions = resolutions[:chunks_done]
+    if len(resolutions) < chunks_done:
+        resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
+    elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
 
     def save(stage):
         if output_path:
             _save_three_pass_checkpoint(output_path, fingerprint, stage,
-                                        segmented, chunks_done, named, annotated)
-
-    # Per-chunk pass-1 resolutions for the manifest. Chunks already segmented on
-    # a prior run (resumed from checkpoint) are recorded as "resumed".
-    resolutions = ["resumed"] * chunks_done
+                                        segmented, chunks_done, named, annotated,
+                                        resolutions, elapsed_s)
     passes = {}
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
-                        failed_pass=failed_pass, failed_chunk=failed_chunk)
+                        failed_pass=failed_pass, failed_chunk=failed_chunk,
+                        legacy_resume=legacy_resume)
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
+    seg_base = elapsed_s.get("segment", 0)
     for i in range(chunks_done, len(chunks)):
         sink = []
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
@@ -532,27 +571,38 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                             max_retries=context_rescue_retries)
         resolutions.append(sink[-1] if sink else "fail")
         if not seg:
-            passes["segment"] = {"elapsed_s": round(time.time() - seg_start, 3),
+            elapsed_s["segment"] = seg_base + time.time() - seg_start
+            passes["segment"] = {"elapsed_s": round(elapsed_s["segment"], 3),
                                  "status": "failed"}
+            save("segment_failed")
             emit_manifest("failed", failed_pass="segment", failed_chunk=i + 1)
             raise RuntimeError(f"pass 1 (segment) failed on chunk {i + 1}/{len(chunks)}")
         segmented.extend(seg)
         chunks_done = i + 1
+        elapsed_s["segment"] = seg_base + time.time() - seg_start
         save("segment")
-    passes["segment"] = {"elapsed_s": round(time.time() - seg_start, 3),
+    elapsed_s["segment"] = seg_base + time.time() - seg_start
+    passes["segment"] = {"elapsed_s": round(elapsed_s["segment"], 3),
                          "status": "complete"}
-    # Pass 2 — resume from len(named) entries (batch-aligned slices of segmented).
+    # Pass 2 — deterministic duplicate-free batches, restored to source order.
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
-    roster = build_roster(named)
+    named.extend([None] * (len(segmented) - len(named)))
+    roster = build_roster(entry for entry in named if isinstance(entry, dict))
     roster_seen = set(roster)
     attr_start = time.time()
+    attr_base = elapsed_s.get("attribute", 0)
     try:
-        while len(named) < len(segmented):
-            batch = next_attribute_batch(segmented, len(named))
+        for indexed_batch in iter_unique_entry_batches(segmented):
+            pending = [(index, entry) for index, entry in indexed_batch
+                       if named[index] is None]
+            if not pending:
+                continue
+            batch = [entry for _, entry in pending]
             new_named = attribute_batch(client, model_name, batch, params,
                                         roster=roster, on_exhaustion=on_exhaustion)
-            named.extend(new_named)
+            for (index, _), entry in zip(pending, new_named):
+                named[index] = entry
             if on_exhaustion == "fallback":
                 # The fallback path runs stabilize_speaker_identities, which can
                 # canonicalize names in ways the incremental upper()/strip() update
@@ -560,7 +610,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # from `named` so it can never drift. (Only in fallback/production
                 # mode; the fail/testing path never falls back, so it keeps the
                 # fast incremental update below.)
-                roster = build_roster(named)
+                roster = build_roster(entry for entry in named if isinstance(entry, dict))
                 roster_seen = set(roster)
             else:
                 for entry in new_named:
@@ -568,21 +618,36 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
                         roster_seen.add(speaker)
                         roster.append(speaker)
+            elapsed_s["attribute"] = attr_base + time.time() - attr_start
             save("attribute")
     except PassExhausted:
-        passes["attribute"] = {"elapsed_s": round(time.time() - attr_start, 3),
+        elapsed_s["attribute"] = attr_base + time.time() - attr_start
+        passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
                                "status": "failed"}
+        save("attribute_failed")
         emit_manifest("failed", failed_pass="attribute")
         raise
-    passes["attribute"] = {"elapsed_s": round(time.time() - attr_start, 3),
+    elapsed_s["attribute"] = attr_base + time.time() - attr_start
+    passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
                            "status": "complete"}
-    # Pass 3 — resume from len(annotated).
+    # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
+    # slip through there either (finding #5).
+    annotated.extend([None] * (len(named) - len(annotated)))
     inst_start = time.time()
-    while len(annotated) < len(named):
-        batch = named[len(annotated):len(annotated) + BATCH_SIZE]
-        annotated.extend(instruct_batch(client, model_name, batch, params))
+    inst_base = elapsed_s.get("instruct", 0)
+    for indexed_batch in iter_unique_entry_batches(named):
+        pending = [(index, entry) for index, entry in indexed_batch
+                   if annotated[index] is None]
+        if not pending:
+            continue
+        batch = [entry for _, entry in pending]
+        new_annotated = instruct_batch(client, model_name, batch, params)
+        for (index, _), entry in zip(pending, new_annotated):
+            annotated[index] = entry
+        elapsed_s["instruct"] = inst_base + time.time() - inst_start
         save("instruct")
-    passes["instruct"] = {"elapsed_s": round(time.time() - inst_start, 3),
+    elapsed_s["instruct"] = inst_base + time.time() - inst_start
+    passes["instruct"] = {"elapsed_s": round(elapsed_s["instruct"], 3),
                           "status": "complete"}
     save("done")
     emit_manifest("complete")

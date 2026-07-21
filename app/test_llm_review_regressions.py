@@ -874,3 +874,22 @@ class DedupeSpeakersResolverTests(unittest.TestCase):
         self.assertEqual({"MR. SMITH": "JOHN SMITH"}, mapping)
         self.assertEqual(1, renamed)
         self.assertEqual([(0, "speaker", "JOHN SMITH")], changes)
+
+
+class PassSpecificSalvageTests(unittest.TestCase):
+    def test_salvages_pass2_and_pass3_object_shapes(self):
+        pass2 = ('[{"n":0,"head":"Tell me now","speaker":"ELENA"},'
+                 '{"n":1,"head":"The room was","speaker":"NARRATOR"}, BROKEN]')
+        pass3 = ('[{"n":0,"head":"Tell me now","instruct":"Firm."},'
+                 '{"n":1,"head":"The room was","instruct":"Neutral."}, BROKEN]')
+        self.assertEqual(["ELENA", "NARRATOR"],
+                         [e["speaker"] for e in generate_script.salvage_json_entries(pass2)])
+        self.assertEqual(["Firm.", "Neutral."],
+                         [e["instruct"] for e in generate_script.salvage_json_entries(pass3)])
+
+    def test_single_pass_chunk_size_validates_config_and_cli(self):
+        self.assertEqual(3000, generate_script.get_valid_chunk_size(3000))
+        self.assertEqual(500, generate_script.get_valid_chunk_size(3000, 500))
+        for config_value in (0, -1, "3000", True):
+            with self.assertRaises(ValueError):
+                generate_script.get_valid_chunk_size(config_value)

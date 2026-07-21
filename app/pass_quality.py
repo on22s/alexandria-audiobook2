@@ -114,19 +114,6 @@ def _report(source_count, output_count, recall, trigram, ratio, findings):
     }
 
 
-def freeze_check(frozen_entries, new_entries):
-    """Return (ok, reason). ok iff new_entries has the same count as
-    frozen_entries and each new entry's text matches the frozen text under
-    normalize_text (case/punctuation/whitespace-insensitive, same comparison
-    review uses). new_entries may add fields; it may not change or reorder text."""
-    if len(new_entries) != len(frozen_entries):
-        return False, f"count {len(new_entries)} != frozen {len(frozen_entries)}"
-    for i, (frozen, new) in enumerate(zip(frozen_entries, new_entries), 1):
-        if normalize_text(new.get("text", "")) != normalize_text(frozen.get("text", "")):
-            return False, f"entry {i} text changed"
-    return True, ""
-
-
 def _leading_tokens(text):
     return normalize_text(str(text or "")).split()
 
@@ -153,6 +140,8 @@ def index_head_check(frozen_entries, response_entries):
         if not isinstance(item, dict):
             return False, "entry is not a JSON object", None
         n = item.get("n")
+        if isinstance(n, float) and n.is_integer():
+            n = int(n)
         if isinstance(n, bool) or not isinstance(n, int) or not (0 <= n < k):
             return False, f"entry has a missing or out-of-range index n={n!r}", None
         if n in by_index:
@@ -165,9 +154,17 @@ def index_head_check(frozen_entries, response_entries):
         head_tokens = _leading_tokens(item.get("head"))
         # Punctuation-only lines normalize to no tokens; nothing to anchor on, so
         # accept. Otherwise the head must be the exact leading words of the line.
-        if frozen_tokens and (not head_tokens
+        minimum = min(3, len(frozen_tokens))
+        if frozen_tokens and (len(head_tokens) < minimum
                               or frozen_tokens[:len(head_tokens)] != head_tokens):
             return False, f"entry {i + 1} head anchor does not match the line start", None
+        if head_tokens:
+            matches = sum(
+                _leading_tokens(other.get("text"))[:len(head_tokens)] == head_tokens
+                for other in frozen_entries)
+            if matches > 1:
+                return False, (f"entry {i + 1} head anchor is ambiguous across "
+                               f"{matches} lines"), None
         ordered.append(item)
     return True, "", ordered
 
@@ -182,7 +179,8 @@ def validate_attribution(frozen_entries, response_entries):
                 "findings": [{"code": "alignment_violated", "message": reason}]}
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
-        speaker = (item.get("speaker") or "").strip()
+        raw_speaker = item.get("speaker")
+        speaker = raw_speaker.strip() if isinstance(raw_speaker, str) else ""
         if frozen.get("type") == "SPOKEN":
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,
@@ -205,7 +203,8 @@ def validate_instruct(prior_entries, response_entries):
                 "findings": [{"code": "alignment_violated", "message": reason}]}
     findings = []
     for i, item in enumerate(ordered, 1):
-        if not (item.get("instruct") or "").strip():
+        raw_instruct = item.get("instruct")
+        if not isinstance(raw_instruct, str) or not raw_instruct.strip():
             findings.append({"code": "missing_instruct", "entry_number": i,
                              "message": "Every entry needs a non-empty instruct."})
     return {"passed": not findings, "findings": findings}

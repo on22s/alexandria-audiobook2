@@ -114,6 +114,15 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
     }
 
 
+def get_valid_chunk_size(config_value, cli_value=None):
+    """Return the effective single-pass chunk size after validating both inputs."""
+    value = cli_value if cli_value is not None else config_value
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        source = "--chunk-size" if cli_value is not None else "generation.chunk_size"
+        raise ValueError(f"{source} must be an integer >= 1 (got {value!r})")
+    return value
+
+
 def load_generation_checkpoint(output_path, fingerprint):
     checkpoint = safe_load_json(get_generation_checkpoint_path(output_path), None)
     if not isinstance(checkpoint, dict) or checkpoint.get("fingerprint") != fingerprint:
@@ -251,6 +260,29 @@ def clean_json_string(text):
     return json_text
 
 
+def _extract_valid_json_objects(json_text):
+    """Extract complete JSON objects without assuming a pass-specific schema."""
+    entries = []
+    cursor = 0
+    while True:
+        start = json_text.find("{", cursor)
+        if start < 0:
+            break
+        span = extract_balanced(json_text, "{", "}", start)
+        if span is None:
+            cursor = start + 1
+            continue
+        try:
+            value = json.loads(span)
+        except json.JSONDecodeError:
+            cursor = start + 1
+            continue
+        if isinstance(value, dict):
+            entries.append(value)
+        cursor = start + len(span)
+    return entries
+
+
 def repair_json_array(json_text):
     """Attempt to repair common JSON array issues from LLM output."""
     if not json_text:
@@ -289,18 +321,10 @@ def repair_json_array(json_text):
     except json.JSONDecodeError:
         pass
 
-    # Fix 3: Try to extract individual entries and rebuild
-    entries = []
-    # Match individual JSON objects
-    pattern = r'\{\s*"speaker"\s*:\s*"[^"]*"\s*,\s*"text"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"instruct"\s*:\s*"(?:[^"\\]|\\.)*"\s*\}'
-    matches = re.findall(pattern, json_text, re.DOTALL)
-
-    for match in matches:
-        try:
-            entry = json.loads(match)
-            entries.append(entry)
-        except json.JSONDecodeError:
-            continue
+    # Fix 3: Try to extract individual entries and rebuild. This is deliberately
+    # schema-neutral: single-pass returns speaker/text/instruct, pass 2 returns
+    # n/head/speaker, and pass 3 returns n/head/instruct.
+    entries = _extract_valid_json_objects(json_text)
 
     if entries:
         return entries
@@ -322,24 +346,8 @@ def repair_json_array(json_text):
     return None
 
 def salvage_json_entries(json_text):
-    """Last resort: extract individual valid entries with regex."""
-    entries = []
-    # Match individual JSON objects with speaker, text, instruct fields
-    pattern = r'\{\s*"speaker"\s*:\s*"([^"]*)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"instruct"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}'
-    matches = re.finditer(pattern, json_text, re.DOTALL)
-
-    for match in matches:
-        try:
-            entry = {
-                "speaker": match.group(1),
-                "text": match.group(2).replace('\\"', '"').replace('\\n', '\n'),
-                "instruct": match.group(3).replace('\\"', '"').replace('\\n', '\n')
-            }
-            entries.append(entry)
-        except Exception as e:
-            print(f"  [salvage] discarding malformed candidate: {e}")
-            continue
-
+    """Last resort: extract individual valid objects for any generation pass."""
+    entries = _extract_valid_json_objects(json_text)
     return entries if entries else None
 
 
@@ -1141,13 +1149,14 @@ def main():
 
     # Load generation settings
     generation_config = config.get("generation") or {}
-    chunk_size = generation_config.get("chunk_size", 3000)
+    configured_chunk_size = generation_config.get("chunk_size", 3000)
+    try:
+        chunk_size = get_valid_chunk_size(configured_chunk_size, args.chunk_size)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
     if args.chunk_size is not None:
-        if args.chunk_size < 1:
-            print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
-            sys.exit(1)
-        print(f"Chunk size overridden via --chunk-size: {chunk_size} -> {args.chunk_size}")
-        chunk_size = args.chunk_size
+        print(f"Chunk size overridden via --chunk-size: {configured_chunk_size} -> {chunk_size}")
     max_tokens = generation_config.get("max_tokens", 4096)
     temperature = generation_config.get("temperature", 0.6)
     top_p = generation_config.get("top_p", 0.8)

@@ -9,10 +9,10 @@
 # Outputs never overwrite: ab_test_runtime/<backend>/<model>/rep<N>/. Resumable -
 # a run whose final <book>.json exists is skipped. VRAM freed before every run and
 # before every runtime switch.
-set -u
-APP="/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app"
-OUT="/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime"
-PY="$APP/env/bin/python"; LMS="/home/fakemitch/.lmstudio/bin/lms"
+set -eu
+APP="${APP:-/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app}"
+OUT="${OUT:-/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime}"
+PY="${PY:-$APP/env/bin/python}"; LMS="${LMS:-/home/fakemitch/.lmstudio/bin/lms}"
 MASTER="$OUT/run.log"
 REPEATS="${REPEATS:-3}"
 cd "$APP" || exit 1
@@ -24,16 +24,39 @@ VULKAN="llama.cpp-linux-x86_64-vulkan-avx2@2.26.0"
 ROCM="llama.cpp-linux-x86_64-amd-rocm-avx2@2.26.0"
 
 set_model () { "$PY" - "$1" <<'PY'
-import json,sys; p="config.json"; c=json.load(open(p)); c.setdefault("llm",{})["model_name"]=sys.argv[1]; json.dump(c,open(p,"w"),indent=2)
+import json, os, sys, tempfile
+p = "config.json"
+with open(p, encoding="utf-8") as fh:
+    c = json.load(fh)
+c.setdefault("llm", {})["model_name"] = sys.argv[1]
+fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".tmp", dir=".")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(c, fh, indent=2)
+        fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, p)
+finally:
+    if os.path.exists(tmp):
+        os.unlink(tmp)
 PY
 }
 
 select_runtime () {  # engine alias
   "$LMS" unload --all >/dev/null 2>&1
-  local got
+  local got selected
   got="$("$LMS" runtime select "$1" 2>&1)"
   echo "### runtime -> $got" | tee -a "$MASTER"
-  "$LMS" runtime ls 2>&1 | grep "✓" | tee -a "$MASTER"
+  selected="$("$LMS" runtime ls 2>&1 | grep "✓")" || {
+    echo "ERROR: no selected runtime reported after requesting $1" | tee -a "$MASTER" >&2
+    return 1
+  }
+  echo "$selected" | tee -a "$MASTER"
+  case "$selected" in
+    *"$1"*) ;;
+    *) echo "ERROR: selected runtime does not match requested alias $1" | tee -a "$MASTER" >&2; return 1 ;;
+  esac
 }
 
 run_arm () {  # backend tag model
@@ -45,9 +68,12 @@ run_arm () {  # backend tag model
     if [ -f "$out" ]; then echo "=== [$backend/$tag/rep$r] already complete ===" | tee -a "$MASTER"; continue; fi
     "$LMS" unload --all >/dev/null 2>&1
     echo "=== [$backend/$tag/rep$r] $model start $(date -Is) ===" | tee -a "$MASTER"
-    "$PY" three_pass_generate.py "uploads/$BOOK.txt" --pass2-on-exhaustion fail \
-        --output "$out" >> "$dir/$BOOK.log" 2>&1
-    code=$?
+    if "$PY" three_pass_generate.py "uploads/$BOOK.txt" --pass2-on-exhaustion fail \
+        --output "$out" >> "$dir/$BOOK.log" 2>&1; then
+      code=0
+    else
+      code=$?
+    fi
     echo "=== [$backend/$tag/rep$r] exit=$code $(date -Is) ===" | tee -a "$MASTER"
   done
 }
@@ -61,8 +87,14 @@ phase () {  # backend engine
   echo "########## PHASE $1 COMPLETE $(date -Is) ##########" | tee -a "$MASTER"
 }
 
-echo "########## RUNTIME A/B START $(date -Is) (REPEATS=$REPEATS) ##########" | tee -a "$MASTER"
-phase vulkan "$VULKAN"
-phase rocm   "$ROCM"
-set_model "$GEMMA"
-echo "########## RUNTIME A/B COMPLETE $(date -Is) ##########" | tee -a "$MASTER"
+main () {
+  echo "########## RUNTIME A/B START $(date -Is) (REPEATS=$REPEATS) ##########" | tee -a "$MASTER"
+  phase vulkan "$VULKAN"
+  phase rocm   "$ROCM"
+  set_model "$GEMMA"
+  echo "########## RUNTIME A/B COMPLETE $(date -Is) ##########" | tee -a "$MASTER"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

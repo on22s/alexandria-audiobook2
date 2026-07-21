@@ -40,20 +40,31 @@ def parse_log_tokens_per_sec(log_path):
 
 
 def load_run(rep_dir):
-    manifests = glob.glob(os.path.join(rep_dir, MANIFEST_GLOB))
+    manifests = sorted(glob.glob(os.path.join(rep_dir, MANIFEST_GLOB)))
     manifest = None
-    if manifests:
+    ambiguous_manifest = len(manifests) > 1
+    if len(manifests) == 1:
         try:
             manifest = json.load(open(manifests[0], encoding="utf-8"))
         except (OSError, ValueError):
             manifest = None
-    logs = [p for p in glob.glob(os.path.join(rep_dir, "*.log"))]
-    speed = parse_log_tokens_per_sec(logs[0]) if logs else None
+    logs = sorted(glob.glob(os.path.join(rep_dir, "*.log")))
+    speed = parse_log_tokens_per_sec(logs[0]) if len(logs) == 1 else None
     passes = (manifest or {}).get("passes", {})
-    wall = sum(p.get("elapsed_s", 0) for p in passes.values()) if passes else None
+    valid_passes = (isinstance(passes, dict) and passes
+                    and all(isinstance(p, dict) for p in passes.values()))
+    elapsed = ([p.get("elapsed_s") for p in passes.values()]
+               if valid_passes else [])
+    wall = (sum(elapsed) if elapsed
+            and all(isinstance(v, (int, float)) for v in elapsed) else None)
+    if (manifest or {}).get("legacy_resume"):
+        wall = None
     counts = (manifest or {}).get("counts", {})
+    if not isinstance(counts, dict):
+        counts = {}
     return {
-        "status": (manifest or {}).get("status", "no_manifest"),
+        "status": ("ambiguous_manifest" if ambiguous_manifest
+                   else (manifest or {}).get("status", "no_manifest")),
         "failed_pass": (manifest or {}).get("failed_pass"),
         "wall_s": round(wall, 1) if wall is not None else None,
         "near_miss": counts.get("near_miss_accepted"),
@@ -87,6 +98,10 @@ def _mean(values):
     return round(statistics.mean(nums), 2) if nums else None
 
 
+def _display(value):
+    return "-" if value is None else str(value)
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
     rows = collect(root)
@@ -99,7 +114,7 @@ def main():
     print(hdr)
     for r in sorted(rows, key=lambda r: (r["backend"], r["model"], r["rep"])):
         print(f"{r['backend']:7} {r['model'][:9]:9} {r['rep']:5} {r['status'][:10]:10} "
-              f"{str(r['wall_s'] or '-'):>8} {str(r['tok_per_sec'] or '-'):>7} "
+              f"{_display(r['wall_s']):>8} {_display(r['tok_per_sec']):>7} "
               f"{str(r['near_miss'] if r['near_miss'] is not None else '-'):>8} "
               f"{str(r['rescued'] if r['rescued'] is not None else '-'):>6}")
 
@@ -117,7 +132,7 @@ def main():
              "rescue": _mean([r["rescued"] for r in grp])}
         agg[(backend, model)] = a
         print(f"{backend:7} {model[:9]:9} {a['complete_rate']:9} "
-              f"{str(a['wall_s'] or '-'):>9} {str(a['tok_per_sec'] or '-'):>8} "
+              f"{_display(a['wall_s']):>9} {_display(a['tok_per_sec']):>8} "
               f"{str(a['rescue'] if a['rescue'] is not None else '-'):>7}")
 
     # Head-to-head: for each model, compare vulkan vs rocm.

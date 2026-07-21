@@ -1,7 +1,7 @@
 from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
 from pass_quality import validate_segment_quality
-from pass_quality import freeze_check, validate_attribution
+from pass_quality import validate_attribution
 from pass_quality import validate_instruct, index_head_check
 import default_prompts
 
@@ -33,31 +33,7 @@ class SegmentQualityTests(unittest.TestCase):
         self.assertIn("low_source_token_recall", codes)
 
 
-class FreezeAndAttributionTests(unittest.TestCase):
-    def test_freeze_passes_when_text_identical(self):
-        frozen = [{"type": "SPOKEN", "text": "Tell me the truth."}]
-        new = [{"speaker": "ELENA", "text": "Tell me the truth."}]
-        ok, reason = freeze_check(frozen, new)
-        self.assertTrue(ok, reason)
-
-    def test_freeze_fails_when_text_altered(self):
-        frozen = [{"type": "SPOKEN", "text": "Tell me the truth."}]
-        new = [{"speaker": "ELENA", "text": "Tell me the whole truth."}]
-        ok, reason = freeze_check(frozen, new)
-        self.assertFalse(ok)
-
-    def test_freeze_fails_on_count_mismatch(self):
-        frozen = [{"type": "NARRATOR", "text": "A."}, {"type": "SPOKEN", "text": "B."}]
-        new = [{"speaker": "NARRATOR", "text": "A."}]
-        ok, reason = freeze_check(frozen, new)
-        self.assertFalse(ok)
-
-    def test_freeze_ignores_punctuation_and_case(self):
-        frozen = [{"type": "SPOKEN", "text": "We should leave."}]
-        new = [{"speaker": "MARCUS", "text": "we should leave"}]
-        ok, reason = freeze_check(frozen, new)
-        self.assertTrue(ok, reason)
-
+class AttributionTests(unittest.TestCase):
     def test_attribution_passes_when_all_spoken_named(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold."},
                   {"type": "SPOKEN", "text": "Tell me."}]
@@ -118,6 +94,32 @@ class IndexHeadCheckTests(unittest.TestCase):
         frozen = [{"type": "SPOKEN", "text": "――――."}]
         ok, _, _ = index_head_check(frozen, [{"n": 0, "head": "", "speaker": "RYUZU"}])
         self.assertTrue(ok)
+
+    def test_rejects_too_short_or_ambiguous_head(self):
+        frozen = [{"type": "SPOKEN", "text": "The old door opened."},
+                  {"type": "SPOKEN", "text": "The old guard waited."}]
+        short = [{"n": 0, "head": "The", "speaker": "A"},
+                 {"n": 1, "head": "The old guard", "speaker": "B"}]
+        ambiguous = [{"n": 0, "head": "The old", "speaker": "A"},
+                     {"n": 1, "head": "The old guard", "speaker": "B"}]
+        self.assertFalse(index_head_check(frozen, short)[0])
+        self.assertFalse(index_head_check(frozen, ambiguous)[0])
+
+    def test_accepts_integral_float_index(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me now."}]
+        ok, reason, _ = index_head_check(
+            frozen, [{"n": 0.0, "head": "Tell me now", "speaker": "ELENA"}])
+        self.assertTrue(ok, reason)
+
+    def test_non_string_model_fields_fail_validation_without_crashing(self):
+        frozen = [{"type": "SPOKEN", "text": "Tell me now."}]
+        attribution = validate_attribution(
+            frozen, [{"n": 0, "head": "Tell me now", "speaker": {"name": "ELENA"}}])
+        instruct = validate_instruct(
+            [{"speaker": "ELENA", "text": "Tell me now."}],
+            [{"n": 0, "head": "Tell me now", "instruct": ["firm"]}])
+        self.assertFalse(attribution["passed"])
+        self.assertFalse(instruct["passed"])
 
 
 class InstructValidatorTests(unittest.TestCase):

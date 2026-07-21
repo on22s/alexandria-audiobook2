@@ -15,18 +15,19 @@ class PassHelperTests(unittest.TestCase):
         batches = list(tp.iter_entry_batches(entries, batch_size=25))
         self.assertEqual([25, 25, 5], [len(b) for b in batches])
 
-    def test_next_attribute_batch_isolates_duplicate_text(self):
+    def test_unique_batches_isolate_duplicates_without_collapsing_prefix(self):
         seg = [{"type": "SPOKEN", "text": "Yes."},
                {"type": "SPOKEN", "text": "Yes."},
-               {"type": "NARRATOR", "text": "He left the room."}]
-        b0 = tp.next_attribute_batch(seg, 0)
-        self.assertEqual(["Yes."], [e["text"] for e in b0])  # 2nd "Yes." excluded
-        b1 = tp.next_attribute_batch(seg, 1)
-        self.assertEqual(["Yes.", "He left the room."], [e["text"] for e in b1])
+               {"type": "NARRATOR", "text": "He left the room."},
+               {"type": "SPOKEN", "text": "No."}]
+        batches = list(tp.iter_unique_entry_batches(seg))
+        self.assertEqual([[0, 2, 3], [1]],
+                         [[index for index, _ in batch] for batch in batches])
 
-    def test_next_attribute_batch_caps_at_batch_size(self):
+    def test_unique_batches_cap_source_windows_at_batch_size(self):
         seg = [{"type": "NARRATOR", "text": f"line {i}"} for i in range(60)]
-        self.assertEqual(tp.BATCH_SIZE, len(tp.next_attribute_batch(seg, 0)))
+        self.assertEqual([25, 25, 10],
+                         [len(batch) for batch in tp.iter_unique_entry_batches(seg)])
 
     def test_resolve_chunk_size_cli_overrides_config(self):
         self.assertEqual(3000, tp.resolve_chunk_size(3000, 6000))
@@ -186,6 +187,46 @@ class CheckpointTests(unittest.TestCase):
                                         chunk_size=6000, output_path=out)
             self.assertEqual(2, len(entries))
             self.assertEqual("ELENA", entries[1]["speaker"])
+
+    def test_resume_preserves_resolutions_and_accumulates_pass_elapsed(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg, named, instructed = self._payloads()
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            fingerprint = tp.three_pass_fingerprint(source, "m", 6000)
+            tp._save_three_pass_checkpoint(
+                out, fingerprint, "segment", seg, 1, [], [],
+                resolutions=["context_rescue:2000"],
+                elapsed_s={"segment": 12.5, "attribute": 3.25})
+            tp.run_three_pass(_client_returning([named, instructed]), "m", source,
+                              params, chunk_size=6000, output_path=out)
+            with open(tp.three_pass_manifest_path(out)) as fh:
+                manifest = json.load(fh)
+        self.assertEqual("context_rescue:2000", manifest["chunks"][0]["resolution"])
+        self.assertGreaterEqual(manifest["passes"]["segment"]["elapsed_s"], 12.5)
+        self.assertGreaterEqual(manifest["passes"]["attribute"]["elapsed_s"], 3.25)
+        self.assertFalse(manifest["legacy_resume"])
+
+    def test_failed_attribution_attempt_is_checkpointed_for_next_resume(self):
+        source = "The room was cold. \"Tell me the truth.\""
+        seg, _, _ = self._payloads()
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        bad = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+               {"n": 1, "head": "Tell me the", "speaker": "NARRATOR"}]
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "book.json")
+            fingerprint = tp.three_pass_fingerprint(source, "m", 6000)
+            tp._save_three_pass_checkpoint(
+                out, fingerprint, "segment", seg, 1, [], [],
+                resolutions=["clean"], elapsed_s={"segment": 2.0, "attribute": 4.0})
+            with self.assertRaises(tp.PassExhausted):
+                tp.run_three_pass(_client_returning([bad] * 4), "m", source,
+                                  params, chunk_size=6000, output_path=out)
+            with open(tp.three_pass_checkpoint_path(out)) as fh:
+                checkpoint = json.load(fh)
+        self.assertEqual("attribute_failed", checkpoint["stage"])
+        self.assertGreaterEqual(checkpoint["elapsed_s"]["attribute"], 4.0)
 
 
 if __name__ == "__main__":
