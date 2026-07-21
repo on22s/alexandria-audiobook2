@@ -229,3 +229,60 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         save("instruct")
     save("done")
     return annotated
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Three-pass annotated script generation.")
+    parser.add_argument("input_file")
+    parser.add_argument("--output", default=None)
+    parser.add_argument("--chunk-size", type=int, default=None)
+    parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
+                        default=True)
+    parser.add_argument("--pass2-on-exhaustion", choices=["fail", "fallback"],
+                        default="fail",
+                        help="testing default 'fail' surfaces pass-2 failures; "
+                             "'fallback' degrades gracefully (production).")
+    args = parser.parse_args()
+
+    with open(args.input_file, encoding="utf-8", errors="replace") as fh:
+        book = fh.read()
+    book = fix_mojibake(book)
+    book, _ = normalize_known_source_corruptions(book)
+    if args.strip_front_matter:
+        book, _ = strip_known_front_matter(book)
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    config = load_app_config(get_app_config_path(data_dir, root, app_dir))
+    llm = config.get("llm", {})
+    gen = config.get("generation") or {}
+    chunk_size = args.chunk_size or gen.get("chunk_size", 6000)
+    params = LLMGenParams(
+        max_tokens=gen.get("max_tokens", 10000),
+        temperature=gen.get("temperature", 0.6),
+        top_p=gen.get("top_p", 0.8),
+        top_k=gen.get("top_k"), min_p=gen.get("min_p"),
+        context_length=None)
+    client = OpenAI(base_url=llm.get("base_url", "http://localhost:1234/v1"),
+                    api_key=llm.get("api_key", "local"))
+    model_name = llm.get("model_name")
+
+    output_path = args.output or os.path.join(root, "annotated_script.json")
+    print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
+          f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
+    try:
+        entries = run_three_pass(client, model_name, book, params, chunk_size,
+                                 on_exhaustion=args.pass2_on_exhaustion,
+                                 output_path=output_path)
+    except (RuntimeError, PassExhausted) as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
+
+    with open(output_path, "w", encoding="utf-8") as fh:
+        json.dump(entries, fh, ensure_ascii=False, indent=2)
+    print(f"Wrote {len(entries)} entries to {output_path}")
+
+
+if __name__ == "__main__":
+    main()
