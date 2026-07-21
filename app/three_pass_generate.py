@@ -5,6 +5,7 @@ path is untouched. See docs/superpowers/specs/2026-07-21-three-pass-script-gener
 import argparse
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -291,21 +292,43 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         near_miss_sink=near_miss_sink)
 
 
+def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
+    """Estimate whether a context-rescue prompt for this window fits the model's
+    context, leaving room to emit the chunk. Uses the pipeline's chars//3 token
+    estimate. Returns True when context_length is unknown (keep prior behavior)."""
+    ctx_len = getattr(params, "context_length", None)
+    if not ctx_len:
+        return True
+    prompt_tokens = math.ceil((overhead_chars + len(chunk) + len(before) + len(after)) / 3)
+    # Segment output reproduces the chunk text wrapped in JSON; reserve ~1.5x the
+    # chunk's token estimate plus a small structural margin as the output budget.
+    output_budget = math.ceil(len(chunk) / 3 * 1.5) + 64
+    return prompt_tokens + output_budget <= ctx_len
+
+
 def rescue_chunk_with_context(client, model_name, chunks, index, params,
                               resolution_sink=None):
     """When chunk `index` fails normal segmentation, retry it up to 3 times with
     escalating surrounding-source context. Accepts a clean pass, else the best
     trigram-only near-miss any window produced. Returns entries or []. When
     resolution_sink is given, appends the resolution
-    (context_rescue:<window> / context_rescue_near_miss / fail)."""
+    (context_rescue:<window> / context_rescue_near_miss / fail). Windows whose
+    prompt would exceed the model's context budget are skipped (finding #4)."""
     before_all = "".join(chunks[:index])
     after_all = "".join(chunks[index + 1:])
+    sys_prompt, _ = load_segment_prompts()
+    overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in _CONTEXT_RESCUE_WINDOWS:
+        before, after = before_all[-window:], after_all[:window]
+        if not _rescue_prompt_fits(chunks[index], before, after, overhead_chars, params):
+            print(f"  context rescue {window}-char window skipped "
+                  "(prompt would exceed context budget)")
+            continue
         near_miss = []
         seg = segment_chunk_with_context(
             client, model_name, chunks[index],
-            before_all[-window:], after_all[:window], params, near_miss_sink=near_miss)
+            before, after, params, near_miss_sink=near_miss)
         if seg:
             print(f"  chunk {index + 1}/{len(chunks)} rescued with "
                   f"{window}-char surrounding context (clean pass)")

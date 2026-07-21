@@ -235,6 +235,28 @@ class ContextBleedTests(unittest.TestCase):
         self.assertEqual([], out)
 
 
+class RescueBudgetTests(unittest.TestCase):
+    def test_window_fits_returns_true_when_context_unknown(self):
+        p = LLMGenParams(max_tokens=500, temperature=0.1)  # context_length None
+        self.assertTrue(tp._rescue_prompt_fits("x" * 100000, "y" * 6000, "", 500, p))
+
+    def test_oversized_window_is_skipped_and_no_call_made(self):
+        big = "c " * 15000  # ~30k chars -> prompt+output tokens >> 8192
+        calls = {"n": 0}
+
+        def create(**_kwargs):
+            calls["n"] += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content="[]"), finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        p = LLMGenParams(max_tokens=4000, temperature=0.1, context_length=8192)
+        out = tp.rescue_chunk_with_context(client, "m", [big], 0, p)
+        self.assertEqual([], out)
+        self.assertEqual(0, calls["n"], "no LLM call should be made for over-budget windows")
+
+
 class ManifestTests(unittest.TestCase):
     def test_manifest_records_clean_resolution_counts_and_timing(self):
         source = "The room was cold. \"Tell me the truth.\""
