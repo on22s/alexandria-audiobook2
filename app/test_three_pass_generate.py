@@ -77,6 +77,22 @@ class PassHelperTests(unittest.TestCase):
     def test_unmatched_outer_quote_falls_back_to_model_segmentation(self):
         self.assertEqual([], tp.split_outer_quote_regions('She said, "Go.'))
 
+    def test_nested_curly_quotes_keep_outer_dialogue_boundary(self):
+        source = 'Subaru “My plan to “impress everyone” has failed.” Emilia nodded.'
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "Subaru"},
+             {"type": "SPOKEN", "text": "My plan to impress everyone has failed."},
+             {"type": "NARRATOR", "text": "Emilia nodded."}],
+            tp.split_outer_quote_regions(source))
+
+    def test_inner_curly_open_can_share_outer_close(self):
+        source = 'Emilia “I have to say this “I will not do that!”\n\nThey left.'
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "Emilia"},
+             {"type": "SPOKEN", "text": "I have to say this I will not do that!"},
+             {"type": "NARRATOR", "text": "They left."}],
+            tp.split_outer_quote_regions(source))
+
     def test_context_rescue_is_not_used_for_omission_or_quote_structure(self):
         self.assertFalse(tp.should_rescue_with_context({"low_source_token_recall"}))
         self.assertFalse(tp.should_rescue_with_context({"crosses_quote_boundary"}))

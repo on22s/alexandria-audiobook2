@@ -24,7 +24,8 @@ from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (validate_segment_quality, validate_attribution,
-                          validate_instruct, index_head_check)
+                          validate_instruct, index_head_check,
+                          split_outer_quote_regions)
 from review_script import normalize_text
 from config_settings import load_app_config
 from lmstudio_settings import ensure_ideal_settings
@@ -309,28 +310,6 @@ def _resolved_near_miss(near_miss, resolution_sink):
     entries = _accept_segment_near_miss(near_miss)
     _record_resolution(resolution_sink, "near_miss" if entries else "fail")
     return entries
-
-
-def split_outer_quote_regions(text):
-    """Split balanced outer quotes into ordered narrator/spoken source regions."""
-    regions, current, quoted, saw_quote = [], [], False, False
-    for char in text:
-        opens = char in ('"', '“') and not quoted
-        closes = char in ('"', '”') and quoted
-        if opens or closes:
-            part = "".join(current).strip()
-            if part:
-                regions.append({"type": "SPOKEN" if quoted else "NARRATOR",
-                                "text": part})
-            current = []
-            quoted = not quoted
-            saw_quote = True
-        else:
-            current.append(char)
-    part = "".join(current).strip()
-    if part:
-        regions.append({"type": "SPOKEN" if quoted else "NARRATOR", "text": part})
-    return regions if saw_quote and not quoted else []
 
 
 def segment_chunk_adaptively(client, model_name, chunk, params,

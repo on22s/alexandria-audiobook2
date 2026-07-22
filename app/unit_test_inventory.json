@@ -654,6 +654,8 @@
     "test_three_pass_generate.Pass3Tests.test_falls_back_to_default_instruct_on_exhaustion",
     "test_three_pass_generate.PassHelperTests.test_context_rescue_is_not_used_for_omission_or_quote_structure",
     "test_three_pass_generate.PassHelperTests.test_default_instruct_by_type",
+    "test_three_pass_generate.PassHelperTests.test_inner_curly_open_can_share_outer_close",
+    "test_three_pass_generate.PassHelperTests.test_nested_curly_quotes_keep_outer_dialogue_boundary",
     "test_three_pass_generate.PassHelperTests.test_outer_quote_regions_and_preflight_selection",
     "test_three_pass_generate.PassHelperTests.test_outer_quote_regions_support_curly_quotes",
     "test_three_pass_generate.PassHelperTests.test_preflight_dialogue_selection_ignores_quote_dense_endnotes",

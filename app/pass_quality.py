@@ -18,20 +18,57 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 _QUOTE_CHARS = {'"', '“', '”'}
 
 
+def split_outer_quote_regions(text):
+    """Split source into narrator/spoken regions using outer quote boundaries.
+
+    Curly quotes may be nested. Some source dialogue also uses an inner opening
+    curly quote but shares the paragraph's only closing mark with the outer
+    quote; in that case the inner mark is treated as decoration, not a new
+    nesting level. Quote delimiters are intentionally omitted from speakable
+    text.
+    """
+    regions, current, depth, saw_quote = [], [], 0, False
+
+    def flush():
+        part = "".join(current).strip()
+        if part:
+            regions.append({"type": "SPOKEN" if depth else "NARRATOR",
+                            "text": part})
+        current.clear()
+
+    for index, char in enumerate(text):
+        if char == '“':
+            if depth == 0:
+                flush()
+                depth = 1
+                saw_quote = True
+            else:
+                paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
+                if paragraph_tail.count('”') >= 2:
+                    depth += 1
+            continue
+        if char == '”' and depth:
+            if depth == 1:
+                flush()
+            depth -= 1
+            continue
+        if char == '"':
+            flush()
+            depth = 0 if depth else 1
+            saw_quote = True
+            continue
+        current.append(char)
+    flush()
+    return regions if saw_quote and depth == 0 else []
+
+
 def _split_quote_regions(source_text):
     """Return normalized text regions outside and inside outer dialogue quotes."""
-    outside, inside, current = [], [], []
-    quoted = False
-    for char in source_text:
-        opens = char in ('"', '“') and not quoted
-        closes = char in ('"', '”') and quoted
-        if opens or closes:
-            (inside if quoted else outside).append("".join(current))
-            current = []
-            quoted = not quoted
-        else:
-            current.append(char)
-    (inside if quoted else outside).append("".join(current))
+    regions = split_outer_quote_regions(source_text)
+    outside = [entry["text"] for entry in regions
+               if entry["type"] == "NARRATOR"]
+    inside = [entry["text"] for entry in regions
+              if entry["type"] == "SPOKEN"]
     return outside, inside
 
 
