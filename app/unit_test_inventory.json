@@ -629,6 +629,9 @@
   "test_three_pass_generate": [
     "test_three_pass_generate.BoundedContextJoinTests.test_join_bounded_does_not_materialize_whole_book",
     "test_three_pass_generate.BoundedContextJoinTests.test_tail_and_head_join_match_naive_slice",
+    "test_three_pass_generate.CheckpointTests.test_collect_all_records_each_singleton_attribution_failure",
+    "test_three_pass_generate.CheckpointTests.test_collect_all_records_segment_failure_and_continues",
+    "test_three_pass_generate.CheckpointTests.test_collect_all_subdivides_instruction_failures_to_singletons",
     "test_three_pass_generate.CheckpointTests.test_completed_stage_is_not_recomputed_on_resume",
     "test_three_pass_generate.CheckpointTests.test_failed_attribution_attempt_is_checkpointed_for_next_resume",
     "test_three_pass_generate.CheckpointTests.test_fingerprint_changes_with_output_affecting_settings",

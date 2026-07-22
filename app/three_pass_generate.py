@@ -67,6 +67,8 @@ def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
         batches = []
         for index in range(window_start, min(window_start + batch_size, len(entries))):
             entry = entries[index]
+            if not isinstance(entry, dict):
+                continue
             key = normalize_text(str(entry.get("text") or ""))
             for batch, seen in batches:
                 if key not in seen:
@@ -163,7 +165,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
 
 
 def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
-                   neighbor_contexts=None):
+                   neighbor_contexts=None, exhaustion_sink=None):
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
@@ -200,6 +202,8 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
             raise RuntimeError("validated instruct response lost its index binding")
         return [{**p, "instruct": item.get("instruct")}
                 for p, item in zip(prior_batch, ordered)]
+    if exhaustion_sink is not None:
+        exhaustion_sink.append(True)
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
 
 
@@ -632,7 +636,7 @@ def _resolution_counts(resolutions):
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
-                    progress=None):
+                    progress=None, diagnostic_failures=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -646,6 +650,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "passes": passes,
         "legacy_resume": legacy_resume,
         "progress": progress or {},
+        "diagnostic_failures": diagnostic_failures or [],
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -656,14 +661,16 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
 
 def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            on_exhaustion="fail", context_windows=None,
-                           context_rescue_retries=None, endpoint=None):
+                           context_rescue_retries=None, endpoint=None,
+                           collect_all_failures=False):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
         "endpoint": endpoint, "on_exhaustion": on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
-        "pipeline_version": 6,
+        "collect_all_failures": collect_all_failures,
+        "pipeline_version": 7,
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -689,18 +696,20 @@ def _load_three_pass_checkpoint(output_path, fingerprint):
 
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
-                                elapsed_s=None):
+                                elapsed_s=None, diagnostic_failures=None):
     atomic_json_write({"fingerprint": fingerprint, "stage": stage,
                        "chunks_done": chunks_done, "segmented": segmented,
                        "named": named, "annotated": annotated,
                        "resolutions": resolutions or [],
-                       "elapsed_s": elapsed_s or {}},
+                       "elapsed_s": elapsed_s or {},
+                       "diagnostic_failures": diagnostic_failures or []},
                       three_pass_checkpoint_path(output_path))
 
 
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
-                   context_windows=None, context_rescue_retries=None, endpoint=None):
+                   context_windows=None, context_rescue_retries=None, endpoint=None,
+                   collect_all_failures=False):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
@@ -718,7 +727,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         quote_depth = analysis["final_depth"]
     fingerprint = three_pass_fingerprint(
         source_text, model_name, chunk_size, params, on_exhaustion,
-        context_windows, context_rescue_retries, endpoint)
+        context_windows, context_rescue_retries, endpoint, collect_all_failures)
     state = _load_three_pass_checkpoint(output_path, fingerprint) if output_path else None
     segmented = state["segmented"] if state else []
     chunks_done = state["chunks_done"] if state else 0
@@ -734,13 +743,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     if len(resolutions) < chunks_done:
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
+    diagnostic_failures = list(state.get("diagnostic_failures", [])) if state else []
     attempts = []
 
     def save(stage):
         if output_path:
             _save_three_pass_checkpoint(output_path, fingerprint, stage,
                                         segmented, chunks_done, named, annotated,
-                                        resolutions, elapsed_s)
+                                        resolutions, elapsed_s, diagnostic_failures)
     passes = {}
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
@@ -753,9 +763,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "source_words": len(source_text.split()),
                             "source_words_total": len(source_text.split()),
                             "source_words_completed": sum(
-                                len(chunks[j].split()) for j in range(chunks_done)),
+                                len(chunks[j].split()) for j, resolution in
+                                enumerate(resolutions) if resolution != "fail"),
                             "chunks_total": len(chunks),
-                            "chunks_completed": chunks_done,
+                            "chunks_attempted": chunks_done,
+                            "chunks_completed": sum(
+                                resolution != "fail" for resolution in resolutions),
                             "segmented_entries": len(segmented),
                             "attributed_entries": sum(isinstance(e, dict) for e in named),
                             "instructed_entries": sum(isinstance(e, dict) for e in annotated),
@@ -768,7 +781,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "response_fingerprints": len({
                                 a.get("response_fingerprint") for a in attempts
                                 if a.get("response_fingerprint")}),
-                        })
+                        }, diagnostic_failures=diagnostic_failures)
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
@@ -788,8 +801,19 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                             resolution_sink=sink,
                                             windows=context_windows,
                                             max_retries=context_rescue_retries)
-        resolutions.append(sink[-1] if sink else "fail")
+        resolutions.append(sink[-1] if sink else ("clean" if seg else "fail"))
         if not seg:
+            if collect_all_failures:
+                diagnostic_failures.append({
+                    "pass": "segment", "chunk": i + 1,
+                    "source_sha256": hashlib.sha256(chunks[i].encode()).hexdigest(),
+                    "source_characters": len(chunks[i]),
+                    "source_preview": chunks[i][:500],
+                    "failure_codes": sorted(failures[0] if failures else [])})
+                chunks_done = i + 1
+                elapsed_s["segment"] = seg_base + time.time() - seg_start
+                save("segment_incomplete")
+                continue
             elapsed_s["segment"] = seg_base + time.time() - seg_start
             passes["segment"] = {"elapsed_s": round(elapsed_s["segment"], 3),
                                  "status": "failed"}
@@ -802,7 +826,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         save("segment")
     elapsed_s["segment"] = seg_base + time.time() - seg_start
     passes["segment"] = {"elapsed_s": round(elapsed_s["segment"], 3),
-                         "status": "complete"}
+                         "status": ("incomplete" if any(
+                             f["pass"] == "segment" for f in diagnostic_failures)
+                             else "complete")}
     # Pass 2 — deterministic duplicate-free batches, restored to source order.
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
@@ -818,7 +844,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     try:
         for indexed_batch in iter_unique_entry_batches(segmented):
             pending = [(index, entry) for index, entry in indexed_batch
-                       if named[index] is None]
+                       if named[index] is None and not any(
+                           f["pass"] == "attribute" and f.get("entry") == index
+                           for f in diagnostic_failures)]
             if not pending:
                 continue
             work = [pending]
@@ -835,6 +863,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         on_exhaustion=on_exhaustion, neighbor_contexts=contexts)
                 except PassExhausted:
                     if len(current) == 1:
+                        if collect_all_failures:
+                            index, entry = current[0]
+                            diagnostic_failures.append({
+                                "pass": "attribute", "entry": index,
+                                "text_sha256": hashlib.sha256(
+                                    entry["text"].encode()).hexdigest(),
+                                "text_preview": entry["text"][:500]})
+                            save("attribute_incomplete")
+                            continue
                         raise
                     midpoint = len(current) // 2
                     print(f"  Attribution batch exhausted; subdividing "
@@ -867,7 +904,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         raise
     elapsed_s["attribute"] = attr_base + time.time() - attr_start
     passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
-                           "status": "complete"}
+                           "status": ("incomplete" if any(
+                               f["pass"] == "attribute" for f in diagnostic_failures)
+                               else "complete")}
     # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
     # slip through there either (finding #5).
     annotated.extend([None] * (len(named) - len(annotated)))
@@ -878,23 +917,42 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    if annotated[index] is None]
         if not pending:
             continue
-        batch = [entry for _, entry in pending]
-        contexts = [{"previous_context": named[index - 1] if index else None,
-                     "next_context": named[index + 1]
-                     if index + 1 < len(named) else None}
-                    for index, _ in pending]
-        new_annotated = instruct_batch(client, model_name, batch, params,
-                                       neighbor_contexts=contexts)
-        for (index, _), entry in zip(pending, new_annotated):
-            annotated[index] = entry
-        elapsed_s["instruct"] = inst_base + time.time() - inst_start
-        save("instruct")
+        work = [pending]
+        while work:
+            current = work.pop(0)
+            batch = [entry for _, entry in current]
+            contexts = [{"previous_context": named[index - 1] if index else None,
+                         "next_context": named[index + 1]
+                         if index + 1 < len(named) else None}
+                        for index, _ in current]
+            exhausted = []
+            new_annotated = instruct_batch(
+                client, model_name, batch, params, neighbor_contexts=contexts,
+                exhaustion_sink=exhausted)
+            if exhausted and collect_all_failures and len(current) > 1:
+                midpoint = len(current) // 2
+                print(f"  Instruction batch exhausted; subdividing "
+                      f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
+                work[0:0] = [current[:midpoint], current[midpoint:]]
+                continue
+            if exhausted and collect_all_failures:
+                index, entry = current[0]
+                diagnostic_failures.append({
+                    "pass": "instruct", "entry": index,
+                    "text_sha256": hashlib.sha256(entry["text"].encode()).hexdigest(),
+                    "text_preview": entry["text"][:500]})
+            for (index, _), entry in zip(current, new_annotated):
+                annotated[index] = entry
+            elapsed_s["instruct"] = inst_base + time.time() - inst_start
+            save("instruct")
     elapsed_s["instruct"] = inst_base + time.time() - inst_start
     passes["instruct"] = {"elapsed_s": round(elapsed_s["instruct"], 3),
-                          "status": "complete"}
+                          "status": ("incomplete" if any(
+                              f["pass"] == "instruct" for f in diagnostic_failures)
+                              else "complete")}
     save("done")
-    emit_manifest("complete")
-    return annotated
+    emit_manifest("incomplete" if diagnostic_failures else "complete")
+    return [entry for entry in annotated if isinstance(entry, dict)]
 
 
 def main():
@@ -910,7 +968,12 @@ def main():
                              "'fallback' degrades gracefully (production).")
     parser.add_argument("--preflight", action="store_true",
                         help="Run first/middle/dialogue-heavy samples only.")
+    parser.add_argument("--collect-all-failures", action="store_true",
+                        help="Diagnostic mode: record exhausted work, continue, "
+                             "write only a .partial.json result, and exit nonzero.")
     args = parser.parse_args()
+    if args.preflight and args.collect_all_failures:
+        parser.error("--collect-all-failures cannot be combined with --preflight")
 
     with open(args.input_file, encoding="utf-8", errors="replace") as fh:
         book = fh.read()
@@ -996,11 +1059,19 @@ def main():
                                  output_path=output_path,
                                  context_windows=context_windows,
                                  context_rescue_retries=context_rescue_retries,
-                                 endpoint=base_url)
+                                 endpoint=base_url,
+                                 collect_all_failures=args.collect_all_failures)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
 
+    manifest = safe_load_json(three_pass_manifest_path(output_path), {})
+    if manifest.get("status") == "incomplete":
+        partial_path = output_path + ".partial.json"
+        atomic_json_write(entries, partial_path)
+        print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
+              f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
+        sys.exit(1)
     atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
 

@@ -5,6 +5,7 @@ import tempfile
 import three_pass_generate as tp
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
 from generate_script import LLMGenParams
 from script_repair import build_deterministic_repair
 
@@ -447,6 +448,65 @@ class EndToEndTests(unittest.TestCase):
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_collect_all_records_segment_failure_and_continues(self):
+        source = "First paragraph.\n\nSecond paragraph."
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        successful = [{"type": "NARRATOR", "text": "Second paragraph."}]
+        with tempfile.TemporaryDirectory() as d, \
+             patch.object(
+                 tp, "segment_chunk_adaptively", side_effect=[None, successful]), \
+             patch.object(tp, "should_rescue_with_context", return_value=False):
+            out = os.path.join(d, "book.json")
+            entries = tp.run_three_pass(
+                _client_returning([]), "m", source, params, chunk_size=18,
+                output_path=out, collect_all_failures=True)
+            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertIn("segment", [f["pass"] for f in manifest["diagnostic_failures"]])
+        self.assertEqual(2, manifest["progress"]["chunks_attempted"])
+        self.assertEqual(1, manifest["progress"]["chunks_completed"])
+        self.assertEqual("Second paragraph.", entries[0]["text"])
+
+    def test_collect_all_records_each_singleton_attribution_failure(self):
+        source = '"First." "Second."'
+        segmented = [{"type": "SPOKEN", "text": "First."},
+                     {"type": "SPOKEN", "text": "Second."}]
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with tempfile.TemporaryDirectory() as d, \
+             patch.object(tp, "segment_chunk_adaptively", return_value=segmented), \
+             patch.object(tp, "attribute_batch", side_effect=tp.PassExhausted):
+            out = os.path.join(d, "book.json")
+            entries = tp.run_three_pass(
+                _client_returning([]), "m", source, params, chunk_size=6000,
+                output_path=out, collect_all_failures=True)
+            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+        failures = manifest["diagnostic_failures"]
+        self.assertEqual([0, 1], [f["entry"] for f in failures])
+        self.assertEqual([], entries)
+
+    def test_collect_all_subdivides_instruction_failures_to_singletons(self):
+        source = "First. Second."
+        segmented = [{"type": "NARRATOR", "text": "First."},
+                     {"type": "NARRATOR", "text": "Second."}]
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+
+        def exhaust_instruct(client, model, batch, params, neighbor_contexts=None,
+                             exhaustion_sink=None):
+            exhaustion_sink.append(True)
+            return [{**entry, "instruct": tp.default_instruct(entry)} for entry in batch]
+
+        with tempfile.TemporaryDirectory() as d, \
+             patch.object(tp, "segment_chunk_adaptively", return_value=segmented), \
+             patch.object(tp, "instruct_batch", side_effect=exhaust_instruct):
+            out = os.path.join(d, "book.json")
+            tp.run_three_pass(_client_returning([]), "m", source, params,
+                              chunk_size=6000, output_path=out,
+                              collect_all_failures=True)
+            manifest = json.load(open(tp.three_pass_manifest_path(out)))
+        failures = [f for f in manifest["diagnostic_failures"]
+                    if f["pass"] == "instruct"]
+        self.assertEqual([0, 1], [f["entry"] for f in failures])
+
     def test_fingerprint_changes_with_output_affecting_settings(self):
         first = LLMGenParams(max_tokens=500, temperature=0.1)
         second = LLMGenParams(max_tokens=500, temperature=0.9)
