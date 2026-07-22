@@ -803,6 +803,41 @@
             "title": "Temperature",
             "type": "number"
           },
+          "three_pass_attribute_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Attribute Temperature",
+            "type": "number"
+          },
+          "three_pass_instruct_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Instruct Temperature",
+            "type": "number"
+          },
+          "three_pass_model_profiles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ThreePassModelProfile"
+            },
+            "title": "Three Pass Model Profiles",
+            "type": "object"
+          },
+          "three_pass_segment_output_ratio": {
+            "default": 3.0,
+            "maximum": 6.0,
+            "minimum": 1.25,
+            "title": "Three Pass Segment Output Ratio",
+            "type": "number"
+          },
+          "three_pass_segment_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Segment Temperature",
+            "type": "number"
+          },
           "top_k": {
             "default": 0,
             "maximum": 200.0,
@@ -1473,6 +1508,64 @@
           }
         },
         "title": "TTSConfig",
+        "type": "object"
+      },
+      "ThreePassModelProfile": {
+        "properties": {
+          "attribute_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribute Temperature"
+          },
+          "instruct_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruct Temperature"
+          },
+          "segment_output_ratio": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 1.25,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Output Ratio"
+          },
+          "segment_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Temperature"
+          }
+        },
+        "title": "ThreePassModelProfile",
         "type": "object"
       },
       "ValidationError": {

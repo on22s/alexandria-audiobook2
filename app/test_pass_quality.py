@@ -58,13 +58,11 @@ class AttributionTests(unittest.TestCase):
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("spoken_not_named", codes)
 
-    def test_attribution_fails_on_head_anchor_mismatch(self):
-        # Model answered about the wrong line -> head doesn't match the frozen start.
+    def test_attribution_ignores_legacy_head_when_index_is_valid(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."}]
         resp = [{"n": 0, "head": "Something else entirely", "speaker": "ELENA"}]
         report = validate_attribution(frozen, resp)
-        codes = {f["code"] for f in report["findings"]}
-        self.assertIn("alignment_violated", codes)
+        self.assertTrue(report["passed"])
 
     def test_attribution_fails_on_duplicate_or_missing_index(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me."},
@@ -95,15 +93,21 @@ class IndexHeadCheckTests(unittest.TestCase):
         ok, _, _ = index_head_check(frozen, [{"n": 0, "head": "", "speaker": "RYUZU"}])
         self.assertTrue(ok)
 
-    def test_rejects_too_short_or_ambiguous_head(self):
+    def test_head_is_ignored_when_immutable_indexes_are_complete(self):
         frozen = [{"type": "SPOKEN", "text": "The old door opened."},
                   {"type": "SPOKEN", "text": "The old guard waited."}]
         short = [{"n": 0, "head": "The", "speaker": "A"},
                  {"n": 1, "head": "The old guard", "speaker": "B"}]
         ambiguous = [{"n": 0, "head": "The old", "speaker": "A"},
                      {"n": 1, "head": "The old guard", "speaker": "B"}]
-        self.assertFalse(index_head_check(frozen, short)[0])
-        self.assertFalse(index_head_check(frozen, ambiguous)[0])
+        self.assertTrue(index_head_check(frozen, short)[0])
+        self.assertTrue(index_head_check(frozen, ambiguous)[0])
+
+    def test_rejects_duplicate_or_missing_immutable_indexes(self):
+        frozen = [{"type": "SPOKEN", "text": "A"},
+                  {"type": "SPOKEN", "text": "B"}]
+        response = [{"n": 0, "speaker": "A"}, {"n": 0, "speaker": "B"}]
+        self.assertFalse(index_head_check(frozen, response)[0])
 
     def test_accepts_integral_float_index(self):
         frozen = [{"type": "SPOKEN", "text": "Tell me now."}]
@@ -136,12 +140,11 @@ class InstructValidatorTests(unittest.TestCase):
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("missing_instruct", codes)
 
-    def test_fails_on_head_anchor_mismatch(self):
+    def test_ignores_legacy_head_when_index_is_valid(self):
         prior = [{"speaker": "ELENA", "text": "Tell me."}]
         resp = [{"n": 0, "head": "Completely different words", "instruct": "Firm."}]
         report = validate_instruct(prior, resp)
-        codes = {f["code"] for f in report["findings"]}
-        self.assertIn("alignment_violated", codes)
+        self.assertTrue(report["passed"])
 
 
 class PromptLoaderTests(unittest.TestCase):

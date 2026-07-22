@@ -430,6 +430,10 @@ class LLMGenParams:
     banned_tokens: list = None
     context_length: int = None
     hard_max_tokens: int = 16384
+    segment_temperature: float = None
+    attribute_temperature: float = None
+    instruct_temperature: float = None
+    segment_output_ratio: float = 3.0
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):

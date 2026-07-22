@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Runtime backend A/B: run the FULL three-pass A/B suite (gemma, qwen27b, qwen9b)
 # on Volume 10wn, entirely under Vulkan, then switch the LM Studio GGUF runtime to
-# ROCm and run the entire suite again. Temp 0.6 (config default), 3 repeats per
-# arm to average stochastic variation. Every run writes its own manifest
+# ROCm and run the qualified suite again. Models must pass the short three-pass
+# corpus and one full run before repeats continue. Every run writes its own manifest
 # (per-pass elapsed + resolution counts) and run.log (per-call tokens/sec), so
 # analyze_runtime_ab.py can rank speed + quality across all runs afterward.
 #
@@ -10,11 +10,13 @@
 # a run whose final <book>.json exists is skipped. VRAM freed before every run and
 # before every runtime switch.
 set -eu
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP="${APP:-/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app}"
 OUT="${OUT:-/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime}"
 PY="${PY:-$APP/env/bin/python}"; LMS="${LMS:-/home/fakemitch/.lmstudio/bin/lms}"
 MASTER="$OUT/run.log"
 REPEATS="${REPEATS:-3}"
+QUALIFICATION_CORPUS="${QUALIFICATION_CORPUS:-$SCRIPT_DIR/qualification_corpus.txt}"
 RUN_FAILURES=0
 cd "$APP" || exit 1
 BOOK="Arc 4 - Volume 10wn"
@@ -97,15 +99,46 @@ run_arm () {  # backend tag model
       RUN_FAILURES=$((RUN_FAILURES + 1))
     fi
     echo "=== [$backend/$tag/rep$r] exit=$code $(date -Is) ===" | tee -a "$MASTER"
+    if [ "$code" -ne 0 ]; then
+      echo "=== [$backend/$tag] first incomplete full run; skipping remaining repeats ===" | tee -a "$MASTER"
+      break
+    fi
   done
+}
+
+qualify_model () {  # backend tag model
+  local backend="$1" tag="$2" model="$3" dir out code
+  set_model "$model"
+  dir="$OUT/$backend/$tag/qualification"; mkdir -p "$dir"
+  out="$dir/qualification.json"
+  if is_complete "$out" "$model"; then return 0; fi
+  "$LMS" unload --all >/dev/null 2>&1
+  echo "=== [$backend/$tag/qualification] start $(date -Is) ===" | tee -a "$MASTER"
+  if "$PY" three_pass_generate.py "$QUALIFICATION_CORPUS" \
+      --pass2-on-exhaustion fail --output "$out" >> "$dir/qualification.log" 2>&1; then
+    code=0
+  else
+    code=$?
+    RUN_FAILURES=$((RUN_FAILURES + 1))
+  fi
+  echo "=== [$backend/$tag/qualification] exit=$code $(date -Is) ===" | tee -a "$MASTER"
+  return "$code"
+}
+
+qualify_then_run () {  # backend tag model
+  if qualify_model "$1" "$2" "$3"; then
+    run_arm "$1" "$2" "$3"
+  else
+    echo "=== [$1/$2] qualification failed; skipping full runs ===" | tee -a "$MASTER"
+  fi
 }
 
 phase () {  # backend engine
   echo "########## PHASE $1 START $(date -Is) ##########" | tee -a "$MASTER"
   select_runtime "$2"
-  run_arm "$1" gemma   "$GEMMA"
-  run_arm "$1" qwen27b "$QWEN27"
-  run_arm "$1" qwen9b  "$QWEN9"
+  qualify_then_run "$1" gemma   "$GEMMA"
+  qualify_then_run "$1" qwen27b "$QWEN27"
+  qualify_then_run "$1" qwen9b  "$QWEN9"
   echo "########## PHASE $1 COMPLETE $(date -Is) ##########" | tee -a "$MASTER"
 }
 

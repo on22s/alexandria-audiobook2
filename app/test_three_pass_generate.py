@@ -124,6 +124,39 @@ class Pass3Tests(unittest.TestCase):
 
 
 class EndToEndTests(unittest.TestCase):
+    def test_segment_completion_budget_is_bounded_from_source_size(self):
+        seen = {}
+        source = " ".join(f"word{i}" for i in range(100))
+        response = [{"type": "NARRATOR", "text": source}]
+        def create(**kwargs):
+            seen["max_tokens"] = kwargs["max_tokens"]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(response)),
+                finish_reason="stop")], usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        out = tp.segment_chunk(client, "m", source,
+                               LLMGenParams(max_tokens=10000, hard_max_tokens=16384))
+        self.assertTrue(out)
+        self.assertEqual(512, seen["max_tokens"])
+
+    def test_attribution_exhaustion_subdivides_and_completes(self):
+        source = "One line. Two line."
+        seg = [{"type": "SPOKEN", "text": "One line."},
+               {"type": "SPOKEN", "text": "Two line."}]
+        bad_pair = [{"n": 0, "speaker": "NARRATOR"},
+                    {"n": 1, "speaker": "NARRATOR"}]
+        first = [{"n": 0, "speaker": "ALICE"}]
+        second = [{"n": 0, "speaker": "BOB"}]
+        instructed = [{"n": 0, "instruct": "Quiet."},
+                      {"n": 1, "instruct": "Firm."}]
+        client = _client_returning([seg] + [bad_pair] * 4 +
+                                   [first, second, instructed])
+        entries = tp.run_three_pass(client, "m", source,
+                                    LLMGenParams(max_tokens=500, temperature=0.1),
+                                    chunk_size=6000)
+        self.assertEqual(["ALICE", "BOB"], [e["speaker"] for e in entries])
+
     def test_three_passes_assemble_final_entries(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},

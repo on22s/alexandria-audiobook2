@@ -9,6 +9,7 @@ import math
 import os
 import sys
 import time
+from dataclasses import replace
 
 from openai import OpenAI
 
@@ -121,8 +122,11 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
         return report
 
+    call_params = replace(params, temperature=(params.attribute_temperature
+                                               if params.attribute_temperature is not None
+                                               else params.temperature))
     named = call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
+        client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
         validate_entries=validate)
     if named:
@@ -166,8 +170,11 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
             validated["ordered"] = index_head_check(prior_batch, entries)[2]
         return report
 
+    call_params = replace(params, temperature=(params.instruct_temperature
+                                               if params.instruct_temperature is not None
+                                               else params.temperature))
     annotated = call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
+        client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
         validate_entries=validate)
     if annotated:
@@ -189,8 +196,18 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     the two paths can't diverge in how they invoke the gate (findings #10, #11)."""
     if validate is None:
         validate = lambda entries: validate_segment_quality(chunk, entries)
+    # Segmentation only adds small JSON/type overhead around source text. Bound
+    # both the first request and retry ceiling so a weak model cannot spend
+    # 10k-16k tokens expanding a ~1k-token source chunk.
+    source_words = max(1, len(chunk.split()))
+    completion_ceiling = max(512, math.ceil(source_words * params.segment_output_ratio))
+    bounded_params = replace(
+        params, max_tokens=min(params.max_tokens, completion_ceiling),
+        hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
+        temperature=(params.segment_temperature
+                     if params.segment_temperature is not None else params.temperature))
     return call_llm_for_entries(
-        client, model_name, sys_prompt, user_prompt, params,
+        client, model_name, sys_prompt, user_prompt, bounded_params,
         log_name="llm_responses.log", label=label, max_retries=max_retries,
         # Same deterministic structural repair (unicode-homoglyph fixups) the
         # single-pass path runs before its gate, so pass 1 doesn't waste a retry
@@ -482,7 +499,8 @@ def _resolution_counts(resolutions):
 
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
-                    failed_pass=None, failed_chunk=None, legacy_resume=False):
+                    failed_pass=None, failed_chunk=None, legacy_resume=False,
+                    progress=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -495,6 +513,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "counts": _resolution_counts(resolutions),
         "passes": passes,
         "legacy_resume": legacy_resume,
+        "progress": progress or {},
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -518,7 +537,9 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         settings.update({name: getattr(params, name, None) for name in (
             "system_prompt", "user_prompt_template", "max_tokens", "temperature",
             "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
-            "context_length", "hard_max_tokens")})
+            "context_length", "hard_max_tokens", "segment_temperature",
+            "attribute_temperature", "instruct_temperature",
+            "segment_output_ratio")})
     encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return {"source_sha256": digest, "settings_sha256": hashlib.sha256(encoded).hexdigest(),
             "model_name": model_name, "pipeline": "three_pass"}
@@ -580,7 +601,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
                         failed_pass=failed_pass, failed_chunk=failed_chunk,
-                        legacy_resume=legacy_resume)
+                        legacy_resume=legacy_resume, progress={
+                            "source_words": len(source_text.split()),
+                            "chunks_total": len(chunks),
+                            "chunks_completed": chunks_done,
+                            "segmented_entries": len(segmented),
+                            "attributed_entries": sum(isinstance(e, dict) for e in named),
+                            "instructed_entries": sum(isinstance(e, dict) for e in annotated),
+                        })
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
@@ -626,33 +654,43 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                        if named[index] is None]
             if not pending:
                 continue
-            batch = [entry for _, entry in pending]
-            contexts = [{"previous_context": segmented[index - 1] if index else None,
-                         "next_context": segmented[index + 1]
-                         if index + 1 < len(segmented) else None}
-                        for index, _ in pending]
-            new_named = attribute_batch(client, model_name, batch, params,
-                                        roster=roster, on_exhaustion=on_exhaustion,
-                                        neighbor_contexts=contexts)
-            for (index, _), entry in zip(pending, new_named):
-                named[index] = entry
-            if on_exhaustion == "fallback":
-                # The fallback path runs stabilize_speaker_identities, which can
-                # canonicalize names in ways the incremental upper()/strip() update
-                # wouldn't track (finding #15). Rebuild the roster authoritatively
-                # from `named` so it can never drift. (Only in fallback/production
-                # mode; the fail/testing path never falls back, so it keeps the
-                # fast incremental update below.)
-                roster = build_roster(entry for entry in named if isinstance(entry, dict))
-                roster_seen = set(roster)
-            else:
-                for entry in new_named:
-                    speaker = (entry.get("speaker") or "").strip().upper()
-                    if speaker and speaker not in ("NARRATOR", "UNKNOWN") and speaker not in roster_seen:
-                        roster_seen.add(speaker)
-                        roster.append(speaker)
-            elapsed_s["attribute"] = attr_base + time.time() - attr_start
-            save("attribute")
+            work = [pending]
+            while work:
+                current = work.pop(0)
+                batch = [entry for _, entry in current]
+                contexts = [{"previous_context": segmented[index - 1] if index else None,
+                             "next_context": segmented[index + 1]
+                             if index + 1 < len(segmented) else None}
+                            for index, _ in current]
+                try:
+                    new_named = attribute_batch(
+                        client, model_name, batch, params, roster=roster,
+                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts)
+                except PassExhausted:
+                    if len(current) == 1:
+                        raise
+                    midpoint = len(current) // 2
+                    print(f"  Attribution batch exhausted; subdividing "
+                          f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
+                    work[0:0] = [current[:midpoint], current[midpoint:]]
+                    continue
+                for (index, _), entry in zip(current, new_named):
+                    named[index] = entry
+                if on_exhaustion == "fallback":
+                    roster = build_roster(
+                        entry for entry in named if isinstance(entry, dict))
+                    roster_seen = set(roster)
+                else:
+                    for entry in new_named:
+                        speaker = (entry.get("speaker") or "").strip().upper()
+                        if (speaker and speaker not in ("NARRATOR", "UNKNOWN")
+                                and speaker not in roster_seen):
+                            roster_seen.add(speaker)
+                            roster.append(speaker)
+                elapsed_s["attribute"] = attr_base + time.time() - attr_start
+                # Each accepted subdivision is durable; a later single-entry
+                # failure resumes after this work instead of replaying the batch.
+                save("attribute")
     except PassExhausted:
         elapsed_s["attribute"] = attr_base + time.time() - attr_start
         passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
@@ -726,6 +764,7 @@ def main():
     base_url = llm.get("base_url", "http://localhost:1234/v1")
     model_name = llm.get("model_name")
     llm_mode = config.get("llm_mode", "local")
+    model_profile = (gen.get("three_pass_model_profiles") or {}).get(model_name, {})
     # Self-heal LM Studio: load model_name at its verified context if nothing is
     # loaded / settings are stale, mirroring generate_script.py. Without this a
     # fresh `lms unload` leaves no model loaded and every call 400s.
@@ -737,7 +776,15 @@ def main():
         temperature=gen.get("temperature", 0.6),
         top_p=gen.get("top_p", 0.8),
         top_k=gen.get("top_k"), min_p=gen.get("min_p"),
-        context_length=lm_status.get("context_length"))
+        context_length=lm_status.get("context_length"),
+        segment_temperature=model_profile.get(
+            "segment_temperature", gen.get("three_pass_segment_temperature", 0.1)),
+        attribute_temperature=model_profile.get(
+            "attribute_temperature", gen.get("three_pass_attribute_temperature", 0.1)),
+        instruct_temperature=model_profile.get(
+            "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
+        segment_output_ratio=model_profile.get(
+            "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)))
     client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.

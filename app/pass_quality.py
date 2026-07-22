@@ -119,18 +119,13 @@ def _leading_tokens(text):
 
 
 def index_head_check(frozen_entries, response_entries):
-    """Return (ok, reason, ordered) for the index+head-anchor contract used by
-    passes 2 and 3.
+    """Return (ok, reason, ordered) for the immutable-index contract.
 
-    The model no longer re-emits each entry's full text (which weak models drift
-    on, corrupting a line and failing the whole batch). Instead it echoes, per
-    entry, an index `n` and a `head` — the entry's first few words. This checks
-    that the response has exactly one object per frozen entry, that every index
-    0..k-1 appears exactly once (catches drops / dupes / miscounts), and that
-    each head is the exact leading token-sequence of the frozen line it claims
-    (catches misalignment — the model answering about the wrong line). On success
-    `ordered[i]` is the response object bound to frozen entry i, so the caller can
-    take only its speaker/instruct and keep the frozen text byte-exact."""
+    Passes 2 and 3 provide a locally assigned integer ``n`` and accept exactly
+    one response for every index. Text is never accepted back from the model.
+    Older responses may still include ``head``; it is ignored because requiring
+    the model to reproduce an anchor made otherwise-correct attribution fail on
+    punctuation and repeated line openings."""
     k = len(frozen_entries)
     if not isinstance(response_entries, list) or len(response_entries) != k:
         got = len(response_entries) if isinstance(response_entries, list) else "non-list"
@@ -147,25 +142,7 @@ def index_head_check(frozen_entries, response_entries):
         if n in by_index:
             return False, f"duplicate index n={n}", None
         by_index[n] = item
-    ordered = []
-    for i, frozen in enumerate(frozen_entries):
-        item = by_index[i]  # complete permutation guaranteed by the checks above
-        frozen_tokens = _leading_tokens(frozen.get("text"))
-        head_tokens = _leading_tokens(item.get("head"))
-        # Punctuation-only lines normalize to no tokens; nothing to anchor on, so
-        # accept. Otherwise the head must be the exact leading words of the line.
-        minimum = min(3, len(frozen_tokens))
-        if frozen_tokens and (len(head_tokens) < minimum
-                              or frozen_tokens[:len(head_tokens)] != head_tokens):
-            return False, f"entry {i + 1} head anchor does not match the line start", None
-        if head_tokens:
-            matches = sum(
-                _leading_tokens(other.get("text"))[:len(head_tokens)] == head_tokens
-                for other in frozen_entries)
-            if matches > 1:
-                return False, (f"entry {i + 1} head anchor is ambiguous across "
-                               f"{matches} lines"), None
-        ordered.append(item)
+    ordered = [by_index[i] for i in range(k)]
     return True, "", ordered
 
 

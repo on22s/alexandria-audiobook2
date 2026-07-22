@@ -26,17 +26,23 @@ def parse_log_tokens_per_sec(log_path):
     run log -> aggregate completion tokens/sec (backend speed, retry-agnostic)."""
     if not os.path.exists(log_path):
         return None
-    total_tok = total_s = 0
+    total_tok = total_s = retries = truncations = calls = 0
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             m = TOOK_RE.search(line)
             if m:
+                calls += 1
                 total_tok += int(m.group(1))
                 total_s += float(m.group(2))
+            if "Retrying" in line:
+                retries += 1
+            if "Response was truncated" in line:
+                truncations += 1
     if total_s <= 0:
         return None
     return {"completion_tokens": total_tok, "gen_seconds": round(total_s, 1),
-            "tokens_per_sec": round(total_tok / total_s, 2)}
+            "tokens_per_sec": round(total_tok / total_s, 2),
+            "calls": calls, "retries": retries, "truncations": truncations}
 
 
 def load_run(rep_dir):
@@ -62,6 +68,9 @@ def load_run(rep_dir):
     counts = (manifest or {}).get("counts", {})
     if not isinstance(counts, dict):
         counts = {}
+    progress = (manifest or {}).get("progress", {})
+    if not isinstance(progress, dict):
+        progress = {}
     return {
         "status": ("ambiguous_manifest" if ambiguous_manifest
                    else (manifest or {}).get("status", "no_manifest")),
@@ -72,6 +81,16 @@ def load_run(rep_dir):
         "recombined": counts.get("split_recombined"),
         "tok_per_sec": speed["tokens_per_sec"] if speed else None,
         "gen_s": speed["gen_seconds"] if speed else None,
+        "completion_tokens": speed["completion_tokens"] if speed else None,
+        "calls": speed["calls"] if speed else None,
+        "retries": speed["retries"] if speed else None,
+        "truncations": speed["truncations"] if speed else None,
+        "source_words": progress.get("source_words"),
+        "segmented_entries": progress.get("segmented_entries"),
+        "productive_words_per_s": (round(progress["source_words"] / wall, 3)
+                                   if (manifest or {}).get("status") == "complete"
+                                   and wall and isinstance(progress.get("source_words"), int)
+                                   else None),
     }
 
 
@@ -107,6 +126,13 @@ def aggregate_group(group):
     return {"complete_rate": f"{len(completed)}/{len(group)}",
             "wall_s": _mean([row["wall_s"] for row in completed]),
             "tok_per_sec": _mean([row["tok_per_sec"] for row in group]),
+            "productive_words_per_s": _mean(
+                [row.get("productive_words_per_s") for row in completed]),
+            "failed_completion_tokens": sum(
+                row.get("completion_tokens") or 0 for row in group
+                if row["status"] != "complete"),
+            "retries": _mean([row.get("retries") for row in group]),
+            "truncations": _mean([row.get("truncations") for row in group]),
             "rescue": _mean([row["rescued"] for row in completed]),
             "near_miss": _mean([row["near_miss"] for row in completed]),
             "recombined": _mean([row["recombined"] for row in completed])}
