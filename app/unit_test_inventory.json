@@ -155,6 +155,7 @@
     "test_chunk_quality.ChunkQualityTests.test_homoglyph_leaves_genuine_cyrillic_text_untouched",
     "test_chunk_quality.ChunkQualityTests.test_homoglyph_word_normalizes_with_location_evidence",
     "test_chunk_quality.ChunkQualityTests.test_homoglyph_word_with_unmappable_character_is_untouched",
+    "test_chunk_quality.ChunkQualityTests.test_inline_illustration_caption_is_removed_with_evidence",
     "test_chunk_quality.ChunkQualityTests.test_introduced_hiragana_reports_codepoint",
     "test_chunk_quality.ChunkQualityTests.test_known_source_corruption_normalizes_with_location_evidence",
     "test_chunk_quality.ChunkQualityTests.test_known_source_nap_corruption_is_normalized",
@@ -472,6 +473,11 @@
     "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_ten_hour_book_gets_three_spread_windows",
     "test_preparer_speaker_detection.PlanDetectionWindowsTests.test_windows_are_clamped_inside_the_file"
   ],
+  "test_project_chunks": [
+    "test_project_chunks.SpeakableEntryTests.test_block_glyphs_and_leading_marks_are_not_sent_to_tts",
+    "test_project_chunks.SpeakableEntryTests.test_nonverbal_dialogue_becomes_pause_without_mutating_input",
+    "test_project_chunks.SpeakableEntryTests.test_spoken_words_with_punctuation_remain_speakable"
+  ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
@@ -652,11 +658,12 @@
     "test_three_pass_generate.Pass2Tests.test_pass2_fail_mode_raises_when_exhausted",
     "test_three_pass_generate.Pass3Tests.test_adds_instruct_and_freezes",
     "test_three_pass_generate.Pass3Tests.test_falls_back_to_default_instruct_on_exhaustion",
-    "test_three_pass_generate.PassHelperTests.test_ambiguous_stray_closing_quote_is_not_repaired",
+    "test_three_pass_generate.PassHelperTests.test_ambiguous_stray_closing_quote_drops_only_delimiter",
     "test_three_pass_generate.PassHelperTests.test_context_rescue_is_not_used_for_omission_or_quote_structure",
     "test_three_pass_generate.PassHelperTests.test_default_instruct_by_type",
     "test_three_pass_generate.PassHelperTests.test_inner_curly_open_can_share_outer_close",
     "test_three_pass_generate.PassHelperTests.test_japanese_quote_pairs_are_spoken_regions",
+    "test_three_pass_generate.PassHelperTests.test_missing_close_quote_is_bounded_at_paragraph_end",
     "test_three_pass_generate.PassHelperTests.test_missing_open_quote_after_comma_reporting_verb_is_recovered",
     "test_three_pass_generate.PassHelperTests.test_missing_open_quote_after_reporting_verb_is_recovered",
     "test_three_pass_generate.PassHelperTests.test_nested_curly_quotes_keep_outer_dialogue_boundary",
@@ -672,7 +679,7 @@
     "test_three_pass_generate.PassHelperTests.test_roster_collects_uppercase_non_narrator_speakers",
     "test_three_pass_generate.PassHelperTests.test_unique_batches_cap_source_windows_at_batch_size",
     "test_three_pass_generate.PassHelperTests.test_unique_batches_isolate_duplicates_without_collapsing_prefix",
-    "test_three_pass_generate.PassHelperTests.test_unmatched_outer_quote_falls_back_to_model_segmentation",
+    "test_three_pass_generate.PassHelperTests.test_unmatched_outer_quote_is_bounded_at_input_end",
     "test_three_pass_generate.RecombinationAcceptanceTests.test_accepts_recombination_when_trigram_only_defect_at_seam",
     "test_three_pass_generate.RecombinationAcceptanceTests.test_recombination_floor_predicate_rejects_below_floor",
     "test_three_pass_generate.RecombinationAcceptanceTests.test_rejects_recombination_on_real_recall_loss",

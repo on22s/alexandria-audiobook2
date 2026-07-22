@@ -62,8 +62,29 @@ def _make_chunk(speaker, text, instruct, pause_after=None):
     return chunk
 
 
+def get_speakable_entries(script_entries):
+    """Return copied TTS entries, converting nonverbal marks into a pause.
+
+    Punctuation-only and block-glyph dialogue remains in annotated_script.json
+    for fidelity, but sending it to TTS produces noise or failures. A nonverbal
+    entry extends the preceding speakable entry's pause without mutating caller
+    data. Leading nonverbal marks have no audio anchor and are omitted.
+    """
+    speakable = []
+    for source_entry in script_entries:
+        entry = dict(source_entry)
+        if any(char.isalnum() for char in str(entry.get("text") or "")):
+            speakable.append(entry)
+        elif speakable:
+            previous = speakable[-1]
+            previous["pause_after"] = max(
+                int(previous.get("pause_after") or 0), DEFAULT_PAUSE_MS)
+    return speakable
+
+
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
+    script_entries = get_speakable_entries(script_entries)
     if not script_entries:
         return []
 

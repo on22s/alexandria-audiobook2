@@ -74,8 +74,13 @@ class PassHelperTests(unittest.TestCase):
              {"type": "SPOKEN", "text": "Go."}],
             tp.split_outer_quote_regions("She said, “Go.”"))
 
-    def test_unmatched_outer_quote_falls_back_to_model_segmentation(self):
-        self.assertEqual([], tp.split_outer_quote_regions('She said, "Go.'))
+    def test_unmatched_outer_quote_is_bounded_at_input_end(self):
+        analysis = tp.analyze_outer_quote_regions('She said, "Go.')
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She said,"},
+             {"type": "SPOKEN", "text": "Go."}], analysis["regions"])
+        self.assertEqual("inferred_missing_close_quote",
+                         analysis["repairs"][0]["code"])
 
     def test_nested_curly_quotes_keep_outer_dialogue_boundary(self):
         source = 'Subaru “My plan to “impress everyone” has failed.” Emilia nodded.'
@@ -132,12 +137,26 @@ class PassHelperTests(unittest.TestCase):
         self.assertTrue(tp.validate_segment_quality(
             source, analysis["regions"])["passed"])
 
-    def test_ambiguous_stray_closing_quote_is_not_repaired(self):
+    def test_ambiguous_stray_closing_quote_drops_only_delimiter(self):
         source = 'She considered I see…” and left.'
         analysis = tp.analyze_outer_quote_regions(source)
-        self.assertEqual([], analysis["repairs"])
-        self.assertFalse(tp.validate_segment_quality(
+        self.assertEqual("ignored_unmatched_close_quote",
+                         analysis["repairs"][0]["code"])
+        self.assertEqual("She considered I see… and left.",
+                         analysis["regions"][0]["text"])
+        self.assertTrue(tp.validate_segment_quality(
             source, analysis["regions"])["passed"])
+
+    def test_missing_close_quote_is_bounded_at_paragraph_end(self):
+        source = 'She said “Stay here.\n\nHe left.'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She said"},
+             {"type": "SPOKEN", "text": "Stay here."},
+             {"type": "NARRATOR", "text": "He left."}],
+            analysis["regions"])
+        self.assertEqual("inferred_missing_close_quote",
+                         analysis["repairs"][0]["code"])
 
     def test_repaired_quote_resolution_is_counted(self):
         counts = tp._resolution_counts(

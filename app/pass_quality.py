@@ -46,6 +46,13 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         current.clear()
 
     for index, char in enumerate(text):
+        if char == "\n" and text[index:index + 2] == "\n\n" and depth:
+            flush()
+            repairs.append({"code": "inferred_missing_close_quote",
+                            "offset": index})
+            depth = 0
+            current.append(char)
+            continue
         if char in _CURLY_AND_JAPANESE_OPEN:
             if depth == 0:
                 flush()
@@ -79,13 +86,23 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                                 "offset": index, "text": spoken})
                 saw_quote = True
                 continue
+            repairs.append({"code": "ignored_unmatched_close_quote",
+                            "offset": index})
+            saw_quote = True
+            continue
         if char == '"':
             flush()
             depth = 0 if depth else 1
             saw_quote = True
             continue
         current.append(char)
-    flush()
+    if depth and not allow_open_end:
+        flush()
+        repairs.append({"code": "inferred_missing_close_quote",
+                        "offset": len(text)})
+        depth = 0
+    else:
+        flush()
     complete = depth == 0 or allow_open_end
     return {"regions": regions if saw_quote and complete else [],
             "repairs": repairs, "initial_depth": initial_depth,
