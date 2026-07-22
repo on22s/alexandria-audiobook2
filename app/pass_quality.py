@@ -16,11 +16,13 @@ from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
 from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
-_QUOTE_CHARS = {'"', '“', '”'}
+_QUOTE_CHARS = {'"', '“', '”', '「', '」', '『', '』'}
+_CURLY_AND_JAPANESE_OPEN = {'“', '「', '『'}
+_CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
 
 
 _REPORTING_VERB_TAIL = re.compile(
-    r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted)\s+"
+    r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted),?\s+"
     r"([^\n]{1,120})$", re.IGNORECASE)
 
 
@@ -43,17 +45,19 @@ def analyze_outer_quote_regions(text):
         current.clear()
 
     for index, char in enumerate(text):
-        if char == '“':
+        if char in _CURLY_AND_JAPANESE_OPEN:
             if depth == 0:
                 flush()
                 depth = 1
                 saw_quote = True
-            else:
+            elif char == '“':
                 paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
                 if paragraph_tail.count('”') >= 2:
                     depth += 1
+            else:
+                depth += 1
             continue
-        if char == '”' and depth:
+        if char in _CURLY_AND_JAPANESE_CLOSE and depth:
             if depth == 1:
                 flush()
             depth -= 1

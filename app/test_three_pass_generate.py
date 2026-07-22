@@ -93,6 +93,25 @@ class PassHelperTests(unittest.TestCase):
              {"type": "NARRATOR", "text": "They left."}],
             tp.split_outer_quote_regions(source))
 
+    def test_japanese_quote_pairs_are_spoken_regions(self):
+        source = 'She read 「come home」 and then 『stay safe』 aloud.'
+        entries = tp.split_outer_quote_regions(source)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She read"},
+             {"type": "SPOKEN", "text": "come home"},
+             {"type": "NARRATOR", "text": "and then"},
+             {"type": "SPOKEN", "text": "stay safe"},
+             {"type": "NARRATOR", "text": "aloud."}], entries)
+        self.assertTrue(tp.validate_segment_quality(source, entries)["passed"])
+
+    def test_nested_japanese_quotes_keep_outer_boundary(self):
+        source = 'He said 「read 『this』 now」 quietly.'
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "He said"},
+             {"type": "SPOKEN", "text": "read this now"},
+             {"type": "NARRATOR", "text": "quietly."}],
+            tp.split_outer_quote_regions(source))
+
     def test_missing_open_quote_after_reporting_verb_is_recovered(self):
         source = 'She quietly murmured I see…”, keeping her eyes lowered.'
         analysis = tp.analyze_outer_quote_regions(source)
@@ -103,6 +122,13 @@ class PassHelperTests(unittest.TestCase):
             analysis["regions"])
         self.assertEqual("inferred_missing_open_quote",
                          analysis["repairs"][0]["code"])
+        self.assertTrue(tp.validate_segment_quality(
+            source, analysis["regions"])["passed"])
+
+    def test_missing_open_quote_after_comma_reporting_verb_is_recovered(self):
+        source = 'He quietly whispered, Echidna”, then looked away.'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertEqual("Echidna", analysis["repairs"][0]["text"])
         self.assertTrue(tp.validate_segment_quality(
             source, analysis["regions"])["passed"])
 
