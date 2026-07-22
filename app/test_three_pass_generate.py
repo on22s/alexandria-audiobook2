@@ -93,6 +93,31 @@ class PassHelperTests(unittest.TestCase):
              {"type": "NARRATOR", "text": "They left."}],
             tp.split_outer_quote_regions(source))
 
+    def test_missing_open_quote_after_reporting_verb_is_recovered(self):
+        source = 'She quietly murmured I see…”, keeping her eyes lowered.'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She quietly murmured"},
+             {"type": "SPOKEN", "text": "I see…"},
+             {"type": "NARRATOR", "text": ", keeping her eyes lowered."}],
+            analysis["regions"])
+        self.assertEqual("inferred_missing_open_quote",
+                         analysis["repairs"][0]["code"])
+        self.assertTrue(tp.validate_segment_quality(
+            source, analysis["regions"])["passed"])
+
+    def test_ambiguous_stray_closing_quote_is_not_repaired(self):
+        source = 'She considered I see…” and left.'
+        analysis = tp.analyze_outer_quote_regions(source)
+        self.assertEqual([], analysis["repairs"])
+        self.assertFalse(tp.validate_segment_quality(
+            source, analysis["regions"])["passed"])
+
+    def test_repaired_quote_resolution_is_counted(self):
+        counts = tp._resolution_counts(
+            ["quote_presegmented", "quote_presegmented_repaired"])
+        self.assertEqual(1, counts["quote_repairs"])
+
     def test_context_rescue_is_not_used_for_omission_or_quote_structure(self):
         self.assertFalse(tp.should_rescue_with_context({"low_source_token_recall"}))
         self.assertFalse(tp.should_rescue_with_context({"crosses_quote_boundary"}))

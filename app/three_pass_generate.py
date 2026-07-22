@@ -25,7 +25,7 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from pass_quality import (validate_segment_quality, validate_attribution,
                           validate_instruct, index_head_check,
-                          split_outer_quote_regions)
+                          analyze_outer_quote_regions, split_outer_quote_regions)
 from review_script import normalize_text
 from config_settings import load_app_config
 from lmstudio_settings import ensure_ideal_settings
@@ -324,14 +324,18 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     near_miss / fail). Only the top-level call should pass a sink; recursive
     part-calls do not, so inner resolutions don't pollute the record."""
     if params.presegment_quotes:
-        regions = split_outer_quote_regions(chunk)
+        quote_analysis = analyze_outer_quote_regions(chunk)
+        regions = quote_analysis["regions"]
         if len(regions) > 1:
             # Outer quotes already answer the only pass-1 question: inside is
             # spoken, outside is narration. Do not ask the model to rewrite
             # tiny attribution regions; live testing showed that invites
             # hallucinated expansion despite perfect source coverage.
             if validate_segment_quality(chunk, regions)["passed"]:
-                _record_resolution(resolution_sink, "quote_presegmented")
+                resolution = ("quote_presegmented_repaired"
+                              if quote_analysis["repairs"]
+                              else "quote_presegmented")
+                _record_resolution(resolution_sink, resolution)
                 return regions
     near_miss = []
     local_failures = []
@@ -603,6 +607,8 @@ def _resolution_counts(resolutions):
         "context_rescued": sum(r.startswith("context_rescue") for r in resolutions),
         "split_recombined": sum(r in ("adaptive_split", "recombination_near_miss")
                                 for r in resolutions),
+        "quote_repairs": sum(r == "quote_presegmented_repaired"
+                             for r in resolutions),
     }
 
 

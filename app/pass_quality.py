@@ -2,6 +2,7 @@
 instruct). Segment reuses recall_core for source-fidelity scoring; attribute and
 instruct enforce a hard per-entry text freeze (they may only add fields)."""
 
+import re
 import unicodedata
 
 from recall_core import tokens, ngrams, counter_recall
@@ -18,7 +19,12 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 _QUOTE_CHARS = {'"', '“', '”'}
 
 
-def split_outer_quote_regions(text):
+_REPORTING_VERB_TAIL = re.compile(
+    r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted)\s+"
+    r"([^\n]{1,120})$", re.IGNORECASE)
+
+
+def analyze_outer_quote_regions(text):
     """Split source into narrator/spoken regions using outer quote boundaries.
 
     Curly quotes may be nested. Some source dialogue also uses an inner opening
@@ -27,7 +33,7 @@ def split_outer_quote_regions(text):
     nesting level. Quote delimiters are intentionally omitted from speakable
     text.
     """
-    regions, current, depth, saw_quote = [], [], 0, False
+    regions, current, depth, saw_quote, repairs = [], [], 0, False, []
 
     def flush():
         part = "".join(current).strip()
@@ -52,6 +58,22 @@ def split_outer_quote_regions(text):
                 flush()
             depth -= 1
             continue
+        if char == '”':
+            # Bounded recovery for a dropped opening delimiter in prose such as
+            # "she murmured I see…”, keeping her eyes lowered". Only a short,
+            # same-line phrase immediately following a reporting verb is safe
+            # enough to infer; all other stray closers remain visible so the
+            # quality gate fails closed.
+            match = _REPORTING_VERB_TAIL.search("".join(current))
+            if match:
+                spoken = match.group(1).strip()
+                del current[match.start(1):]
+                flush()
+                regions.append({"type": "SPOKEN", "text": spoken})
+                repairs.append({"code": "inferred_missing_open_quote",
+                                "offset": index, "text": spoken})
+                saw_quote = True
+                continue
         if char == '"':
             flush()
             depth = 0 if depth else 1
@@ -59,7 +81,13 @@ def split_outer_quote_regions(text):
             continue
         current.append(char)
     flush()
-    return regions if saw_quote and depth == 0 else []
+    return {"regions": regions if saw_quote and depth == 0 else [],
+            "repairs": repairs}
+
+
+def split_outer_quote_regions(text):
+    """Return only regions for callers that do not need repair telemetry."""
+    return analyze_outer_quote_regions(text)["regions"]
 
 
 def _split_quote_regions(source_text):
