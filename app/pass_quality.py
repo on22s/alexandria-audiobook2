@@ -25,6 +25,14 @@ _REPORTING_VERB_TAIL = re.compile(
     r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted),?\s+"
     r"([^\n]{1,120})$", re.IGNORECASE)
 _SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
+_METADATA_PARAGRAPH = re.compile(
+    r"^(?:Light Novel Adaptation found in|Original Web Novel Chapter|"
+    r"Original Translation by)\b", re.IGNORECASE)
+
+
+def _is_metadata_paragraph(current):
+    paragraph = "".join(current).rsplit("\n\n", 1)[-1].strip()
+    return bool(_METADATA_PARAGRAPH.match(paragraph))
 
 
 def _pop_source_label(current):
@@ -75,6 +83,11 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             current.append(char)
             continue
         if char in _CURLY_AND_JAPANESE_OPEN:
+            # Source credits sometimes quote a chapter title. It is metadata,
+            # not unattributed dialogue, and must remain narrator material.
+            if depth == 0 and _is_metadata_paragraph(current):
+                saw_quote = True
+                continue
             if depth == 0:
                 pending_source_label = _pop_source_label(current)
                 flush()

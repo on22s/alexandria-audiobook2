@@ -1,6 +1,6 @@
 from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
-from pass_quality import validate_segment_quality
+from pass_quality import split_outer_quote_regions, validate_segment_quality
 from pass_quality import validate_attribution
 from pass_quality import validate_instruct, index_head_check
 import default_prompts
@@ -11,6 +11,15 @@ def _seg(text, type_="NARRATOR"):
 
 
 class SegmentQualityTests(unittest.TestCase):
+    def test_chapter_title_in_source_credit_is_not_dialogue(self):
+        source = ('Light Novel Adaptation found in Volume 9, Interlude '
+                  '“To Each Their Vows”.')
+        self.assertEqual(
+            [{"type": "NARRATOR",
+              "text": "Light Novel Adaptation found in Volume 9, Interlude "
+                      "To Each Their Vows."}],
+            split_outer_quote_regions(source))
+
     def test_complete_segment_passes(self):
         source = " ".join(f"word{i}" for i in range(50))
         report = validate_segment_quality(source, [_seg(source)])
