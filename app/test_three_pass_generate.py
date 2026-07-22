@@ -85,16 +85,16 @@ class PassHelperTests(unittest.TestCase):
     def test_nested_curly_quotes_keep_outer_dialogue_boundary(self):
         source = 'Subaru “My plan to “impress everyone” has failed.” Emilia nodded.'
         self.assertEqual(
-            [{"type": "NARRATOR", "text": "Subaru"},
-             {"type": "SPOKEN", "text": "My plan to impress everyone has failed."},
+            [{"type": "SPOKEN", "text": "My plan to impress everyone has failed.",
+              "source_label": "Subaru"},
              {"type": "NARRATOR", "text": "Emilia nodded."}],
             tp.split_outer_quote_regions(source))
 
     def test_inner_curly_open_can_share_outer_close(self):
         source = 'Emilia “I have to say this “I will not do that!”\n\nThey left.'
         self.assertEqual(
-            [{"type": "NARRATOR", "text": "Emilia"},
-             {"type": "SPOKEN", "text": "I have to say this I will not do that!"},
+            [{"type": "SPOKEN", "text": "I have to say this I will not do that!",
+              "source_label": "Emilia"},
              {"type": "NARRATOR", "text": "They left."}],
             tp.split_outer_quote_regions(source))
 
@@ -116,6 +116,39 @@ class PassHelperTests(unittest.TestCase):
              {"type": "SPOKEN", "text": "read this now"},
              {"type": "NARRATOR", "text": "quietly."}],
             tp.split_outer_quote_regions(source))
+
+    def test_explicit_source_speaker_label_attaches_to_spoken_region(self):
+        source = 'Narration.\n\nBeatrice “Took it? From the Witch Cult?”'
+        entries = tp.split_outer_quote_regions(source)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "Narration."},
+             {"type": "SPOKEN", "text": "Took it? From the Witch Cult?",
+              "source_label": "Beatrice"}], entries)
+        self.assertTrue(tp.validate_segment_quality(source, entries)["passed"])
+
+    def test_reporting_clause_is_not_treated_as_source_speaker_label(self):
+        source = 'She said “Come home.”'
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She said"},
+             {"type": "SPOKEN", "text": "Come home."}],
+            tp.split_outer_quote_regions(source))
+
+    def test_all_caps_heading_is_not_treated_as_source_speaker_label(self):
+        source = 'THE SELF-DECLARED KNIGHT AND “THE FINEST OF KNIGHTS”'
+        self.assertNotIn("source_label", tp.split_outer_quote_regions(source)[0])
+
+    def test_explicit_label_and_narration_bypass_attribution(self):
+        self.assertEqual(
+            {"speaker": "BEATRICE", "text": "Took it?"},
+            tp.get_deterministic_named_entry(
+                {"type": "SPOKEN", "text": "Took it?",
+                 "source_label": "Beatrice"}))
+        self.assertEqual(
+            {"speaker": "NARRATOR", "text": "She paused."},
+            tp.get_deterministic_named_entry(
+                {"type": "NARRATOR", "text": "She paused."}))
+        self.assertIsNone(tp.get_deterministic_named_entry(
+            {"type": "SPOKEN", "text": "Who said that?"}))
 
     def test_missing_open_quote_after_reporting_verb_is_recovered(self):
         source = 'She quietly murmured I see…”, keeping her eyes lowered.'
@@ -347,8 +380,7 @@ class EndToEndTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
-                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
         client = _client_returning([seg, named, instructed])
@@ -400,8 +432,7 @@ class CheckpointTests(unittest.TestCase):
     def _payloads(self):
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
-                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         return seg, named, instructed
@@ -678,8 +709,7 @@ class ManifestTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
-                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
+        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         client = _client_returning([seg, named, instructed])

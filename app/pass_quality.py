@@ -24,6 +24,23 @@ _CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
 _REPORTING_VERB_TAIL = re.compile(
     r"\b(?:murmured|whispered|said|replied|answered|asked|cried|shouted),?\s+"
     r"([^\n]{1,120})$", re.IGNORECASE)
+_SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
+
+
+def _pop_source_label(current):
+    value = "".join(current)
+    match = _SOURCE_LABEL_TAIL.search(value)
+    if not match:
+        return None
+    candidate = match.group(1).strip().rstrip(":")
+    words = candidate.split()
+    if (not 1 <= len(words) <= 5 or
+            not all(word == "???" or word[:1].isupper() for word in words) or
+            (len(words) > 2 and candidate.isupper()) or
+            any(char in candidate for char in ".!,;")):
+        return None
+    del current[match.start(1):]
+    return candidate
 
 
 def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
@@ -35,14 +52,18 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     nesting level. Quote delimiters are intentionally omitted from speakable
     text.
     """
-    regions, current = [], []
+    regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
 
     def flush():
+        nonlocal pending_source_label
         part = "".join(current).strip()
         if part:
-            regions.append({"type": "SPOKEN" if depth else "NARRATOR",
-                            "text": part})
+            entry = {"type": "SPOKEN" if depth else "NARRATOR", "text": part}
+            if depth and pending_source_label:
+                entry["source_label"] = pending_source_label
+                pending_source_label = None
+            regions.append(entry)
         current.clear()
 
     for index, char in enumerate(text):
@@ -55,6 +76,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             continue
         if char in _CURLY_AND_JAPANESE_OPEN:
             if depth == 0:
+                pending_source_label = _pop_source_label(current)
                 flush()
                 depth = 1
                 saw_quote = True
@@ -230,7 +252,8 @@ def validate_segment_quality(source_text, entries, quote_analysis=None):
         if not text.strip():
             findings.append({"code": "empty_text", "entry_number": number,
                              "message": "Entry contains no speakable text."})
-        output_parts.append(text)
+        source_label = str(entry.get("source_label") or "").strip()
+        output_parts.append(f"{source_label} {text}".strip())
 
     source_tokens = tokens(source_text)
     output_text = " ".join(output_parts)

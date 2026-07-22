@@ -95,6 +95,17 @@ def default_instruct(entry):
     return NARRATOR_DEFAULT_INSTRUCT if speaker == "NARRATOR" else CHARACTER_DEFAULT_INSTRUCT
 
 
+def get_deterministic_named_entry(entry):
+    """Resolve entries whose speaker is explicit without invoking the LLM."""
+    if entry.get("type") == "NARRATOR":
+        return {"speaker": "NARRATOR", "text": entry["text"]}
+    if entry.get("source_label"):
+        label = str(entry["source_label"]).strip().rstrip(":")
+        return {"speaker": (label.upper() if label.strip("?") else "UNKNOWN"),
+                "text": entry["text"]}
+    return None
+
+
 class PassExhausted(Exception):
     """A pass-2/3 batch could not produce valid output within its retry budget.
     In testing mode (on_exhaustion='fail') this aborts the book so the real
@@ -652,7 +663,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "endpoint": endpoint, "on_exhaustion": on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
-        "pipeline_version": 4,
+        "pipeline_version": 5,
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -799,6 +810,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
     named.extend([None] * (len(segmented) - len(named)))
+    for index, entry in enumerate(segmented):
+        if named[index] is not None:
+            continue
+        named[index] = get_deterministic_named_entry(entry)
     roster = build_roster(entry for entry in named if isinstance(entry, dict))
     roster_seen = set(roster)
     attr_start = time.time()
