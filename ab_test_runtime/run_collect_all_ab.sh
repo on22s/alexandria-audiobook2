@@ -55,7 +55,7 @@ PY
 }
 
 prepare_book () {
-  "$PY" - "$1" "$2" <<'PY'
+  (cd "$APP" && "$PY" - "$1" "$2") <<'PY'
 from pathlib import Path
 import sys
 from routers.script import extract_epub_text
