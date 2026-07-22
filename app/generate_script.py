@@ -369,12 +369,30 @@ def fix_mojibake(text):
 
     return text
 
-def split_into_chunks(text, max_size=3000):
-    """Split text into chunks at paragraph/sentence boundaries."""
+def split_into_chunk_records(text, max_size=3000):
+    """Split text with explicit oversized-paragraph continuation metadata."""
     paragraphs = re.split(r'\n\s*\n', text)
-
-    chunks = []
+    records = []
     current_chunk = ""
+
+    def emit(text, continues_from=False, continues_to=False):
+        if text.strip():
+            records.append({"text": text.strip(),
+                            "continues_paragraph_from_previous": continues_from,
+                            "continues_paragraph_to_next": continues_to})
+
+    def split_long_piece(piece):
+        pieces = []
+        remaining = piece.strip()
+        while len(remaining) > max_size:
+            cut = remaining.rfind(" ", 0, max_size + 1)
+            if cut <= 0:
+                cut = max_size
+            pieces.append(remaining[:cut].strip())
+            remaining = remaining[cut:].strip()
+        if remaining:
+            pieces.append(remaining)
+        return pieces
 
     for para in paragraphs:
         para = para.strip()
@@ -383,27 +401,36 @@ def split_into_chunks(text, max_size=3000):
 
         if len(current_chunk) + len(para) + 2 > max_size:
             if current_chunk:
-                chunks.append(current_chunk.strip())
+                emit(current_chunk)
                 current_chunk = ""
 
             if len(para) > max_size:
                 sentences = re.split(r'(?<=[.!?])\s+', para)
+                paragraph_pieces = []
                 for sentence in sentences:
-                    if len(current_chunk) + len(sentence) + 1 > max_size:
-                        if current_chunk:
-                            chunks.append(current_chunk.strip())
-                        current_chunk = sentence
-                    else:
-                        current_chunk += " " + sentence if current_chunk else sentence
+                    for piece in split_long_piece(sentence):
+                        if (paragraph_pieces and
+                                len(paragraph_pieces[-1]) + len(piece) + 1 <= max_size):
+                            paragraph_pieces[-1] += " " + piece
+                        else:
+                            paragraph_pieces.append(piece)
+                for index, piece in enumerate(paragraph_pieces):
+                    emit(piece, continues_from=index > 0,
+                         continues_to=index + 1 < len(paragraph_pieces))
             else:
                 current_chunk = para
         else:
             current_chunk += "\n\n" + para if current_chunk else para
 
     if current_chunk:
-        chunks.append(current_chunk.strip())
+        emit(current_chunk)
 
-    return chunks
+    return records
+
+
+def split_into_chunks(text, max_size=3000):
+    """Split text into strings at paragraph/sentence boundaries."""
+    return [record["text"] for record in split_into_chunk_records(text, max_size)]
 
 @dataclass
 class LLMGenParams:

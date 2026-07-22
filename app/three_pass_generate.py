@@ -15,6 +15,7 @@ from dataclasses import replace
 from openai import OpenAI
 
 from generate_script import (call_llm_for_entries, split_into_chunks,
+                             split_into_chunk_records,
                              fix_mojibake, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss)
 from source_normalization import (normalize_known_source_corruptions,
@@ -314,7 +315,7 @@ def _resolved_near_miss(near_miss, resolution_sink):
 
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
-                             attempt_sink=None):
+                             attempt_sink=None, quote_analysis=None):
     """Pass 1 with the full safety net: full-chunk attempt, then a
     natural-boundary split whose halves each recurse, and exhaustion-only
     trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
@@ -324,16 +325,20 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     near_miss / fail). Only the top-level call should pass a sink; recursive
     part-calls do not, so inner resolutions don't pollute the record."""
     if params.presegment_quotes:
-        quote_analysis = analyze_outer_quote_regions(chunk)
+        quote_analysis = quote_analysis or analyze_outer_quote_regions(chunk)
         regions = quote_analysis["regions"]
         if len(regions) > 1:
             # Outer quotes already answer the only pass-1 question: inside is
             # spoken, outside is narration. Do not ask the model to rewrite
             # tiny attribution regions; live testing showed that invites
             # hallucinated expansion despite perfect source coverage.
-            if validate_segment_quality(chunk, regions)["passed"]:
+            if validate_segment_quality(
+                    chunk, regions, quote_analysis=quote_analysis)["passed"]:
                 resolution = ("quote_presegmented_repaired"
                               if quote_analysis["repairs"]
+                              else "quote_presegmented_continuation"
+                              if (quote_analysis.get("initial_depth") or
+                                  quote_analysis.get("final_depth"))
                               else "quote_presegmented")
                 _record_resolution(resolution_sink, resolution)
                 return regions
@@ -609,6 +614,8 @@ def _resolution_counts(resolutions):
                                 for r in resolutions),
         "quote_repairs": sum(r == "quote_presegmented_repaired"
                              for r in resolutions),
+        "quote_continuations": sum(r == "quote_presegmented_continuation"
+                                   for r in resolutions),
     }
 
 
@@ -645,7 +652,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "endpoint": endpoint, "on_exhaustion": on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
-        "pipeline_version": 3,
+        "pipeline_version": 4,
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -688,7 +695,19 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
     it; when None, runs purely in memory. context_windows / context_rescue_retries
     override the context-rescue defaults (finding #12)."""
-    chunks = split_into_chunks(source_text, max_size=chunk_size)
+    chunk_records = split_into_chunk_records(source_text, max_size=chunk_size)
+    chunks = [record["text"] for record in chunk_records]
+    quote_analyses = []
+    quote_depth = 0
+    for record in chunk_records:
+        initial_depth = (quote_depth if
+                         record["continues_paragraph_from_previous"] else 0)
+        analysis = analyze_outer_quote_regions(
+            record["text"], initial_depth=initial_depth,
+            allow_open_end=record["continues_paragraph_to_next"])
+        quote_analyses.append(analysis)
+        quote_depth = (analysis["final_depth"] if
+                       record["continues_paragraph_to_next"] else 0)
     fingerprint = three_pass_fingerprint(
         source_text, model_name, chunk_size, params, on_exhaustion,
         context_windows, context_rescue_retries, endpoint)
@@ -751,7 +770,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         failures = []
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
                                        resolution_sink=sink, failure_sink=failures,
-                                       attempt_sink=attempts)
+                                       attempt_sink=attempts,
+                                       quote_analysis=quote_analyses[i])
         if not seg and should_rescue_with_context(failures[0] if failures else set()):
             # Last resort: retry with escalating surrounding-source context.
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "

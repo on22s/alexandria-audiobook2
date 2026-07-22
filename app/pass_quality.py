@@ -26,7 +26,7 @@ _REPORTING_VERB_TAIL = re.compile(
     r"([^\n]{1,120})$", re.IGNORECASE)
 
 
-def analyze_outer_quote_regions(text):
+def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     """Split source into narrator/spoken regions using outer quote boundaries.
 
     Curly quotes may be nested. Some source dialogue also uses an inner opening
@@ -35,7 +35,8 @@ def analyze_outer_quote_regions(text):
     nesting level. Quote delimiters are intentionally omitted from speakable
     text.
     """
-    regions, current, depth, saw_quote, repairs = [], [], 0, False, []
+    regions, current = [], []
+    depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
 
     def flush():
         part = "".join(current).strip()
@@ -85,8 +86,10 @@ def analyze_outer_quote_regions(text):
             continue
         current.append(char)
     flush()
-    return {"regions": regions if saw_quote and depth == 0 else [],
-            "repairs": repairs}
+    complete = depth == 0 or allow_open_end
+    return {"regions": regions if saw_quote and complete else [],
+            "repairs": repairs, "initial_depth": initial_depth,
+            "final_depth": depth}
 
 
 def split_outer_quote_regions(text):
@@ -119,10 +122,17 @@ def _region_contains_entry(regions, entry_text):
     return False
 
 
-def _quote_region_findings(source_text, entries):
-    if not any(char in source_text for char in _QUOTE_CHARS):
+def _quote_region_findings(source_text, entries, quote_analysis=None):
+    if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
         return []
-    outside, inside = _split_quote_regions(source_text)
+    if quote_analysis:
+        source_regions = quote_analysis["regions"]
+        outside = [entry["text"] for entry in source_regions
+                   if entry["type"] == "NARRATOR"]
+        inside = [entry["text"] for entry in source_regions
+                  if entry["type"] == "SPOKEN"]
+    else:
+        outside, inside = _split_quote_regions(source_text)
     findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
@@ -177,7 +187,7 @@ def _introduced_character_findings(source_text, output_text, entries):
     return findings
 
 
-def validate_segment_quality(source_text, entries):
+def validate_segment_quality(source_text, entries, quote_analysis=None):
     """Fidelity gate for pass 1 output [{type, text}]. Same recall/trigram math
     as the single-pass gate, but validates the segment shape (type in
     {NARRATOR, SPOKEN}) rather than speaker/instruct."""
@@ -224,7 +234,7 @@ def validate_segment_quality(source_text, entries):
         findings.append({"code": "output_source_ratio", "value": round(ratio, 4),
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
-    findings.extend(_quote_region_findings(source_text, entries))
+    findings.extend(_quote_region_findings(source_text, entries, quote_analysis))
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
     return _report(sc, oc, recall, trigram, ratio, findings)
 

@@ -144,6 +144,29 @@ class PassHelperTests(unittest.TestCase):
             ["quote_presegmented", "quote_presegmented_repaired"])
         self.assertEqual(1, counts["quote_repairs"])
 
+    def test_oversized_quoted_paragraph_carries_quote_state(self):
+        source = 'Narrator “' + ('spoken words ' * 30) + 'finished.” Tail.'
+        records = tp.split_into_chunk_records(source, max_size=100)
+        self.assertTrue(all(len(record["text"]) <= 100 for record in records))
+        self.assertTrue(records[0]["continues_paragraph_to_next"])
+        self.assertTrue(records[1]["continues_paragraph_from_previous"])
+        depth = 0
+        recovered = []
+        for record in records:
+            initial = depth if record["continues_paragraph_from_previous"] else 0
+            analysis = tp.analyze_outer_quote_regions(
+                record["text"], initial_depth=initial,
+                allow_open_end=record["continues_paragraph_to_next"])
+            self.assertTrue(analysis["regions"])
+            self.assertTrue(tp.validate_segment_quality(
+                record["text"], analysis["regions"],
+                quote_analysis=analysis)["passed"])
+            recovered.extend(analysis["regions"])
+            depth = analysis["final_depth"]
+        self.assertEqual(0, depth)
+        self.assertIn("spoken words", " ".join(
+            entry["text"] for entry in recovered if entry["type"] == "SPOKEN"))
+
     def test_context_rescue_is_not_used_for_omission_or_quote_structure(self):
         self.assertFalse(tp.should_rescue_with_context({"low_source_token_recall"}))
         self.assertFalse(tp.should_rescue_with_context({"crosses_quote_boundary"}))
