@@ -27,6 +27,7 @@ class PassHelperTests(unittest.TestCase):
     def test_resolve_chunk_size_cli_overrides_config(self):
         self.assertEqual(3000, tp.resolve_chunk_size(3000, 6000))
         self.assertEqual(6000, tp.resolve_chunk_size(None, 6000))
+        self.assertEqual(2500, tp.resolve_chunk_size(None, 3000, 2500))
 
     def test_resolve_chunk_size_rejects_bad_config_value(self):
         with self.assertRaises(ValueError):
@@ -46,6 +47,50 @@ class PassHelperTests(unittest.TestCase):
                          tp.default_instruct({"speaker": "NARRATOR", "text": "x"}))
         self.assertEqual("Natural, in-character delivery.",
                          tp.default_instruct({"speaker": "ELENA", "text": "x"}))
+
+    def test_outer_quote_regions_and_preflight_selection(self):
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She said,"},
+             {"type": "SPOKEN", "text": "Go."}],
+            tp.split_outer_quote_regions('She said, "Go."'))
+        source = "\n\n".join(["first " * 1000, "middle " * 1000,
+                               'She said "dialogue." ' * 400])
+        selected = tp.select_preflight_chunks(source, 3000)
+        self.assertEqual("first", selected[0][0])
+        self.assertIn("dialogue", {label for label, _, _ in selected})
+
+    def test_preflight_dialogue_selection_ignores_quote_dense_endnotes(self):
+        prose = ('She said “One.” He answered “Two.” ' * 50).strip()
+        notes = ('Reference “one” ←1. Note “two” ←2. Note “three” ←3. ' * 40).strip()
+        source = "plain opening\n\n" + prose + "\n\n" + notes
+        selected = {label: chunk for label, _, chunk in
+                    tp.select_preflight_chunks(source, 1000)}
+        self.assertIn("She said", selected["dialogue"])
+        self.assertLessEqual(selected["dialogue"].count("←"), 2)
+
+    def test_outer_quote_regions_support_curly_quotes(self):
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She said,"},
+             {"type": "SPOKEN", "text": "Go."}],
+            tp.split_outer_quote_regions("She said, “Go.”"))
+
+    def test_unmatched_outer_quote_falls_back_to_model_segmentation(self):
+        self.assertEqual([], tp.split_outer_quote_regions('She said, "Go.'))
+
+    def test_context_rescue_is_not_used_for_omission_or_quote_structure(self):
+        self.assertFalse(tp.should_rescue_with_context({"low_source_token_recall"}))
+        self.assertFalse(tp.should_rescue_with_context({"crosses_quote_boundary"}))
+        self.assertTrue(tp.should_rescue_with_context({"context_required"}))
+
+    def test_quote_presegmentation_needs_no_llm_rewrite(self):
+        class NoCalls:
+            @property
+            def chat(self):
+                raise AssertionError("quote pre-segmentation should be deterministic")
+        source = 'Ilya said. "Stay behind me."'
+        out = tp.segment_chunk_adaptively(
+            NoCalls(), "m", source, LLMGenParams(presegment_quotes=True))
+        self.assertEqual(tp.split_outer_quote_regions(source), out)
 
 
 def _client_returning(payloads):
@@ -124,6 +169,21 @@ class Pass3Tests(unittest.TestCase):
 
 
 class EndToEndTests(unittest.TestCase):
+    def test_repeated_omission_stops_same_chunk_retry_early(self):
+        source = " ".join(f"word{i}" for i in range(100))
+        short = [{"type": "NARRATOR", "text": " ".join(source.split()[:20])}]
+        calls = {"count": 0}
+        def create(**_kwargs):
+            calls["count"] += 1
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(short)),
+                finish_reason="stop")], usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        self.assertEqual([], tp.segment_chunk(
+            client, "m", source, LLMGenParams(max_tokens=500), max_retries=4))
+        self.assertEqual(2, calls["count"])
+
     def test_segment_strips_standalone_spoken_quote_delimiters(self):
         source = 'She asked, "Did you hear that?"'
         response = [{"type": "NARRATOR", "text": "She asked,"},

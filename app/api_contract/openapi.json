@@ -810,6 +810,13 @@
             "title": "Three Pass Attribute Temperature",
             "type": "number"
           },
+          "three_pass_chunk_size": {
+            "default": 3000,
+            "maximum": 12000.0,
+            "minimum": 500.0,
+            "title": "Three Pass Chunk Size",
+            "type": "integer"
+          },
           "three_pass_instruct_temperature": {
             "default": 0.1,
             "maximum": 2.0,
@@ -823,6 +830,11 @@
             },
             "title": "Three Pass Model Profiles",
             "type": "object"
+          },
+          "three_pass_presegment_quotes": {
+            "default": true,
+            "title": "Three Pass Presegment Quotes",
+            "type": "boolean"
           },
           "three_pass_segment_output_ratio": {
             "default": 3.0,
@@ -1525,6 +1537,19 @@
             ],
             "title": "Attribute Temperature"
           },
+          "chunk_size": {
+            "anyOf": [
+              {
+                "maximum": 12000.0,
+                "minimum": 500.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Size"
+          },
           "instruct_temperature": {
             "anyOf": [
               {
@@ -1537,6 +1562,17 @@
               }
             ],
             "title": "Instruct Temperature"
+          },
+          "presegment_quotes": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presegment Quotes"
           },
           "segment_output_ratio": {
             "anyOf": [

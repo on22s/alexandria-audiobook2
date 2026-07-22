@@ -17,6 +17,7 @@ PY="${PY:-$APP/env/bin/python}"; LMS="${LMS:-/home/fakemitch/.lmstudio/bin/lms}"
 MASTER="$OUT/run.log"
 REPEATS="${REPEATS:-3}"
 QUALIFICATION_CORPUS="${QUALIFICATION_CORPUS:-$SCRIPT_DIR/qualification_corpus.txt}"
+QUALIFICATION_TIMEOUT_SECONDS="${QUALIFICATION_TIMEOUT_SECONDS:-900}"
 RUN_FAILURES=0
 cd "$APP" || exit 1
 BOOK="Arc 4 - Volume 10wn"
@@ -82,6 +83,14 @@ select_runtime () {  # engine alias
   esac
 }
 
+run_qualification_command () {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$QUALIFICATION_TIMEOUT_SECONDS" "$@"
+  else
+    "$@"
+  fi
+}
+
 run_arm () {  # backend tag model
   local backend="$1" tag="$2" model="$3" r dir out code
   set_model "$model"
@@ -107,21 +116,34 @@ run_arm () {  # backend tag model
 }
 
 qualify_model () {  # backend tag model
-  local backend="$1" tag="$2" model="$3" dir out code
+  local backend="$1" tag="$2" model="$3" dir out preflight code
   set_model "$model"
   dir="$OUT/$backend/$tag/qualification"; mkdir -p "$dir"
   out="$dir/qualification.json"
-  if is_complete "$out" "$model"; then return 0; fi
-  "$LMS" unload --all >/dev/null 2>&1
-  echo "=== [$backend/$tag/qualification] start $(date -Is) ===" | tee -a "$MASTER"
-  if "$PY" three_pass_generate.py "$QUALIFICATION_CORPUS" \
-      --pass2-on-exhaustion fail --output "$out" >> "$dir/qualification.log" 2>&1; then
+  if ! is_complete "$out" "$model"; then
+    "$LMS" unload --all >/dev/null 2>&1
+    echo "=== [$backend/$tag/qualification] start $(date -Is) ===" | tee -a "$MASTER"
+    if run_qualification_command "$PY" three_pass_generate.py "$QUALIFICATION_CORPUS" \
+        --pass2-on-exhaustion fail --output "$out" >> "$dir/qualification.log" 2>&1; then
+      code=0
+    else
+      code=$?
+      RUN_FAILURES=$((RUN_FAILURES + 1))
+      echo "=== [$backend/$tag/qualification] exit=$code $(date -Is) ===" | tee -a "$MASTER"
+      return "$code"
+    fi
+    echo "=== [$backend/$tag/qualification] exit=0 $(date -Is) ===" | tee -a "$MASTER"
+  fi
+  preflight="$dir/$BOOK.preflight"
+  echo "=== [$backend/$tag/preflight] start $(date -Is) ===" | tee -a "$MASTER"
+  if run_qualification_command "$PY" three_pass_generate.py "uploads/$BOOK.txt" --preflight \
+      --pass2-on-exhaustion fail --output "$preflight" >> "$dir/preflight.log" 2>&1; then
     code=0
   else
     code=$?
     RUN_FAILURES=$((RUN_FAILURES + 1))
   fi
-  echo "=== [$backend/$tag/qualification] exit=$code $(date -Is) ===" | tee -a "$MASTER"
+  echo "=== [$backend/$tag/preflight] exit=$code $(date -Is) ===" | tee -a "$MASTER"
   return "$code"
 }
 

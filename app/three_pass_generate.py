@@ -9,6 +9,7 @@ import math
 import os
 import sys
 import time
+from collections import Counter
 from dataclasses import replace
 
 from openai import OpenAI
@@ -42,11 +43,12 @@ def _record_resolution(sink, value):
         sink.append(value)
 
 
-def resolve_chunk_size(cli_value, config_value):
+def resolve_chunk_size(cli_value, config_value, model_value=None):
     """Resolve the effective chunk size (CLI overrides config) and validate it.
     Guards BOTH sources (finding #14): a bad config chunk_size previously slipped
     through because only the CLI value was checked. Raises ValueError on < 1."""
-    chunk_size = cli_value if cli_value is not None else config_value
+    chunk_size = (cli_value if cli_value is not None else
+                  model_value if model_value is not None else config_value)
     if not isinstance(chunk_size, int) or chunk_size < 1:
         raise ValueError(f"chunk_size must be an integer >= 1 (got {chunk_size!r})")
     return chunk_size
@@ -189,7 +191,8 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
 
 
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
-                  label, max_retries, near_miss_sink, validate=None):
+                  label, max_retries, near_miss_sink, validate=None,
+                  attempt_observer=None, retry_decider=None):
     """Shared body for every pass-1 segment call (plain and context-rescue):
     the segment repair transform, the segment fidelity gate (optionally wrapped),
     and trigram-only near-miss capture. Callers build sys_prompt/user_prompt so
@@ -255,10 +258,13 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
         # merge_empty_into_pause=False so empty units reach the gate (finding #7).
         transform_entries=repair,
         validate_entries=validate,
+        attempt_observer=attempt_observer,
+        retry_decider=retry_decider,
         near_miss_sink=near_miss_sink)
 
 
-def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_sink=None):
+def segment_chunk(client, model_name, chunk, params, max_retries=4,
+                  near_miss_sink=None, failure_sink=None, attempt_sink=None):
     """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
     segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
     (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
@@ -269,8 +275,24 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4, near_miss_si
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
     user_prompt = usr_template.format(chunk=chunk)
-    return _call_segment(client, model_name, chunk, sys_prompt, user_prompt,
-                         params, "SEGMENT", max_retries, near_miss_sink)
+    attempts = []
+    def observe(attempt):
+        attempts.append(attempt)
+        if attempt_sink is not None:
+            attempt_sink.append(attempt)
+    def decide(quality, repeat_evidence):
+        codes = {finding.get("code") for finding in quality.get("findings", [])}
+        splittable = {"low_source_token_recall", "low_ordered_trigram_recall",
+                      "output_source_ratio", "mixed_quote_region",
+                      "quote_region_misclassified", "crosses_quote_boundary"}
+        return "split" if repeat_evidence >= 2 and codes & splittable else "retry"
+    entries = _call_segment(
+        client, model_name, chunk, sys_prompt, user_prompt, params, "SEGMENT",
+        max_retries, near_miss_sink, attempt_observer=observe,
+        retry_decider=decide)
+    if not entries and failure_sink is not None and attempts:
+        failure_sink[:] = [set(attempts[-1].get("failure_codes") or [])]
+    return entries
 
 
 def _accept_segment_near_miss(near_miss):
@@ -289,7 +311,31 @@ def _resolved_near_miss(near_miss, resolution_sink):
     return entries
 
 
-def segment_chunk_adaptively(client, model_name, chunk, params, resolution_sink=None):
+def split_outer_quote_regions(text):
+    """Split balanced outer quotes into ordered narrator/spoken source regions."""
+    regions, current, quoted, saw_quote = [], [], False, False
+    for char in text:
+        opens = char in ('"', '“') and not quoted
+        closes = char in ('"', '”') and quoted
+        if opens or closes:
+            part = "".join(current).strip()
+            if part:
+                regions.append({"type": "SPOKEN" if quoted else "NARRATOR",
+                                "text": part})
+            current = []
+            quoted = not quoted
+            saw_quote = True
+        else:
+            current.append(char)
+    part = "".join(current).strip()
+    if part:
+        regions.append({"type": "SPOKEN" if quoted else "NARRATOR", "text": part})
+    return regions if saw_quote and not quoted else []
+
+
+def segment_chunk_adaptively(client, model_name, chunk, params,
+                             resolution_sink=None, failure_sink=None,
+                             attempt_sink=None):
     """Pass 1 with the full safety net: full-chunk attempt, then a
     natural-boundary split whose halves each recurse, and exhaustion-only
     trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
@@ -298,23 +344,41 @@ def segment_chunk_adaptively(client, model_name, chunk, params, resolution_sink=
     how the chunk was handled (clean / adaptive_split / recombination_near_miss /
     near_miss / fail). Only the top-level call should pass a sink; recursive
     part-calls do not, so inner resolutions don't pollute the record."""
+    if params.presegment_quotes:
+        regions = split_outer_quote_regions(chunk)
+        if len(regions) > 1:
+            # Outer quotes already answer the only pass-1 question: inside is
+            # spoken, outside is narration. Do not ask the model to rewrite
+            # tiny attribution regions; live testing showed that invites
+            # hallucinated expansion despite perfect source coverage.
+            if validate_segment_quality(chunk, regions)["passed"]:
+                _record_resolution(resolution_sink, "quote_presegmented")
+                return regions
     near_miss = []
-    entries = segment_chunk(client, model_name, chunk, params, near_miss_sink=near_miss)
+    local_failures = []
+    entries = segment_chunk(client, model_name, chunk, params,
+                            near_miss_sink=near_miss, failure_sink=local_failures,
+                            attempt_sink=attempt_sink)
     if entries:
         _record_resolution(resolution_sink, "clean")
         return entries
     parts = split_failed_chunk(chunk)
     if not parts:
+        if failure_sink is not None:
+            failure_sink[:] = local_failures
         return _resolved_near_miss(near_miss, resolution_sink)
     print(f"  Adaptive split (segment): -> {len(parts[0])} + {len(parts[1])} chars")
     combined, any_failed = [], False
     for part in parts:
-        part_entries = segment_chunk_adaptively(client, model_name, part, params)
+        part_entries = segment_chunk_adaptively(
+            client, model_name, part, params, attempt_sink=attempt_sink)
         if not part_entries:
             any_failed = True
             continue
         combined.extend(part_entries)
     if any_failed:
+        if failure_sink is not None:
+            failure_sink[:] = local_failures
         return _resolved_near_miss(near_miss, resolution_sink)
     combined_quality = validate_segment_quality(chunk, combined)
     if not combined_quality["passed"]:
@@ -339,6 +403,33 @@ def segment_chunk_adaptively(client, model_name, chunk, params, resolution_sink=
         return _resolved_near_miss(near_miss, resolution_sink)
     _record_resolution(resolution_sink, "adaptive_split")
     return combined
+
+
+def should_rescue_with_context(failure_codes):
+    """Context is not a remedy for omission, truncation, or quote structure."""
+    return bool(set(failure_codes or ()) & {"context_required"})
+
+
+def select_preflight_chunks(source_text, chunk_size):
+    """Select distinct first, middle, and dialogue-dense real-book chunks."""
+    chunks = split_into_chunks(source_text, max_size=chunk_size)
+    if not chunks:
+        return []
+    selected = [("first", 0)]
+    middle = len(chunks) // 2
+    if middle:
+        selected.append(("middle", middle))
+    # Endnote/reference sections often contain more quoted terms than the story
+    # itself. They are useful source material, but are not a representative
+    # dialogue qualification sample.
+    prose_candidates = [i for i, chunk in enumerate(chunks)
+                        if chunk.count("←") <= 2]
+    dialogue_pool = prose_candidates or list(range(len(chunks)))
+    dialogue = max(dialogue_pool, key=lambda i: sum(
+        chunks[i].count(mark) for mark in ('"', '“', '”')))
+    if dialogue not in {index for _, index in selected}:
+        selected.append(("dialogue", dialogue))
+    return [(label, index, chunks[index]) for label, index in selected]
 
 
 # Escalating context windows (chars of surrounding source) tried, in order, as a
@@ -569,7 +660,10 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "endpoint": endpoint, "on_exhaustion": on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
-        "pipeline_version": 2,
+        "pipeline_version": 3,
+        "default_prompts_sha256": hashlib.sha256("\n".join(
+            sum((list(load_segment_prompts()), list(load_attribute_prompts()),
+                 list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
     }
     if params is not None:
         settings.update({name: getattr(params, name, None) for name in (
@@ -577,7 +671,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "top_p", "top_k", "min_p", "presence_penalty", "banned_tokens",
             "context_length", "hard_max_tokens", "segment_temperature",
             "attribute_temperature", "instruct_temperature",
-            "segment_output_ratio")})
+            "segment_output_ratio", "presegment_quotes")})
     encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return {"source_sha256": digest, "settings_sha256": hashlib.sha256(encoded).hexdigest(),
             "model_name": model_name, "pipeline": "three_pass"}
@@ -628,6 +722,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     if len(resolutions) < chunks_done:
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
+    attempts = []
 
     def save(stage):
         if output_path:
@@ -637,15 +732,30 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     passes = {}
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
+        failure_counts = Counter(
+            code for attempt in attempts
+            for code in (attempt.get("failure_codes") or []))
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
                         failed_pass=failed_pass, failed_chunk=failed_chunk,
                         legacy_resume=legacy_resume, progress={
                             "source_words": len(source_text.split()),
+                            "source_words_total": len(source_text.split()),
+                            "source_words_completed": sum(
+                                len(chunks[j].split()) for j in range(chunks_done)),
                             "chunks_total": len(chunks),
                             "chunks_completed": chunks_done,
                             "segmented_entries": len(segmented),
                             "attributed_entries": sum(isinstance(e, dict) for e in named),
                             "instructed_entries": sum(isinstance(e, dict) for e in annotated),
+                            "llm_calls": len(attempts),
+                            "repeated_responses": sum(
+                                a.get("response_repeat_count", 0) > 1 for a in attempts),
+                            "completion_tokens": sum(
+                                a.get("completion_tokens") or 0 for a in attempts),
+                            "failure_codes": dict(sorted(failure_counts.items())),
+                            "response_fingerprints": len({
+                                a.get("response_fingerprint") for a in attempts
+                                if a.get("response_fingerprint")}),
                         })
 
     # Pass 1 — resume from chunks_done.
@@ -653,9 +763,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     seg_base = elapsed_s.get("segment", 0)
     for i in range(chunks_done, len(chunks)):
         sink = []
+        failures = []
         seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
-                                       resolution_sink=sink)
-        if not seg:
+                                       resolution_sink=sink, failure_sink=failures,
+                                       attempt_sink=attempts)
+        if not seg and should_rescue_with_context(failures[0] if failures else set()):
             # Last resort: retry with escalating surrounding-source context.
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "
                   "trying escalating surrounding-source context")
@@ -779,6 +891,8 @@ def main():
                         default="fail",
                         help="testing default 'fail' surfaces pass-2 failures; "
                              "'fallback' degrades gracefully (production).")
+    parser.add_argument("--preflight", action="store_true",
+                        help="Run first/middle/dialogue-heavy samples only.")
     args = parser.parse_args()
 
     with open(args.input_file, encoding="utf-8", errors="replace") as fh:
@@ -794,15 +908,17 @@ def main():
     config = load_app_config(get_app_config_path(data_dir, root, app_dir))
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
+    model_name = llm.get("model_name")
+    model_profile = (gen.get("three_pass_model_profiles") or {}).get(model_name, {})
     try:
-        chunk_size = resolve_chunk_size(args.chunk_size, gen.get("chunk_size", 6000))
+        chunk_size = resolve_chunk_size(
+            args.chunk_size, gen.get("three_pass_chunk_size", 3000),
+            model_profile.get("chunk_size"))
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
     base_url = llm.get("base_url", "http://localhost:1234/v1")
-    model_name = llm.get("model_name")
     llm_mode = config.get("llm_mode", "local")
-    model_profile = (gen.get("three_pass_model_profiles") or {}).get(model_name, {})
     # Self-heal LM Studio: load model_name at its verified context if nothing is
     # loaded / settings are stale, mirroring generate_script.py. Without this a
     # fresh `lms unload` leaves no model loaded and every call 400s.
@@ -822,7 +938,9 @@ def main():
         instruct_temperature=model_profile.get(
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=model_profile.get(
-            "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)))
+            "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
+        presegment_quotes=model_profile.get(
+            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)))
     client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
@@ -833,6 +951,28 @@ def main():
     output_path = args.output or os.path.join(root, "annotated_script.json")
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}")
+    if args.preflight:
+        summary = {"status": "complete", "model_name": model_name, "samples": []}
+        for label, index, sample in select_preflight_chunks(book, chunk_size):
+            sample_out = f"{output_path}.preflight_{label}.json"
+            try:
+                sample_entries = run_three_pass(
+                    client, model_name, sample, params, chunk_size,
+                    on_exhaustion=args.pass2_on_exhaustion, output_path=sample_out,
+                    context_windows=context_windows,
+                    context_rescue_retries=context_rescue_retries,
+                    endpoint=base_url)
+                atomic_json_write(sample_entries, sample_out)
+                summary["samples"].append({"label": label, "chunk_index": index,
+                                           "status": "complete",
+                                           "entries": len(sample_entries)})
+            except (RuntimeError, PassExhausted) as exc:
+                summary["status"] = "failed"
+                summary["samples"].append({"label": label, "chunk_index": index,
+                                           "status": "failed", "error": str(exc)})
+                break
+        atomic_json_write(summary, output_path + ".preflight_manifest.json")
+        sys.exit(0 if summary["status"] == "complete" else 1)
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  on_exhaustion=args.pass2_on_exhaustion,

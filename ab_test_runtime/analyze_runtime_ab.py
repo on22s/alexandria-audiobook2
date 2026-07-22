@@ -86,10 +86,11 @@ def load_run(rep_dir):
         "retries": speed["retries"] if speed else None,
         "truncations": speed["truncations"] if speed else None,
         "source_words": progress.get("source_words"),
+        "source_words_completed": progress.get("source_words_completed"),
         "segmented_entries": progress.get("segmented_entries"),
-        "productive_words_per_s": (round(progress["source_words"] / wall, 3)
+        "productive_words_per_s": (round(progress["source_words_completed"] / wall, 3)
                                    if (manifest or {}).get("status") == "complete"
-                                   and wall and isinstance(progress.get("source_words"), int)
+                                   and wall and isinstance(progress.get("source_words_completed"), int)
                                    else None),
     }
 

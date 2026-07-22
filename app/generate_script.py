@@ -434,6 +434,7 @@ class LLMGenParams:
     attribute_temperature: float = None
     instruct_temperature: float = None
     segment_output_ratio: float = 3.0
+    presegment_quotes: bool = False
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
@@ -576,6 +577,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     retry_feedback = None
     requested_max = params.max_tokens
     consecutive_severe = 0
+    response_fingerprints = {}
     for attempt in range(max_retries + 1):
         t0 = time.time()
         truncation_retry_available = False
@@ -614,6 +616,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             choice = response.choices[0]
             text = choice.message.content.strip()
+            response_fingerprint = hashlib.sha256(
+                " ".join(text.split()).encode("utf-8")).hexdigest()
+            response_fingerprints[response_fingerprint] = (
+                response_fingerprints.get(response_fingerprint, 0) + 1)
+            repeat_count = response_fingerprints[response_fingerprint]
             finish_reason = choice.finish_reason
             usage = getattr(response, 'usage', None)
 
@@ -645,6 +652,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
                     "error": None,
+                    "response_fingerprint": response_fingerprint,
+                    "response_repeat_count": repeat_count,
                 }
                 attempt_observer(attempt_record)
 
@@ -772,9 +781,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
-                    if (retry_policy == "retry_same_budget" and retry_decider
-                            and retry_decider(quality, consecutive_severe) == "split"):
-                        print("  Repeated severe truncation; switching to adaptive split")
+                    retry_evidence = max(consecutive_severe, repeat_count)
+                    if (retry_decider
+                            and retry_decider(quality, retry_evidence) == "split"):
+                        print("  Repeated unproductive response; switching to adaptive split")
                         return []
                     if attempt < max_retries:
                         print("Retrying...")
