@@ -10,7 +10,8 @@ import time
 import logging
 import gc
 import uuid
-from utils import atomic_json_write, safe_load_json, is_oom_failure, get_app_config_path
+from utils import (atomic_json_write, safe_load_json, is_oom_failure,
+                   get_app_config_path, is_nonverbal_text)
 from config_settings import load_app_config
 from tts import (
     TTSEngine,
@@ -73,12 +74,14 @@ def get_speakable_entries(script_entries):
     speakable = []
     for source_entry in script_entries:
         entry = dict(source_entry)
-        if any(char.isalnum() for char in str(entry.get("text") or "")):
-            speakable.append(entry)
-        elif speakable:
+        if is_nonverbal_text(entry.get("text")):
+            if not speakable:
+                continue
             previous = speakable[-1]
             previous["pause_after"] = max(
                 int(previous.get("pause_after") or 0), DEFAULT_PAUSE_MS)
+        else:
+            speakable.append(entry)
     return speakable
 
 

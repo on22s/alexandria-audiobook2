@@ -29,9 +29,10 @@ from pass_quality import (validate_segment_quality, validate_attribution,
                           analyze_outer_quote_regions, split_outer_quote_regions)
 from review_script import normalize_text
 from config_settings import load_app_config
-from lmstudio_settings import ensure_ideal_settings
+from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
+                               TokenBudgetError)
 from utils import (get_runtime_data_dir, get_app_config_path,
-                   atomic_json_write, safe_load_json)
+                   atomic_json_write, safe_load_json, is_nonverbal_text)
 
 BATCH_SIZE = 25
 NARRATOR_DEFAULT_INSTRUCT = "Neutral, even narration."
@@ -101,6 +102,8 @@ def get_deterministic_named_entry(entry):
     """Resolve entries whose speaker is explicit without invoking the LLM."""
     if entry.get("type") == "NARRATOR":
         return {"speaker": "NARRATOR", "text": entry["text"]}
+    if is_nonverbal_text(entry.get("text")):
+        return {"speaker": "NARRATOR", "text": entry["text"]}
     if entry.get("source_label"):
         label = str(entry["source_label"]).strip().rstrip(":")
         return {"speaker": (label.upper() if label.strip("?") else "UNKNOWN"),
@@ -164,11 +167,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
 
 
-def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
-                   neighbor_contexts=None, exhaustion_sink=None):
-    """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
-    on text+speaker. On exhaustion, attaches a default instruct per entry so
-    pass 3 never fails the book."""
+def build_instruct_request(prior_batch, params, neighbor_contexts=None):
+    """Build the canonical pass-3 system and user prompts."""
     sys_prompt, usr_template = load_instruct_prompts()
     if params.system_prompt:
         sys_prompt = params.system_prompt
@@ -178,7 +178,16 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
         for i, e in enumerate(prior_batch)], ensure_ascii=False)
-    user_prompt = usr_template.format(batch=batch_json)
+    return sys_prompt, usr_template.format(batch=batch_json)
+
+
+def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
+                   neighbor_contexts=None, exhaustion_sink=None):
+    """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
+    on text+speaker. On exhaustion, attaches a default instruct per entry so
+    pass 3 never fails the book."""
+    sys_prompt, user_prompt = build_instruct_request(
+        prior_batch, params, neighbor_contexts)
     validated = {}
 
     def validate(entries):
@@ -205,6 +214,21 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
     return [{**e, "instruct": default_instruct(e)} for e in prior_batch]
+
+
+def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None):
+    """Return whether an instruction request has room for a plausible response."""
+    sys_prompt, user_prompt = build_instruct_request(
+        prior_batch, params, neighbor_contexts)
+    messages = [{"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}]
+    try:
+        available = get_effective_max_tokens(
+            params.max_tokens, params.context_length, messages,
+            params.hard_max_tokens, scale_to_context=False)
+    except TokenBudgetError:
+        return False
+    return available >= max(256, 48 * len(prior_batch))
 
 
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
@@ -670,7 +694,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
-        "pipeline_version": 7,
+        "pipeline_version": 8,
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -910,6 +934,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
     # slip through there either (finding #5).
     annotated.extend([None] * (len(named) - len(annotated)))
+    for index, entry in enumerate(named):
+        if (annotated[index] is None and isinstance(entry, dict)
+                and is_nonverbal_text(entry.get("text"))):
+            annotated[index] = {**entry, "instruct": default_instruct(entry)}
     inst_start = time.time()
     inst_base = elapsed_s.get("instruct", 0)
     for indexed_batch in iter_unique_entry_batches(named):
@@ -925,6 +953,13 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                          "next_context": named[index + 1]
                          if index + 1 < len(named) else None}
                         for index, _ in current]
+            if (len(current) > 1
+                    and not does_instruct_batch_fit_context(batch, params, contexts)):
+                midpoint = len(current) // 2
+                print(f"  Instruction batch exceeds context budget; subdividing "
+                      f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
+                work[0:0] = [current[:midpoint], current[midpoint:]]
+                continue
             exhausted = []
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,

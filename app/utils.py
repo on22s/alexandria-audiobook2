@@ -16,6 +16,11 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def is_nonverbal_text(text):
+    """Return whether text contains no speakable letter or number."""
+    return not any(char.isalnum() for char in str(text or ""))
+
+
 def get_unique_id(prefix: str) -> str:
     """Return a readable, collision-resistant identifier for a saved artifact."""
     return f"{prefix}_{uuid.uuid4().hex[:12]}"

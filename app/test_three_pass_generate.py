@@ -151,6 +151,20 @@ class PassHelperTests(unittest.TestCase):
         self.assertIsNone(tp.get_deterministic_named_entry(
             {"type": "SPOKEN", "text": "Who said that?"}))
 
+    def test_nonverbal_spoken_entry_bypasses_attribution(self):
+        self.assertEqual(
+            {"speaker": "NARRATOR", "text": ".......!"},
+            tp.get_deterministic_named_entry(
+                {"type": "SPOKEN", "text": ".......!"}))
+
+    def test_instruction_context_preflight_requires_response_headroom(self):
+        small = [{"speaker": "A", "text": "Wait."}]
+        large = [{"speaker": "A", "text": "word " * 1400} for _ in range(4)]
+        params = LLMGenParams(max_tokens=10000, temperature=0.1,
+                              context_length=8192, hard_max_tokens=16384)
+        self.assertTrue(tp.does_instruct_batch_fit_context(small, params))
+        self.assertFalse(tp.does_instruct_batch_fit_context(large, params))
+
     def test_missing_open_quote_after_reporting_verb_is_recovered(self):
         source = 'She quietly murmured I see…”, keeping her eyes lowered.'
         analysis = tp.analyze_outer_quote_regions(source)
@@ -448,6 +462,19 @@ class EndToEndTests(unittest.TestCase):
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_nonverbal_entry_completes_without_pass2_or_pass3_call(self):
+        source = '"..."'
+        segmented = [{"type": "SPOKEN", "text": "..."}]
+        params = LLMGenParams(max_tokens=500, temperature=0.1)
+        with patch.object(tp, "segment_chunk_adaptively", return_value=segmented), \
+             patch.object(tp, "attribute_batch") as attribute, \
+             patch.object(tp, "instruct_batch") as instruct:
+            entries = tp.run_three_pass(
+                _client_returning([]), "m", source, params, chunk_size=6000)
+        attribute.assert_not_called()
+        instruct.assert_not_called()
+        self.assertEqual("...", entries[0]["text"])
+
     def test_collect_all_records_segment_failure_and_continues(self):
         source = "First paragraph.\n\nSecond paragraph."
         params = LLMGenParams(max_tokens=500, temperature=0.1)
