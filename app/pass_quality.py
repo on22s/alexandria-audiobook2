@@ -15,6 +15,64 @@ from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
 from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
+_QUOTE_CHARS = {'"', '“', '”'}
+
+
+def _split_quote_regions(source_text):
+    """Return normalized text regions outside and inside outer dialogue quotes."""
+    outside, inside, current = [], [], []
+    quoted = False
+    for char in source_text:
+        opens = char in ('"', '“') and not quoted
+        closes = char in ('"', '”') and quoted
+        if opens or closes:
+            (inside if quoted else outside).append("".join(current))
+            current = []
+            quoted = not quoted
+        else:
+            current.append(char)
+    (inside if quoted else outside).append("".join(current))
+    return outside, inside
+
+
+def _region_contains_entry(regions, entry_text):
+    needle = normalize_text(entry_text).split()
+    if not needle:
+        return True
+    for region in regions:
+        haystack = normalize_text(region).split()
+        if len(needle) == 1:
+            if haystack == needle:
+                return True
+        elif any(haystack[i:i + len(needle)] == needle
+                 for i in range(len(haystack) - len(needle) + 1)):
+            return True
+    return False
+
+
+def _quote_region_findings(source_text, entries):
+    if not any(char in source_text for char in _QUOTE_CHARS):
+        return []
+    outside, inside = _split_quote_regions(source_text)
+    findings = []
+    for number, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            continue
+        text = str(entry.get("text") or "")
+        if any(char in text for char in _QUOTE_CHARS):
+            findings.append({"code": "mixed_quote_region", "entry_number": number,
+                             "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
+            continue
+        expected = inside if entry.get("type") == "SPOKEN" else outside
+        other = outside if entry.get("type") == "SPOKEN" else inside
+        in_expected = _region_contains_entry(expected, text)
+        if not in_expected and _region_contains_entry(other, text):
+            findings.append({"code": "quote_region_misclassified", "entry_number": number,
+                             "message": "SPOKEN text must originate inside quotes and NARRATOR text outside quotes."})
+        elif not in_expected:
+            findings.append({"code": "crosses_quote_boundary", "entry_number": number,
+                             "message": "Entry text crosses a dialogue quote boundary; split narration and spoken text."})
+    return findings
 
 
 def _introduced_character_findings(source_text, output_text, entries):
@@ -97,6 +155,7 @@ def validate_segment_quality(source_text, entries):
         findings.append({"code": "output_source_ratio", "value": round(ratio, 4),
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
+    findings.extend(_quote_region_findings(source_text, entries))
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
     return _report(sc, oc, recall, trigram, ratio, findings)
 

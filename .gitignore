@@ -174,3 +174,5 @@ ab_test_threepass/
 ab_test_runtime/vulkan/
 ab_test_runtime/rocm/
 ab_test_runtime/run.log
+/qualification_*/
+/model_ab_test/

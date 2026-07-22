@@ -124,6 +124,23 @@ class Pass3Tests(unittest.TestCase):
 
 
 class EndToEndTests(unittest.TestCase):
+    def test_segment_strips_standalone_spoken_quote_delimiters(self):
+        source = 'She asked, "Did you hear that?"'
+        response = [{"type": "NARRATOR", "text": "She asked,"},
+                    {"type": "SPOKEN", "text": '"Did you hear that?"'}]
+        out = tp.segment_chunk(_client_returning([response]), "m", source,
+                               LLMGenParams(max_tokens=500, temperature=0.1))
+        self.assertEqual("Did you hear that?", out[1]["text"])
+
+    def test_segment_splits_narrator_entry_containing_quoted_dialogue(self):
+        source = 'Ilya said. "Stay behind me."'
+        response = [{"type": "NARRATOR", "text": source}]
+        out = tp.segment_chunk(_client_returning([response]), "m", source,
+                               LLMGenParams(max_tokens=500, temperature=0.1))
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "Ilya said."},
+             {"type": "SPOKEN", "text": "Stay behind me."}], out)
+
     def test_segment_completion_budget_is_bounded_from_source_size(self):
         seen = {}
         source = " ".join(f"word{i}" for i in range(100))

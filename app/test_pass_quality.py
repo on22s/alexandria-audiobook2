@@ -32,6 +32,27 @@ class SegmentQualityTests(unittest.TestCase):
         codes = {f["code"] for f in report["findings"]}
         self.assertIn("low_source_token_recall", codes)
 
+    def test_rejects_narration_combined_with_quoted_dialogue(self):
+        source = '"Yes," Ilya said. "Stay behind me."'
+        entries = [_seg("Yes,", "SPOKEN"),
+                   _seg('Ilya said. "Stay behind me."', "NARRATOR")]
+        codes = {f["code"] for f in validate_segment_quality(source, entries)["findings"]}
+        self.assertIn("mixed_quote_region", codes)
+
+    def test_rejects_attribution_tag_marked_spoken(self):
+        source = '"No," Mara repeated, more firmly.'
+        entries = [_seg("No,", "SPOKEN"),
+                   _seg("Mara repeated, more firmly.", "SPOKEN")]
+        codes = {f["code"] for f in validate_segment_quality(source, entries)["findings"]}
+        self.assertIn("quote_region_misclassified", codes)
+
+    def test_accepts_quote_aware_dialogue_and_attribution(self):
+        source = '"Yes," Ilya said. "Stay behind me."'
+        entries = [_seg("Yes,", "SPOKEN"), _seg("Ilya said.", "NARRATOR"),
+                   _seg("Stay behind me.", "SPOKEN")]
+        report = validate_segment_quality(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
 
 class AttributionTests(unittest.TestCase):
     def test_attribution_passes_when_all_spoken_named(self):

@@ -206,6 +206,45 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
         temperature=(params.segment_temperature
                      if params.segment_temperature is not None else params.temperature))
+    def repair(entries):
+        repaired = build_deterministic_repair(
+            entries, chunk, merge_empty_into_pause=False)
+        quote_split = []
+        for number, entry in enumerate(repaired["entries"], 1):
+            text = str(entry.get("text") or "").strip()
+            if entry.get("type") != "SPOKEN":
+                if any(char in text for char in ('"', '“', '”')):
+                    parts, current, quoted = [], [], False
+                    for char in text:
+                        opens = char in ('"', '“') and not quoted
+                        closes = char in ('"', '”') and quoted
+                        if opens or closes:
+                            part = "".join(current).strip()
+                            if part:
+                                parts.append({**entry, "type": "SPOKEN" if quoted
+                                              else "NARRATOR", "text": part})
+                            current = []
+                            quoted = not quoted
+                        else:
+                            current.append(char)
+                    part = "".join(current).strip()
+                    if part:
+                        parts.append({**entry, "type": "SPOKEN" if quoted
+                                      else "NARRATOR", "text": part})
+                    if not quoted and len(parts) > 1:
+                        quote_split.extend(parts)
+                        repaired.setdefault("changes", []).append({
+                            "entry_number": number, "code": "split_mixed_quote_regions"})
+                        continue
+            elif ((text.startswith('"') and text.endswith('"'))
+                  or (text.startswith('“') and text.endswith('”'))):
+                entry = {**entry, "text": text[1:-1]}
+                repaired.setdefault("changes", []).append({
+                    "entry_number": number, "code": "stripped_dialogue_delimiters"})
+            quote_split.append(entry)
+        repaired["entries"] = quote_split
+        return repaired
+
     return call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, bounded_params,
         log_name="llm_responses.log", label=label, max_retries=max_retries,
@@ -214,8 +253,7 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
         # on issues single-pass silently repairs. build_deterministic_repair is
         # text-only, so it applies unchanged to the {type,text} segment shape.
         # merge_empty_into_pause=False so empty units reach the gate (finding #7).
-        transform_entries=lambda entries: build_deterministic_repair(
-            entries, chunk, merge_empty_into_pause=False),
+        transform_entries=repair,
         validate_entries=validate,
         near_miss_sink=near_miss_sink)
 

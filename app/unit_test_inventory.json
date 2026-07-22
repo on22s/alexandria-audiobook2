@@ -449,9 +449,12 @@
     "test_pass_quality.InstructValidatorTests.test_ignores_legacy_head_when_index_is_valid",
     "test_pass_quality.InstructValidatorTests.test_passes_when_all_have_instruct",
     "test_pass_quality.PromptLoaderTests.test_three_pass_prompts_load_and_have_placeholders",
+    "test_pass_quality.SegmentQualityTests.test_accepts_quote_aware_dialogue_and_attribution",
     "test_pass_quality.SegmentQualityTests.test_complete_segment_passes",
     "test_pass_quality.SegmentQualityTests.test_invalid_type_value_fails",
     "test_pass_quality.SegmentQualityTests.test_missing_type_field_fails",
+    "test_pass_quality.SegmentQualityTests.test_rejects_attribution_tag_marked_spoken",
+    "test_pass_quality.SegmentQualityTests.test_rejects_narration_combined_with_quoted_dialogue",
     "test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
   ],
   "test_preparer_benchmark": [
@@ -631,6 +634,8 @@
     "test_three_pass_generate.EndToEndTests.test_fallback_mode_completes_and_rebuilds_roster",
     "test_three_pass_generate.EndToEndTests.test_segment_accepts_trigram_only_near_miss_on_exhaustion",
     "test_three_pass_generate.EndToEndTests.test_segment_completion_budget_is_bounded_from_source_size",
+    "test_three_pass_generate.EndToEndTests.test_segment_splits_narrator_entry_containing_quoted_dialogue",
+    "test_three_pass_generate.EndToEndTests.test_segment_strips_standalone_spoken_quote_delimiters",
     "test_three_pass_generate.EndToEndTests.test_three_passes_assemble_final_entries",
     "test_three_pass_generate.FreezeEnforcementTests.test_attribute_fallback_preserves_pause_after",
     "test_three_pass_generate.FreezeEnforcementTests.test_attribute_preserves_pause_after_and_drops_type",
