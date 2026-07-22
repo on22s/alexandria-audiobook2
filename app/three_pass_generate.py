@@ -663,7 +663,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "endpoint": endpoint, "on_exhaustion": on_exhaustion,
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
-        "pipeline_version": 5,
+        "pipeline_version": 6,
         "default_prompts_sha256": hashlib.sha256("\n".join(
             sum((list(load_segment_prompts()), list(load_attribute_prompts()),
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
@@ -710,15 +710,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     chunks = [record["text"] for record in chunk_records]
     quote_analyses = []
     quote_depth = 0
-    for record in chunk_records:
-        initial_depth = (quote_depth if
-                         record["continues_paragraph_from_previous"] else 0)
+    for index, record in enumerate(chunk_records):
         analysis = analyze_outer_quote_regions(
-            record["text"], initial_depth=initial_depth,
-            allow_open_end=record["continues_paragraph_to_next"])
+            record["text"], initial_depth=quote_depth,
+            allow_open_end=index < len(chunk_records) - 1)
         quote_analyses.append(analysis)
-        quote_depth = (analysis["final_depth"] if
-                       record["continues_paragraph_to_next"] else 0)
+        quote_depth = analysis["final_depth"]
     fingerprint = three_pass_fingerprint(
         source_text, model_name, chunk_size, params, on_exhaustion,
         context_windows, context_rescue_retries, endpoint)

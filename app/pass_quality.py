@@ -77,9 +77,6 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
             flush()
-            repairs.append({"code": "inferred_missing_close_quote",
-                            "offset": index})
-            depth = 0
             current.append(char)
             continue
         if char in _CURLY_AND_JAPANESE_OPEN:
@@ -93,6 +90,10 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 flush()
                 depth = 1
                 saw_quote = True
+            elif not text[text.rfind("\n\n", 0, index) + 2:index].strip():
+                # Publishers repeat an opening quote at the start of each
+                # paragraph in one continuous, multi-paragraph speech.
+                saw_quote = True
             elif char == '“':
                 paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
                 if paragraph_tail.count('”') >= 2:
@@ -101,6 +102,14 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 depth += 1
             continue
         if char in _CURLY_AND_JAPANESE_CLOSE and depth:
+            if char == '”' and depth == 1:
+                paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
+                next_close = paragraph_tail.find('”')
+                next_open = paragraph_tail.find('“')
+                if next_close >= 0 and (next_open < 0 or next_close < next_open):
+                    # Stylized cries may use one opening mark and decorative
+                    # closers between fragments: “Ha!”Haha!”Hahaha!”
+                    continue
             if depth == 1:
                 flush()
             depth -= 1
@@ -126,6 +135,9 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char == '"':
+            if depth and not text[text.rfind("\n\n", 0, index) + 2:index].strip():
+                saw_quote = True
+                continue
             flush()
             depth = 0 if depth else 1
             saw_quote = True

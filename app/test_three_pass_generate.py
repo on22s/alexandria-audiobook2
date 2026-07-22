@@ -180,16 +180,39 @@ class PassHelperTests(unittest.TestCase):
         self.assertTrue(tp.validate_segment_quality(
             source, analysis["regions"])["passed"])
 
-    def test_missing_close_quote_is_bounded_at_paragraph_end(self):
+    def test_unclosed_quote_carries_across_paragraphs_until_input_end(self):
         source = 'She said “Stay here.\n\nHe left.'
         analysis = tp.analyze_outer_quote_regions(source)
         self.assertEqual(
             [{"type": "NARRATOR", "text": "She said"},
              {"type": "SPOKEN", "text": "Stay here."},
-             {"type": "NARRATOR", "text": "He left."}],
+             {"type": "SPOKEN", "text": "He left."}],
             analysis["regions"])
         self.assertEqual("inferred_missing_close_quote",
                          analysis["repairs"][0]["code"])
+
+    def test_multi_paragraph_dialogue_supports_repeated_curly_openers(self):
+        source = '“First paragraph.\n\n“Second paragraph.\n\n“Final paragraph.” Tail.'
+        self.assertEqual(
+            [{"type": "SPOKEN", "text": "First paragraph."},
+             {"type": "SPOKEN", "text": "Second paragraph."},
+             {"type": "SPOKEN", "text": "Final paragraph."},
+             {"type": "NARRATOR", "text": "Tail."}],
+            tp.split_outer_quote_regions(source))
+
+    def test_multi_paragraph_dialogue_supports_unquoted_continuations(self):
+        source = '"There are two tasks.\n\nFind Gisu.\n\nFind Ruijerd.\n\nUnderstood?" Tail.'
+        entries = tp.split_outer_quote_regions(source)
+        self.assertEqual(["SPOKEN", "SPOKEN", "SPOKEN", "SPOKEN", "NARRATOR"],
+                         [entry["type"] for entry in entries])
+
+    def test_emotional_laughter_with_decorative_closers_stays_spoken(self):
+        source = 'She laughed. “Ha!”Haha!”Hahaha!” Then she stopped.'
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "She laughed."},
+             {"type": "SPOKEN", "text": "Ha!Haha!Hahaha!"},
+             {"type": "NARRATOR", "text": "Then she stopped."}],
+            tp.split_outer_quote_regions(source))
 
     def test_repaired_quote_resolution_is_counted(self):
         counts = tp._resolution_counts(

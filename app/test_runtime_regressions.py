@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import zipfile
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -38,6 +39,21 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_epub_extracts_spine_with_known_malformed_refines_metadata(self):
+        container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <metadata><meta refines="#pub-id" property="identifier-type" refines">"#pub-i">15</meta></metadata>
+          <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            with zipfile.ZipFile(epub, "w") as archive:
+                archive.writestr("META-INF/container.xml", container)
+                archive.writestr("OEBPS/content.opf", opf)
+                archive.writestr("OEBPS/chapter.xhtml", "<p>Readable chapter.</p>")
+            self.assertEqual("Readable chapter.", script_module.extract_epub_text(epub))
+
     def test_concurrent_identical_uploads_keep_one_canonical_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads = os.path.join(tmp, "uploads")
