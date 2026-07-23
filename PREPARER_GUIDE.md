@@ -278,8 +278,8 @@ Add metadata to transcript chunks before annotation using a local GGUF LLM.
 Attribute transcribed words to diarized speakers via pyannote.audio. Requires
 extra dependencies (`pip install -r requirements-diarization.txt` **into the
 same interpreter that runs the preparer** — see that file's comments for the
-version ceiling) and a Hugging Face token that has accepted the terms for
-`pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`.
+version range) and a Hugging Face token that has accepted the terms for
+`pyannote/speaker-diarization-community-1`.
 - `--diarize` — Always run full speaker diarization over the whole audio
 - `--auto-detect-speakers` — First run a cheap sampled pre-check (three 120 s
   windows, ~2-3 min) and only run the full, expensive diarization pass when a

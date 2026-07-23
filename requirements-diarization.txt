@@ -5,17 +5,11 @@
 # "rocm_python" interpreter from voicelab_config.json), NOT app/env:
 #   <rocm_python> -m pip install -r requirements-diarization.txt
 #
-# Why the <4 ceiling (verified live 2026-07-19):
-# - pyannote.audio 4.x silently redirects the pyannote/speaker-diarization-3.1
-#   model ID to the DIFFERENTLY-GATED pyannote/speaker-diarization-community-1
-#   model, so a token with 3.1 access gets a 403. Moving to 4.x means
-#   accepting the community-1 terms on Hugging Face and re-testing - do it
-#   deliberately, not via an unpinned install.
-# - pyannote 3.x authenticates via use_auth_token=, which huggingface_hub
-#   removed in its 1.x line. The preparer handles both call styles, but the
-#   env's huggingface_hub must still be 0.x (0.36.2 verified working).
+# pyannote.audio 4 requires torch>=2.8. Verify that interpreter already has a
+# compatible ROCm torch/torchaudio pair before installing. Do not allow pip to
+# replace ROCm torch with the default CUDA wheels.
 #
-# The models themselves are gated: the HF token used with --hf-token/HF_TOKEN
-# must have accepted the terms for pyannote/speaker-diarization-3.1 AND
-# pyannote/segmentation-3.0 on huggingface.co.
-pyannote.audio>=3.1,<4
+# Community-1 is gated: the HF token used with --hf-token/HF_TOKEN must have
+# accepted its terms at:
+# https://huggingface.co/pyannote/speaker-diarization-community-1
+pyannote.audio>=4,<5

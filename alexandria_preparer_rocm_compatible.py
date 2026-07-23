@@ -913,6 +913,9 @@ def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str =
             except Exception as e:
                 logger.warning(f"Failed to clean up temp directory: {e}")
 
+DIARIZATION_MODEL_ID = "pyannote/speaker-diarization-community-1"
+
+
 def _load_diarization_pipeline(hf_token: str, device: str):
     """Load the pyannote diarization pipeline once, or return None with the
     reason logged. Shared by the full diarization pass and the sampled
@@ -930,19 +933,7 @@ def _load_diarization_pipeline(hf_token: str, device: str):
         return None
 
     logger.info(f"▶ Initializing pyannote.audio diarization (device={device})...")
-    try:
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            token=hf_token
-        )
-    except TypeError:
-        # pyannote.audio 3.x only accepts use_auth_token; `token=` is 4.x.
-        # Without this fallback the TypeError is swallowed upstream as a
-        # generic "Diarization failed" on every pyannote 3.x install.
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=hf_token
-        )
+    pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL_ID, token=hf_token)
     if pipeline is None:
         raise ValueError("Failed to load pyannote pipeline. Check your token and model permissions.")
 
@@ -950,10 +941,22 @@ def _load_diarization_pipeline(hf_token: str, device: str):
     return pipeline
 
 
+def get_speaker_diarization(output, prefer_exclusive: bool = False):
+    """Return the Annotation carried by a pyannote Community-1 result."""
+    if prefer_exclusive:
+        exclusive = getattr(output, "exclusive_speaker_diarization", None)
+        if exclusive is not None:
+            return exclusive
+    diarization = getattr(output, "speaker_diarization", None)
+    if diarization is None:
+        raise ValueError("Community-1 returned no speaker diarization.")
+    return diarization
+
+
 def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
                   pipeline=None) -> list:
     """Perform speaker diarization using pyannote.audio.
-    Requires a Hugging Face token with access to pyannote/speaker-diarization-3.1.
+    Requires a Hugging Face token with access to Community-1.
     """
     try:
         if pipeline is None:
@@ -963,8 +966,9 @@ def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
 
         logger.info(f"Running diarization on {audio_path}...")
         t0 = time.monotonic()
-        diarization = pipeline(audio_path)
+        output = pipeline(audio_path)
         elapsed = time.monotonic() - t0
+        diarization = get_speaker_diarization(output, prefer_exclusive=True)
         
         speaker_segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
@@ -1069,7 +1073,8 @@ def detect_speaker_count(audio_24k_path: str, hf_token: str, device: str,
                               stop=int(stop * sample_rate), dtype="float32",
                               always_2d=False)
             waveform = torch_module.from_numpy(data).unsqueeze(0)
-            diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            output = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            diarization = get_speaker_diarization(output)
             speaker_seconds = {}
             for turn, _, speaker in diarization.itertracks(yield_label=True):
                 speaker_seconds[speaker] = speaker_seconds.get(speaker, 0.0) + (turn.end - turn.start)

@@ -9,6 +9,8 @@ from alexandria_preparer_rocm_compatible import (
     DETECTION_WINDOW_SECS,
     _is_multi_speaker,
     _plan_detection_windows,
+    diarize_audio,
+    get_speaker_diarization,
 )
 
 
@@ -77,6 +79,59 @@ class IsMultiSpeakerTests(unittest.TestCase):
         verdict, evidence = _is_multi_speaker([_window(0, 120, {})])
         self.assertFalse(verdict)
         self.assertEqual({}, evidence[0]["speaker_seconds"])
+
+
+class GetSpeakerDiarizationTests(unittest.TestCase):
+    def test_prefers_exclusive_timeline_for_word_alignment(self):
+        output = type("Output", (), {
+            "speaker_diarization": "regular",
+            "exclusive_speaker_diarization": "exclusive",
+        })()
+        self.assertEqual(
+            "exclusive",
+            get_speaker_diarization(output, prefer_exclusive=True),
+        )
+
+    def test_sampled_detection_uses_regular_timeline(self):
+        output = type("Output", (), {
+            "speaker_diarization": "regular",
+            "exclusive_speaker_diarization": "exclusive",
+        })()
+        self.assertEqual("regular", get_speaker_diarization(output))
+
+    def test_missing_exclusive_timeline_falls_back_to_regular(self):
+        output = type("Output", (), {"speaker_diarization": "regular"})()
+        self.assertEqual(
+            "regular",
+            get_speaker_diarization(output, prefer_exclusive=True),
+        )
+
+    def test_missing_regular_timeline_fails_loudly(self):
+        with self.assertRaisesRegex(ValueError, "no speaker diarization"):
+            get_speaker_diarization(object())
+
+    def test_full_diarization_emits_segments_from_exclusive_timeline(self):
+        turn = type("Turn", (), {"start": 1.25, "end": 2.5})()
+
+        class Annotation:
+            def __init__(self, speaker):
+                self.speaker = speaker
+
+            def itertracks(self, yield_label=False):
+                self.assert_yield_label = yield_label
+                yield turn, None, self.speaker
+
+        output = type("Output", (), {
+            "speaker_diarization": Annotation("regular"),
+            "exclusive_speaker_diarization": Annotation("exclusive"),
+        })()
+        segments = diarize_audio(
+            "unused.wav", pipeline=lambda _audio_path: output,
+        )
+        self.assertEqual(
+            [{"start": 1.25, "end": 2.5, "speaker": "exclusive"}],
+            segments,
+        )
 
 
 if __name__ == "__main__":
