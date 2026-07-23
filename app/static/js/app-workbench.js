@@ -783,6 +783,7 @@
             document.getElementById('prep-status-msg').innerHTML = '<span class="text-info">Starting…</span>';
 
             const sourceFile = document.getElementById('prep-source-file').files[0];
+            const diarizationMode = document.getElementById('prep-diarization-mode').value;
 
             const config = {
                 audio_filename: audioFile.name,
@@ -808,6 +809,9 @@
                 enrich_speaker_attribution: document.getElementById('prep-enrich-speaker').checked,
                 enrich_narration_style:     document.getElementById('prep-enrich-narration').checked,
                 enrich_emotional_tone:      document.getElementById('prep-enrich-emotion').checked,
+                diarize:                    diarizationMode === 'full',
+                auto_detect_speakers:       diarizationMode === 'auto',
+                hf_token:                   document.getElementById('prep-hf-token').value || null,
             };
 
             const fd = new FormData();
@@ -845,11 +849,15 @@
                 audio_filename:  t.audio,
                 output_filename: `voice_dataset_${t.audio.replace(/\.[^.]+$/, '')}.zip`,
             }));
+            const diarizationMode = document.getElementById('prep-diarization-mode').value;
             const body = {
                 tasks,
                 lang:           document.getElementById('prep-lang').value,
                 min_confidence: getNumFieldValue('prep-confidence', 0.85),
                 min_snr:        getNumFieldValue('prep-snr', 25, true),
+                diarize:        diarizationMode === 'full',
+                auto_detect_speakers: diarizationMode === 'auto',
+                hf_token:       document.getElementById('prep-hf-token').value || null,
             };
 
             try {
@@ -926,4 +934,3 @@
                 el.innerHTML = `<div class="text-danger small">${escapeHtml(e.message || String(e))}</div>`;
             }
         }
-

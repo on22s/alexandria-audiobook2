@@ -114,6 +114,15 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
     }
 
 
+def get_valid_chunk_size(config_value, cli_value=None):
+    """Return the effective single-pass chunk size after validating both inputs."""
+    value = cli_value if cli_value is not None else config_value
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        source = "--chunk-size" if cli_value is not None else "generation.chunk_size"
+        raise ValueError(f"{source} must be an integer >= 1 (got {value!r})")
+    return value
+
+
 def load_generation_checkpoint(output_path, fingerprint):
     checkpoint = safe_load_json(get_generation_checkpoint_path(output_path), None)
     if not isinstance(checkpoint, dict) or checkpoint.get("fingerprint") != fingerprint:
@@ -251,6 +260,29 @@ def clean_json_string(text):
     return json_text
 
 
+def _extract_valid_json_objects(json_text):
+    """Extract complete JSON objects without assuming a pass-specific schema."""
+    entries = []
+    cursor = 0
+    while True:
+        start = json_text.find("{", cursor)
+        if start < 0:
+            break
+        span = extract_balanced(json_text, "{", "}", start)
+        if span is None:
+            cursor = start + 1
+            continue
+        try:
+            value = json.loads(span)
+        except json.JSONDecodeError:
+            cursor = start + 1
+            continue
+        if isinstance(value, dict):
+            entries.append(value)
+        cursor = start + len(span)
+    return entries
+
+
 def repair_json_array(json_text):
     """Attempt to repair common JSON array issues from LLM output."""
     if not json_text:
@@ -289,18 +321,10 @@ def repair_json_array(json_text):
     except json.JSONDecodeError:
         pass
 
-    # Fix 3: Try to extract individual entries and rebuild
-    entries = []
-    # Match individual JSON objects
-    pattern = r'\{\s*"speaker"\s*:\s*"[^"]*"\s*,\s*"text"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"instruct"\s*:\s*"(?:[^"\\]|\\.)*"\s*\}'
-    matches = re.findall(pattern, json_text, re.DOTALL)
-
-    for match in matches:
-        try:
-            entry = json.loads(match)
-            entries.append(entry)
-        except json.JSONDecodeError:
-            continue
+    # Fix 3: Try to extract individual entries and rebuild. This is deliberately
+    # schema-neutral: single-pass returns speaker/text/instruct, pass 2 returns
+    # n/head/speaker, and pass 3 returns n/head/instruct.
+    entries = _extract_valid_json_objects(json_text)
 
     if entries:
         return entries
@@ -322,24 +346,8 @@ def repair_json_array(json_text):
     return None
 
 def salvage_json_entries(json_text):
-    """Last resort: extract individual valid entries with regex."""
-    entries = []
-    # Match individual JSON objects with speaker, text, instruct fields
-    pattern = r'\{\s*"speaker"\s*:\s*"([^"]*)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"instruct"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}'
-    matches = re.finditer(pattern, json_text, re.DOTALL)
-
-    for match in matches:
-        try:
-            entry = {
-                "speaker": match.group(1),
-                "text": match.group(2).replace('\\"', '"').replace('\\n', '\n'),
-                "instruct": match.group(3).replace('\\"', '"').replace('\\n', '\n')
-            }
-            entries.append(entry)
-        except Exception as e:
-            print(f"  [salvage] discarding malformed candidate: {e}")
-            continue
-
+    """Last resort: extract individual valid objects for any generation pass."""
+    entries = _extract_valid_json_objects(json_text)
     return entries if entries else None
 
 
@@ -361,12 +369,30 @@ def fix_mojibake(text):
 
     return text
 
-def split_into_chunks(text, max_size=3000):
-    """Split text into chunks at paragraph/sentence boundaries."""
+def split_into_chunk_records(text, max_size=3000):
+    """Split text with explicit oversized-paragraph continuation metadata."""
     paragraphs = re.split(r'\n\s*\n', text)
-
-    chunks = []
+    records = []
     current_chunk = ""
+
+    def emit(text, continues_from=False, continues_to=False):
+        if text.strip():
+            records.append({"text": text.strip(),
+                            "continues_paragraph_from_previous": continues_from,
+                            "continues_paragraph_to_next": continues_to})
+
+    def split_long_piece(piece):
+        pieces = []
+        remaining = piece.strip()
+        while len(remaining) > max_size:
+            cut = remaining.rfind(" ", 0, max_size + 1)
+            if cut <= 0:
+                cut = max_size
+            pieces.append(remaining[:cut].strip())
+            remaining = remaining[cut:].strip()
+        if remaining:
+            pieces.append(remaining)
+        return pieces
 
     for para in paragraphs:
         para = para.strip()
@@ -375,27 +401,36 @@ def split_into_chunks(text, max_size=3000):
 
         if len(current_chunk) + len(para) + 2 > max_size:
             if current_chunk:
-                chunks.append(current_chunk.strip())
+                emit(current_chunk)
                 current_chunk = ""
 
             if len(para) > max_size:
                 sentences = re.split(r'(?<=[.!?])\s+', para)
+                paragraph_pieces = []
                 for sentence in sentences:
-                    if len(current_chunk) + len(sentence) + 1 > max_size:
-                        if current_chunk:
-                            chunks.append(current_chunk.strip())
-                        current_chunk = sentence
-                    else:
-                        current_chunk += " " + sentence if current_chunk else sentence
+                    for piece in split_long_piece(sentence):
+                        if (paragraph_pieces and
+                                len(paragraph_pieces[-1]) + len(piece) + 1 <= max_size):
+                            paragraph_pieces[-1] += " " + piece
+                        else:
+                            paragraph_pieces.append(piece)
+                for index, piece in enumerate(paragraph_pieces):
+                    emit(piece, continues_from=index > 0,
+                         continues_to=index + 1 < len(paragraph_pieces))
             else:
                 current_chunk = para
         else:
             current_chunk += "\n\n" + para if current_chunk else para
 
     if current_chunk:
-        chunks.append(current_chunk.strip())
+        emit(current_chunk)
 
-    return chunks
+    return records
+
+
+def split_into_chunks(text, max_size=3000):
+    """Split text into strings at paragraph/sentence boundaries."""
+    return [record["text"] for record in split_into_chunk_records(text, max_size)]
 
 @dataclass
 class LLMGenParams:
@@ -422,6 +457,11 @@ class LLMGenParams:
     banned_tokens: list = None
     context_length: int = None
     hard_max_tokens: int = 16384
+    segment_temperature: float = None
+    attribute_temperature: float = None
+    instruct_temperature: float = None
+    segment_output_ratio: float = 3.0
+    presegment_quotes: bool = False
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
@@ -564,6 +604,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     retry_feedback = None
     requested_max = params.max_tokens
     consecutive_severe = 0
+    response_fingerprints = {}
     for attempt in range(max_retries + 1):
         t0 = time.time()
         truncation_retry_available = False
@@ -602,6 +643,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             choice = response.choices[0]
             text = choice.message.content.strip()
+            response_fingerprint = hashlib.sha256(
+                " ".join(text.split()).encode("utf-8")).hexdigest()
+            response_fingerprints[response_fingerprint] = (
+                response_fingerprints.get(response_fingerprint, 0) + 1)
+            repeat_count = response_fingerprints[response_fingerprint]
             finish_reason = choice.finish_reason
             usage = getattr(response, 'usage', None)
 
@@ -633,6 +679,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
                     "error": None,
+                    "response_fingerprint": response_fingerprint,
+                    "response_repeat_count": repeat_count,
                 }
                 attempt_observer(attempt_record)
 
@@ -760,9 +808,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt + 1}): {retry_feedback}; metrics={metrics}")
-                    if (retry_policy == "retry_same_budget" and retry_decider
-                            and retry_decider(quality, consecutive_severe) == "split"):
-                        print("  Repeated severe truncation; switching to adaptive split")
+                    retry_evidence = max(consecutive_severe, repeat_count)
+                    if (retry_decider
+                            and retry_decider(quality, retry_evidence) == "split"):
+                        print("  Repeated unproductive response; switching to adaptive split")
                         return []
                     if attempt < max_retries:
                         print("Retrying...")
@@ -1141,13 +1190,14 @@ def main():
 
     # Load generation settings
     generation_config = config.get("generation") or {}
-    chunk_size = generation_config.get("chunk_size", 3000)
+    configured_chunk_size = generation_config.get("chunk_size", 3000)
+    try:
+        chunk_size = get_valid_chunk_size(configured_chunk_size, args.chunk_size)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
     if args.chunk_size is not None:
-        if args.chunk_size < 1:
-            print(f"Error: --chunk-size must be >= 1 (got {args.chunk_size})")
-            sys.exit(1)
-        print(f"Chunk size overridden via --chunk-size: {chunk_size} -> {args.chunk_size}")
-        chunk_size = args.chunk_size
+        print(f"Chunk size overridden via --chunk-size: {configured_chunk_size} -> {chunk_size}")
     max_tokens = generation_config.get("max_tokens", 4096)
     temperature = generation_config.get("temperature", 0.6)
     top_p = generation_config.get("top_p", 0.8)

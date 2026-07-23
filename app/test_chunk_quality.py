@@ -230,6 +230,14 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertEqual("пар", changes[0]["before"])
         self.assertEqual("nap", changes[0]["after"])
 
+    def test_inline_illustration_caption_is_removed_with_evidence(self):
+        source = ("Narration before. Illustration from Volume 10, coloring by "
+                  "Norvak (source) Subaru continued speaking.")
+        normalized, changes = normalize_known_source_corruptions(source)
+        self.assertEqual("Narration before. Subaru continued speaking.", normalized)
+        self.assertEqual("illustration_caption", changes[0]["rule"])
+        self.assertIn("Norvak", changes[0]["before"])
+
     def test_homoglyph_word_normalizes_with_location_evidence(self):
         padding = "The narrator continued speaking calmly for a while. " * 10
         original = padding + "\nSubаru answered."  # Cyrillic а

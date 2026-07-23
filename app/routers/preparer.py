@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from core import (
     BASE_DIR,
@@ -31,6 +31,13 @@ from utils import secure_filename
 
 router = APIRouter()
 
+PREPARER_ENV_PYTHON = os.path.join(
+    ROOT_DIR,
+    "preparer_env",
+    "Scripts" if os.name == "nt" else "bin",
+    "python.exe" if os.name == "nt" else "python",
+)
+
 
 class PreparerConfig(BaseModel):
     audio_filename: str
@@ -55,6 +62,9 @@ class PreparerConfig(BaseModel):
     enrich_speaker_attribution: bool = False
     enrich_narration_style: bool = False
     enrich_emotional_tone: bool = False
+    diarize: bool = False
+    auto_detect_speakers: bool = False
+    hf_token: Optional[SecretStr] = None
     # Quality filtering
     min_chunk_duration: float = 2.0
     min_confidence: float = 0.85
@@ -69,6 +79,9 @@ class BatchPreparerRequest(BaseModel):
     lang: str = "en"
     min_confidence: float = 0.85
     min_snr: int = 25
+    diarize: bool = False
+    auto_detect_speakers: bool = False
+    hf_token: Optional[SecretStr] = None
 
 
 # ── Preparer ─────────────────────────────────────────────────────────────────
@@ -76,11 +89,15 @@ class BatchPreparerRequest(BaseModel):
 def _resolve_preparer_interpreter() -> str:
     """Return the interpreter to run the preparer with, or raise 503.
 
-    alexandria_preparer_rocm_compatible.py imports torch/llama-cpp/whisper,
-    which the web app's own env lacks, so it must run under the configurable
-    rocm_python interpreter (shared with Voice Lab) rather than sys.executable.
+    Prefer the preparer's isolated environment. The Voice Lab interpreter is
+    retained as a compatibility fallback for installations that predate it.
     """
-    interpreter = _load_voicelab_config()["rocm_python"]
+    override = os.environ.get("ALEXANDRIA_PREPARER_PYTHON", "")
+    interpreter = override or (
+        PREPARER_ENV_PYTHON
+        if os.path.isfile(PREPARER_ENV_PYTHON)
+        else _load_voicelab_config()["rocm_python"]
+    )
     if not os.path.exists(PREPARER_SCRIPT_PATH):
         raise HTTPException(
             status_code=503,
@@ -90,15 +107,43 @@ def _resolve_preparer_interpreter() -> str:
         raise HTTPException(
             status_code=503,
             detail=(
-                f"Preparer needs the ROCm interpreter (torch/llama-cpp); not "
-                f"found: {interpreter}. Set 'rocm_python' in Voice Lab settings."
+                f"Preparer needs an interpreter with torch and llama-cpp; not "
+                f"found: {interpreter or PREPARER_ENV_PYTHON}. Re-run Install "
+                f"to create preparer_env."
             ),
         )
-    # Same denylist voicelab_save_config/voicelab_start enforce on this exact
-    # config value - the preparer endpoints execute it too and must not skip
-    # the check just because they read it through a different function.
-    _validate_voicelab_path(interpreter, "rocm_python")
+    _validate_voicelab_path(interpreter, "preparer_python")
     return interpreter
+
+
+def get_preparer_diarization_args(diarize: bool,
+                                  auto_detect_speakers: bool) -> List[str]:
+    if diarize:
+        return ["--diarize"]
+    if auto_detect_speakers:
+        return ["--auto-detect-speakers"]
+    return []
+
+
+def get_preparer_subprocess_env(hf_token: Optional[SecretStr]) -> dict:
+    env = os.environ.copy()
+    if hf_token:
+        env["HF_TOKEN"] = hf_token.get_secret_value()
+    return env
+
+
+def ensure_preparer_diarization_token(diarize: bool,
+                                      auto_detect_speakers: bool,
+                                      hf_token: Optional[SecretStr]) -> None:
+    if ((diarize or auto_detect_speakers)
+            and not hf_token and not os.environ.get("HF_TOKEN")):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Speaker diarization requires a Hugging Face token with "
+                "Community-1 access."
+            ),
+        )
 
 
 @router.post("/api/preparer/start")
@@ -123,6 +168,8 @@ async def preparer_start(
                     config.enrich_narration_style,
                     config.enrich_emotional_tone)):
             raise HTTPException(status_code=400, detail="Select at least one enrichment category.")
+    ensure_preparer_diarization_token(
+        config.diarize, config.auto_detect_speakers, config.hf_token)
 
     interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("preparer")
@@ -164,12 +211,12 @@ async def preparer_start(
 
         # Re-validate immediately before exec, not just synchronously above -
         # background_tasks.add_task defers this whole closure until after the
-        # HTTP response is sent, leaving a window where rocm_python (or a
+        # HTTP response is sent, leaving a window where preparer_python (or a
         # model/fallback_model/llm_model_path pointed inside an
         # upload/generated-content directory) could be repointed before the
         # subprocess below actually starts.
         e = _revalidate_voicelab_paths(
-            (interpreter, "rocm_python"),
+            (interpreter, "preparer_python"),
             (config.model, "model"),
             (config.fallback_model, "fallback_model"),
             (config.llm_model_path, "llm_model_path"),
@@ -217,8 +264,12 @@ async def preparer_start(
                 cmd.append("--enrich-narration-style")
             if config.enrich_emotional_tone:
                 cmd.append("--enrich-emotional-tone")
+        cmd.extend(get_preparer_diarization_args(
+            config.diarize, config.auto_detect_speakers))
 
-        rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state)
+        rc, _ = _stream_subprocess_to_logs(
+            cmd, BASE_DIR, state,
+            env=get_preparer_subprocess_env(config.hf_token))
 
         if state.get("cancel"):
             state["status"] = "cancelled"
@@ -298,6 +349,8 @@ async def preparer_download(filename: str):
 @router.post("/api/preparer/batch/start")
 async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: BackgroundTasks):
     """Process multiple audio files sequentially through the preparer script."""
+    ensure_preparer_diarization_token(
+        request.diarize, request.auto_detect_speakers, request.hf_token)
     interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("batch_preparer")
 
@@ -329,7 +382,7 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
             # A single pre-loop check (the original version of this fix) left
             # tasks 2..N unprotected against a config change made after task 1
             # had already started - exactly the race this exists to close.
-            e = _revalidate_voicelab_paths((interpreter, "rocm_python"))
+            e = _revalidate_voicelab_paths((interpreter, "preparer_python"))
             if e:
                 state["logs"].append(f"Aborted: {e.detail}")
                 state["tasks"][i]["status"] = "failed"
@@ -377,8 +430,12 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]
+            cmd.extend(get_preparer_diarization_args(
+                request.diarize, request.auto_detect_speakers))
 
-            rc, _ = _stream_subprocess_to_logs(cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ")
+            rc, _ = _stream_subprocess_to_logs(
+                cmd, BASE_DIR, state, log_prefix=f"[{i+1}] ",
+                env=get_preparer_subprocess_env(request.hf_token))
 
             if state.get("cancel"):
                 state["tasks"][i]["status"] = "cancelled"

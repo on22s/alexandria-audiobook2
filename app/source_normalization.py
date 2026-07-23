@@ -6,6 +6,9 @@ import re
 KNOWN_SOURCE_CORRUPTIONS = {"саге": "care", "пар": "nap"}
 _KNOWN_RE = re.compile("|".join(re.escape(value) for value in KNOWN_SOURCE_CORRUPTIONS),
                        re.IGNORECASE)
+_ILLUSTRATION_CAPTION_RE = re.compile(
+    r"Illustration from Volume\s+\d+\s*,\s*coloring by\s+[^\n]{1,100}?\s*"
+    r"\(source\)\s*", re.IGNORECASE)
 
 
 def normalize_known_source_corruptions(text):
@@ -24,7 +27,19 @@ def normalize_known_source_corruptions(text):
                         "before": before, "after": after})
         return after
 
-    return _KNOWN_RE.sub(replace, text), changes
+    normalized = _KNOWN_RE.sub(replace, text)
+
+    def remove_caption(match):
+        offset = match.start()
+        line = normalized.count("\n", 0, offset) + 1
+        line_start = normalized.rfind("\n", 0, offset) + 1
+        changes.append({"offset": offset, "line": line,
+                        "column": offset - line_start + 1,
+                        "before": match.group(0), "after": "",
+                        "rule": "illustration_caption"})
+        return ""
+
+    return _ILLUSTRATION_CAPTION_RE.sub(remove_caption, normalized), changes
 
 
 # Cyrillic letters visually identical to Latin ones in upright fonts, per the

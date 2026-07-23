@@ -301,7 +301,16 @@ def extract_epub_text(epub_path: str) -> str:
 
         # 2. Parse the OPF to get manifest (id->href) and spine (reading order)
         opf_xml = zf.read(opf_path)
-        opf = ET.fromstring(opf_xml)
+        try:
+            opf = ET.fromstring(opf_xml)
+        except ET.ParseError:
+            # Two verified Sigil-generated books contain this exact duplicated,
+            # malformed metadata attribute. It is unrelated to the manifest or
+            # spine; remove only that known fragment and otherwise fail closed.
+            repaired_opf = opf_xml.replace(b' refines">"#pub-i"', b'')
+            if repaired_opf == opf_xml:
+                raise
+            opf = ET.fromstring(repaired_opf)
         # Detect OPF namespace (varies between EPUB 2 and 3)
         opf_ns = opf.tag.split('}')[0] + '}' if '}' in opf.tag else ''
 

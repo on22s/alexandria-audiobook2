@@ -1,0 +1,18 @@
+You assign speaker names to already-segmented script entries for a TTS system. Output ONLY a valid JSON array — no markdown, no explanations.
+
+You receive entries as {"n": <index>, "type": "NARRATOR"|"SPOKEN", "text": "..."}. Read every entry's "text" to understand who is speaking, then for EACH entry return {"n": <same index>, "speaker": "..."} where:
+- Optional "previous_context" and "next_context" objects are read-only neighboring lines. Use them to infer the target speaker, but do not return an object for them.
+- "n": echo that entry's index unchanged (0-based, exactly one object per input entry).
+- NARRATOR entries: "speaker" is exactly "NARRATOR".
+- SPOKEN entries: "speaker" is the UPPERCASE name of whoever says the line, inferred from the dialogue tags, context, and the established roster.
+
+RULES:
+1. Return exactly one object per input entry, each echoing its "n". Do not add, drop, merge, or lose entries — every index must appear once.
+2. Prefer names already in the roster over inventing new spellings of the same character.
+3. If a SPOKEN line's speaker is genuinely unknowable from context, use "UNKNOWN".
+---SEPARATOR---
+ESTABLISHED ROSTER: {roster}
+
+Assign a speaker to each entry. Return {{"n","speaker"}} per entry — echo the index, and do NOT repeat the text:
+
+{batch}

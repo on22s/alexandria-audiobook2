@@ -95,6 +95,29 @@
       },
       "BatchPreparerRequest": {
         "properties": {
+          "auto_detect_speakers": {
+            "default": false,
+            "title": "Auto Detect Speakers",
+            "type": "boolean"
+          },
+          "diarize": {
+            "default": false,
+            "title": "Diarize",
+            "type": "boolean"
+          },
+          "hf_token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hf Token"
+          },
           "lang": {
             "default": "en",
             "title": "Lang",
@@ -756,6 +779,21 @@
             "title": "Chunk Size",
             "type": "integer"
           },
+          "context_rescue_retries": {
+            "default": 2,
+            "minimum": 0.0,
+            "title": "Context Rescue Retries",
+            "type": "integer"
+          },
+          "context_rescue_windows": {
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Context Rescue Windows",
+            "type": "array"
+          },
           "max_tokens": {
             "default": 4096,
             "minimum": 256.0,
@@ -786,6 +824,53 @@
             "maximum": 2.0,
             "minimum": 0.0,
             "title": "Temperature",
+            "type": "number"
+          },
+          "three_pass_attribute_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Attribute Temperature",
+            "type": "number"
+          },
+          "three_pass_chunk_size": {
+            "default": 3000,
+            "maximum": 12000.0,
+            "minimum": 500.0,
+            "title": "Three Pass Chunk Size",
+            "type": "integer"
+          },
+          "three_pass_instruct_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Instruct Temperature",
+            "type": "number"
+          },
+          "three_pass_model_profiles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ThreePassModelProfile"
+            },
+            "title": "Three Pass Model Profiles",
+            "type": "object"
+          },
+          "three_pass_presegment_quotes": {
+            "default": true,
+            "title": "Three Pass Presegment Quotes",
+            "type": "boolean"
+          },
+          "three_pass_segment_output_ratio": {
+            "default": 3.0,
+            "maximum": 6.0,
+            "minimum": 1.25,
+            "title": "Three Pass Segment Output Ratio",
+            "type": "number"
+          },
+          "three_pass_segment_temperature": {
+            "default": 0.1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Three Pass Segment Temperature",
             "type": "number"
           },
           "top_k": {
@@ -1458,6 +1543,88 @@
           }
         },
         "title": "TTSConfig",
+        "type": "object"
+      },
+      "ThreePassModelProfile": {
+        "properties": {
+          "attribute_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribute Temperature"
+          },
+          "chunk_size": {
+            "anyOf": [
+              {
+                "maximum": 12000.0,
+                "minimum": 500.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Size"
+          },
+          "instruct_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruct Temperature"
+          },
+          "presegment_quotes": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presegment Quotes"
+          },
+          "segment_output_ratio": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 1.25,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Output Ratio"
+          },
+          "segment_temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Temperature"
+          }
+        },
+        "title": "ThreePassModelProfile",
         "type": "object"
       },
       "ValidationError": {

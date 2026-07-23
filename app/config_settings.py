@@ -7,7 +7,7 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
@@ -50,6 +50,15 @@ class TTSConfig(BaseModel):
     pause_same_speaker_ms: int = Field(default=250, ge=0)
 
 
+class ThreePassModelProfile(BaseModel):
+    chunk_size: Optional[int] = Field(default=None, ge=500, le=12000)
+    segment_temperature: Optional[float] = Field(default=None, ge=0, le=2)
+    attribute_temperature: Optional[float] = Field(default=None, ge=0, le=2)
+    instruct_temperature: Optional[float] = Field(default=None, ge=0, le=2)
+    segment_output_ratio: Optional[float] = Field(default=None, ge=1.25, le=6.0)
+    presegment_quotes: Optional[bool] = None
+
+
 class GenerationConfig(BaseModel):
     chunk_size: int = Field(default=3000, ge=500)
     max_tokens: int = Field(default=4096, ge=256)
@@ -60,6 +69,16 @@ class GenerationConfig(BaseModel):
     presence_penalty: float = Field(default=0.0, ge=-2, le=2)
     banned_tokens: List[str] = Field(default_factory=list)
     merge_narrators: bool = False
+    context_rescue_windows: List[Annotated[int, Field(gt=0)]] = Field(
+        default_factory=lambda: [2000, 4000, 6000], min_length=1)
+    context_rescue_retries: int = Field(default=2, ge=0)
+    three_pass_segment_temperature: float = Field(default=0.1, ge=0, le=2)
+    three_pass_attribute_temperature: float = Field(default=0.1, ge=0, le=2)
+    three_pass_instruct_temperature: float = Field(default=0.1, ge=0, le=2)
+    three_pass_segment_output_ratio: float = Field(default=3.0, ge=1.25, le=6.0)
+    three_pass_chunk_size: int = Field(default=3000, ge=500, le=12000)
+    three_pass_presegment_quotes: bool = True
+    three_pass_model_profiles: Dict[str, ThreePassModelProfile] = Field(default_factory=dict)
 
 
 class PromptConfig(BaseModel):

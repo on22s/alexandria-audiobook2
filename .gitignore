@@ -3,6 +3,7 @@ node_modules
 venv
 env
 app/env/
+preparer_env/
 .env
 .*
 !.github/
@@ -96,6 +97,7 @@ models/
 
 # Vendored third-party repos
 insanely-fast-whisper-rocm/
+/whisper.cpp/
 
 # Sample audio under test (user content, not code)
 audiobook.wav
@@ -167,3 +169,12 @@ docs/superpowers/
 ab_test/
 ab_test_cs3000/
 ab_test_cs6000/
+ab_test_threepass/
+
+# runtime A/B: keep scripts tracked, ignore generated run outputs
+ab_test_runtime/vulkan/
+ab_test_runtime/rocm/
+ab_test_runtime/run.log
+ab_test_runtime/results/
+/qualification_*/
+/model_ab_test/

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import zipfile
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -38,6 +39,21 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_epub_extracts_spine_with_known_malformed_refines_metadata(self):
+        container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <metadata><meta refines="#pub-id" property="identifier-type" refines">"#pub-i">15</meta></metadata>
+          <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            with zipfile.ZipFile(epub, "w") as archive:
+                archive.writestr("META-INF/container.xml", container)
+                archive.writestr("OEBPS/content.opf", opf)
+                archive.writestr("OEBPS/chapter.xhtml", "<p>Readable chapter.</p>")
+            self.assertEqual("Readable chapter.", script_module.extract_epub_text(epub))
+
     def test_concurrent_identical_uploads_keep_one_canonical_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads = os.path.join(tmp, "uploads")
@@ -520,6 +536,66 @@ class RuntimeTests(unittest.TestCase):
                 None, json.dumps(config), None, None
             ))
         self.assertEqual(raised.exception.status_code, 400)
+
+    def test_preparer_prefers_its_isolated_interpreter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            isolated = os.path.join(tmp, "python")
+            Path(isolated).touch()
+            with patch.object(preparer_module, "PREPARER_ENV_PYTHON", isolated), \
+                 patch.object(preparer_module, "_load_voicelab_config",
+                              return_value={"rocm_python": "/voice-lab/python"}), \
+                 patch.object(preparer_module, "_validate_voicelab_path"):
+                self.assertEqual(
+                    isolated, preparer_module._resolve_preparer_interpreter())
+
+    def test_preparer_interpreter_override_is_explicit_and_validated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            override = os.path.join(tmp, "python")
+            Path(override).touch()
+            with patch.dict(os.environ, {"ALEXANDRIA_PREPARER_PYTHON": override}), \
+                 patch.object(preparer_module, "PREPARER_ENV_PYTHON",
+                              "/installed/preparer/python"), \
+                 patch.object(preparer_module, "_validate_voicelab_path") as validate:
+                resolved = preparer_module._resolve_preparer_interpreter()
+
+        self.assertEqual(override, resolved)
+        validate.assert_called_once_with(override, "preparer_python")
+
+    def test_preparer_falls_back_to_voicelab_interpreter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = os.path.join(tmp, "python")
+            Path(legacy).touch()
+            with patch.dict(os.environ, {}, clear=True), \
+                 patch.object(preparer_module, "PREPARER_ENV_PYTHON",
+                              os.path.join(tmp, "missing-python")), \
+                 patch.object(preparer_module, "_load_voicelab_config",
+                              return_value={"rocm_python": legacy}), \
+                 patch.object(preparer_module, "_validate_voicelab_path"):
+                self.assertEqual(
+                    legacy, preparer_module._resolve_preparer_interpreter())
+
+    def test_preparer_diarization_token_stays_out_of_command_line(self):
+        token = preparer_module.SecretStr("hf_private")
+
+        args = preparer_module.get_preparer_diarization_args(False, True)
+        env = preparer_module.get_preparer_subprocess_env(token)
+
+        self.assertEqual(["--auto-detect-speakers"], args)
+        self.assertNotIn("hf_private", args)
+        self.assertEqual("hf_private", env["HF_TOKEN"])
+
+    def test_preparer_diarization_requires_token_before_startup(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             self.assertRaises(HTTPException) as raised:
+            preparer_module.ensure_preparer_diarization_token(
+                True, False, None)
+        self.assertEqual(400, raised.exception.status_code)
+
+    def test_explicit_diarization_wins_over_auto_detection(self):
+        self.assertEqual(
+            ["--diarize"],
+            preparer_module.get_preparer_diarization_args(True, True),
+        )
 
     def test_voicelab_defaults_do_not_guess_paths_inside_this_repo(self):
         # rocm_python is a separate ML env living outside this repo. Deriving it

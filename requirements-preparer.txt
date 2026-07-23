@@ -1,0 +1,11 @@
+# Runtime used only by alexandria_preparer_rocm_compatible.py.
+# torch/torchaudio/triton are installed first by torch.js and constrained by
+# install.js so these packages cannot replace the platform-correct build.
+numpy==2.2.6
+soundfile==0.13.1
+librosa==0.11.0
+transformers==4.57.3
+mutagen==1.47.0
+intervaltree==3.1.0
+EbookLib==0.20
+beautifulsoup4==4.14.3

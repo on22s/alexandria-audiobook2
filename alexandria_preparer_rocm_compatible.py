@@ -6,7 +6,7 @@ Handles CUDA/ROCm version mismatches gracefully
 
 # Suppress known noisy warnings before any other imports
 import warnings
-warnings.filterwarnings("ignore", message=".*torchcodec is not installed correctly.*")
+warnings.filterwarnings("ignore", message="(?s).*torchcodec is not installed correctly.*")
 warnings.filterwarnings("ignore", message=".*expandable_segments not supported.*")
 warnings.filterwarnings("ignore", message=".*Flash Efficient attention.*")
 warnings.filterwarnings("ignore", message=".*Mem Efficient attention.*")
@@ -68,11 +68,7 @@ try:
 except ImportError:
     LLAMA_CPP_AVAILABLE = False
 
-# Add insanely-fast-whisper-rocm to path if available
 script_dir = os.path.dirname(os.path.abspath(__file__))
-ifw_path = os.path.join(script_dir, "insanely-fast-whisper-rocm")
-if os.path.exists(ifw_path):
-    sys.path.insert(0, ifw_path)
 
 # ROCm environment fixes
 os.environ["PYTORCH_HIP_ALLOC_CONF"] = "expandable_segments:True"
@@ -81,13 +77,16 @@ os.environ["HSA_ENABLE_SDMA"] = "0"
 os.environ["GPU_MAX_HW_QUEUES"] = "2"
 
 import argparse
+import bisect
 import gc
+import math
 import time
 import logging
 import json
 import re
 import subprocess
 import difflib
+from numbers import Real
 
 # Shared alignment primitives (load_source, lexicon, find_best_match, ...).
 # Only used when --source is passed; preparer remains zero-dep on this module
@@ -186,18 +185,36 @@ def log_torch_info():
     logger.info(f"PyTorch version: {t.__version__}")
 
 # Check available ASR options
-INSANELY_FAST_WHISPER_AVAILABLE = False
 WHISPERX_AVAILABLE = False
 TRANSFORMERS_WHISPER_AVAILABLE = False
 WAV2VEC2_MODEL_REVISION = "f6b48018ad95afcf85637f433dc0fc4f4672ce34"
 
-INSANELY_FAST_WHISPER_AVAILABLE = os.path.exists(
-    os.path.join(script_dir, "insanely-fast-whisper-rocm")
+_WHISPER_CPP_BIN_CANDIDATES = (
+    os.path.join(script_dir, "whisper.cpp", "build", "bin", "whisper-cli"),
+    os.path.join(script_dir, "whisper.cpp", "build", "bin", "Release",
+                 "whisper-cli.exe"),
+    os.path.join(script_dir, "whisper.cpp", "build", "Release",
+                 "whisper-cli.exe"),
 )
-if INSANELY_FAST_WHISPER_AVAILABLE:
-    logger.info("✓ Insanely Fast Whisper (ROCm) available")
+WHISPER_CPP_BIN = os.environ.get("ALEXANDRIA_WHISPER_CPP_BIN") or next(
+    (path for path in _WHISPER_CPP_BIN_CANDIDATES if os.path.isfile(path)),
+    _WHISPER_CPP_BIN_CANDIDATES[0],
+)
+WHISPER_CPP_MODEL = os.environ.get(
+    "ALEXANDRIA_WHISPER_CPP_MODEL",
+    os.path.join(script_dir, "models", "whisper.cpp", "ggml-small.en.bin"),
+)
+WHISPER_CPP_AVAILABLE = (
+    os.path.isfile(WHISPER_CPP_BIN)
+    and os.access(WHISPER_CPP_BIN, os.X_OK)
+    and os.path.isfile(WHISPER_CPP_MODEL)
+)
+if WHISPER_CPP_AVAILABLE:
+    logger.info("✓ whisper.cpp Small.en available")
 else:
-    logger.debug("Insanely Fast Whisper not found in project directory")
+    logger.debug(
+        f"whisper.cpp unavailable (binary={WHISPER_CPP_BIN}, "
+        f"model={WHISPER_CPP_MODEL})")
 
 try:
     from whisperx import asr as whisperx_asr
@@ -663,255 +680,126 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         logger.debug(traceback.format_exc())
         raise
 
-def transcribe_with_insanely_fast_whisper(audio_16k: np.ndarray, language: str = "en") -> tuple:
-    """Use Insanely Fast Whisper ROCm (optimized for AMD GPUs)."""
-    if not INSANELY_FAST_WHISPER_AVAILABLE:
-        raise ImportError("Insanely Fast Whisper not available")
 
-    logger.info("▶ Initializing Insanely Fast Whisper (ROCm optimized)...")
-    audio_duration = len(audio_16k) / 16000
-    logger.info(f"  ├─ Audio: {audio_duration:.1f}s @ {audio_16k.shape[0]} samples")
+def get_coalesced_whisper_cpp_segments(transcription):
+    """Convert whisper.cpp JSON words without inventing word boundaries.
+
+    whisper.cpp can emit a real word with identical start/end offsets. Keep
+    its text by joining it to the next positive-duration word (or the prior
+    word at EOF). All other malformed values are left for the shared strict
+    validator to reject.
+    """
+    if not isinstance(transcription, list):
+        raise ValueError("whisper.cpp transcription must be a list")
+
+    converted = []
+    pending = []
+    for index, segment in enumerate(transcription):
+        if not isinstance(segment, dict):
+            raise ValueError(
+                f"whisper.cpp transcription segment {index} is not an object")
+        text = segment.get("text", "")
+        if not isinstance(text, str):
+            raise ValueError(
+                f"whisper.cpp transcription segment {index} has non-text data")
+        text = text.strip()
+        if not text:
+            continue
+
+        offsets = segment.get("offsets")
+        if not isinstance(offsets, dict):
+            converted.append({"word": text, "start": None, "end": None})
+            continue
+        start_ms = offsets.get("from")
+        end_ms = offsets.get("to")
+        numeric = (
+            isinstance(start_ms, Real) and not isinstance(start_ms, bool)
+            and isinstance(end_ms, Real) and not isinstance(end_ms, bool)
+        )
+        finite = (
+            numeric and math.isfinite(float(start_ms))
+            and math.isfinite(float(end_ms))
+        )
+        if finite and float(end_ms) == float(start_ms):
+            pending.append(text)
+            continue
+
+        converted.append({
+            "word": " ".join(pending + [text]),
+            "start": float(start_ms) / 1000.0 if numeric else start_ms,
+            "end": float(end_ms) / 1000.0 if numeric else end_ms,
+        })
+        pending = []
+
+    if pending:
+        if not converted:
+            raise ValueError(
+                "whisper.cpp returned only zero-duration word segments")
+        converted[-1] = dict(converted[-1])
+        converted[-1]["word"] += " " + " ".join(pending)
+    return converted
+
+
+def transcribe_with_whisper_cpp(audio_16k: np.ndarray,
+                                language: str = "en") -> tuple:
+    """Transcribe with the persistent whisper.cpp Small.en installation."""
+    if not WHISPER_CPP_AVAILABLE:
+        raise ImportError("whisper.cpp binary or Small.en model is unavailable")
+    if language.lower().split("-", 1)[0] != "en":
+        raise ValueError(
+            "whisper.cpp Small.en only supports English; "
+            "falling back instead of silently using the wrong model")
+
+    audio_duration = len(audio_16k) / 16000.0
+    logger.info("▶ Initializing whisper.cpp Small.en...")
+    logger.info(f"  ├─ Audio: {audio_duration:.1f}s")
+    logger.info(f"  ├─ Model: {WHISPER_CPP_MODEL}")
     logger.info(f"  └─ Language: {language}")
 
-    temp_audio_file = None
-    temp_output_file = None
-    temp_dir = None
-
-    try:
-        # Create temporary directory
-        temp_dir = tempfile.mkdtemp(prefix="alexandria_audio_")
-        logger.debug(f"Created temp directory: {temp_dir}")
-
-        temp_audio_file = os.path.join(temp_dir, "temp_audio.wav")
-        temp_output_file = os.path.join(temp_dir, "output.json")
-
-        # Write audio to temporary file
-        logger.debug(f"Writing audio to temporary file: {temp_audio_file}")
-        sf.write(temp_audio_file, audio_16k, samplerate=16000)
-
-        # Verify file was written
-        if os.path.exists(temp_audio_file):
-            file_size = os.path.getsize(temp_audio_file)
-            logger.debug(f"✓ Audio file written successfully ({file_size} bytes)")
-        else:
-            raise RuntimeError(f"Failed to write audio file: {temp_audio_file}")
-
-        logger.info("▶ Starting transcription...")
-        logger.debug(f"  Expected duration: {audio_duration:.1f}s (this may take several minutes)")
-
-        # Prepare CLI command
-        ifw_module_path = os.path.join(script_dir, "insanely-fast-whisper-rocm")
-        logger.debug(f"Insanely Fast Whisper module path: {ifw_module_path}")
-        logger.debug(f"Module exists: {os.path.exists(ifw_module_path)}")
-
-        # Use current Python executable (which has the correct ROCm environment)
-        python_exe = sys.executable
-        logger.debug(f"Python executable: {python_exe}")
-        logger.debug(f"Working directory: {os.getcwd()}")
-        logger.debug(f"sys.executable Python version: {sys.version}")
-
-        # Use pre-downloaded model or HuggingFace model ID. The model id and
-        # local path are also hardcoded in download_model.py (the script that
-        # populates this directory) - keep both in sync if the model changes.
-        model_name = "openai/whisper-base"
-        local_model_path = os.path.join(script_dir, "models", "whisper-base")
-        if os.path.exists(local_model_path):
-            model_name = local_model_path
-            logger.debug(f"Using local model: {local_model_path}")
-        else:
-            logger.debug(f"Using HuggingFace model: {model_name}")
-
-        cmd = [
-            python_exe,
-            "-m", "insanely_fast_whisper_rocm.cli",
-            "transcribe",
-            temp_audio_file,  # Positional argument for audio file
-            "--model", model_name,
+    with tempfile.TemporaryDirectory(
+            prefix="alexandria_whisper_cpp_") as temp_dir:
+        audio_path = os.path.join(temp_dir, "audio.wav")
+        output_prefix = os.path.join(temp_dir, "transcript")
+        output_path = output_prefix + ".json"
+        sf.write(audio_path, audio_16k, samplerate=16000)
+        command = [
+            WHISPER_CPP_BIN,
+            "--model", WHISPER_CPP_MODEL,
+            "--file", audio_path,
             "--language", language,
-            "--timestamp-type", "word",
-            "--output", temp_output_file
+            "--max-len", "1",
+            "--split-on-word",
+            "--output-json-full",
+            "--output-file", output_prefix,
+            "--no-prints",
         ]
+        started = time.monotonic()
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=3600,
+            check=False)
+        elapsed = time.monotonic() - started
+        if result.returncode:
+            detail = (result.stderr or result.stdout or "").strip()[-2000:]
+            raise RuntimeError(
+                f"whisper.cpp exited with code {result.returncode}: {detail}")
+        if not os.path.isfile(output_path):
+            raise FileNotFoundError(
+                "whisper.cpp completed without writing its JSON output")
 
-        logger.info(f"Command: {' '.join(cmd)}")
-
-        # Set PYTHONPATH to include the insanely-fast-whisper-rocm module
-        cmd_env = os.environ.copy()
-        cmd_env["PYTHONPATH"] = f"{ifw_module_path}:{cmd_env.get('PYTHONPATH', '')}".rstrip(":")
-        logger.debug(f"PYTHONPATH: {cmd_env.get('PYTHONPATH', 'not set')}")
-
-        # Set LD_LIBRARY_PATH to use conda's FFmpeg 7 libraries (REPLACE system FFmpeg 8.1)
-        conda_prefixes = [
-            os.environ.get("CONDA_PREFIX", ""),
-            os.environ.get("PINOKIO_CONDA_PREFIX", ""),
-            os.path.join(os.environ.get("PINOKIO_HOME", ""), "bin", "miniconda"),
-            sys.prefix,  # Current Python's conda prefix
-        ]
-
-        for prefix in conda_prefixes:
-            if prefix and os.path.exists(prefix):
-                conda_lib = os.path.join(prefix, "lib")
-                if os.path.exists(conda_lib):
-                    # REPLACE LD_LIBRARY_PATH entirely with conda libraries first
-                    cmd_env["LD_LIBRARY_PATH"] = conda_lib
-                    logger.info(f"  ├─ FFmpeg: Using conda FFmpeg 7 (v{conda_lib})")
-                    logger.debug(f"  └─ LD_LIBRARY_PATH: {cmd_env['LD_LIBRARY_PATH']}")
-                    break
-
-        # Run subprocess
-        logger.info("▶ Running Whisper transcription (this may take several minutes)...")
-        logger.debug("  Subprocess environment: FFmpeg 7 + ROCm optimization")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600, env=cmd_env)
-
-        if result.returncode == 0:
-            logger.info(f"✓ Transcription subprocess completed successfully")
-        else:
-            logger.warning(f"⚠ Transcription subprocess returned code: {result.returncode}")
-
-        logger.debug(f"  Output length: {len(result.stdout)} chars, Error length: {len(result.stderr)} chars")
-
-        # Parse GPU info from subprocess output
-        if result.stdout:
-            cuda_match = re.search(r'ASR using device:\s*(cuda:\d+)', result.stdout)
-            if cuda_match:
-                device_info = cuda_match.group(1)
-                logger.info(f"  ├─ GPU Device: {device_info} (confirmed in subprocess)")
-
-            torch_match = re.search(r'cuda_available=(\w+)', result.stdout)
-            if torch_match:
-                cuda_status = torch_match.group(1)
-                logger.info(f"  ├─ CUDA Available: {cuda_status}")
-
-            hip_match = re.search(r'hip=([0-9.]+)', result.stdout)
-            if hip_match:
-                hip_version = hip_match.group(1)
-                logger.info(f"  └─ HIP (ROCm) Version: {hip_version}")
-
-            logger.debug(f"Subprocess stdout:\n{result.stdout}")
-
-        if result.stderr:
-            logger.debug(f"Subprocess stderr:\n{result.stderr}")
-
-        if result.returncode != 0:
-            logger.error(f"Transcription command failed with return code {result.returncode}")
-            logger.error(f"stderr: {result.stderr}")
-            raise RuntimeError(f"Transcription failed: {result.stderr}")
-
-        # The tool ignores --output and saves to transcripts/ with its own naming
-        # Parse stdout to find where it actually saved the JSON
-        actual_json_file = None
-
-        if result.stdout:
-            # Look for "Saved JSON to: <path>" in the output
-            match = re.search(r'Saved JSON to:\s*(.+?)(?:\n|$)', result.stdout)
-            if match:
-                actual_json_file = match.group(1).strip()
-                logger.debug(f"Found JSON path in stdout: {actual_json_file}")
-
-        if not actual_json_file:
-            logger.error(f"Could not find JSON output path in subprocess stdout")
-            logger.debug(f"Temp directory contents: {os.listdir(temp_dir) if os.path.exists(temp_dir) else 'temp_dir not found'}")
-            raise FileNotFoundError(f"Could not determine where insanely-fast-whisper saved JSON output")
-
-        # The path in stdout is relative to where the subprocess was run
-        # We need to check current working directory
-        if not os.path.isabs(actual_json_file):
-            actual_json_file = os.path.join(os.getcwd(), actual_json_file)
-
-        if not os.path.exists(actual_json_file):
-            logger.error(f"JSON file not found at expected path: {actual_json_file}")
-            raise FileNotFoundError(f"JSON output file not found: {actual_json_file}")
-
-        file_size = os.path.getsize(actual_json_file)
-        logger.info(f"✓ JSON found: {actual_json_file} ({file_size} bytes)")
-
-        # Load and parse JSON
-        logger.debug(f"Loading JSON from: {actual_json_file}")
-        with open(actual_json_file, 'r') as f:
-            result_json = json.load(f)
-
-        logger.debug(f"JSON keys: {list(result_json.keys())}")
-
-        detected_lang = result_json.get("language", language)
-        logger.info(f"✓ Detected language: {detected_lang}")
-
-        # Extract word segments
-        logger.info("▶ Extracting word segments...")
-        word_segments = []
-        chunks = result_json.get("chunks")
-        chunk_count = len(chunks) if chunks else 0
-        logger.debug(f"  Processing {chunk_count} chunks...")
-
-        if chunks:
-            for idx, chunk in enumerate(chunks):
-                timestamp = chunk.get("timestamp")
-                text = chunk.get("text", "").strip()
-
-                if timestamp and len(timestamp) >= 2:
-                    start, end = timestamp[0], timestamp[1]
-                    if start is not None and end is not None:
-                        word_segments.append({
-                            "word": text,
-                            "start": start,
-                            "end": end
-                        })
-                        if idx < 5:  # Log first few entries
-                            logger.debug(f"  Chunk {idx}: '{text}' [{start:.3f}-{end:.3f}]")
-                else:
-                    logger.debug(f"  Chunk {idx}: Missing timestamp - {chunk}")
-
-        clear_vram()
-        logger.info(f"✓ Insanely Fast Whisper complete: {len(word_segments)} words extracted")
-        logger.debug(f"First 5 words: {word_segments[:5]}")
-        logger.debug(f"Last 5 words: {word_segments[-5:]}")
-
+        with open(output_path, "r", encoding="utf-8") as output_file:
+            payload = json.load(output_file)
+        word_segments = get_coalesced_whisper_cpp_segments(
+            payload.get("transcription"))
+        detected_lang = (
+            payload.get("result", {}).get("language") or language)
+        logger.info(
+            f"✓ whisper.cpp complete: {len(word_segments)} timed entries "
+            f"in {elapsed:.1f}s ({audio_duration / max(elapsed, 1e-9):.1f}x realtime)")
         return word_segments, detected_lang
 
-    except Exception as e:
-        logger.error(f"Insanely Fast Whisper transcription failed: {e}")
-        logger.debug(traceback.format_exc())
-        raise
-    finally:
-        # Clean up temporary files
-        logger.debug("Cleaning up temporary files...")
 
-        if temp_audio_file and os.path.exists(temp_audio_file):
-            try:
-                os.remove(temp_audio_file)
-                logger.debug(f"✓ Removed audio file: {temp_audio_file}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up audio file: {e}")
+DIARIZATION_MODEL_ID = "pyannote/speaker-diarization-community-1"
 
-        if temp_output_file and os.path.exists(temp_output_file):
-            try:
-                os.remove(temp_output_file)
-                logger.debug(f"✓ Removed output file: {temp_output_file}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up output file: {e}")
-
-        # Clean up the JSON file created by the tool in transcripts/ directory
-        if 'actual_json_file' in locals() and actual_json_file:
-            try:
-                if os.path.exists(actual_json_file):
-                    os.remove(actual_json_file)
-                    logger.debug(f"✓ Removed JSON output: {actual_json_file}")
-                # Try to remove transcripts directory if empty
-                transcripts_dir = os.path.dirname(actual_json_file)
-                if os.path.exists(transcripts_dir) and not os.listdir(transcripts_dir):
-                    os.rmdir(transcripts_dir)
-                    logger.debug(f"✓ Removed empty transcripts directory")
-            except Exception as e:
-                logger.debug(f"Note: Could not clean up JSON file: {e}")
-
-        # Clean up temp directory
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                remaining = os.listdir(temp_dir)
-                if remaining:
-                    logger.debug(f"Remaining files in {temp_dir}: {remaining}")
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                logger.debug(f"✓ Removed temp directory: {temp_dir}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up temp directory: {e}")
 
 def _load_diarization_pipeline(hf_token: str, device: str):
     """Load the pyannote diarization pipeline once, or return None with the
@@ -930,19 +818,7 @@ def _load_diarization_pipeline(hf_token: str, device: str):
         return None
 
     logger.info(f"▶ Initializing pyannote.audio diarization (device={device})...")
-    try:
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            token=hf_token
-        )
-    except TypeError:
-        # pyannote.audio 3.x only accepts use_auth_token; `token=` is 4.x.
-        # Without this fallback the TypeError is swallowed upstream as a
-        # generic "Diarization failed" on every pyannote 3.x install.
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=hf_token
-        )
+    pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL_ID, token=hf_token)
     if pipeline is None:
         raise ValueError("Failed to load pyannote pipeline. Check your token and model permissions.")
 
@@ -950,10 +826,37 @@ def _load_diarization_pipeline(hf_token: str, device: str):
     return pipeline
 
 
+def get_speaker_diarization(output, prefer_exclusive: bool = False):
+    """Return the Annotation carried by a pyannote Community-1 result."""
+    if prefer_exclusive:
+        exclusive = getattr(output, "exclusive_speaker_diarization", None)
+        if exclusive is not None:
+            return exclusive
+    diarization = getattr(output, "speaker_diarization", None)
+    if diarization is None:
+        raise ValueError("Community-1 returned no speaker diarization.")
+    return diarization
+
+
+def get_diarization_audio_input(audio_path: str) -> dict:
+    """Decode audio without TorchCodec and return pyannote's in-memory input.
+
+    PyPI's TorchCodec wheels link CUDA libraries and cannot load with a ROCm
+    torch build. SoundFile is already part of the preparer runtime and avoids
+    that backend mismatch while preserving all channels.
+    """
+    import torch as torch_module
+
+    audio, sample_rate = sf.read(
+        audio_path, dtype="float32", always_2d=True)
+    waveform = torch_module.from_numpy(audio.T.copy())
+    return {"waveform": waveform, "sample_rate": sample_rate}
+
+
 def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
                   pipeline=None) -> list:
     """Perform speaker diarization using pyannote.audio.
-    Requires a Hugging Face token with access to pyannote/speaker-diarization-3.1.
+    Requires a Hugging Face token with access to Community-1.
     """
     try:
         if pipeline is None:
@@ -963,8 +866,9 @@ def diarize_audio(audio_path: str, hf_token: str = None, device: str = "cuda",
 
         logger.info(f"Running diarization on {audio_path}...")
         t0 = time.monotonic()
-        diarization = pipeline(audio_path)
+        output = pipeline(get_diarization_audio_input(audio_path))
         elapsed = time.monotonic() - t0
+        diarization = get_speaker_diarization(output, prefer_exclusive=True)
         
         speaker_segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
@@ -1069,7 +973,8 @@ def detect_speaker_count(audio_24k_path: str, hf_token: str, device: str,
                               stop=int(stop * sample_rate), dtype="float32",
                               always_2d=False)
             waveform = torch_module.from_numpy(data).unsqueeze(0)
-            diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            output = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            diarization = get_speaker_diarization(output)
             speaker_seconds = {}
             for turn, _, speaker in diarization.itertracks(yield_label=True):
                 speaker_seconds[speaker] = speaker_seconds.get(speaker, 0.0) + (turn.end - turn.start)
@@ -1088,6 +993,80 @@ def detect_speaker_count(audio_24k_path: str, hf_token: str, device: str,
     return verdict, evidence, pipeline
 
 
+_TIMESTAMP_BOUNDARY_TOLERANCE_SECS = 0.05
+
+
+def get_validated_word_segments(word_segments, audio_duration):
+    """Return a safe copy of chronological, positive-duration ASR words.
+
+    Empty word records carry no transcript information and are discarded.
+    Tiny excursions at the audio boundaries are clamped to account for
+    floating-point rounding. Other malformed timing fails the whole backend
+    result so ``choose_and_transcribe`` can apply its existing fallback order.
+    """
+    if not isinstance(audio_duration, Real) or isinstance(audio_duration, bool):
+        raise ValueError("audio duration must be a finite number")
+    audio_duration = float(audio_duration)
+    if not math.isfinite(audio_duration) or audio_duration <= 0:
+        raise ValueError("audio duration must be a positive finite number")
+    if not isinstance(word_segments, (list, tuple)):
+        raise ValueError("ASR word segments must be a list or tuple")
+
+    validated = []
+    previous_start = None
+    previous_end = None
+    tolerance = _TIMESTAMP_BOUNDARY_TOLERANCE_SECS
+
+    for index, segment in enumerate(word_segments):
+        if not isinstance(segment, dict):
+            raise ValueError(f"ASR word segment {index} is not an object")
+        word = segment.get("word", "")
+        if not isinstance(word, str):
+            raise ValueError(f"ASR word segment {index} has non-text word data")
+        word = word.strip()
+        if not word:
+            continue
+
+        start = segment.get("start")
+        end = segment.get("end")
+        for label, value in (("start", start), ("end", end)):
+            if not isinstance(value, Real) or isinstance(value, bool):
+                raise ValueError(
+                    f"ASR word segment {index} has non-numeric {label}")
+            if not math.isfinite(float(value)):
+                raise ValueError(
+                    f"ASR word segment {index} has non-finite {label}")
+        start = float(start)
+        end = float(end)
+
+        if -tolerance <= start < 0:
+            start = 0.0
+        if audio_duration < end <= audio_duration + tolerance:
+            end = audio_duration
+        if start < 0 or end > audio_duration:
+            raise ValueError(
+                f"ASR word segment {index} is outside the audio bounds")
+        if end <= start:
+            raise ValueError(
+                f"ASR word segment {index} has non-positive duration")
+        if previous_start is not None and start < previous_start:
+            raise ValueError(
+                f"ASR word segment {index} starts before the previous word")
+        if previous_end is not None and end < previous_end:
+            raise ValueError(
+                f"ASR word segment {index} ends before the previous word")
+
+        copied = dict(segment)
+        copied.update({"word": word, "start": start, "end": end})
+        validated.append(copied)
+        previous_start = start
+        previous_end = end
+
+    if not validated:
+        raise ValueError("ASR returned no usable word segments")
+    return validated
+
+
 def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, limit: int = None) -> tuple:
     """Transcribe using Wav2Vec2 (continuous context-aware) as primary with fallbacks."""
 
@@ -1098,7 +1077,7 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
     logger.info(f"Language: {language}")
     logger.info(f"Available ASR methods:")
     logger.info(f"  - Wav2Vec2 (GPU continuous): {TRANSFORMERS_WHISPER_AVAILABLE}")
-    logger.info(f"  - InFastWhisper (ROCm): {INSANELY_FAST_WHISPER_AVAILABLE}")
+    logger.info(f"  - whisper.cpp Small.en: {WHISPER_CPP_AVAILABLE}")
     logger.info(f"  - WhisperX (CPU mode): {WHISPERX_AVAILABLE}")
 
     # Try Wav2Vec2 first (continuous context-aware)
@@ -1108,8 +1087,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_wav2vec2(audio_16k, language, limit=limit)
-            if not word_segments:
-                raise RuntimeError("Wav2Vec2 returned an empty transcript")
+            word_segments = get_validated_word_segments(
+                word_segments, len(audio_16k) / 16000.0)
             logger.info(f"✓ SUCCESS with Wav2Vec2")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  ├─ Context preservation: Full audio (30s overlapping chunks)")
@@ -1118,23 +1097,24 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         except Exception as e:
             logger.warning(f"✗ Wav2Vec2 failed: {e}")
             logger.debug(traceback.format_exc())
-            logger.info("Falling back to Insanely Fast Whisper...")
+            logger.info("Falling back to whisper.cpp Small.en...")
 
-    # Fallback to Insanely Fast Whisper (ROCm optimized)
-    if INSANELY_FAST_WHISPER_AVAILABLE:
+    # Fallback to whisper.cpp Small.en
+    if WHISPER_CPP_AVAILABLE:
         logger.info("-" * 70)
-        logger.info("▶ Method 2: Insanely Fast Whisper (ROCm optimized) [GPU accelerated, 30s chunks]")
+        logger.info("▶ Method 2: whisper.cpp Small.en [native GPU acceleration]")
         logger.info("-" * 70)
         try:
-            word_segments, detected_lang = transcribe_with_insanely_fast_whisper(audio_16k, language)
-            if not word_segments:
-                raise RuntimeError("Insanely Fast Whisper returned an empty transcript")
-            logger.info(f"✓ SUCCESS with Insanely Fast Whisper")
+            word_segments, detected_lang = transcribe_with_whisper_cpp(
+                audio_16k, language)
+            word_segments = get_validated_word_segments(
+                word_segments, len(audio_16k) / 16000.0)
+            logger.info("✓ SUCCESS with whisper.cpp Small.en")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
             return word_segments, detected_lang
         except Exception as e:
-            logger.warning(f"✗ Insanely Fast Whisper failed: {e}")
+            logger.warning(f"✗ whisper.cpp failed: {e}")
             logger.debug(traceback.format_exc())
             logger.info("Falling back to WhisperX-CPU...")
 
@@ -1145,8 +1125,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
         logger.info("-" * 70)
         try:
             word_segments, detected_lang = transcribe_with_whisperx_cpu(audio_16k, language)
-            if not word_segments:
-                raise RuntimeError("WhisperX-CPU returned an empty transcript")
+            word_segments = get_validated_word_segments(
+                word_segments, len(audio_16k) / 16000.0)
             logger.info(f"✓ SUCCESS with WhisperX-CPU")
             logger.info(f"  ├─ Words extracted: {len(word_segments)}")
             logger.info(f"  └─ Detected language: {detected_lang}")
@@ -1157,7 +1137,8 @@ def choose_and_transcribe(audio_16k: np.ndarray, device: str, language: str, lim
 
     logger.critical("=" * 70)
     logger.critical("✗ CRITICAL: No ASR method available!")
-    logger.critical("Install with: pip install insanely-fast-whisper-rocm whisperx")
+    logger.critical(
+        "Run the Pinokio installer to build whisper.cpp, or install WhisperX.")
     logger.critical("=" * 70)
     sys.exit(1)
 
@@ -2905,19 +2886,31 @@ def maybe_autoname_output(output: str, source_path: Optional[str], title: Option
     return os.path.join(parent, derived) if parent else derived
 
 
+SPEAKER_GAP_BRIDGE_MAX_DISTANCE_SECS = 0.5
+
+
 def _assign_speakers_to_words(word_segments, speaker_segments):
-    """Assign a speaker to each word based on diarization results."""
+    """Assign words inside speaker turns and short same-speaker VAD gaps."""
     if not speaker_segments:
         for word in word_segments:
             word["speaker"] = "UNKNOWN"
         return word_segments, {"UNKNOWN"}
 
+    ordered_speaker_segments = sorted(
+        speaker_segments,
+        key=lambda segment: segment["start"],
+    )
+    speaker_segment_starts = [
+        segment["start"] for segment in ordered_speaker_segments
+    ]
+
     IntervalTree, Interval = _lazy_import_intervaltree()
     tree = IntervalTree()
-    for seg in speaker_segments:
+    for seg in ordered_speaker_segments:
         tree.add(Interval(seg["start"], seg["end"], seg["speaker"]))
 
     unassigned_words = 0
+    bridged_words = 0
     speaker_counts = Counter()
 
     for word in word_segments:
@@ -2929,12 +2922,44 @@ def _assign_speakers_to_words(word_segments, speaker_segments):
             word["speaker"] = speaker
             speaker_counts[speaker] += 1
         else:
-            word["speaker"] = "UNKNOWN"
-            unassigned_words += 1
+            following_index = bisect.bisect_right(
+                speaker_segment_starts,
+                word_mid_point,
+            )
+            previous_segment = (
+                ordered_speaker_segments[following_index - 1]
+                if following_index > 0 else None
+            )
+            following_segment = (
+                ordered_speaker_segments[following_index]
+                if following_index < len(ordered_speaker_segments) else None
+            )
+            can_bridge_gap = (
+                previous_segment is not None
+                and following_segment is not None
+                and previous_segment["speaker"] == following_segment["speaker"]
+                and 0 <= word_mid_point - previous_segment["end"]
+                <= SPEAKER_GAP_BRIDGE_MAX_DISTANCE_SECS
+                and 0 <= following_segment["start"] - word_mid_point
+                <= SPEAKER_GAP_BRIDGE_MAX_DISTANCE_SECS
+            )
+            if can_bridge_gap:
+                speaker = previous_segment["speaker"]
+                word["speaker"] = speaker
+                speaker_counts[speaker] += 1
+                bridged_words += 1
+            else:
+                word["speaker"] = "UNKNOWN"
+                unassigned_words += 1
 
     logger.info("▶ Speaker assignment summary:")
     for speaker, count in speaker_counts.most_common():
         logger.info(f"  - {speaker}: {count} words")
+    if bridged_words > 0:
+        logger.info(
+            f"  - Bridged {bridged_words} word(s) across short "
+            "same-speaker diarization gaps"
+        )
     if unassigned_words > 0:
         logger.warning(f"  - UNKNOWN: {unassigned_words} words (no speaker segment overlap)")
         
