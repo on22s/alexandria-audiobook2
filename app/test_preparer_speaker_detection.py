@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -9,6 +10,9 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+_FAKE_TORCH = types.ModuleType("torch")
+_FAKE_TORCH.from_numpy = lambda values: values
 
 from alexandria_preparer_rocm_compatible import (
     DETECTION_MIN_DURATION_SECS,
@@ -230,7 +234,8 @@ class GetSpeakerDiarizationTests(unittest.TestCase):
                 received.append(audio_input)
                 return output
 
-            segments = diarize_audio(audio_path, pipeline=pipeline)
+            with patch.dict(sys.modules, {"torch": _FAKE_TORCH}):
+                segments = diarize_audio(audio_path, pipeline=pipeline)
 
         self.assertEqual(
             [{"start": 1.25, "end": 2.5, "speaker": "exclusive"}],
@@ -248,7 +253,8 @@ class GetSpeakerDiarizationTests(unittest.TestCase):
             ))
             sf.write(audio_path, audio, 8000)
 
-            decoded = get_diarization_audio_input(audio_path)
+            with patch.dict(sys.modules, {"torch": _FAKE_TORCH}):
+                decoded = get_diarization_audio_input(audio_path)
 
         self.assertEqual(8000, decoded["sample_rate"])
         self.assertEqual((2, 800), tuple(decoded["waveform"].shape))
