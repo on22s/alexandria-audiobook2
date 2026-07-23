@@ -13,7 +13,6 @@ DRY_RUN="${DRY_RUN:-0}"
 
 MODELS=(
   gemma-4-e4b-uncensored-hauhaucs-aggressive-q8_k_p.gguf
-  qwen3.5-9b-claude-4.6-os-auto-variable-heretic-uncensored-thinking-max-neocode-imatrix
   qwen3.5-9b-uncensored-hauhaucs-aggressive
   ministral-3-14b-instruct-2512
   ministral-3-14b-instruct-2512-absolute-heresy-i1
