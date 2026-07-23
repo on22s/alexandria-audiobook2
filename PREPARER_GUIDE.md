@@ -207,7 +207,7 @@ Rough rule of thumb on an AMD Radeon RX 9070 XT:
 
 **Key Features:**
 - **Wav2Vec2 ASR (primary)** with true CTC-aligned word timestamps
-- Insanely Fast Whisper / WhisperX-CPU fallbacks
+- whisper.cpp Small.en / WhisperX-CPU fallbacks
 - **LLM Pre-Processing (Enrichment)** — optional phase that adds speaker attribution, narration style, and emotional tone metadata to transcript chunks using a local GGUF LLM (e.g. Gemma-4-E2B)
 - Gemma 4 / Qwen LLM annotations on GPU
 - **Source-guided chunking** (`--source`): align ASR against an EPUB/TXT, use source spelling for chunk text, drop audio-only material
@@ -276,9 +276,9 @@ Add metadata to transcript chunks before annotation using a local GGUF LLM.
 
 ### Speaker diarization (optional)
 Attribute transcribed words to diarized speakers via pyannote.audio. Requires
-extra dependencies (`pip install -r requirements-diarization.txt` **into the
-same interpreter that runs the preparer** — see that file's comments for the
-version range) and a Hugging Face token that has accepted the terms for
+the isolated AMD Linux/ROCm `preparer_env` created by Install (including
+`requirements-diarization.txt`) and a Hugging Face token that has accepted
+the terms for
 `pyannote/speaker-diarization-community-1`.
 - `--diarize` — Always run full speaker diarization over the whole audio
 - `--auto-detect-speakers` — First run a cheap sampled pre-check (three 120 s
@@ -589,10 +589,10 @@ tail -f logs/alexandria_preparer_*.log
 | # | Method | Device | Context | Word Timestamps |
 |---|---|---|---|---|
 | 1 | **Wav2Vec2** (primary) | GPU | 30 s chunks + 3 s overlap | True (CTC frame alignment) |
-| 2 | Insanely Fast Whisper | GPU | 30 s fixed chunks | Native |
+| 2 | whisper.cpp Small.en | Native GPU/CPU | Continuous | Native, with zero-duration words conservatively coalesced |
 | 3 | WhisperX-CPU | CPU | n/a | Aligned via forced alignment |
 
-Wav2Vec2 is selected first because of its overlapping-chunk context preservation and CTC-aligned per-word timestamps. Falls back if not installed or if the run errors out.
+Wav2Vec2 is selected first because of its overlapping-chunk context preservation and CTC-aligned per-word timestamps. If it is unavailable or its output fails timestamp validation, the preparer uses the pinned whisper.cpp Small.en installation produced by `install.js`; WhisperX remains the final CPU fallback. Small.en is intentionally English-only, so non-English requests skip it rather than silently using the wrong model.
 
 ## Performance Tips
 

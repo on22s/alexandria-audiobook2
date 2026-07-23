@@ -3,6 +3,7 @@ node_modules
 venv
 env
 app/env/
+preparer_env/
 .env
 .*
 !.github/
@@ -97,6 +98,7 @@ models/
 
 # Vendored third-party repos
 insanely-fast-whisper-rocm/
+/whisper.cpp/
 
 # Sample audio under test (user content, not code)
 audiobook.wav

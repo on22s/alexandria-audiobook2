@@ -366,7 +366,7 @@ Example:
 4. **Sequential Processing** - Processes each file one by one:
    - Loads audio (16kHz + 24kHz)
    - **Transcribes with Wav2Vec2** (GPU primary, 30s overlapping chunks for context preservation)
-     - Falls back to Insanely Fast Whisper if needed
+     - Falls back to whisper.cpp Small.en if needed
      - Falls back to WhisperX-CPU if needed
    - **Annotates chunks with Gemma** (GPU acceleration)
      - GPU memory and utilization monitored every 10 segments

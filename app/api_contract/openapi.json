@@ -95,6 +95,29 @@
       },
       "BatchPreparerRequest": {
         "properties": {
+          "auto_detect_speakers": {
+            "default": false,
+            "title": "Auto Detect Speakers",
+            "type": "boolean"
+          },
+          "diarize": {
+            "default": false,
+            "title": "Diarize",
+            "type": "boolean"
+          },
+          "hf_token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hf Token"
+          },
           "lang": {
             "default": "en",
             "title": "Lang",

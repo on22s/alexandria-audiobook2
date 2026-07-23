@@ -54,6 +54,97 @@ module.exports = {
       ]
     }
   }, {
+    // The preparer has a separate ML environment so adding pyannote cannot
+    // replace Voice Lab's known-working torch/ROCm stack.
+    when: "{{platform === 'linux' && gpu === 'amd'}}",
+    method: "script.start",
+    params: {
+      uri: "torch.js",
+      params: {
+        path: ".",
+        venv: "preparer_env"
+      }
+    }
+  }, {
+    when: "{{platform === 'linux' && gpu === 'amd'}}",
+    method: "shell.run",
+    params: {
+      venv: "preparer_env",
+      message: "python -c \"import importlib.metadata as m, pathlib; wanted={'torch','torchvision','torchaudio','pytorch-triton','pytorch-triton-rocm','triton-rocm'}; rows=[f'{d.metadata[\\\"Name\\\"]}=={d.version}' for d in m.distributions() if d.metadata[\\\"Name\\\"].lower() in wanted]; pathlib.Path('preparer_env/torch-constraints.txt').write_text('\\n'.join(rows)+'\\n')\""
+    }
+  }, {
+    when: "{{platform === 'linux' && gpu === 'amd'}}",
+    method: "shell.run",
+    params: {
+      venv: "preparer_env",
+      env: {
+        UV_CONSTRAINT: "preparer_env/torch-constraints.txt",
+        PIP_CONSTRAINT: "preparer_env/torch-constraints.txt"
+      },
+      message: [
+        "uv pip install -r requirements-preparer.txt",
+        "uv pip install -r requirements-diarization.txt"
+      ]
+    }
+  }, {
+    when: "{{platform === 'linux' && gpu === 'amd'}}",
+    method: "shell.run",
+    params: {
+      venv: "preparer_env",
+      env: {
+        UV_CONSTRAINT: "preparer_env/torch-constraints.txt",
+        PIP_CONSTRAINT: "preparer_env/torch-constraints.txt"
+      },
+      message: "CMAKE_ARGS=\"-DGGML_HIP=ON -DAMDGPU_TARGETS=$(rocminfo | awk '/Name: *gfx/{print $2; exit}')\" uv pip install llama-cpp-python==0.3.23 --no-binary llama-cpp-python"
+    }
+  }, {
+    when: "{{!exists('whisper.cpp')}}",
+    method: "shell.run",
+    params: {
+      message: "git clone --depth 1 --branch v1.9.1 https://github.com/ggml-org/whisper.cpp whisper.cpp"
+    }
+  }, {
+    when: "{{!exists('models/whisper.cpp/ggml-small.en.bin')}}",
+    method: "fs.download",
+    params: {
+      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
+      dir: "models/whisper.cpp"
+    }
+  }, {
+    when: "{{platform === 'linux' && gpu === 'amd'}}",
+    method: "shell.run",
+    params: {
+      path: "whisper.cpp",
+      message: "cmake -S . -B build -DGGML_HIP=ON -DAMDGPU_TARGETS=\"$(rocminfo | awk '/Name: *gfx/{print $2; exit}')\""
+    }
+  }, {
+    when: "{{gpu === 'nvidia'}}",
+    method: "shell.run",
+    params: {
+      path: "whisper.cpp",
+      message: "cmake -S . -B build -DGGML_CUDA=ON"
+    }
+  }, {
+    when: "{{platform === 'darwin'}}",
+    method: "shell.run",
+    params: {
+      path: "whisper.cpp",
+      message: "cmake -S . -B build -DGGML_METAL=ON"
+    }
+  }, {
+    when: "{{!(platform === 'linux' && gpu === 'amd') && gpu !== 'nvidia' && platform !== 'darwin'}}",
+    method: "shell.run",
+    params: {
+      path: "whisper.cpp",
+      message: "cmake -S . -B build"
+    }
+  }, {
+    method: "shell.run",
+    params: {
+      path: "whisper.cpp",
+      message: "cmake --build build --config Release -j"
+    }
+  }, {
     method: "notify",
     params: {
       html: "Installation Complete! Click 'Start' to launch the application."

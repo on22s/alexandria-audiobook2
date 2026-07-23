@@ -1326,6 +1326,22 @@
                             <input type="number" class="form-control" id="prep-snr" value="25" min="0">
                         </div>
                     </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">Speaker Diarization</label>
+                            <select class="form-select" id="prep-diarization-mode">
+                                <option value="off">Off</option>
+                                <option value="auto">Auto-detect multiple speakers</option>
+                                <option value="full">Always diarize</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hugging Face Token</label>
+                            <input type="password" class="form-control" id="prep-hf-token"
+                                   autocomplete="off" placeholder="Token with Community-1 access">
+                            <div class="form-text">Used only for this run and not saved.</div>
+                        </div>
+                    </div>
 
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-prep-start" onclick="startPreparer()">
