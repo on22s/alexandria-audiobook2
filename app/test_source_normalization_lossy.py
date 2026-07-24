@@ -1,6 +1,7 @@
 import unittest
 
-from source_normalization import repair_lossy_replacements
+from source_normalization import (neutralize_lossy_residue,
+                                  repair_lossy_replacements)
 
 
 class RepairLossyReplacementsTest(unittest.TestCase):
@@ -39,6 +40,21 @@ class RepairLossyReplacementsTest(unittest.TestCase):
     def test_triple_run_is_quoted_ellipsis(self):
         text, _ = repair_lossy_replacements("\n���\n")
         self.assertEqual(text, "\n“…”\n")
+
+    def test_residual_is_neutralized_to_apostrophe(self):
+        # "coup d<FFFD><FFFD>tat": the second FFFD was an "e-acute", a letter,
+        # which no context rule can restore. It must survive rule inference and
+        # then be neutralized.
+        text, repairs = repair_lossy_replacements("coup d��tat")
+        self.assertIn("�", text)
+        cleaned, residual = neutralize_lossy_residue(text)
+        self.assertNotIn("�", cleaned)
+        self.assertEqual(residual, text.count("�"))
+
+    def test_neutralize_is_noop_on_clean_text(self):
+        cleaned, residual = neutralize_lossy_residue("all clean")
+        self.assertEqual(cleaned, "all clean")
+        self.assertEqual(residual, 0)
 
     def test_clean_text_is_untouched(self):
         source = "Nothing wrong here — nothing at all."

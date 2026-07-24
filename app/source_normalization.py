@@ -196,3 +196,18 @@ def repair_lossy_replacements(text):
     for repair in repairs:
         chars[repair["offset"]] = repair["after"]
     return "".join(chars), repairs
+
+
+def neutralize_lossy_residue(text, substitute="'"):
+    """Replace U+FFFD that no rule could infer, returning text and a count.
+
+    Applied only after repair_lossy_replacements. The residue is genuinely
+    unrecoverable: destroyed letters (``coup d’état``), and cases ambiguous
+    between a plural possessive and a closing quote (``knights’`` vs
+    ``knights”``) that context cannot separate. A plain apostrophe is the most
+    likely value across that residue. Callers record the count so the
+    approximation is visible rather than silent.
+    """
+    if _REPLACEMENT not in text:
+        return text, 0
+    return text.replace(_REPLACEMENT, substitute), text.count(_REPLACEMENT)
