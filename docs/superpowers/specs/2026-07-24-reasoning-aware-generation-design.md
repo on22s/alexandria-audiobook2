@@ -77,15 +77,42 @@ and `strip_known_front_matter`. This is distinct from `generate_script.py`'s
 `fix_mojibake`, which handles the recoverable byte form (`â€™`); this handles
 the lossy form where the original bytes are gone.
 
-Context rules, derived from the 6,319 U+FFFD runs in `index18.txt`:
+Inference is **per U+FFFD position**, not per run. Runs of consecutive U+FFFD
+are multiple independently destroyed characters, not one: `�Hee-hee��` is
+`“Hee-hee…”` and `\n���\n` is `“…”`. Neighbour lookup therefore skips over
+adjacent U+FFFD to find the nearest surviving character.
 
-| context | observed | inferred character |
-|---|---:|---|
-| letter + FFFD + letter (`don�t`, `author�s`) | ~1,400 | `’` U+2019 |
-| `.!?,` + FFFD + newline-or-space | ~1,090 | `”` U+201D |
-| newline + FFFD + capital (`\n�I`) | ~600 | `“` U+201C |
-| word + FFFD + word (`Magic�Fiction`) | many | `—` U+2014 |
-| FFFD + year (`� 2019 by Yen Press`) | few | `©` U+00A9 |
+Measured against the 6,662 U+FFFD in `index18.txt`, these rules resolve
+**6,036 (90.6%)**:
+
+| inferred character | resolved |
+|---|---:|
+| `’` U+2019 — letter + FFFD + lowercase | 2,818 |
+| `“` U+201C — whitespace + FFFD + alphanumeric | 1,459 |
+| `”` U+201D — `.!?,;:…` or FFFD + FFFD, then whitespace | 1,395 |
+| `—` U+2014 — letter + FFFD + uppercase (`Magic�Fiction`) | 216 |
+| `…` U+2026 — FFFD adjacent to FFFD after alphanumeric | 144 |
+| `–` U+2013 — digit + FFFD (`1973�`) | 3 |
+| `©` U+00A9 — FFFD + year (`� 2019 by Yen Press`) | 1 |
+
+**Perfect repair is not achievable and the design does not claim it.** The
+remaining 626 characters (0.13% of the file) are of three kinds, two of which
+no context rule can resolve:
+
+- `coup d��tat` (10) — the destroyed character is `é`, a letter, not
+  punctuation. Nothing in context restores it.
+- `knights� comm`, `cameras� blin`, `Puritans� rema` (~100) — genuinely
+  ambiguous between plural possessive `knights’` and closing quote `knights”`.
+  Both are valid English and the surrounding text does not disambiguate.
+- `�?�?�?` runs (~41 sites) — a destroyed character adjacent to a surviving
+  `?`, with no stable pattern.
+
+**Residual policy.** After the rules run, any surviving U+FFFD is replaced with
+a plain ASCII apostrophe — the most likely value across the residue — and the
+count is recorded in the run manifest. This is acceptable because the A/B
+measures *speaker attribution*, where `knights’` versus `knights”` cannot move
+a speaker label. It would not be acceptable for text going to TTS as final
+output, and that limitation is recorded here deliberately.
 
 The function returns a repair ledger for logging and mutates nothing on disk.
 
@@ -103,11 +130,15 @@ Change `errors="replace"` to strict decoding with an explicit error message.
 The gate runs before any LLM call, so a damaged source costs zero seconds
 instead of 2.1 hours.
 
-**Success criteria.** One unit test per context rule. `index18.txt` repairs to
-zero U+FFFD. Every other A/B input book is byte-identical after the pass
-(verified clean today: `arc4_volume10wn`, `grimgar03`, `grimgar06`,
-`mushoku16`, `mushoku18`, `mushoku23`, `owarimonogatari3`). A source that
-remains damaged after repair exits non-zero before any LLM call.
+**Success criteria.** One unit test per inference rule, plus tests for the
+multi-run cases (`“Hee-hee…”`, `“…”`). `index18.txt` resolves at least 6,036
+U+FFFD by rule and carries zero U+FFFD after the residual policy runs. Every
+other A/B input book is byte-identical after the pass (verified clean today:
+`arc4_volume10wn`, `grimgar03`, `grimgar06`, `mushoku16`, `mushoku18`,
+`mushoku23`, `owarimonogatari3`). The gate exits non-zero before any LLM call
+when unsafe control characters are present, or when pre-repair U+FFFD density
+exceeds 2% of the source. index18 sits at 1.4%, so that threshold admits it
+while still rejecting a catastrophically mangled file.
 
 ### 2. Telemetry
 
