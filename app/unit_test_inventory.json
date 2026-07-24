@@ -786,6 +786,10 @@
   "test_three_pass_telemetry": [
     "test_three_pass_telemetry.BuildFailureRecordTest.test_record_carries_causal_fields",
     "test_three_pass_telemetry.BuildFailureRecordTest.test_record_tolerates_missing_attempt_data",
+    "test_three_pass_telemetry.CheckedInProfileDefaultsTest.test_checked_in_default_used_when_config_is_silent",
+    "test_three_pass_telemetry.CheckedInProfileDefaultsTest.test_checked_in_defaults_load",
+    "test_three_pass_telemetry.CheckedInProfileDefaultsTest.test_config_profile_overrides_checked_in_default",
+    "test_three_pass_telemetry.CheckedInProfileDefaultsTest.test_unknown_model_is_empty",
     "test_three_pass_telemetry.ModelProfileMappingTest.test_missing_profile_is_empty",
     "test_three_pass_telemetry.ModelProfileMappingTest.test_plain_dict_still_works",
     "test_three_pass_telemetry.ModelProfileMappingTest.test_pydantic_profile_is_readable",
