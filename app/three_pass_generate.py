@@ -249,7 +249,8 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     # both the first request and retry ceiling so a weak model cannot spend
     # 10k-16k tokens expanding a ~1k-token source chunk.
     source_words = max(1, len(chunk.split()))
-    completion_ceiling = max(512, math.ceil(source_words * params.segment_output_ratio))
+    completion_ceiling = resolve_completion_ceiling(
+        source_words, params, reasoning_allowance=params.reasoning_allowance)
     bounded_params = replace(
         params, max_tokens=min(params.max_tokens, completion_ceiling),
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
@@ -779,8 +780,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # why the batch failed instead of only which entry it was.
     last_attempts = {}
 
+    reasoning_allowance = ReasoningAllowance()
+
     def record_attempt(attempt):
         last_attempts["latest"] = attempt
+        # Size the next call from what this model has actually shown. Stays at
+        # zero for a model that never reports reasoning_tokens, so a
+        # non-reasoning model keeps exactly today's ceiling.
+        reasoning_allowance.observe(attempt.get("reasoning_tokens"))
+        params.reasoning_allowance = reasoning_allowance.current()
 
     def last_attempt_for(_index):
         return last_attempts.get("latest")
@@ -1039,6 +1047,45 @@ def build_failure_record(pass_name, index, text, last_attempt=None):
     }
 
 
+REASONING_ALLOWANCE_FLOOR = 1024
+
+
+class ReasoningAllowance:
+    """Track a model's observed thinking-token cost.
+
+    Reasoning tokens bill to completion_tokens but are returned in
+    message.reasoning_content, so a ceiling sized on visible output truncates a
+    reasoning model mid-thought. A model that never reports reasoning_tokens
+    keeps an allowance of zero, so non-reasoning behaviour is unchanged.
+    """
+
+    def __init__(self):
+        self._observations = []
+
+    def observe(self, reasoning_tokens):
+        if reasoning_tokens:
+            self._observations.append(int(reasoning_tokens))
+
+    def current(self):
+        if not self._observations:
+            return 0
+        ordered = sorted(self._observations)
+        index = min(len(ordered) - 1, int(len(ordered) * 0.95))
+        return max(REASONING_ALLOWANCE_FLOOR, ordered[index])
+
+
+def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
+    """Bound segmentation output, leaving room for invisible reasoning.
+
+    The visible-output bound is unchanged from the original: it stops a weak
+    model spending 10k-16k tokens expanding a ~1k-token chunk. The reasoning
+    allowance is added on top rather than carved out of it, so a reasoning
+    model gets the same visible budget as everyone else.
+    """
+    visible = max(512, math.ceil(max(1, source_words) * params.segment_output_ratio))
+    return visible + max(0, int(reasoning_allowance))
+
+
 MAX_REPLACEMENT_DENSITY = 0.02
 
 
@@ -1082,6 +1129,9 @@ def main():
                              "'fallback' degrades gracefully (production).")
     parser.add_argument("--preflight", action="store_true",
                         help="Run first/middle/dialogue-heavy samples only.")
+    parser.add_argument("--reasoning-effort", default=None,
+                        help="Pass through to the model (e.g. 'none' to "
+                             "disable thinking on a reasoning model).")
     parser.add_argument("--collect-all-failures", action="store_true",
                         help="Diagnostic mode: record exhausted work, continue, "
                              "write only a .partial.json result, and exit nonzero.")
@@ -1147,7 +1197,8 @@ def main():
         segment_output_ratio=model_profile.get(
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         presegment_quotes=model_profile.get(
-            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)))
+            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)),
+        reasoning_effort=args.reasoning_effort)
     client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
@@ -1188,7 +1239,8 @@ def main():
                                  context_rescue_retries=context_rescue_retries,
                                  endpoint=base_url,
                                  collect_all_failures=args.collect_all_failures,
-                                 unicode_report=unicode_report)
+                                 unicode_report=unicode_report,
+                                 thinking_mode=args.reasoning_effort)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)

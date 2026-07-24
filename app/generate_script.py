@@ -462,6 +462,8 @@ class LLMGenParams:
     instruct_temperature: float = None
     segment_output_ratio: float = 3.0
     presegment_quotes: bool = False
+    reasoning_allowance: int = 0
+    reasoning_effort: str = None
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
@@ -474,6 +476,31 @@ def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
             os.rename(log_path, backup_path)
         except OSError:
             pass  # If rotation fails, just append to existing log
+
+
+def classify_length_finish(content, reasoning_tokens, already_escalated):
+    """Decide what a finish_reason=length response means.
+
+    Returns "reasoning_overflow" when a reasoning model spent its whole budget
+    thinking and emitted no visible content, and has already been given one
+    larger budget. Returns "escalate_once" for the first such response, and
+    "truncated_output" for ordinary visible truncation, which keeps its existing
+    retry and subdivision handling. Rule 10: one policy, applied the same way on
+    every attempt.
+    """
+    if reasoning_tokens and not (content or "").strip():
+        return "reasoning_overflow" if already_escalated else "escalate_once"
+    return "truncated_output"
+
+
+def build_extra_body(params):
+    """Collect non-standard sampling options for the OpenAI-compatible call."""
+    return {k: v for k, v in {
+        "top_k": params.top_k,
+        "min_p": params.min_p,
+        "banned_tokens": params.banned_tokens if params.banned_tokens else None,
+        "reasoning_effort": params.reasoning_effort,
+    }.items() if v is not None}
 
 
 def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
@@ -605,6 +632,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     requested_max = params.max_tokens
     consecutive_severe = 0
     response_fingerprints = {}
+    # Persists across attempts: a reasoning model gets exactly one larger
+    # budget before the batch is failed (Rule 10 - one retry policy).
+    reasoning_escalated = False
     for attempt in range(max_retries + 1):
         t0 = time.time()
         truncation_retry_available = False
@@ -632,13 +662,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 top_p=params.top_p,
                 presence_penalty=params.presence_penalty,
                 max_tokens=effective_max,
-                extra_body={
-                    k: v for k, v in {
-                        "top_k": params.top_k,
-                        "min_p": params.min_p,
-                        "banned_tokens": params.banned_tokens if params.banned_tokens else None,
-                    }.items() if v is not None
-                }
+                extra_body=build_extra_body(params)
             )
 
             choice = response.choices[0]
@@ -691,6 +715,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 attempt_observer(attempt_record)
 
             if finish_reason == "length":
+                verdict = classify_length_finish(
+                    text, reasoning_tokens, reasoning_escalated)
+                if verdict == "reasoning_overflow":
+                    print("  Reasoning overflow: the model spent its whole "
+                          "budget thinking and returned no content. Failing "
+                          "this batch instead of subdividing.")
+                    if attempt_record is not None:
+                        attempt_record["outcome"] = "response_rejected"
+                        attempt_record["failure_codes"] = ["reasoning_overflow"]
+                    return []
                 print(f"  WARNING: Response was truncated (hit effective max_tokens={effective_max}). Consider optimizing LM Studio context.")
                 if attempt < max_retries:
                     next_max = get_next_retry_max_tokens(
@@ -704,6 +738,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         requested_max = next_max
                         retry_feedback = None
                         truncation_retry_available = True
+                        if verdict == "escalate_once":
+                            reasoning_escalated = True
                     else:
                         print(f"  Token escalation exhausted: effective budget cannot grow "
                               f"beyond {effective_max} in the loaded context.")
