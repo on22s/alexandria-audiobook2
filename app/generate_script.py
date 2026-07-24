@@ -650,6 +650,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             repeat_count = response_fingerprints[response_fingerprint]
             finish_reason = choice.finish_reason
             usage = getattr(response, 'usage', None)
+            # Reasoning models bill thinking tokens to completion_tokens but
+            # return them in message.reasoning_content, so they are invisible
+            # to any budget sized on the visible response.
+            usage_details = getattr(usage, "completion_tokens_details", None)
+            reasoning_tokens = getattr(usage_details, "reasoning_tokens", None)
 
             # Log raw response for debugging (rotating to cap unbounded growth)
             log_path = get_response_log_path(log_name)
@@ -678,6 +683,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "effective_max_tokens": effective_max,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
+                    "reasoning_tokens": reasoning_tokens,
                     "error": None,
                     "response_fingerprint": response_fingerprint,
                     "response_repeat_count": repeat_count,

@@ -121,7 +121,8 @@ class PassExhausted(Exception):
 
 
 def attribute_batch(client, model_name, frozen_batch, params, roster,
-                    max_retries=3, on_exhaustion="fail", neighbor_contexts=None):
+                    max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
+                    attempt_observer=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -151,7 +152,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     named = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
-        validate_entries=validate)
+        validate_entries=validate, attempt_observer=attempt_observer)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
@@ -185,7 +186,8 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None):
 
 
 def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
-                   neighbor_contexts=None, exhaustion_sink=None):
+                   neighbor_contexts=None, exhaustion_sink=None,
+                   attempt_observer=None):
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
@@ -205,7 +207,7 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     annotated = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
-        validate_entries=validate)
+        validate_entries=validate, attempt_observer=attempt_observer)
     if annotated:
         # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
         # from prior (bound by validated index order); take only the instruct.
@@ -771,6 +773,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
     diagnostic_failures = list(state.get("diagnostic_failures", [])) if state else []
+    # Latest attempt seen by call_llm_for_entries, so a failure record can say
+    # why the batch failed instead of only which entry it was.
+    last_attempts = {}
+
+    def record_attempt(attempt):
+        last_attempts["latest"] = attempt
+
+    def last_attempt_for(_index):
+        return last_attempts.get("latest")
     attempts = []
 
     def save(stage):
@@ -887,16 +898,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 try:
                     new_named = attribute_batch(
                         client, model_name, batch, params, roster=roster,
-                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts)
+                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts,
+                        attempt_observer=record_attempt)
                 except PassExhausted:
                     if len(current) == 1:
                         if collect_all_failures:
                             index, entry = current[0]
-                            diagnostic_failures.append({
-                                "pass": "attribute", "entry": index,
-                                "text_sha256": hashlib.sha256(
-                                    entry["text"].encode()).hexdigest(),
-                                "text_preview": entry["text"][:500]})
+                            diagnostic_failures.append(build_failure_record(
+                                "attribute", index, entry["text"],
+                                last_attempt_for(index)))
                             save("attribute_incomplete")
                             continue
                         raise
@@ -966,7 +976,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             exhausted = []
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,
-                exhaustion_sink=exhausted)
+                exhaustion_sink=exhausted, attempt_observer=record_attempt)
             if exhausted and collect_all_failures and len(current) > 1:
                 midpoint = len(current) // 2
                 print(f"  Instruction batch exhausted; subdividing "
@@ -975,10 +985,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 continue
             if exhausted and collect_all_failures:
                 index, entry = current[0]
-                diagnostic_failures.append({
-                    "pass": "instruct", "entry": index,
-                    "text_sha256": hashlib.sha256(entry["text"].encode()).hexdigest(),
-                    "text_preview": entry["text"][:500]})
+                diagnostic_failures.append(build_failure_record(
+                    "instruct", index, entry["text"], last_attempt_for(index)))
             for (index, _), entry in zip(current, new_annotated):
                 annotated[index] = entry
             elapsed_s["instruct"] = inst_base + time.time() - inst_start
@@ -991,6 +999,42 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     save("done")
     emit_manifest("incomplete" if diagnostic_failures else "complete")
     return [entry for entry in annotated if isinstance(entry, dict)]
+
+
+def build_failure_record(pass_name, index, text, last_attempt=None):
+    """Build a diagnostic failure record carrying why the batch failed.
+
+    The earlier record shape (pass/entry/text_sha256/text_preview) said which
+    entry failed but never why, so causes had to be recovered by grepping run
+    logs. last_attempt is the final observed attempt dict from
+    generate_script's attempt_observer, or None when no attempt was recorded.
+    """
+    attempt = last_attempt or {}
+    codes = attempt.get("failure_codes") or []
+    return {
+        "pass": pass_name,
+        "entry": index,
+        "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "text_preview": text[:500],
+        "reason": codes[0] if codes else (attempt.get("outcome") or "unknown"),
+        "finish_reason": attempt.get("finish_reason"),
+        "prompt_tokens": attempt.get("prompt_tokens"),
+        "completion_tokens": attempt.get("completion_tokens"),
+        "reasoning_tokens": attempt.get("reasoning_tokens"),
+        "effective_max_tokens": attempt.get("effective_max_tokens"),
+        "attempt": attempt.get("attempt"),
+    }
+
+
+def build_run_manifest(model_name, thinking_mode, elapsed_s, counters,
+                       unicode_report, failures):
+    """Summarize one three-pass run so results need no log grepping."""
+    reasons = Counter(failure.get("reason") or "unknown" for failure in failures)
+    return {"model_name": model_name, "thinking_mode": thinking_mode,
+            "elapsed_s": dict(elapsed_s), "counters": dict(counters),
+            "unicode": dict(unicode_report),
+            "failure_reasons": dict(reasons),
+            "failure_count": len(failures)}
 
 
 MAX_REPLACEMENT_DENSITY = 0.02

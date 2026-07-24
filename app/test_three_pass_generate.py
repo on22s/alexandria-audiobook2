@@ -518,7 +518,7 @@ class CheckpointTests(unittest.TestCase):
         params = LLMGenParams(max_tokens=500, temperature=0.1)
 
         def exhaust_instruct(client, model, batch, params, neighbor_contexts=None,
-                             exhaustion_sink=None):
+                             exhaustion_sink=None, attempt_observer=None):
             exhaustion_sink.append(True)
             return [{**entry, "instruct": tp.default_instruct(entry)} for entry in batch]
 
