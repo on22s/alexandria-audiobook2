@@ -49,6 +49,23 @@ def _record_resolution(sink, value):
         sink.append(value)
 
 
+def as_profile_mapping(profile):
+    """Return a plain mapping for one three_pass_model_profiles entry.
+
+    load_app_config validates that section into ThreePassModelProfile objects,
+    but this module reads profiles with .get(), so a configured profile
+    previously crashed the run with AttributeError. None-valued fields are
+    dropped so an unset profile key falls through to the caller's default
+    instead of overriding it with None.
+    """
+    if profile is None:
+        return {}
+    if hasattr(profile, "model_dump"):
+        return {key: value for key, value in profile.model_dump().items()
+                if value is not None}
+    return profile
+
+
 def resolve_chunk_size(cli_value, config_value, model_value=None):
     """Resolve the effective chunk size (CLI overrides config) and validate it.
     Guards BOTH sources (finding #14): a bad config chunk_size previously slipped
@@ -1166,7 +1183,8 @@ def main():
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
-    model_profile = (gen.get("three_pass_model_profiles") or {}).get(model_name, {})
+    model_profile = as_profile_mapping(
+        (gen.get("three_pass_model_profiles") or {}).get(model_name))
     try:
         chunk_size = resolve_chunk_size(
             args.chunk_size, gen.get("three_pass_chunk_size", 3000),

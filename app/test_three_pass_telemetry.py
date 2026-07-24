@@ -31,6 +31,38 @@ class BuildFailureRecordTest(unittest.TestCase):
         self.assertEqual(record["reason"], "unknown")
 
 
+class ModelProfileMappingTest(unittest.TestCase):
+    """load_app_config validates profiles into ThreePassModelProfile objects,
+    but this module reads them with .get(). A configured profile previously
+    crashed the run with AttributeError."""
+
+    def test_pydantic_profile_is_readable(self):
+        from config_settings import ThreePassModelProfile
+        from three_pass_generate import as_profile_mapping
+        profile = as_profile_mapping(
+            ThreePassModelProfile(segment_output_ratio=5.0))
+        self.assertEqual(profile.get("segment_output_ratio"), 5.0)
+
+    def test_unset_fields_fall_back_to_the_default(self):
+        from config_settings import ThreePassModelProfile
+        from three_pass_generate import as_profile_mapping
+        profile = as_profile_mapping(
+            ThreePassModelProfile(segment_output_ratio=5.0))
+        # model_dump() emits None for unset fields; those must not shadow the
+        # caller's default or chunk_size would become None.
+        self.assertEqual(profile.get("chunk_size", 3000), 3000)
+
+    def test_plain_dict_still_works(self):
+        from three_pass_generate import as_profile_mapping
+        self.assertEqual(
+            as_profile_mapping({"segment_output_ratio": 4.0}),
+            {"segment_output_ratio": 4.0})
+
+    def test_missing_profile_is_empty(self):
+        from three_pass_generate import as_profile_mapping
+        self.assertEqual(as_profile_mapping(None), {})
+
+
 class ObserverPlumbingTest(unittest.TestCase):
 
     def test_attribute_batch_accepts_an_observer(self):
