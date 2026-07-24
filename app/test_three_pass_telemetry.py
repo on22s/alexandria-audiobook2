@@ -63,6 +63,39 @@ class ModelProfileMappingTest(unittest.TestCase):
         self.assertEqual(as_profile_mapping(None), {})
 
 
+class SegmentFailureReasonTest(unittest.TestCase):
+    """Pass-1 fails per source chunk, not per entry, so it has its own record
+    builder. It must still expose "reason" or the manifest rollup buckets every
+    segment failure as unknown."""
+
+    def test_reason_comes_from_the_failure_codes(self):
+        from three_pass_generate import build_segment_failure_record
+        record = build_segment_failure_record(
+            4, "some source text", ["low_recall", "adjacent_duplicate"])
+        self.assertEqual(record["pass"], "segment")
+        self.assertEqual(record["chunk"], 4)
+        self.assertEqual(record["reason"], "adjacent_duplicate")
+        self.assertEqual(record["failure_codes"],
+                         ["adjacent_duplicate", "low_recall"])
+        self.assertEqual(record["source_characters"], len("some source text"))
+        self.assertEqual(len(record["source_sha256"]), 64)
+
+    def test_reason_falls_back_when_no_codes(self):
+        from three_pass_generate import build_segment_failure_record
+        record = build_segment_failure_record(1, "text", [])
+        self.assertEqual(record["reason"], "segment_exhausted")
+
+    def test_rollup_counts_segment_failures(self):
+        from three_pass_generate import build_segment_failure_record
+        from collections import Counter
+        failures = [build_segment_failure_record(1, "a", ["low_recall"]),
+                    build_segment_failure_record(2, "b", [])]
+        reasons = Counter(f.get("reason") or "unknown" for f in failures)
+        self.assertEqual(reasons["low_recall"], 1)
+        self.assertEqual(reasons["segment_exhausted"], 1)
+        self.assertNotIn("unknown", reasons)
+
+
 class ObserverPlumbingTest(unittest.TestCase):
 
     def test_attribute_batch_accepts_an_observer(self):
