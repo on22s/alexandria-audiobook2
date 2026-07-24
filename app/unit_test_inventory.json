@@ -179,6 +179,14 @@
     "test_chunk_quality.TrigramNearMissAcceptanceTests.test_real_validator_produces_a_trigram_only_near_miss",
     "test_chunk_quality.TrigramNearMissAcceptanceTests.test_split_recombination_accepted_as_near_miss"
   ],
+  "test_compare_attribution_arms": [
+    "test_compare_attribution_arms.FindDisagreementsTest.test_differing_speaker_is_reported",
+    "test_compare_attribution_arms.FindDisagreementsTest.test_length_mismatch_raises",
+    "test_compare_attribution_arms.FindDisagreementsTest.test_matching_arms_have_no_disagreements",
+    "test_compare_attribution_arms.FindDisagreementsTest.test_null_entries_are_skipped",
+    "test_compare_attribution_arms.SampleDisagreementsTest.test_sample_is_deterministic_for_a_seed",
+    "test_compare_attribution_arms.SampleDisagreementsTest.test_sample_smaller_than_size_returns_all"
+  ],
   "test_config_regressions": [
     "test_config_regressions.ConfigTests.test_app_config_loader_ignores_invalid_legacy_values_without_writing",
     "test_config_regressions.ConfigTests.test_app_config_loader_returns_fresh_shape_safe_data",
@@ -514,6 +522,23 @@
     "test_project_chunks.SpeakableEntryTests.test_nonverbal_dialogue_becomes_pause_without_mutating_input",
     "test_project_chunks.SpeakableEntryTests.test_spoken_words_with_punctuation_remain_speakable"
   ],
+  "test_reasoning_budget": [
+    "test_reasoning_budget.ReasoningAllowanceTest.test_allowance_tracks_p95_of_observations",
+    "test_reasoning_budget.ReasoningAllowanceTest.test_cold_start_is_zero",
+    "test_reasoning_budget.ReasoningAllowanceTest.test_first_observation_lifts_to_the_floor",
+    "test_reasoning_budget.ReasoningAllowanceTest.test_non_reasoning_model_stays_at_zero",
+    "test_reasoning_budget.ReasoningAllowanceTest.test_none_observations_stay_at_zero",
+    "test_reasoning_budget.ReasoningEffortPlumbingTest.test_reasoning_effort_reaches_extra_body",
+    "test_reasoning_budget.ReasoningEffortPlumbingTest.test_unset_reasoning_effort_is_omitted",
+    "test_reasoning_budget.ReasoningOverflowTest.test_empty_content_with_reasoning_is_overflow",
+    "test_reasoning_budget.ReasoningOverflowTest.test_non_reasoning_model_never_reports_overflow",
+    "test_reasoning_budget.ReasoningOverflowTest.test_second_overflow_fails_fast",
+    "test_reasoning_budget.ReasoningOverflowTest.test_truncated_visible_output_is_not_overflow",
+    "test_reasoning_budget.ResolveCompletionCeilingTest.test_allowance_does_not_shrink_the_visible_budget",
+    "test_reasoning_budget.ResolveCompletionCeilingTest.test_floor_still_applies",
+    "test_reasoning_budget.ResolveCompletionCeilingTest.test_non_reasoning_model_keeps_todays_ceiling",
+    "test_reasoning_budget.ResolveCompletionCeilingTest.test_reasoning_allowance_is_added_on_top"
+  ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
@@ -654,6 +679,19 @@
     "test_script_preflight.ScriptPreflightTests.test_speaker_review_only_suggests_strong_third_person_case",
     "test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
   ],
+  "test_source_normalization_lossy": [
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_apostrophe_between_letters",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_clean_text_is_untouched",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_close_quote_after_sentence_punctuation",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_copyright_before_year",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_em_dash_before_capital",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_en_dash_after_digit",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_multi_run_is_several_characters",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_neutralize_is_noop_on_clean_text",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_open_quote_after_newline",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_residual_is_neutralized_to_apostrophe",
+    "test_source_normalization_lossy.RepairLossyReplacementsTest.test_triple_run_is_quoted_ellipsis"
+  ],
   "test_speaker_identity": [
     "test_speaker_identity.SpeakerIdentityTests.test_consistency_report_counts_usage_and_deduplicates_suggestions",
     "test_speaker_identity.SpeakerIdentityTests.test_distinct_names_are_not_reported",
@@ -744,6 +782,18 @@
     "test_three_pass_generate.RescueBudgetTests.test_window_fits_returns_true_when_context_unknown",
     "test_three_pass_generate.SegmentRepairTypeSafetyTests.test_segment_repair_does_not_merge_empty_across_type",
     "test_three_pass_generate.SegmentRepairTypeSafetyTests.test_single_pass_default_still_merges_empty_into_pause"
+  ],
+  "test_three_pass_telemetry": [
+    "test_three_pass_telemetry.BuildFailureRecordTest.test_record_carries_causal_fields",
+    "test_three_pass_telemetry.BuildFailureRecordTest.test_record_tolerates_missing_attempt_data",
+    "test_three_pass_telemetry.ObserverPlumbingTest.test_attribute_batch_accepts_an_observer"
+  ],
+  "test_three_pass_unicode_gate": [
+    "test_three_pass_unicode_gate.PrepareSourceTextTest.test_clean_source_passes_through",
+    "test_three_pass_unicode_gate.PrepareSourceTextTest.test_damaged_source_is_repaired_and_reported",
+    "test_three_pass_unicode_gate.PrepareSourceTextTest.test_density_above_threshold_is_rejected",
+    "test_three_pass_unicode_gate.PrepareSourceTextTest.test_index18_density_is_admitted",
+    "test_three_pass_unicode_gate.PrepareSourceTextTest.test_unsafe_control_characters_are_rejected"
   ],
   "test_thunder_benchmark_documentation": [
     "test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
