@@ -18,8 +18,11 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
                              fix_mojibake, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss)
-from source_normalization import (normalize_known_source_corruptions,
+from source_normalization import (neutralize_lossy_residue,
+                                  normalize_known_source_corruptions,
+                                  repair_lossy_replacements,
                                   strip_known_front_matter)
+from script_preflight import audit_unicode_text
 from speaker_identity import stabilize_speaker_identities
 from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
@@ -44,6 +47,23 @@ def _record_resolution(sink, value):
     provided. `sink` is a per-chunk list; callers read its last entry."""
     if sink is not None:
         sink.append(value)
+
+
+def as_profile_mapping(profile):
+    """Return a plain mapping for one three_pass_model_profiles entry.
+
+    load_app_config validates that section into ThreePassModelProfile objects,
+    but this module reads profiles with .get(), so a configured profile
+    previously crashed the run with AttributeError. None-valued fields are
+    dropped so an unset profile key falls through to the caller's default
+    instead of overriding it with None.
+    """
+    if profile is None:
+        return {}
+    if hasattr(profile, "model_dump"):
+        return {key: value for key, value in profile.model_dump().items()
+                if value is not None}
+    return profile
 
 
 def resolve_chunk_size(cli_value, config_value, model_value=None):
@@ -118,7 +138,8 @@ class PassExhausted(Exception):
 
 
 def attribute_batch(client, model_name, frozen_batch, params, roster,
-                    max_retries=3, on_exhaustion="fail", neighbor_contexts=None):
+                    max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
+                    attempt_observer=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -148,7 +169,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     named = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="ATTRIBUTE", max_retries=max_retries,
-        validate_entries=validate)
+        validate_entries=validate, attempt_observer=attempt_observer)
     if named:
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
@@ -182,7 +203,8 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None):
 
 
 def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
-                   neighbor_contexts=None, exhaustion_sink=None):
+                   neighbor_contexts=None, exhaustion_sink=None,
+                   attempt_observer=None):
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
@@ -202,7 +224,7 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     annotated = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, call_params,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
-        validate_entries=validate)
+        validate_entries=validate, attempt_observer=attempt_observer)
     if annotated:
         # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
         # from prior (bound by validated index order); take only the instruct.
@@ -244,7 +266,8 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     # both the first request and retry ceiling so a weak model cannot spend
     # 10k-16k tokens expanding a ~1k-token source chunk.
     source_words = max(1, len(chunk.split()))
-    completion_ceiling = max(512, math.ceil(source_words * params.segment_output_ratio))
+    completion_ceiling = resolve_completion_ceiling(
+        source_words, params, reasoning_allowance=params.reasoning_allowance)
     bounded_params = replace(
         params, max_tokens=min(params.max_tokens, completion_ceiling),
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
@@ -660,7 +683,7 @@ def _resolution_counts(resolutions):
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
-                    progress=None, diagnostic_failures=None):
+                    progress=None, diagnostic_failures=None, telemetry=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -675,6 +698,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "legacy_resume": legacy_resume,
         "progress": progress or {},
         "diagnostic_failures": diagnostic_failures or [],
+        "telemetry": telemetry or {},
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -733,7 +757,8 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
                    context_windows=None, context_rescue_retries=None, endpoint=None,
-                   collect_all_failures=False):
+                   collect_all_failures=False, thinking_mode=None,
+                   unicode_report=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
@@ -768,6 +793,22 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
     diagnostic_failures = list(state.get("diagnostic_failures", [])) if state else []
+    # Latest attempt seen by call_llm_for_entries, so a failure record can say
+    # why the batch failed instead of only which entry it was.
+    last_attempts = {}
+
+    reasoning_allowance = ReasoningAllowance()
+
+    def record_attempt(attempt):
+        last_attempts["latest"] = attempt
+        # Size the next call from what this model has actually shown. Stays at
+        # zero for a model that never reports reasoning_tokens, so a
+        # non-reasoning model keeps exactly today's ceiling.
+        reasoning_allowance.observe(attempt.get("reasoning_tokens"))
+        params.reasoning_allowance = reasoning_allowance.current()
+
+    def last_attempt_for(_index):
+        return last_attempts.get("latest")
     attempts = []
 
     def save(stage):
@@ -782,6 +823,17 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             code for attempt in attempts
             for code in (attempt.get("failure_codes") or []))
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                        telemetry={
+                            "model_name": model_name,
+                            "thinking_mode": thinking_mode or "default",
+                            "unicode": dict(unicode_report or {}),
+                            "failure_reasons": dict(Counter(
+                                f.get("reason") or "unknown"
+                                for f in diagnostic_failures)),
+                            "truncations": sum(
+                                f.get("finish_reason") == "length"
+                                for f in diagnostic_failures),
+                        },
                         failed_pass=failed_pass, failed_chunk=failed_chunk,
                         legacy_resume=legacy_resume, progress={
                             "source_words": len(source_text.split()),
@@ -884,16 +936,15 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 try:
                     new_named = attribute_batch(
                         client, model_name, batch, params, roster=roster,
-                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts)
+                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts,
+                        attempt_observer=record_attempt)
                 except PassExhausted:
                     if len(current) == 1:
                         if collect_all_failures:
                             index, entry = current[0]
-                            diagnostic_failures.append({
-                                "pass": "attribute", "entry": index,
-                                "text_sha256": hashlib.sha256(
-                                    entry["text"].encode()).hexdigest(),
-                                "text_preview": entry["text"][:500]})
+                            diagnostic_failures.append(build_failure_record(
+                                "attribute", index, entry["text"],
+                                last_attempt_for(index)))
                             save("attribute_incomplete")
                             continue
                         raise
@@ -963,7 +1014,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             exhausted = []
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,
-                exhaustion_sink=exhausted)
+                exhaustion_sink=exhausted, attempt_observer=record_attempt)
             if exhausted and collect_all_failures and len(current) > 1:
                 midpoint = len(current) // 2
                 print(f"  Instruction batch exhausted; subdividing "
@@ -972,10 +1023,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 continue
             if exhausted and collect_all_failures:
                 index, entry = current[0]
-                diagnostic_failures.append({
-                    "pass": "instruct", "entry": index,
-                    "text_sha256": hashlib.sha256(entry["text"].encode()).hexdigest(),
-                    "text_preview": entry["text"][:500]})
+                diagnostic_failures.append(build_failure_record(
+                    "instruct", index, entry["text"], last_attempt_for(index)))
             for (index, _), entry in zip(current, new_annotated):
                 annotated[index] = entry
             elapsed_s["instruct"] = inst_base + time.time() - inst_start
@@ -988,6 +1037,100 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     save("done")
     emit_manifest("incomplete" if diagnostic_failures else "complete")
     return [entry for entry in annotated if isinstance(entry, dict)]
+
+
+def build_failure_record(pass_name, index, text, last_attempt=None):
+    """Build a diagnostic failure record carrying why the batch failed.
+
+    The earlier record shape (pass/entry/text_sha256/text_preview) said which
+    entry failed but never why, so causes had to be recovered by grepping run
+    logs. last_attempt is the final observed attempt dict from
+    generate_script's attempt_observer, or None when no attempt was recorded.
+    """
+    attempt = last_attempt or {}
+    codes = attempt.get("failure_codes") or []
+    return {
+        "pass": pass_name,
+        "entry": index,
+        "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "text_preview": text[:500],
+        "reason": codes[0] if codes else (attempt.get("outcome") or "unknown"),
+        "finish_reason": attempt.get("finish_reason"),
+        "prompt_tokens": attempt.get("prompt_tokens"),
+        "completion_tokens": attempt.get("completion_tokens"),
+        "reasoning_tokens": attempt.get("reasoning_tokens"),
+        "effective_max_tokens": attempt.get("effective_max_tokens"),
+        "attempt": attempt.get("attempt"),
+    }
+
+
+REASONING_ALLOWANCE_FLOOR = 1024
+
+
+class ReasoningAllowance:
+    """Track a model's observed thinking-token cost.
+
+    Reasoning tokens bill to completion_tokens but are returned in
+    message.reasoning_content, so a ceiling sized on visible output truncates a
+    reasoning model mid-thought. A model that never reports reasoning_tokens
+    keeps an allowance of zero, so non-reasoning behaviour is unchanged.
+    """
+
+    def __init__(self):
+        self._observations = []
+
+    def observe(self, reasoning_tokens):
+        if reasoning_tokens:
+            self._observations.append(int(reasoning_tokens))
+
+    def current(self):
+        if not self._observations:
+            return 0
+        ordered = sorted(self._observations)
+        index = min(len(ordered) - 1, int(len(ordered) * 0.95))
+        return max(REASONING_ALLOWANCE_FLOOR, ordered[index])
+
+
+def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
+    """Bound segmentation output, leaving room for invisible reasoning.
+
+    The visible-output bound is unchanged from the original: it stops a weak
+    model spending 10k-16k tokens expanding a ~1k-token chunk. The reasoning
+    allowance is added on top rather than carved out of it, so a reasoning
+    model gets the same visible budget as everyone else.
+    """
+    visible = max(512, math.ceil(max(1, source_words) * params.segment_output_ratio))
+    return visible + max(0, int(reasoning_allowance))
+
+
+MAX_REPLACEMENT_DENSITY = 0.02
+
+
+def prepare_source_text(book):
+    """Repair, neutralize and audit source text before any LLM call.
+
+    Mirrors production's gate in generate_script.main (audit_unicode_text then
+    hard failure) so the diagnostic CLI cannot spend hours on a source that
+    production would reject outright. Raises ValueError rather than exiting so
+    the behaviour is testable; main() turns it into a non-zero exit.
+    """
+    damaged = book.count("�")
+    if damaged and damaged / max(len(book), 1) > MAX_REPLACEMENT_DENSITY:
+        raise ValueError(
+            f"source replacement-character density "
+            f"{damaged / len(book):.1%} exceeds the "
+            f"{MAX_REPLACEMENT_DENSITY:.0%} ceiling; refusing to process it")
+    book, repairs = repair_lossy_replacements(book)
+    book, residual = neutralize_lossy_residue(book)
+    report = audit_unicode_text(book)
+    if report["unsafe_controls"]:
+        raise ValueError("source contains unsafe control characters: "
+                         f"{report['unsafe_controls']}")
+    if report["replacement_character_count"]:
+        raise ValueError("source still contains replacement characters after "
+                         "repair; refusing to process it")
+    return book, {"repaired": len(repairs), "residual": residual,
+                  "scripts": report["scripts"], "is_nfc": report["is_nfc"]}
 
 
 def main():
@@ -1003,6 +1146,9 @@ def main():
                              "'fallback' degrades gracefully (production).")
     parser.add_argument("--preflight", action="store_true",
                         help="Run first/middle/dialogue-heavy samples only.")
+    parser.add_argument("--reasoning-effort", default=None,
+                        help="Pass through to the model (e.g. 'none' to "
+                             "disable thinking on a reasoning model).")
     parser.add_argument("--collect-all-failures", action="store_true",
                         help="Diagnostic mode: record exhausted work, continue, "
                              "write only a .partial.json result, and exit nonzero.")
@@ -1010,12 +1156,25 @@ def main():
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
 
-    with open(args.input_file, encoding="utf-8", errors="replace") as fh:
-        book = fh.read()
+    try:
+        with open(args.input_file, encoding="utf-8") as fh:
+            book = fh.read()
+    except UnicodeDecodeError as exc:
+        print(f"Error: {args.input_file} is not valid UTF-8: {exc}")
+        sys.exit(1)
     book = fix_mojibake(book)
     book, _ = normalize_known_source_corruptions(book)
     if args.strip_front_matter:
         book, _ = strip_known_front_matter(book)
+    try:
+        book, unicode_report = prepare_source_text(book)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
+    if unicode_report["repaired"] or unicode_report["residual"]:
+        print(f"Repaired {unicode_report['repaired']} destroyed character(s); "
+              f"neutralized {unicode_report['residual']} unrecoverable one(s). "
+              "The source file was not modified.")
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)
@@ -1024,7 +1183,8 @@ def main():
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
-    model_profile = (gen.get("three_pass_model_profiles") or {}).get(model_name, {})
+    model_profile = as_profile_mapping(
+        (gen.get("three_pass_model_profiles") or {}).get(model_name))
     try:
         chunk_size = resolve_chunk_size(
             args.chunk_size, gen.get("three_pass_chunk_size", 3000),
@@ -1055,7 +1215,8 @@ def main():
         segment_output_ratio=model_profile.get(
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         presegment_quotes=model_profile.get(
-            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)))
+            "presegment_quotes", gen.get("three_pass_presegment_quotes", True)),
+        reasoning_effort=args.reasoning_effort)
     client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
@@ -1095,7 +1256,9 @@ def main():
                                  context_windows=context_windows,
                                  context_rescue_retries=context_rescue_retries,
                                  endpoint=base_url,
-                                 collect_all_failures=args.collect_all_failures)
+                                 collect_all_failures=args.collect_all_failures,
+                                 unicode_report=unicode_report,
+                                 thinking_mode=args.reasoning_effort)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)

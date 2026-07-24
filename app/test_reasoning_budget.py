@@ -1,0 +1,113 @@
+import unittest
+
+from generate_script import LLMGenParams
+from three_pass_generate import (ReasoningAllowance, resolve_completion_ceiling)
+
+
+class ResolveCompletionCeilingTest(unittest.TestCase):
+
+    def test_non_reasoning_model_keeps_todays_ceiling(self):
+        params = LLMGenParams(segment_output_ratio=3.0)
+        ceiling = resolve_completion_ceiling(
+            source_words=400, params=params, reasoning_allowance=0)
+        self.assertEqual(ceiling, 1200)
+
+    def test_floor_still_applies(self):
+        params = LLMGenParams(segment_output_ratio=3.0)
+        ceiling = resolve_completion_ceiling(
+            source_words=10, params=params, reasoning_allowance=0)
+        self.assertEqual(ceiling, 512)
+
+    def test_reasoning_allowance_is_added_on_top(self):
+        params = LLMGenParams(segment_output_ratio=3.0)
+        ceiling = resolve_completion_ceiling(
+            source_words=400, params=params, reasoning_allowance=2048)
+        self.assertEqual(ceiling, 1200 + 2048)
+
+    def test_allowance_does_not_shrink_the_visible_budget(self):
+        params = LLMGenParams(segment_output_ratio=3.0)
+        without = resolve_completion_ceiling(
+            source_words=400, params=params, reasoning_allowance=0)
+        with_allowance = resolve_completion_ceiling(
+            source_words=400, params=params, reasoning_allowance=5000)
+        self.assertGreater(with_allowance, without)
+
+
+class ReasoningAllowanceTest(unittest.TestCase):
+
+    def test_cold_start_is_zero(self):
+        allowance = ReasoningAllowance()
+        self.assertEqual(allowance.current(), 0)
+
+    def test_first_observation_lifts_to_the_floor(self):
+        allowance = ReasoningAllowance()
+        allowance.observe(1500)
+        self.assertGreaterEqual(allowance.current(), 1024)
+
+    def test_non_reasoning_model_stays_at_zero(self):
+        allowance = ReasoningAllowance()
+        for _ in range(10):
+            allowance.observe(0)
+        self.assertEqual(allowance.current(), 0)
+
+    def test_none_observations_stay_at_zero(self):
+        allowance = ReasoningAllowance()
+        for _ in range(10):
+            allowance.observe(None)
+        self.assertEqual(allowance.current(), 0)
+
+    def test_allowance_tracks_p95_of_observations(self):
+        allowance = ReasoningAllowance()
+        for value in list(range(1000, 3000, 100)) + [9000]:
+            allowance.observe(value)
+        self.assertGreaterEqual(allowance.current(), 2800)
+        self.assertLessEqual(allowance.current(), 9000)
+
+
+class ReasoningOverflowTest(unittest.TestCase):
+
+    def test_empty_content_with_reasoning_is_overflow(self):
+        from generate_script import classify_length_finish
+        self.assertEqual(
+            classify_length_finish(content="", reasoning_tokens=9987,
+                                   already_escalated=False),
+            "escalate_once")
+
+    def test_second_overflow_fails_fast(self):
+        from generate_script import classify_length_finish
+        self.assertEqual(
+            classify_length_finish(content="", reasoning_tokens=9987,
+                                   already_escalated=True),
+            "reasoning_overflow")
+
+    def test_truncated_visible_output_is_not_overflow(self):
+        from generate_script import classify_length_finish
+        self.assertEqual(
+            classify_length_finish(content='[{"n": 0, "speaker": "ARARAGI"}',
+                                   reasoning_tokens=0, already_escalated=False),
+            "truncated_output")
+
+    def test_non_reasoning_model_never_reports_overflow(self):
+        from generate_script import classify_length_finish
+        self.assertEqual(
+            classify_length_finish(content="", reasoning_tokens=None,
+                                   already_escalated=True),
+            "truncated_output")
+
+
+class ReasoningEffortPlumbingTest(unittest.TestCase):
+
+    def test_reasoning_effort_reaches_extra_body(self):
+        from generate_script import build_extra_body
+        body = build_extra_body(LLMGenParams(top_k=40, reasoning_effort="none"))
+        self.assertEqual(body["reasoning_effort"], "none")
+        self.assertEqual(body["top_k"], 40)
+
+    def test_unset_reasoning_effort_is_omitted(self):
+        from generate_script import build_extra_body
+        body = build_extra_body(LLMGenParams(top_k=40))
+        self.assertNotIn("reasoning_effort", body)
+
+
+if __name__ == "__main__":
+    unittest.main()
