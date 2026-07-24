@@ -18,8 +18,11 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
                              fix_mojibake, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss)
-from source_normalization import (normalize_known_source_corruptions,
+from source_normalization import (neutralize_lossy_residue,
+                                  normalize_known_source_corruptions,
+                                  repair_lossy_replacements,
                                   strip_known_front_matter)
+from script_preflight import audit_unicode_text
 from speaker_identity import stabilize_speaker_identities
 from script_repair import build_deterministic_repair
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
@@ -990,6 +993,36 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     return [entry for entry in annotated if isinstance(entry, dict)]
 
 
+MAX_REPLACEMENT_DENSITY = 0.02
+
+
+def prepare_source_text(book):
+    """Repair, neutralize and audit source text before any LLM call.
+
+    Mirrors production's gate in generate_script.main (audit_unicode_text then
+    hard failure) so the diagnostic CLI cannot spend hours on a source that
+    production would reject outright. Raises ValueError rather than exiting so
+    the behaviour is testable; main() turns it into a non-zero exit.
+    """
+    damaged = book.count("�")
+    if damaged and damaged / max(len(book), 1) > MAX_REPLACEMENT_DENSITY:
+        raise ValueError(
+            f"source replacement-character density "
+            f"{damaged / len(book):.1%} exceeds the "
+            f"{MAX_REPLACEMENT_DENSITY:.0%} ceiling; refusing to process it")
+    book, repairs = repair_lossy_replacements(book)
+    book, residual = neutralize_lossy_residue(book)
+    report = audit_unicode_text(book)
+    if report["unsafe_controls"]:
+        raise ValueError("source contains unsafe control characters: "
+                         f"{report['unsafe_controls']}")
+    if report["replacement_character_count"]:
+        raise ValueError("source still contains replacement characters after "
+                         "repair; refusing to process it")
+    return book, {"repaired": len(repairs), "residual": residual,
+                  "scripts": report["scripts"], "is_nfc": report["is_nfc"]}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Three-pass annotated script generation.")
     parser.add_argument("input_file")
@@ -1010,12 +1043,25 @@ def main():
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
 
-    with open(args.input_file, encoding="utf-8", errors="replace") as fh:
-        book = fh.read()
+    try:
+        with open(args.input_file, encoding="utf-8") as fh:
+            book = fh.read()
+    except UnicodeDecodeError as exc:
+        print(f"Error: {args.input_file} is not valid UTF-8: {exc}")
+        sys.exit(1)
     book = fix_mojibake(book)
     book, _ = normalize_known_source_corruptions(book)
     if args.strip_front_matter:
         book, _ = strip_known_front_matter(book)
+    try:
+        book, unicode_report = prepare_source_text(book)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
+    if unicode_report["repaired"] or unicode_report["residual"]:
+        print(f"Repaired {unicode_report['repaired']} destroyed character(s); "
+              f"neutralized {unicode_report['residual']} unrecoverable one(s). "
+              "The source file was not modified.")
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)
