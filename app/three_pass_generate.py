@@ -665,7 +665,7 @@ def _resolution_counts(resolutions):
 
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
-                    progress=None, diagnostic_failures=None):
+                    progress=None, diagnostic_failures=None, telemetry=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -680,6 +680,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "legacy_resume": legacy_resume,
         "progress": progress or {},
         "diagnostic_failures": diagnostic_failures or [],
+        "telemetry": telemetry or {},
     }
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
@@ -738,7 +739,8 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
                    context_windows=None, context_rescue_retries=None, endpoint=None,
-                   collect_all_failures=False):
+                   collect_all_failures=False, thinking_mode=None,
+                   unicode_report=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. When output_path is given, saves a
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
@@ -796,6 +798,17 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             code for attempt in attempts
             for code in (attempt.get("failure_codes") or []))
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
+                        telemetry={
+                            "model_name": model_name,
+                            "thinking_mode": thinking_mode or "default",
+                            "unicode": dict(unicode_report or {}),
+                            "failure_reasons": dict(Counter(
+                                f.get("reason") or "unknown"
+                                for f in diagnostic_failures)),
+                            "truncations": sum(
+                                f.get("finish_reason") == "length"
+                                for f in diagnostic_failures),
+                        },
                         failed_pass=failed_pass, failed_chunk=failed_chunk,
                         legacy_resume=legacy_resume, progress={
                             "source_words": len(source_text.split()),
@@ -1026,17 +1039,6 @@ def build_failure_record(pass_name, index, text, last_attempt=None):
     }
 
 
-def build_run_manifest(model_name, thinking_mode, elapsed_s, counters,
-                       unicode_report, failures):
-    """Summarize one three-pass run so results need no log grepping."""
-    reasons = Counter(failure.get("reason") or "unknown" for failure in failures)
-    return {"model_name": model_name, "thinking_mode": thinking_mode,
-            "elapsed_s": dict(elapsed_s), "counters": dict(counters),
-            "unicode": dict(unicode_report),
-            "failure_reasons": dict(reasons),
-            "failure_count": len(failures)}
-
-
 MAX_REPLACEMENT_DENSITY = 0.02
 
 
@@ -1185,7 +1187,8 @@ def main():
                                  context_windows=context_windows,
                                  context_rescue_retries=context_rescue_retries,
                                  endpoint=base_url,
-                                 collect_all_failures=args.collect_all_failures)
+                                 collect_all_failures=args.collect_all_failures,
+                                 unicode_report=unicode_report)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
