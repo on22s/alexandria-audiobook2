@@ -48,6 +48,32 @@ _VERIFIED_LOCAL_PROFILES = {
         "model_vram_bytes": int(7.20 * 1024 ** 3),
         "bytes_per_extra_context_token": 16 * 1024,
     },
+    # Both ministrals measured 2026-07-24 on this card (15.92 GiB total):
+    # ~8.8 GiB of weights, but ~160 KiB/token of KV cache - ten times the
+    # gemma/qwen figure, so context is what constrains them, not weights.
+    # 32768 was measured and left only ~1.5 GiB, under the 2 GiB reserve;
+    # 16384 projects to ~11.9 GiB used with ~4.0 GiB spare. Kept at 16384
+    # rather than the 24576 that also fits, because this is a load-time
+    # measurement rather than the sustained near-limit run this table wants.
+    "ministral-3-14b-instruct-2512": {
+        "context_length": 16384,
+        "parallel": 1,
+        "model_vram_bytes": int(8.90 * 1024 ** 3),
+        # Measured 158.90 KiB/token; rounded up to cover transient workspaces.
+        "bytes_per_extra_context_token": 176 * 1024,
+    },
+    "ministral-3-14b-instruct-2512-absolute-heresy-i1": {
+        "context_length": 16384,
+        "parallel": 1,
+        "model_vram_bytes": int(8.80 * 1024 ** 3),
+        # Measured 163.05 KiB/token; rounded up to cover transient workspaces.
+        "bytes_per_extra_context_token": 176 * 1024,
+    },
+    # gemma-4-12b-coder-fable5-composer2.5-v1 (13.45 GiB) and
+    # qwen3.6-27b-uncensored-hauhaucs-aggressive (12.67 GiB) are deliberately
+    # absent: both exceed the 2 GiB reserve at the 8192 baseline already
+    # (0.53 and 1.33 GiB spare), so no context setting makes them safe here.
+    # They stay on the conservative fallback.
 }
 _LOCAL_VRAM_RESERVE_BYTES = 2 * 1024 ** 3
 

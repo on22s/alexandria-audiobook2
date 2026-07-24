@@ -66,6 +66,32 @@ def as_profile_mapping(profile):
     return profile
 
 
+DEFAULT_MODEL_PROFILES_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "three_pass_model_profiles.json")
+
+
+def load_default_model_profiles(path=None):
+    """Return the measured per-model profiles checked into the repo.
+
+    app/config.json is gitignored and machine-local, so profiles set only
+    there would not reproduce on another machine. These defaults ship with the
+    code; config.json still wins per key for local experiments.
+    """
+    try:
+        with open(path or DEFAULT_MODEL_PROFILES_PATH, encoding="utf-8") as handle:
+            loaded = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def resolve_model_profile(model_name, config_profiles, defaults):
+    """Merge the checked-in profile for a model with any config override."""
+    merged = dict(as_profile_mapping((defaults or {}).get(model_name)))
+    merged.update(as_profile_mapping((config_profiles or {}).get(model_name)))
+    return merged
+
+
 def resolve_chunk_size(cli_value, config_value, model_value=None):
     """Resolve the effective chunk size (CLI overrides config) and validate it.
     Guards BOTH sources (finding #14): a bad config chunk_size previously slipped
@@ -1183,8 +1209,9 @@ def main():
     llm = config.get("llm", {})
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
-    model_profile = as_profile_mapping(
-        (gen.get("three_pass_model_profiles") or {}).get(model_name))
+    model_profile = resolve_model_profile(
+        model_name, gen.get("three_pass_model_profiles"),
+        load_default_model_profiles())
     try:
         chunk_size = resolve_chunk_size(
             args.chunk_size, gen.get("three_pass_chunk_size", 3000),

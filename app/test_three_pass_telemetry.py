@@ -75,5 +75,35 @@ class ObserverPlumbingTest(unittest.TestCase):
                       inspect.signature(instruct_batch).parameters)
 
 
+
+class CheckedInProfileDefaultsTest(unittest.TestCase):
+    """Measured per-model profiles ship in the repo so a run is reproducible
+    on another machine; app/config.json is gitignored and machine-local."""
+
+    def test_checked_in_defaults_load(self):
+        from three_pass_generate import load_default_model_profiles
+        defaults = load_default_model_profiles()
+        self.assertIsInstance(defaults, dict)
+
+    def test_config_profile_overrides_checked_in_default(self):
+        from three_pass_generate import resolve_model_profile
+        profile = resolve_model_profile(
+            "m", config_profiles={"m": {"segment_output_ratio": 9.9}},
+            defaults={"m": {"segment_output_ratio": 5.0, "chunk_size": 4000}})
+        self.assertEqual(profile["segment_output_ratio"], 9.9)
+        # Keys the config does not set still come from the checked-in default.
+        self.assertEqual(profile["chunk_size"], 4000)
+
+    def test_checked_in_default_used_when_config_is_silent(self):
+        from three_pass_generate import resolve_model_profile
+        profile = resolve_model_profile(
+            "m", config_profiles={}, defaults={"m": {"segment_output_ratio": 5.0}})
+        self.assertEqual(profile["segment_output_ratio"], 5.0)
+
+    def test_unknown_model_is_empty(self):
+        from three_pass_generate import resolve_model_profile
+        self.assertEqual(resolve_model_profile("nope", {}, {}), {})
+
+
 if __name__ == "__main__":
     unittest.main()

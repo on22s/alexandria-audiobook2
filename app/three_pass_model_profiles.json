@@ -1,0 +1,20 @@
+{
+  "gemma-4-12b-coder-fable5-composer2.5-v1": {
+    "segment_output_ratio": 3.5
+  },
+  "gemma-4-e4b-uncensored-hauhaucs-aggressive": {
+    "segment_output_ratio": 4.0
+  },
+  "ministral-3-14b-instruct-2512": {
+    "segment_output_ratio": 3.5
+  },
+  "ministral-3-14b-instruct-2512-absolute-heresy-i1": {
+    "segment_output_ratio": 3.5
+  },
+  "qwen3.5-9b-uncensored-hauhaucs-aggressive": {
+    "segment_output_ratio": 5.0
+  },
+  "qwen3.6-27b-uncensored-hauhaucs-aggressive": {
+    "segment_output_ratio": 3.5
+  }
+}
