@@ -124,3 +124,75 @@ def strip_known_front_matter(text):
         return text, None
     return text[match.end():], {"removed_chars": match.end(),
                                  "removed_lines": text.count("\n", 0, match.end())}
+
+
+_YEAR_RE = re.compile(r"\s*(?:1[89]|20)\d{2}\b")
+_REPLACEMENT = "�"
+
+
+def _nearest_surviving(chars, index, step):
+    """Return the closest non-U+FFFD neighbour in one direction.
+
+    Consecutive U+FFFD are separate destroyed characters, so a neighbour
+    lookup has to skip past them to find real context. Returns "\n" when it
+    runs off either end, which makes start/end of file behave like a line
+    boundary.
+    """
+    position = index + step
+    while 0 <= position < len(chars) and chars[position] == _REPLACEMENT:
+        position += step
+    return chars[position] if 0 <= position < len(chars) else "\n"
+
+
+def _infer_replacement(chars, index):
+    """Infer one destroyed character from its surroundings, or None."""
+    left = chars[index - 1] if index else "\n"
+    right = chars[index + 1] if index + 1 < len(chars) else "\n"
+    right_surviving = _nearest_surviving(chars, index, 1)
+    if _YEAR_RE.match("".join(chars[index + 1:index + 7])):
+        return "©"
+    if right == _REPLACEMENT and (left.isalnum() or left in ".,!?"):
+        return "…"
+    if left == _REPLACEMENT and right == _REPLACEMENT:
+        # Interior of a run of three or more, as in "\n���\n" -> "\n“…”\n".
+        return "…"
+    if left == _REPLACEMENT and right in "\n \t":
+        return "”"
+    if left in "\n \t" and (right_surviving.isalnum() or right == _REPLACEMENT):
+        return "“"
+    if left in ".!?,;:…" and right in "\n \t":
+        return "”"
+    if left.isalpha() and right.islower():
+        return "’"
+    if left.isalpha() and right.isupper():
+        return "—"
+    if left.isdigit():
+        return "–"
+    return None
+
+
+def repair_lossy_replacements(text):
+    """Infer characters destroyed into U+FFFD, returning text and evidence.
+
+    Distinct from generate_script.fix_mojibake, which repairs the recoverable
+    byte form (``â€™``). Here the original bytes are gone, so each U+FFFD is
+    inferred from its neighbours. Inference is per character position because
+    a run of U+FFFD is several destroyed characters, not one. Returns the text
+    unchanged when there is nothing to repair, and never mutates the source
+    file. Positions that cannot be inferred are left as U+FFFD for the caller's
+    residual policy to handle.
+    """
+    if _REPLACEMENT not in text:
+        return text, []
+    chars = list(text)
+    repairs = []
+    for index, char in enumerate(chars):
+        if char != _REPLACEMENT:
+            continue
+        inferred = _infer_replacement(chars, index)
+        if inferred is not None:
+            repairs.append({"offset": index, "before": _REPLACEMENT,
+                            "after": inferred})
+    for repair in repairs:
+        chars[repair["offset"]] = repair["after"]
+    return "".join(chars), repairs
