@@ -888,6 +888,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
     seg_base = elapsed_s.get("segment", 0)
+    # resolve_completion_ceiling is consumed ONLY by pass 1, so pass 1 has to be
+    # what feeds the allowance. Wiring it to the pass-2/3 observers alone left it
+    # at zero for the pass that uses it, and thinking-on segmentation kept
+    # reporting "cannot grow beyond 2700" - the visible-output budget with no
+    # room for reasoning at all.
+    observed_attempts = 0
     for i in range(chunks_done, len(chunks)):
         sink = []
         failures = []
@@ -895,6 +901,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                        resolution_sink=sink, failure_sink=failures,
                                        attempt_sink=attempts,
                                        quote_analysis=quote_analyses[i])
+        for attempt in attempts[observed_attempts:]:
+            reasoning_allowance.observe(attempt.get("reasoning_tokens"))
+        observed_attempts = len(attempts)
+        params.reasoning_allowance = reasoning_allowance.current()
         if not seg and should_rescue_with_context(failures[0] if failures else set()):
             # Last resort: retry with escalating surrounding-source context.
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "

@@ -537,7 +537,9 @@
     "test_reasoning_budget.ResolveCompletionCeilingTest.test_allowance_does_not_shrink_the_visible_budget",
     "test_reasoning_budget.ResolveCompletionCeilingTest.test_floor_still_applies",
     "test_reasoning_budget.ResolveCompletionCeilingTest.test_non_reasoning_model_keeps_todays_ceiling",
-    "test_reasoning_budget.ResolveCompletionCeilingTest.test_reasoning_allowance_is_added_on_top"
+    "test_reasoning_budget.ResolveCompletionCeilingTest.test_reasoning_allowance_is_added_on_top",
+    "test_reasoning_budget.SegmentAllowanceWiringTest.test_ceiling_grows_once_reasoning_is_observed",
+    "test_reasoning_budget.SegmentAllowanceWiringTest.test_segment_attempts_feed_the_allowance"
   ],
   "test_release_verifier": [
     "test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
