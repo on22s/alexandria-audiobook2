@@ -906,12 +906,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         resolutions.append(sink[-1] if sink else ("clean" if seg else "fail"))
         if not seg:
             if collect_all_failures:
-                diagnostic_failures.append({
-                    "pass": "segment", "chunk": i + 1,
-                    "source_sha256": hashlib.sha256(chunks[i].encode()).hexdigest(),
-                    "source_characters": len(chunks[i]),
-                    "source_preview": chunks[i][:500],
-                    "failure_codes": sorted(failures[0] if failures else [])})
+                diagnostic_failures.append(build_segment_failure_record(
+                    i + 1, chunks[i], failures[0] if failures else []))
                 chunks_done = i + 1
                 elapsed_s["segment"] = seg_base + time.time() - seg_start
                 save("segment_incomplete")
@@ -1063,6 +1059,23 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     save("done")
     emit_manifest("incomplete" if diagnostic_failures else "complete")
     return [entry for entry in annotated if isinstance(entry, dict)]
+
+
+def build_segment_failure_record(chunk_number, chunk_text, failure_codes):
+    """Build a pass-1 failure record.
+
+    Pass 1 fails per source chunk rather than per entry, so it cannot reuse
+    build_failure_record's entry shape. It carries the same "reason" key so the
+    manifest's failure_reasons rollup counts pass-1 failures instead of
+    bucketing them all as unknown.
+    """
+    codes = sorted(failure_codes or [])
+    return {"pass": "segment", "chunk": chunk_number,
+            "source_sha256": hashlib.sha256(chunk_text.encode()).hexdigest(),
+            "source_characters": len(chunk_text),
+            "source_preview": chunk_text[:500],
+            "failure_codes": codes,
+            "reason": codes[0] if codes else "segment_exhausted"}
 
 
 def build_failure_record(pass_name, index, text, last_attempt=None):
