@@ -213,10 +213,15 @@ class ContractValidationTest(unittest.TestCase):
         self.assertEqual([], record.validate(
             {"expected_arms": ("a", "b"), "expected_ids": ("id1", "id2")}))
 
-    def test_non_ideal_load_settings_are_caught(self):
+    def test_non_ideal_load_settings_are_caught_only_when_demanded(self):
+        # "optimized" is computed against an ideal derived from live VRAM, so
+        # it moves with whatever else is on the card. Recording it is right;
+        # refusing an otherwise sound artifact for it is not.
         record = self._record()
         record.meta["lmstudio"]["optimized"] = False
-        self.assertTrue(any("non-ideal" in p for p in record.validate()))
+        self.assertEqual([], record.validate())
+        self.assertTrue(any("non-ideal" in p for p in
+                            record.validate({"require_optimized": True})))
 
     def test_a_missing_context_length_is_caught(self):
         record = self._record()

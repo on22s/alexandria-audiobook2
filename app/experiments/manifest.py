@@ -180,13 +180,21 @@ class ExperimentRecord:
             if bucket["correct"] != recomputed:
                 problems.append(f"{arm}: summary correct={bucket['correct']} "
                                 f"but rows give {recomputed}")
+        contract = contract or {}
         environment = self.meta.get("lmstudio") or {}
         if not environment.get("loaded"):
             problems.append("no LM Studio load state recorded")
         for field in ("context_length", "parallel"):
             if environment.get(field) is None:
                 problems.append(f"environment is missing {field}")
-        if environment.get("optimized") is False:
+        # Deliberately not fatal by default: "optimized" compares the load
+        # against an ideal computed from live VRAM at query time, so it moves
+        # with whatever else is on the card and read False during a run whose
+        # settings were correct. What matters for comparability is the recorded
+        # context_length and parallel, which are checked above. A contract may
+        # still demand it.
+        if contract and contract.get("require_optimized") and \
+                environment.get("optimized") is False:
             problems.append("model was loaded with non-ideal settings")
         if environment.get("verified_model") not in (None, self.meta.get("model")):
             problems.append(
@@ -195,7 +203,6 @@ class ExperimentRecord:
         if not self.meta.get("git", {}).get("harness_sha256"):
             problems.append("no harness fingerprint: the code that ran is unidentified")
 
-        contract = contract or {}
         arms = set(self.summary())
         expected_arms = contract.get("expected_arms")
         if expected_arms is not None and arms != set(expected_arms):

@@ -329,7 +329,7 @@
     "test_experiment_manifest.ContractValidationTest.test_a_missing_harness_fingerprint_is_caught",
     "test_experiment_manifest.ContractValidationTest.test_arms_scoring_different_lines_are_caught_without_a_contract",
     "test_experiment_manifest.ContractValidationTest.test_dropped_lines_are_caught",
-    "test_experiment_manifest.ContractValidationTest.test_non_ideal_load_settings_are_caught",
+    "test_experiment_manifest.ContractValidationTest.test_non_ideal_load_settings_are_caught_only_when_demanded",
     "test_experiment_manifest.ManifestTest.test_an_unreachable_server_aborts_the_run",
     "test_experiment_manifest.ManifestTest.test_it_pins_the_gold_fixture_by_hash",
     "test_experiment_manifest.ManifestTest.test_it_records_the_code_state_including_dirtiness",
