@@ -15,7 +15,8 @@ from three_pass_generate import build_roster
 
 M = ("/home/fakemitch/pinokio/api/alexandria-audiobook2.git/"
      "ab_test_runtime/results/matrix_20260725-115148/")
-MODEL = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
+MODEL = os.environ.get("EXPERIMENT_MODEL",
+                       "qwen3.5-9b-uncensored-hauhaucs-aggressive")
 gold = json.load(open("/home/fakemitch/pinokio/api/alexandria-audiobook2.git/"
                       "app/fixtures/attribution_gold_random.json"))
 src = open(M + "inputs/mushoku16.txt", encoding="utf-8").read()
@@ -101,6 +102,10 @@ for arm in ("open", "closed-6", "closed-oracle"):
           f"conditional {cond_ok}/{available} = {cond_ok/max(available,1)*100:.1f}%",
           flush=True)
 print("\nbaseline (shipped batched pipeline): 44/147 = 29.9%")
+contract = {"expected_arms": ("open", "closed-6", "closed-oracle"),
+            "expected_ids": {g["id"] for g in gold["entries"]},
+            "require_clean_tree": True}
 out = record.write(os.path.join(
-    REPO, "ab_test_runtime", "experiments", "closed_set.json"))
+    REPO, "ab_test_runtime", "experiments",
+    f"closed_set__{MODEL}.json"), contract=contract)
 print("wrote", out)
