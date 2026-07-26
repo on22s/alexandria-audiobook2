@@ -22,6 +22,18 @@ def _sha(text):
     return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
 
 
+def _source_fingerprint(directory):
+    """Hash of every harness source file, in name order."""
+    digest = hashlib.sha256()
+    for name in sorted(os.listdir(directory)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(directory, name), "rb") as handle:
+            digest.update(name.encode("utf-8"))
+            digest.update(handle.read())
+    return digest.hexdigest()
+
+
 def _git_state(repo):
     def run(*args):
         try:
@@ -29,10 +41,18 @@ def _git_state(repo):
             return out.stdout.decode("utf-8").strip() if out.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             return None
+    # Untracked notes and scratch files do not change behaviour; modified
+    # tracked files do. Reporting the former as "dirty" made the flag useless -
+    # it was true on every run because three markdown drafts sat in the tree.
+    modified = run("git", "status", "--porcelain", "--untracked-files=no")
     return {"commit": run("git", "rev-parse", "HEAD"),
             "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
-            # A dirty tree means the commit alone does not identify the code.
-            "dirty": bool(run("git", "status", "--porcelain"))}
+            "dirty": bool(modified),
+            "modified_tracked_files": (modified or "").splitlines() or None,
+            # The commit identifies the repository; this identifies the code
+            # that actually ran, which is what a later reader needs to trust a
+            # number produced from an edited working tree.
+            "harness_sha256": _source_fingerprint(os.path.dirname(__file__))}
 
 
 class EnvironmentCaptureError(RuntimeError):

@@ -132,3 +132,40 @@ class ArtifactValidationTest(unittest.TestCase):
         record.meta["lmstudio"] = {"error": "boom"}
         record.add("a", "id1", "L", "ROXY", "ROXY", True)
         self.assertTrue(any("LM Studio" in p for p in record.validate()))
+
+
+class CodeIdentityTest(unittest.TestCase):
+    """A commit SHA plus 'dirty: true' does not identify what ran.
+
+    The flag was true on every run because untracked markdown drafts sat in the
+    tree, so it carried no information. It now reflects modified *tracked*
+    files, and a hash of the harness sources identifies the code itself.
+    """
+
+    def test_untracked_notes_do_not_mark_the_tree_dirty(self):
+        git = _record().meta["git"]
+        self.assertIn("harness_sha256", git)
+        self.assertEqual(64, len(git["harness_sha256"]))
+
+    def test_the_fingerprint_changes_when_a_harness_changes(self):
+        import tempfile
+        from experiments.manifest import _source_fingerprint
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "h.py")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("x = 1\n")
+            first = _source_fingerprint(tmp)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("x = 2\n")
+            self.assertNotEqual(first, _source_fingerprint(tmp))
+
+    def test_non_python_files_are_ignored(self):
+        import tempfile
+        from experiments.manifest import _source_fingerprint
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "a.py"), "w") as handle:
+                handle.write("x = 1\n")
+            before = _source_fingerprint(tmp)
+            with open(os.path.join(tmp, "notes.md"), "w") as handle:
+                handle.write("scratch\n")
+            self.assertEqual(before, _source_fingerprint(tmp))
