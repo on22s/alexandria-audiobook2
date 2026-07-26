@@ -3,9 +3,11 @@
   "experiment": "roster_warmup",
   "notes": "incremental vs warm vs oracle roster, reported by book quartile.",
   "git": {
-   "commit": "228b9bb785eb1edc19fed686b28751c3f36fc58f",
+   "commit": "af6ded1d65fa80c47f75dff2aab79d11024dfd38",
    "branch": "agent/experiment-artifacts",
-   "dirty": true
+   "dirty": false,
+   "modified_tracked_files": null,
+   "harness_sha256": "677f5d92587422c5e477f104e2e12488174842915b5d5c628889c85c38c35a9d"
   },
   "host": "mitch-linux",
   "model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
@@ -14,7 +16,8 @@
    "loaded": true,
    "context_length": 32768,
    "parallel": 1,
-   "optimized": true
+   "optimized": true,
+   "verified_model": "qwen3.5-9b-uncensored-hauhaucs-aggressive"
   },
   "decoding": {
    "temperature": 0.0,
@@ -25,8 +28,8 @@
   "gold_sha256": "e10b3d056ee486aa43d4c48a548cca102f0ffed33c0c7ce8005d4d3ae4c9629d",
   "gold_lines": 147,
   "validation": "ok",
-  "finished": 1785086823.6987016,
-  "elapsed_s": 1050.6
+  "finished": 1785088264.4197965,
+  "elapsed_s": 1039.6
  },
  "summary": {
   "incremental": {
