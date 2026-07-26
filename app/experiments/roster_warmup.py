@@ -31,13 +31,17 @@ from three_pass_generate import (attribute_batch, build_roster,
 REPO = "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
 APP = REPO + "/app/"
 M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
-MODEL = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
+# The model under test. Frozen inputs below always come from INPUT_RUN, so a
+# comparison across models is a comparison of selection, not of segmentation.
+MODEL = os.environ.get("EXPERIMENT_MODEL",
+                       "qwen3.5-9b-uncensored-hauhaucs-aggressive")
+INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
 BASE_URL = "http://localhost:1234/v1"
 BATCH = 25
 
 gold = json.load(open(APP + "fixtures/attribution_gold_random.json"))
 src = open(M + "inputs/mushoku16.txt", encoding="utf-8").read()
-cp = json.load(open(M + MODEL + "/mushoku16/result.json.threepass_checkpoint.json"))
+cp = json.load(open(M + INPUT_RUN + "/mushoku16/result.json.threepass_checkpoint.json"))
 seg = cp["segmented"]
 final_named = [e for e in (cp.get("named") or []) if e]
 discovered = build_roster(final_named, src)
@@ -143,5 +147,5 @@ contract = {"expected_arms": ("incremental", "warm", "oracle"),
                              if norm(g["line"]) in want},
             "require_clean_tree": True}
 print("wrote", record.write(os.path.join(
-    REPO, "ab_test_runtime", "experiments", "roster_warmup.json"),
+    REPO, "ab_test_runtime", "experiments", f"roster_warmup__{MODEL}.json"),
     contract=contract))
