@@ -17,11 +17,20 @@ GOLD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                     "fixtures", "attribution_gold_random.json")
 
 
-def _record():
+LOADED = {"loaded": True, "context_length": 32768, "parallel": 1,
+          "optimized": True}
+
+
+def _record(environment=LOADED):
     return ExperimentRecord(
         name="unit", repo=REPO, model_name="test-model",
         base_url="http://localhost:1234/v1", gold_path=GOLD,
-        decoding={"temperature": 0.0, "max_tokens": 24})
+        decoding={"temperature": 0.0, "max_tokens": 24},
+        environment=environment)
+
+
+def _record_with_env():
+    return _record()
 
 
 class ManifestTest(unittest.TestCase):
@@ -75,12 +84,51 @@ class ManifestTest(unittest.TestCase):
         self.assertIn("elapsed_s", payload["meta"])
         self.assertIn("lmstudio", payload["meta"])
 
-    def test_bookkeeping_never_breaks_a_run(self):
-        # A server that cannot be reached must not abort the experiment.
-        from experiments.manifest import lmstudio_state
-        state = lmstudio_state("http://127.0.0.1:9", "nope")
-        self.assertIsInstance(state, dict)
+    def test_an_unreachable_server_aborts_the_run(self):
+        # Contract reversed on purpose: a GPU result whose context length and
+        # parallel setting are unknown cannot be compared to another run, so
+        # failing to capture them must stop the experiment, not annotate it.
+        from experiments.manifest import EnvironmentCaptureError, lmstudio_state
+        with self.assertRaises((EnvironmentCaptureError, Exception)):
+            lmstudio_state("definitely-not-a-loaded-model")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ArtifactValidationTest(unittest.TestCase):
+    """The same two defects have appeared in three separate harnesses.
+
+    A duplicate (arm, gold_id) counts one judgement twice - it produced three
+    identical arm totals in the roster experiment that read as a finding. A
+    summary that does not follow from the rows means the reported number cannot
+    be checked at all. Both are now refused at write time.
+    """
+
+    def test_duplicate_identities_are_reported(self):
+        record = _record_with_env()
+        record.add("a", "id1", "L", "ROXY", "ROXY", True)
+        record.add("a", "id1", "L", "ROXY", "ERIS", False)
+        self.assertTrue(any("duplicate" in p for p in record.validate()))
+
+    def test_a_clean_record_validates(self):
+        record = _record_with_env()
+        record.add("a", "id1", "L", "ROXY", "ROXY", True)
+        record.add("a", "id2", "L2", "ERIS", "ERIS", True)
+        self.assertEqual([], record.validate())
+
+    def test_writing_an_invalid_artifact_is_refused(self):
+        from experiments.manifest import EnvironmentCaptureError
+        record = _record_with_env()
+        record.add("a", "id1", "L", "ROXY", "ROXY", True)
+        record.add("a", "id1", "L", "ROXY", "ROXY", True)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(EnvironmentCaptureError):
+                record.write(os.path.join(tmp, "bad.json"))
+
+    def test_a_missing_environment_is_a_problem(self):
+        record = _record()
+        record.meta["lmstudio"] = {"error": "boom"}
+        record.add("a", "id1", "L", "ROXY", "ROXY", True)
+        self.assertTrue(any("LM Studio" in p for p in record.validate()))

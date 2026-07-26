@@ -314,7 +314,11 @@
     "test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
   ],
   "test_experiment_manifest": [
-    "test_experiment_manifest.ManifestTest.test_bookkeeping_never_breaks_a_run",
+    "test_experiment_manifest.ArtifactValidationTest.test_a_clean_record_validates",
+    "test_experiment_manifest.ArtifactValidationTest.test_a_missing_environment_is_a_problem",
+    "test_experiment_manifest.ArtifactValidationTest.test_duplicate_identities_are_reported",
+    "test_experiment_manifest.ArtifactValidationTest.test_writing_an_invalid_artifact_is_refused",
+    "test_experiment_manifest.ManifestTest.test_an_unreachable_server_aborts_the_run",
     "test_experiment_manifest.ManifestTest.test_it_pins_the_gold_fixture_by_hash",
     "test_experiment_manifest.ManifestTest.test_it_records_the_code_state_including_dirtiness",
     "test_experiment_manifest.ManifestTest.test_prompts_are_hashed_not_stored",

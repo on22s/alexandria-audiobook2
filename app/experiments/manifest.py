@@ -9,6 +9,7 @@ Process idleness is recorded from LM Studio and the app's own state, not
 inferred from a process search - `pgrep -f` matched its own command line three
 times during the 2026-07-26 experiments and gave the wrong answer each time.
 """
+import collections
 import hashlib
 import json
 import os
@@ -34,23 +35,40 @@ def _git_state(repo):
             "dirty": bool(run("git", "status", "--porcelain"))}
 
 
-def lmstudio_state(base_url, model_name):
-    """What the server actually has loaded, and how it is configured."""
-    try:
-        from lmstudio_settings import get_lmstudio_status
-        status = get_lmstudio_status(base_url, model_name)
-        return {k: status.get(k) for k in
-                ("loaded", "context_length", "parallel", "quantization")
-                if k in status}
-    except Exception as error:            # never let bookkeeping fail a run
-        return {"error": f"{type(error).__name__}: {error}"}
+class EnvironmentCaptureError(RuntimeError):
+    """The run's environment could not be recorded, so it is not comparable."""
+
+
+def lmstudio_state(model_name):
+    """What the server actually has loaded, and how it is configured.
+
+    Raises rather than returning an error string. A GPU result whose context
+    length and parallel setting are unknown cannot be compared against another
+    run, and this project's determinism claim depends on both. The first
+    version swallowed a TypeError from calling the helper with the wrong
+    signature, and three artifacts shipped with no environment at all.
+    """
+    from lmstudio_settings import get_lmstudio_status
+    status = get_lmstudio_status(model_name)
+    if not isinstance(status, dict) or not status.get("available"):
+        raise EnvironmentCaptureError(
+            f"LM Studio status unavailable for {model_name!r}: {status!r}")
+    if not status.get("loaded"):
+        raise EnvironmentCaptureError(
+            f"{model_name!r} is not loaded; refusing to record a run whose "
+            "model state is unknown")
+    return {key: status.get(key) for key in
+            ("loaded", "context_length", "parallel", "optimized")}
 
 
 class ExperimentRecord:
     """Collect per-line records, then write one self-describing artifact."""
 
     def __init__(self, name, repo, model_name, base_url, gold_path,
-                 decoding, notes=""):
+                 decoding, notes="", environment=None):
+        """environment: pass a captured state to skip the live query. Real runs
+        leave it None so a missing environment aborts before any GPU time is
+        spent; tests supply one so they need no server."""
         self.name = name
         self.started = time.time()
         with open(gold_path, "rb") as handle:
@@ -62,7 +80,8 @@ class ExperimentRecord:
             "host": platform.node(),
             "model": model_name,
             "endpoint": base_url,
-            "lmstudio": lmstudio_state(base_url, model_name),
+            "lmstudio": (environment if environment is not None
+                         else lmstudio_state(model_name)),
             "decoding": dict(decoding),
             "gold_path": os.path.relpath(gold_path, repo),
             "gold_sha256": hashlib.sha256(gold_bytes).hexdigest(),
@@ -106,7 +125,41 @@ class ExperimentRecord:
             bucket["conditional"] = bucket["cond"] / max(bucket["available"], 1)
         return arms
 
-    def write(self, path):
+    def validate(self):
+        """Return problems that make this artifact untrustworthy.
+
+        Shared by every harness, because the same two defects have now appeared
+        in three separate scripts: a duplicate (arm, gold_id) counts one
+        judgement twice, and a summary that does not follow from the rows means
+        the reported number cannot be checked. Relying on each new script to
+        get identity and aggregation right has produced drift every time.
+        """
+        problems = []
+        seen = collections.Counter((row["arm"], row["id"]) for row in self.rows)
+        duplicates = sorted(key for key, count in seen.items() if count > 1)
+        if duplicates:
+            problems.append(
+                f"{len(duplicates)} duplicate (arm, id) identities, "
+                f"e.g. {duplicates[:3]}")
+        for arm, bucket in self.summary().items():
+            rows = [r for r in self.rows if r["arm"] == arm]
+            if bucket["n"] != len(rows):
+                problems.append(f"{arm}: summary n={bucket['n']} but "
+                                f"{len(rows)} rows")
+            recomputed = sum(1 for r in rows if r["correct"])
+            if bucket["correct"] != recomputed:
+                problems.append(f"{arm}: summary correct={bucket['correct']} "
+                                f"but rows give {recomputed}")
+        if not self.meta.get("lmstudio", {}).get("loaded"):
+            problems.append("no LM Studio load state recorded")
+        return problems
+
+    def write(self, path, require_valid=True):
+        problems = self.validate()
+        if problems and require_valid:
+            raise EnvironmentCaptureError(
+                "refusing to write an unverifiable artifact: " + "; ".join(problems))
+        self.meta["validation"] = problems or "ok"
         self.meta["finished"] = time.time()
         self.meta["elapsed_s"] = round(self.meta["finished"] - self.started, 1)
         payload = {"meta": self.meta, "summary": self.summary(), "rows": self.rows}
