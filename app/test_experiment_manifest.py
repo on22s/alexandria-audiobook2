@@ -169,3 +169,74 @@ class CodeIdentityTest(unittest.TestCase):
             with open(os.path.join(tmp, "notes.md"), "w") as handle:
                 handle.write("scratch\n")
             self.assertEqual(before, _source_fingerprint(tmp))
+
+
+class ContractValidationTest(unittest.TestCase):
+    """A summary that correctly describes incomplete rows still validates.
+
+    Without a declared contract, a run that silently drops an arm or half its
+    lines passes every internal-consistency check, because the arithmetic of
+    what it *did* record is sound. External review raised this after the
+    corrected roster artifact.
+    """
+
+    ENV = {"loaded": True, "context_length": 32768, "parallel": 1,
+           "optimized": True, "verified_model": "test-model"}
+
+    def _record(self, arms=("a", "b"), ids=("id1", "id2")):
+        record = ExperimentRecord(
+            name="unit", repo=REPO, model_name="test-model",
+            base_url="http://localhost:1234/v1", gold_path=GOLD,
+            decoding={"temperature": 0.0}, environment=dict(self.ENV))
+        for arm in arms:
+            for gold_id in ids:
+                record.add(arm, gold_id, "L", "ROXY", "ROXY", True)
+        return record
+
+    def test_a_missing_arm_is_caught(self):
+        record = self._record(arms=("a",))
+        problems = record.validate({"expected_arms": ("a", "b")})
+        self.assertTrue(any("expected" in p for p in problems))
+
+    def test_dropped_lines_are_caught(self):
+        record = self._record(ids=("id1",))
+        problems = record.validate({"expected_ids": ("id1", "id2")})
+        self.assertTrue(any("expected 2" in p for p in problems))
+
+    def test_arms_scoring_different_lines_are_caught_without_a_contract(self):
+        record = self._record(arms=("a",), ids=("id1", "id2"))
+        record.add("b", "id1", "L", "ROXY", "ROXY", True)
+        self.assertTrue(any("different set" in p for p in record.validate()))
+
+    def test_a_complete_run_satisfies_its_contract(self):
+        record = self._record()
+        self.assertEqual([], record.validate(
+            {"expected_arms": ("a", "b"), "expected_ids": ("id1", "id2")}))
+
+    def test_non_ideal_load_settings_are_caught(self):
+        record = self._record()
+        record.meta["lmstudio"]["optimized"] = False
+        self.assertTrue(any("non-ideal" in p for p in record.validate()))
+
+    def test_a_missing_context_length_is_caught(self):
+        record = self._record()
+        record.meta["lmstudio"]["context_length"] = None
+        self.assertTrue(any("context_length" in p for p in record.validate()))
+
+    def test_a_different_loaded_model_is_caught(self):
+        record = self._record()
+        record.meta["lmstudio"]["verified_model"] = "some-other-model"
+        self.assertTrue(any("not the declared model" in p
+                            for p in record.validate()))
+
+    def test_a_dirty_tree_is_caught_when_the_contract_demands_clean(self):
+        record = self._record()
+        record.meta["git"]["dirty"] = True
+        record.meta["git"]["modified_tracked_files"] = ["app/x.py"]
+        self.assertTrue(any("modified tracked files" in p for p in
+                            record.validate({"require_clean_tree": True})))
+
+    def test_a_missing_harness_fingerprint_is_caught(self):
+        record = self._record()
+        record.meta["git"]["harness_sha256"] = None
+        self.assertTrue(any("unidentified" in p for p in record.validate()))

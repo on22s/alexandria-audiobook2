@@ -77,8 +77,13 @@ def lmstudio_state(model_name):
         raise EnvironmentCaptureError(
             f"{model_name!r} is not loaded; refusing to record a run whose "
             "model state is unknown")
-    return {key: status.get(key) for key in
-            ("loaded", "context_length", "parallel", "optimized")}
+    state = {key: status.get(key) for key in
+             ("loaded", "context_length", "parallel", "optimized")}
+    # get_lmstudio_status matches on identifier/modelKey, so loaded=True is
+    # itself confirmation that *this* model is the one loaded - recorded
+    # explicitly rather than re-parsing `lms ps` in a second place.
+    state["verified_model"] = model_name
+    return state
 
 
 class ExperimentRecord:
@@ -145,8 +150,13 @@ class ExperimentRecord:
             bucket["conditional"] = bucket["cond"] / max(bucket["available"], 1)
         return arms
 
-    def validate(self):
+    def validate(self, contract=None):
         """Return problems that make this artifact untrustworthy.
+
+        ``contract`` optionally states what the run was supposed to produce -
+        ``expected_arms``, ``expected_ids``, ``require_clean_tree`` - because a
+        run that silently drops an arm or half its lines still validates when
+        the summary correctly describes the incomplete rows.
 
         Shared by every harness, because the same two defects have now appeared
         in three separate scripts: a duplicate (arm, gold_id) counts one
@@ -170,12 +180,52 @@ class ExperimentRecord:
             if bucket["correct"] != recomputed:
                 problems.append(f"{arm}: summary correct={bucket['correct']} "
                                 f"but rows give {recomputed}")
-        if not self.meta.get("lmstudio", {}).get("loaded"):
+        environment = self.meta.get("lmstudio") or {}
+        if not environment.get("loaded"):
             problems.append("no LM Studio load state recorded")
+        for field in ("context_length", "parallel"):
+            if environment.get(field) is None:
+                problems.append(f"environment is missing {field}")
+        if environment.get("optimized") is False:
+            problems.append("model was loaded with non-ideal settings")
+        if environment.get("verified_model") not in (None, self.meta.get("model")):
+            problems.append(
+                f"loaded model {environment.get('verified_model')!r} is not the "
+                f"declared model {self.meta.get('model')!r}")
+        if not self.meta.get("git", {}).get("harness_sha256"):
+            problems.append("no harness fingerprint: the code that ran is unidentified")
+
+        contract = contract or {}
+        arms = set(self.summary())
+        expected_arms = contract.get("expected_arms")
+        if expected_arms is not None and arms != set(expected_arms):
+            problems.append(f"arms {sorted(arms)} != expected {sorted(expected_arms)}")
+        expected_ids = contract.get("expected_ids")
+        if expected_ids is not None:
+            expected_ids = set(expected_ids)
+            for arm in sorted(arms):
+                got = {r["id"] for r in self.rows if r["arm"] == arm}
+                if got != expected_ids:
+                    problems.append(
+                        f"{arm}: scored {len(got)} ids, expected "
+                        f"{len(expected_ids)} (missing {len(expected_ids - got)}, "
+                        f"unexpected {len(got - expected_ids)})")
+        elif len(arms) > 1:
+            # Even without a declared set, every arm must score the same lines
+            # or the arms are not comparable.
+            per_arm = {arm: {r["id"] for r in self.rows if r["arm"] == arm}
+                       for arm in arms}
+            reference = per_arm[sorted(arms)[0]]
+            for arm, ids in sorted(per_arm.items()):
+                if ids != reference:
+                    problems.append(f"{arm} scored a different set of ids")
+        if contract.get("require_clean_tree") and self.meta.get("git", {}).get("dirty"):
+            problems.append("tree had modified tracked files: "
+                            f"{self.meta['git'].get('modified_tracked_files')}")
         return problems
 
-    def write(self, path, require_valid=True):
-        problems = self.validate()
+    def write(self, path, require_valid=True, contract=None):
+        problems = self.validate(contract)
         if problems and require_valid:
             raise EnvironmentCaptureError(
                 "refusing to write an unverifiable artifact: " + "; ".join(problems))

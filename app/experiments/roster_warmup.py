@@ -135,5 +135,13 @@ for arm in ("incremental", "warm", "oracle"):
                       for q, b in enumerate(buckets))
     print(f"  {arm:12} {parts}")
 print("\nbaseline (shipped pipeline): 44/147 = 29.9%")
+# Declare what this run was supposed to produce, so an artifact that silently
+# drops an arm or half its lines is refused rather than validated on the
+# arithmetic of whatever it managed to record.
+contract = {"expected_arms": ("incremental", "warm", "oracle"),
+            "expected_ids": {g["id"] for g in gold["entries"]
+                             if norm(g["line"]) in want},
+            "require_clean_tree": True}
 print("wrote", record.write(os.path.join(
-    REPO, "ab_test_runtime", "experiments", "roster_warmup.json")))
+    REPO, "ab_test_runtime", "experiments", "roster_warmup.json"),
+    contract=contract))
