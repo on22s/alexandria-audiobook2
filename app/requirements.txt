@@ -20,3 +20,9 @@ aiofiles==24.1.0
 # runs in the Voice Lab "rocm_python" interpreter env - install it there too
 # (it is optional: the preparer skips tagging with a warning when missing).
 mutagen==1.47.0
+# Kanji -> kana readings, for scoring Japanese ASR on sound rather than script.
+# Optional: only app/experiments/asr_backends.py --score-readings uses it, and
+# that flag refuses to run without it rather than silently reporting a
+# character score. Measured 2026-08-16: CER 28.7% as written, 9.9% on readings
+# for identical audio and identical model output.
+pykakasi==2.3.0

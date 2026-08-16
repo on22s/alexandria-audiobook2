@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-16
 
 ## How to read this
 
@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1361** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1398** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1175,11 +1175,38 @@ measure rather than how well we meet it:
    orthographic normalisation is known to mislead, and no arm has ever been
    scored with it.
 
-Testing (2) requires the hypotheses, which no stored artifact had — the
-aggregates cannot be re-scored. `asr_backends --keep-hypotheses` now records
-reference and hypothesis per clip so the question can be settled offline.
-Until it is, **the 20% CER target itself is unvalidated for Japanese**, and
-"OPEN" here may be measuring the ruler rather than the pipeline.
+**It was the ruler, 2026-08-16** (`asr_ja_readings.json`,
+`asr_backends --score-readings`). Scoring the same 50 clips on kana readings
+rather than characters — the same audio, the same model output, the same
+model:
+
+| | mean | median | vs ≤20% |
+|---|---|---|---|
+| CER as written | 28.7% | 26.2% | FAIL |
+| **CER on readings** | **9.9%** | **7.3%** | **PASS** |
+
+**Two thirds of the "error" was orthography.** Japanese prose mixes kanji and
+kana by authorial preference; a model picks its own convention; and CER
+charges it for disagreeing about spelling with a transcript that had no single
+correct spelling to begin with. `私` and `わたし` are the same word, read
+identically aloud, and scored as total failure against each other.
+
+That also explains the n=10 result this goal opened with. 7.67% was never
+unrepresentative audio — it was a transcript whose orthographic conventions
+happened to match the model's, which is why the honest four-reader number
+lands at 9.9% rather than anywhere near 28%.
+
+**So the CER condition is met and the alignment condition is not.**
+Alignment stays at 272 ms against a 150 ms target, unchanged by any of this,
+and remains the one genuinely open axis: dataset-cut clips score 39 ms and
+86 ms while our four cut sets score 117–400 ms, with the seek defect ruled
+out. Japanese transcription was never the problem; Japanese *boundaries*
+still are.
+
+**The old number is kept, not replaced.** `cer_reading_mean` is reported
+alongside CER so every arm measured before this stays comparable, and the
+character score remains the right one for languages that are not written in
+two scripts at once.
 
 **Chinese is solved by splitting the two jobs** (`whisper_cpp_hybrid`, added
 2026-08-08). base decides the boundaries, large-v3 transcribes inside each one,
@@ -1279,10 +1306,20 @@ are believed.
 and f0 against the human, per line) and `app/experiments/asr_clip_view.py`
 (waveform, spectrogram, reference and hypothesis, for the clips an ASR arm
 scored worst).
-**Current** — three views exist, all from 2026-08-06: `ljspeech.html`,
-`kokoro.html`, `aishell3.html`. **Nothing measured since has been looked at** —
-not the honest retrains, not the reference-rank campaigns, not the Japanese
-ASR sets. **OPEN.**
+**Current** — **5 views, still OPEN.** Three from 2026-08-06 (`ljspeech`,
+`kokoro`, `aishell3`) and two added 2026-08-16: `kokoro_same_speaker.html`,
+and `asr_clip_view/japanese_worst.html` — the ten worst-scoring Japanese
+clips with their waveform, spectrogram, reference, what the model returned,
+and the audio to play.
+
+The second of those paid for itself the day the goal was written. Reading the
+worst clips beside their transcripts is what showed the Japanese "error" was
+kanji-versus-kana rather than mishearing, which turned a 28.7% CER into 9.9%
+and moved 5.4's transcription condition from failing to met — a mean could
+not have said that, and had not, across three backends and six weeks.
+
+**Still unlooked-at:** the honest retrains, both reference-rank campaigns, the
+21 identity gates, and the promoted adapters now shipping.
 
 **Target — a rendered view for every audio arm whose numbers appear in this
 document.**

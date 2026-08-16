@@ -71,6 +71,38 @@ def normalise(text, char_level=False):
     return " ".join(text.split())
 
 
+def to_reading(text):
+    """Japanese text -> its kana reading, so scoring compares sounds not script.
+
+    WHY THIS IS NOT COSMETIC. Character error rate treats 私 and わたし as
+    completely different, though they are the same word and a narrator reads
+    them identically. Japanese prose mixes the two by authorial preference,
+    and an ASR model picks its own convention, so CER charges the model for
+    disagreeing about spelling with a transcript that had no single correct
+    spelling to begin with.
+
+    Measured on the 50-clip four-reader set, 2026-08-16: CER as written
+    28.7%, CER on readings 9.9%. Two thirds of the "error" was orthography.
+    The 20% target failed on one and passes on the other, on identical audio
+    and identical model output.
+
+    Returns None when pykakasi is unavailable rather than silently falling
+    back to character scoring, which would report a reading-scored number
+    that is nothing of the kind.
+    """
+    try:
+        import pykakasi
+    except ImportError:
+        return None
+    converter = getattr(to_reading, "_kks", None)
+    if converter is None:
+        converter = to_reading._kks = pykakasi.kakasi()
+    kana = "".join(part["hira"] for part in converter.convert(text))
+    # Kana only. Punctuation and stray latin survive conversion and would be
+    # scored as content, which is the mistake this function exists to avoid.
+    return re.sub(r"[^ぁ-ゟ]", "", kana)
+
+
 def word_error_rate(reference, hypothesis, char_level=None):
     """Levenshtein over tokens / reference length. Implemented rather than
     imported: it is twenty lines, and a dependency for twenty lines is a
@@ -395,6 +427,11 @@ def main():
                     help="start row for an untouched validation partition")
     ap.add_argument("--align-clips", type=int, default=12,
                     help="clips concatenated into the alignment probe")
+    ap.add_argument("--score-readings", action="store_true",
+                    help="also score Japanese on kana readings, so the same "
+                         "word written in kanji or kana is not counted as an "
+                         "error. Needs pykakasi. Reported alongside CER, "
+                         "never instead of it.")
     ap.add_argument("--keep-hypotheses", action="store_true",
                     help="store each clip's reference and hypothesis in the "
                          "artifact. Off by default because it multiplies the "
@@ -460,6 +497,7 @@ def main():
         fn = backend(name)
         wers, secs, audio_secs, failures, no_ts = [], [], [], [], 0
         hypotheses = []
+        reading_wers = []
         for row in rows:
             wav = os.path.join(REPO, row["human_wav"])
             if not os.path.exists(wav):
@@ -478,6 +516,15 @@ def main():
             audio_secs.append(info.frames / float(info.samplerate))
             if name not in {"energy_vad", "silero_vad"}:
                 w = word_error_rate(row["text"], text)
+                if args.score_readings:
+                    ref_kana, hyp_kana = to_reading(row["text"]), to_reading(text)
+                    if ref_kana is None:
+                        sys.exit("--score-readings needs pykakasi; install it "
+                                 "rather than have this quietly report a "
+                                 "character score under a reading label")
+                    rw = word_error_rate(" ".join(ref_kana), " ".join(hyp_kana))
+                    if rw is not None:
+                        reading_wers.append(rw)
                 if w is not None:
                     wers.append(w)
                     if args.keep_hypotheses:
@@ -488,6 +535,12 @@ def main():
                "failed": len(failures), "clips_without_timestamps": no_ts}
         if name in {"energy_vad", "silero_vad"}:
             rec["transcription"] = "not provided; segmentation-only arm"
+        if reading_wers:
+            # Reported ALONGSIDE the character score, never instead of it, so
+            # a result stays comparable with every arm measured before this.
+            rec.update({
+                "cer_reading_mean": round(statistics.mean(reading_wers), 4),
+                "cer_reading_median": round(statistics.median(reading_wers), 4)})
         if hypotheses:
             rec["hypotheses"] = hypotheses
         if wers:
