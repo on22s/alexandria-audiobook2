@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import posixpath
 import sys
 import threading
 import time
@@ -12,6 +13,7 @@ from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 from math import ceil
 from typing import Dict, List, Literal, Optional
+from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -255,11 +257,12 @@ class _HTMLTextExtractor(HTMLParser):
     })
     SKIP_TAGS = frozenset({'style', 'script'})
 
-    def __init__(self):
+    def __init__(self, anchor_ids=None):
         super().__init__()
         self.parts = []
         self._pending_newline = False
         self._skip_depth = 0
+        self._anchor_ids = frozenset(anchor_ids or ())
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -267,6 +270,12 @@ class _HTMLTextExtractor(HTMLParser):
             self._skip_depth += 1
         elif tag in self.BLOCK_TAGS:
             self._pending_newline = True
+        if self._skip_depth == 0 and self._anchor_ids:
+            attributes = dict(attrs)
+            anchor_id = (attributes.get('id') or attributes.get('xml:id')
+                         or (attributes.get('name') if tag == 'a' else None))
+            if anchor_id in self._anchor_ids:
+                self.parts.append(('anchor', anchor_id))
 
     def handle_endtag(self, tag):
         if tag.lower() in self.SKIP_TAGS and self._skip_depth > 0:
@@ -281,7 +290,120 @@ class _HTMLTextExtractor(HTMLParser):
         self.parts.append(data)
 
     def get_text(self):
-        return ''.join(self.parts)
+        return ''.join(part for part in self.parts if isinstance(part, str))
+
+    def get_text_with_anchor_positions(self):
+        """Return extracted text and character offsets for requested anchors."""
+        text_parts = []
+        positions = {}
+        length = 0
+        for part in self.parts:
+            if isinstance(part, tuple):
+                positions.setdefault(part[1], length)
+            else:
+                text_parts.append(part)
+                length += len(part)
+        return ''.join(text_parts), positions
+
+
+def _resolve_epub_href(base_path, href):
+    """Resolve an internal EPUB href to a ZIP path and optional fragment."""
+    parsed = urlsplit(href)
+    if parsed.scheme or parsed.netloc or (not parsed.path and not parsed.fragment):
+        return None, None
+    decoded_path = unquote(parsed.path)
+    if not decoded_path:
+        path = base_path
+    elif decoded_path.startswith('/'):
+        path = posixpath.normpath(decoded_path.lstrip('/'))
+    else:
+        path = posixpath.normpath(posixpath.join(
+            posixpath.dirname(base_path), decoded_path))
+    return path, unquote(parsed.fragment) or None
+
+
+def _get_epub3_toc_entries(zf, manifest):
+    nav_items = [item for item in manifest.values()
+                 if 'nav' in item['properties'].split()]
+    for nav_item in nav_items:
+        try:
+            root = ET.fromstring(zf.read(nav_item['path']))
+        except (KeyError, ET.ParseError):
+            continue
+        for nav in root.iter():
+            if nav.tag.rsplit('}', 1)[-1] != 'nav':
+                continue
+            nav_type = (nav.get('{http://www.idpf.org/2007/ops}type')
+                        or nav.get('epub:type') or nav.get('type') or '')
+            if 'toc' not in nav_type.split():
+                continue
+            entries = []
+            for link in nav.iter():
+                if link.tag.rsplit('}', 1)[-1] != 'a' or not link.get('href'):
+                    continue
+                label = ' '.join(''.join(link.itertext()).split())
+                path, fragment = _resolve_epub_href(nav_item['path'], link.get('href'))
+                if label and path:
+                    entries.append((path, fragment, label))
+            if entries:
+                return entries
+    return []
+
+
+def _get_epub2_toc_entries(zf, opf, opf_ns, manifest):
+    spine = opf.find(f'.//{opf_ns}spine')
+    toc_id = spine.get('toc') if spine is not None else None
+    ncx_item = manifest.get(toc_id) if toc_id else None
+    if ncx_item is None:
+        ncx_item = next((item for item in manifest.values()
+                         if item['media_type'] == 'application/x-dtbncx+xml'), None)
+    if ncx_item is None:
+        return []
+    try:
+        root = ET.fromstring(zf.read(ncx_item['path']))
+    except (KeyError, ET.ParseError):
+        return []
+    entries = []
+    for nav_point in root.iter():
+        if nav_point.tag.rsplit('}', 1)[-1] != 'navPoint':
+            continue
+        label = ''
+        href = None
+        for child in nav_point.iter():
+            local_name = child.tag.rsplit('}', 1)[-1]
+            if local_name == 'text' and not label:
+                label = ' '.join(''.join(child.itertext()).split())
+            elif local_name == 'content' and href is None:
+                href = child.get('src')
+        if label and href:
+            path, fragment = _resolve_epub_href(ncx_item['path'], href)
+            if path:
+                entries.append((path, fragment, label))
+    return entries
+
+
+def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
+    """Insert missing TOC labels at their resolved positions in one document."""
+    insertions = []
+    seen = set()
+    for fragment, label in toc_targets:
+        key = (fragment, label.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        if fragment is None:
+            position = 0
+        elif fragment in anchor_positions:
+            position = anchor_positions[fragment]
+        else:
+            continue
+        nearby = ' '.join(text[position:position + 500].split()).casefold()
+        normalized_label = ' '.join(label.split()).casefold()
+        if normalized_label not in nearby:
+            insertions.append((position, label))
+    for position, label in reversed(insertions):
+        text = text[:position] + label + '\n\n' + text[position:]
+    return text
 
 
 def extract_epub_text(epub_path: str) -> str:
@@ -315,15 +437,19 @@ def extract_epub_text(epub_path: str) -> str:
         # Detect OPF namespace (varies between EPUB 2 and 3)
         opf_ns = opf.tag.split('}')[0] + '}' if '}' in opf.tag else ''
 
-        # Build manifest: id -> href (resolve relative to OPF directory)
-        opf_dir = opf_path.rsplit('/', 1)[0] + '/' if '/' in opf_path else ''
+        # Build manifest, resolving hrefs relative to the OPF file.
         manifest = {}
         for item in opf.findall(f'.//{opf_ns}item'):
             item_id = item.get('id')
             href = item.get('href')
-            media_type = item.get('media-type', '')
-            if item_id and href and 'html' in media_type:
-                manifest[item_id] = opf_dir + href
+            if item_id and href:
+                path, _ = _resolve_epub_href(opf_path, href)
+                if path:
+                    manifest[item_id] = {
+                        'path': path,
+                        'media_type': item.get('media-type', ''),
+                        'properties': item.get('properties', ''),
+                    }
 
         # Get spine order
         spine_ids = []
@@ -332,20 +458,32 @@ def extract_epub_text(epub_path: str) -> str:
             if idref:
                 spine_ids.append(idref)
 
-        # 3. Extract text from each spine item in order
+        # 3. Read EPUB3 navigation, falling back to EPUB2 NCX.
+        toc_entries = _get_epub3_toc_entries(zf, manifest)
+        if not toc_entries:
+            toc_entries = _get_epub2_toc_entries(zf, opf, opf_ns, manifest)
+        toc_by_path = {}
+        for path, fragment, label in toc_entries:
+            toc_by_path.setdefault(path, []).append((fragment, label))
+
+        # 4. Extract text from each spine item in order.
         chapters = []
         for item_id in spine_ids:
-            href = manifest.get(item_id)
-            if href is None:
+            item = manifest.get(item_id)
+            if item is None or 'html' not in item['media_type']:
                 continue
+            href = item['path']
             try:
                 html_bytes = zf.read(href)
             except KeyError:
                 continue
             html_content = html_bytes.decode('utf-8', errors='replace')
-            extractor = _HTMLTextExtractor()
+            targets = toc_by_path.get(href, [])
+            anchor_ids = {fragment for fragment, _ in targets if fragment}
+            extractor = _HTMLTextExtractor(anchor_ids)
             extractor.feed(html_content)
-            text = extractor.get_text().strip()
+            text, anchor_positions = extractor.get_text_with_anchor_positions()
+            text = _insert_epub_toc_titles(text, anchor_positions, targets).strip()
             if text:
                 chapters.append(text)
 

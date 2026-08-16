@@ -39,6 +39,15 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def _write_epub(self, path, opf, members):
+        container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("META-INF/container.xml", container)
+            archive.writestr("OEBPS/content.opf", opf)
+            for member_path, content in members.items():
+                archive.writestr(member_path, content)
+
     def test_epub_extracts_spine_with_known_malformed_refines_metadata(self):
         container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
@@ -53,6 +62,64 @@ class RuntimeTests(unittest.TestCase):
                 archive.writestr("OEBPS/content.opf", opf)
                 archive.writestr("OEBPS/chapter.xhtml", "<p>Readable chapter.</p>")
             self.assertEqual("Readable chapter.", script_module.extract_epub_text(epub))
+
+    def test_epub3_inserts_toc_titles_at_anchors_without_duplicates(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapters" href="chapter%20one.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapters"/></spine></package>'''
+        nav = b'''<html xmlns="http://www.w3.org/1999/xhtml"
+                    xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="landmarks"><a href="chapter%20one.xhtml#first">Start Reading</a></nav>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter%20one.xhtml#first">Chapter One: An Image Heading</a></li>
+            <li><a href="chapter%20one.xhtml#second">Chapter Two: Already Visible</a></li>
+          </ol></nav></body></html>'''
+        chapter = b'''<html><body>
+          <section id="first"><img src="heading.jpg" alt=""/><p>First chapter prose.</p></section>
+          <section id="second"><h2>Chapter Two: Already Visible</h2><p>Second chapter prose.</p></section>
+        </body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter one.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertIn("Chapter One: An Image Heading\n\n", text)
+        self.assertEqual(1, text.count("Chapter Two: Already Visible"))
+        self.assertNotIn("Start Reading", text)
+        self.assertLess(text.index("First chapter prose."),
+                        text.index("Chapter Two: Already Visible"))
+
+    def test_epub2_inserts_ncx_title_at_fragment(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine toc="ncx"><itemref idref="chapter"/></spine></package>'''
+        ncx = b'''<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+          <navMap><navPoint id="chapter-1">
+            <navLabel><text>Chapter One: From NCX</text></navLabel>
+            <content src="chapter.xhtml#chapter-1"/>
+          </navPoint></navMap></ncx>'''
+        chapter = b'''<html><body><a name="chapter-1"></a><img src="title.png"/>
+          <p>NCX chapter prose.</p></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.ncx": ncx,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertIn("Chapter One: From NCX\n\n", text)
+        self.assertLess(text.index("Chapter One: From NCX"),
+                        text.index("NCX chapter prose."))
 
     def test_concurrent_identical_uploads_keep_one_canonical_file(self):
         with tempfile.TemporaryDirectory() as tmp:
