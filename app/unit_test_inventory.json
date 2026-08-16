@@ -648,6 +648,11 @@
     "test_generation_path_agreement.SourcePreprocessingAgreementTest.test_both_generators_strip_the_same_things",
     "test_generation_path_agreement.SourcePreprocessingAgreementTest.test_publisher_matter_is_not_left_to_a_flag"
   ],
+  "test_goals_navigation": [
+    "test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
+    "test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
+    "test_goals_navigation.GoalsNavigationTests.test_the_stated_line_number_is_where_met_goals_actually_start"
+  ],
   "test_gold_set_builder": [
     "test_gold_set_builder.AdaptiveWindowTest.test_expansion_is_capped",
     "test_gold_set_builder.AdaptiveWindowTest.test_names_match_case_insensitively",

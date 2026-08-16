@@ -27,6 +27,10 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
+> **Where things are.** Open goals come first; **met goals begin at line 1361** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+
+> **This line number is checked, not trusted.** `app/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
+
 ### A few words that repeat
 
 - **A book's "gold" set** — a few hundred lines from that book where a human
@@ -42,7 +46,12 @@ itself is unknown, the goal says so rather than inventing a number.
 
 ---
 
+# Part I — Open
+
+*Still being worked on: measured and short of target, partly met, or not yet measured at all.*
+
 ## 1. Speaker attribution — who says which line
+
 
 The core task. Everything downstream inherits its errors: a misattributed line
 gets the wrong voice, and no amount of TTS quality repairs it.
@@ -130,6 +139,8 @@ Two consequences worth keeping straight:
 **Before any cross-set comparison, harmonise the sampling.** Running every
 method on every book — which is worth doing — will produce nonsense if a hard
 subset is scored against a full set.
+
+---
 
 ### 1.2 Close the selection gap
 
@@ -335,6 +346,8 @@ by losing the right name and `closed-oracle` wins by keeping it, that curve is
 the one measurement that would say whether a small, honest candidate set is
 reachable at all.
 
+---
+
 ### 1.3 Generalisation beyond the four books
 
 > **What this is.** Checking the app works on novels it has never encountered,
@@ -432,6 +445,7 @@ development books' figure.**
 
 ## 2. Voice — does it sound like the target speaker
 
+
 ### 2.1 Speaker similarity against a human ceiling
 
 > **What this is.** The app can imitate a specific narrator's voice. This
@@ -473,173 +487,6 @@ matching the *melody* of speech (how pitch rises and falls) in English and
 Chinese, while cloning is better at matching the *timbre* (what the voice
 sounds like). The two disagree about which is better, so the question is not
 closed.
-
-### 2.2 Repair the Chinese anchor
-
-> **What this is.** Making sure the measuring instrument works before trusting
-> what it measures.
->
-> **Why it matters.** In Chinese, the narrator scored **worse against herself**
-> than the synthetic voices scored against her. Read that again: the real person
-> was judged less like herself than a machine imitation was. That is impossible
-> as a fact about voices, so it is a fact about the ruler. Any Chinese voice
-> conclusion drawn from this data is unreliable — including the flattering ones.
->
-> **Why this is reachable.** There is an obvious suspect. The Chinese clips are
-> much shorter — about 3 seconds, against 7 for English — and this kind of
-> voice-fingerprinting is known to get shaky on short audio. Testing it is
-> cheap: chop the English clips down to 3 seconds and see whether its ceiling
-> collapses too. If it does, we have the answer in an afternoon.
-
-**Metric** — `human_vs_human` must exceed every arm it bounds.
-**Probe** — `find_invalid_anchors` in `ljspeech_score.py`, tested in
-`app/test_score_anchor.py`. Anchor construction: `build_anchor_side`.
-**Current** — **CAUSE FOUND AND FIXED 2026-08-06.**
-
-**Clip length was the whole cause**, established in both directions:
-
-| direction | result |
-|---|---|
-| truncate ENGLISH clips to the Chinese median (3.17 s) | anchor **0.783 → 0.632**, below its own clone arm |
-| join same-speaker CHINESE clips to 6.9 s | anchor **0.670 → 0.837**, clears both arms |
-| join to 10.2 s / 13.6 s | 0.867 / 0.901 |
-
-Shorten a good anchor and it breaks; lengthen a broken one and it repairs. Not
-the corpus, not the narrator, not the language, and not ECAPA being unsuited to
-Chinese — the clips were too short for a speaker embedding to be stable.
-
-**The fix needed no new data.** All 150 Chinese clips are one speaker, and a
-speaker embedding does not care about sentence continuity, only about quantity
-of voiced material. `build_anchor_side` now joins consecutive same-speaker
-clips until each side of the anchor carries `ANCHOR_MIN_SECONDS = 7.0`, chosen
-from the knee of that curve.
-
-**Target — every eval set's anchor above all of its arms. MET, confirmed in
-evidence 2026-08-07.** All three sets re-scored, `anchor_invalid` empty in
-each:
-
-| set | anchor | clone | LoRA |
-|---|---|---|---|
-| English | 0.8328 | 0.7567 | 0.6899 |
-| Japanese | 0.8355 | 0.7789 | 0.7551 |
-| Chinese | 0.7655 | 0.7651 | 0.7197 |
-
-Chinese clears its clone arm by **0.0004**. That satisfies the target and is
-not a margin to lean on: a Chinese result that depends on the anchor sitting
-above the clone should be treated as unresolved rather than passing.
-
-**What this retroactively rescues.** The Chinese ARM numbers were always fine —
-clone 0.765, LoRA 0.720. Only the yardstick was broken, so those measurements
-become readable rather than being discarded.
-
-**A note for other eval sets.** Any future set whose clips are short inherits
-this. The guard is `find_invalid_anchors`, which now has a known cause to point
-at rather than only a symptom.
-
-### 2.3 Adapters that stop talking
-
-> **What this is.** Making sure a trained voice knows when the sentence is
-> over.
->
-> **Why it matters.** This one already bit us, expensively. Two trained voices
-> produced **163.8 seconds of audio for a 7-second line** — every single time.
-> They never learned to stop, so they babbled until the system cut them off. The
-> cruel part: the training reports looked completely normal. Nothing was wrong
-> until you actually listened.
->
-> **Why this is already met, and how it stays met.** The cause turned out to be
-> one setting — the training speed dial — set five times too high. Turned down,
-> three voices in three languages all came out correct. It is now checked
-> automatically two ways: a short listening test before any voice is used, and a
-> test that stops the wrong setting from creeping back in.
-
-**Metric** — median generated duration ÷ human duration, per adapter.
-**Probe** — `app/experiments/verify_adapter_stops.py`, gate at 3.0x.
-**Current** — 1.01x / 0.87x / 0.94x across the three languages. **MET.**
-
-**Target — hold median within 0.8–1.25x, and never ship an adapter above
-3.0x.**
-
-Training loss looked ordinary (2.9 and 3.4), so only generated output reveals
-this. Protected by the gate plus `app/test_training_defaults.py`.
-
-### 2.4 Duration fidelity in normal use
-
-> **What this is.** Whether a spoken line lasts about as long as a human would
-> take to say it.
->
-> **Why it matters.** A line delivered in three-quarters of the natural time
-> sounds rushed and clipped. It is the same *kind* of fault as the babbling
-> voices above — wrong length, no error message, nobody told — but in the
-> opposite direction and much subtler, which is exactly what makes it easy to
-> ship by accident.
->
-> **Why this is reachable.** Five of the six measured cases are already inside
-> the target. Only Japanese zero-shot cloning sits outside it, so this is one
-> specific case to investigate, not a broad weakness.
-
-**Metric** — mean `dur_ratio` across held-out lines (1.00 = matches the human).
-**Current** — 100 clips per language, both arms, 2026-08-08, plus the
-narrator-controlled Japanese clone replication below (`duration_probe.py`).
-**MET at the median; per-line spread remains a quality opportunity.**
-
-Reproduced unchanged on 2026-08-12 in
-`duration_probe_20260811_overnight.json`: Japanese clone median **0.7584**
-with **94.0%** of clips outside the band. This confirms the baseline; it is
-not an intervention or an improvement.
-
-**Diagnosed 2026-08-15: the comparison does not isolate a duration defect.**
-The Japanese clone's generated pace matches the pace implied by its reference
-clip: generated duration / reference-rate-predicted duration has median
-**1.023** across the same 100 lines. The reference reads 38 non-space
-characters in 5.166 s (7.36 chars/s), while the held-out book's human is about
-26% slower. Slowing production output to match that different reading would
-erase the cloned speaker's pace.
-
-The valid same-speaker measurement was completed 2026-08-15. Thirty held-out
-clips and the excluded reference all come from the same *Kokoro* LibriVox
-recording, whose 103 chapters are read by ekzemplaro. Japanese clone median is
-**0.9269**, inside the 0.90–1.10 target (p10–p90 **0.78–1.05**, 43.3% outside).
-The old 0.758 result was therefore dominated by reader/session pace mismatch,
-not evidence for language-specific time stretching. Evidence:
-`kokoro_same_speaker_generate.json` and
-`duration_probe_same_speaker_20260815.json`.
-
-**Outlier analysis, 2026-08-15.** Reading the 30 generated WAVs directly found
-that ratio variation tracks text length more than source duration: Spearman
-correlation is +0.486 with non-space character count, +0.407 with the human's
-characters/second, +0.226 with punctuation, and only +0.184 with human clip
-duration. The shortest-text tertile has median ratio **0.845**, versus **0.962**
-for the longest. This is a targeting clue, not a causal result at n=30; a
-length-controlled intervention is the next duration experiment. Evidence:
-`duration_outlier_analysis.json`.
-
-| arm | median ratio | p10–p90 | clips outside band |
-|---|---|---|---|
-| English LoRA | 0.959 | 0.83–1.09 | 35% |
-| English clone | 1.018 | 0.85–1.17 | 35% |
-| Japanese LoRA | 0.929 | 0.78–1.15 | 57% |
-| Japanese clone | **0.758** | 0.65–0.86 | **94%** |
-| Japanese clone, same narrator/book | **0.927** | 0.78–1.05 | 43% |
-| Chinese LoRA | 0.935 | 0.83–1.10 | 45% |
-| Chinese clone | **0.896** | 0.78–1.03 | 57% |
-
-**This is the twelve-clip finding that survived.** The Japanese clone arm was
-0.76 at n=12 and is 0.7584 at n=100 — the same number to three decimals. Three
-other twelve-clip findings dissolved under proper sampling on the same day
-(2.5's two cells, 2.6's jitter), so the lesson is that sample size has to be
-checked, not that small samples are always wrong.
-
-The per-clip column is new and was hidden by the medians. Every arm, including
-the four whose medians pass, puts a third to a half of its individual clips
-outside 0.90–1.10. A median near 1.0 built from clips scattered on both sides
-is a different defect from a uniformly rushed arm, and only the Japanese clone
-is uniform: at 94% outside with a p90 of 0.86, nearly every clip is short, not
-merely the average.
-
-**Target — every arm within 0.90–1.10.**
-
-The existing safety check catches runaway voices at 3.0x. It cannot see 0.76.
 
 ---
 
@@ -690,6 +537,8 @@ deliberately refuses to classify gender from pitch
 male and female f0 distributions overlap heavily. Nothing here labels a
 speaker. This asks only whether an arm preserved *that speaker's own* range,
 which is a comparison between two clips of one person.
+
+---
 
 ### 2.6 Voice quality, the measures the field says matter most
 
@@ -822,6 +671,8 @@ which arm failed.
 
 **Target — jitter, shimmer and HNR within 0.85–1.15x; tract length within
 0.95–1.05x.**
+
+---
 
 ### 2.7 Adapters must not be trained on their own test data
 
@@ -1000,66 +851,10 @@ Two dead voices became good ones. The three that barely moved are the ones
 whose DATASETS are mixed-speaker (2.7 above): there the reference was never the
 binding constraint, and rebuilding is still required.
 
-### 2.8 A voice stays the same voice across a whole book
-
-> **What this is.** Whether a voice slowly wanders into someone else over the
-> course of a book, rather than staying recognisably one person.
->
-> **Why it matters.** The product is ten hours of one consistent voice. Every
-> other voice measurement here is a SINGLE LINE, and a slow drift is invisible
-> to them: each line is scored against its own reference, so a voice that
-> wandered steadily would score the same at the start and the end while
-> sounding obviously wrong to someone who sat through it.
->
-> **The answer is that it does not drift.** Measured at book length, a voice is
-> as much itself on line 2000 as on line 1.
-
-**Metric** — speaker similarity to an anchor built from the opening lines, as a
-function of position through the run.
-**Probe** — `app/experiments/voice_drift.py`.
-**Current** — 2026-08-08, three adapters, **2000 consecutive lines each**, zero
-failures. **MET.**
-
-| adapter | first third | last third | fitted change |
-|---|---|---|---|
-| husky_tenor_30s_m_literary | 0.776 | 0.771 | −0.005 |
-| warm_mezzo_30s_f_fantasy_2 | 0.739 | 0.738 | +0.009 |
-| warm_baritone_40s_m_2 | 0.728 | 0.728 | +0.004 |
-
-**Target — |drift| ≤ 0.03 across a book-length run.** All three clear it with
-an order of magnitude to spare.
-
-#### The 400-line result was noise, and this supersedes it
-
-An earlier run over 400 lines reported drift of −0.018, −0.050 and −0.017 and
-was written up here as a real defect, with pitch rising +1.9% to +6.6% offered
-as its mechanism. At five times the length **every part of that reverses**:
-
-| | 400 lines | 2000 lines |
-|---|---|---|
-| husky_tenor_30s_m_literary | −0.018 | −0.005 |
-| warm_mezzo_30s_f_fantasy_2 | **−0.050** | **+0.009** |
-| f0 across the run | **rises** 1.9–6.6% | **falls** 1.2–4.3% |
-
-A trend that shrinks toward zero as the sample grows, and whose direction
-flips, is line-to-line variation being fitted as a slope. Four hundred lines
-was simply too short: normal variation over a few hundred lines looks like a
-trend, and `polyfit` will always return one.
-
-**What did not change:** vocal tract length is stable to within 1% over 2000
-lines on all three adapters, and HNR within 1%. The speaker's physical voice
-properties hold. Those were flat at 400 lines too, and they are the numbers
-that were right both times.
-
-**The lesson, since this is the second time it has bitten.** The original entry
-carried the caveat — *"a 400-line drift of −0.05 does not license a claim about
-5,000 lines; whether it is linear, plateaus, or accelerates is unmeasured"* —
-and the goal was still written as though the drift were real. Stating a caveat
-is not the same as heeding it. A measurement that cannot distinguish trend from
-noise should be reported as **NO BASELINE**, not as a defect with a target
-attached.
+---
 
 ## 3. Reliability — does a run finish and produce the right thing
+
 
 ### 3.1 Chunk completion on script generation
 
@@ -1159,177 +954,10 @@ them names a model either: they record chunk, attempt, finish_reason and token
 counts only. So the worst generation failures this app has ever produced are
 permanently unattributable.
 
-### 3.2 Every generated file is real audio
-
-> **What this is.** Confirming that every audio file the app claims to have
-> made actually exists and actually contains sound.
->
-> **Why it matters.** The worst failures are the quiet ones. A missing or empty
-> file that nothing complains about becomes a silent gap in the finished
-> audiobook, discovered by a listener rather than by us.
->
-> **Why this stays at zero.** All seven ways the app can produce audio were
-> routed through a single checkpoint, so there is one place to verify rather
-> than seven places to remember. A new generation path cannot bypass it without
-> deliberately going around.
-
-**Metric** — files that are absent, empty, or unreadable after generation.
-**Probe** — `validate_generated_audio` in `app/audio_validation.py`, funnelled
-through `_save_wav`.
-**Current** — 0 known escapes since the funnel was added. **MET.**
-
-**Target — 0. Any regression is a release blocker.**
-
-### 3.3 One character, one voice
-
-> **What this is.** Making sure two different characters never end up sharing
-> the same voice by accident.
->
-> **Why it matters.** This was a real bug with a memorable shape. The app
-> stripped titles from names to help match them — so "Mr. Bennet" and
-> "Mrs. Bennet" both became "Bennet", and a husband and wife were given one
-> voice between them. It affected six books out of twenty-eight. Nothing
-> errored. The audiobook was simply wrong, and only a listener would ever know.
->
-> **Why this stays fixed.** Both directions are now tested, which matters
-> because the first attempt at a fix broke the opposite case: "EMILIA" and
-> "Emilia" are one character and *must* be merged, while Mr and Mrs Bennet are
-> two and must not.
-
-**Metric** — distinct roster entries sharing a voice through a name-matching
-bug.
-**Probe** — `app/test_generate_personas.py`.
-**Current** — fixed. **MET.**
-
-**Target — 0, with the couple case and the case-variant case both tested.**
-
-### 3.4 Reproducible output
-
-> **What this is.** Running the same job twice with the same settings should
-> produce byte-for-byte identical audio.
->
-> **Why it matters.** Without it, no comparison is trustworthy. If two runs
-> differ on their own, there is no way to tell whether a change improved
-> anything or the dice simply landed differently. Reproducibility is what makes
-> every other number on this page mean something.
->
-> **Why this is reachable.** It is already done for audio. Voices were being
-> generated without a fixed starting seed for 70 of 71 characters; each now
-> derives a stable one from its own name. The same discipline needs extending to
-> the text side.
-
-**Metric** — identical seed and inputs produce byte-identical audio.
-**Probe** — waveform SHA-256 comparison.
-**Current** — seeded generation confirmed deterministic; `character_voice_seed`
-now derives a stable per-character seed. **MET for TTS.**
-
-**Target — extend to the LLM path: same seed, same model, same script output.**
-
----
-
-## 4. Speed and cost
-
-### 4.1 Faster than real time
-
-> **What this is.** How long the app takes to produce audio, compared with how
-> long that audio lasts.
->
-> **Why it matters.** It is the number a user actually feels. Right now a
-> 10-hour audiobook costs roughly 10 hours of computer time — start it and come
-> back tomorrow. Getting comfortably below 1.0 is the difference between
-> "overnight" and "over lunch".
->
-> **Why this is reachable.** Two of the three languages are already at 0.97–0.98
-> and English at 0.91, so the target is a modest tightening rather than a
-> redesign.
-
-**Metric** — generation seconds ÷ audio seconds.
-**Current** — median **0.91x / 0.98x / 0.97x**, slowest 1.21x (n=300 per
-language, RX 9070 XT). **MET, barely.**
-
-**Target — median ≤ 0.90x, worst case ≤ 1.5x.**
-
-### 4.2 Local should not need the cloud
-
-> **What this is.** Keeping the version that runs on your own machine roughly as
-> good as the version that rents a much larger computer.
->
-> **Why it matters.** Cloud runs cost money per hour and send your book to
-> someone else's computer. If local is nearly as good, that is a real choice
-> rather than a compromise — and the app has no dependency it cannot survive
-> losing.
->
-> **Why this is reachable.** It is already true: local is at 97–99% of cloud on
-> all four books. This goal exists to *defend* a property already held, because
-> properties like this are usually lost by accident rather than by decision.
-
-**Metric** — best local accuracy ÷ best cloud accuracy, per book.
-**Current** — 97.2% / 98.7% / 97.5% / 99.0%. **MET.**
-
-**Target — hold local within 5% of cloud on every book.**
-
 ---
 
 ## 5. Text handling
 
-### 5.1 Nothing unspeakable reaches the TTS
-
-> **What this is.** Catching characters that have no spoken form before they
-> reach the voice engine — things like `■`, `♪`, `∞`, or Chinese/Japanese
-> characters embedded in English text.
->
-> **Why it matters.** Nobody knows what the engine does with them. It might skip
-> them, mangle them, or emit noise. There is currently no check at all, so
-> whatever happens, happens silently.
->
-> **What the first count found.** Counting the eight source books on 2026-08-06
-> gave a partial answer. Chinese or Japanese characters appear inside otherwise
-> English text in **five of eight books**, between 23 and 779 times each. And
-> one book, index18, turned out to be **1.4% corrupt** — 6,662 "unknown
-> character" marks left behind by a bad text conversion. The app already refuses
-> that book at the door, which is correct, and is why it does not appear in the
-> three-pass comparison.
->
-> **What is still uncounted.** The source files are only the front door. Nobody
-> has yet counted what reaches the *voice engine* after all processing, which is
-> where the damage would actually occur. That is the measurement still owed.
-
-**Metric** — characters passed to TTS with no spoken form.
-**Probe** — source-level count is a script over the input `.txt` files; the
-TTS-level count does not exist yet.
-**Current** — **measured at the TTS boundary 2026-08-08**
-(`tts_boundary_audit.py`, over `normalize_for_speech`'s output for all 48
-saved books, 98,134 lines):
-
-| | |
-|---|---|
-| unspeakable characters in raw script text | 56 |
-| removed by normalization | 56 |
-| **reaching the TTS engine** | **0** |
-
-**Target — count what reaches the engine, then drive it to 0 with a
-verbalization pass. MET, with one exclusion stated below.**
-
-**The zero was not proof the code was sound.** Measured the same day, these
-passed through `normalize_for_speech` unchanged: `♪` `∞` `★` `→` `♥` and
-`U+FFFD`. Only `■` was handled, and only because it sits in `SPEECH_BREAKS`.
-The audit read 0 because the 48 saved books do not happen to contain the
-others — index18's 6,662 U+FFFD are refused by the *source gate* before the
-book is ever saved. **The protection was the gate, not the normaliser**, and
-anything reaching `scripts/` by another route had none.
-
-`verbalize_symbols` now closes it: named symbols are spoken (`∞` → "infinity",
-`→` → "to", `×` → "times"), and anything in an unspeakable Unicode category —
-So, Sm, Sk, Co, Cn, Cs, plus U+FFFD — is dropped and **recorded** in the
-transformation list rather than removed silently. Currency is deliberately
-excluded, since `$` and `£` are speakable. 11 tests in
-`test_speech_verbalization.py`.
-
-**The exclusion: pictographic kana are not covered and cannot be, by this
-method.** `へ` used as a drawing of a mouth is category Lo — a letter — and
-identical to `へ` the particle. Any rule that dropped it would delete Japanese
-text. Catching that needs context, not character class, and is not attempted
-here.
 
 ### 5.2 Names pronounced consistently
 
@@ -1376,6 +1004,8 @@ surface, the same mistake as auditing TTS input rather than output (5.1).
 
 **Target — a populated lexicon for the shipped demo book, and 0 substitutions
 that alter a non-name word.**
+
+---
 
 ### 5.3 Three-pass vs single-pass generation
 
@@ -1614,7 +1244,10 @@ So the reachable path is probably not to pick one. Words and boundaries can
 come from different passes, and the failure modes are exactly complementary.
 That hybrid is untested; nothing measured rules it out.
 
+---
+
 ## 6. Measurement integrity
+
 
 Goals about the instruments themselves. These earned their place by failing.
 
@@ -1623,91 +1256,6 @@ Goals about the instruments themselves. These earned their place by failing.
 > just quietly reports plausible numbers that are wrong, and those numbers get
 > believed and acted on. Each goal here exists because a measurement was
 > trusted that should not have been.
-
-### 6.1 A ceiling must bound its arms
-
-> **In short.** If the "best possible score" comes out lower than a score
-> something actually achieved, the test is broken and must say so out loud
-> instead of printing a tidy table. This is now automatic.
-
-Covered at 2.2. Enforced by `find_invalid_anchors`, reported in every score
-artifact as `anchor_invalid`.
-
-**Target — 0 comparisons published from an eval set with an invalid anchor.
-MET 2026-08-08**, now asserted rather than observed.
-
-`test_score_anchor.py` pins the *detector* against constructed inputs.
-`test_published_anchors.py` pins the *artifacts*: it walks every
-`*_score.json` in the evidence tree and asserts each records
-`anchor_invalid`, that it is empty, and — re-derived from the summary rather
-than trusting the recorded flag — that every arm scores below its ceiling. A
-correct detector nobody reads is exactly the 2026-08-06 failure, so the goal
-needed a check over real files, not fixtures.
-
-### 6.2 One source per decision
-
-> **In short.** Any setting written down in more than one place will eventually
-> disagree with itself, and the disagreement will be silent. The training-speed
-> dial was written in four places; three said one thing, one said another — and
-> the button in the interface used one of the wrong ones. That is how the
-> babbling voices in 2.3 reached users' hands.
->
-> **Why this is reachable.** Each case is small and permanent once fixed: write
-> the value once, have everything else refer to it, and add a test that fails if
-> a copy reappears. Two done, one known outstanding.
-
-**Metric** — settings defined in more than one place.
-**Current** — three found and fixed: the training learning rate,
-`is_remote_llm`, and `config["llm"]` versus `config["llm_local"]` — the last
-of which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
-working server sat idle. **MET 2026-08-16**
-(`app/test_llm_config_source.py`, 8 tests).
-
-`config["llm"]` is a mirror of the active profile, not a source: `/api/config`
-copies the profile named by `llm_mode` into it and refuses to save a
-disagreement, but anything writing config.json outside that endpoint updates
-one and not the other. The rule for resolving the active profile had been
-written out by hand in two different spellings, each with a comment citing
-Rule 15. It now lives in `lmstudio_settings.get_active_llm_config`, with the
-two former spellings kept in the test as the reference behaviour the single
-implementation must reproduce.
-
-Two experiment probes were also reading `llm_local` directly, so they ignored
-the toggle while reproducing a pipeline that honours it.
-`benchmark_runner._get_llm_benchmark_target` is deliberately exempt and the
-test records why: it resolves an explicitly named endpoint so both can be
-measured independently of the toggle, which is a different question.
-
-**Target — 0 known parallel definitions; each new one gets a test that asserts
-the copies agree.** The guard is
-`SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place`,
-which fails on a re-introduced copy anywhere under `app/`.
-
-### 6.3 Indexes describe committed state
-
-> **In short.** The record of results must be reproducible by someone else on a
-> fresh copy. One index was quietly built partly from files that only existed on
-> this machine, so it looked perfect here and was permanently wrong everywhere
-> else.
-
-**Metric** — index checks passing on a clean checkout.
-**Current** — **MET**, after `collect_results.py` was found scoring gitignored
-files and stamping rows with file mtimes.
-
-**Target — every index check passes from a fresh clone with no untracked
-files.**
-
-### 6.4 No skipped tests
-
-> **In short.** A test that skips is not a test that passes, and counting it as
-> one is how a fault hides. Three tests here were skipping quietly. Rewriting
-> them so they could not skip immediately exposed a genuine bug in the very
-> thing they were meant to be checking — the skip had been covering it.
-
-**Metric** — tests skipped in the release verifier.
-**Current** — 0. **MET.**
-
-**Target — 0. A skip is a failure.**
 
 ### 6.5 Someone has looked at the audio
 
@@ -1748,6 +1296,7 @@ the gross failure a number hides, not for ranking arms.
 
 ## 7. The finished audiobook
 
+
 ### 7.1 A listener prefers what we ship
 
 > **What this is.** Playing finished audio to a person and asking which
@@ -1779,6 +1328,8 @@ forbid. The first task is the listening, not the fix.
 cannot be run on the GPU: no card, no code, no experiment design. One person,
 headphones, and the concealed key afterwards.
 
+---
+
 ### 7.2 The text we extract is the text in the book
 
 > **What this is.** Checking that what we pull out of an EPUB is complete,
@@ -1804,6 +1355,526 @@ this goal existing: extraction is the one stage measured only against material
 we wrote ourselves.
 
 **Target — 0 duplicated and 0 dropped headings across the shipped library.**
+
+---
+
+# Part II — Met
+
+*Measured at or beyond target, each keeping a test so it stays there. Nothing here needs work; it needs not to regress.*
+
+## 2. Voice — does it sound like the target speaker
+
+### 2.2 Repair the Chinese anchor
+
+> **What this is.** Making sure the measuring instrument works before trusting
+> what it measures.
+>
+> **Why it matters.** In Chinese, the narrator scored **worse against herself**
+> than the synthetic voices scored against her. Read that again: the real person
+> was judged less like herself than a machine imitation was. That is impossible
+> as a fact about voices, so it is a fact about the ruler. Any Chinese voice
+> conclusion drawn from this data is unreliable — including the flattering ones.
+>
+> **Why this is reachable.** There is an obvious suspect. The Chinese clips are
+> much shorter — about 3 seconds, against 7 for English — and this kind of
+> voice-fingerprinting is known to get shaky on short audio. Testing it is
+> cheap: chop the English clips down to 3 seconds and see whether its ceiling
+> collapses too. If it does, we have the answer in an afternoon.
+
+**Metric** — `human_vs_human` must exceed every arm it bounds.
+**Probe** — `find_invalid_anchors` in `ljspeech_score.py`, tested in
+`app/test_score_anchor.py`. Anchor construction: `build_anchor_side`.
+**Current** — **CAUSE FOUND AND FIXED 2026-08-06.**
+
+**Clip length was the whole cause**, established in both directions:
+
+| direction | result |
+|---|---|
+| truncate ENGLISH clips to the Chinese median (3.17 s) | anchor **0.783 → 0.632**, below its own clone arm |
+| join same-speaker CHINESE clips to 6.9 s | anchor **0.670 → 0.837**, clears both arms |
+| join to 10.2 s / 13.6 s | 0.867 / 0.901 |
+
+Shorten a good anchor and it breaks; lengthen a broken one and it repairs. Not
+the corpus, not the narrator, not the language, and not ECAPA being unsuited to
+Chinese — the clips were too short for a speaker embedding to be stable.
+
+**The fix needed no new data.** All 150 Chinese clips are one speaker, and a
+speaker embedding does not care about sentence continuity, only about quantity
+of voiced material. `build_anchor_side` now joins consecutive same-speaker
+clips until each side of the anchor carries `ANCHOR_MIN_SECONDS = 7.0`, chosen
+from the knee of that curve.
+
+**Target — every eval set's anchor above all of its arms. MET, confirmed in
+evidence 2026-08-07.** All three sets re-scored, `anchor_invalid` empty in
+each:
+
+| set | anchor | clone | LoRA |
+|---|---|---|---|
+| English | 0.8328 | 0.7567 | 0.6899 |
+| Japanese | 0.8355 | 0.7789 | 0.7551 |
+| Chinese | 0.7655 | 0.7651 | 0.7197 |
+
+Chinese clears its clone arm by **0.0004**. That satisfies the target and is
+not a margin to lean on: a Chinese result that depends on the anchor sitting
+above the clone should be treated as unresolved rather than passing.
+
+**What this retroactively rescues.** The Chinese ARM numbers were always fine —
+clone 0.765, LoRA 0.720. Only the yardstick was broken, so those measurements
+become readable rather than being discarded.
+
+**A note for other eval sets.** Any future set whose clips are short inherits
+this. The guard is `find_invalid_anchors`, which now has a known cause to point
+at rather than only a symptom.
+
+---
+
+### 2.3 Adapters that stop talking
+
+> **What this is.** Making sure a trained voice knows when the sentence is
+> over.
+>
+> **Why it matters.** This one already bit us, expensively. Two trained voices
+> produced **163.8 seconds of audio for a 7-second line** — every single time.
+> They never learned to stop, so they babbled until the system cut them off. The
+> cruel part: the training reports looked completely normal. Nothing was wrong
+> until you actually listened.
+>
+> **Why this is already met, and how it stays met.** The cause turned out to be
+> one setting — the training speed dial — set five times too high. Turned down,
+> three voices in three languages all came out correct. It is now checked
+> automatically two ways: a short listening test before any voice is used, and a
+> test that stops the wrong setting from creeping back in.
+
+**Metric** — median generated duration ÷ human duration, per adapter.
+**Probe** — `app/experiments/verify_adapter_stops.py`, gate at 3.0x.
+**Current** — 1.01x / 0.87x / 0.94x across the three languages. **MET.**
+
+**Target — hold median within 0.8–1.25x, and never ship an adapter above
+3.0x.**
+
+Training loss looked ordinary (2.9 and 3.4), so only generated output reveals
+this. Protected by the gate plus `app/test_training_defaults.py`.
+
+---
+
+### 2.4 Duration fidelity in normal use
+
+> **What this is.** Whether a spoken line lasts about as long as a human would
+> take to say it.
+>
+> **Why it matters.** A line delivered in three-quarters of the natural time
+> sounds rushed and clipped. It is the same *kind* of fault as the babbling
+> voices above — wrong length, no error message, nobody told — but in the
+> opposite direction and much subtler, which is exactly what makes it easy to
+> ship by accident.
+>
+> **Why this is reachable.** Five of the six measured cases are already inside
+> the target. Only Japanese zero-shot cloning sits outside it, so this is one
+> specific case to investigate, not a broad weakness.
+
+**Metric** — mean `dur_ratio` across held-out lines (1.00 = matches the human).
+**Current** — 100 clips per language, both arms, 2026-08-08, plus the
+narrator-controlled Japanese clone replication below (`duration_probe.py`).
+**MET at the median; per-line spread remains a quality opportunity.**
+
+Reproduced unchanged on 2026-08-12 in
+`duration_probe_20260811_overnight.json`: Japanese clone median **0.7584**
+with **94.0%** of clips outside the band. This confirms the baseline; it is
+not an intervention or an improvement.
+
+**Diagnosed 2026-08-15: the comparison does not isolate a duration defect.**
+The Japanese clone's generated pace matches the pace implied by its reference
+clip: generated duration / reference-rate-predicted duration has median
+**1.023** across the same 100 lines. The reference reads 38 non-space
+characters in 5.166 s (7.36 chars/s), while the held-out book's human is about
+26% slower. Slowing production output to match that different reading would
+erase the cloned speaker's pace.
+
+The valid same-speaker measurement was completed 2026-08-15. Thirty held-out
+clips and the excluded reference all come from the same *Kokoro* LibriVox
+recording, whose 103 chapters are read by ekzemplaro. Japanese clone median is
+**0.9269**, inside the 0.90–1.10 target (p10–p90 **0.78–1.05**, 43.3% outside).
+The old 0.758 result was therefore dominated by reader/session pace mismatch,
+not evidence for language-specific time stretching. Evidence:
+`kokoro_same_speaker_generate.json` and
+`duration_probe_same_speaker_20260815.json`.
+
+**Outlier analysis, 2026-08-15.** Reading the 30 generated WAVs directly found
+that ratio variation tracks text length more than source duration: Spearman
+correlation is +0.486 with non-space character count, +0.407 with the human's
+characters/second, +0.226 with punctuation, and only +0.184 with human clip
+duration. The shortest-text tertile has median ratio **0.845**, versus **0.962**
+for the longest. This is a targeting clue, not a causal result at n=30; a
+length-controlled intervention is the next duration experiment. Evidence:
+`duration_outlier_analysis.json`.
+
+| arm | median ratio | p10–p90 | clips outside band |
+|---|---|---|---|
+| English LoRA | 0.959 | 0.83–1.09 | 35% |
+| English clone | 1.018 | 0.85–1.17 | 35% |
+| Japanese LoRA | 0.929 | 0.78–1.15 | 57% |
+| Japanese clone | **0.758** | 0.65–0.86 | **94%** |
+| Japanese clone, same narrator/book | **0.927** | 0.78–1.05 | 43% |
+| Chinese LoRA | 0.935 | 0.83–1.10 | 45% |
+| Chinese clone | **0.896** | 0.78–1.03 | 57% |
+
+**This is the twelve-clip finding that survived.** The Japanese clone arm was
+0.76 at n=12 and is 0.7584 at n=100 — the same number to three decimals. Three
+other twelve-clip findings dissolved under proper sampling on the same day
+(2.5's two cells, 2.6's jitter), so the lesson is that sample size has to be
+checked, not that small samples are always wrong.
+
+The per-clip column is new and was hidden by the medians. Every arm, including
+the four whose medians pass, puts a third to a half of its individual clips
+outside 0.90–1.10. A median near 1.0 built from clips scattered on both sides
+is a different defect from a uniformly rushed arm, and only the Japanese clone
+is uniform: at 94% outside with a p90 of 0.86, nearly every clip is short, not
+merely the average.
+
+**Target — every arm within 0.90–1.10.**
+
+The existing safety check catches runaway voices at 3.0x. It cannot see 0.76.
+
+---
+
+### 2.8 A voice stays the same voice across a whole book
+
+> **What this is.** Whether a voice slowly wanders into someone else over the
+> course of a book, rather than staying recognisably one person.
+>
+> **Why it matters.** The product is ten hours of one consistent voice. Every
+> other voice measurement here is a SINGLE LINE, and a slow drift is invisible
+> to them: each line is scored against its own reference, so a voice that
+> wandered steadily would score the same at the start and the end while
+> sounding obviously wrong to someone who sat through it.
+>
+> **The answer is that it does not drift.** Measured at book length, a voice is
+> as much itself on line 2000 as on line 1.
+
+**Metric** — speaker similarity to an anchor built from the opening lines, as a
+function of position through the run.
+**Probe** — `app/experiments/voice_drift.py`.
+**Current** — 2026-08-08, three adapters, **2000 consecutive lines each**, zero
+failures. **MET.**
+
+| adapter | first third | last third | fitted change |
+|---|---|---|---|
+| husky_tenor_30s_m_literary | 0.776 | 0.771 | −0.005 |
+| warm_mezzo_30s_f_fantasy_2 | 0.739 | 0.738 | +0.009 |
+| warm_baritone_40s_m_2 | 0.728 | 0.728 | +0.004 |
+
+**Target — |drift| ≤ 0.03 across a book-length run.** All three clear it with
+an order of magnitude to spare.
+
+#### The 400-line result was noise, and this supersedes it
+
+An earlier run over 400 lines reported drift of −0.018, −0.050 and −0.017 and
+was written up here as a real defect, with pitch rising +1.9% to +6.6% offered
+as its mechanism. At five times the length **every part of that reverses**:
+
+| | 400 lines | 2000 lines |
+|---|---|---|
+| husky_tenor_30s_m_literary | −0.018 | −0.005 |
+| warm_mezzo_30s_f_fantasy_2 | **−0.050** | **+0.009** |
+| f0 across the run | **rises** 1.9–6.6% | **falls** 1.2–4.3% |
+
+A trend that shrinks toward zero as the sample grows, and whose direction
+flips, is line-to-line variation being fitted as a slope. Four hundred lines
+was simply too short: normal variation over a few hundred lines looks like a
+trend, and `polyfit` will always return one.
+
+**What did not change:** vocal tract length is stable to within 1% over 2000
+lines on all three adapters, and HNR within 1%. The speaker's physical voice
+properties hold. Those were flat at 400 lines too, and they are the numbers
+that were right both times.
+
+**The lesson, since this is the second time it has bitten.** The original entry
+carried the caveat — *"a 400-line drift of −0.05 does not license a claim about
+5,000 lines; whether it is linear, plateaus, or accelerates is unmeasured"* —
+and the goal was still written as though the drift were real. Stating a caveat
+is not the same as heeding it. A measurement that cannot distinguish trend from
+noise should be reported as **NO BASELINE**, not as a defect with a target
+attached.
+
+---
+
+## 3. Reliability — does a run finish and produce the right thing
+
+### 3.2 Every generated file is real audio
+
+> **What this is.** Confirming that every audio file the app claims to have
+> made actually exists and actually contains sound.
+>
+> **Why it matters.** The worst failures are the quiet ones. A missing or empty
+> file that nothing complains about becomes a silent gap in the finished
+> audiobook, discovered by a listener rather than by us.
+>
+> **Why this stays at zero.** All seven ways the app can produce audio were
+> routed through a single checkpoint, so there is one place to verify rather
+> than seven places to remember. A new generation path cannot bypass it without
+> deliberately going around.
+
+**Metric** — files that are absent, empty, or unreadable after generation.
+**Probe** — `validate_generated_audio` in `app/audio_validation.py`, funnelled
+through `_save_wav`.
+**Current** — 0 known escapes since the funnel was added. **MET.**
+
+**Target — 0. Any regression is a release blocker.**
+
+---
+
+### 3.3 One character, one voice
+
+> **What this is.** Making sure two different characters never end up sharing
+> the same voice by accident.
+>
+> **Why it matters.** This was a real bug with a memorable shape. The app
+> stripped titles from names to help match them — so "Mr. Bennet" and
+> "Mrs. Bennet" both became "Bennet", and a husband and wife were given one
+> voice between them. It affected six books out of twenty-eight. Nothing
+> errored. The audiobook was simply wrong, and only a listener would ever know.
+>
+> **Why this stays fixed.** Both directions are now tested, which matters
+> because the first attempt at a fix broke the opposite case: "EMILIA" and
+> "Emilia" are one character and *must* be merged, while Mr and Mrs Bennet are
+> two and must not.
+
+**Metric** — distinct roster entries sharing a voice through a name-matching
+bug.
+**Probe** — `app/test_generate_personas.py`.
+**Current** — fixed. **MET.**
+
+**Target — 0, with the couple case and the case-variant case both tested.**
+
+---
+
+### 3.4 Reproducible output
+
+> **What this is.** Running the same job twice with the same settings should
+> produce byte-for-byte identical audio.
+>
+> **Why it matters.** Without it, no comparison is trustworthy. If two runs
+> differ on their own, there is no way to tell whether a change improved
+> anything or the dice simply landed differently. Reproducibility is what makes
+> every other number on this page mean something.
+>
+> **Why this is reachable.** It is already done for audio. Voices were being
+> generated without a fixed starting seed for 70 of 71 characters; each now
+> derives a stable one from its own name. The same discipline needs extending to
+> the text side.
+
+**Metric** — identical seed and inputs produce byte-identical audio.
+**Probe** — waveform SHA-256 comparison.
+**Current** — seeded generation confirmed deterministic; `character_voice_seed`
+now derives a stable per-character seed. **MET for TTS.**
+
+**Target — extend to the LLM path: same seed, same model, same script output.**
+
+---
+
+## 4. Speed and cost
+
+
+### 4.1 Faster than real time
+
+> **What this is.** How long the app takes to produce audio, compared with how
+> long that audio lasts.
+>
+> **Why it matters.** It is the number a user actually feels. Right now a
+> 10-hour audiobook costs roughly 10 hours of computer time — start it and come
+> back tomorrow. Getting comfortably below 1.0 is the difference between
+> "overnight" and "over lunch".
+>
+> **Why this is reachable.** Two of the three languages are already at 0.97–0.98
+> and English at 0.91, so the target is a modest tightening rather than a
+> redesign.
+
+**Metric** — generation seconds ÷ audio seconds.
+**Current** — median **0.91x / 0.98x / 0.97x**, slowest 1.21x (n=300 per
+language, RX 9070 XT). **MET, barely.**
+
+**Target — median ≤ 0.90x, worst case ≤ 1.5x.**
+
+---
+
+### 4.2 Local should not need the cloud
+
+> **What this is.** Keeping the version that runs on your own machine roughly as
+> good as the version that rents a much larger computer.
+>
+> **Why it matters.** Cloud runs cost money per hour and send your book to
+> someone else's computer. If local is nearly as good, that is a real choice
+> rather than a compromise — and the app has no dependency it cannot survive
+> losing.
+>
+> **Why this is reachable.** It is already true: local is at 97–99% of cloud on
+> all four books. This goal exists to *defend* a property already held, because
+> properties like this are usually lost by accident rather than by decision.
+
+**Metric** — best local accuracy ÷ best cloud accuracy, per book.
+**Current** — 97.2% / 98.7% / 97.5% / 99.0%. **MET.**
+
+**Target — hold local within 5% of cloud on every book.**
+
+---
+
+## 5. Text handling
+
+### 5.1 Nothing unspeakable reaches the TTS
+
+> **What this is.** Catching characters that have no spoken form before they
+> reach the voice engine — things like `■`, `♪`, `∞`, or Chinese/Japanese
+> characters embedded in English text.
+>
+> **Why it matters.** Nobody knows what the engine does with them. It might skip
+> them, mangle them, or emit noise. There is currently no check at all, so
+> whatever happens, happens silently.
+>
+> **What the first count found.** Counting the eight source books on 2026-08-06
+> gave a partial answer. Chinese or Japanese characters appear inside otherwise
+> English text in **five of eight books**, between 23 and 779 times each. And
+> one book, index18, turned out to be **1.4% corrupt** — 6,662 "unknown
+> character" marks left behind by a bad text conversion. The app already refuses
+> that book at the door, which is correct, and is why it does not appear in the
+> three-pass comparison.
+>
+> **What is still uncounted.** The source files are only the front door. Nobody
+> has yet counted what reaches the *voice engine* after all processing, which is
+> where the damage would actually occur. That is the measurement still owed.
+
+**Metric** — characters passed to TTS with no spoken form.
+**Probe** — source-level count is a script over the input `.txt` files; the
+TTS-level count does not exist yet.
+**Current** — **measured at the TTS boundary 2026-08-08**
+(`tts_boundary_audit.py`, over `normalize_for_speech`'s output for all 48
+saved books, 98,134 lines):
+
+| | |
+|---|---|
+| unspeakable characters in raw script text | 56 |
+| removed by normalization | 56 |
+| **reaching the TTS engine** | **0** |
+
+**Target — count what reaches the engine, then drive it to 0 with a
+verbalization pass. MET, with one exclusion stated below.**
+
+**The zero was not proof the code was sound.** Measured the same day, these
+passed through `normalize_for_speech` unchanged: `♪` `∞` `★` `→` `♥` and
+`U+FFFD`. Only `■` was handled, and only because it sits in `SPEECH_BREAKS`.
+The audit read 0 because the 48 saved books do not happen to contain the
+others — index18's 6,662 U+FFFD are refused by the *source gate* before the
+book is ever saved. **The protection was the gate, not the normaliser**, and
+anything reaching `scripts/` by another route had none.
+
+`verbalize_symbols` now closes it: named symbols are spoken (`∞` → "infinity",
+`→` → "to", `×` → "times"), and anything in an unspeakable Unicode category —
+So, Sm, Sk, Co, Cn, Cs, plus U+FFFD — is dropped and **recorded** in the
+transformation list rather than removed silently. Currency is deliberately
+excluded, since `$` and `£` are speakable. 11 tests in
+`test_speech_verbalization.py`.
+
+**The exclusion: pictographic kana are not covered and cannot be, by this
+method.** `へ` used as a drawing of a mouth is category Lo — a letter — and
+identical to `へ` the particle. Any rule that dropped it would delete Japanese
+text. Catching that needs context, not character class, and is not attempted
+here.
+
+---
+
+## 6. Measurement integrity
+
+### 6.1 A ceiling must bound its arms
+
+> **In short.** If the "best possible score" comes out lower than a score
+> something actually achieved, the test is broken and must say so out loud
+> instead of printing a tidy table. This is now automatic.
+
+Covered at 2.2. Enforced by `find_invalid_anchors`, reported in every score
+artifact as `anchor_invalid`.
+
+**Target — 0 comparisons published from an eval set with an invalid anchor.
+MET 2026-08-08**, now asserted rather than observed.
+
+`test_score_anchor.py` pins the *detector* against constructed inputs.
+`test_published_anchors.py` pins the *artifacts*: it walks every
+`*_score.json` in the evidence tree and asserts each records
+`anchor_invalid`, that it is empty, and — re-derived from the summary rather
+than trusting the recorded flag — that every arm scores below its ceiling. A
+correct detector nobody reads is exactly the 2026-08-06 failure, so the goal
+needed a check over real files, not fixtures.
+
+---
+
+### 6.2 One source per decision
+
+> **In short.** Any setting written down in more than one place will eventually
+> disagree with itself, and the disagreement will be silent. The training-speed
+> dial was written in four places; three said one thing, one said another — and
+> the button in the interface used one of the wrong ones. That is how the
+> babbling voices in 2.3 reached users' hands.
+>
+> **Why this is reachable.** Each case is small and permanent once fixed: write
+> the value once, have everything else refer to it, and add a test that fails if
+> a copy reappears. Two done, one known outstanding.
+
+**Metric** — settings defined in more than one place.
+**Current** — three found and fixed: the training learning rate,
+`is_remote_llm`, and `config["llm"]` versus `config["llm_local"]` — the last
+of which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
+working server sat idle. **MET 2026-08-16**
+(`app/test_llm_config_source.py`, 8 tests).
+
+`config["llm"]` is a mirror of the active profile, not a source: `/api/config`
+copies the profile named by `llm_mode` into it and refuses to save a
+disagreement, but anything writing config.json outside that endpoint updates
+one and not the other. The rule for resolving the active profile had been
+written out by hand in two different spellings, each with a comment citing
+Rule 15. It now lives in `lmstudio_settings.get_active_llm_config`, with the
+two former spellings kept in the test as the reference behaviour the single
+implementation must reproduce.
+
+Two experiment probes were also reading `llm_local` directly, so they ignored
+the toggle while reproducing a pipeline that honours it.
+`benchmark_runner._get_llm_benchmark_target` is deliberately exempt and the
+test records why: it resolves an explicitly named endpoint so both can be
+measured independently of the toggle, which is a different question.
+
+**Target — 0 known parallel definitions; each new one gets a test that asserts
+the copies agree.** The guard is
+`SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place`,
+which fails on a re-introduced copy anywhere under `app/`.
+
+---
+
+### 6.3 Indexes describe committed state
+
+> **In short.** The record of results must be reproducible by someone else on a
+> fresh copy. One index was quietly built partly from files that only existed on
+> this machine, so it looked perfect here and was permanently wrong everywhere
+> else.
+
+**Metric** — index checks passing on a clean checkout.
+**Current** — **MET**, after `collect_results.py` was found scoring gitignored
+files and stamping rows with file mtimes.
+
+**Target — every index check passes from a fresh clone with no untracked
+files.**
+
+---
+
+### 6.4 No skipped tests
+
+> **In short.** A test that skips is not a test that passes, and counting it as
+> one is how a fault hides. Three tests here were skipping quietly. Rewriting
+> them so they could not skip immediately exposed a genuine bug in the very
+> thing they were meant to be checking — the skip had been covering it.
+
+**Metric** — tests skipped in the release verifier.
+**Current** — 0. **MET.**
+
+**Target — 0. A skip is a failure.**
+
+---
 
 ## Priority
 
