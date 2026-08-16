@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-16 18:17 from `ab_test_runtime/experiments/` — 325 artifacts, 527 arms.
+Generated 2026-08-16 18:19 from `ab_test_runtime/experiments/` — 326 artifacts, 527 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -692,6 +692,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `aishell3_SSB0748_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `alignment_diagnosis.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `anchor_length_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_hybrid__kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
