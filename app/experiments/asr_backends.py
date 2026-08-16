@@ -288,6 +288,37 @@ def run_silero_vad(wav, _cache={}):
     return "", [(item["start"], item["end"], "") for item in timestamps]
 
 
+def run_silero_whisper_cpp(wav, text_model, binary, language="ja",
+                           vad_runner=run_silero_vad,
+                           transcriber=run_whisper_cpp):
+    """Keep Silero's boundaries and transcribe every window independently.
+
+    Silero may split one utterance at an internal pause. That is safe here:
+    every window is transcribed and retained, so no timestamp-gap heuristic can
+    merge a genuine neighboring utterance. The returned timestamps remain
+    Silero's; Whisper supplies text only.
+    """
+    import soundfile as sf
+
+    _empty, windows = vad_runner(wav)
+    if not windows:
+        return "", []
+    audio, rate = sf.read(wav, dtype="float32", always_2d=True)
+    rebuilt = []
+    with tempfile.TemporaryDirectory() as work:
+        for index, (start, end, _unused) in enumerate(windows):
+            first = max(0, round(start * rate))
+            last = min(len(audio), round(end * rate))
+            if last <= first:
+                continue
+            chunk = os.path.join(work, f"vad{index:04d}.wav")
+            sf.write(chunk, audio[first:last], rate)
+            spoken, _segments = transcriber(
+                chunk, text_model, binary, language=language)
+            rebuilt.append((start, end, spoken.strip()))
+    return " ".join(text for _start, _end, text in rebuilt if text), rebuilt
+
+
 def build_alignment_probe(rows, out_wav, gap=0.5):
     """Concatenate clips with silence between, returning exact boundary times.
 
@@ -406,6 +437,11 @@ def main():
             return run_energy_vad
         if name == "silero_vad":
             return run_silero_vad
+        if name == "silero_whisper_cpp":
+            text_model = os.path.join(
+                os.path.dirname(wcpp_model), "ggml-large-v3.bin")
+            return lambda w: run_silero_whisper_cpp(
+                w, text_model, args.whisper_cpp_bin, language=args.lang)
         raise SystemExit(f"unknown backend {name}")
 
     import soundfile as sf

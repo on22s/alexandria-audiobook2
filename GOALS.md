@@ -413,6 +413,18 @@ implemented in PR #299 and meets this intervention's stated evidence target.
 It does **not** erase the broader 28-book generalisation gap: narrator metadata
 must be known and supplied, and not every weak book is first-person.
 
+**Generic context-evidence intervention rejected, 2026-08-16.** The gated
+five-book pilot (`pdnc_context_evidence__pilot__local-llamacpp.json`) moved
+accuracy only from **346/600 (57.7%) to 351/600 (58.5%)**: +0.83 percentage
+points, with 30 corrected rows and 25 regressions (paired p=0.590). That misses
+both advance gates (+3 points and p<0.05), so the planned 20-book confirmatory
+run was correctly not started. The 55 correctness-changing rows do not support
+a safe subset rule: gains/losses were 14/13 when the gold speaker was explicitly
+mentioned and 16/12 when absent, while the largest book effects went in opposite
+directions (*The Sun Also Rises* +13, *Persuasion* -12). The intervention mostly
+shifts dialogue-turn alignment rather than reliably following evidence. Keep the
+verified exact narrator metadata path; do not ship the generic prompt.
+
 **Target — a clean held-out number on ≥ 3 books, within 5 points of the
 development books' figure.**
 
@@ -1053,7 +1065,7 @@ recording `total_chunks`, `accepted_chunk_count` and, on newer runs,
 **MET on the only model that can be attributed** — gemma-4-e4b completes every
 chunk of every book, 1313 for 1313, against a 99% target.
 
-**The development set is MET, but broader shipped-model reliability is OPEN.**
+**The development set was MET before broader shipped-model reliability was.**
 All four development books completed every chunk on qwen3-14b on 2026-08-10:
 
 | book | chunks | completion |
@@ -1084,8 +1096,8 @@ That is **334/402 = 83.1%** completion across the four unseen books, below the
 checkpoints. `arc4` repeatedly expanded a short repetitive passage until the
 16,384-token ceiling; `grimgar06` repeatedly omitted parts of one passage even
 after adaptive splitting. Retrying either unchanged is not a new measurement.
-The current overall status is therefore **OPEN**: the development books are
-100%, but the shipped model does not generalise that reliability to these
+At that point the overall status was therefore **OPEN**: the development books
+were 100%, but the shipped model had not generalised that reliability to these
 unseen formats.
 
 **Both blockers are now diagnosed without retrying them unchanged.** Arc4's
@@ -1097,8 +1109,14 @@ normally but repeatedly omitted the same prose: full-chunk recall stayed
 82.7–85.8%, and recursive halves/quarters were no more reliable, ruling out a
 context ceiling. The production three-pass path deterministically presegments
 quotes and completed the entire **71,602-word, 3,305-entry** book across 142
-chunks. This establishes a working escape path, but a four-book current-path
-rerun is still required to call the 99% reliability target met.
+chunks.
+
+**MET on an unseen four-book current-path rerun, 2026-08-16.** The clean
+qwen3-14b campaign in `unseen_three_pass_20260815` completed **807/807 chunks
+(100%)**, 411,746 words and 15,728 entries with no failure codes: mushoku18
+110/110, grimgar06 142/142, mushoku23 241/241, and arc4_volume10wn 314/314.
+This clears the 99% target on every book and confirms that the three-pass escape
+path generalises across the four previously unseen formats.
 
 **The qwen2.5-14b figures this goal used to quote are still not in the evidence
 tree**, and the 15 historical failures remain unattributable - their manifests
@@ -1447,10 +1465,18 @@ was then tuned on clips 1–10, checked on 11–20, and frozen before the untouc
 21–30 holdout. With 400 ms minimum silence and 250 ms speech padding, that
 holdout reached **39 ms median**, **226 ms p90**, and **90% within 300 ms**,
 meeting the boundary target (`asr_silero_vad_ja_holdout.json`). It still emits
-14 segments for 10 clips, so neural VAD solves boundary placement but needs a
-coalescing rule before production. Silero is not installed in either configured
-environment; this result used an isolated temporary install and does not claim
-the app dependency is ready.
+14 segments for 10 clips, so neural VAD solves boundary placement but production
+cannot assume one VAD segment equals one utterance. Silero is not installed in
+either configured environment; this result used an isolated temporary install
+and does not claim the app dependency is ready.
+
+The proposed timestamp-gap coalescer was checked on CPU on 2026-08-16 and is
+not safe. On the frozen holdout, the four extra within-utterance splits have
+0.2–0.4 s gaps, but genuine adjacent utterances also have gaps as small as
+0.4 s after VAD padding. A threshold that removes all extra splits therefore
+also merges real boundaries. Production integration needs a segmenter-to-ASR
+windowing design that tolerates internal splits, followed by downstream
+transcription validation; it must not guess from timestamp gaps alone.
 
 **A note on reproducing this.** The first run of the comparison omitted
 `--build`, silently scored a different clip set, and produced base 58.0% /
@@ -1572,9 +1598,8 @@ before working on them has now twice been worth more than working on them.
 
 Then: the Japanese transcription gap (5.4) if Voice Lab is pointed at a
 Japanese audiobook. The three-pass baseline (5.3) is already answered and
-should not be listed as pending. Reliability 3.1 is also OPEN again on unseen
-books: diagnose the fixed failures at arc4 chunk 133 and grimgar06 chunk 25
-before spending another run on either unchanged.
+should not be listed as pending. Reliability 3.1 is MET after the 2026-08-16
+unseen four-book current-path rerun completed all 807 chunks.
 
 ## Rules for changing this file
 

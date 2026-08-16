@@ -27,7 +27,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import voice_reference
-from voice_reference import select_reference_sample
+from voice_reference import rank_reference_samples, select_reference_sample
 
 
 def make_clips(n):
@@ -145,6 +145,26 @@ class MedoidSelectionTest(unittest.TestCase):
             select_reference_sample(paths)
         cap = voice_reference.MAX_CLIPS
         self.assertLessEqual(seen["n"], cap * (cap - 1) // 2)
+
+    def test_an_explicit_rank_selects_a_different_strong_candidate(self):
+        tmp, paths = make_clips(5)
+        self.addCleanup(tmp.cleanup)
+        with patch.object(voice_reference, "_speaker_similarities",
+                          lambda pairs, timeout=600: [0.85] * len(pairs)):
+            ranked = rank_reference_samples(paths)
+            first, _ = select_reference_sample(paths, reference_rank=0)
+            second, score = select_reference_sample(paths, reference_rank=1)
+        self.assertEqual(paths.index(paths[ranked[1][0]]), second)
+        self.assertNotEqual(first, second)
+        self.assertEqual(0.85, score)
+
+    def test_out_of_range_rank_is_refused(self):
+        tmp, paths = make_clips(3)
+        self.addCleanup(tmp.cleanup)
+        with patch.object(voice_reference, "_speaker_similarities",
+                          lambda pairs, timeout=600: [0.85] * len(pairs)):
+            self.assertEqual((None, None), select_reference_sample(
+                paths, reference_rank=3))
 
 
 if __name__ == "__main__":

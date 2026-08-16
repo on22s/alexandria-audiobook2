@@ -844,6 +844,9 @@ def test_batch_preparer_cancel():
     assert_status(r, 200)
     data = r.json()
     assert_key(data, "status")
+    if not wait_for_task("batch_preparer"):
+        raise TestFailure(
+            "GPU lock not released: batch preparer still running after cancel")
 
 
 # ── Section 9: Voice Design ─────────────────────────────────
