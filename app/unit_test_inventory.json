@@ -896,6 +896,12 @@
     "test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],
+  "test_narration_context": [
+    "test_narration_context.NarrationIsSentAsContextTest.test_a_mislabelled_narration_line_costs_a_retry_and_still_ends_NARRATOR",
+    "test_narration_context.NarrationIsSentAsContextTest.test_narration_never_reaches_the_roster",
+    "test_narration_context.NarrationIsSentAsContextTest.test_the_dialogue_tag_reaches_the_attribution_prompt",
+    "test_narration_context.NarrationOnlyBatchTest.test_a_batch_with_nothing_to_attribute_makes_no_llm_call"
+  ],
   "test_narrator_prompt": [
     "test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
     "test_narrator_prompt.NarratorPromptTests.test_placeholder_labels_are_not_character_names",
