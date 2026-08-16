@@ -36,7 +36,7 @@ if [ ! -f "$asr_out" ]; then
     stage asr_silero_whisper_ja timeout --signal=INT --kill-after=30s 7200 \
         "$python" -u "$repo/app/experiments/asr_backends.py" \
         --build "$runtime/kokoro_same_speaker_eval/build.json" \
-        --backends silero_whisper_cpp --lang ja --row-offset 30 --limit 10 \
+        --backends silero_whisper_cpp --lang ja --row-offset 20 --limit 10 \
         --align-clips 10 --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli" \
         --whisper-cpp-model "$repo/whisper.cpp/models/ggml-base.bin" \
         --out "$asr_out"
