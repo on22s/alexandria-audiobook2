@@ -1432,9 +1432,8 @@ in this project that cannot itself be wrong.
 | ZH | whisper.cpp large-v3 | 14.1% | 826 ms | 20% |
 | ZH | SenseVoice | **11.3%** | 17957 ms | 10% |
 
-**MET for English and Chinese. Japanese clears both target conditions on a
-held-out slice but on a tenth of the sample the other two languages used, so
-it is recorded here as measured and stays OPEN pending confirmation.**
+**MET for English and Chinese. OPEN for Japanese — the n=10 result did not
+survive confirmation at n=50, 2026-08-16.**
 
 **Japanese: Silero windowing fixes the segmentation, 2026-08-16.** The
 diagnosis below — that both whisper.cpp checkpoints fail to segment Japanese
@@ -1452,18 +1451,43 @@ Against the target below that is CER 7.67% ≤ 20% and alignment 39 ms ≤ 150 m
 character-level for Japanese (`asr_backends` auto-detects CJK from the
 reference), so the 7.67% is a CER despite the artifact's `wer_mean` key.
 
-**Why it is not yet MET.** n=10. English and Chinese were measured on 50 clips
-each, and a goal should not change status on a fifth of the evidence its
-siblings needed. Confirming it is blocked on corpus, not compute: the test
-novel has 6,294 transcript rows but only 34 downloaded audio clips, of which
-31 pass the length filter — so no re-slicing of the existing build can reach
-50. `ab_test_runtime/corpora/kokoro/librivox` holds 405 MB of audio for four
-*other* novels and none for this one. Either fetch this novel's LibriVox
-audio, or — since 5.4 measures transcription and alignment rather than voice
-identity, and does not need the same-speaker design the build inherits from
-the voice goals — cut a 50-clip Japanese set from the novels already
-downloaded, which needs no network at all. The ASR run itself is ~3 minutes:
-the n=10 arm took 36 seconds.
+**Confirmation at n=50 refuted it, 2026-08-16.** Since 5.4 measures
+transcription and alignment rather than voice identity, it does not need the
+same-speaker design the build inherits from the voice goals, so a 50-clip set
+was cut from the four Japanese novels already on disk
+(`kokoro_ja_asr_set.py`, `asr_silero_whisper_ja_confirmation.json`):
+
+| reader | n | CER | align median | within 300 ms |
+|---|---|---|---|---|
+| kouyahijiri-by-kyoka-izumi | 13 | 24.6% | 347 ms | 38% |
+| kusamakura-by-soseki-natsume | 13 | 26.2% | 243 ms | 69% |
+| botchan-by-soseki-natsume-2 | 11 | 29.2% | 400 ms | 36% |
+| gan-by-ogai-mori | 13 | 34.9% | 117 ms | 69% |
+| **pooled** | **50** | **28.7%** | **272 ms** | **58%** |
+
+Against CER ≤ 20% and alignment median ≤ 150 ms, the pooled result fails both
+and **every reader fails on CER**. This is not one bad recording dragging a
+mean: the spread is 24.6–34.9% with no reader near target, and
+over-segmentation is uniform at 1.8–2.1× expected.
+
+**The kokoro novel is the outlier, not the rule.** Its 7.67% / 39 ms stands
+against five other Japanese samples between 24.6% and 34.9%. A control on
+8 dataset-cut clips of kouyahijiri — the original cutting pipeline, so no
+tooling of ours involved — scored 29.0% CER, agreeing with our own 24.6% for
+that reader and confirming the CER finding is not an artifact of how we cut
+audio.
+
+Alignment is the part still unexplained. The dataset-cut sets score 39 ms
+(n=10) and 86 ms (n=8) while our four cut sets score 117–400 ms. That is
+**not** the seek defect fixed the same day — re-cutting every clip with an
+accurate seek moved the pooled numbers from 28.64% / 272 ms to 28.71% /
+272 ms, which is to say not at all. The two groups also differ in which
+utterances they contain, so the cause is genuinely open.
+
+**What this costs.** Silero windowing does fix Japanese *segmentation* — the
+boundaries are found where whisper.cpp alone found 5 of 10 — but finding
+boundaries is not the same as placing them accurately or transcribing between
+them, and only the first was demonstrated at n=10.
 
 **Chinese is solved by splitting the two jobs** (`whisper_cpp_hybrid`, added
 2026-08-08). base decides the boundaries, large-v3 transcribes inside each one,

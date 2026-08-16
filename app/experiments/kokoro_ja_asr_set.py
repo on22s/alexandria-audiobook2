@@ -110,6 +110,9 @@ def main():
     ap.add_argument("--max-chars", type=int, default=70)
     ap.add_argument("--out-dir", default=os.path.join(
         REPO, "ab_test_runtime", "kokoro_ja_asr_eval"))
+    ap.add_argument("--split-by-reader", action="store_true",
+                    help="also write one build per reader, so a pooled result "
+                         "can be decomposed without re-cutting anything")
     args = ap.parse_args()
 
     novels = available_novels()
@@ -174,6 +177,26 @@ def main():
     print(f"\nwrote {build}: {len(test)} clips at {RATE} Hz")
     for book, count in sorted(by_book.items()):
         print(f"  {book[:44]:46} {count:3}")
+
+    if args.split_by_reader:
+        # A POOLED NUMBER CANNOT SAY WHICH READER IT CAME FROM. The 50-clip run
+        # scored CER 28.6% where the single-reader n=10 arm scored 7.7%, and
+        # aggregates alone cannot separate "several readers are harder" from
+        # "one recording is dragging the mean". Same clips, same rate, just
+        # regrouped - so a per-reader run adds no new material and stays
+        # comparable with the pooled one.
+        split_dir = os.path.join(args.out_dir, "by_reader")
+        os.makedirs(split_dir, exist_ok=True)
+        print("\nper-reader builds:")
+        for book in sorted(by_book):
+            rows = [entry for entry in test if entry["book"] == book]
+            path = os.path.join(split_dir, f"{book}.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump({**document, "design": document["design"]
+                           + f"; single reader subset ({book})",
+                           "readers": [book], "test": rows},
+                          handle, ensure_ascii=False, indent=1)
+            print(f"  {book[:44]:46} {len(rows):3} -> {os.path.basename(path)}")
 
 
 if __name__ == "__main__":
