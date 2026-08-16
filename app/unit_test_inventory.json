@@ -977,6 +977,13 @@
     "test_pass_quality.SegmentQualityTests.test_rejects_narration_combined_with_quoted_dialogue",
     "test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
   ],
+  "test_pdnc_context_evidence": [
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_confirmatory_requires_explicit_passing_pilot",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_pilot_gate_requires_effect_size_and_significance",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_prompt_rejects_proximity_as_attribution",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_summary_uses_only_paired_rows"
+  ],
   "test_pdnc_failure_telemetry": [
     "test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_failure_class_precedence",
     "test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_load_novel_accepts_native_pdnc_layout",
