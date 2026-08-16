@@ -26,3 +26,11 @@ mutagen==1.47.0
 # character score. Measured 2026-08-16: CER 28.7% as written, 9.9% on readings
 # for identical audio and identical model output.
 pykakasi==2.3.0
+# Expected pitch from text, for languages where pitch carries lexical meaning.
+# Optional: only app/experiments/expected_prosody.py uses them, and it reports
+# "not installed" rather than guessing. Japanese pitch accent (箸 vs 橋) and
+# Chinese tone are invisible to CER - the characters transcribed back are the
+# same - so these are the only way to check them without a native listener.
+# pyopenjtalk downloads its ~23 MB OpenJTalk dictionary on first use.
+pypinyin==0.55.0
+pyopenjtalk==0.4.1
