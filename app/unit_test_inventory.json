@@ -755,6 +755,16 @@
     "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_unsupported_stage_raises",
     "test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_uses_repetitions_default_when_fixture_omits_numbers"
   ],
+  "test_llm_config_source": [
+    "test_llm_config_source.ActiveProfileTests.test_a_config_predating_the_toggle_still_resolves",
+    "test_llm_config_source.ActiveProfileTests.test_a_stale_mirror_does_not_win_over_the_toggle",
+    "test_llm_config_source.ActiveProfileTests.test_an_empty_profile_is_not_treated_as_configured",
+    "test_llm_config_source.ActiveProfileTests.test_garbage_never_raises",
+    "test_llm_config_source.ActiveProfileTests.test_remote_mode_with_no_remote_profile_falls_back_not_empty",
+    "test_llm_config_source.ActiveProfileTests.test_the_toggle_decides_which_profile_is_active",
+    "test_llm_config_source.CopiesAgreeTests.test_both_former_spellings_agree_with_the_single_implementation",
+    "test_llm_config_source.SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place"
+  ],
   "test_llm_review_regressions": [
     "test_llm_review_regressions.DedupeSpeakersResolverTests.test_registry_alias_resolves_via_shared_identity_normalization",
     "test_llm_review_regressions.LlmReviewTests.test_adjacent_json_array_overlap_is_rejected",

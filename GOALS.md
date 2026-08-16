@@ -1540,13 +1540,31 @@ needed a check over real files, not fixtures.
 > a copy reappears. Two done, one known outstanding.
 
 **Metric** — settings defined in more than one place.
-**Current** — two found and fixed: the training learning rate and
-`is_remote_llm`. One outstanding: `config["llm"]` versus `config["llm_local"]`,
-which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
-working server sat idle. **OPEN.**
+**Current** — three found and fixed: the training learning rate,
+`is_remote_llm`, and `config["llm"]` versus `config["llm_local"]` — the last
+of which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
+working server sat idle. **MET 2026-08-16**
+(`app/test_llm_config_source.py`, 8 tests).
+
+`config["llm"]` is a mirror of the active profile, not a source: `/api/config`
+copies the profile named by `llm_mode` into it and refuses to save a
+disagreement, but anything writing config.json outside that endpoint updates
+one and not the other. The rule for resolving the active profile had been
+written out by hand in two different spellings, each with a comment citing
+Rule 15. It now lives in `lmstudio_settings.get_active_llm_config`, with the
+two former spellings kept in the test as the reference behaviour the single
+implementation must reproduce.
+
+Two experiment probes were also reading `llm_local` directly, so they ignored
+the toggle while reproducing a pipeline that honours it.
+`benchmark_runner._get_llm_benchmark_target` is deliberately exempt and the
+test records why: it resolves an explicitly named endpoint so both can be
+measured independently of the toggle, which is a different question.
 
 **Target — 0 known parallel definitions; each new one gets a test that asserts
-the copies agree.**
+the copies agree.** The guard is
+`SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place`,
+which fails on a re-introduced copy anywhere under `app/`.
 
 ### 6.3 Indexes describe committed state
 

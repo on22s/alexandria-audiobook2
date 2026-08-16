@@ -44,8 +44,8 @@ def adapter_config(config):
     """
     if not isinstance(config, dict):
         return None
-    mode = config.get("llm_mode", "local")
-    block = config.get(f"llm_{mode}") or config.get("llm") or {}
+    from lmstudio_settings import get_active_llm_config
+    block = get_active_llm_config(config)
     spec = block.get("attribution_adapter")
     if not isinstance(spec, dict):
         return None
