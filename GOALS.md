@@ -1489,6 +1489,40 @@ boundaries are found where whisper.cpp alone found 5 of 10 — but finding
 boundaries is not the same as placing them accurately or transcribing between
 them, and only the first was demonstrated at n=10.
 
+**The Chinese remedy does not transfer, 2026-08-16**
+(`asr_ja_largev3_hybrid.json`). Chinese was solved by splitting the two jobs,
+so the same split was tried on the 50-clip Japanese set:
+
+| JA backend | CER | align median |
+|---|---|---|
+| silero + base | 28.7% | 272 ms |
+| large-v3 alone | 27.9% | 542 ms |
+| hybrid (base + large-v3) | 27.8% | 328 ms |
+
+Chinese gained **30 points** from large-v3 (44.3% → 14.1%). Japanese gains
+**0.8**. Three backends spanning a 20x difference in model size land within
+one point of each other, which rules out model capacity as the cause and
+means the remaining explanation is not in the ASR at all.
+
+Two candidates remain, and the second would change what this goal should
+measure rather than how well we meet it:
+
+1. The reference transcripts do not closely match the audio. These are
+   LibriVox recordings aligned to Aozora texts, and the alignment is the
+   dataset's, not ours.
+2. **The metric is wrong for Japanese.** Character error rate punishes
+   orthographic variation that is not an error: a model writing わたし where
+   the reference has 私 has transcribed the word correctly and scores it as
+   total failure. Japanese is the one language here where CER without
+   orthographic normalisation is known to mislead, and no arm has ever been
+   scored with it.
+
+Testing (2) requires the hypotheses, which no stored artifact had — the
+aggregates cannot be re-scored. `asr_backends --keep-hypotheses` now records
+reference and hypothesis per clip so the question can be settled offline.
+Until it is, **the 20% CER target itself is unvalidated for Japanese**, and
+"OPEN" here may be measuring the ruler rather than the pipeline.
+
 **Chinese is solved by splitting the two jobs** (`whisper_cpp_hybrid`, added
 2026-08-08). base decides the boundaries, large-v3 transcribes inside each one,
 and each model is used only for the axis it wins:
@@ -1647,7 +1681,101 @@ files.**
 
 **Target — 0. A skip is a failure.**
 
+### 6.5 Someone has looked at the audio
+
+> **In short.** Every audio number in this document summarises a sound nobody
+> has heard or seen. A mean hides the failure that a picture shows in a
+> second: a clip that is half silence, a voice an octave out, a boundary in
+> the wrong place, a "reference" recording that is the wrong speaker.
+>
+> **This has already cost twice.** The Chinese arm scored `human_vs_human`
+> 0.691 while its own arms reached 0.720 and 0.765 — a narrator matching
+> herself worse than a synthetic voice matched her. It took writing an
+> anchor-validity check to notice, and a spectrogram would have shown it
+> immediately. On 2026-08-16 Japanese held 28% CER across base, large-v3 and
+> the hybrid alike; three models spanning a 20x size range agreeing that
+> precisely is not a model problem, and no one has yet looked at the clips to
+> see what it is.
+
+**Metric** — audio arms whose clips have a rendered view before their numbers
+are believed.
+**Probe** — `app/experiments/voice_compare_view.py` (waveform, mel-spectrogram
+and f0 against the human, per line) and `app/experiments/asr_clip_view.py`
+(waveform, spectrogram, reference and hypothesis, for the clips an ASR arm
+scored worst).
+**Current** — three views exist, all from 2026-08-06: `ljspeech.html`,
+`kokoro.html`, `aishell3.html`. **Nothing measured since has been looked at** —
+not the honest retrains, not the reference-rank campaigns, not the Japanese
+ASR sets. **OPEN.**
+
+**Target — a rendered view for every audio arm whose numbers appear in this
+document.**
+
+Neither probe is a metric and neither should become one. Comparing raw
+waveforms sample-by-sample is meaningless for TTS — two identical-sounding
+readings differ completely in phase and micro-timing. Eyes are for catching
+the gross failure a number hides, not for ranking arms.
+
 ---
+
+## 7. The finished audiobook
+
+### 7.1 A listener prefers what we ship
+
+> **What this is.** Playing finished audio to a person and asking which
+> version is better, without telling them which is which.
+>
+> **Why it matters.** Every other goal in this document measures a part:
+> whether the right character was credited, how close a voice sits to its
+> target in cosine distance, whether a clip's duration falls in a band. Not
+> one of them measures the thing the project actually makes. Each goal's box
+> opens by explaining why it matters "to someone listening" — and then no goal
+> asks anyone to listen. A pipeline can pass all twenty-five and still produce
+> an audiobook nobody wants to hear, and nothing here would notice.
+>
+> **Why this is reachable now.** The instrument is already built and sealed.
+
+**Metric** — blinded preference between paired renders of the same passage.
+**Probe** — `app/experiments/blinded_listening.py`, which renders the sets and
+conceals the key in `ab_test_runtime/blinded_listening_concealed_key.json`.
+**Current** — **NO BASELINE.** The package exists and has never been rated:
+20 clips across 8 sets, key still concealed, and the artifact records its own status
+plainly — `"No human ratings are included; this artifact only prepares
+it."`
+
+**No target yet, deliberately.** A preference threshold invented before any
+human has heard a set would be the "invented number" this document's own rules
+forbid. The first task is the listening, not the fix.
+
+**This is the cheapest open goal in the document** and the only one that
+cannot be run on the GPU: no card, no code, no experiment design. One person,
+headphones, and the concealed key afterwards.
+
+### 7.2 The text we extract is the text in the book
+
+> **What this is.** Checking that what we pull out of an EPUB is complete,
+> correctly ordered, and free of things the book does not contain.
+>
+> **Why it matters.** This is the first stage of the pipeline, and everything
+> downstream inherits its mistakes. A dropped chapter heading is a missing
+> signpost; a duplicated one is a sentence the narrator reads twice.
+
+**Metric** — TOC entries resolved; headings neither lost nor duplicated,
+measured on real books rather than fixtures.
+**Probe** — none yet; the ad-hoc measurement below was run by hand.
+**Current** — **NO BASELINE**, with one measurement worth recording. On
+2026-08-16 the new chapter-title recovery resolved **89 of 89** TOC anchors
+across six real EPUBs — but of the four titles it judged missing and inserted,
+**all four were already in the text**, differing only in curly quotes, dash
+variants, or a `Volume 40` / `Light Novel` prefix. Net effect on that library
+before the fix: zero titles recovered, four headings duplicated.
+
+**Every unit test passed throughout.** Synthetic fixtures match themselves
+exactly, so none of them could express the defect. That is the argument for
+this goal existing: extraction is the one stage measured only against material
+we wrote ourselves.
+
+**Target — 0 duplicated and 0 dropped headings across the shipped library.**
 
 ## Priority
 
@@ -1661,18 +1789,35 @@ If only three things get worked on:
    median is 0.927 and meets the goal, disproving the earlier cross-reader
    0.758 diagnosis. However, 43% of individual Japanese clips remain outside
    the band, similar to the other language arms.
-3. **Train/val contamination (2.7)** — 21 of 75 shipped adapters trained on
-   their own val split. The trainer is fixed; the library is not, and every
-   held-out score from a contaminated adapter is an upper bound.
+3. **Train/val contamination (2.7)** — **12** of 75 shipped adapters still
+   carry weights trained on their own val split, down from 21 on 2026-08-16.
+   The remaining twelve split evenly and need opposite work: six failed their
+   identity gate outright (0.056–0.404), while six *passed* and were refused
+   only for not beating their shipped score — a score measured on clips that
+   adapter trained on, so the honest number is being compared against an
+   inflated one. Half of what is left is arithmetic, not training.
 
 **Selection (1.2) was #1 on this list until 2026-08-08 and is now MET** — the
 29.9% it was built on came from a model that does not ship. Re-measuring goals
 before working on them has now twice been worth more than working on them.
 
-Then: the Japanese transcription gap (5.4) if Voice Lab is pointed at a
-Japanese audiobook. The three-pass baseline (5.3) is already answered and
-should not be listed as pending. Reliability 3.1 is MET after the 2026-08-16
-unseen four-book current-path rerun completed all 807 chunks.
+**1.3 has now cost two attempts, and both missed the same way.** Broad
+sequence scored +2.33 points (p=0.054) and the targeted selector +1.33
+(p=0.134), against a fixed gate of +3.0 and p<0.05. Both supplied more
+CONTEXT. But 1.2 established that the roster already holds the right name
+about 85% of the time while the model picks it 29.9% — a SELECTION failure,
+not a context one. No selection-side intervention has been tried, and each
+context attempt spends pilot books from the 15 still sealed. The next
+experiment here should change how the answer is chosen, not how much the
+model is told.
+
+Then: **7.1, the blinded listening test** — the cheapest open goal in the
+document, already packaged and never rated, and the only measurement that
+requires a person rather than the GPU. The Japanese transcription gap (5.4)
+is now measured rather than pending, and may be a metric problem rather than a
+pipeline one. The three-pass baseline (5.3) is already answered and should not
+be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
+four-book current-path rerun completed all 807 chunks.
 
 ## Rules for changing this file
 
