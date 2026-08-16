@@ -31,8 +31,37 @@ SOURCE = os.path.join(REPO, "ab_test_runtime", "retrain_honest")
 DECONTAMINATE_SOURCE = os.path.join(REPO, "ab_test_runtime", "decontaminate")
 REFERENCE_RANK1_SOURCE = os.path.join(
     REPO, "ab_test_runtime", "reference_rank1_all21")
+REFERENCE_RANK2_SOURCE = os.path.join(
+    REPO, "ab_test_runtime", "reference_rank2_failed")
 BACKUPS = os.path.join(REPO, "ab_test_runtime", "promotion_backups")
-GATE_PREFIX = "gate_promote__"
+
+# ONE TABLE, so a campaign cannot be half-added. The prefix used to live in an
+# if/else next to a separate `choices` tuple, and adding reference-rank2 in one
+# place but not the other is exactly what happened: the rank-2 gates were
+# written, passed, and then invisible to the promoter, which went on reading
+# gate_promote__ and reported "no gate artifact" for adapters that had one.
+GATE_CAMPAIGNS = {
+    "promote": "gate_promote__",
+    "reference-rank1": "gate_reference_rank1__",
+    "reference-rank2": "gate_reference_rank2__",
+}
+GATE_PREFIX = GATE_CAMPAIGNS["promote"]
+
+
+def retrain_sources():
+    """Every directory a retrain may have written an adapter into.
+
+    A promotion resolves only inside these, so a gate artifact naming some
+    other path cannot talk the promoter into installing it.
+
+    A FUNCTION, not a tuple, because a module-level tuple snapshots these
+    constants at import and then stops tracking them - which silently defeats
+    the tests that patch the roots to temporary directories, and quietly makes
+    this a SECOND place the source list lives.
+    """
+    return (SOURCE, DECONTAMINATE_SOURCE,
+            REFERENCE_RANK1_SOURCE, REFERENCE_RANK2_SOURCE)
+
 
 MIN_ECAPA = 0.45
 
@@ -52,8 +81,7 @@ def get_adapter_source(name):
         candidate = os.path.realpath(
             gated_path if os.path.isabs(gated_path)
             else os.path.join(REPO, gated_path))
-        roots = (os.path.realpath(SOURCE), os.path.realpath(DECONTAMINATE_SOURCE),
-                 os.path.realpath(REFERENCE_RANK1_SOURCE))
+        roots = [os.path.realpath(root) for root in retrain_sources()]
         if (os.path.isdir(candidate)
                 and any(os.path.commonpath((candidate, root)) == root
                         for root in roots)):
@@ -61,9 +89,10 @@ def get_adapter_source(name):
     legacy = os.path.join(SOURCE, name, "adapter")
     if os.path.isdir(legacy):
         return legacy
-    ranked = os.path.join(REFERENCE_RANK1_SOURCE, name, "adapter")
-    if os.path.isdir(ranked):
-        return ranked
+    for root in retrain_sources():
+        ranked = os.path.join(root, name, "adapter")
+        if os.path.isdir(ranked):
+            return ranked
     import glob
     matches = sorted(glob.glob(os.path.join(
         DECONTAMINATE_SOURCE, "batch*", name, "adapter")))
@@ -305,7 +334,7 @@ def main():
                     help="default: every adapter with a passing gate artifact")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--rollback", metavar="STAMP")
-    ap.add_argument("--gate-campaign", choices=("promote", "reference-rank1"),
+    ap.add_argument("--gate-campaign", choices=tuple(GATE_CAMPAIGNS),
                     default="promote",
                     help="select the independently generated gate campaign")
     args = ap.parse_args()
@@ -313,9 +342,7 @@ def main():
     if args.rollback:
         return rollback(args.rollback)
 
-    GATE_PREFIX = ("gate_reference_rank1__"
-                   if args.gate_campaign == "reference-rank1"
-                   else "gate_promote__")
+    GATE_PREFIX = GATE_CAMPAIGNS[args.gate_campaign]
     names = args.adapters
     if not names:
         import glob
