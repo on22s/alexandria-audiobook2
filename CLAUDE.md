@@ -304,6 +304,52 @@ What to check before assuming something's a bug:
   is the deliberate, simpler stand-in — it warns about cost, it doesn't
   compute it.
 
+### Report an ETA without being asked
+
+When a GPU/LLM job is running, **give the ETA in the same message that reports
+its status** — starting it, checking on it, or answering anything about it.
+Don't wait to be asked, and don't answer "it's running" alone.
+
+**The machine is on US Central (CDT, UTC−5), so quote local time**, not UTC —
+the queue log is in UTC and needs converting. `date '+%I:%M %p %Z'` is the
+check.
+
+**Measure the rate, don't recall it.** Every job here writes timestamps; derive
+the per-unit rate from the ones already finished in *this* run rather than from
+the table below, which is a sanity check and a first estimate, not the answer:
+
+```bash
+# per-item rate from the queue log, for any stage name
+grep -E "(START|OK) <stage>" ab_test_runtime/logs/gpu_jobq.log
+# progress inside a resumable run
+python -c "import json;d=json.load(open('<artifact>'));print(d['completed'],'/',d['requested'])"
+# adapter-level timing when the artifact has no counter
+ls -l --time-style=+%H:%M:%S <work>/*/adapter/adapter_model.safetensors
+```
+
+Measured 2026-08-16 on the RX 9070 XT, one job at a time under the GPU lock:
+
+| work | rate | note |
+|---|---|---|
+| LoRA retrain, one adapter | **~5.4 min** | tight: 13 of 14 inside 5.1–6.2 |
+| identity gate, one adapter | **~2.0–2.7 min** | |
+| ASR arm, 10 clips, whisper base | **~36 s** | |
+| ASR arm, 50 clips, whisper base | **~4 min** | |
+| ASR arm, 50 clips, large-v3 | **~5 min** | 3.1 GB model |
+| full unit suite (CPU) | **~20 s** | 1592 tests |
+| release verifier, quick (CPU) | **~2 min** | |
+| `voice_compare_view`, 4 lines (CPU) | **~1–2 min** | matplotlib, no GPU |
+
+**Report the spread, not just the midpoint**, and say which number is measured
+and which is guessed — a stage nobody has run before has no rate, and saying so
+is better than averaging something unrelated. An outlier that spans a restart
+is restart overhead, not a slow item; exclude it and say you did.
+
+**CPU work runs alongside GPU work.** Only `gpu_job.sh` stages take the lock,
+so rendering views, writing probes, running the suite and re-scoring stored
+artifacts all proceed while the card is busy. Prefer scheduling that way over
+waiting.
+
 ## Default mode: maintain an existing app
 
 Most work in these repos is normal software engineering on an **existing**
