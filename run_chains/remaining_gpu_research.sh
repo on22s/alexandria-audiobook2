@@ -31,22 +31,28 @@ if [ ! -f "$runtime/experiments/pdnc_sequence__pilot__local-llamacpp.json" ]; th
         "$repo/run_chains/pdnc_context_evidence.sh"
 fi
 
-asr_out="$runtime/experiments/asr_silero_whisper_ja_offset30.json"
+asr_out="$runtime/experiments/asr_silero_whisper_ja_offset20.json"
 if [ ! -f "$asr_out" ]; then
-    stage asr_silero_whisper_ja timeout --signal=INT --kill-after=30s 7200 \
+    if ! stage asr_silero_whisper_ja timeout --signal=INT --kill-after=30s 7200 \
         "$python" -u "$repo/app/experiments/asr_backends.py" \
         --build "$runtime/kokoro_same_speaker_eval/build.json" \
-        --backends silero_whisper_cpp --lang ja --row-offset 30 --limit 10 \
+        --backends silero_whisper_cpp --lang ja --row-offset 20 --limit 10 \
         --align-clips 10 --whisper-cpp-bin "$repo/whisper.cpp/build/bin/whisper-cli" \
         --whisper-cpp-model "$repo/whisper.cpp/models/ggml-base.bin" \
-        --out "$asr_out"
+        --out "$asr_out"; then
+        echo "JAPANESE ASR FAILED; later research stages not started"
+        exit 1
+    fi
 fi
 
 duration_out="$runtime/experiments/duration_length_intervention.json"
 if [ ! -f "$duration_out" ]; then
-    stage duration_length_intervention timeout --signal=INT --kill-after=30s 7200 \
+    if ! stage duration_length_intervention timeout --signal=INT --kill-after=30s 7200 \
         "$python" -u "$repo/app/experiments/duration_length_intervention.py" \
-        --out "$duration_out"
+        --out "$duration_out"; then
+        echo "DURATION INTERVENTION FAILED; later research stages not started"
+        exit 1
+    fi
 fi
 
 adapter_out="$runtime/experiments/reference_rank1_pilot.json"
@@ -126,6 +132,17 @@ for adapter in "${contaminated_adapters[@]}"; do
         gate_failures=$((gate_failures + 1))
     fi
 done
+
+release_out="$runtime/experiments/final_release_after_remaining_gpu_research.json"
+if ! grep -q '"status": "passed"' "$release_out" 2>/dev/null; then
+    if ! stage final_release_verification \
+        timeout --signal=INT --kill-after=30s 14400 \
+        "$python" -u "$repo/app/verify_release.py" --full \
+        --json-report "$release_out"; then
+        echo "FINAL RELEASE VERIFICATION FAILED"
+        exit 1
+    fi
+fi
 
 if [ "$gate_failures" -ne 0 ]; then
     echo "REMAINING GPU RESEARCH FINISHED WITH $gate_failures ADAPTER GATE FAILURE(S)"
