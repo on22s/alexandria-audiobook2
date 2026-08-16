@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1398** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1387** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -46,11 +46,14 @@ itself is unknown, the goal says so rather than inventing a number.
 
 ---
 
+
+
 # Part I — Open
 
 *Still being worked on: measured and short of target, partly met, or not yet measured at all.*
 
 ## 1. Speaker attribution — who says which line
+
 
 
 The core task. Everything downstream inherits its errors: a misattributed line
@@ -1135,12 +1138,25 @@ tooling of ours involved — scored 29.0% CER, agreeing with our own 24.6% for
 that reader and confirming the CER finding is not an artifact of how we cut
 audio.
 
-Alignment is the part still unexplained. The dataset-cut sets score 39 ms
-(n=10) and 86 ms (n=8) while our four cut sets score 117–400 ms. That is
-**not** the seek defect fixed the same day — re-cutting every clip with an
-accurate seek moved the pooled numbers from 28.64% / 272 ms to 28.71% /
-272 ms, which is to say not at all. The two groups also differ in which
-utterances they contain, so the cause is genuinely open.
+Alignment is the part still open, and **our cutting is not the cause**
+(`asr_ja_cutting_control.json`, 2026-08-16). The dataset-cut sets score 39 ms
+(n=10) and 86 ms (n=8) while our four cut sets score 117–400 ms, which looked
+like a tooling difference. Cutting the dataset's **own eight utterance ids**
+with our pipeline settles it — the only variable left is the cutting:
+
+| same 8 utterances | CER | align median | within 300 ms | segments |
+|---|---|---|---|---|
+| dataset-cut | 29.0% | 86 ms | 100% | 15/8 |
+| our cut | 28.5% | **86 ms** | **100%** | 15/8 |
+
+Identical. So the spread is **which clips are in a set**, not how they were
+made — and the per-reader figures agree, running 117 ms on gan to 400 ms on
+botchan. Note also that 15 predicted segments against 8 expected did not hurt
+alignment at all, so over-segmentation is not the mechanism either.
+
+That leaves clip content: leading or trailing silence, or utterances the VAD
+splits differently. The earlier attempt to test this compared different
+utterances and could not have isolated the variable; this one does.
 
 **What this costs.** Silero windowing does fix Japanese *segmentation* — the
 boundaries are found where whisper.cpp alone found 5 of 10 — but finding
@@ -1276,6 +1292,7 @@ That hybrid is untested; nothing measured rules it out.
 ## 6. Measurement integrity
 
 
+
 Goals about the instruments themselves. These earned their place by failing.
 
 > **Why a whole section on this.** Every number above is only worth what the
@@ -1306,11 +1323,11 @@ are believed.
 and f0 against the human, per line) and `app/experiments/asr_clip_view.py`
 (waveform, spectrogram, reference and hypothesis, for the clips an ASR arm
 scored worst).
-**Current** — **5 views, still OPEN.** Three from 2026-08-06 (`ljspeech`,
-`kokoro`, `aishell3`) and two added 2026-08-16: `kokoro_same_speaker.html`,
-and `asr_clip_view/japanese_worst.html` — the ten worst-scoring Japanese
-clips with their waveform, spectrogram, reference, what the model returned,
-and the audio to play.
+**Current** — **6 views, still OPEN.** Three from 2026-08-06 (`ljspeech`,
+`kokoro`, `aishell3`) and three added 2026-08-16: `kokoro_same_speaker.html`,
+`aishell3_SSB0748.html`, and `asr_clip_view/japanese_worst.html` — the ten
+worst-scoring Japanese clips with their waveform, spectrogram, reference,
+what the model returned, and the audio to play.
 
 The second of those paid for itself the day the goal was written. Reading the
 worst clips beside their transcripts is what showed the Japanese "error" was
@@ -1367,6 +1384,12 @@ headphones, and the concealed key afterwards.
 
 ---
 
+# Part II — Met
+
+*Measured at or beyond target, each keeping a test so it stays there. Nothing here needs work; it needs not to regress.*
+
+## 7. The finished audiobook
+
 ### 7.2 The text we extract is the text in the book
 
 > **What this is.** Checking that what we pull out of an EPUB is complete,
@@ -1378,28 +1401,40 @@ headphones, and the concealed key afterwards.
 
 **Metric** — TOC entries resolved; headings neither lost nor duplicated,
 measured on real books rather than fixtures.
-**Probe** — none yet; the ad-hoc measurement below was run by hand.
-**Current** — **NO BASELINE**, with one measurement worth recording. On
-2026-08-16 the new chapter-title recovery resolved **89 of 89** TOC anchors
-across six real EPUBs — but of the four titles it judged missing and inserted,
-**all four were already in the text**, differing only in curly quotes, dash
-variants, or a `Volume 40` / `Light Novel` prefix. Net effect on that library
-before the fix: zero titles recovered, four headings duplicated.
+**Probe** — `app/experiments/epub_extraction_fidelity.py`, which instruments
+the shipped extractor rather than reimplementing its judgement, and exits
+non-zero when anything is duplicated or dropped so a chain can gate on it.
+**Current** — across the six shipped ReZero EPUBs, 2026-08-16:
+
+| | |
+|---|---|
+| TOC anchors resolved | **89 / 89** |
+| unresolved | 0 |
+| titles inserted | 0 |
+| **duplicated** | **0** |
+
+**MET.**
+
+**Why this goal exists is the measurement that opened it.** The same six books
+on the morning of 2026-08-16, before the duplicate check was fixed: 89 of 89
+anchors resolved, and all four titles the extractor judged missing were
+**already in the text**, differing only by curly quotes, dash variants, or a
+`Volume 40` / `Light Novel` prefix. Zero titles recovered, four headings
+duplicated — each read aloud twice by the narrator.
 
 **Every unit test passed throughout.** Synthetic fixtures match themselves
-exactly, so none of them could express the defect. That is the argument for
-this goal existing: extraction is the one stage measured only against material
-we wrote ourselves.
+exactly, so none could express the defect. Extraction was the one stage
+measured only against material we wrote ourselves, and that is precisely how
+a feature ran over the whole library degrading every book in it while the
+suite stayed green.
 
 **Target — 0 duplicated and 0 dropped headings across the shipped library.**
+Met, and now re-runnable rather than remembered.
 
 ---
 
-# Part II — Met
-
-*Measured at or beyond target, each keeping a test so it stays there. Nothing here needs work; it needs not to regress.*
-
 ## 2. Voice — does it sound like the target speaker
+
 
 ### 2.2 Repair the Chinese anchor
 
@@ -1637,6 +1672,7 @@ attached.
 
 ## 3. Reliability — does a run finish and produce the right thing
 
+
 ### 3.2 Every generated file is real audio
 
 > **What this is.** Confirming that every audio file the app claims to have
@@ -1757,6 +1793,7 @@ language, RX 9070 XT). **MET, barely.**
 
 ## 5. Text handling
 
+
 ### 5.1 Nothing unspeakable reaches the TTS
 
 > **What this is.** Catching characters that have no spoken form before they
@@ -1819,6 +1856,7 @@ here.
 ---
 
 ## 6. Measurement integrity
+
 
 ### 6.1 A ceiling must bound its arms
 
