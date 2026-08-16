@@ -225,6 +225,7 @@ async def preview_deterministic_repair(name: str, request: ScriptRepairRequest):
     """Preview only source-proven Unicode and adjacent-duplicate repairs."""
     _path, sha256, repair = _load_repair_inputs(name, request.source_filename)
     return {"sha256": sha256, "changes": repair["changes"], "unresolved": repair["unresolved"],
+            "notes": repair.get("notes", []),
             "result_entry_count": len(repair["entries"])}
 
 
@@ -243,7 +244,8 @@ async def apply_deterministic_repair(name: str, request: ScriptRepairRequest):
             if repair["unresolved"]:
                 raise HTTPException(status_code=409, detail="Repair has unresolved findings and was not applied.")
             if not repair["changes"]:
-                return {"status": "unchanged", "sha256": sha256, "changes": []}
+                return {"status": "unchanged", "sha256": sha256, "changes": [],
+                        "notes": repair.get("notes", [])}
             backup = backup_file_with_timestamp(path)
             atomic_json_write(repair["entries"], path)
     except TimeoutError as exc:
