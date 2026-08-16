@@ -82,5 +82,126 @@ class AdapterSourceTests(unittest.TestCase):
             self.assertEqual(180, manifest[0]["sample_count"])
 
 
+class GateVerdictTests(unittest.TestCase):
+    """The promoter must obey the gate, not re-decide what the gate decided.
+
+    `check` re-derived pass/fail from its own MIN_ECAPA and never read
+    `passed`, while the gate computes `passed` against its own --min-ecapa.
+    A gate run at a stricter threshold therefore reported FAIL and was
+    promoted anyway - the exact opposite of what the module docstring
+    promises. Every gate on disk happens to have used the default 0.45, so
+    this never fired; that is what made it worth pinning.
+    """
+
+    def _gate(self, root, **fields):
+        gates = Path(root, "gates")
+        gates.mkdir(exist_ok=True)
+        Path(gates, "gate_promote__voice.json").write_text(
+            json.dumps(fields), encoding="utf-8")
+        models = Path(root, "models", "voice")
+        models.mkdir(parents=True, exist_ok=True)
+        return gates, Path(root, "models")
+
+    def test_a_failing_gate_is_refused_even_when_it_clears_min_ecapa(self):
+        with tempfile.TemporaryDirectory() as root:
+            gates, models = self._gate(
+                root, median_ecapa=0.50, threshold=0.65, passed=False)
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "get_adapter_source",
+                              return_value=str(models)):
+                ok, score, reason = promote_adapters.check("voice", {"voice": 0.40})
+            # 0.50 clears MIN_ECAPA (0.45) and beats the shipped 0.40, so the
+            # old threshold-only logic accepted it.
+            self.assertGreater(score, promote_adapters.MIN_ECAPA)
+            self.assertFalse(ok, "a gate that says FAIL must not be promoted")
+            self.assertIn("FAIL", reason)
+
+    def test_an_unfinished_identity_check_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            gates, models = self._gate(
+                root, median_ecapa=0.70, threshold=0.45, passed=True,
+                generation_failures=3)
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "get_adapter_source",
+                              return_value=str(models)):
+                ok, _score, reason = promote_adapters.check("voice", {"voice": 0.40})
+            self.assertFalse(ok, "a median over surviving lines is not the "
+                                 "held-out evidence promotion claims")
+            self.assertIn("generation failure", reason)
+
+    def test_a_passing_gate_is_still_promoted(self):
+        """The guard must not refuse what it was always meant to accept."""
+        with tempfile.TemporaryDirectory() as root:
+            gates, models = self._gate(
+                root, median_ecapa=0.70, threshold=0.45, passed=True,
+                generation_failures=0)
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "get_adapter_source",
+                              return_value=str(models)):
+                ok, _score, _reason = promote_adapters.check("voice", {"voice": 0.40})
+            self.assertTrue(ok)
+
+
+class RollbackRevertsManifestTests(unittest.TestCase):
+    """A rollback that leaves the retrained score in the manifest sets a
+    phantom baseline: `shipped_scores` prefers manifest `gate_ecapa`, and
+    `check` refuses anything that does not beat it, so the next honest
+    improvement gets rejected against a number the shipped weights lack."""
+
+    def test_rollback_restores_the_pre_promotion_score(self):
+        with tempfile.TemporaryDirectory() as root:
+            models = Path(root, "models")
+            backups = Path(root, "backups")
+            Path(models, "voice").mkdir(parents=True)
+            Path(models, "voice", "adapter_model.safetensors").write_text("new")
+            Path(models, "manifest.json").write_text(json.dumps([
+                {"id": "voice", "gate_ecapa": 0.71, "retrained_at": "stamp",
+                 "sample_count": 120}]), encoding="utf-8")
+            # the backup holds the originals
+            backup = Path(backups, "stamp", "voice")
+            backup.mkdir(parents=True)
+            Path(backup, "adapter_model.safetensors").write_text("old")
+            Path(backup, "training_meta.json").write_text(
+                json.dumps({"num_samples": 200}), encoding="utf-8")
+            Path(backups, "stamp.json").write_text(json.dumps({
+                "promoted_at": "stamp",
+                "adapters": [{"adapter": "voice", "gate_ecapa": 0.71,
+                              "shipped_ecapa": 0.63}]}), encoding="utf-8")
+
+            with patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "BACKUPS", str(backups)):
+                promote_adapters.rollback("stamp")
+                manifest = json.loads(Path(models, "manifest.json").read_text())
+                self.assertEqual(0.63, manifest[0]["gate_ecapa"],
+                                 "the baseline must go back to the score the "
+                                 "restored weights actually earned")
+                self.assertNotIn("retrained_at", manifest[0])
+                self.assertEqual(200, manifest[0]["sample_count"],
+                                 "training_meta fields come back too")
+                self.assertEqual("old", Path(models, "voice",
+                                             "adapter_model.safetensors").read_text())
+                # and the restored baseline is what the next promotion sees
+                self.assertEqual(0.63, promote_adapters.shipped_scores()["voice"])
+
+    def test_a_missing_receipt_drops_the_score_rather_than_keeping_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            models = Path(root, "models")
+            backups = Path(root, "backups")
+            Path(models, "voice").mkdir(parents=True)
+            Path(models, "manifest.json").write_text(json.dumps([
+                {"id": "voice", "gate_ecapa": 0.71}]), encoding="utf-8")
+            Path(backups, "stamp", "voice").mkdir(parents=True)
+            with patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "BACKUPS", str(backups)):
+                promote_adapters.rollback("stamp")
+            manifest = json.loads(Path(models, "manifest.json").read_text())
+            self.assertNotIn("gate_ecapa", manifest[0],
+                             "with no receipt, fall back to the measured "
+                             "fidelity file rather than a stale score")
+
+
 if __name__ == "__main__":
     unittest.main()

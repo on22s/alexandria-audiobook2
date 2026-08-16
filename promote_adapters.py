@@ -98,6 +98,22 @@ def check(name, before):
     score = gate.get("median_ecapa", gate.get("ecapa"))
     if score is None:
         return False, None, "gate artifact carries no score"
+    # THE GATE'S VERDICT, NOT A RE-DERIVED ONE. The docstring above promises an
+    # adapter is promoted only if it passed the identity gate, but this used to
+    # re-decide that from MIN_ECAPA alone and never read `passed`. The gate
+    # computes `passed` against its own --min-ecapa, so a gate run at a
+    # stricter threshold could report FAIL and be promoted anyway. Every gate
+    # on disk today happens to have run at the default 0.45, so this refuses
+    # nothing that was previously accepted - it closes the gap before a
+    # non-default threshold opens it.
+    if gate.get("passed") is False:
+        return False, score, f"gate verdict is FAIL at its own threshold " \
+                             f"{gate.get('threshold', '?')}"
+    # An identity check that could not generate every line measured a median
+    # over the survivors. That is not the held-out evidence promotion claims.
+    failures = gate.get("generation_failures") or 0
+    if failures:
+        return False, score, f"gate had {failures} generation failure(s)"
     if score < MIN_ECAPA:
         return False, score, f"gate score {score:.3f} below {MIN_ECAPA}"
     old = before.get(name)
@@ -195,6 +211,68 @@ def update_manifest(promoted, stamp):
     print(f"  manifest updated for {len(promoted)} entries")
 
 
+def revert_manifest(names, stamp):
+    """Undo what update_manifest recorded, from the receipt and the backups.
+
+    WHY THIS IS NOT OPTIONAL. `shipped_scores` PREFERS manifest `gate_ecapa`
+    over the fidelity file, and `check` refuses to promote anything that does
+    not beat the shipped score. Leaving the retrained score in the manifest
+    after the weights were restored means the next promotion compares against
+    a number the shipped weights do not have - a phantom baseline, set higher
+    than reality, so a genuine improvement gets refused. The old code printed
+    a NOTE about this and left it to the reader.
+
+    The receipt records each adapter's pre-promotion `shipped_ecapa`, and the
+    backup holds its original training_meta.json, so both halves of what
+    update_manifest overwrote are recoverable.
+    """
+    path = os.path.join(MODELS, "manifest.json")
+    if not os.path.exists(path):
+        return 0
+    receipt_path = os.path.join(BACKUPS, f"{stamp}.json")
+    previous = {}
+    if os.path.exists(receipt_path):
+        try:
+            with open(receipt_path, encoding="utf-8") as handle:
+                previous = {row["adapter"]: row.get("shipped_ecapa")
+                            for row in json.load(handle).get("adapters", [])}
+        except (OSError, ValueError, KeyError, TypeError):
+            previous = {}
+    with open(path, encoding="utf-8") as handle:
+        entries = json.load(handle)
+    reverted = 0
+    for entry in entries:
+        name = entry.get("id")
+        if name not in names:
+            continue
+        meta = os.path.join(backup_dir(stamp), name, "training_meta.json")
+        if os.path.exists(meta):
+            try:
+                with open(meta, encoding="utf-8") as handle:
+                    original = json.load(handle)
+            except (OSError, ValueError):
+                original = {}
+            for field in ("epochs_run", "epoch_losses", "final_loss",
+                          "best_loss", "sample_count", "lora_r", "lr"):
+                if field in original:
+                    entry[field] = original[field]
+            if "num_samples" in original:
+                entry["sample_count"] = original["num_samples"]
+        entry.pop("retrained_at", None)
+        if previous.get(name) is not None:
+            entry["gate_ecapa"] = previous[name]
+        else:
+            # Either the receipt is gone, or the adapter had no shipped score
+            # before promotion. Removing the key is the honest option: it falls
+            # back to the measured fidelity file rather than leaving a score
+            # that belongs to weights no longer installed.
+            entry.pop("gate_ecapa", None)
+        reverted += 1
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(entries, handle, indent=2)
+    return reverted
+
+
 def rollback(stamp):
     dest = backup_dir(stamp)
     if not os.path.isdir(dest):
@@ -206,8 +284,9 @@ def rollback(stamp):
         shutil.rmtree(target, ignore_errors=True)
         shutil.copytree(os.path.join(dest, name), target)
         print(f"  restored {name}")
+    reverted = revert_manifest(set(names), stamp)
     print(f"restored {len(names)} adapters from {stamp}")
-    print("NOTE: manifest.json is not reverted - re-check it if it matters")
+    print(f"  manifest reverted for {reverted} entries")
     return 0
 
 

@@ -1082,7 +1082,12 @@
     "test_promote_adapters.AdapterSourceTests.test_installed_gate_score_overrides_stale_baseline",
     "test_promote_adapters.AdapterSourceTests.test_manifest_maps_training_num_samples_to_sample_count",
     "test_promote_adapters.AdapterSourceTests.test_refuses_ambiguous_decontamination_sources",
-    "test_promote_adapters.AdapterSourceTests.test_resolves_one_decontamination_batch"
+    "test_promote_adapters.AdapterSourceTests.test_resolves_one_decontamination_batch",
+    "test_promote_adapters.GateVerdictTests.test_a_failing_gate_is_refused_even_when_it_clears_min_ecapa",
+    "test_promote_adapters.GateVerdictTests.test_a_passing_gate_is_still_promoted",
+    "test_promote_adapters.GateVerdictTests.test_an_unfinished_identity_check_is_refused",
+    "test_promote_adapters.RollbackRevertsManifestTests.test_a_missing_receipt_drops_the_score_rather_than_keeping_it",
+    "test_promote_adapters.RollbackRevertsManifestTests.test_rollback_restores_the_pre_promotion_score"
   ],
   "test_pronunciation": [
     "test_pronunciation.LexiconTest.test_a_malformed_lexicon_degrades_to_no_substitution",
