@@ -100,6 +100,7 @@ def build_final_generation_repair(entries, source_text):
     identities = stabilize_speaker_identities(structural["entries"])
     return {"entries": identities["entries"],
             "changes": structural["changes"] + identities["changes"],
+            "notes": structural.get("notes", []),
             "unresolved": [], "review": identities["review"]}
 
 
@@ -1058,6 +1059,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         identities = stabilize_speaker_identities(structural["entries"], established_speakers)
         return {"entries": identities["entries"],
                 "changes": structural["changes"] + identities["changes"],
+                "notes": structural.get("notes", []),
                 "unresolved": [], "review": identities["review"]}
 
     local_attempts = []

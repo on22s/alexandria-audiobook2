@@ -25,6 +25,32 @@ stage() {
     "$repo/gpu_job.sh" "$name" "$@"
 }
 
+# READ THE REPORT'S OWN VERDICT, NOT ANY VERDICT IN IT.
+#
+# verify_release.py writes "status" twice: once per gate, and once for the
+# whole report. A run where compile_python passed and unit_tests failed
+# produces a report whose top-level status is "failed" but which still
+# contains a gate object reading "status": "passed".
+#
+# A substring grep matched that gate, so the queue skipped the final release
+# verification on every rerun after a failure and went on to print
+# REMAINING GPU RESEARCH COMPLETE - the one gate whose entire job is to
+# refuse to say that.
+release_passed() {
+    [ -f "$1" ] || return 1
+    "$python" - "$1" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        report = json.load(handle)
+except (OSError, ValueError):
+    sys.exit(1)
+sys.exit(0 if report.get("status") == "passed" else 1)
+PY
+}
+
 if [ ! -f "$runtime/experiments/pdnc_sequence__pilot__local-llamacpp.json" ]; then
     wait_if_paused
     ALEXANDRIA_PDNC_INTERVENTION=sequence \
@@ -134,7 +160,7 @@ for adapter in "${contaminated_adapters[@]}"; do
 done
 
 release_out="$runtime/experiments/final_release_after_remaining_gpu_research.json"
-if ! grep -q '"status": "passed"' "$release_out" 2>/dev/null; then
+if ! release_passed "$release_out"; then
     if ! stage final_release_verification \
         timeout --signal=INT --kill-after=30s 14400 \
         "$python" -u "$repo/app/verify_release.py" --full \

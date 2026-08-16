@@ -27,6 +27,7 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
     possibly different-typed neighbor before the gate ever sees it (finding #7)."""
     repaired = copy.deepcopy(entries)
     changes = []
+    notes = []
     unresolved = []
     source_words = set(re.findall(r"\w+", _normalize(source_text), re.UNICODE))
 
@@ -86,7 +87,16 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
                                "reason": "duplicate_not_in_source"})
             continue
         if occurrences >= 2:
-            changes.append({
+            # A NOTE, NOT A CHANGE. Keeping the block still has to be visible -
+            # a future reader must be able to tell a block that was checked and
+            # kept from one that was never examined - but `changes` is not the
+            # place for it. Callers treat a non-empty `changes` as "the entries
+            # differ from what was passed in, write them back": the repair
+            # endpoint backs up the script, rewrites it with byte-identical
+            # content and reports "repaired", and the generator prints
+            # "Applied 1 deterministic chunk repair(s)". Both claim work that
+            # did not happen, on exactly the books this branch exists for.
+            notes.append({
                 "type": "adjacent_duplicate_block_kept",
                 "entry_numbers": finding["entry_numbers"],
                 "source_occurrences": occurrences,
@@ -130,4 +140,5 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
     for index in sorted(set(removals), reverse=True):
         del repaired[index]
 
-    return {"entries": repaired, "changes": changes, "unresolved": unresolved}
+    return {"entries": repaired, "changes": changes, "notes": notes,
+            "unresolved": unresolved}

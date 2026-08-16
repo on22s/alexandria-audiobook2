@@ -85,8 +85,13 @@ class FaithfulDuplicateBlockTest(unittest.TestCase):
         result = build_deterministic_repair(entries(long_title, long_title,
                                             long_title, long_title),
                                     source_text=source)
-        kinds = [c.get("type") for c in result.get("changes", [])]
+        kinds = [c.get("type") for c in result.get("notes", [])]
         self.assertIn("adjacent_duplicate_block_kept", kinds)
+        # Visible, but not counted as a change: `changes` drives "back the
+        # script up and write it again", and nothing was rewritten here.
+        self.assertEqual([], result["changes"])
+        self.assertEqual(entries(long_title, long_title, long_title, long_title),
+                         result["entries"])
         self.assertFalse(title == long_title)  # guards the fixture itself
 
 

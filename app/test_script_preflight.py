@@ -96,7 +96,7 @@ class ScriptPreflightTests(unittest.TestCase):
         self.assertEqual("unsupported_cyrillic_character",
                          repair["unresolved"][0]["reason"])
         self.assertIn("adjacent_duplicate_block_kept",
-                      [c.get("type") for c in repair["changes"]])
+                      [c.get("type") for c in repair["notes"]])
 
     def test_empty_entry_becomes_explicit_pause_on_previous_spoken_entry(self):
         entries = [_entry("Spoken line."), _entry("", instruct="A beat of silence."),
