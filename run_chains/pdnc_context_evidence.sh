@@ -6,7 +6,7 @@ set -uo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime_root="${ALEXANDRIA_RUNTIME_ROOT:-$repo/ab_test_runtime}"
 intervention="${ALEXANDRIA_PDNC_INTERVENTION:-evidence}"
-case "$intervention" in evidence|sequence) ;; *) echo "invalid intervention: $intervention" >&2; exit 2;; esac
+case "$intervention" in evidence|sequence|targeted_sequence) ;; *) echo "invalid intervention: $intervention" >&2; exit 2;; esac
 run_dir="$runtime_root/experiments/pdnc_${intervention}_20260816"
 experiment_dir="$runtime_root/experiments"
 pilot="$experiment_dir/pdnc_${intervention}__pilot__local-llamacpp.json"

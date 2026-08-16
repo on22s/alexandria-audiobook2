@@ -997,7 +997,9 @@
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_quality_failure_isolates_only_the_irrecoverable_row",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_sequence_prompt_requires_supported_adjacency",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_summary_accepts_a_named_candidate_arm",
-    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_summary_uses_only_paired_rows"
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_summary_uses_only_paired_rows",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_targeted_selector_accepts_a_named_upgrade_and_long_alternation",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_targeted_selector_defaults_to_baseline"
   ],
   "test_pdnc_failure_telemetry": [
     "test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_failure_class_precedence",
@@ -1090,8 +1092,10 @@
     "test_promote_adapters.AdapterSourceTests.test_refuses_ambiguous_decontamination_sources",
     "test_promote_adapters.AdapterSourceTests.test_resolves_one_decontamination_batch",
     "test_promote_adapters.GateVerdictTests.test_a_failing_gate_is_refused_even_when_it_clears_min_ecapa",
+    "test_promote_adapters.GateVerdictTests.test_a_gate_without_an_explicit_verdict_is_refused",
     "test_promote_adapters.GateVerdictTests.test_a_passing_gate_is_still_promoted",
     "test_promote_adapters.GateVerdictTests.test_an_unfinished_identity_check_is_refused",
+    "test_promote_adapters.GateVerdictTests.test_reference_rank_campaign_selects_its_own_gate_prefix",
     "test_promote_adapters.RollbackRevertsManifestTests.test_a_missing_receipt_drops_the_score_rather_than_keeping_it",
     "test_promote_adapters.RollbackRevertsManifestTests.test_rollback_restores_the_pre_promotion_score"
   ],
