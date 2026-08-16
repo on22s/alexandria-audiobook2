@@ -40,6 +40,8 @@ CONFIRMATORY_BOOKS = (
     "TheManWhoWasThursday", "TheMysteriousAffairAtStyles",
     "ThePictureOfDorianGray", "TheSportOfTheGods",
     "WhereAngelsFearToTread", "WinnieThePooh")
+TARGETED_PILOT_BOOKS = CONFIRMATORY_BOOKS[:5]
+TARGETED_CONFIRMATORY_BOOKS = CONFIRMATORY_BOOKS[5:]
 BATCH = 25
 PILOT_MIN_DELTA = 3.0
 PILOT_MAX_P = 0.05
@@ -76,6 +78,45 @@ DIALOGUE SEQUENCE:
   targets, and a skipped quotation may interrupt the visible sequence.
 - Explicit local attribution overrides a turn-taking inference.
 """
+
+
+def select_targeted_sequence(entries, baseline, sequence):
+    """Choose sequence only for two predeclared, observable signal classes."""
+    generic_prefixes = ("A ", "AN ", "THE ")
+    alternating = set()
+    index = 0
+    while index + 3 < len(entries):
+        first = sequence.get(entries[index]["id"])
+        second = sequence.get(entries[index + 1]["id"])
+        if not first or not second or first == second or "UNKNOWN" in (first, second):
+            index += 1
+            continue
+        end = index + 2
+        while (end < len(entries)
+               and sequence.get(entries[end]["id"])
+               == (first if (end - index) % 2 == 0 else second)):
+            end += 1
+        if end - index >= 4:
+            alternating.update(entry["id"] for entry in entries[index:end])
+            index = end
+        else:
+            index += 1
+    selected = {}
+    for entry in entries:
+        identity = entry["id"]
+        base = baseline.get(identity)
+        candidate = sequence.get(identity)
+        generic_upgrade = (str(base or "").upper().startswith(generic_prefixes)
+                           and candidate not in (None, "UNKNOWN")
+                           and not str(candidate).upper().startswith(
+                               generic_prefixes))
+        use_sequence = generic_upgrade or identity in alternating
+        selected[identity] = {
+            "speaker": candidate if use_sequence else base,
+            "reason": ("generic_role_to_named" if generic_upgrade else
+                       "alternating_two_speaker_run" if identity in alternating
+                       else "baseline_default")}
+    return selected
 
 
 def isolate_failed_attribution(attribute, frozen, contexts):
@@ -137,7 +178,8 @@ def main():
     parser.add_argument("--phase", choices=("pilot", "confirmatory"),
                         default="pilot")
     parser.add_argument("--pilot-artifact")
-    parser.add_argument("--intervention", choices=("evidence", "sequence"),
+    parser.add_argument("--intervention",
+                        choices=("evidence", "sequence", "targeted_sequence"),
                         default="evidence")
     parser.add_argument("--model", default="qwen3-14b")
     parser.add_argument("--base-url", default="http://127.0.0.1:8090/v1")
@@ -149,7 +191,11 @@ def main():
         if not args.pilot_artifact:
             parser.error("--pilot-artifact is required for confirmatory phase")
         require_passing_pilot(args.pilot_artifact)
-    books = PILOT_BOOKS if args.phase == "pilot" else CONFIRMATORY_BOOKS
+    if args.intervention == "targeted_sequence":
+        books = (TARGETED_PILOT_BOOKS if args.phase == "pilot"
+                 else TARGETED_CONFIRMATORY_BOOKS)
+    else:
+        books = PILOT_BOOKS if args.phase == "pilot" else CONFIRMATORY_BOOKS
     data = os.path.join(RUNTIME_ROOT, "pdnc", "data")
     fixtures = {book: build_fixture(data, book) for book in books}
     bundle_path = os.path.join(
@@ -166,8 +212,10 @@ def main():
                           top_p=0.8, reasoning_effort="none")
     guidance = (add_context_evidence_guidance if args.intervention == "evidence"
                 else add_sequence_guidance)
+    candidate_arm = ("sequence" if args.intervention == "targeted_sequence"
+                     else args.intervention)
     arms = {"baseline": params,
-            args.intervention: replace(
+            candidate_arm: replace(
                 params, system_prompt=guidance(base_system))}
     client = OpenAI(base_url=args.base_url, api_key="local")
     environment = get_llama_server_environment(args.base_url, args.model)
@@ -182,8 +230,12 @@ def main():
         environment=environment)
     record.meta["phase"] = args.phase
     record.meta["intervention"] = args.intervention
-    record.meta["book_split"] = {"pilot": list(PILOT_BOOKS),
-                                 "confirmatory": list(CONFIRMATORY_BOOKS)}
+    record.meta["book_split"] = {
+        "pilot": list(TARGETED_PILOT_BOOKS if
+                      args.intervention == "targeted_sequence" else PILOT_BOOKS),
+        "confirmatory": list(TARGETED_CONFIRMATORY_BOOKS if
+                             args.intervention == "targeted_sequence"
+                             else CONFIRMATORY_BOOKS)}
     record.meta["system_prompt_sha256"] = {
         arm: hashlib.sha256((arm_params.system_prompt or base_system).encode(
             "utf-8")).hexdigest()
@@ -259,6 +311,27 @@ def main():
             print(f"{book:30} {arm:8} {correct}/{len(rows)} "
                   f"({time.time() - started:.0f}s)", flush=True)
 
+        if args.intervention == "targeted_sequence":
+            predictions = {
+                arm: {row["id"].split(":", 1)[1]: row.get("predicted")
+                      for row in record.rows if row["arm"] == arm
+                      and row["id"].startswith(book + ":")}
+                for arm in ("baseline", "sequence")}
+            selected = select_targeted_sequence(
+                entries, predictions["baseline"], predictions["sequence"])
+            for entry in entries:
+                identity = f"{book}:{entry['id']}"
+                if record.done("targeted_sequence", identity):
+                    continue
+                choice = selected[entry["id"]]
+                record.add(
+                    "targeted_sequence", identity, entry["line"],
+                    entry["expected_speaker"], choice["speaker"],
+                    same_speaker(entry["expected_speaker"], choice["speaker"],
+                                 groups), candidates=roster,
+                    provenance=(f"targeted_sequence|{args.phase}|{book}|"
+                                f"{choice['reason']}"))
+
     summary = summarize_paired_rows(record.rows, args.intervention)
     decision = (get_pilot_decision(record.rows, args.intervention)
                 if args.phase == "pilot" else {
@@ -270,9 +343,12 @@ def main():
     record.meta["isolated_failures"] = isolated_failures
     expected_ids = {f"{book}:{entry['id']}" for book in books
                     for entry in fixtures[book]["entries"][:args.limit]}
+    expected_arms = tuple(arms) + (("targeted_sequence",)
+                                   if args.intervention == "targeted_sequence"
+                                   else ())
     out = record.write(os.path.join(
         RUNTIME_ROOT, "experiments", stem + ".json"),
-        contract={"expected_arms": tuple(arms),
+        contract={"expected_arms": expected_arms,
                   "expected_ids": expected_ids,
                   "require_clean_tree": True})
     print(json.dumps(decision, indent=2))

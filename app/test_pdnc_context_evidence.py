@@ -4,9 +4,10 @@ import tempfile
 import unittest
 
 from experiments.pdnc_context_evidence import (
-    CONFIRMATORY_BOOKS, PILOT_BOOKS, add_context_evidence_guidance,
+    CONFIRMATORY_BOOKS, PILOT_BOOKS, TARGETED_CONFIRMATORY_BOOKS,
+    TARGETED_PILOT_BOOKS, add_context_evidence_guidance,
     add_sequence_guidance, get_pilot_decision, isolate_failed_attribution,
-    require_passing_pilot, summarize_paired_rows)
+    require_passing_pilot, select_targeted_sequence, summarize_paired_rows)
 from three_pass_generate import PassExhausted
 
 
@@ -23,6 +24,10 @@ class PdncContextEvidenceTests(unittest.TestCase):
         self.assertEqual(5, len(PILOT_BOOKS))
         self.assertEqual(20, len(CONFIRMATORY_BOOKS))
         self.assertFalse(set(PILOT_BOOKS) & set(CONFIRMATORY_BOOKS))
+        self.assertEqual(5, len(TARGETED_PILOT_BOOKS))
+        self.assertEqual(15, len(TARGETED_CONFIRMATORY_BOOKS))
+        self.assertFalse(set(TARGETED_PILOT_BOOKS)
+                         & set(TARGETED_CONFIRMATORY_BOOKS))
 
     def test_prompt_rejects_proximity_as_attribution(self):
         original = "BASE"
@@ -37,6 +42,24 @@ class PdncContextEvidenceTests(unittest.TestCase):
         self.assertIn("only when", guided)
         self.assertIn("Never alternate speakers mechanically", guided)
         self.assertIn("Explicit local attribution overrides", guided)
+
+    def test_targeted_selector_defaults_to_baseline(self):
+        entries = [{"id": str(index)} for index in range(3)]
+        selected = select_targeted_sequence(
+            entries, {"0": "ALICE", "1": "BOB", "2": "ALICE"},
+            {"0": "BOB", "1": "ALICE", "2": "BOB"})
+        self.assertEqual(["ALICE", "BOB", "ALICE"],
+                         [selected[str(i)]["speaker"] for i in range(3)])
+
+    def test_targeted_selector_accepts_a_named_upgrade_and_long_alternation(self):
+        entries = [{"id": str(index)} for index in range(5)]
+        baseline = {str(i): "THE CHILD" if i == 0 else "WRONG"
+                    for i in range(5)}
+        sequence = {str(i): "ALICE" if i % 2 == 0 else "BOB"
+                    for i in range(5)}
+        selected = select_targeted_sequence(entries, baseline, sequence)
+        self.assertEqual([sequence[str(i)] for i in range(5)],
+                         [selected[str(i)]["speaker"] for i in range(5)])
 
     def test_summary_uses_only_paired_rows(self):
         sample = rows([(True, True), (True, False), (False, True)])

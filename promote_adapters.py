@@ -29,7 +29,10 @@ MODELS = os.path.join(REPO, "lora_models")
 GATES = os.path.join(REPO, "ab_test_runtime", "experiments")
 SOURCE = os.path.join(REPO, "ab_test_runtime", "retrain_honest")
 DECONTAMINATE_SOURCE = os.path.join(REPO, "ab_test_runtime", "decontaminate")
+REFERENCE_RANK1_SOURCE = os.path.join(
+    REPO, "ab_test_runtime", "reference_rank1_all21")
 BACKUPS = os.path.join(REPO, "ab_test_runtime", "promotion_backups")
+GATE_PREFIX = "gate_promote__"
 
 MIN_ECAPA = 0.45
 
@@ -49,7 +52,8 @@ def get_adapter_source(name):
         candidate = os.path.realpath(
             gated_path if os.path.isabs(gated_path)
             else os.path.join(REPO, gated_path))
-        roots = (os.path.realpath(SOURCE), os.path.realpath(DECONTAMINATE_SOURCE))
+        roots = (os.path.realpath(SOURCE), os.path.realpath(DECONTAMINATE_SOURCE),
+                 os.path.realpath(REFERENCE_RANK1_SOURCE))
         if (os.path.isdir(candidate)
                 and any(os.path.commonpath((candidate, root)) == root
                         for root in roots)):
@@ -57,6 +61,9 @@ def get_adapter_source(name):
     legacy = os.path.join(SOURCE, name, "adapter")
     if os.path.isdir(legacy):
         return legacy
+    ranked = os.path.join(REFERENCE_RANK1_SOURCE, name, "adapter")
+    if os.path.isdir(ranked):
+        return ranked
     import glob
     matches = sorted(glob.glob(os.path.join(
         DECONTAMINATE_SOURCE, "batch*", name, "adapter")))
@@ -80,7 +87,7 @@ def shipped_scores():
 
 def gate_result(name):
     """The gate's verdict for one adapter, or None if it was never gated."""
-    path = os.path.join(GATES, f"gate_promote__{name}.json")
+    path = os.path.join(GATES, f"{GATE_PREFIX}{name}.json")
     if not os.path.exists(path):
         return None
     try:
@@ -106,8 +113,9 @@ def check(name, before):
     # on disk today happens to have run at the default 0.45, so this refuses
     # nothing that was previously accepted - it closes the gap before a
     # non-default threshold opens it.
-    if gate.get("passed") is False:
-        return False, score, f"gate verdict is FAIL at its own threshold " \
+    if gate.get("passed") is not True:
+        verdict = "FAIL" if gate.get("passed") is False else "missing"
+        return False, score, f"gate verdict is {verdict} at its own threshold " \
                              f"{gate.get('threshold', '?')}"
     # An identity check that could not generate every line measured a median
     # over the survivors. That is not the held-out evidence promotion claims.
@@ -291,22 +299,29 @@ def rollback(stamp):
 
 
 def main():
+    global GATE_PREFIX
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--adapters", nargs="*", default=None,
                     help="default: every adapter with a passing gate artifact")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--rollback", metavar="STAMP")
+    ap.add_argument("--gate-campaign", choices=("promote", "reference-rank1"),
+                    default="promote",
+                    help="select the independently generated gate campaign")
     args = ap.parse_args()
 
     if args.rollback:
         return rollback(args.rollback)
 
+    GATE_PREFIX = ("gate_reference_rank1__"
+                   if args.gate_campaign == "reference-rank1"
+                   else "gate_promote__")
     names = args.adapters
     if not names:
         import glob
-        names = sorted(os.path.basename(p)[len("gate_promote__"):-len(".json")]
+        names = sorted(os.path.basename(p)[len(GATE_PREFIX):-len(".json")]
                        for p in glob.glob(os.path.join(
-                           GATES, "gate_promote__*.json")))
+                           GATES, f"{GATE_PREFIX}*.json")))
     if not names:
         print("no gate artifacts found")
         return 1

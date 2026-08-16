@@ -144,6 +144,34 @@ class GateVerdictTests(unittest.TestCase):
                 ok, _score, _reason = promote_adapters.check("voice", {"voice": 0.40})
             self.assertTrue(ok)
 
+    def test_a_gate_without_an_explicit_verdict_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            gates, models = self._gate(
+                root, median_ecapa=0.70, threshold=0.45,
+                generation_failures=0)
+            with patch.object(promote_adapters, "GATES", str(gates)), \
+                 patch.object(promote_adapters, "MODELS", str(models)), \
+                 patch.object(promote_adapters, "get_adapter_source",
+                              return_value=str(models)):
+                ok, _score, reason = promote_adapters.check(
+                    "voice", {"voice": 0.40})
+            self.assertFalse(ok)
+            self.assertIn("missing", reason)
+
+    def test_reference_rank_campaign_selects_its_own_gate_prefix(self):
+        original = promote_adapters.GATE_PREFIX
+        try:
+            with patch.object(sys, "argv", [
+                    "promote_adapters.py", "--gate-campaign",
+                    "reference-rank1", "--adapters", "voice"]), \
+                 patch.object(promote_adapters, "promote", return_value=0) as run:
+                self.assertEqual(0, promote_adapters.main())
+            self.assertEqual("gate_reference_rank1__",
+                             promote_adapters.GATE_PREFIX)
+            run.assert_called_once()
+        finally:
+            promote_adapters.GATE_PREFIX = original
+
 
 class RollbackRevertsManifestTests(unittest.TestCase):
     """A rollback that leaves the retrained score in the manifest sets a
