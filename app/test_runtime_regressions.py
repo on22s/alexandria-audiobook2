@@ -121,6 +121,52 @@ class RuntimeTests(unittest.TestCase):
         self.assertLess(text.index("Chapter One: From NCX"),
                         text.index("NCX chapter prose."))
 
+    def test_epub_toc_listing_a_later_anchor_first_still_places_titles(self):
+        """A TOC need not list anchors in document order.
+
+        Each insertion shifts every offset after it, so inserts have to run
+        back to front BY POSITION. Ordering by the TOC instead lands a title
+        short by the length of everything already inserted before it - here
+        "Second Section" would be pulled 16 characters into the preceding
+        prose, mid-word, while every existing test passes because both of
+        them happen to list their anchors in order.
+        """
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        # The TOC names the SECOND anchor before the first.
+        nav = b'''<html xmlns="http://www.w3.org/1999/xhtml"
+                    xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter.xhtml#second">Second Section</a></li>
+            <li><a href="chapter.xhtml#first">First Section Heading</a></li>
+          </ol></nav></body></html>'''
+        chapter = b'''<html><body>
+          <section id="first"><img src="a.jpg" alt=""/><p>Alpha prose here.</p></section>
+          <section id="second"><img src="b.jpg" alt=""/><p>Beta prose here.</p></section>
+        </body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        # Each title belongs immediately before its own section's prose.
+        self.assertLess(text.index("First Section Heading"),
+                        text.index("Alpha prose here."))
+        self.assertLess(text.index("Alpha prose here."),
+                        text.index("Second Section"))
+        self.assertLess(text.index("Second Section"),
+                        text.index("Beta prose here."))
+        # and neither title was spliced into the middle of the prose
+        self.assertIn("Second Section\n\n", text)
+        self.assertNotIn("Beta prose", text[:text.index("Second Section")])
+
     def test_concurrent_identical_uploads_keep_one_canonical_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads = os.path.join(tmp, "uploads")

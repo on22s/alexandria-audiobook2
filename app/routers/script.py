@@ -401,7 +401,15 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
         normalized_label = ' '.join(label.split()).casefold()
         if normalized_label not in nearby:
             insertions.append((position, label))
-    for position, label in reversed(insertions):
+    # BACK TO FRONT BY POSITION, not by TOC order. Inserting shifts every
+    # offset after the insertion point, so each insert must happen at a
+    # position no earlier than the ones already applied. `reversed()` alone
+    # gives that only when the TOC happens to list anchors in ascending
+    # document order - legal EPUBs need not, and a table of contents that
+    # names a later anchor first then lands its title short by the length of
+    # everything inserted before it, which can be mid-word.
+    for position, label in sorted(insertions, key=lambda entry: entry[0],
+                                  reverse=True):
         text = text[:position] + label + '\n\n' + text[position:]
     return text
 
