@@ -395,6 +395,16 @@ def main():
                     help="start row for an untouched validation partition")
     ap.add_argument("--align-clips", type=int, default=12,
                     help="clips concatenated into the alignment probe")
+    ap.add_argument("--keep-hypotheses", action="store_true",
+                    help="store each clip's reference and hypothesis in the "
+                         "artifact. Off by default because it multiplies the "
+                         "file size, but a stored aggregate cannot be "
+                         "re-scored: Japanese sits at 28%% CER on base, "
+                         "large-v3 and the hybrid alike, and telling a "
+                         "transcription failure apart from an orthography "
+                         "one (whisper writing わたし where the reference has "
+                         "私 - the same word, scored as total failure) needs "
+                         "the text, not the mean")
     ap.add_argument("--whisper-cpp-bin", default=os.path.join(
         REPO, "whisper.cpp", "build", "bin", "whisper-cli"))
     ap.add_argument("--whisper-cpp-model", default=os.path.join(
@@ -449,6 +459,7 @@ def main():
     for name in args.backends:
         fn = backend(name)
         wers, secs, audio_secs, failures, no_ts = [], [], [], [], 0
+        hypotheses = []
         for row in rows:
             wav = os.path.join(REPO, row["human_wav"])
             if not os.path.exists(wav):
@@ -469,10 +480,16 @@ def main():
                 w = word_error_rate(row["text"], text)
                 if w is not None:
                     wers.append(w)
+                    if args.keep_hypotheses:
+                        hypotheses.append({"id": row["id"], "wer": round(w, 4),
+                                           "reference": row["text"],
+                                           "hypothesis": text})
         rec = {"n": len(wers), "failures": failures[:6],
                "failed": len(failures), "clips_without_timestamps": no_ts}
         if name in {"energy_vad", "silero_vad"}:
             rec["transcription"] = "not provided; segmentation-only arm"
+        if hypotheses:
+            rec["hypotheses"] = hypotheses
         if wers:
             rec.update({
                 "wer_mean": round(statistics.mean(wers), 4),
