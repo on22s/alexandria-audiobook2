@@ -34,3 +34,13 @@ pykakasi==2.3.0
 # pyopenjtalk downloads its ~23 MB OpenJTalk dictionary on first use.
 pypinyin==0.55.0
 pyopenjtalk==0.4.1
+# Discovery only, for app/experiments/discover_foreign_terms.py: finding
+# Latinized Japanese vocabulary that needs a pronunciation entry. The test is
+# membership in a Japanese dictionary AND absence from an English one, because
+# `same` is サメ (shark) and `made` is まで - both real Japanese, both English.
+# SudachiDict is Apache-2.0 (JMdict is CC BY-SA, which share-alikes a shipped
+# app). Nothing at generation time imports these.
+sudachipy==0.6.11
+sudachidict_core==20260723
+romkan==0.2.1
+pyspellchecker==0.9.0
