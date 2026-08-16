@@ -39,6 +39,15 @@ from test_support import _Upload
 
 
 class RuntimeTests(unittest.TestCase):
+    def _write_epub(self, path, opf, members):
+        container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("META-INF/container.xml", container)
+            archive.writestr("OEBPS/content.opf", opf)
+            for member_path, content in members.items():
+                archive.writestr(member_path, content)
+
     def test_epub_extracts_spine_with_known_malformed_refines_metadata(self):
         container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''
@@ -53,6 +62,149 @@ class RuntimeTests(unittest.TestCase):
                 archive.writestr("OEBPS/content.opf", opf)
                 archive.writestr("OEBPS/chapter.xhtml", "<p>Readable chapter.</p>")
             self.assertEqual("Readable chapter.", script_module.extract_epub_text(epub))
+
+    def test_epub3_inserts_toc_titles_at_anchors_without_duplicates(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapters" href="chapter%20one.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapters"/></spine></package>'''
+        nav = b'''<html xmlns="http://www.w3.org/1999/xhtml"
+                    xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="landmarks"><a href="chapter%20one.xhtml#first">Start Reading</a></nav>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter%20one.xhtml#first">Chapter One: An Image Heading</a></li>
+            <li><a href="chapter%20one.xhtml#second">Chapter Two: Already Visible</a></li>
+          </ol></nav></body></html>'''
+        chapter = b'''<html><body>
+          <section id="first"><img src="heading.jpg" alt=""/><p>First chapter prose.</p></section>
+          <section id="second"><h2>Chapter Two: Already Visible</h2><p>Second chapter prose.</p></section>
+        </body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter one.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertIn("Chapter One: An Image Heading\n\n", text)
+        self.assertEqual(1, text.count("Chapter Two: Already Visible"))
+        self.assertNotIn("Start Reading", text)
+        self.assertLess(text.index("First chapter prose."),
+                        text.index("Chapter Two: Already Visible"))
+
+    def test_epub2_inserts_ncx_title_at_fragment(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine toc="ncx"><itemref idref="chapter"/></spine></package>'''
+        ncx = b'''<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+          <navMap><navPoint id="chapter-1">
+            <navLabel><text>Chapter One: From NCX</text></navLabel>
+            <content src="chapter.xhtml#chapter-1"/>
+          </navPoint></navMap></ncx>'''
+        chapter = b'''<html><body><a name="chapter-1"></a><img src="title.png"/>
+          <p>NCX chapter prose.</p></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.ncx": ncx,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertIn("Chapter One: From NCX\n\n", text)
+        self.assertLess(text.index("Chapter One: From NCX"),
+                        text.index("NCX chapter prose."))
+
+    def test_epub_title_already_present_with_different_punctuation_is_not_repeated(self):
+        """A book and its own TOC may punctuate the same title differently.
+
+        Found by running the feature over six real ReZero EPUBs: 89 TOC
+        entries resolved, and all four the exact-match test called "missing"
+        were already in the text, differing only in curly quotes, dash
+        variants, or a `Volume 40` / `Light Novel` prefix. Inserting them
+        gave the narrator each heading twice, which is the opposite of what
+        the feature is for - and every synthetic fixture passed, because a
+        fixture matches itself exactly.
+        """
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        # TOC uses curly quotes and an en dash; the page uses neither.
+        nav = '''<html xmlns="http://www.w3.org/1999/xhtml"
+                   xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter.xhtml#c47">Arc 9, Chapter 47 – “Voice”</a></li>
+          </ol></nav></body></html>'''.encode("utf-8")
+        chapter = '''<html><body>
+          <section id="c47"><h2>Arc 9, Chapter 47 - "Voice"</h2>
+          <p>Chapter prose follows.</p></section></body></html>'''.encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertEqual(1, text.count("Voice"),
+                         "the heading is already on the page; punctuation "
+                         "differences must not add a second copy")
+        self.assertNotIn("“Voice”", text)
+
+    def test_epub_toc_listing_a_later_anchor_first_still_places_titles(self):
+        """A TOC need not list anchors in document order.
+
+        Each insertion shifts every offset after it, so inserts have to run
+        back to front BY POSITION. Ordering by the TOC instead lands a title
+        short by the length of everything already inserted before it - here
+        "Second Section" would be pulled 16 characters into the preceding
+        prose, mid-word, while every existing test passes because both of
+        them happen to list their anchors in order.
+        """
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        # The TOC names the SECOND anchor before the first.
+        nav = b'''<html xmlns="http://www.w3.org/1999/xhtml"
+                    xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter.xhtml#second">Second Section</a></li>
+            <li><a href="chapter.xhtml#first">First Section Heading</a></li>
+          </ol></nav></body></html>'''
+        chapter = b'''<html><body>
+          <section id="first"><img src="a.jpg" alt=""/><p>Alpha prose here.</p></section>
+          <section id="second"><img src="b.jpg" alt=""/><p>Beta prose here.</p></section>
+        </body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        # Each title belongs immediately before its own section's prose.
+        self.assertLess(text.index("First Section Heading"),
+                        text.index("Alpha prose here."))
+        self.assertLess(text.index("Alpha prose here."),
+                        text.index("Second Section"))
+        self.assertLess(text.index("Second Section"),
+                        text.index("Beta prose here."))
+        # and neither title was spliced into the middle of the prose
+        self.assertIn("Second Section\n\n", text)
+        self.assertNotIn("Beta prose", text[:text.index("Second Section")])
 
     def test_concurrent_identical_uploads_keep_one_canonical_file(self):
         with tempfile.TemporaryDirectory() as tmp:
