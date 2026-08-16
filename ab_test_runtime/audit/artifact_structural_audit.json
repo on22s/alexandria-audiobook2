@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 65,
-    "exploratory": 144,
+    "exploratory": 146,
     "provisional": 114
   },
   "artifacts": [
@@ -2302,6 +2302,28 @@
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "lexicon_attributed.json",
+      "bytes": 2546935,
+      "sha256": "b659fccfd0a7acf7f9091be277270203553cdfb7155c9f2d13c8d8728353f376",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lexicon_corpus_candidates.json",
+      "bytes": 1579871,
+      "sha256": "570080c4ccd60c860b0a1b9ed696168b1f7c4ffd8105a90274853f56b1577aee",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "library_voice_fidelity.json",
