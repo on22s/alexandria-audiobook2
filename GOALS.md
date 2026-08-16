@@ -1432,7 +1432,38 @@ in this project that cannot itself be wrong.
 | ZH | whisper.cpp large-v3 | 14.1% | 826 ms | 20% |
 | ZH | SenseVoice | **11.3%** | 17957 ms | 10% |
 
-**MET for English and Chinese. OPEN for Japanese.**
+**MET for English and Chinese. Japanese clears both target conditions on a
+held-out slice but on a tenth of the sample the other two languages used, so
+it is recorded here as measured and stays OPEN pending confirmation.**
+
+**Japanese: Silero windowing fixes the segmentation, 2026-08-16.** The
+diagnosis below — that both whisper.cpp checkpoints fail to segment Japanese
+— was correct about those checkpoints and wrong as a dead end. Putting a
+Silero VAD in front of whisper.cpp finds the boundaries the checkpoints miss
+(`asr_silero_whisper_ja_offset20.json`, held-out rows 20–29):
+
+| JA arm | CER | align median | within 300 ms | segments |
+|---|---|---|---|---|
+| whisper.cpp base alone | — | — | — | 5/10 found |
+| **silero + whisper.cpp** | **7.67%** | **39 ms** | **90%** | 14 predicted / 10 scored |
+
+Against the target below that is CER 7.67% ≤ 20% and alignment 39 ms ≤ 150 ms
+— both clear, with the best alignment median of any language. The probe scores
+character-level for Japanese (`asr_backends` auto-detects CJK from the
+reference), so the 7.67% is a CER despite the artifact's `wer_mean` key.
+
+**Why it is not yet MET.** n=10. English and Chinese were measured on 50 clips
+each, and a goal should not change status on a fifth of the evidence its
+siblings needed. Confirming it is blocked on corpus, not compute: the test
+novel has 6,294 transcript rows but only 34 downloaded audio clips, of which
+31 pass the length filter — so no re-slicing of the existing build can reach
+50. `ab_test_runtime/corpora/kokoro/librivox` holds 405 MB of audio for four
+*other* novels and none for this one. Either fetch this novel's LibriVox
+audio, or — since 5.4 measures transcription and alignment rather than voice
+identity, and does not need the same-speaker design the build inherits from
+the voice goals — cut a 50-clip Japanese set from the novels already
+downloaded, which needs no network at all. The ASR run itself is ~3 minutes:
+the n=10 arm took 36 seconds.
 
 **Chinese is solved by splitting the two jobs** (`whisper_cpp_hybrid`, added
 2026-08-08). base decides the boundaries, large-v3 transcribes inside each one,
