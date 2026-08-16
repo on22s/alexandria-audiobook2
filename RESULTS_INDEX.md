@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-15 17:52 from `ab_test_runtime/experiments/` — 323 artifacts, 527 arms.
+Generated 2026-08-16 18:17 from `ab_test_runtime/experiments/` — 325 artifacts, 527 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -765,6 +765,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `lexicon_attributed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `lexicon_corpus_candidates.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `library_voice_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

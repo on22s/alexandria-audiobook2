@@ -207,3 +207,8 @@ ab_test_runtime/booknlp/
 ab_test_runtime/blinded_listening/
 ab_test_runtime/blinded_listening.building/
 ab_test_runtime/blinded_listening_concealed_key.json
+
+# Corpus scan checkpoint: per-book paths into a personal library, 4+ MB, and
+# regenerable by rerunning the scan. The candidate artifacts it produces are
+# word statistics and are committed; this is the working file.
+ab_test_runtime/lexicon_scan/

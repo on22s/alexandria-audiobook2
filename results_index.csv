@@ -406,6 +406,8 @@ joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,supported_me
 joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,supported_measurement,joint_scene,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,16384,1,q8_0,joint-shuffled,162,74,45.7,ok,False,04a69e4c,538.3,07-29 04:37,http://127.0.0.1:8090/v1,
 kokoro_generate.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 kokoro_score.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+lexicon_attributed.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+lexicon_corpus_candidates.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 library_voice_fidelity.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_voice_fidelity_n10.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_voice_fidelity_postfix.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
