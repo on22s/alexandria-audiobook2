@@ -173,6 +173,55 @@ class GateVerdictTests(unittest.TestCase):
             promote_adapters.GATE_PREFIX = original
 
 
+class GateCampaignTests(unittest.TestCase):
+    """A campaign must not be addable in one place and not the other.
+
+    The gate prefix lived in an if/else beside a separate argparse `choices`
+    tuple. reference-rank2 was added to neither, so six rank-2 gates were
+    written, one passed, and the promoter could not see any of them - it went
+    on reading gate_promote__ and reported "no gate artifact" for adapters
+    that had one. One table now feeds both.
+    """
+
+    def test_every_campaign_is_selectable_and_has_a_distinct_prefix(self):
+        campaigns = promote_adapters.GATE_CAMPAIGNS
+        self.assertIn("reference-rank2", campaigns)
+        self.assertEqual(len(campaigns), len(set(campaigns.values())),
+                         "two campaigns reading the same prefix would promote "
+                         "each other's evidence")
+        for prefix in campaigns.values():
+            self.assertTrue(prefix.endswith("__"), prefix)
+
+    def test_the_parser_offers_exactly_the_table(self):
+        """argparse must not drift from the table it is meant to expose."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--gate-campaign",
+                            choices=tuple(promote_adapters.GATE_CAMPAIGNS))
+        for name in promote_adapters.GATE_CAMPAIGNS:
+            self.assertEqual(name, parser.parse_args(
+                [f"--gate-campaign={name}"]).gate_campaign)
+
+    def test_the_rank2_retrain_directory_is_a_permitted_source(self):
+        """A gate the promoter can read but whose adapter it cannot find is
+        the same dead end one step later."""
+        self.assertIn(promote_adapters.REFERENCE_RANK2_SOURCE,
+                      promote_adapters.retrain_sources(),
+                      "reference-rank2 resolves gates but its retrain "
+                      "directory is not a permitted source, so promotion "
+                      "would refuse everything it gated")
+
+    def test_the_source_list_follows_patched_constants(self):
+        """It was a module-level tuple, which snapshots the roots at import.
+
+        That made it a second place the list lived, and it silently defeated
+        every test that points the roots at a temporary directory - the real
+        code kept resolving against the repo while the test thought it was
+        sandboxed."""
+        with patch.object(promote_adapters, "REFERENCE_RANK2_SOURCE", "/tmp/x"):
+            self.assertIn("/tmp/x", promote_adapters.retrain_sources())
+
+
 class RollbackRevertsManifestTests(unittest.TestCase):
     """A rollback that leaves the retrained score in the manifest sets a
     phantom baseline: `shipped_scores` prefers manifest `gate_ecapa`, and

@@ -839,8 +839,36 @@ which arm failed.
 **Metric** — adapters whose training set includes their validation split.
 **Current** — every dataset zip splits **180 train / 20 val with zero
 overlap**, and the trainer now uses the split, but the live manifest still
-contains **21 of 75 shipped adapters trained on all 200 clips**. **OPEN**, last
-audited 2026-08-15 from each adapter's own training metadata.
+contains **12 of 75 shipped adapters trained on all 200 clips**, down from 21.
+**OPEN**, last audited 2026-08-16 from each adapter's own training metadata.
+
+**Where the remaining twelve stand, 2026-08-16.** All 21 were retrained on the
+honest split and independently gated; 9 were promoted with a rollback receipt,
+including one voice that went 0.09 → 0.57. The twelve left need three
+different things, and only one of them is more training:
+
+- **1 rescued, promotable now.** `breathy_alto_50s_f_fantasy` failed at
+  reference-rank 1 (0.404) and passed at rank 2 (**0.503**), against a
+  contaminated shipped score of 0.291.
+- **5 exhausted on reference choice.** The other rank-1 failures were retrained
+  at rank 2 and went 0.056→0.077, 0.112→0.112, 0.089→0.054, 0.100→0.042,
+  0.229→0.165 — four of five *worse*, all still far below the 0.45 bar, moving
+  ±0.06 with no direction. Two reference choices have now failed to move them.
+  **The lever is spent**, and the remaining explanation is the source data
+  rather than the recipe: these datasets need rebuilding or retiring, not
+  another retrain.
+- **6 blocked by a comparison that cannot be made fair.** These passed their
+  gate and were refused only for not beating their shipped score. That score
+  was measured on clips the shipped adapter trained on — and re-measuring it
+  does not help, because **a contaminated adapter has no held-out data by
+  definition**: the retrain's 20-clip val split is training material for the
+  shipped adapter and genuinely unseen for the clean one. Asked on
+  2026-08-16, the re-measurement reproduced the original score to four
+  decimals for all six. The clean adapters lose by 0.02–0.06 on clips their
+  rival memorised, which is the expected result of a rigged comparison and not
+  evidence they are worse. Settling it needs clips **neither** adapter ever
+  saw — a different recording of the same narrator, or a slice withheld before
+  either was trained. No such data exists today.
 
 | trained on | adapters |
 |---|---|
