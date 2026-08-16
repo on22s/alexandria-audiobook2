@@ -72,6 +72,17 @@ def dataset_of(adapter, models_dir):
         str(meta.get("ref_sample_audio") or ""))), meta
 
 
+def load_resumed_results(path, resume, seed, reference_rank):
+    if not resume or not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as handle:
+        prior = json.load(handle)
+    if (prior.get("seed") != seed or
+            prior.get("reference_rank", 0) != reference_rank):
+        raise ValueError("resume artifact settings do not match this run")
+    return list(prior.get("results") or [])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--adapters", nargs="+", required=True)
@@ -95,9 +106,12 @@ def main():
                          "(0.141 -> 0.149), which is the difference this flag "
                          "removes.")
     ap.add_argument("--medoid-clips", type=int, default=14)
+    ap.add_argument("--reference-rank", type=int, default=0,
+                    help="0=best medoid; 1=second-ranked reference candidate")
     ap.add_argument("--eval-lines", type=int, default=8)
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "retrain_honest.json"))
+    ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
 
     py = os.path.join(APP, "env", "bin", "python")
@@ -112,16 +126,30 @@ def main():
 
     jobs = [(a, "failure") for a in args.adapters] + \
            [(a, "control") for a in args.controls]
-    results = []
+    results = load_resumed_results(
+        args.out, args.resume, args.seed, args.reference_rank)
+    completed = {row.get("adapter") for row in results}
+
+    def save_results():
+        from utils import atomic_json_write
+        atomic_json_write({"epochs": args.epochs, "lora_r": args.lora_r,
+                           "seed": args.seed,
+                           "reference_rank": args.reference_rank,
+                           "eval_lines": args.eval_lines,
+                           "results": results}, args.out)
     print(f"{len(jobs)} retrains ({len(args.adapters)} failures, "
           f"{len(args.controls)} controls)\n")
 
     for adapter, role in jobs:
+        if adapter in completed:
+            print(f"  {adapter[:34]:36} RESUMED")
+            continue
         dataset, old_meta = dataset_of(adapter, args.models)
         zp = find_zip(dataset, args.zips) if dataset else None
         if not zp:
             results.append({"adapter": adapter, "role": role,
                             "error": "source zip not found"})
+            save_results()
             print(f"  {adapter[:34]:36} NO ZIP")
             continue
         ddir = os.path.join(args.work, adapter, "data")
@@ -149,7 +177,9 @@ def main():
                               if os.path.exists(os.path.join(
                                   ddir, r["audio_filepath"]))]
             cand = [path for path, _row in candidate_rows]
-            pick, score = select_reference_sample(cand, max_clips=args.medoid_clips)
+            pick, score = select_reference_sample(
+                cand, max_clips=args.medoid_clips,
+                reference_rank=args.reference_rank)
             if pick is not None:
                 import shutil as _sh
                 _sh.copy2(cand[pick], os.path.join(ddir, "ref.wav"))
@@ -161,6 +191,7 @@ def main():
                     handle.write(ref_text)
                 ref_note = {"clip": os.path.basename(cand[pick]),
                             "similarity": score,
+                            "rank": args.reference_rank,
                             "text": ref_text}
                 print(f"    reference: {ref_note['clip']} "
                       f"(similarity {score})")
@@ -183,6 +214,7 @@ def main():
                 os.path.join(odir, "adapter_model.safetensors")):
             results.append({"adapter": adapter, "role": role,
                             "error": f"train rc={rc}"})
+            save_results()
             print(f"  {adapter[:34]:36} TRAIN FAILED rc={rc}")
             continue
         trained_on = None
@@ -228,6 +260,7 @@ def main():
                "dur_ratio": round(statistics.median(durs), 3) if durs else None,
                "n": len(vals), "ecapa_error": err}
         results.append(rec)
+        save_results()
         print(f"  {adapter[:34]:36} {role:8} held-out ecapa "
               f"{rec['new_ecapa_heldout']}  dur {rec['dur_ratio']}")
 
@@ -254,6 +287,7 @@ def main():
     print("  contamination rather than the retrain.")
 
     doc = {"epochs": args.epochs, "lora_r": args.lora_r, "seed": args.seed,
+           "reference_rank": args.reference_rank,
            "eval_lines": args.eval_lines, "results": results}
     try:
         from experiments.provenance import provenance
@@ -261,8 +295,8 @@ def main():
     except Exception as exc:                                # noqa: BLE001
         doc["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1, ensure_ascii=False)
+    from utils import atomic_json_write
+    atomic_json_write(doc, args.out)
     print(f"\nwrote {args.out}")
     if not any(r.get("new_ecapa_heldout") is not None for r in results):
         sys.exit(3)

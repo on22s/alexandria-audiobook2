@@ -1,20 +1,22 @@
 #!/usr/bin/bash
-# Pilot explicit-attribution guidance on five diagnostic PDNC books, then open
+# Pilot one attribution intervention on five diagnostic PDNC books, then open
 # the sealed twenty-book confirmatory set only if the fixed pilot gate passes.
 set -uo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime_root="${ALEXANDRIA_RUNTIME_ROOT:-$repo/ab_test_runtime}"
-run_dir="$runtime_root/experiments/pdnc_context_evidence_20260816"
+intervention="${ALEXANDRIA_PDNC_INTERVENTION:-evidence}"
+case "$intervention" in evidence|sequence) ;; *) echo "invalid intervention: $intervention" >&2; exit 2;; esac
+run_dir="$runtime_root/experiments/pdnc_${intervention}_20260816"
 experiment_dir="$runtime_root/experiments"
-pilot="$experiment_dir/pdnc_context_evidence__pilot__local-llamacpp.json"
-confirmatory="$experiment_dir/pdnc_context_evidence__confirmatory__local-llamacpp.json"
+pilot="$experiment_dir/pdnc_${intervention}__pilot__local-llamacpp.json"
+confirmatory="$experiment_dir/pdnc_${intervention}__confirmatory__local-llamacpp.json"
 model="${ALEXANDRIA_QWEN3_MODEL:-/home/fakemitch/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf}"
 
 # Make the lock impossible to forget when this script is launched directly.
 if [ "${ALEXANDRIA_GPU_LOCK_HELD:-0}" != 1 ]; then
     export GPU_QLOG="$runtime_root/logs/gpu_jobq.log"
-    exec "$repo/gpu_job.sh" pdnc_context_evidence \
+    exec "$repo/gpu_job.sh" "pdnc_${intervention}" \
         env ALEXANDRIA_GPU_LOCK_HELD=1 "$0" "$@"
 fi
 
@@ -83,6 +85,7 @@ if [ "$pilot_state" = missing ]; then
     echo "PILOT_START $(date -u +%FT%TZ)"
     timeout --signal=TERM --kill-after=30 10800 env/bin/python -u \
         experiments/pdnc_context_evidence.py --phase pilot \
+        --intervention "$intervention" \
         > "$run_dir/pilot.log" 2>&1
     rc=$?
     if [ "$rc" -ne 0 ]; then
@@ -104,6 +107,7 @@ fi
 echo "CONFIRMATORY_START $(date -u +%FT%TZ)"
 timeout --signal=TERM --kill-after=30 21600 env/bin/python -u \
     experiments/pdnc_context_evidence.py --phase confirmatory \
+    --intervention "$intervention" \
     --pilot-artifact "$pilot" > "$run_dir/confirmatory.log" 2>&1
 rc=$?
 if [ "$rc" -ne 0 ]; then

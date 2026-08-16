@@ -87,18 +87,17 @@ becomes a regression.
 """
 
 
-def select_reference_sample(wav_paths, max_clips=MAX_CLIPS):
-    """-> (index into wav_paths, median similarity) or (None, None).
+def rank_reference_samples(wav_paths, max_clips=MAX_CLIPS):
+    """Return candidate ``(original_index, median_similarity)`` pairs best first.
 
-    None means "could not decide" - the model was unavailable, or too few
-    clips to compare - and the caller should keep whatever it was going to do.
-    It never guesses: returning index 0 on failure would be indistinguishable
-    from a real decision and would hide exactly the defect this exists for.
+    An empty list means the model was unavailable, too few clips were usable,
+    or the similarity result was incomplete. Indices always address the
+    original input list, including when missing files were filtered out.
     """
     usable = [(i, p) for i, p in enumerate(wav_paths)
               if p and os.path.exists(p)]
     if len(usable) < 3:
-        return None, None
+        return []
     sample = usable[:max_clips]
     pairs, index = [], []
     for a in range(len(sample)):
@@ -107,7 +106,7 @@ def select_reference_sample(wav_paths, max_clips=MAX_CLIPS):
             index.append((a, b))
     sims = _speaker_similarities(pairs)
     if not sims or len(sims) != len(pairs):
-        return None, None
+        return []
     scores = {a: [] for a in range(len(sample))}
     for (a, b), value in zip(index, sims):
         if value is None:
@@ -116,13 +115,23 @@ def select_reference_sample(wav_paths, max_clips=MAX_CLIPS):
         scores[b].append(value)
     medians = {a: statistics.median(v) for a, v in scores.items() if v}
     if not medians:
+        return []
+    return [(sample[index][0], round(score, 4))
+            for index, score in sorted(
+                medians.items(), key=lambda item: (-item[1], item[0]))]
+
+
+def select_reference_sample(wav_paths, max_clips=MAX_CLIPS,
+                            reference_rank=0):
+    """Return one ranked reference candidate, declining weak candidates."""
+    ranked = rank_reference_samples(wav_paths, max_clips=max_clips)
+    if not ranked or reference_rank < 0 or reference_rank >= len(ranked):
         return None, None
-    best = max(medians, key=medians.get)
-    score = round(medians[best], 4)
+    best, score = ranked[reference_rank]
     if score < MIN_USABLE_SIMILARITY:
         # Found one, but it is the best of a bad lot. Report the score so the
         # caller can log it, and decline to recommend - overriding a reference
         # that happened to be fine with a mediocre medoid cost 0.108 on
         # breathy_baritone_30s_m_fantasy.
         return None, score
-    return sample[best][0], score
+    return best, score

@@ -61,6 +61,23 @@ EVIDENCE PRIORITY:
 """
 
 
+def add_sequence_guidance(system_prompt):
+    """Resolve ordered targets as dialogue sequences without forced alternation."""
+    return system_prompt.rstrip() + """
+
+DIALOGUE SEQUENCE:
+- The numbered targets are in chronological order, but unattributed quotations
+  may have been omitted. Treat two targets as adjacent turns only when their
+  previous_context/next_context overlap or otherwise show the same exchange.
+- Resolve an exchange jointly: anchor any explicitly attributed turn first,
+  then use replies, questions, action beats, and established participants to
+  resolve the neighboring turns.
+- Never alternate speakers mechanically. One speaker may have consecutive
+  targets, and a skipped quotation may interrupt the visible sequence.
+- Explicit local attribution overrides a turn-taking inference.
+"""
+
+
 def isolate_failed_attribution(attribute, frozen, contexts):
     """Split quality-exhausted batches; mark only irreducible rows UNKNOWN."""
     try:
@@ -77,23 +94,23 @@ def isolate_failed_attribution(attribute, frozen, contexts):
             midpoint + index for index in right_failed}
 
 
-def summarize_paired_rows(rows):
+def summarize_paired_rows(rows, candidate_arm="evidence"):
     answers = {arm: {row["id"]: bool(row["correct"])
                      for row in rows if row["arm"] == arm}
-               for arm in ("baseline", "evidence")}
-    shared = set(answers["baseline"]) & set(answers["evidence"])
+               for arm in ("baseline", candidate_arm)}
+    shared = set(answers["baseline"]) & set(answers[candidate_arm])
     baseline_correct = sum(answers["baseline"][key] for key in shared)
-    evidence_correct = sum(answers["evidence"][key] for key in shared)
+    evidence_correct = sum(answers[candidate_arm][key] for key in shared)
     p_value, lost, gained, n = paired(
-        answers["baseline"], answers["evidence"])
+        answers["baseline"], answers[candidate_arm])
     delta = (100.0 * (evidence_correct - baseline_correct) / n) if n else 0.0
     return {"n": n, "baseline_correct": baseline_correct,
             "evidence_correct": evidence_correct, "delta_points": delta,
             "gained": gained, "lost": lost, "p_value": p_value}
 
 
-def get_pilot_decision(rows):
-    result = summarize_paired_rows(rows)
+def get_pilot_decision(rows, candidate_arm="evidence"):
+    result = summarize_paired_rows(rows, candidate_arm)
     result["advance"] = (result["n"] > 0
                          and result["delta_points"] >= PILOT_MIN_DELTA
                          and result["p_value"] < PILOT_MAX_P)
@@ -120,6 +137,8 @@ def main():
     parser.add_argument("--phase", choices=("pilot", "confirmatory"),
                         default="pilot")
     parser.add_argument("--pilot-artifact")
+    parser.add_argument("--intervention", choices=("evidence", "sequence"),
+                        default="evidence")
     parser.add_argument("--model", default="qwen3-14b")
     parser.add_argument("--base-url", default="http://127.0.0.1:8090/v1")
     parser.add_argument("--limit", type=int, default=120)
@@ -135,7 +154,7 @@ def main():
     fixtures = {book: build_fixture(data, book) for book in books}
     bundle_path = os.path.join(
         RUNTIME_ROOT, "pdnc_inputs",
-        f"pdnc_context_evidence__{args.phase}.json")
+        f"pdnc_{args.intervention}__{args.phase}.json")
     bundle = {"entries": [entry for book in books
                           for entry in fixtures[book]["entries"][:args.limit]],
               "books": list(books), "limit": args.limit}
@@ -145,26 +164,31 @@ def main():
     params = LLMGenParams(max_tokens=2000, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
+    guidance = (add_context_evidence_guidance if args.intervention == "evidence"
+                else add_sequence_guidance)
     arms = {"baseline": params,
-            "evidence": replace(
-                params, system_prompt=add_context_evidence_guidance(base_system))}
+            args.intervention: replace(
+                params, system_prompt=guidance(base_system))}
     client = OpenAI(base_url=args.base_url, api_key="local")
     environment = get_llama_server_environment(args.base_url, args.model)
     record = ExperimentRecord(
-        "pdnc_context_evidence", REPO, args.model, args.base_url, bundle_path,
+        f"pdnc_{args.intervention}", REPO, args.model, args.base_url, bundle_path,
         {"temperature": 0.0, "batch": BATCH, "limit": args.limit,
          "phase": args.phase, "books": list(books),
          "arms": list(arms)},
-        notes="Production baseline versus explicit-attribution evidence priority.",
+        notes=("Production baseline versus explicit-attribution evidence priority."
+               if args.intervention == "evidence" else
+               "Production baseline versus sequence-aware dialogue resolution."),
         environment=environment)
     record.meta["phase"] = args.phase
+    record.meta["intervention"] = args.intervention
     record.meta["book_split"] = {"pilot": list(PILOT_BOOKS),
                                  "confirmatory": list(CONFIRMATORY_BOOKS)}
     record.meta["system_prompt_sha256"] = {
         arm: hashlib.sha256((arm_params.system_prompt or base_system).encode(
             "utf-8")).hexdigest()
         for arm, arm_params in arms.items()}
-    stem = f"pdnc_context_evidence__{args.phase}__{args.tag}"
+    stem = f"pdnc_{args.intervention}__{args.phase}__{args.tag}"
     checkpoint = os.path.join(
         RUNTIME_ROOT, "experiments", stem + ".json.ckpt")
     record.enable_checkpoint(checkpoint)
@@ -235,8 +259,9 @@ def main():
             print(f"{book:30} {arm:8} {correct}/{len(rows)} "
                   f"({time.time() - started:.0f}s)", flush=True)
 
-    summary = summarize_paired_rows(record.rows)
-    decision = (get_pilot_decision(record.rows) if args.phase == "pilot" else {
+    summary = summarize_paired_rows(record.rows, args.intervention)
+    decision = (get_pilot_decision(record.rows, args.intervention)
+                if args.phase == "pilot" else {
         **summary,
         "meets_goal": (100.0 * summary["evidence_correct"] / summary["n"]
                        >= CONFIRMATORY_TARGET if summary["n"] else False),

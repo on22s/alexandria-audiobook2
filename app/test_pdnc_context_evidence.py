@@ -5,8 +5,8 @@ import unittest
 
 from experiments.pdnc_context_evidence import (
     CONFIRMATORY_BOOKS, PILOT_BOOKS, add_context_evidence_guidance,
-    get_pilot_decision, isolate_failed_attribution, require_passing_pilot,
-    summarize_paired_rows)
+    add_sequence_guidance, get_pilot_decision, isolate_failed_attribution,
+    require_passing_pilot, summarize_paired_rows)
 from three_pass_generate import PassExhausted
 
 
@@ -31,6 +31,13 @@ class PdncContextEvidenceTests(unittest.TestCase):
         self.assertIn("proximity alone", guided)
         self.assertIn("speech attribution", guided)
 
+    def test_sequence_prompt_requires_supported_adjacency(self):
+        guided = add_sequence_guidance("BASE")
+        self.assertIn("chronological order", guided)
+        self.assertIn("only when", guided)
+        self.assertIn("Never alternate speakers mechanically", guided)
+        self.assertIn("Explicit local attribution overrides", guided)
+
     def test_summary_uses_only_paired_rows(self):
         sample = rows([(True, True), (True, False), (False, True)])
         sample.append({"arm": "evidence", "id": "unpaired", "correct": True})
@@ -38,6 +45,17 @@ class PdncContextEvidenceTests(unittest.TestCase):
                           "evidence_correct": 2, "delta_points": 0.0,
                           "gained": 1, "lost": 1, "p_value": 1.0},
                          summarize_paired_rows(sample))
+
+    def test_summary_accepts_a_named_candidate_arm(self):
+        sample = [
+            {"arm": arm, "id": str(index), "correct": correct}
+            for index, pair in enumerate(((True, False), (False, True)))
+            for arm, correct in (("baseline", pair[0]), ("sequence", pair[1]))
+        ]
+        summary = summarize_paired_rows(sample, "sequence")
+        self.assertEqual(2, summary["n"])
+        self.assertEqual(1, summary["baseline_correct"])
+        self.assertEqual(1, summary["evidence_correct"])
 
     def test_pilot_gate_requires_effect_size_and_significance(self):
         passing = rows([(False, True)] * 20 + [(True, True)] * 80)
