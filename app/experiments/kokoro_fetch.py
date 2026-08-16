@@ -113,12 +113,29 @@ def fetch_novel_audio(entry, dest):
 
 
 def cut(src_mp3, start, end, dst, rate):
-    """Cut [start, end) samples out of an MP3 into a WAV at `rate`."""
+    """Cut [start, end) samples out of an MP3 into a WAV at `rate`.
+
+    `-ss` GOES AFTER `-i`, AND THAT IS THE WHOLE POINT. Before `-i` it is an
+    input seek: ffmpeg jumps to a frame boundary without decoding, which is
+    fast and, on MP3, wrong. The clip comes out the right LENGTH from the
+    wrong POSITION, so nothing looks broken - durations match the metadata
+    exactly - while the audio inside is shifted against its own transcript.
+
+    Measured 2026-08-16 against the dataset's own clips for
+    kouyahijiri-by-kyoka-izumi: input seek was off by >= 200 ms on every clip
+    tested with identical durations; output seek is off by 0 ms on all six.
+    The 200 ms shift moved speech onset late inside each clip, which pushed
+    the Japanese ASR alignment median from 86 ms to 347 ms and made a 50-clip
+    evaluation set unusable without anything failing loudly.
+
+    Output seek decodes and discards, so it is slower. That is the correct
+    trade for a corpus cut once and measured against many times.
+    """
     ss = start / float(NATIVE_RATE)
     dur = (end - start) / float(NATIVE_RATE)
     r = subprocess.run(
-        ["ffmpeg", "-v", "error", "-ss", f"{ss:.4f}", "-t", f"{dur:.4f}",
-         "-i", src_mp3, "-ac", "1", "-ar", str(rate), dst, "-y"],
+        ["ffmpeg", "-v", "error", "-i", src_mp3, "-ss", f"{ss:.4f}",
+         "-t", f"{dur:.4f}", "-ac", "1", "-ar", str(rate), dst, "-y"],
         capture_output=True, text=True, timeout=180)
     return r.returncode == 0, r.stderr[-200:]
 
