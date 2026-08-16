@@ -980,8 +980,10 @@
   "test_pdnc_context_evidence": [
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_confirmatory_requires_explicit_passing_pilot",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_non_quality_exception_is_not_split",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_pilot_gate_requires_effect_size_and_significance",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_prompt_rejects_proximity_as_attribution",
+    "test_pdnc_context_evidence.PdncContextEvidenceTests.test_quality_failure_isolates_only_the_irrecoverable_row",
     "test_pdnc_context_evidence.PdncContextEvidenceTests.test_summary_uses_only_paired_rows"
   ],
   "test_pdnc_failure_telemetry": [

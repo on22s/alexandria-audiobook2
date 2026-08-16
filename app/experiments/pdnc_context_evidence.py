@@ -26,7 +26,7 @@ from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 from experiments.stats import paired  # noqa: E402
 from generate_script import LLMGenParams  # noqa: E402
 from openai import OpenAI  # noqa: E402
-from three_pass_generate import attribute_batch  # noqa: E402
+from three_pass_generate import PassExhausted, attribute_batch  # noqa: E402
 from utils import atomic_json_write  # noqa: E402
 
 
@@ -59,6 +59,22 @@ EVIDENCE PRIORITY:
 - When explicit attribution conflicts with a guess based on conversational
   turn-taking, follow the explicit attribution. Otherwise use the normal rules.
 """
+
+
+def isolate_failed_attribution(attribute, frozen, contexts):
+    """Split quality-exhausted batches; mark only irreducible rows UNKNOWN."""
+    try:
+        return attribute(frozen, contexts), set()
+    except PassExhausted:
+        if len(frozen) == 1:
+            return [{"text": frozen[0]["text"], "speaker": "UNKNOWN"}], {0}
+        midpoint = len(frozen) // 2
+        left, left_failed = isolate_failed_attribution(
+            attribute, frozen[:midpoint], contexts[:midpoint])
+        right, right_failed = isolate_failed_attribution(
+            attribute, frozen[midpoint:], contexts[midpoint:])
+        return left + right, left_failed | {
+            midpoint + index for index in right_failed}
 
 
 def summarize_paired_rows(rows):
@@ -152,6 +168,7 @@ def main():
     checkpoint = os.path.join(
         RUNTIME_ROOT, "experiments", stem + ".json.ckpt")
     record.enable_checkpoint(checkpoint)
+    isolated_failures = []
 
     for book in books:
         fixture = fixtures[book]
@@ -177,18 +194,41 @@ def main():
                 # One consistent error policy: attribute_batch exhausts its
                 # retries, then the run exits without checkpointing this block.
                 # Resume retries the whole failed block under identical inputs.
-                output = attribute_batch(
-                    client, args.model, frozen, arm_params, roster,
-                    neighbor_contexts=contexts)
+                def attribute(current, current_contexts):
+                    attempts = []
+                    try:
+                        return attribute_batch(
+                            client, args.model, current, arm_params, roster,
+                            neighbor_contexts=current_contexts,
+                            attempt_observer=attempts.append)
+                    except PassExhausted:
+                        # Transport exhaustion is not a scientific UNKNOWN and
+                        # must stop the run. Only deterministic response-quality
+                        # exhaustion is eligible for row isolation.
+                        if attempts and all(
+                                attempt.get("outcome") == "api_error"
+                                for attempt in attempts):
+                            raise RuntimeError(
+                                "LLM endpoint exhausted; refusing to split a "
+                                "transport failure")
+                        raise
+
+                output, failed_offsets = isolate_failed_attribution(
+                    attribute, frozen, contexts)
                 for offset, entry in enumerate(pending):
                     predicted = (output[offset] or {}).get("speaker")
+                    isolated = offset in failed_offsets
+                    if isolated:
+                        isolated_failures.append(
+                            {"arm": arm, "id": f"{book}:{entry['id']}"})
                     record.add(
                         arm, f"{book}:{entry['id']}", entry["line"],
                         entry["expected_speaker"], predicted,
                         same_speaker(entry["expected_speaker"], predicted,
                                      groups),
                         candidates=roster,
-                        provenance=f"{arm}|{args.phase}|{book}")
+                        provenance=(f"{arm}|{args.phase}|{book}"
+                                    f"{'|isolated_exhaustion' if isolated else ''}"))
             rows = [row for row in record.rows if row["arm"] == arm
                     and row["id"].startswith(book + ":")]
             correct = sum(bool(row["correct"]) for row in rows)
@@ -202,6 +242,7 @@ def main():
                        >= CONFIRMATORY_TARGET if summary["n"] else False),
         "minimum_accuracy": CONFIRMATORY_TARGET})
     record.meta["decision"] = decision
+    record.meta["isolated_failures"] = isolated_failures
     expected_ids = {f"{book}:{entry['id']}" for book in books
                     for entry in fixtures[book]["entries"][:args.limit]}
     out = record.write(os.path.join(

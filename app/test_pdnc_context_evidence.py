@@ -5,7 +5,9 @@ import unittest
 
 from experiments.pdnc_context_evidence import (
     CONFIRMATORY_BOOKS, PILOT_BOOKS, add_context_evidence_guidance,
-    get_pilot_decision, require_passing_pilot, summarize_paired_rows)
+    get_pilot_decision, isolate_failed_attribution, require_passing_pilot,
+    summarize_paired_rows)
+from three_pass_generate import PassExhausted
 
 
 def rows(outcomes):
@@ -59,6 +61,32 @@ class PdncContextEvidenceTests(unittest.TestCase):
                                      "validation": "ok",
                                      "decision": {"advance": True}}}, handle)
             self.assertTrue(require_passing_pilot(path)["advance"])
+
+    def test_quality_failure_isolates_only_the_irrecoverable_row(self):
+        calls = []
+
+        def attribute(batch, contexts):
+            calls.append([entry["text"] for entry in batch])
+            if any(entry["text"] == "bad" for entry in batch):
+                raise PassExhausted("quality")
+            return [{"text": entry["text"], "speaker": "GOOD"}
+                    for entry in batch]
+
+        frozen = [{"text": text} for text in ("one", "bad", "three", "four")]
+        output, failed = isolate_failed_attribution(
+            attribute, frozen, [{}, {}, {}, {}])
+        self.assertEqual({1}, failed)
+        self.assertEqual(["GOOD", "UNKNOWN", "GOOD", "GOOD"],
+                         [entry["speaker"] for entry in output])
+        self.assertIn(["bad"], calls)
+
+    def test_non_quality_exception_is_not_split(self):
+        def unavailable(batch, contexts):
+            raise RuntimeError("endpoint unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "endpoint unavailable"):
+            isolate_failed_attribution(
+                unavailable, [{"text": "one"}, {"text": "two"}], [{}, {}])
 
 
 if __name__ == "__main__":
