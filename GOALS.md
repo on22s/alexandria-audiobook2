@@ -1681,6 +1681,41 @@ files.**
 
 **Target — 0. A skip is a failure.**
 
+### 6.5 Someone has looked at the audio
+
+> **In short.** Every audio number in this document summarises a sound nobody
+> has heard or seen. A mean hides the failure that a picture shows in a
+> second: a clip that is half silence, a voice an octave out, a boundary in
+> the wrong place, a "reference" recording that is the wrong speaker.
+>
+> **This has already cost twice.** The Chinese arm scored `human_vs_human`
+> 0.691 while its own arms reached 0.720 and 0.765 — a narrator matching
+> herself worse than a synthetic voice matched her. It took writing an
+> anchor-validity check to notice, and a spectrogram would have shown it
+> immediately. On 2026-08-16 Japanese held 28% CER across base, large-v3 and
+> the hybrid alike; three models spanning a 20x size range agreeing that
+> precisely is not a model problem, and no one has yet looked at the clips to
+> see what it is.
+
+**Metric** — audio arms whose clips have a rendered view before their numbers
+are believed.
+**Probe** — `app/experiments/voice_compare_view.py` (waveform, mel-spectrogram
+and f0 against the human, per line) and `app/experiments/asr_clip_view.py`
+(waveform, spectrogram, reference and hypothesis, for the clips an ASR arm
+scored worst).
+**Current** — three views exist, all from 2026-08-06: `ljspeech.html`,
+`kokoro.html`, `aishell3.html`. **Nothing measured since has been looked at** —
+not the honest retrains, not the reference-rank campaigns, not the Japanese
+ASR sets. **OPEN.**
+
+**Target — a rendered view for every audio arm whose numbers appear in this
+document.**
+
+Neither probe is a metric and neither should become one. Comparing raw
+waveforms sample-by-sample is meaningless for TTS — two identical-sounding
+readings differ completely in phase and micro-timing. Eyes are for catching
+the gross failure a number hides, not for ranking arms.
+
 ---
 
 ## 7. The finished audiobook
