@@ -163,9 +163,8 @@ def main():
     # truth for the endpoint (Rule 15).
     with open(os.path.join(APP, "config.json"), encoding="utf-8") as handle:
         config = _json.load(handle)
-    mode = config.get("llm_mode", "local")
-    llm = config.get("llm_remote" if mode == "remote" else "llm_local") \
-        or config.get("llm") or {}
+    from lmstudio_settings import get_active_llm_config
+    llm = get_active_llm_config(config)
     model_name = llm.get("model_name")
     client = OpenAI(base_url=llm.get("base_url"),
                     api_key=llm.get("api_key") or "local")

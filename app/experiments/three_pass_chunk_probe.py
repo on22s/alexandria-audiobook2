@@ -30,7 +30,8 @@ def main():
     book, _ = get_preprocessed_source(book)
     chunks = split_into_chunks(book, generation.get("chunk_size", 6000))
     source = chunks[args.chunk - 1]
-    llm = config.get("llm_local") or config.get("llm") or {}
+    from lmstudio_settings import get_active_llm_config
+    llm = get_active_llm_config(config)
     params = LLMGenParams(
         max_tokens=generation.get("max_tokens", 10000),
         temperature=generation.get("temperature", 0.6),

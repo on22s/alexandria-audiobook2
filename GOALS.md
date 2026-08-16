@@ -1432,7 +1432,38 @@ in this project that cannot itself be wrong.
 | ZH | whisper.cpp large-v3 | 14.1% | 826 ms | 20% |
 | ZH | SenseVoice | **11.3%** | 17957 ms | 10% |
 
-**MET for English and Chinese. OPEN for Japanese.**
+**MET for English and Chinese. Japanese clears both target conditions on a
+held-out slice but on a tenth of the sample the other two languages used, so
+it is recorded here as measured and stays OPEN pending confirmation.**
+
+**Japanese: Silero windowing fixes the segmentation, 2026-08-16.** The
+diagnosis below — that both whisper.cpp checkpoints fail to segment Japanese
+— was correct about those checkpoints and wrong as a dead end. Putting a
+Silero VAD in front of whisper.cpp finds the boundaries the checkpoints miss
+(`asr_silero_whisper_ja_offset20.json`, held-out rows 20–29):
+
+| JA arm | CER | align median | within 300 ms | segments |
+|---|---|---|---|---|
+| whisper.cpp base alone | — | — | — | 5/10 found |
+| **silero + whisper.cpp** | **7.67%** | **39 ms** | **90%** | 14 predicted / 10 scored |
+
+Against the target below that is CER 7.67% ≤ 20% and alignment 39 ms ≤ 150 ms
+— both clear, with the best alignment median of any language. The probe scores
+character-level for Japanese (`asr_backends` auto-detects CJK from the
+reference), so the 7.67% is a CER despite the artifact's `wer_mean` key.
+
+**Why it is not yet MET.** n=10. English and Chinese were measured on 50 clips
+each, and a goal should not change status on a fifth of the evidence its
+siblings needed. Confirming it is blocked on corpus, not compute: the test
+novel has 6,294 transcript rows but only 34 downloaded audio clips, of which
+31 pass the length filter — so no re-slicing of the existing build can reach
+50. `ab_test_runtime/corpora/kokoro/librivox` holds 405 MB of audio for four
+*other* novels and none for this one. Either fetch this novel's LibriVox
+audio, or — since 5.4 measures transcription and alignment rather than voice
+identity, and does not need the same-speaker design the build inherits from
+the voice goals — cut a 50-clip Japanese set from the novels already
+downloaded, which needs no network at all. The ASR run itself is ~3 minutes:
+the n=10 arm took 36 seconds.
 
 **Chinese is solved by splitting the two jobs** (`whisper_cpp_hybrid`, added
 2026-08-08). base decides the boundaries, large-v3 transcribes inside each one,
@@ -1540,13 +1571,31 @@ needed a check over real files, not fixtures.
 > a copy reappears. Two done, one known outstanding.
 
 **Metric** — settings defined in more than one place.
-**Current** — two found and fixed: the training learning rate and
-`is_remote_llm`. One outstanding: `config["llm"]` versus `config["llm_local"]`,
-which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
-working server sat idle. **OPEN.**
+**Current** — three found and fixed: the training learning rate,
+`is_remote_llm`, and `config["llm"]` versus `config["llm_local"]` — the last
+of which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
+working server sat idle. **MET 2026-08-16**
+(`app/test_llm_config_source.py`, 8 tests).
+
+`config["llm"]` is a mirror of the active profile, not a source: `/api/config`
+copies the profile named by `llm_mode` into it and refuses to save a
+disagreement, but anything writing config.json outside that endpoint updates
+one and not the other. The rule for resolving the active profile had been
+written out by hand in two different spellings, each with a comment citing
+Rule 15. It now lives in `lmstudio_settings.get_active_llm_config`, with the
+two former spellings kept in the test as the reference behaviour the single
+implementation must reproduce.
+
+Two experiment probes were also reading `llm_local` directly, so they ignored
+the toggle while reproducing a pipeline that honours it.
+`benchmark_runner._get_llm_benchmark_target` is deliberately exempt and the
+test records why: it resolves an explicitly named endpoint so both can be
+measured independently of the toggle, which is a different question.
 
 **Target — 0 known parallel definitions; each new one gets a test that asserts
-the copies agree.**
+the copies agree.** The guard is
+`SingleImplementationTests.test_the_active_profile_rule_lives_in_one_place`,
+which fails on a re-introduced copy anywhere under `app/`.
 
 ### 6.3 Indexes describe committed state
 

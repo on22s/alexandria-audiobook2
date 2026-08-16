@@ -172,6 +172,38 @@ def is_remote_llm(llm_mode, base_url):
     return llm_mode == "remote" or not is_local_llm_endpoint(base_url)
 
 
+def get_active_llm_config(config):
+    """Single source of truth for "which LLM block is this run using?".
+
+    `config["llm"]` is a MIRROR, not a source. `/api/config` picks the active
+    profile from the `llm_mode` toggle and copies it into `llm` for consumers
+    to read, refusing to save when the two would disagree. Anything that writes
+    config.json outside that endpoint - a benchmark caching its concurrency
+    into `llm_local`, a hand edit, a script - updates one and not the other,
+    and then `llm` is stale while the toggle is right.
+
+    That is not hypothetical. On 2026-08-06 a run dialled a dead endpoint for
+    an hour while a working server sat idle, because it read the mirror.
+
+    So the profile named by `llm_mode` wins, and `llm` is the fallback for
+    configs old enough to predate the toggle. Two call sites had written this
+    rule out by hand, in two different spellings, each with a comment citing
+    Rule 15 - which is how you can tell the rule needed a home.
+
+    NOT every read of a profile is this question. `benchmark_runner`'s
+    `_get_llm_benchmark_target` resolves an explicitly NAMED target so it can
+    measure the local and remote endpoints independently of the toggle. That
+    is a different decision and deliberately does not use this function.
+    """
+    if not isinstance(config, dict):
+        return {}
+    mode = config.get("llm_mode") or "local"
+    block = config.get(f"llm_{mode}")
+    if not isinstance(block, dict) or not block:
+        block = config.get("llm")
+    return block if isinstance(block, dict) else {}
+
+
 def find_lms_binary():
     """Return the path to the `lms` CLI, or None if it isn't available."""
     return shutil.which("lms")
