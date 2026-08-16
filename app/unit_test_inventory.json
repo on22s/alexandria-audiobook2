@@ -1308,6 +1308,7 @@
     "test_runtime_regressions.RuntimeTests.test_epub2_inserts_ncx_title_at_fragment",
     "test_runtime_regressions.RuntimeTests.test_epub3_inserts_toc_titles_at_anchors_without_duplicates",
     "test_runtime_regressions.RuntimeTests.test_epub_extracts_spine_with_known_malformed_refines_metadata",
+    "test_runtime_regressions.RuntimeTests.test_epub_title_already_present_with_different_punctuation_is_not_repeated",
     "test_runtime_regressions.RuntimeTests.test_epub_toc_listing_a_later_anchor_first_still_places_titles",
     "test_runtime_regressions.RuntimeTests.test_existing_upload_can_be_listed_and_selected",
     "test_runtime_regressions.RuntimeTests.test_explicit_diarization_wins_over_auto_detection",

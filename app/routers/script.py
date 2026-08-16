@@ -1,12 +1,15 @@
 import asyncio
+import difflib
 import hashlib
 import json
 import logging
 import os
 import posixpath
+import re
 import sys
 import threading
 import time
+import unicodedata
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
@@ -382,6 +385,56 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest):
     return entries
 
 
+_TOC_QUOTES_RE = re.compile(r"[‘’“”\"'`]")
+_TOC_DASHES_RE = re.compile(r"[‐-―−-]")
+# A title is "already present" at 0.75 similarity to some nearby line.
+# MEASURED, not guessed. Across the six ReZero EPUBs, 89 TOC entries resolved
+# and the four that the exact test called missing were all already in the text,
+# differing only in punctuation or prefix; they score 0.759, 0.837, 0.983 and
+# 1.000 against the line already there. A genuinely absent title - the
+# image-heading case this whole feature exists for - has no such line to match
+# and scores far below that against ordinary prose.
+_TITLE_PRESENT_RATIO = 0.75
+
+
+def _normalize_toc_label(value):
+    """Fold the differences a book and its own TOC are allowed to have.
+
+    Curly versus straight quotes and the several Unicode dashes are the ones
+    that actually bite: a chapter titled `Arc 9, Chapter 47 - "Voice"` in the
+    NCX and `Arc 9, Chapter 47 - " "Voice" "` in the page is the same title,
+    and comparing them raw inserts a second copy for the narrator to read out.
+    """
+    folded = unicodedata.normalize("NFKC", value)
+    folded = _TOC_QUOTES_RE.sub("", folded)
+    folded = _TOC_DASHES_RE.sub("-", folded)
+    return " ".join(folded.split()).casefold()
+
+
+def _toc_title_already_present(label, window):
+    """Whether `label` is effectively already written in `window`.
+
+    Exact containment first, because it is cheap and covers the common case.
+    Then line by line: a heading occupies its own line, so comparing against
+    whole lines keeps the ratio meaningful instead of diluting it across 500
+    characters of surrounding prose.
+    """
+    normalized_label = _normalize_toc_label(label)
+    if not normalized_label:
+        return True
+    if normalized_label in _normalize_toc_label(window):
+        return True
+    for line in window.splitlines():
+        normalized_line = _normalize_toc_label(line)
+        if not normalized_line:
+            continue
+        ratio = difflib.SequenceMatcher(
+            None, normalized_label, normalized_line).ratio()
+        if ratio >= _TITLE_PRESENT_RATIO:
+            return True
+    return False
+
+
 def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
     """Insert missing TOC labels at their resolved positions in one document."""
     insertions = []
@@ -397,9 +450,7 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
             position = anchor_positions[fragment]
         else:
             continue
-        nearby = ' '.join(text[position:position + 500].split()).casefold()
-        normalized_label = ' '.join(label.split()).casefold()
-        if normalized_label not in nearby:
+        if not _toc_title_already_present(label, text[position:position + 500]):
             insertions.append((position, label))
     # BACK TO FRONT BY POSITION, not by TOC order. Inserting shifts every
     # offset after the insertion point, so each insert must happen at a

@@ -121,6 +121,45 @@ class RuntimeTests(unittest.TestCase):
         self.assertLess(text.index("Chapter One: From NCX"),
                         text.index("NCX chapter prose."))
 
+    def test_epub_title_already_present_with_different_punctuation_is_not_repeated(self):
+        """A book and its own TOC may punctuate the same title differently.
+
+        Found by running the feature over six real ReZero EPUBs: 89 TOC
+        entries resolved, and all four the exact-match test called "missing"
+        were already in the text, differing only in curly quotes, dash
+        variants, or a `Volume 40` / `Light Novel` prefix. Inserting them
+        gave the narrator each heading twice, which is the opposite of what
+        the feature is for - and every synthetic fixture passed, because a
+        fixture matches itself exactly.
+        """
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+            <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          </manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        # TOC uses curly quotes and an en dash; the page uses neither.
+        nav = '''<html xmlns="http://www.w3.org/1999/xhtml"
+                   xmlns:epub="http://www.idpf.org/2007/ops"><body>
+          <nav epub:type="toc"><ol>
+            <li><a href="chapter.xhtml#c47">Arc 9, Chapter 47 – “Voice”</a></li>
+          </ol></nav></body></html>'''.encode("utf-8")
+        chapter = '''<html><body>
+          <section id="c47"><h2>Arc 9, Chapter 47 - "Voice"</h2>
+          <p>Chapter prose follows.</p></section></body></html>'''.encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {
+                "OEBPS/toc.xhtml": nav,
+                "OEBPS/chapter.xhtml": chapter,
+            })
+            text = script_module.extract_epub_text(epub)
+
+        self.assertEqual(1, text.count("Voice"),
+                         "the heading is already on the page; punctuation "
+                         "differences must not add a second copy")
+        self.assertNotIn("“Voice”", text)
+
     def test_epub_toc_listing_a_later_anchor_first_still_places_titles(self):
         """A TOC need not list anchors in document order.
 
