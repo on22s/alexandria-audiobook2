@@ -1132,10 +1132,26 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # Maintain a running roster (set for O(1) membership + list for order) updated
     # per batch, instead of rescanning the whole `named` prefix every batch.
     named.extend([None] * (len(segmented) - len(named)))
+    deterministic = {}
     for index, entry in enumerate(segmented):
-        if named[index] is not None:
-            continue
-        named[index] = get_deterministic_named_entry(entry)
+        resolved = get_deterministic_named_entry(entry)
+        # Narration needs no LLM to resolve, but it is where the dialogue tags
+        # live ("Lilia spoke up quietly"), and pass 2 used to drop it from the
+        # batch entirely - the model saw a wall of bare quotes. Measured on the
+        # mushoku16 gold set, keeping it in the batch moved attribution from
+        # 29.9% to 37.0%. It is sent for company, not for an answer: whatever
+        # the model says about these lines is discarded below.
+        #
+        # Resolved for every index, not just unnamed ones. A resumed run has
+        # `named` already populated for the entries it finished, and the old
+        # `if named[index] is not None: continue` would skip them - leaving
+        # `deterministic` empty on resume, so the narration silently stopped
+        # being sent as context for exactly the runs that were restarted.
+        if resolved is not None and resolved.get("speaker") == "NARRATOR":
+            deterministic[index] = resolved
+        if named[index] is None:
+            named[index] = resolved
+
     def get_attribution_roster():
         current = build_roster(
             (entry for entry in named if isinstance(entry, dict)), source_text)
@@ -1150,25 +1166,28 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     try:
         for indexed_batch in iter_unique_entry_batches(segmented):
             pending = [(index, entry) for index, entry in indexed_batch
-                       if named[index] is None and not any(
+                       if (named[index] is None or index in deterministic)
+                       and not any(
                            f["pass"] == "attribute" and f.get("entry") == index
                            for f in diagnostic_failures)]
-            if not pending:
+            # Narration alone is not work - without a line to attribute there is
+            # nothing to give it context for.
+            if not any(index not in deterministic for index, _ in pending):
                 continue
             work = [pending]
             while work:
                 current = work.pop(0)
                 batch = [entry for _, entry in current]
-                contexts = [{"previous_context": segmented[index - 1] if index else None,
-                             "next_context": segmented[index + 1]
-                             if index + 1 < len(segmented) else None}
-                            for index, _ in current]
+                # No neighbour contexts here: the batch is now the contiguous
+                # window including its narration, so previous_context and
+                # next_context would restate lines already present. Left in, they
+                # took the prompt from ~1.5k to ~8.4k tokens for the same content.
                 try:
                     new_named, vote_confidences = attribute_batch_voted(
                         client, model_name, batch, params, roster=roster,
                         votes=attribution_votes,
                         vote_temperature=vote_temperature,
-                        on_exhaustion=on_exhaustion, neighbor_contexts=contexts,
+                        on_exhaustion=on_exhaustion,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
                         source_text=source_text)
@@ -1195,7 +1214,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         entry = {**entry,
                                  "attribution_confidence": round(
                                      vote_confidences[position], 3)}
-                    named[index] = entry
+                    # Narration was sent as context only; its speaker is known
+                    # without asking, so the model's answer never overwrites it.
+                    named[index] = deterministic.get(index, entry)
                 if on_exhaustion == "fallback":
                     roster = get_attribution_roster()
                     roster_seen = set(roster)

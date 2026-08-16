@@ -431,7 +431,11 @@ class EndToEndTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
+        # Narration is now sent with the batch as context, so pass 2
+        # answers for both entries; its answer for the narration line is
+        # discarded in favour of the deterministic NARRATOR.
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold, still narration."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
         client = _client_returning([seg, named, instructed])
@@ -607,7 +611,11 @@ class CheckpointTests(unittest.TestCase):
     def _payloads(self):
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
+        # Narration is now sent with the batch as context, so pass 2
+        # answers for both entries; its answer for the narration line is
+        # discarded in favour of the deterministic NARRATOR.
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         return seg, named, instructed
@@ -884,7 +892,11 @@ class ManifestTests(unittest.TestCase):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},
                {"type": "SPOKEN", "text": "Tell me the truth."}]
-        named = [{"n": 0, "head": "Tell me the", "speaker": "ELENA"}]
+        # Narration is now sent with the batch as context, so pass 2
+        # answers for both entries; its answer for the narration line is
+        # discarded in favour of the deterministic NARRATOR.
+        named = [{"n": 0, "head": "The room was", "speaker": "NARRATOR"},
+                 {"n": 1, "head": "Tell me the", "speaker": "ELENA"}]
         instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."},
                       {"n": 1, "head": "Tell me the", "instruct": "Firm."}]
         client = _client_returning([seg, named, instructed])
