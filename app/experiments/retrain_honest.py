@@ -130,13 +130,37 @@ def main():
         args.out, args.resume, args.seed, args.reference_rank)
     completed = {row.get("adapter") for row in results}
 
+    def build_doc():
+        """The artifact's shape, in one place.
+
+        SAY WHAT WAS ASKED FOR, NOT JUST WHAT FINISHED. The queue seeds the
+        21-adapter artifact by copying the 5-adapter pilot into it, and each
+        completed adapter is written back as it lands so an interrupt can
+        resume. Both are deliberate, but together they mean a file named
+        reference_rank1_all21.json legitimately holds 5 results for hours
+        with nothing in it saying so.
+
+        This shape existed in two places - the incremental checkpoint and
+        the final write - and only the final one was taught to record the
+        request. That put the completeness fields everywhere except the
+        artifact that needs them: the partial one sitting on disk while the
+        run is still going, which is the only one anybody reads mid-flight.
+        One builder, so the checkpoint cannot drift from the result again.
+        """
+        return {"epochs": args.epochs, "lora_r": args.lora_r,
+                "seed": args.seed,
+                "reference_rank": args.reference_rank,
+                "eval_lines": args.eval_lines,
+                "requested_adapters": list(args.adapters),
+                "requested": len(args.adapters),
+                "completed": len(results),
+                "complete": {row.get("adapter") for row in results}
+                            .issuperset(args.adapters),
+                "results": results}
+
     def save_results():
         from utils import atomic_json_write
-        atomic_json_write({"epochs": args.epochs, "lora_r": args.lora_r,
-                           "seed": args.seed,
-                           "reference_rank": args.reference_rank,
-                           "eval_lines": args.eval_lines,
-                           "results": results}, args.out)
+        atomic_json_write(build_doc(), args.out)
     print(f"{len(jobs)} retrains ({len(args.adapters)} failures, "
           f"{len(args.controls)} controls)\n")
 
@@ -286,20 +310,7 @@ def main():
     print("  'now' is honest. Controls show how much of any drop is the")
     print("  contamination rather than the retrain.")
 
-    # SAY WHAT WAS ASKED FOR, NOT JUST WHAT FINISHED. The queue seeds the
-    # 21-adapter artifact by copying the 5-adapter pilot into it, and each
-    # completed adapter is written back as it lands so an interrupt can
-    # resume. Both are deliberate, but they mean a file named
-    # reference_rank1_all21.json legitimately holds 5 results for hours, with
-    # nothing in it to say so. Recording the request makes a partial artifact
-    # self-evidently partial instead of looking like a finished run of 5.
-    doc = {"epochs": args.epochs, "lora_r": args.lora_r, "seed": args.seed,
-           "reference_rank": args.reference_rank,
-           "eval_lines": args.eval_lines,
-           "requested_adapters": list(args.adapters),
-           "completed": len(results), "requested": len(args.adapters),
-           "complete": {r.get("adapter") for r in results}.issuperset(args.adapters),
-           "results": results}
+    doc = build_doc()
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)
