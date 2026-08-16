@@ -47,7 +47,11 @@ class DatasetBatchGenRequest(BaseModel):
 
 class DatasetSaveRequest(BaseModel):
     name: str
-    ref_index: int = 0    # which sample to use as ref.wav
+    # None = "caller expressed no preference, pick the representative clip".
+    # This was `int = 0`, which cannot tell a deliberate choice of sample 0
+    # from an absent field, so the medoid override silently second-guessed
+    # the one caller it promises not to.
+    ref_index: Optional[int] = None    # which sample to use as ref.wav
 
 class DatasetBuilderCreateRequest(BaseModel):
     name: str
@@ -424,7 +428,7 @@ async def dataset_builder_save(request: DatasetSaveRequest):
     #
     # Only when the caller did not choose one. An explicit ref_index is a
     # deliberate human decision and is not second-guessed.
-    if request.ref_index == 0 and len(done_samples) >= 3:
+    if request.ref_index is None and len(done_samples) >= 3:
         from voice_reference import select_reference_sample
         candidates = [os.path.join(work_dir, f"sample_{i:03d}.wav")
                       for i, _ in done_samples]

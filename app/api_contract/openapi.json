@@ -681,9 +681,15 @@
             "type": "string"
           },
           "ref_index": {
-            "default": 0,
-            "title": "Ref Index",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Index"
           }
         },
         "required": [

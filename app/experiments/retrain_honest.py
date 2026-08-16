@@ -286,9 +286,20 @@ def main():
     print("  'now' is honest. Controls show how much of any drop is the")
     print("  contamination rather than the retrain.")
 
+    # SAY WHAT WAS ASKED FOR, NOT JUST WHAT FINISHED. The queue seeds the
+    # 21-adapter artifact by copying the 5-adapter pilot into it, and each
+    # completed adapter is written back as it lands so an interrupt can
+    # resume. Both are deliberate, but they mean a file named
+    # reference_rank1_all21.json legitimately holds 5 results for hours, with
+    # nothing in it to say so. Recording the request makes a partial artifact
+    # self-evidently partial instead of looking like a finished run of 5.
     doc = {"epochs": args.epochs, "lora_r": args.lora_r, "seed": args.seed,
            "reference_rank": args.reference_rank,
-           "eval_lines": args.eval_lines, "results": results}
+           "eval_lines": args.eval_lines,
+           "requested_adapters": list(args.adapters),
+           "completed": len(results), "requested": len(args.adapters),
+           "complete": {r.get("adapter") for r in results}.issuperset(args.adapters),
+           "results": results}
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)
