@@ -1299,6 +1299,21 @@
     "tests.test_repair_voice_config.TestFindSplits.test_same_voice_under_two_spellings_is_not_a_split",
     "tests.test_repair_voice_config.TestFindSplits.test_voice_type_outranks_line_count"
   ],
+  "test_replay_artifact": [
+    "tests.test_replay_artifact.FlagRoundTripTests.test_a_value_that_cannot_round_trip_is_reported_not_guessed",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_false_and_none_are_omitted_not_passed",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_scalars_lists_and_booleans_become_argv",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_underscores_become_hyphens",
+    "tests.test_replay_artifact.ResolveProducerTests.test_a_missing_producer_script_is_not_replayed",
+    "tests.test_replay_artifact.ResolveProducerTests.test_neither_source_gives_the_none_tier",
+    "tests.test_replay_artifact.ResolveProducerTests.test_provenance_wins_and_yields_a_command",
+    "tests.test_replay_artifact.ResolveProducerTests.test_the_middle_tier_never_emits_a_command",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_a_non_json_path_is_rejected",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_a_suffixed_variant_resolves_to_the_same_producer",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_an_artifact_named_for_its_producer_resolves",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_an_unrelated_name_resolves_to_nothing",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
+  ],
   "test_respelling_scoring": [
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
