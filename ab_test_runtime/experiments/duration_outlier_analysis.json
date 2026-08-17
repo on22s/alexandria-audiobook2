@@ -1,0 +1,562 @@
+{
+  "question": "Which measured properties explain Japanese clone-duration variation?",
+  "summary": {
+    "n": 30,
+    "duration_ratio_median": 0.9269,
+    "duration_ratio_min": 0.7231,
+    "duration_ratio_max": 1.103,
+    "spearman_vs_duration_ratio": {
+      "human_seconds_measured": 0.1842,
+      "characters": 0.4862,
+      "punctuation": 0.2263,
+      "human_chars_per_second": 0.4072
+    },
+    "tertiles": {
+      "human_seconds_measured": [
+        {
+          "bin": 1,
+          "n": 10,
+          "feature_min": 3.274,
+          "feature_max": 3.901,
+          "median_duration_ratio": 0.9391
+        },
+        {
+          "bin": 2,
+          "n": 10,
+          "feature_min": 4.0171,
+          "feature_max": 4.702,
+          "median_duration_ratio": 0.8445
+        },
+        {
+          "bin": 3,
+          "n": 10,
+          "feature_min": 4.7717,
+          "feature_max": 8.127,
+          "median_duration_ratio": 0.9497
+        }
+      ],
+      "characters": [
+        {
+          "bin": 1,
+          "n": 10,
+          "feature_min": 18,
+          "feature_max": 23,
+          "median_duration_ratio": 0.8445
+        },
+        {
+          "bin": 2,
+          "n": 10,
+          "feature_min": 23,
+          "feature_max": 27,
+          "median_duration_ratio": 0.9391
+        },
+        {
+          "bin": 3,
+          "n": 10,
+          "feature_min": 28,
+          "feature_max": 50,
+          "median_duration_ratio": 0.9616
+        }
+      ],
+      "punctuation": [
+        {
+          "bin": 1,
+          "n": 10,
+          "feature_min": 0,
+          "feature_max": 1,
+          "median_duration_ratio": 0.8436
+        },
+        {
+          "bin": 2,
+          "n": 10,
+          "feature_min": 1,
+          "feature_max": 2,
+          "median_duration_ratio": 0.9391
+        },
+        {
+          "bin": 3,
+          "n": 10,
+          "feature_min": 2,
+          "feature_max": 5,
+          "median_duration_ratio": 0.9739
+        }
+      ],
+      "human_chars_per_second": [
+        {
+          "bin": 1,
+          "n": 10,
+          "feature_min": 4.0586,
+          "feature_max": 5.5295,
+          "median_duration_ratio": 0.8303
+        },
+        {
+          "bin": 2,
+          "n": 10,
+          "feature_min": 5.5641,
+          "feature_max": 6.1523,
+          "median_duration_ratio": 0.9648
+        },
+        {
+          "bin": 3,
+          "n": 10,
+          "feature_min": 6.1639,
+          "feature_max": 7.632,
+          "median_duration_ratio": 0.9391
+        }
+      ]
+    },
+    "largest_absolute_errors": [
+      "kokoro-by-soseki-natsume-05989",
+      "kokoro-by-soseki-natsume-02313",
+      "kokoro-by-soseki-natsume-02034",
+      "kokoro-by-soseki-natsume-03635",
+      "kokoro-by-soseki-natsume-03253"
+    ]
+  },
+  "rows": [
+    {
+      "id": "kokoro-by-soseki-natsume-00899",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "」「そのくらい先生に忠実なあなたが急にいなくなったら、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-00899.flac",
+      "human_seconds": 4.20281179138322,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-00899__clone.wav",
+      "characters": 27,
+      "punctuation": 3,
+      "human_chars_per_second": 6.424270545580111,
+      "human_seconds_measured": 4.20281179138322,
+      "clone_seconds_measured": 3.52,
+      "duration_ratio": 0.8375345303867403
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-00914",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "からその人間のいちにんとして、私も好かれるはずがないじゃありませんか",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-00914.flac",
+      "human_seconds": 5.758548752834467,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-00914__clone.wav",
+      "characters": 34,
+      "punctuation": 1,
+      "human_chars_per_second": 5.904265372983871,
+      "human_seconds_measured": 5.758548752834467,
+      "clone_seconds_measured": 4.88,
+      "duration_ratio": 0.8474357358870968
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-01295",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "頭をおさえて悩み始めた。私はそれから論文の問題を小さくした。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01295.flac",
+      "human_seconds": 6.5712471655328795,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01295__clone.wav",
+      "characters": 30,
+      "punctuation": 2,
+      "human_chars_per_second": 4.565343418727916,
+      "human_seconds_measured": 6.5712471655328795,
+      "clone_seconds_measured": 6.08,
+      "duration_ratio": 0.9252429328621908
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-01366",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私はかなめの垣から若い柔らかい葉をもぎ取ってしばぶえを鳴らした。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01366.flac",
+      "human_seconds": 6.780226757369615,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01366__clone.wav",
+      "characters": 32,
+      "punctuation": 1,
+      "human_chars_per_second": 4.719606164383562,
+      "human_seconds_measured": 6.780226757369615,
+      "clone_seconds_measured": 5.6,
+      "duration_ratio": 0.8259310787671232
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-01770",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "」「どちらの見当です。もしいらっしゃるとすれば",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01770.flac",
+      "human_seconds": 4.040272108843538,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01770__clone.wav",
+      "characters": 23,
+      "punctuation": 3,
+      "human_chars_per_second": 5.6926858836206895,
+      "human_seconds_measured": 4.040272108843538,
+      "clone_seconds_measured": 3.44,
+      "duration_ratio": 0.8514278017241379
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-02034",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私は子供の時から彼らの席にじするのを",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02034.flac",
+      "human_seconds": 4.435011337868481,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02034__clone.wav",
+      "characters": 18,
+      "punctuation": 0,
+      "human_chars_per_second": 4.0586142015706805,
+      "human_seconds_measured": 4.435011337868481,
+      "clone_seconds_measured": 3.44,
+      "duration_ratio": 0.7756462696335078
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-02313",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "その父自身もおのれの病気を忘れる事があった。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02313.flac",
+      "human_seconds": 4.237641723356009,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02313__clone.wav",
+      "characters": 22,
+      "punctuation": 1,
+      "human_chars_per_second": 5.191566780821918,
+      "human_seconds_measured": 4.237641723356009,
+      "clone_seconds_measured": 3.2,
+      "duration_ratio": 0.7551369863013699
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-02817",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "まだゆいごんらしいものを口に出さなかった。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02817.flac",
+      "human_seconds": 3.7151927437641725,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02817__clone.wav",
+      "characters": 21,
+      "punctuation": 1,
+      "human_chars_per_second": 5.6524658203125,
+      "human_seconds_measured": 3.7151927437641725,
+      "clone_seconds_measured": 3.12,
+      "duration_ratio": 0.8397949218749999
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-02839",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "調子を張り上げて、耳元へ口を寄せるようにしなければならなかった。「頭を冷やすといい心持ですか」「うん",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02839.flac",
+      "human_seconds": 8.126984126984127,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02839__clone.wav",
+      "characters": 50,
+      "punctuation": 5,
+      "human_chars_per_second": 6.15234375,
+      "human_seconds_measured": 8.126984126984127,
+      "clone_seconds_measured": 8.16,
+      "duration_ratio": 1.0040625
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-02919",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "三十分ほどまくらもとにすわっていた医者は、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02919.flac",
+      "human_seconds": 3.297233560090703,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02919__clone.wav",
+      "characters": 21,
+      "punctuation": 1,
+      "human_chars_per_second": 6.368975572183098,
+      "human_seconds_measured": 3.297233560090703,
+      "clone_seconds_measured": 2.8,
+      "duration_ratio": 0.8491967429577464
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03253",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "叔父はお前のうちだからといって、聞きませんでした。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03253.flac",
+      "human_seconds": 4.028662131519274,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03253__clone.wav",
+      "characters": 25,
+      "punctuation": 2,
+      "human_chars_per_second": 6.205534041786744,
+      "human_seconds_measured": 4.028662131519274,
+      "clone_seconds_measured": 3.2,
+      "duration_ratio": 0.7943083573487032
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03258",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "それは前後で丁度三、四回も繰り返されたでしょう。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03258.flac",
+      "human_seconds": 4.887800453514739,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03258__clone.wav",
+      "characters": 24,
+      "punctuation": 2,
+      "human_chars_per_second": 4.910184085510689,
+      "human_seconds_measured": 4.887800453514739,
+      "clone_seconds_measured": 4.08,
+      "duration_ratio": 0.8347312945368172
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03316",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "親しくなり過ぎたなんにょの間には、恋に必要なしげきの起る",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03316.flac",
+      "human_seconds": 4.771700680272109,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03316__clone.wav",
+      "characters": 28,
+      "punctuation": 1,
+      "human_chars_per_second": 5.867928832116788,
+      "human_seconds_measured": 4.771700680272109,
+      "clone_seconds_measured": 4.48,
+      "duration_ratio": 0.9388686131386862
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03491",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "あとからこの友人に送ってもらった金だけなのです。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03491.flac",
+      "human_seconds": 3.541043083900227,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03491__clone.wav",
+      "characters": 24,
+      "punctuation": 1,
+      "human_chars_per_second": 6.777663934426229,
+      "human_seconds_measured": 3.541043083900227,
+      "clone_seconds_measured": 3.52,
+      "duration_ratio": 0.9940573770491803
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03532",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "ぶにんでさむしくって困るから相当の人があったら",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03532.flac",
+      "human_seconds": 4.040272108843538,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03532__clone.wav",
+      "characters": 23,
+      "punctuation": 0,
+      "human_chars_per_second": 5.6926858836206895,
+      "human_seconds_measured": 4.040272108843538,
+      "clone_seconds_measured": 3.84,
+      "duration_ratio": 0.9504310344827586
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03635",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私が東京へ来て下宿を出ようとしたのも、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03635.flac",
+      "human_seconds": 4.017052154195011,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03635__clone.wav",
+      "characters": 19,
+      "punctuation": 1,
+      "human_chars_per_second": 4.729836524566474,
+      "human_seconds_measured": 4.017052154195011,
+      "clone_seconds_measured": 3.12,
+      "duration_ratio": 0.7766889450867053
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-03682",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "しかしそれはきしょうの問題ではありませんから、私の内生活に取ってほとんど関係のないのと一般でした。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03682.flac",
+      "human_seconds": 8.010884353741497,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03682__clone.wav",
+      "characters": 49,
+      "punctuation": 2,
+      "human_chars_per_second": 6.116677989130435,
+      "human_seconds_measured": 8.010884353741497,
+      "clone_seconds_measured": 8.24,
+      "duration_ratio": 1.0286005434782608
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04009",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "ひざの上へ置いてながめているらしかったのです。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04009.flac",
+      "human_seconds": 3.274013605442177,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04009__clone.wav",
+      "characters": 23,
+      "punctuation": 1,
+      "human_chars_per_second": 7.025016622340425,
+      "human_seconds_measured": 3.274013605442177,
+      "clone_seconds_measured": 3.04,
+      "duration_ratio": 0.9285239361702128
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04289",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私が決して世話の焼ける人でないから構うまいというと、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04289.flac",
+      "human_seconds": 4.702040816326531,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04289__clone.wav",
+      "characters": 26,
+      "punctuation": 1,
+      "human_chars_per_second": 5.529513888888888,
+      "human_seconds_measured": 4.702040816326531,
+      "clone_seconds_measured": 4.24,
+      "duration_ratio": 0.9017361111111111
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04438",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "女はそうけいべつすべきものでないというような事をいいました。Ｋははじめ女からも、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04438.flac",
+      "human_seconds": 5.979138321995465,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04438__clone.wav",
+      "characters": 40,
+      "punctuation": 2,
+      "human_chars_per_second": 6.689927184466019,
+      "human_seconds_measured": 5.979138321995465,
+      "clone_seconds_measured": 6.48,
+      "duration_ratio": 1.0837682038834953
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04465",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "こうしをがらりと開けました。それと同時に、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04465.flac",
+      "human_seconds": 3.889342403628118,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04465__clone.wav",
+      "characters": 21,
+      "punctuation": 2,
+      "human_chars_per_second": 5.399370335820895,
+      "human_seconds_measured": 3.889342403628118,
+      "clone_seconds_measured": 3.84,
+      "duration_ratio": 0.9873134328358208
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04773",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "うんうん汗を流しながら歩き出したのです。しかし私は",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04773.flac",
+      "human_seconds": 4.493061224489796,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04773__clone.wav",
+      "characters": 25,
+      "punctuation": 1,
+      "human_chars_per_second": 5.564135174418605,
+      "human_seconds_measured": 4.493061224489796,
+      "clone_seconds_measured": 4.72,
+      "duration_ratio": 1.0505087209302326
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-04936",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "そこの区別がちょっとはんぜんしない点がありました。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04936.flac",
+      "human_seconds": 3.622312925170068,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04936__clone.wav",
+      "characters": 25,
+      "punctuation": 1,
+      "human_chars_per_second": 6.901667668269231,
+      "human_seconds_measured": 3.622312925170068,
+      "clone_seconds_measured": 3.44,
+      "duration_ratio": 0.9496694711538461
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05073",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "じっと我慢して動かずにいました。Ｋはそのあいだいつもの通り重い口を切っては、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05073.flac",
+      "human_seconds": 6.164897959183674,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05073__clone.wav",
+      "characters": 38,
+      "punctuation": 2,
+      "human_chars_per_second": 6.163930084745762,
+      "human_seconds_measured": 6.164897959183674,
+      "clone_seconds_measured": 6.8,
+      "duration_ratio": 1.10301906779661
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05211",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "ところがＫはさっきから二度おいと呼ばれて、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05211.flac",
+      "human_seconds": 3.5874829931972787,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05211__clone.wav",
+      "characters": 21,
+      "punctuation": 1,
+      "human_chars_per_second": 5.8536862864077674,
+      "human_seconds_measured": 3.5874829931972787,
+      "clone_seconds_measured": 3.52,
+      "duration_ratio": 0.9811893203883496
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05354",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "Ｋが私に向って使った言葉です。私は彼の使った通りを、",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05354.flac",
+      "human_seconds": 5.746938775510204,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05354__clone.wav",
+      "characters": 26,
+      "punctuation": 2,
+      "human_chars_per_second": 4.5241477272727275,
+      "human_seconds_measured": 5.746938775510204,
+      "clone_seconds_measured": 5.52,
+      "duration_ratio": 0.9605113636363636
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05746",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "「おめでとうございます」といったまま席を立ったそうです。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05746.flac",
+      "human_seconds": 3.6687528344671203,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05746__clone.wav",
+      "characters": 28,
+      "punctuation": 3,
+      "human_chars_per_second": 7.632021360759493,
+      "human_seconds_measured": 3.6687528344671203,
+      "clone_seconds_measured": 3.36,
+      "duration_ratio": 0.9158425632911392
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05811",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "ごくあっさりとした文句でそのあとに付け加えてありました。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05811.flac",
+      "human_seconds": 3.900952380952381,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05811__clone.wav",
+      "characters": 28,
+      "punctuation": 1,
+      "human_chars_per_second": 7.177734375,
+      "human_seconds_measured": 3.900952380952381,
+      "clone_seconds_measured": 3.84,
+      "duration_ratio": 0.984375
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-05989",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私は意味もなくただぎょっとしました。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05989.flac",
+      "human_seconds": 3.7616326530612243,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05989__clone.wav",
+      "characters": 18,
+      "punctuation": 1,
+      "human_chars_per_second": 4.78515625,
+      "human_seconds_measured": 3.7616326530612243,
+      "clone_seconds_measured": 2.72,
+      "duration_ratio": 0.7230902777777779
+    },
+    {
+      "id": "kokoro-by-soseki-natsume-06286",
+      "book": "kokoro-by-soseki-natsume",
+      "text": "私の過去を善悪ともにひとの参考に供するつもりです。",
+      "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-06286.flac",
+      "human_seconds": 4.4117913832199545,
+      "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-06286__clone.wav",
+      "characters": 25,
+      "punctuation": 1,
+      "human_chars_per_second": 5.666632401315789,
+      "human_seconds_measured": 4.4117913832199545,
+      "clone_seconds_measured": 4.32,
+      "duration_ratio": 0.9791940789473685
+    }
+  ],
+  "provenance": {
+    "script": "duration_outlier_analysis.py",
+    "written": "2026-08-15T16:38:14",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "branch": "agent/remaining-goals-20260815",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/duration_outlier_analysis.py",
+        "app/experiments/generation_state_probe.py",
+        "app/experiments/three_pass_chunk_probe.py"
+      ],
+      "harness_sha256": "0c2a90f4471cab3b575fd51905bd833237b35843680310c486164f810dccde52"
+    },
+    "args": {
+      "input": "ab_test_runtime/experiments/kokoro_same_speaker_generate.json",
+      "out": "ab_test_runtime/experiments/duration_outlier_analysis.json"
+    },
+    "inputs": {
+      "ab_test_runtime/experiments/kokoro_same_speaker_generate.json": "8182aa82a17293954f514e41ff3040c6bc4989e7f813c0895bf0883a57f4d89b"
+    }
+  }
+}

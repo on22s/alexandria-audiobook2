@@ -1,0 +1,116 @@
+{
+ "build": "ab_test_runtime/kokoro_ja_cutting_control/build.json",
+ "limit": 8,
+ "language": "ja",
+ "whisper_cpp_model": "ggml-base.bin",
+ "backends": [
+  "silero_whisper_cpp"
+ ],
+ "results": {
+  "silero_whisper_cpp": {
+   "n": 8,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "cer_reading_mean": 0.1006,
+   "cer_reading_median": 0.0872,
+   "hypotheses": [
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00032",
+     "wer": 0.3846,
+     "reference": "ただし敦賀に一ぱくとのこと。",
+     "hypothesis": "ただし、敦賀にパクトのことを、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00080",
+     "wer": 0.2,
+     "reference": "つじの角は広々と、白く積った中を、",
+     "hypothesis": "辻の角は広々と白く積もった中を、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00306",
+     "wer": 0.125,
+     "reference": "こっちもその気になって、何しろ暑いので、あえぎながら",
+     "hypothesis": "こっちもその気になって、 何しろ暑いので歩きながら"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00383",
+     "wer": 0.0455,
+     "reference": "かすかに日の光のさすあたりでは、土の色が皆黒い。",
+     "hypothesis": "かすかに火の光のさすあたりでは、 土の色が皆黒い"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00736",
+     "wer": 0.1562,
+     "reference": "すっぱりはだかになってお洗いなさいまし、私が流して上げましょう。）（いえ、",
+     "hypothesis": "すっぱりはだかになっておらえなさいまし。 私が流してあげましょう。"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00742",
+     "wer": 0.4054,
+     "reference": "まいまいつぶろが城を明け渡したようで、口をきくさえ、まして手足のあがきも出来ず、",
+     "hypothesis": "まいまいつぼろがしろをあきわたしたようで、 くちをきくさえましててやしのあんきもできず、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00892",
+     "wer": 0.3824,
+     "reference": "）おんなはろぶちにあんどうをひきつけ、うつむいてなべの下をいぶしていたが、",
+     "hypothesis": "女はロブチに安藤を引きつけ、 うつむいて鍋の下をいぶしていたが"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-01097",
+     "wer": 0.5789,
+     "reference": "ふしまわし、あげさげ、いきの続くところから、",
+     "hypothesis": "福島市 アゲスアゲン 息の続くところから、"
+    }
+   ],
+   "wer_mean": 0.2848,
+   "wer_median": 0.2912,
+   "rtf": 0.499,
+   "seconds_total": 18.9
+  }
+ },
+ "alignment": {
+  "silero_whisper_cpp": {
+   "scored": 8,
+   "predicted_segments": 15,
+   "expected_segments": 8,
+   "median_error_s": 0.086,
+   "p90_error_s": 0.136,
+   "worst_error_s": 0.266,
+   "within_tolerance_pct": 100.0,
+   "tolerance_s": 0.3
+  }
+ },
+ "alignment_truth_clips": 8,
+ "provenance": {
+  "script": "asr_backends.py",
+  "written": "2026-08-16T16:53:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "419ca2dd7f917282e8591d6cefee75e1e3af9ecd",
+   "branch": "agent/alignment-control-and-extraction-probe-20260816",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/epub_extraction_fidelity.py"
+   ],
+   "harness_sha256": "23ea6cfd7cdb580cb9d6e9122f758434c7c03530a9284d9b9587994c59cab567"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_ja_cutting_control/build.json",
+   "backends": [
+    "silero_whisper_cpp"
+   ],
+   "limit": 8,
+   "row_offset": 0,
+   "align_clips": 8,
+   "score_readings": true,
+   "keep_hypotheses": true,
+   "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+   "whisper_cpp_model": "whisper.cpp/models/ggml-base.bin",
+   "lang": "ja",
+   "out": "ab_test_runtime/experiments/asr_ja_cutting_control.json"
+  }
+ }
+}
