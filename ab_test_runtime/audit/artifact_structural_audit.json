@@ -14,6 +14,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T05:45:31",
       "commit": "41095b491ecd7432beb5863c5a649edc8af3d806",
       "dirty": false,
       "classification": "supported_structure",
@@ -27,6 +28,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T05:18:41",
       "commit": "41095b491ecd7432beb5863c5a649edc8af3d806",
       "dirty": false,
       "classification": "supported_structure",
@@ -40,6 +42,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T04:37:33",
       "commit": "6b2eb79c5f1e9f929c2a11bc930b895fd45a8dbe",
       "dirty": true,
       "classification": "supported_structure",
@@ -53,6 +56,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T19:28:29",
       "commit": "d76fe0cf725b969e72e6095004afcebf289169dd",
       "dirty": true,
       "classification": "supported_structure",
@@ -66,6 +70,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T06:02:08",
       "commit": "41095b491ecd7432beb5863c5a649edc8af3d806",
       "dirty": false,
       "classification": "supported_structure",
@@ -79,6 +84,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T16:08:56",
       "commit": "613b1598ab5ba58c943a9c0e62ff2267f093cf20",
       "dirty": true,
       "classification": "supported_structure",
@@ -125,6 +131,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T15:33:56",
       "commit": "f8e6db78c385e078788af86ab0d0306010d93cfa",
       "dirty": true,
       "classification": "supported_structure",
@@ -138,6 +145,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:44:55",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -151,6 +159,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:40:10",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -164,6 +173,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:41:19",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -177,6 +187,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:42:59",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -190,6 +201,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:12:58",
       "commit": "ac1d2faee5c1013aa840ed204c6cec727078220f",
       "dirty": true,
       "classification": "supported_structure",
@@ -203,6 +215,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:12:11",
       "commit": "ac1d2faee5c1013aa840ed204c6cec727078220f",
       "dirty": true,
       "classification": "supported_structure",
@@ -216,6 +229,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:11:13",
       "commit": "ac1d2faee5c1013aa840ed204c6cec727078220f",
       "dirty": true,
       "classification": "supported_structure",
@@ -229,6 +243,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:23:23",
       "commit": "f3970ed6f08489c8e17a5f77ed11a18517482657",
       "dirty": true,
       "classification": "supported_structure",
@@ -242,6 +257,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:22:22",
       "commit": "f3970ed6f08489c8e17a5f77ed11a18517482657",
       "dirty": true,
       "classification": "supported_structure",
@@ -255,6 +271,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T14:21:15",
       "commit": "f3970ed6f08489c8e17a5f77ed11a18517482657",
       "dirty": true,
       "classification": "supported_structure",
@@ -268,6 +285,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T16:39:56",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
@@ -281,6 +299,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:35:48",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -294,6 +313,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:20:39",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -307,6 +327,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T16:53:24",
       "commit": "419ca2dd7f917282e8591d6cefee75e1e3af9ecd",
       "dirty": true,
       "classification": "supported_structure",
@@ -320,6 +341,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T15:17:26",
       "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
       "dirty": true,
       "classification": "supported_structure",
@@ -333,6 +355,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T15:02:09",
       "commit": "1689c3a8408d1b665579899dcb3092acf87b55ff",
       "dirty": true,
       "classification": "supported_structure",
@@ -346,6 +369,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:07:21",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -359,6 +383,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:28:00",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -372,6 +397,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:28:50",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -385,6 +411,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:29:58",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -398,6 +425,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:30:58",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -411,6 +439,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T16:46:45",
       "commit": "fed4bcf8e63668bda20e36b6095c73495f97c4b9",
       "dirty": true,
       "classification": "supported_structure",
@@ -424,6 +453,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:11:09",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -437,6 +467,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T16:45:58",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
@@ -450,6 +481,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T16:46:51",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
@@ -463,6 +495,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T14:26:20",
       "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
@@ -476,6 +509,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T11:12:17",
       "commit": "57a04f4646427f7f3f1df962b4c59b1f5d118925",
       "dirty": true,
       "classification": "supported_structure",
@@ -489,6 +523,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:37:19",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -502,6 +537,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T18:39:02",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
       "dirty": true,
       "classification": "supported_structure",
@@ -593,6 +629,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -606,6 +643,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -619,6 +657,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "bd0a696a7744a90c5f84b0b04c067c92630b77e3",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -632,6 +671,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "05e4c8d2b5394346f17fa549eef681943a22cce3",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -645,6 +685,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1ce18fdde9d625bc7df21cae11091ba72fd6df1b",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -658,6 +699,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -671,6 +713,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "6c003aafc6f3f5c2daefe0efcebd42fccf88679a",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -684,6 +727,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "e2ee8b547b09a57c407557074123970ecffe5e38",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -697,6 +741,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -710,6 +755,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -723,6 +769,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "00072810643a6b40d17815866e352eac00451e09",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -736,6 +783,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "e3008b81ca2a442c2fa5af1169bedb665ebe928c",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -749,6 +797,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -762,6 +811,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -775,6 +825,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -788,6 +839,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -801,6 +853,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "49cb52a65e3955a27c2c4f7d6d264cd6aaf60118",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -814,6 +867,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "f4d2692f39c1a78f4eac6aa8872d6d3a680a1945",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -827,6 +881,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "2ce90a965b2f2a2e54e394e062030dcceda1708e",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -839,6 +894,7 @@
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T21:27:20",
       "commit": "a30421404c28aaf2d83092581a465eff304e2813",
       "dirty": true,
       "classification": "supported_structure",
@@ -853,6 +909,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": null,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -866,6 +923,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "53299de752738399a25721f907a6845c95377f8c",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -879,6 +937,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -892,6 +951,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -905,6 +965,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -918,6 +979,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -931,6 +993,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -944,6 +1007,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -957,6 +1021,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -970,6 +1035,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -983,6 +1049,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -996,6 +1063,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1009,6 +1077,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1022,6 +1091,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1035,6 +1105,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1048,6 +1119,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1061,6 +1133,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1399,6 +1472,7 @@
       "status": "scored",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T17:12:53",
       "commit": "fb5d55a8297ce9001d10aa132ff569e2c5c90e10",
       "dirty": true,
       "classification": "supported_structure",
@@ -1413,6 +1487,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8e457d6ad4723c45e6e0da61e40243e898825793",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1426,6 +1501,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "863041db3dc0c0334e02043284f133af56609083",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1439,6 +1515,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "33ceeccde9aaa3f2ff23278b72c75a9f232afd05",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1452,6 +1529,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "13e9a77ac8b252de228f96a923b84a56828e0fe7",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1465,6 +1543,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1478,6 +1557,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "33ceeccde9aaa3f2ff23278b72c75a9f232afd05",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1491,6 +1571,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1504,6 +1585,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "77a668713db55c06972f463e5f57d626b56f34a4",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1517,6 +1599,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "249d0d207275a431155a09c443957e08a5c0c140",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1530,6 +1613,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "33ceeccde9aaa3f2ff23278b72c75a9f232afd05",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1543,6 +1627,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "249d0d207275a431155a09c443957e08a5c0c140",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1556,6 +1641,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1569,6 +1655,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "545733939ce733db69ae05ed4c726fbfb881ed45",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1582,6 +1669,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1595,6 +1683,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1608,6 +1697,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "3d8765e757158c9f8c0088402a8037c355e3f8b8",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1621,6 +1711,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "863041db3dc0c0334e02043284f133af56609083",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1634,6 +1725,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "863041db3dc0c0334e02043284f133af56609083",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1647,6 +1739,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "13e9a77ac8b252de228f96a923b84a56828e0fe7",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1660,6 +1753,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1673,6 +1767,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "49cb52a65e3955a27c2c4f7d6d264cd6aaf60118",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1686,6 +1781,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "77a668713db55c06972f463e5f57d626b56f34a4",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1699,6 +1795,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "249d0d207275a431155a09c443957e08a5c0c140",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1712,6 +1809,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1725,6 +1823,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "49cb52a65e3955a27c2c4f7d6d264cd6aaf60118",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1738,6 +1837,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "49cb52a65e3955a27c2c4f7d6d264cd6aaf60118",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1751,6 +1851,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "49cb52a65e3955a27c2c4f7d6d264cd6aaf60118",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1764,6 +1865,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1e1ea8509d40a57ec3c571b1ee3eed6a29204059",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1777,6 +1879,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1790,6 +1893,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1803,6 +1907,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "863041db3dc0c0334e02043284f133af56609083",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1816,6 +1921,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "3d8765e757158c9f8c0088402a8037c355e3f8b8",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1840,6 +1946,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1613e5fc9d44aa1fba70f0970f53e5ca31136702",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1853,6 +1960,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1866,6 +1974,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1879,6 +1988,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1892,6 +2002,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1905,6 +2016,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1918,6 +2030,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1613e5fc9d44aa1fba70f0970f53e5ca31136702",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1931,6 +2044,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1944,6 +2058,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1957,6 +2072,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1970,6 +2086,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -1983,6 +2100,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8da61490b738f1ac82b218028634cbfd2eddff6d",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -1996,6 +2114,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8da61490b738f1ac82b218028634cbfd2eddff6d",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2009,6 +2128,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "929aac3c8e4f6f881e7716a8eba5bbaec7839825",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2022,6 +2142,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "6381657596815eca788b17da67accb38fec64044",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2035,6 +2156,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2048,6 +2170,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2061,6 +2184,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2074,6 +2198,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "6381657596815eca788b17da67accb38fec64044",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2087,6 +2212,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2100,6 +2226,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2123,6 +2250,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-05T04:21:36",
       "commit": "67709e57ba333bb6c449cd87a8c808a220880d83",
       "dirty": false,
       "classification": "supported_structure",
@@ -2136,6 +2264,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-05T04:03:46",
       "commit": "106c1a60ad8d0e78557f599e5f450d729f2ec92b",
       "dirty": true,
       "classification": "supported_structure",
@@ -2150,6 +2279,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "545733939ce733db69ae05ed4c726fbfb881ed45",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -2162,6 +2292,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T12:05:51",
       "commit": "d015e1eeef750ffa40fd34f689e1af97e0cbea45",
       "dirty": true,
       "classification": "supported_structure",
@@ -2175,6 +2306,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T19:24:03",
       "commit": "613b1598ab5ba58c943a9c0e62ff2267f093cf20",
       "dirty": true,
       "classification": "supported_structure",
@@ -2188,6 +2320,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T12:20:12",
       "commit": "d015e1eeef750ffa40fd34f689e1af97e0cbea45",
       "dirty": true,
       "classification": "supported_structure",
@@ -2201,6 +2334,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T05:05:55",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2214,6 +2348,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T05:56:32",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2227,6 +2362,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T06:47:29",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2240,6 +2376,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T07:39:32",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2253,6 +2390,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T08:31:33",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2266,6 +2404,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-11T09:22:32",
       "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
       "dirty": false,
       "classification": "supported_structure",
@@ -2280,6 +2419,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2293,6 +2433,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2306,6 +2447,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2319,6 +2461,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -2331,6 +2474,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T10:28:45",
       "commit": "642827095ac56042d757d80d0c99bee494ccc4cd",
       "dirty": true,
       "classification": "supported_structure",
@@ -2344,6 +2488,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T16:38:14",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
@@ -2401,6 +2546,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T16:53:15",
       "commit": "419ca2dd7f917282e8591d6cefee75e1e3af9ecd",
       "dirty": true,
       "classification": "supported_structure",
@@ -2414,6 +2560,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T17:20:43",
       "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
       "dirty": true,
       "classification": "supported_structure",
@@ -2427,6 +2574,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:12:32",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -2440,6 +2588,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T17:20:43",
       "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
       "dirty": true,
       "classification": "supported_structure",
@@ -2453,6 +2602,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:12:32",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -3540,6 +3690,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": null,
       "commit": null,
       "dirty": null,
       "classification": "exploratory",
@@ -3554,6 +3705,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3567,6 +3719,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3580,6 +3733,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "f4d2692f39c1a78f4eac6aa8872d6d3a680a1945",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3593,6 +3747,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3661,6 +3816,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3674,6 +3830,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "af1f99e0b34146792695fa0af4b05dd908f150fc",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3687,6 +3844,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3700,6 +3858,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3713,6 +3872,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3726,6 +3886,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "af1f99e0b34146792695fa0af4b05dd908f150fc",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3739,6 +3900,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3752,6 +3914,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -3764,6 +3927,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T05:40:30",
       "commit": "41095b491ecd7432beb5863c5a649edc8af3d806",
       "dirty": false,
       "classification": "supported_structure",
@@ -3777,6 +3941,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T15:35:26",
       "commit": "d750a6c16265f6440b324acbfa838199ca01ab8f",
       "dirty": true,
       "classification": "supported_structure",
@@ -3790,6 +3955,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T16:22:31",
       "commit": "613b1598ab5ba58c943a9c0e62ff2267f093cf20",
       "dirty": true,
       "classification": "supported_structure",
@@ -3858,6 +4024,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T16:43:01",
       "commit": "613b1598ab5ba58c943a9c0e62ff2267f093cf20",
       "dirty": true,
       "classification": "supported_structure",
@@ -3871,6 +4038,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T08:20:00",
       "commit": "382582f8c430ce51e2592a23b6d694ed2eca86e4",
       "dirty": false,
       "classification": "supported_structure",
@@ -3884,6 +4052,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T22:44:18",
       "commit": "4e30462b9124c205348ccfa481adfea7345e3b68",
       "dirty": false,
       "classification": "supported_structure",
@@ -3908,6 +4077,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T05:12:23",
       "commit": "f5e69719fbc564c26415a717d76a64b59adc9fc1",
       "dirty": false,
       "classification": "supported_structure",
@@ -3921,6 +4091,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T16:36:40",
       "commit": "613b1598ab5ba58c943a9c0e62ff2267f093cf20",
       "dirty": true,
       "classification": "supported_structure",
@@ -3935,6 +4106,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3948,6 +4120,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3961,6 +4134,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3974,6 +4148,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -3987,6 +4162,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "c9184901b618833eb50079312a7d76c291f50cec",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4000,6 +4176,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "05f0d30648d02193229219808effb1e74071b792",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4013,6 +4190,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -4025,6 +4203,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T17:33:53",
       "commit": "9e6c5be388e76504163dfa019fa27a00220bec6c",
       "dirty": true,
       "classification": "supported_structure",
@@ -4038,6 +4217,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T18:19:31",
       "commit": "9e6c5be388e76504163dfa019fa27a00220bec6c",
       "dirty": true,
       "classification": "supported_structure",
@@ -4063,6 +4243,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "25429468dd6fb30bf161ef89c2f99a36148b0b48",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4076,6 +4257,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4089,6 +4271,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "2ca9413c902a41d7aa25653b1335f362f8e431a7",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4102,6 +4285,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4114,6 +4298,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T20:59:27",
       "commit": "4d8970fbb3027037152312ecf1df069102d911e1",
       "dirty": true,
       "classification": "supported_structure",
@@ -4127,6 +4312,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T19:48:58",
       "commit": "4d8970fbb3027037152312ecf1df069102d911e1",
       "dirty": true,
       "classification": "supported_structure",
@@ -4162,6 +4348,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T19:11:53",
       "commit": "8321f16e409acd33df0913af97c8ac941e3d563d",
       "dirty": true,
       "classification": "supported_structure",
@@ -4175,6 +4362,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T17:54:30",
       "commit": "8321f16e409acd33df0913af97c8ac941e3d563d",
       "dirty": true,
       "classification": "supported_structure",
@@ -4222,6 +4410,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "a230f9ac558deed9fb1443a3acead8ba24ce219b",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4301,6 +4490,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4314,6 +4504,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "06aa78478de69452d693511a6d9b620528563993",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4327,6 +4518,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "06aa78478de69452d693511a6d9b620528563993",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4340,6 +4532,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "d476d07fb86dde74fceafc5bb1f6c2feeb4bf698",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4353,6 +4546,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4365,6 +4559,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-05T01:59:20",
       "commit": "7e9cfd80707f97e028bdbd90bcadba91ccdcb990",
       "dirty": true,
       "classification": "supported_structure",
@@ -4378,6 +4573,7 @@
       "status": "complete",
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T21:48:08",
       "commit": "7e9cfd80707f97e028bdbd90bcadba91ccdcb990",
       "dirty": true,
       "classification": "supported_structure",
@@ -4435,6 +4631,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T03:18:15",
       "commit": "1578a1cbf10c3e88aeba1af30c739cf7e1ed3eda",
       "dirty": true,
       "classification": "supported_structure",
@@ -4481,6 +4678,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T17:15:50",
       "commit": "64cc7af46dc3d995278c11374546332458b61c99",
       "dirty": true,
       "classification": "supported_structure",
@@ -4494,6 +4692,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:12:32",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -4507,6 +4706,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T18:07:44",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": false,
       "classification": "supported_structure",
@@ -4520,6 +4720,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T17:15:26",
       "commit": "64cc7af46dc3d995278c11374546332458b61c99",
       "dirty": true,
       "classification": "supported_structure",
@@ -4533,6 +4734,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:13:27",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -4546,6 +4748,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T18:06:51",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": false,
       "classification": "supported_structure",
@@ -4559,6 +4762,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T17:15:40",
       "commit": "64cc7af46dc3d995278c11374546332458b61c99",
       "dirty": true,
       "classification": "supported_structure",
@@ -4572,6 +4776,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-17T07:14:10",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": true,
       "classification": "supported_structure",
@@ -4585,6 +4790,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T18:07:10",
       "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
       "dirty": false,
       "classification": "supported_structure",
@@ -4610,6 +4816,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "13e9a77ac8b252de228f96a923b84a56828e0fe7",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4623,6 +4830,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -4636,6 +4844,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "33ceeccde9aaa3f2ff23278b72c75a9f232afd05",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4649,6 +4858,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -4662,6 +4872,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4675,6 +4886,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4688,6 +4900,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8df63fb5e13f7fff6398c9bceabd1a2387c79ef5",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4701,6 +4914,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1c5f3b38c99d7e0db6cc8315231099cdb9f859ba",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4714,6 +4928,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4727,6 +4942,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "e0770a5ecdd6ae3ab173b4524264f30f86c9586c",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4740,6 +4956,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4753,6 +4970,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "b1b783d678031d04e933f66fd3811c7f080d69d9",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4765,6 +4983,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T05:39:32",
       "commit": "382582f8c430ce51e2592a23b6d694ed2eca86e4",
       "dirty": false,
       "classification": "supported_structure",
@@ -4778,6 +4997,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T14:40:08",
       "commit": "10df24667cfec5c711265c7a6c26caa4dc09858f",
       "dirty": true,
       "classification": "supported_structure",
@@ -4791,6 +5011,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T15:43:59",
       "commit": "992cf050ae7d6d7f1898a74c50fb0cf1bba6aa4f",
       "dirty": true,
       "classification": "supported_structure",
@@ -4804,6 +5025,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T13:10:42",
       "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
       "dirty": false,
       "classification": "supported_structure",
@@ -4817,6 +5039,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T11:38:40",
       "commit": "4ba91062306f7f90a1889055c53cb8de9980ce51",
       "dirty": true,
       "classification": "supported_structure",
@@ -4830,6 +5053,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-16T15:59:29",
       "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
       "dirty": true,
       "classification": "supported_structure",
@@ -4843,6 +5067,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-15T16:49:16",
       "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
@@ -4911,6 +5136,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T15:15:50",
       "commit": "10df24667cfec5c711265c7a6c26caa4dc09858f",
       "dirty": true,
       "classification": "supported_structure",
@@ -4924,6 +5150,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T10:05:08",
       "commit": "d015e1eeef750ffa40fd34f689e1af97e0cbea45",
       "dirty": false,
       "classification": "supported_structure",
@@ -4937,6 +5164,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T10:52:03",
       "commit": "d015e1eeef750ffa40fd34f689e1af97e0cbea45",
       "dirty": true,
       "classification": "supported_structure",
@@ -4962,6 +5190,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -4975,6 +5204,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -4988,6 +5218,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5001,6 +5232,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5014,6 +5246,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5027,6 +5260,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5040,6 +5274,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5053,6 +5288,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "af6ded1d65fa80c47f75dff2aab79d11024dfd38",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5066,6 +5302,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "beb2400a1fb357139c1850d8957f0c961aceb88a",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5112,6 +5349,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5125,6 +5363,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5138,6 +5377,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5151,6 +5391,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5164,6 +5405,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5177,6 +5419,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5190,6 +5433,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5203,6 +5447,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5216,6 +5461,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5229,6 +5475,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5242,6 +5489,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "fe025a5feafd762d283a8292c44743d6d400de4d",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5254,6 +5502,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T16:51:08",
       "commit": "2c652ff858c8313d1f997c1528ed2f1a134617e6",
       "dirty": true,
       "classification": "supported_structure",
@@ -5300,6 +5549,7 @@
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-05T04:55:11",
       "commit": "e97aa517ce8fbbc08a37bec084f8b7db2db0f9fa",
       "dirty": true,
       "classification": "supported_structure",
@@ -5324,6 +5574,7 @@
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T21:22:18",
       "commit": "a30421404c28aaf2d83092581a465eff304e2813",
       "dirty": true,
       "classification": "supported_structure",
@@ -5337,6 +5588,7 @@
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T21:19:52",
       "commit": "a30421404c28aaf2d83092581a465eff304e2813",
       "dirty": true,
       "classification": "supported_structure",
@@ -5373,6 +5625,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5386,6 +5639,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5399,6 +5653,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5412,6 +5667,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5425,6 +5681,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5438,6 +5695,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "b2c6ae71bbcfc26b872e6ab0a1a8062a64ea0415",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5451,6 +5709,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "eff60648c468d8bd19230f4fb001f6a8ae6805de",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5464,6 +5723,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "e9c9d008cd3601c5fef10d7c6fc49432ff7787e5",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5477,6 +5737,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": null,
+      "written": null,
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
@@ -5490,6 +5751,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "1d5078f7d9ca2b4321ba2af162dad8344d780767",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5503,6 +5765,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "064c9c4c1765daa163a32c2f11e61e809d791010",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5515,6 +5778,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-06T13:22:48",
       "commit": "ac1d2faee5c1013aa840ed204c6cec727078220f",
       "dirty": false,
       "classification": "supported_structure",
@@ -5528,6 +5792,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-09T10:44:22",
       "commit": "860fecd8190d41de1298d425bee75129240d375d",
       "dirty": true,
       "classification": "supported_structure",
@@ -5541,6 +5806,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-10T08:36:48",
       "commit": "d870a484ecfe021f4fb15d655eefa6b7ada5d290",
       "dirty": true,
       "classification": "supported_structure",
@@ -5554,6 +5820,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-09T08:52:02",
       "commit": "86076099e8debdbaca3d6b7e6adcf871ef828569",
       "dirty": false,
       "classification": "supported_structure",
@@ -5578,6 +5845,7 @@
       "status": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T11:22:26",
       "commit": "d015e1eeef750ffa40fd34f689e1af97e0cbea45",
       "dirty": true,
       "classification": "supported_structure",
@@ -5625,6 +5893,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8e457d6ad4723c45e6e0da61e40243e898825793",
+      "written": null,
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5699,6 +5968,7 @@
       "status": "scored",
       "has_rows": false,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-04T17:28:29",
       "commit": "ac99417f515e001ef9b162f963124831acbac310",
       "dirty": true,
       "classification": "supported_structure",
@@ -5712,6 +5982,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T01:54:57",
       "commit": "4e30462b9124c205348ccfa481adfea7345e3b68",
       "dirty": false,
       "classification": "supported_structure",
@@ -5725,6 +5996,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T08:57:27",
       "commit": "4e30462b9124c205348ccfa481adfea7345e3b68",
       "dirty": false,
       "classification": "supported_structure",
@@ -5738,6 +6010,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-08T05:00:46",
       "commit": "4e30462b9124c205348ccfa481adfea7345e3b68",
       "dirty": false,
       "classification": "supported_structure",
@@ -5751,6 +6024,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T05:26:41",
       "commit": "382582f8c430ce51e2592a23b6d694ed2eca86e4",
       "dirty": false,
       "classification": "supported_structure",
@@ -5764,6 +6038,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T03:39:00",
       "commit": "054d6982d643e12290d0fb4bf7a04c5365368e28",
       "dirty": true,
       "classification": "supported_structure",
@@ -5777,6 +6052,7 @@
       "status": null,
       "has_rows": true,
       "identity_contract": "tts_provenance",
+      "written": "2026-08-07T04:27:25",
       "commit": "19d5533a961245e5184dae9c2118a979ee29c5b7",
       "dirty": false,
       "classification": "supported_structure",
@@ -5791,6 +6067,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "6cb37edd17e57d1f1fccea56b0f101e8dbc3baf3",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5804,6 +6081,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5817,6 +6095,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "6cb37edd17e57d1f1fccea56b0f101e8dbc3baf3",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
@@ -5830,6 +6109,7 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "04a69e4cfb2f28b993ba1bfe288f1e6740fc4bc1",
+      "written": null,
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
