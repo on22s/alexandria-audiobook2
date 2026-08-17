@@ -15,7 +15,7 @@
 #   ./ensure_llama_server.sh [adapter.gguf]
 #
 # Environment:
-#   LLAMA_BIN     llama-server binary      (default ~/llama.cpp/build/bin/llama-server)
+#   LLAMA_BIN     llama-server binary      (default: llama-server from PATH)
 #   LLAMA_MODEL   base GGUF                (required)
 #   LLAMA_PORT    port                     (default 8090)
 #   LLAMA_CTX     context length           (default 32768)
@@ -23,7 +23,17 @@
 set -uo pipefail
 
 ADAPTER="${1:-}"
-BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin/llama-server}"
+# RESOLVE FROM PATH FIRST. This defaulted to a hand-built
+# ~/llama.cpp/build/bin/llama-server, and when that path was empty the script
+# exited 2 - which read as "no llama.cpp on this machine" while a maintained
+# one sat on PATH the whole time. On this box llama-server comes from the
+# `llama.cpp-hip` package, so `pacman -Syu` keeps it current; preferring a
+# hand-built copy would silently pin every run to whatever was compiled once
+# and never updated, and would quietly change the engine underneath a
+# comparison whose earlier arms used the packaged build.
+#
+# LLAMA_BIN still overrides, for deliberately testing a specific build.
+BIN="${LLAMA_BIN:-$(command -v llama-server 2>/dev/null || echo "$HOME/llama.cpp/build/bin/llama-server")}"
 MODEL="${LLAMA_MODEL:-}"
 PORT="${LLAMA_PORT:-8090}"
 CTX="${LLAMA_CTX:-32768}"

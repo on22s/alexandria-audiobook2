@@ -412,3 +412,65 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"manifest._git_state says dirty={python_says_dirty} but "
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class LlmPreflightGateTest(unittest.TestCase):
+    """The lock cannot tell you there was no engine.
+
+    The PR #308 remeasurement ran with nothing on port 8090, recorded rc=1 and
+    wrote an empty results list - which reads as "the experiment failed"
+    rather than "there was nothing to talk to", and stayed undiagnosed for a
+    day. gpu_job.sh serialises the card and propagates exit codes; it has no
+    idea whether a server exists. Hence an opt-in check.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, **extra):
+        env = dict(os.environ,
+                   GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                              env=env, capture_output=True, text=True, timeout=60)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def test_no_check_happens_unless_asked(self):
+        # Most jobs here are TTS and need no language model.
+        self.assertEqual(0, self._run().returncode)
+        self.assertNotIn("NO_LLM", self._log())
+        self.assertNotIn("LLM_UNCHECKED", self._log())
+
+    def test_a_failing_preflight_stops_the_job_before_it_starts(self):
+        result = self._run(REQUIRE_LLM="1", LLM_PREFLIGHT_PYTHON="/bin/false")
+        self.assertEqual(6, result.returncode)
+        self.assertIn("NO_LLM", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_an_unavailable_checker_warns_rather_than_blocking(self):
+        # "Cannot check" is not "failed": missing the checker must not stop a
+        # run, the same third answer tree_state gives for a non-repo.
+        result = self._run(REQUIRE_LLM="1",
+                           LLM_PREFLIGHT_PYTHON="/nonexistent/python")
+        self.assertEqual(0, result.returncode)
+        self.assertIn("LLM_UNCHECKED", self._log())
+        self.assertIn("START", self._log())
+
+    def test_the_gate_does_not_read_the_ambient_PYTHON_variable(self):
+        """Pinokio exports PYTHON=<miniforge>/python, which does not exist.
+
+        `${PYTHON:-default}` therefore takes the broken value - the variable
+        IS set, so the default never fires - and the first version of this
+        gate silently downgraded to "unchecked" on its first real run.
+        """
+        result = self._run(REQUIRE_LLM="1", PYTHON="/nonexistent/python",
+                           LLM_PREFLIGHT_PYTHON="/bin/false")
+        self.assertEqual(6, result.returncode, "PYTHON must not be consulted")
+        self.assertIn("NO_LLM", self._log())

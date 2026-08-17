@@ -164,6 +164,38 @@ case "$dirty_state" in
     ;;
 esac
 
+# OPT-IN LLM PREFLIGHT. Most jobs here are TTS and need no language model, so
+# this is off by default and the chains that need one ask for it:
+#
+#     REQUIRE_LLM=1 ./gpu_job.sh <name> <cmd...>
+#
+# The PR #308 remeasurement ran on 2026-08-16 with nothing listening on 8090.
+# It recorded rc=1 and wrote an artifact with an empty results list, which
+# reads as "the experiment failed" rather than "there was no engine", and it
+# stayed undiagnosed for a day. The lock cannot catch that - it serialises the
+# card and propagates exit codes, it has no idea whether a server exists - so
+# the check lives here, next to the other gate, rather than in each chain.
+if [ "${REQUIRE_LLM:-0}" = "1" ]; then
+    preflight="$(dirname "$0")/app/experiments/llm_preflight.py"
+    # NOT $PYTHON. Pinokio exports PYTHON=<miniforge>/python, which does not
+    # exist on this box, so `${PYTHON:-default}` takes the broken value - the
+    # variable IS set, so the default never fires - and this check silently
+    # downgraded to "unchecked" the first time it ran.
+    preflight_py="${LLM_PREFLIGHT_PYTHON:-$(dirname "$0")/app/env/bin/python}"
+    if [ -x "$preflight_py" ] && [ -f "$preflight" ]; then
+        if ! "$preflight_py" "$preflight" --quiet; then
+            echo "$(stamp) NO_LLM   $NAME (preflight failed)" >> "$QLOG"
+            echo "gpu_job: refusing to run $NAME without a working LLM." >&2
+            exit 6
+        fi
+    else
+        # Cannot check is not the same as failed. Say so and continue rather
+        # than blocking a run on the absence of the checker.
+        echo "$(stamp) LLM_UNCHECKED $NAME (no preflight available)" >> "$QLOG"
+        echo "gpu_job: WARNING - REQUIRE_LLM set but preflight unavailable." >&2
+    fi
+fi
+
 echo "$(stamp) START    $NAME" >> "$QLOG"
 
 "$@"

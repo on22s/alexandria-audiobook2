@@ -716,7 +716,11 @@
     "tests.test_gpu_job.GpuJobTest.test_the_second_job_waits_rather_than_failing",
     "tests.test_gpu_job.GpuJobTest.test_timeout_kills_job_releases_lock_and_logs_failure",
     "tests.test_gpu_job.GpuJobTest.test_two_jobs_do_not_overlap",
-    "tests.test_gpu_job.GpuJobTest.test_wrapped_failure_propagates_the_exit_code"
+    "tests.test_gpu_job.GpuJobTest.test_wrapped_failure_propagates_the_exit_code",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_a_failing_preflight_stops_the_job_before_it_starts",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable"
   ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",
