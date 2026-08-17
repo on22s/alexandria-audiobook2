@@ -300,6 +300,12 @@ def main():
     if not terms:
         sys.exit("no candidates match those filters")
 
+    try:
+        from experiments.provenance import provenance
+        prov = provenance(__file__, args)
+    except Exception as exc:                                    # noqa: BLE001
+        prov = {"error": str(exc)[:120]}
+
     os.makedirs(args.work, exist_ok=True)
     results = {}
     if os.path.exists(args.out):
@@ -354,8 +360,8 @@ def main():
             left = (len(terms) - index) * rate
             print(f"  {index}/{len(terms)}  {rate:.1f}s/term  ~{left/60:.0f} min left",
                   flush=True)
-            _write(args.out, results, terms)
-    _write(args.out, results, terms)
+            _write(args.out, results, terms, prov)
+    _write(args.out, results, terms, prov)
     scored = [r for r in results.values() if "helps" in r]
     helped = [r for r in scored if r["helps"]]
     hurt = [r for r in scored if r.get("hurts")]
@@ -366,13 +372,18 @@ def main():
     return 0
 
 
-def _write(path, results, terms):
+def _write(path, results, terms, prov=None):
     document = {"carrier": CARRIER,
                 "note": "scored on READINGS, not characters: `recovers_word` is "
                         "the whole word present unbroken, which is the headline. "
                         "`scattered` is the retired per-character score, kept "
                         "only so the two can be compared - see scattered_overlap",
                 "candidates_considered": len(terms),
+                # Captured ONCE by the caller, not here: _write is the
+                # checkpoint and runs every five terms, so recomputing git
+                # state would cost a subprocess per checkpoint across a
+                # seventeen-hour run.
+                "provenance": prov,
                 "results": list(results.values())}
     # Atomic: this file is read by other sessions while a multi-hour run is
     # still appending to it, and a plain open() truncates it for the duration

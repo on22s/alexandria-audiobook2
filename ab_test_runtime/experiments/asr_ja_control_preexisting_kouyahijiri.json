@@ -1,0 +1,63 @@
+{
+ "build": "ab_test_runtime/kokoro_ja_asr_eval/by_reader/CONTROL_preexisting_kouyahijiri.json",
+ "limit": 8,
+ "language": "ja",
+ "whisper_cpp_model": "ggml-base.bin",
+ "backends": [
+  "silero_whisper_cpp"
+ ],
+ "results": {
+  "silero_whisper_cpp": {
+   "n": 8,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "wer_mean": 0.2904,
+   "wer_median": 0.2912,
+   "rtf": 0.505,
+   "seconds_total": 19.2
+  }
+ },
+ "alignment": {
+  "silero_whisper_cpp": {
+   "scored": 8,
+   "predicted_segments": 15,
+   "expected_segments": 8,
+   "median_error_s": 0.086,
+   "p90_error_s": 0.136,
+   "worst_error_s": 0.266,
+   "within_tolerance_pct": 100.0,
+   "tolerance_s": 0.3
+  }
+ },
+ "alignment_truth_clips": 8,
+ "provenance": {
+  "script": "asr_backends.py",
+  "written": "2026-08-16T14:20:39",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
+   "branch": "agent/japanese-asr-per-reader-20260816",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/kokoro_ja_asr_set.py",
+    " M lora_models/manifest.json"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "5fdaca399c747cefe6655b26662d202bffa989112cf7917efdc25a51e184fc9b"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/by_reader/CONTROL_preexisting_kouyahijiri.json",
+   "backends": [
+    "silero_whisper_cpp"
+   ],
+   "limit": 8,
+   "row_offset": 0,
+   "align_clips": 8,
+   "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+   "whisper_cpp_model": "whisper.cpp/models/ggml-base.bin",
+   "lang": "ja",
+   "out": "ab_test_runtime/experiments/asr_ja_control_preexisting_kouyahijiri.json"
+  }
+ }
+}

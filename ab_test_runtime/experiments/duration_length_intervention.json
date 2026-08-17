@@ -1,0 +1,152 @@
+{
+  "design": "same text/reference/seed; separate vs newline-grouped",
+  "seed": 1234,
+  "summary": {
+    "n": 10,
+    "separate_median": 0.8943,
+    "grouped_median": 0.9583,
+    "pairs_closer_to_one": 8,
+    "pairs_farther_from_one": 2
+  },
+  "rows": [
+    {
+      "pair": 0,
+      "ids": [
+        "kokoro-by-soseki-natsume-02034",
+        "kokoro-by-soseki-natsume-05989"
+      ],
+      "characters": 36,
+      "separate_ratio": 0.7515270892351276,
+      "grouped_ratio": 0.7905674575070822,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_00.wav"
+    },
+    {
+      "pair": 1,
+      "ids": [
+        "kokoro-by-soseki-natsume-03635",
+        "kokoro-by-soseki-natsume-02817"
+      ],
+      "characters": 40,
+      "separate_ratio": 0.8070101351351351,
+      "grouped_ratio": 0.8070101351351351,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_01.wav"
+    },
+    {
+      "pair": 2,
+      "ids": [
+        "kokoro-by-soseki-natsume-02919",
+        "kokoro-by-soseki-natsume-04465"
+      ],
+      "characters": 42,
+      "separate_ratio": 0.923944870759289,
+      "grouped_ratio": 0.9462086025848141,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_02.wav"
+    },
+    {
+      "pair": 3,
+      "ids": [
+        "kokoro-by-soseki-natsume-05211",
+        "kokoro-by-soseki-natsume-02313"
+      ],
+      "characters": 43,
+      "separate_ratio": 0.8587722551928785,
+      "grouped_ratio": 0.9712305267062314,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_03.wav"
+    },
+    {
+      "pair": 4,
+      "ids": [
+        "kokoro-by-soseki-natsume-01770",
+        "kokoro-by-soseki-natsume-03532"
+      ],
+      "characters": 46,
+      "separate_ratio": 0.9009294181034482,
+      "grouped_ratio": 0.9207300646551724,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_04.wav"
+    },
+    {
+      "pair": 5,
+      "ids": [
+        "kokoro-by-soseki-natsume-04009",
+        "kokoro-by-soseki-natsume-03258"
+      ],
+      "characters": 47,
+      "separate_ratio": 0.8723550853485065,
+      "grouped_ratio": 0.9703725106685633,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_05.wav"
+    },
+    {
+      "pair": 6,
+      "ids": [
+        "kokoro-by-soseki-natsume-03491",
+        "kokoro-by-soseki-natsume-03253"
+      ],
+      "characters": 49,
+      "separate_ratio": 0.8877492331288344,
+      "grouped_ratio": 1.0040021088957054,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_06.wav"
+    },
+    {
+      "pair": 7,
+      "ids": [
+        "kokoro-by-soseki-natsume-04773",
+        "kokoro-by-soseki-natsume-04936"
+      ],
+      "characters": 50,
+      "separate_ratio": 1.0054989270386265,
+      "grouped_ratio": 1.035072424892704,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_07.wav"
+    },
+    {
+      "pair": 8,
+      "ids": [
+        "kokoro-by-soseki-natsume-06286",
+        "kokoro-by-soseki-natsume-04289"
+      ],
+      "characters": 51,
+      "separate_ratio": 0.9392316878980891,
+      "grouped_ratio": 0.9918988853503182,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_08.wav"
+    },
+    {
+      "pair": 9,
+      "ids": [
+        "kokoro-by-soseki-natsume-05354",
+        "kokoro-by-soseki-natsume-00899"
+      ],
+      "characters": 53,
+      "separate_ratio": 0.9085654900816802,
+      "grouped_ratio": 0.9246462952158692,
+      "grouped_wav": "ab_test_runtime/duration_length_intervention/pair_09.wav"
+    }
+  ],
+  "provenance": {
+    "script": "duration_length_intervention.py",
+    "written": "2026-08-16T10:28:45",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "642827095ac56042d757d80d0c99bee494ccc4cd",
+      "branch": "agent/pdnc-context-evidence-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/generation_state_probe.py",
+        "app/experiments/three_pass_chunk_probe.py"
+      ],
+      "harness_sha256": "1e4c05f33bd3a0f3e99933e994ef018d4ea6c036fca6a2f9d27d271d19fb7cde"
+    },
+    "args": {
+      "input": "ab_test_runtime/experiments/kokoro_same_speaker_generate.json",
+      "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",
+      "pairs": 10,
+      "seed": 1234,
+      "out_dir": "ab_test_runtime/duration_length_intervention",
+      "out": "ab_test_runtime/experiments/duration_length_intervention.json"
+    },
+    "seed": 1234,
+    "inputs": {
+      "ab_test_runtime/experiments/kokoro_same_speaker_generate.json": "8182aa82a17293954f514e41ff3040c6bc4989e7f813c0895bf0883a57f4d89b",
+      "ab_test_runtime/kokoro_same_speaker_eval/build.json": "6df75b7df503d65699bf6a286a30f3d136ab57c2495093b68cfd7328e89f2aff"
+    }
+  }
+}

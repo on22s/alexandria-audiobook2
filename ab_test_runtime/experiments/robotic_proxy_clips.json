@@ -1,0 +1,190 @@
+{
+ "clips": [
+  {
+   "clip": "set_00_A.wav",
+   "jitter_local": 0.0276,
+   "shimmer_local": 0.0769,
+   "hnr_db": 11.6153,
+   "f0_median": 141.9,
+   "f0_spread": 118.5
+  },
+  {
+   "clip": "set_00_B.wav",
+   "jitter_local": 0.0287,
+   "shimmer_local": 0.0689,
+   "hnr_db": 13.1913,
+   "f0_median": 142.7,
+   "f0_spread": 110.5
+  },
+  {
+   "clip": "set_00_C.wav",
+   "jitter_local": 0.0276,
+   "shimmer_local": 0.0769,
+   "hnr_db": 11.6153,
+   "f0_median": 141.9,
+   "f0_spread": 118.5
+  },
+  {
+   "clip": "set_01_A.wav",
+   "jitter_local": 0.0328,
+   "shimmer_local": 0.0903,
+   "hnr_db": 12.1186,
+   "f0_median": 162.0,
+   "f0_spread": 101.5
+  },
+  {
+   "clip": "set_01_B.wav",
+   "jitter_local": 0.0328,
+   "shimmer_local": 0.0903,
+   "hnr_db": 12.1186,
+   "f0_median": 162.0,
+   "f0_spread": 101.5
+  },
+  {
+   "clip": "set_01_C.wav",
+   "jitter_local": 0.0372,
+   "shimmer_local": 0.1043,
+   "hnr_db": 7.0063,
+   "f0_median": 143.5,
+   "f0_spread": 159.3
+  },
+  {
+   "clip": "set_02_A.wav",
+   "jitter_local": 0.0293,
+   "shimmer_local": 0.0811,
+   "hnr_db": 9.0332,
+   "f0_median": 108.2,
+   "f0_spread": 45.4
+  },
+  {
+   "clip": "set_02_B.wav",
+   "jitter_local": 0.0209,
+   "shimmer_local": 0.096,
+   "hnr_db": 2.1694
+  },
+  {
+   "clip": "set_02_C.wav",
+   "jitter_local": 0.0293,
+   "shimmer_local": 0.0811,
+   "hnr_db": 9.0332,
+   "f0_median": 108.2,
+   "f0_spread": 45.4
+  },
+  {
+   "clip": "set_03_A.wav",
+   "jitter_local": 0.0311,
+   "shimmer_local": 0.0955,
+   "hnr_db": 10.8374,
+   "f0_median": 132.4,
+   "f0_spread": 84.8
+  },
+  {
+   "clip": "set_03_B.wav",
+   "jitter_local": 0.0304,
+   "shimmer_local": 0.0979,
+   "hnr_db": 11.8089,
+   "f0_median": 128.6,
+   "f0_spread": 82.3
+  },
+  {
+   "clip": "set_03_C.wav",
+   "jitter_local": 0.0304,
+   "shimmer_local": 0.0979,
+   "hnr_db": 11.8089,
+   "f0_median": 128.6,
+   "f0_spread": 82.3
+  },
+  {
+   "clip": "set_04_A.wav",
+   "jitter_local": 0.0288,
+   "shimmer_local": 0.0891,
+   "hnr_db": 10.6663,
+   "f0_median": 146.0,
+   "f0_spread": 134.2
+  },
+  {
+   "clip": "set_04_B.wav",
+   "jitter_local": 0.0295,
+   "shimmer_local": 0.0893,
+   "hnr_db": 10.7231,
+   "f0_median": 127.1,
+   "f0_spread": 106.5
+  },
+  {
+   "clip": "set_05_A.wav",
+   "jitter_local": 0.0333,
+   "shimmer_local": 0.0989,
+   "hnr_db": 8.871,
+   "f0_median": 111.6,
+   "f0_spread": 78.8
+  },
+  {
+   "clip": "set_05_B.wav",
+   "jitter_local": 0.0299,
+   "shimmer_local": 0.1039,
+   "hnr_db": 11.9375,
+   "f0_median": 87.3,
+   "f0_spread": 41.0
+  },
+  {
+   "clip": "set_06_A.wav",
+   "jitter_local": 0.0193,
+   "shimmer_local": 0.0812,
+   "hnr_db": 8.7738,
+   "f0_median": 207.1,
+   "f0_spread": 119.3
+  },
+  {
+   "clip": "set_06_B.wav",
+   "jitter_local": 0.0172,
+   "shimmer_local": 0.0748,
+   "hnr_db": 14.4812,
+   "f0_median": 194.9,
+   "f0_spread": 54.2
+  },
+  {
+   "clip": "set_07_A.wav",
+   "jitter_local": 0.0304,
+   "shimmer_local": 0.0879,
+   "hnr_db": 11.2675,
+   "f0_median": 159.3,
+   "f0_spread": 87.5
+  },
+  {
+   "clip": "set_07_B.wav",
+   "jitter_local": 0.0355,
+   "shimmer_local": 0.0966,
+   "hnr_db": 11.1678,
+   "f0_median": 110.7,
+   "f0_spread": 70.6
+  }
+ ],
+ "sets": 8,
+ "identical_clips": {
+  "set_00": [
+   [
+    "set_00_A.wav",
+    "set_00_C.wav"
+   ]
+  ],
+  "set_01": [
+   [
+    "set_01_A.wav",
+    "set_01_B.wav"
+   ]
+  ],
+  "set_02": [
+   [
+    "set_02_A.wav",
+    "set_02_C.wav"
+   ]
+  ],
+  "set_03": [
+   [
+    "set_03_B.wav",
+    "set_03_C.wav"
+   ]
+  ]
+ },
+ "note": "measured without reading the concealed key"
+}

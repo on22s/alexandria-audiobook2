@@ -257,6 +257,14 @@ def main():
                 "publisher_map": PUBLISHER_LANGUAGE,
                 "note": "bibliographic metadata only; no book text is stored",
                 "candidates": enriched}
+    # Provenance, so a number can name the code that produced it. 58 of 95
+    # artifact-writing scripts here omitted this; the gate artifacts goal 2.7
+    # rests on are the cost - 87 files that cannot say what made them.
+    try:
+        from experiments.provenance import provenance
+        document["provenance"] = provenance(__file__, args)
+    except Exception as exc:                                    # noqa: BLE001
+        document["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(document, handle, indent=1, ensure_ascii=False)

@@ -1,0 +1,7377 @@
+{
+  "source": "ab_test_runtime/experiments/kokoro_generate.json",
+  "language": "ja",
+  "lines": 150,
+  "results": [
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00001",
+      "text": "「さんぼう本部へんさんの地図をまたくりひらいて見るでもなかろう、",
+      "accent_phrases": [
+        {
+          "moras": 12,
+          "accent": 8
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00002",
+      "text": "と思ったけれども、余りの道じゃから、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 8,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 4,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00003",
+      "text": "手をさわるさえ暑くるしい、旅のころものそでをかかげて、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00004",
+      "text": "表紙をつけた折本になってるのをひっぱり出した。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 7,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00005",
+      "text": "ひだから信州へこえるみやまの間道で、ちょうど立休らおうという一",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 8,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00006",
+      "text": "本のこだちも無い、右も左も山ばかりじゃ、手",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00058",
+      "text": "ふではまだあおぞらが見えたけれども、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 7,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 4,
+      "accented": 4,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00060",
+      "text": "まいばら、ながはまはうすぐもり、かすかに日がさして、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00061",
+      "text": "寒さが身に染みると思ったが、やなヶせでは雨、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00062",
+      "text": "汽車の窓が暗くなるに従うて、白いものがちらちらまじって来た。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 11,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00063",
+      "text": "（雪ですよ。）（さようじゃな。）といったばかりで",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 4,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00064",
+      "text": "別に気に留めず、あおいで空を見ようともしない、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00124",
+      "text": "ここへ来て寝るそうじゃが、お前様と同国じゃの、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 6,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00126",
+      "text": "いやこの男なぞは若いが感心にじっていなよい男。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00127",
+      "text": "わたしが今話のじょびらきをしたその飛騨のやまごえをやった時の、ふもとの茶屋でいっしょになった",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 22,
+      "accented": 17,
+      "heiban": 5
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00128",
+      "text": "とやまの売薬というやつあ、けたいの悪い、ねじねじした",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 9,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00130",
+      "text": "とうげにかかろうという日の、朝早く、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 8,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00131",
+      "text": "もっともせんのとまりはものの三時ぐらいにはたって来たので、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 8,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00179",
+      "text": "「わしもはらたちまぎれじゃ、むやみと急いで、それからどんどん山のすそを",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00180",
+      "text": "たんぼみちへかかる。半町ばかり行くと、",
+      "accent_phrases": [
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 7,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 4,
+      "accented": 4,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00181",
+      "text": "みちがこう急に高くなって、のぼりが一カ処、横からよく見えた、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 10,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00182",
+      "text": "ゆみなりでまるで土でちょくしばしがかかってるような。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00183",
+      "text": "上を見ながら、これへ足をふみかけた時、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00184",
+      "text": "以前のくすりうりがすたすたやって来ておいついたが。別に言葉もかわさず、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00232",
+      "text": "五「さっきのちゃみせからここへ来るまで、売薬の外は",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00233",
+      "text": "だれにもあわなんだことは申上げるまでもない。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 9,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00234",
+      "text": "今別れぎわに声を懸けられたので、むこうは",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 6,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00235",
+      "text": "道中の商売人と見ただけに、まさかと思ってもきまよいがするので、",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 8,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00236",
+      "text": "けさも立ちぎわによく見て来た、前にも申す、その図面をな、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 12,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00237",
+      "text": "ここでも開けて見ようとしていたところ。（ちょいとうかがいとう存じますが、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 5
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 9,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00287",
+      "text": "わしはそれからひのきの裏を抜けた、岩の下から岩の上へ出た、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 11,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00288",
+      "text": "きの中をくぐって草深いこみちをどこまでも、どこまでも。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00289",
+      "text": "するといつの間にか今上った山は過ぎて",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 6,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00290",
+      "text": "また一ツ山がちかづいて来た、このあたりしばらくの間は野",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00291",
+      "text": "が広々として、さっき通った本街道より",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 8,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 6,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00293",
+      "text": "こころもち西と、東と、まんなかに山を一ツ置いて",
+      "accent_phrases": [
+        {
+          "moras": 6,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 8,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00340",
+      "text": "「はてしが無いからきもをすえた、もとより引返す分ではない。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00341",
+      "text": "もとのところにはやっぱりじょうたらずのむくろがある、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 7,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00343",
+      "text": "今にもあとの半分がまといつきそうでたまらぬからきおくれがして",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 8,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 8,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00344",
+      "text": "足がすじばると石につまずいて転んだ、その時",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00345",
+      "text": "ひざぶしを痛めましたものと見える。それから",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00346",
+      "text": "がくがくしてあるくのが少しなんじゅうになったけれども、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00392",
+      "text": "「心細さは申すまでもなかったが、ひきょうなようでもしゅぎょうの積まぬ身には、",
+      "accent_phrases": [
+        {
+          "moras": 7,
+          "accent": 5
+        },
+        {
+          "moras": 6,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 11,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00393",
+      "text": "こういう暗い処の方がかえって観念にたよりがよい。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00395",
+      "text": "足のよわりも忘れたので、道も大きにはかどって、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 6,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00396",
+      "text": "まずこれで七分は森の中を越したろうと思う処で",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00397",
+      "text": "五六尺あたまの上らしかった樹の枝から、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00398",
+      "text": "ぼたりと笠の上へ落ち留まったものがある。なまりのおもりかとおもう心持、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 7,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 11,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00445",
+      "text": "「およそ人間が滅びるのは、地球のうすかわが破れて空から火が降るのでもなければ、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 17,
+      "accented": 13,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00446",
+      "text": "大海がおっかぶさるのでもない、ひだのくにのきばやしが蛭になるのが最初で、",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 6,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 19,
+      "accented": 14,
+      "heiban": 5
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00447",
+      "text": "しまいにはみんな血と泥の中に筋の黒い虫が泳ぐ、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 10,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00448",
+      "text": "それがだいがわりの世界であろうと、ぼんやり。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 8,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 4,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00449",
+      "text": "なるほどこの森も入口では何の事もなかったのに、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 15,
+      "accented": 10,
+      "heiban": 5
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00450",
+      "text": "中へ来るとこの通り、もっと奥深く進んだら",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 10,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 8,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00497",
+      "text": "「とてもこのつかれようでは、坂を上るわけには行くまいと思ったが、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 7
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00498",
+      "text": "ふとゆくてに、ヒイインと馬のいななくのがこだまして聞えた。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 11,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00500",
+      "text": "今朝一人の百姓に別れてから時の経ったはわずかじゃが、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 8,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00501",
+      "text": "三年も五年もおんなじものをいう人間とは",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 7,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00502",
+      "text": "中をへだてた。馬が居るようではともかくも人里に縁があると、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 11,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00503",
+      "text": "これがために気が勇んで、ええやっと今ひともみ。一",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00546",
+      "text": "十一（あなたまだ八里あまりでございますよ。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 14,
+          "accent": 12
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 6,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00547",
+      "text": "）（そのほかに別に泊めてくれますうちもないのでしょうか。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 12,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00548",
+      "text": "）（それはございません。）といいながらまたたきもしないで",
+      "accent_phrases": [
+        {
+          "moras": 9,
+          "accent": 8
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00549",
+      "text": "すずしい目でわしの顔をつくづく見ていた。（いえ",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 9,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00550",
+      "text": "もう何でございます、実はこの先一町行け、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 6
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00551",
+      "text": "そうすれば上段のへやに寝かして一晩あおいでいて",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00601",
+      "text": "十二「（さあ、私についてこちらへ、）と件のこめとぎおけをひっかかえ",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 13,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00602",
+      "text": "ててぬぐいを細い帯にはさんで立った。髪はふっさりとするのをたばねてな、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 16,
+      "accented": 12,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00603",
+      "text": "くしをはさんでかんざしでとめている、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 5,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00605",
+      "text": "わしも手早く草鞋をといたから、早速古下駄をちょうだいして、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 8,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00606",
+      "text": "縁から立つ時ちょいと見ると、それ例のばかどのじゃ。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 8,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00607",
+      "text": "同じくわしがかたをじろりと見たっけよ、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 6,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00648",
+      "text": "十三「そこから下りるのだと思われる、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 6,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00650",
+      "text": "ひょろひょろしたおよそ五六間上までは小枝一ツもないのがある。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 9,
+          "accent": 7
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00651",
+      "text": "その中をくぐったが、あおぐとこずえに出て白い、月の形はここでも別にかわりは無かった、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 19,
+      "accented": 18,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00652",
+      "text": "うきよはどこにあるか十三夜で。先へ立ったおんなの姿が",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00653",
+      "text": "目さきを放れたから、松のみきにつかまってのぞくと、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 6,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00654",
+      "text": "つい下に居た。あおむいて、（急に低くなりますから気をつけて。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 10,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00700",
+      "text": "十四「（いいあんばいに今日は水がふえておりますから、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00701",
+      "text": "中へ入りませんでもこの上でようございます。",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 8,
+          "accent": 5
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 7,
+          "accent": 6
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00702",
+      "text": "）と甲をひたしてつまさきをかがめながら、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 6,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00703",
+      "text": "雪のような素足で石のばんの上に立っていた。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 9,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00704",
+      "text": "自分達が立ったかわは、かえってこっちの山の裾が水に迫って、ちょうど切穴の形になって、",
+      "accent_phrases": [
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 19,
+      "accented": 16,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00705",
+      "text": "そこへこの石をはめたようなあつらえ。川上も下流も見えぬが、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00753",
+      "text": "（それでは森の中で、大変でございますこと。旅をする人が、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 10,
+          "accent": 9
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 10,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00754",
+      "text": "ひだの山では蛭が降るというのはあすこでござんす。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 8,
+          "accent": 6
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00755",
+      "text": "あなたは抜道をご存じないからまともに蛭の巣をお通りなさいましたのでございますよ。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 8,
+          "accent": 6
+        }
+      ],
+      "phrase_count": 17,
+      "accented": 13,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00756",
+      "text": "おいのちもみょうがなくらい、馬でも牛でも吸い殺すのでございますもの。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 6
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 8,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00757",
+      "text": "しかしうずくようにおかゆいのでござんしょうね。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00758",
+      "text": "）（ただいまではもう痛みますばかりになりました。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 9,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 5,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00794",
+      "text": "十六「なるほど見たところ、きものを着た時の姿とはちごうて",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 9,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00795",
+      "text": "（さっき小屋へ入って世話をしましたので、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 5,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00796",
+      "text": "気味が悪うござんす。ちょうどようございますから",
+      "accent_phrases": [
+        {
+          "moras": 10,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 9,
+          "accent": 6
+        }
+      ],
+      "phrase_count": 3,
+      "accented": 3,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00797",
+      "text": "私も体を拭きましょう。）ときょうだいが",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 5,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00798",
+      "text": "うちわばなしをするような調子。手をあげて黒髪をおさえながら",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00799",
+      "text": "わきの下を手拭でぐいと拭き、あとを両手で絞りながら立った姿、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00839",
+      "text": "なれなれしくて犯しやすからぬ品のいい、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 8,
+          "accent": 8
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 6,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00840",
+      "text": "いかなることにもいざとなれば驚くに足らぬという",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 9,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00841",
+      "text": "身にこたえのあるといったような風のおんな、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 10,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00842",
+      "text": "かくきょうしんを発してはきっといいことはあるまい、今",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 6
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00843",
+      "text": "このおんなにじゃけんにされては木から落ちた猿同然じゃと、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 8,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00844",
+      "text": "おっかなびっくりで、おずおず控えていたが、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 4,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00887",
+      "text": "十八「ヒイイン！　しっ、どうどうどうと",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00888",
+      "text": "背戸をまわるひづめの音がえんへひびいて",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 5,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00889",
+      "text": "おやじは一頭の馬を門前へ引き出した。くつわづらを取って立ちはだかり、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00890",
+      "text": "（嬢様そんならこのままでわし参りやする、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00891",
+      "text": "はい、ごぼうさまにたくさんごちそうして上げなされ。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 7,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00892",
+      "text": "）おんなはろぶちにあんどうをひきつけ、うつむいてなべの下をいぶしていたが、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 12,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00940",
+      "text": "富山のはんごんたんうりに逢いましたが、一足先にやっぱりこの路へ入りました。）（ああ、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 9,
+          "accent": 6
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 7,
+          "accent": 7
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 11,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00941",
+      "text": "そう。）と会心のえみをもらしておんなはあしげの方を見た、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 12,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00942",
+      "text": "およそたまらなくおかしいといったはしたないとりなりで。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 7
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00943",
+      "text": "極めてくみしやすう見えたので、（もしや",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 10,
+          "accent": 5
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 4,
+      "accented": 3,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00944",
+      "text": "こちらへ参りませなんだでございましょうか。）（いいえ、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 10,
+          "accent": 8
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 5,
+      "accented": 4,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00946",
+      "text": "たちまち犯すべからざる者になったから、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 6,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00992",
+      "text": "「さて、それからご飯の時じゃ、ぜんにはやまがのこうの物、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 9,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00993",
+      "text": "はじかみのつけたのと、わかめをうでたの、",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00995",
+      "text": "いやなかなかにんじんとかんぴょうどころではござらぬ。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 9,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 6,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00996",
+      "text": "品物はわびしいが、なかなかのお手料理、うえてはいるし、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 7,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00997",
+      "text": "みょうがしごくなお給仕、盆を膝に構えて",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 7,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00998",
+      "text": "その上にひじをついて、ほおを支えながら、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 9,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01038",
+      "text": "「しばらくしょんぼりしていたっけ。（あなた、さぞおつかれ、すぐにお",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 10,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01039",
+      "text": "休ませ申しましょうか。）（ありがとう存じます、まだちっとも眠くはござりません、",
+      "accent_phrases": [
+        {
+          "moras": 11,
+          "accent": 9
+        },
+        {
+          "moras": 10,
+          "accent": 9
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 10,
+          "accent": 9
+        }
+      ],
+      "phrase_count": 6,
+      "accented": 5,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01040",
+      "text": "さっき体を洗いましたのでくたびれもすっかりなおりました。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 7,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01041",
+      "text": "）（あの流れはどんな病にでもよく利きます、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 7,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01042",
+      "text": "わたしが苦労をいたしまして骨と皮ばかりに体がかれましても、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 8,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01090",
+      "text": "「とこうして、おんなが、はげますように、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 6,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01091",
+      "text": "すかすようにして勧めると、ばかは首を曲げて",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 7,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01092",
+      "text": "かのへそをもてあそびながら唄った。きそのおんたけさんは夏でも寒い、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 6
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 7
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 10,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01093",
+      "text": "あわせやりたやたびそえて。（よく知っておりましょう、）とおんなは聞き澄してにっこりする。",
+      "accent_phrases": [
+        {
+          "moras": 7,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 12,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01094",
+      "text": "不思議や、唄った時のばかの声はこの話をお聞きなさる",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 9,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01133",
+      "text": "二十三この折から下のろうかにあしおとがして、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 12,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01134",
+      "text": "しずかにおおまたにあるいたのが、せきとしているからよく。",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 9,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01135",
+      "text": "やがてこようをたした様子、雨戸をばたりと開けるのが聞えた、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 9,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01136",
+      "text": "ちょうずばちへひしゃくのひびき。「おお、つもった、積った。",
+      "accent_phrases": [
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 7,
+      "accented": 7,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01137",
+      "text": "」とつぶやいたのは、はたごやの亭主の声である。",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01187",
+      "text": "里近く、滝のある処で、きのう馬を売りに行ったおやじの帰りにおうた。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 17,
+      "accented": 15,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01188",
+      "text": "ちょうどわしが修行に出るのをよしてひとつやに引返して、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 10,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01189",
+      "text": "おんなといっしょにしょうがいを送ろうと思っていたところで。",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 9,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01191",
+      "text": "その事ばかり考える、蛇の橋もさいわいになし、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 10,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01192",
+      "text": "ひるの林もなかったが、道がなんじゅうなにつけても、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 11,
+      "accented": 7,
+      "heiban": 4
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01241",
+      "text": "「ただひとすじでも巌を越しておだきにすがりつこうとする形、それでも中をへだてられて",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 13,
+      "accented": 12,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01242",
+      "text": "末まではしずくも通わぬので、もまれ、揺られてつぶさにしんくをなめるというふぜい、",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 11,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01244",
+      "text": "流るる音さえ別様に、泣くか、うらむかとも思われるが、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01245",
+      "text": "あわれにも優しいめだきじゃ。男滝の方はうらはらで、",
+      "accent_phrases": [
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 6,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01246",
+      "text": "石を砕き、地をつらぬくいきおい、堂々たるありさまじゃ、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 6,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 8,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01292",
+      "text": "うなずきながらつぶやいて、「いや、まず聞かっしゃい、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 7,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01293",
+      "text": "かのひとつやのおんなというは、もとな、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 7,
+      "heiban": 2
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01294",
+      "text": "これもわしには何かのえんがあった、あの恐しいましょへ入ろうという",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 6
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 11,
+      "heiban": 3
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01295",
+      "text": "そばみちの水があふれた往来で、百姓が教えて、あすこは",
+      "accent_phrases": [
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 5,
+          "accent": 5
+        },
+        {
+          "moras": 5,
+          "accent": 3
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        },
+        {
+          "moras": 4,
+          "accent": 4
+        }
+      ],
+      "phrase_count": 8,
+      "accented": 8,
+      "heiban": 0
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01296",
+      "text": "その以前医者の家であったというたが、その家の嬢様じゃ。",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 7,
+          "accent": 2
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 1
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 1
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 11,
+      "heiban": 1
+    }
+  ],
+  "provenance": {
+    "script": "expected_prosody.py",
+    "written": "2026-08-17T07:12:32",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "branch": "agent/overnight-queue-20260816",
+      "dirty": true,
+      "modified_tracked_files": [
+        "A  app/experiments/expected_prosody.py",
+        " M app/experiments/measure_respellings.py"
+      ],
+      "untracked_harness_files": [
+        "app/experiments/trim_silence_build.py"
+      ],
+      "harness_sha256": "7505e0b782ead534d7e681b10311dd5fff27e5c16c0085db49801f6f60fb41bd"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/kokoro_generate.json",
+      "language": "ja",
+      "limit": 200,
+      "out": "ab_test_runtime/experiments/expected_prosody_ja_n200.json"
+    }
+  }
+}

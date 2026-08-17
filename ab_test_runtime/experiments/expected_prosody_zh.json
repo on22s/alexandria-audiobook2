@@ -1,0 +1,92 @@
+{
+  "source": "ab_test_runtime/experiments/aishell3_generate.json",
+  "language": "zh",
+  "lines": 8,
+  "results": [
+    {
+      "id": "SSB15850002",
+      "text": "影片的宣传语出现战争即将到来",
+      "syllables": 14,
+      "tone_sequence": "34512314412142",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850003",
+      "text": "我想听首歌张韶涵的歌",
+      "syllables": 10,
+      "tone_sequence": "3313112251",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850004",
+      "text": "十月三十日记者从长春多家律师事务所了解到",
+      "syllables": 20,
+      "tone_sequence": "24124432211141443334",
+      "contoured": 20,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850005",
+      "text": "九百五十八万五千零四十二",
+      "syllables": 12,
+      "tone_sequence": "333214312424",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850007",
+      "text": "无论是世锦赛还是奥运会",
+      "syllables": 11,
+      "tone_sequence": "24443424444",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850008",
+      "text": "浪潮服务器去年同比增长超过百分之七十",
+      "syllables": 18,
+      "tone_sequence": "422444223131431112",
+      "contoured": 18,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850009",
+      "text": "农村承包土地及其他农用地登记",
+      "syllables": 14,
+      "tone_sequence": "21213422124414",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850010",
+      "text": "渠道的分成从百分之五十降到百分之三十在手游平台",
+      "syllables": 23,
+      "tone_sequence": "24512231132443111243222",
+      "contoured": 22,
+      "neutral": 1
+    }
+  ],
+  "provenance": {
+    "script": "expected_prosody.py",
+    "written": "2026-08-16T17:20:43",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
+      "branch": "agent/prosody-fidelity-cjk-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/expected_prosody.py"
+      ],
+      "harness_sha256": "6b33e6b3c718a3612480191cde929565c185fa9189c05e7e159d4f6e624d32e6"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/aishell3_generate.json",
+      "language": "zh",
+      "limit": 8,
+      "out": "ab_test_runtime/experiments/expected_prosody_zh.json"
+    }
+  }
+}

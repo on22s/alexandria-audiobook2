@@ -1,0 +1,195 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "gravelly_baritone_50s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_scott_brick_foundation_s_edge_b005wl4r7e_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1211.wav",
+    "similarity": 0.8185
+   },
+   "old_ecapa_contaminated": 0.6272,
+   "new_ecapa_heldout": 0.658,
+   "dur_ratio": 0.919,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_alto_40s_f",
+   "role": "failure",
+   "dataset": "narrator_amy_landon_a_memory_called_empire_teixcalaan_book_1_1250318955_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1603.wav",
+    "similarity": 0.8491
+   },
+   "old_ecapa_contaminated": 0.6756,
+   "new_ecapa_heldout": 0.7141,
+   "dur_ratio": 0.962,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_20s_m_supernatural",
+   "role": "failure",
+   "dataset": "narrator_keith_silverstein_kizumonogatari_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": null,
+   "old_ecapa_contaminated": 0.0526,
+   "new_ecapa_heldout": 0.0622,
+   "dur_ratio": 0.93,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_35s_m",
+   "role": "failure",
+   "dataset": "narrator_peter_kenny_sword_of_destiny_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2401.wav",
+    "similarity": 0.8009
+   },
+   "old_ecapa_contaminated": 0.6401,
+   "new_ecapa_heldout": 0.6673,
+   "dur_ratio": 1.176,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_40s_m_1",
+   "role": "failure",
+   "dataset": "narrator_j_michael_tatum_spice_and_wolf_vol_10_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1402.wav",
+    "similarity": 0.8323
+   },
+   "old_ecapa_contaminated": 0.573,
+   "new_ecapa_heldout": 0.5008,
+   "dur_ratio": 1.17,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_40s_m_2",
+   "role": "failure",
+   "dataset": "narrator_scott_brick_foundation_s_edge_b005wl4r7e_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_4809.wav",
+    "similarity": 0.801
+   },
+   "old_ecapa_contaminated": 0.5298,
+   "new_ecapa_heldout": 0.5698,
+   "dur_ratio": 0.914,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_40s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_jon_lindstrom_nightfall_and_other_stories_059341635x_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3005.wav",
+    "similarity": 0.8347
+   },
+   "old_ecapa_contaminated": 0.5595,
+   "new_ecapa_heldout": 0.5155,
+   "dur_ratio": 1.011,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_50s_m_gothic",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0201.wav",
+    "similarity": 0.8192
+   },
+   "old_ecapa_contaminated": 0.6621,
+   "new_ecapa_heldout": 0.624,
+   "dur_ratio": 0.98,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_baritone_50s_m_military",
+   "role": "failure",
+   "dataset": "narrator_tim_gerard_reynolds_age_of_war_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_4201.wav",
+    "similarity": 0.7911
+   },
+   "old_ecapa_contaminated": 0.5312,
+   "new_ecapa_heldout": 0.6537,
+   "dur_ratio": 0.946,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_soprano_20s_f",
+   "role": "failure",
+   "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2604.wav",
+    "similarity": 0.8474
+   },
+   "old_ecapa_contaminated": 0.6054,
+   "new_ecapa_heldout": 0.6786,
+   "dur_ratio": 0.969,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T05:56:32",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "gravelly_baritone_50s_m_scifi",
+    "husky_alto_40s_f",
+    "husky_baritone_20s_m_supernatural",
+    "husky_baritone_35s_m",
+    "husky_baritone_40s_m_1",
+    "husky_baritone_40s_m_2",
+    "husky_baritone_40s_m_scifi",
+    "husky_baritone_50s_m_gothic",
+    "husky_baritone_50s_m_military",
+    "husky_soprano_20s_f"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch2",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch2.json"
+  },
+  "seed": 1234
+ }
+}

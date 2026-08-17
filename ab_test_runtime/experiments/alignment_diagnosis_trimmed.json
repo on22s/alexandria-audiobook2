@@ -1,0 +1,551 @@
+{
+ "clips": 50,
+ "note": "clip properties against PER-READER alignment; per-clip alignment is not stored by asr_backends, so every clip of a reader carries that reader's error. Correlations are leads, not causes, and n=4 readers cannot separate correlated properties.",
+ "correlation_with_alignment_error": {
+  "lead_silence_s": 0.068,
+  "tail_silence_s": -0.022,
+  "silent_fraction": 0.339,
+  "internal_pauses": 0.377,
+  "seconds": 0.269
+ },
+ "per_reader": {
+  "botchan-by-soseki-natsume-2": {
+   "align_median_s": 0.4,
+   "clips": 11,
+   "lead_silence_s": 0.008,
+   "tail_silence_s": 0.004,
+   "silent_fraction": 0.191,
+   "internal_pauses": 2.182,
+   "seconds": 4.424
+  },
+  "gan-by-ogai-mori": {
+   "align_median_s": 0.117,
+   "clips": 13,
+   "lead_silence_s": 0.004,
+   "tail_silence_s": 0.004,
+   "silent_fraction": 0.109,
+   "internal_pauses": 1.231,
+   "seconds": 3.783
+  },
+  "kouyahijiri-by-kyoka-izumi": {
+   "align_median_s": 0.347,
+   "clips": 13,
+   "lead_silence_s": 0.004,
+   "tail_silence_s": 0.004,
+   "silent_fraction": 0.224,
+   "internal_pauses": 2.077,
+   "seconds": 4.721
+  },
+  "kusamakura-by-soseki-natsume": {
+   "align_median_s": 0.243,
+   "clips": 13,
+   "lead_silence_s": 0.007,
+   "tail_silence_s": 0.011,
+   "silent_fraction": 0.206,
+   "internal_pauses": 1.692,
+   "seconds": 4.33
+  }
+ },
+ "rows": [
+  {
+   "id": "botchan-by-soseki-natsume-2-00001",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 3.971,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.153,
+   "internal_pauses": 2,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00002",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.042,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.0,
+   "internal_pauses": 0,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00001",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 4.783,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.136,
+   "internal_pauses": 2,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00002",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 5.039,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.25,
+   "internal_pauses": 2,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00304",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 5.735,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.293,
+   "internal_pauses": 3,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00123",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.32,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.225,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00058",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 2.531,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.0,
+   "internal_pauses": 0,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00294",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 4.481,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.208,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00525",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 5.944,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.281,
+   "internal_pauses": 3,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00205",
+   "book": "gan-by-ogai-mori",
+   "seconds": 4.296,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.196,
+   "internal_pauses": 2,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00124",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 3.785,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.222,
+   "internal_pauses": 2,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00514",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 5.666,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.23,
+   "internal_pauses": 3,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00741",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 4.853,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.212,
+   "internal_pauses": 4,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00233",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.483,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.107,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00179",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 5.991,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.264,
+   "internal_pauses": 3,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00865",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 5.526,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.361,
+   "internal_pauses": 2,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01025",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 5.503,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.381,
+   "internal_pauses": 3,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00359",
+   "book": "gan-by-ogai-mori",
+   "seconds": 5.433,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.179,
+   "internal_pauses": 2,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00232",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 5.642,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.397,
+   "internal_pauses": 3,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01133",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 2.694,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.086,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01318",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 2.763,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.068,
+   "internal_pauses": 1,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00448",
+   "book": "gan-by-ogai-mori",
+   "seconds": 4.876,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.19,
+   "internal_pauses": 3,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00287",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 5.016,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.241,
+   "internal_pauses": 3,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01376",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 5.991,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.372,
+   "internal_pauses": 3,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01725",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 3.228,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.174,
+   "internal_pauses": 1,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00552",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.971,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.141,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00340",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 4.621,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.253,
+   "internal_pauses": 2,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01681",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 4.969,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.308,
+   "internal_pauses": 2,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01996",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 4.783,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.155,
+   "internal_pauses": 2,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00660",
+   "book": "gan-by-ogai-mori",
+   "seconds": 2.415,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.058,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00392",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 5.155,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.225,
+   "internal_pauses": 3,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01882",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 2.972,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.25,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02229",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 2.461,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.0,
+   "internal_pauses": 0,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00793",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.553,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.0,
+   "internal_pauses": 0,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00445",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 6.223,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.164,
+   "internal_pauses": 2,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02126",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 5.433,
+   "lead_silence_s": 0.046,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.171,
+   "internal_pauses": 3,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02549",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 5.201,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.223,
+   "internal_pauses": 3,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00899",
+   "book": "gan-by-ogai-mori",
+   "seconds": 4.087,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.08,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00497",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 3.669,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.051,
+   "internal_pauses": 1,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02311",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 3.506,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.147,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02831",
+   "book": "botchan-by-soseki-natsume-2",
+   "seconds": 4.226,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.165,
+   "internal_pauses": 2,
+   "reader_align_s": 0.4
+  },
+  {
+   "id": "gan-by-ogai-mori-00964",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.367,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.083,
+   "internal_pauses": 2,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00546",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 4.133,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.326,
+   "internal_pauses": 2,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02558",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 2.74,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.046,
+   "silent_fraction": 0.085,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "gan-by-ogai-mori-01136",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.901,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.119,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00601",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 6.525,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.307,
+   "internal_pauses": 3,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02793",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 4.18,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.144,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  },
+  {
+   "id": "gan-by-ogai-mori-01242",
+   "book": "gan-by-ogai-mori",
+   "seconds": 3.437,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.041,
+   "internal_pauses": 1,
+   "reader_align_s": 0.117
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00648",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "seconds": 3.297,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.324,
+   "internal_pauses": 1,
+   "reader_align_s": 0.347
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-03134",
+   "book": "kusamakura-by-soseki-natsume",
+   "seconds": 3.088,
+   "lead_silence_s": 0.0,
+   "tail_silence_s": 0.0,
+   "silent_fraction": 0.061,
+   "internal_pauses": 1,
+   "reader_align_s": 0.243
+  }
+ ]
+}

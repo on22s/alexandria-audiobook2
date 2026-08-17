@@ -1,0 +1,310 @@
+{
+  "source": "ab_test_runtime/experiments/kokoro_generate.json",
+  "language": null,
+  "gpe_tolerance": 0.2,
+  "results": {
+    "lora": {
+      "n": 12,
+      "f0_correlation_mean": 0.7019,
+      "f0_rmse_semitones_mean": 2.4278,
+      "gross_pitch_error_mean": 0.1931,
+      "tempo_irregularity_mean": 0.4105,
+      "rows": [
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00001",
+          "voiced_frames": 363,
+          "human_seconds": 5.538,
+          "generated_seconds": 4.08,
+          "f0_correlation": 0.5495,
+          "f0_rmse_semitones": 2.9302,
+          "gross_pitch_error": 0.2755,
+          "tempo_irregularity": 0.4617,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00002",
+          "voiced_frames": 203,
+          "human_seconds": 3.321,
+          "generated_seconds": 2.88,
+          "f0_correlation": 0.7436,
+          "f0_rmse_semitones": 2.6655,
+          "gross_pitch_error": 0.2266,
+          "tempo_irregularity": 0.4096,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00003",
+          "voiced_frames": 301,
+          "human_seconds": 5.166,
+          "generated_seconds": 4.96,
+          "f0_correlation": 0.5787,
+          "f0_rmse_semitones": 2.5459,
+          "gross_pitch_error": 0.2093,
+          "tempo_irregularity": 0.3703,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00004",
+          "voiced_frames": 198,
+          "human_seconds": 4.11,
+          "generated_seconds": 3.12,
+          "f0_correlation": 0.7721,
+          "f0_rmse_semitones": 2.3441,
+          "gross_pitch_error": 0.0859,
+          "tempo_irregularity": 0.4592,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00005",
+          "voiced_frames": 425,
+          "human_seconds": 6.618,
+          "generated_seconds": 6.16,
+          "f0_correlation": 0.7248,
+          "f0_rmse_semitones": 2.1694,
+          "gross_pitch_error": 0.3388,
+          "tempo_irregularity": 0.4305,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00006",
+          "voiced_frames": 268,
+          "human_seconds": 4.714,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.7345,
+          "f0_rmse_semitones": 2.4152,
+          "gross_pitch_error": 0.1642,
+          "tempo_irregularity": 0.3996,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00058",
+          "voiced_frames": 221,
+          "human_seconds": 3.495,
+          "generated_seconds": 2.88,
+          "f0_correlation": 0.8071,
+          "f0_rmse_semitones": 2.0786,
+          "gross_pitch_error": 0.0724,
+          "tempo_irregularity": 0.4286,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00060",
+          "voiced_frames": 266,
+          "human_seconds": 4.574,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.6599,
+          "f0_rmse_semitones": 2.4876,
+          "gross_pitch_error": 0.1692,
+          "tempo_irregularity": 0.3617,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00061",
+          "voiced_frames": 261,
+          "human_seconds": 3.704,
+          "generated_seconds": 4.32,
+          "f0_correlation": 0.7109,
+          "f0_rmse_semitones": 2.5232,
+          "gross_pitch_error": 0.2375,
+          "tempo_irregularity": 0.3777,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00062",
+          "voiced_frames": 330,
+          "human_seconds": 5.596,
+          "generated_seconds": 5.28,
+          "f0_correlation": 0.8061,
+          "f0_rmse_semitones": 2.181,
+          "gross_pitch_error": 0.1909,
+          "tempo_irregularity": 0.4156,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00063",
+          "voiced_frames": 203,
+          "human_seconds": 4.261,
+          "generated_seconds": 3.6,
+          "f0_correlation": 0.7056,
+          "f0_rmse_semitones": 2.2534,
+          "gross_pitch_error": 0.1626,
+          "tempo_irregularity": 0.4052,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00064",
+          "voiced_frames": 249,
+          "human_seconds": 4.18,
+          "generated_seconds": 3.68,
+          "f0_correlation": 0.6296,
+          "f0_rmse_semitones": 2.5395,
+          "gross_pitch_error": 0.1847,
+          "tempo_irregularity": 0.4061,
+          "tempo_ratio": 1.0
+        }
+      ]
+    },
+    "clone": {
+      "n": 12,
+      "f0_correlation_mean": 0.7381,
+      "f0_rmse_semitones_mean": 2.3137,
+      "gross_pitch_error_mean": 0.158,
+      "tempo_irregularity_mean": 0.4671,
+      "rows": [
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00001",
+          "voiced_frames": 353,
+          "human_seconds": 5.538,
+          "generated_seconds": 3.6,
+          "f0_correlation": 0.2864,
+          "f0_rmse_semitones": 3.8457,
+          "gross_pitch_error": 0.3626,
+          "tempo_irregularity": 0.4831,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00002",
+          "voiced_frames": 200,
+          "human_seconds": 3.321,
+          "generated_seconds": 2.32,
+          "f0_correlation": 0.7491,
+          "f0_rmse_semitones": 2.5255,
+          "gross_pitch_error": 0.265,
+          "tempo_irregularity": 0.4684,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00003",
+          "voiced_frames": 306,
+          "human_seconds": 5.166,
+          "generated_seconds": 3.6,
+          "f0_correlation": 0.8372,
+          "f0_rmse_semitones": 1.9275,
+          "gross_pitch_error": 0.0784,
+          "tempo_irregularity": 0.467,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00004",
+          "voiced_frames": 220,
+          "human_seconds": 4.11,
+          "generated_seconds": 2.88,
+          "f0_correlation": 0.6854,
+          "f0_rmse_semitones": 2.6826,
+          "gross_pitch_error": 0.2318,
+          "tempo_irregularity": 0.4857,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00005",
+          "voiced_frames": 405,
+          "human_seconds": 6.618,
+          "generated_seconds": 4.64,
+          "f0_correlation": 0.8642,
+          "f0_rmse_semitones": 1.7217,
+          "gross_pitch_error": 0.0593,
+          "tempo_irregularity": 0.4876,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00006",
+          "voiced_frames": 274,
+          "human_seconds": 4.714,
+          "generated_seconds": 3.52,
+          "f0_correlation": 0.7759,
+          "f0_rmse_semitones": 2.4508,
+          "gross_pitch_error": 0.1606,
+          "tempo_irregularity": 0.4406,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00058",
+          "voiced_frames": 216,
+          "human_seconds": 3.495,
+          "generated_seconds": 2.4,
+          "f0_correlation": 0.7189,
+          "f0_rmse_semitones": 2.4046,
+          "gross_pitch_error": 0.1713,
+          "tempo_irregularity": 0.4733,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00060",
+          "voiced_frames": 269,
+          "human_seconds": 4.574,
+          "generated_seconds": 3.52,
+          "f0_correlation": 0.742,
+          "f0_rmse_semitones": 2.1988,
+          "gross_pitch_error": 0.1487,
+          "tempo_irregularity": 0.4644,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00061",
+          "voiced_frames": 233,
+          "human_seconds": 3.704,
+          "generated_seconds": 3.04,
+          "f0_correlation": 0.7928,
+          "f0_rmse_semitones": 2.1056,
+          "gross_pitch_error": 0.1416,
+          "tempo_irregularity": 0.4469,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00062",
+          "voiced_frames": 330,
+          "human_seconds": 5.596,
+          "generated_seconds": 4.4,
+          "f0_correlation": 0.8649,
+          "f0_rmse_semitones": 1.9308,
+          "gross_pitch_error": 0.0818,
+          "tempo_irregularity": 0.448,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00063",
+          "voiced_frames": 232,
+          "human_seconds": 4.261,
+          "generated_seconds": 3.04,
+          "f0_correlation": 0.8602,
+          "f0_rmse_semitones": 1.6081,
+          "gross_pitch_error": 0.0647,
+          "tempo_irregularity": 0.473,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "kouyahijiri-by-kyoka-izumi-00064",
+          "voiced_frames": 291,
+          "human_seconds": 4.18,
+          "generated_seconds": 2.96,
+          "f0_correlation": 0.68,
+          "f0_rmse_semitones": 2.3622,
+          "gross_pitch_error": 0.1306,
+          "tempo_irregularity": 0.4673,
+          "tempo_ratio": 1.0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "script": "prosody_fidelity.py",
+    "written": "2026-08-16T17:15:26",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "branch": "agent/robotic-proxy-calibration-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/prosody_fidelity.py"
+      ],
+      "harness_sha256": "b75afbc54c731d05f1d1f73c5b28d8b91ada1c7e14535909162dcae6fd66d800"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/kokoro_generate.json",
+      "arm": null,
+      "limit": 12,
+      "out": "ab_test_runtime/experiments/prosody_fidelity_ja.json"
+    }
+  }
+}

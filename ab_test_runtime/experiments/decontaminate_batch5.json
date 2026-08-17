@@ -1,0 +1,198 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_1",
+   "role": "failure",
+   "dataset": "narrator_cliff_kurt_mushoku_tensei_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2212.wav",
+    "similarity": 0.7484
+   },
+   "old_ecapa_contaminated": 0.5664,
+   "new_ecapa_heldout": 0.6831,
+   "dur_ratio": 1.066,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_30s_m_fantasy_2",
+   "role": "failure",
+   "dataset": "narrator_robert_west_damsels_of_jormia_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3008.wav",
+    "similarity": 0.7547
+   },
+   "old_ecapa_contaminated": 0.5686,
+   "new_ecapa_heldout": 0.6674,
+   "dur_ratio": 1.12,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_30s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_jay_snyder_ex_heroes_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2813.wav",
+    "similarity": 0.7862
+   },
+   "old_ecapa_contaminated": 0.6423,
+   "new_ecapa_heldout": 0.6389,
+   "dur_ratio": 1.043,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_1",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char8_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_4611.wav",
+    "similarity": 0.8101
+   },
+   "old_ecapa_contaminated": 0.5846,
+   "new_ecapa_heldout": 0.6441,
+   "dur_ratio": 1.185,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_2",
+   "role": "failure",
+   "dataset": "narrator_gareth_armstrong_the_devastation_of_baal_space_marine_conquests_warhammer_40000_book_1_b07ctt3bgq_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3801.wav",
+    "similarity": 0.8928
+   },
+   "old_ecapa_contaminated": 0.7302,
+   "new_ecapa_heldout": 0.7384,
+   "dur_ratio": 1.015,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_4",
+   "role": "failure",
+   "dataset": "narrator_paul_boehmer_vampire_hunter_d_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0200.wav",
+    "similarity": 0.8181
+   },
+   "old_ecapa_contaminated": 0.5665,
+   "new_ecapa_heldout": 0.5851,
+   "dur_ratio": 1.112,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_5",
+   "role": "failure",
+   "dataset": "narrator_rc_bray_lost_gods_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3811.wav",
+    "similarity": 0.7879
+   },
+   "old_ecapa_contaminated": 0.5639,
+   "new_ecapa_heldout": 0.6002,
+   "dur_ratio": 0.86,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_military",
+   "role": "failure",
+   "dataset": "narrator_simon_vance_the_blinding_knife_b0096gj7g2_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_9000.wav",
+    "similarity": 0.8371
+   },
+   "old_ecapa_contaminated": 0.5626,
+   "new_ecapa_heldout": 0.6906,
+   "dur_ratio": 1.182,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_40s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_c_j_mission_monster_core_2_1774241641_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0204.wav",
+    "similarity": 0.8357
+   },
+   "old_ecapa_contaminated": 0.6678,
+   "new_ecapa_heldout": 0.7095,
+   "dur_ratio": 0.985,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_50s_m",
+   "role": "failure",
+   "dataset": "narrator_jot_davies_the_vagrant_b00vus19w4_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1411.wav",
+    "similarity": 0.8687
+   },
+   "old_ecapa_contaminated": 0.68,
+   "new_ecapa_heldout": 0.7263,
+   "dur_ratio": 0.87,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T08:31:33",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "warm_baritone_30s_m_fantasy_1",
+    "warm_baritone_30s_m_fantasy_2",
+    "warm_baritone_30s_m_scifi",
+    "warm_baritone_40s_m_1",
+    "warm_baritone_40s_m_2",
+    "warm_baritone_40s_m_4",
+    "warm_baritone_40s_m_5",
+    "warm_baritone_40s_m_military",
+    "warm_baritone_40s_m_scifi",
+    "warm_baritone_50s_m"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch5",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch5.json"
+  },
+  "seed": 1234
+ }
+}

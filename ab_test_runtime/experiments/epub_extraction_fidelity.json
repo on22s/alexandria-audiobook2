@@ -1,0 +1,84 @@
+{
+  "books": 6,
+  "totals": {
+    "resolved": 89,
+    "unresolved": 0,
+    "inserted": 0,
+    "duplicated": 0
+  },
+  "results": [
+    {
+      "book": "[WN] ReZero Volume 39.epub",
+      "resolved": 17,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 473298
+    },
+    {
+      "book": "[WN] ReZero Volume 40.epub",
+      "resolved": 14,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 465914
+    },
+    {
+      "book": "[WN] ReZero Volume 41.epub",
+      "resolved": 15,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 473936
+    },
+    {
+      "book": "[WN] ReZero Volume 42.epub",
+      "resolved": 16,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 468915
+    },
+    {
+      "book": "[WN] ReZero Volume 43.epub",
+      "resolved": 13,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 511412
+    },
+    {
+      "book": "[WN] ReZero Volume 44.epub",
+      "resolved": 14,
+      "unresolved": 0,
+      "inserted": 0,
+      "duplicated": 0,
+      "insertions": [],
+      "characters": 484038
+    }
+  ],
+  "provenance": {
+    "script": "epub_extraction_fidelity.py",
+    "written": "2026-08-16T16:53:15",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "419ca2dd7f917282e8591d6cefee75e1e3af9ecd",
+      "branch": "agent/alignment-control-and-extraction-probe-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/epub_extraction_fidelity.py"
+      ],
+      "harness_sha256": "23ea6cfd7cdb580cb9d6e9122f758434c7c03530a9284d9b9587994c59cab567"
+    },
+    "args": {
+      "books": null,
+      "out": "ab_test_runtime/experiments/epub_extraction_fidelity.json"
+    }
+  }
+}

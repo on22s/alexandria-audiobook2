@@ -1,0 +1,371 @@
+{
+ "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+ "limit": 50,
+ "language": "ja",
+ "whisper_cpp_model": "ggml-large-v3.bin",
+ "backends": [
+  "whisper_cpp"
+ ],
+ "results": {
+  "whisper_cpp": {
+   "n": 50,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "cer_reading_mean": 0.1023,
+   "cer_reading_median": 0.08,
+   "hypotheses": [
+    {
+     "id": "botchan-by-soseki-natsume-2-00001",
+     "wer": 0.2308,
+     "reference": "おやゆずりのむてっぽうで小供の時から損ばかりしている。",
+     "hypothesis": "親譲りのもてっぽうで 子供の時から損ばかりしている"
+    },
+    {
+     "id": "gan-by-ogai-mori-00002",
+     "wer": 0.1364,
+     "reference": "明治十三年の出来事だと云うことを記憶している。",
+     "hypothesis": "明治13年の出来事だということを記憶している"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00001",
+     "wer": 0.4,
+     "reference": "「さんぼう本部へんさんの地図をまたくりひらいて見るでもなかろう、",
+     "hypothesis": "参謀本部返算の地図を また繰り開いてみるでもなかろう"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-00002",
+     "wer": 0.4,
+     "reference": "やまみちを登りながら、こう考えた。ちに働けばかどが立つ。",
+     "hypothesis": "やまめちをのぼりながらこうかんがえた。 ちにはたらけばかどがたつ。"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-00304",
+     "wer": 0.4444,
+     "reference": "汽船がとまると、はしけが岸をはなれて、こぎ寄せて来た。船頭は",
+     "hypothesis": "きせんがとまるとはしけがきしをはなれてこぎをしてきた。 せんどうは、"
+    },
+    {
+     "id": "gan-by-ogai-mori-00123",
+     "wer": 0.1667,
+     "reference": "岩崎のやしきであったが、まだ今のような",
+     "hypothesis": "岩崎の屋敷であったが まだ今のような"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00058",
+     "wer": 0.3529,
+     "reference": "ふではまだあおぞらが見えたけれども、",
+     "hypothesis": "岐阜ではまだ青空が見えたけれども"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-00294",
+     "wer": 0.1923,
+     "reference": "「おい」と声を掛けたが返事がない。のきしたから奥をのぞくと",
+     "hypothesis": "おいと声をかけたが返事がない 軒下から奥をのぞくと"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-00525",
+     "wer": 0.25,
+     "reference": "いよいよ学校へ出た。初めて教場へはいって高い所へ乗った時は、",
+     "hypothesis": "いよいよ学校へ出た 初めて教場へ入って高いところへ乗ったときは"
+    },
+    {
+     "id": "gan-by-ogai-mori-00205",
+     "wer": 0.4,
+     "reference": "岡田はぐしょしんしが好きで、中にもだいてっついでんは",
+     "hypothesis": "岡田は御所信氏が好きで、中にも大徹ついでんは、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00124",
+     "wer": 0.1429,
+     "reference": "ここへ来て寝るそうじゃが、お前様と同国じゃの、",
+     "hypothesis": "ここへ来て寝るそうじゃが、お前さんと同国じゃのう。"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-00514",
+     "wer": 0.1935,
+     "reference": "ゆうべは妙な気持ちがした。宿へ着いたのは夜の八時頃であったから、家",
+     "hypothesis": "夕べは妙な気持ちがした 宿へ着いたのは夜の8時ごろであったから"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-00741",
+     "wer": 0.3333,
+     "reference": "学校には宿直があって、職員が代る代るこれをつとめる。",
+     "hypothesis": "学校には宿職があって職員が変わりがあるこれを勤める"
+    },
+    {
+     "id": "gan-by-ogai-mori-00233",
+     "wer": 0.0,
+     "reference": "この話の事件が過去に属してから聞いたのであるが、",
+     "hypothesis": "この話の事件が過去に属してから聞いたのであるが、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00179",
+     "wer": 0.1875,
+     "reference": "「わしもはらたちまぎれじゃ、むやみと急いで、それからどんどん山のすそを",
+     "hypothesis": "わしも腹立ちまげれじゃ。 むやみと急いで、 それからどんどん山の巣を、"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-00865",
+     "wer": 0.1538,
+     "reference": "四ぽかんと部屋へ帰ると、なるほどきれいに掃除がしてある。",
+     "hypothesis": "ポカンと部屋へ帰ると、 なるほどきれいに掃除がしてある。"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-01025",
+     "wer": 0.1739,
+     "reference": "五君つりに行きませんかと赤シャツがおれに聞いた。",
+     "hypothesis": "5.君、釣りに行きませんかと赤シャツが俺に聞いた。"
+    },
+    {
+     "id": "gan-by-ogai-mori-00359",
+     "wer": 0.5517,
+     "reference": "何一つ考えたことのない末造も、お玉のありかを突き留めるや否や、",
+     "hypothesis": "なにひとつかんがえたことのない末相も、 おたまのわれかをつきとめるやいなや、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00232",
+     "wer": 0.3478,
+     "reference": "五「さっきのちゃみせからここへ来るまで、売薬の外は",
+     "hypothesis": "5.さっきの茶店からここへ来るまで、 売却のほかは、"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-01133",
+     "wer": 0.1667,
+     "reference": "「失礼ですがだんなは、やっぱり東京ですか",
+     "hypothesis": "「失礼ですが、旦那はやっぱり東京ですか。」"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-01318",
+     "wer": 0.1111,
+     "reference": "海の底へしずめちまう方が日本のためだ。",
+     "hypothesis": "海の底へ沈めちまう方が日本のためだ"
+    },
+    {
+     "id": "gan-by-ogai-mori-00448",
+     "wer": 0.1724,
+     "reference": "松源の目見えと云うのは、末造が為めにはいつのフェエトであった。",
+     "hypothesis": "末原の目見えというのは、 末造がためにはいつのフェットであった。"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00287",
+     "wer": 0.0741,
+     "reference": "わしはそれからひのきの裏を抜けた、岩の下から岩の上へ出た、",
+     "hypothesis": "わしはそれから火の木の裏を抜けた 岩の下から岩の上へ出た"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-01376",
+     "wer": 0.4,
+     "reference": "六夕暮の机に向う。障子もふすまもあけはなつ。",
+     "hypothesis": "六、夕暮れの机に向かう、 障子も襖も明け放つ、"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-01725",
+     "wer": 0.4762,
+     "reference": "にょうぼうが何かふつごうでもございましたか、",
+     "hypothesis": "女房が何か不都合でもございましたから"
+    },
+    {
+     "id": "gan-by-ogai-mori-00552",
+     "wer": 0.2609,
+     "reference": "火事の少い所で、松源の焼けたことは記憶にないから、",
+     "hypothesis": "火事の少ないところで末原の焼けたことは記憶にないから"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00340",
+     "wer": 0.2308,
+     "reference": "「はてしが無いからきもをすえた、もとより引返す分ではない。",
+     "hypothesis": "果てしがないから気も薄えた もとより引き返す分ではない"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-01681",
+     "wer": 0.4167,
+     "reference": "てぬぐいを下げて、ゆつぼへくだる。三畳へ着物を脱いで、",
+     "hypothesis": "てぬぐいをさげてゆつぼへくだる。 さんじょうへきものをぬいで、"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-01996",
+     "wer": 0.3125,
+     "reference": "赤シャツに勧められてつりに行った帰りから、やまあらしを疑ぐり出した。",
+     "hypothesis": "赤シャツにすすめられてつりに行った帰りから、山嵐を疑いだした。"
+    },
+    {
+     "id": "gan-by-ogai-mori-00660",
+     "wer": 0.5,
+     "reference": "お玉は無縁坂へ越して来ることになった。",
+     "hypothesis": "おたまはむえんざかへこしてくることになった。"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00392",
+     "wer": 0.3714,
+     "reference": "「心細さは申すまでもなかったが、ひきょうなようでもしゅぎょうの積まぬ身には、",
+     "hypothesis": "心ぼっさは申すまでもなかったが、 卑怯なようでも、修行のつまぬみには、"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-01882",
+     "wer": 0.75,
+     "reference": "あいきゃくは僧一人、かんかいじのおしょうで",
+     "hypothesis": "愛客は総一人、寛海寺の和尚で、"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-02229",
+     "wer": 0.2778,
+     "reference": "うらなり君の送別会のあるという日の朝、",
+     "hypothesis": "占くんの送別会のあるという日の朝"
+    },
+    {
+     "id": "gan-by-ogai-mori-00793",
+     "wer": 0.0,
+     "reference": "お玉も小さい時から別れていたことのない父親が、",
+     "hypothesis": "お玉も小さい時から別れていたことのない父親が"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00445",
+     "wer": 0.1111,
+     "reference": "「およそ人間が滅びるのは、地球のうすかわが破れて空から火が降るのでもなければ、",
+     "hypothesis": "およそ人間が滅びるのは、地球の薄皮が破れて、空から火が降るのでもなければ、"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-02126",
+     "wer": 0.3714,
+     "reference": "部屋に帰った余は、さんきゃくきにしばりつけた、書物の一冊をぬいて読んでいた。",
+     "hypothesis": "へやにかえったよはさんきゃくきにしばりつけたしょもつのいさつをぬいてよんでいた。"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-02549",
+     "wer": 0.2692,
+     "reference": "祝勝会で学校はお休みだ。れんぺいばで式があるというので、",
+     "hypothesis": "縮小会で学校はお休みだ 練兵場で式があるというので"
+    },
+    {
+     "id": "gan-by-ogai-mori-00899",
+     "wer": 0.5385,
+     "reference": "始ての晩からお玉はいつも末造のはいって来るのを見ると、",
+     "hypothesis": "はじめとのばんからおたまはいつもすえぞうのはいってくるのをみると、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00497",
+     "wer": 0.1724,
+     "reference": "「とてもこのつかれようでは、坂を上るわけには行くまいと思ったが、",
+     "hypothesis": "とてもこのつかれようでは、さかをのぼるわけにはいくまいと思ったが、"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-02311",
+     "wer": 0.0588,
+     "reference": "観海寺の裏道の、杉の間から谷へ降りて、",
+     "hypothesis": "寛海寺の裏道の杉の間から谷へ降りて、"
+    },
+    {
+     "id": "botchan-by-soseki-natsume-2-02831",
+     "wer": 0.0769,
+     "reference": "あくる日めが覚めてみると、からだじゅう痛くてたまらない。",
+     "hypothesis": "あくる日、目がさめてみると、 からだじゅう痛くてたまらない。"
+    },
+    {
+     "id": "gan-by-ogai-mori-00964",
+     "wer": 0.1111,
+     "reference": "翌朝お玉が、池の端の父親の家に来た時は、",
+     "hypothesis": "翌朝、青玉が池の畑の父親の家に来た時は、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00546",
+     "wer": 0.2632,
+     "reference": "十一（あなたまだ八里あまりでございますよ。",
+     "hypothesis": "11.あなたまだ8里余りでございますよ。"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-02558",
+     "wer": 0.4444,
+     "reference": "やまざとのおぼろに乗じてそぞろ歩く。観",
+     "hypothesis": "山里の朧に乗じてそぞろ歩く"
+    },
+    {
+     "id": "gan-by-ogai-mori-01136",
+     "wer": 0.56,
+     "reference": "無縁坂から帰って見ると、お上さんがもう子供を寝かして、",
+     "hypothesis": "むえんざくからかえってみると、 おかみさんがもうこどもをねかして、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00601",
+     "wer": 0.4286,
+     "reference": "十二「（さあ、私についてこちらへ、）と件のこめとぎおけをひっかかえ",
+     "hypothesis": "さあ私についてこちらへ 独断の米時桶を引っかかえて"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-02793",
+     "wer": 0.1429,
+     "reference": "具足したるものなりとは、オスカー・ワイルドの説と記憶している。",
+     "hypothesis": "うぞくしたるものないとは オスカーワイルドの説と記憶している"
+    },
+    {
+     "id": "gan-by-ogai-mori-01242",
+     "wer": 0.2381,
+     "reference": "真実と作為とをないまぜにした末造の言分けが、",
+     "hypothesis": "真実と作為と悩まぜにした末造の言い訳が、"
+    },
+    {
+     "id": "kouyahijiri-by-kyoka-izumi-00648",
+     "wer": 0.25,
+     "reference": "十三「そこから下りるのだと思われる、",
+     "hypothesis": "13.そこから降るのだと思われる"
+    },
+    {
+     "id": "kusamakura-by-soseki-natsume-03134",
+     "wer": 0.3333,
+     "reference": "かわふねで久一さんを吉田のステーションまで見送る。",
+     "hypothesis": "川船で旧地産を吉田のステーションまで見送る"
+    }
+   ],
+   "wer_mean": 0.279,
+   "wer_median": 0.2554,
+   "rtf": 0.26,
+   "seconds_total": 66.2
+  }
+ },
+ "alignment": {
+  "whisper_cpp": {
+   "scored": 50,
+   "predicted_segments": 91,
+   "expected_segments": 50,
+   "median_error_s": 0.542,
+   "p90_error_s": 1.09,
+   "worst_error_s": 8.228,
+   "within_tolerance_pct": 20.0,
+   "tolerance_s": 0.3
+  }
+ },
+ "alignment_truth_clips": 50,
+ "provenance": {
+  "script": "asr_backends.py",
+  "written": "2026-08-17T07:07:21",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+   "branch": "agent/overnight-queue-20260816",
+   "dirty": true,
+   "modified_tracked_files": [
+    "A  app/experiments/expected_prosody.py",
+    " M app/experiments/measure_respellings.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/trim_silence_build.py"
+   ],
+   "harness_sha256": "7505e0b782ead534d7e681b10311dd5fff27e5c16c0085db49801f6f60fb41bd"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+   "backends": [
+    "whisper_cpp"
+   ],
+   "limit": 50,
+   "row_offset": 0,
+   "align_clips": 50,
+   "score_readings": true,
+   "keep_hypotheses": true,
+   "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+   "whisper_cpp_model": "whisper.cpp/models/ggml-large-v3.bin",
+   "lang": "ja",
+   "out": "ab_test_runtime/experiments/asr_ja_largev3_readings.json"
+  }
+ }
+}

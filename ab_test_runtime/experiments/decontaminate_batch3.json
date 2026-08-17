@@ -1,0 +1,198 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "husky_tenor_30s_m",
+   "role": "failure",
+   "dataset": "narrator_various_waking_gods_b01ngublbw_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2014.wav",
+    "similarity": 0.7579
+   },
+   "old_ecapa_contaminated": 0.469,
+   "new_ecapa_heldout": 0.4589,
+   "dur_ratio": 0.941,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_tenor_30s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_steven_pacey_the_blade_itself_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_6605.wav",
+    "similarity": 0.8476
+   },
+   "old_ecapa_contaminated": 0.5722,
+   "new_ecapa_heldout": 0.6742,
+   "dur_ratio": 0.94,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "husky_tenor_30s_m_literary",
+   "role": "failure",
+   "dataset": "narrator_cindy_kay_water_moon_a_novel_b0d26l1r1d_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2405.wav",
+    "similarity": 0.8429
+   },
+   "old_ecapa_contaminated": 0.7369,
+   "new_ecapa_heldout": 0.6466,
+   "dur_ratio": 1.05,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_alto_40s_f",
+   "role": "failure",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char3_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0805.wav",
+    "similarity": 0.8279
+   },
+   "old_ecapa_contaminated": 0.5519,
+   "new_ecapa_heldout": 0.7276,
+   "dur_ratio": 1.034,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_alto_40s_f_cyberpunk",
+   "role": "failure",
+   "dataset": "narrator_cherami_leigh_cyberpunk_2077_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0213.wav",
+    "similarity": 0.8272
+   },
+   "old_ecapa_contaminated": 0.5304,
+   "new_ecapa_heldout": 0.6888,
+   "dur_ratio": 0.965,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_alto_40s_f_literary_1",
+   "role": "failure",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0608.wav",
+    "similarity": 0.7464
+   },
+   "old_ecapa_contaminated": 0.6827,
+   "new_ecapa_heldout": 0.0797,
+   "dur_ratio": 1.176,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_baritone_30s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_summoner_volume_i_b09nzklscb_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1209.wav",
+    "similarity": 0.8656
+   },
+   "old_ecapa_contaminated": 0.6253,
+   "new_ecapa_heldout": 0.6307,
+   "dur_ratio": 1.106,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_baritone_40s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_todd_mclaren_altered_carbon_b002v1o6x8_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_6004.wav",
+    "similarity": 0.8359
+   },
+   "old_ecapa_contaminated": 0.6625,
+   "new_ecapa_heldout": 0.6447,
+   "dur_ratio": 1.011,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_baritone_45s_m",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char4_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0802.wav",
+    "similarity": 0.8627
+   },
+   "old_ecapa_contaminated": 0.2236,
+   "new_ecapa_heldout": 0.1012,
+   "dur_ratio": 0.918,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_mezzo_10s_f_fantasy",
+   "role": "failure",
+   "dataset": "narrator_reba_buhr_ascendance_of_a_bookworm_1_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1001.wav",
+    "similarity": 0.8124
+   },
+   "old_ecapa_contaminated": 0.501,
+   "new_ecapa_heldout": 0.629,
+   "dur_ratio": 1.048,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T06:47:29",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "husky_tenor_30s_m",
+    "husky_tenor_30s_m_fantasy",
+    "husky_tenor_30s_m_literary",
+    "silky_alto_40s_f",
+    "silky_alto_40s_f_cyberpunk",
+    "silky_alto_40s_f_literary_1",
+    "silky_baritone_30s_m_fantasy",
+    "silky_baritone_40s_m_scifi",
+    "silky_baritone_45s_m",
+    "silky_mezzo_10s_f_fantasy"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch3",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch3.json"
+  },
+  "seed": 1234
+ }
+}

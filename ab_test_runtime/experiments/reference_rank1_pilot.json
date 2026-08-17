@@ -1,0 +1,139 @@
+{
+  "epochs": 6,
+  "lora_r": 64,
+  "seed": 1234,
+  "reference_rank": 1,
+  "eval_lines": 8,
+  "results": [
+    {
+      "adapter": "silky_baritone_30s_m_fantasy",
+      "role": "failure",
+      "dataset": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_summoner_volume_i_b09nzklscb_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_1203.wav",
+        "similarity": 0.8419,
+        "rank": 1,
+        "text": "Now, it was much easier to hold on, having to focus only on the front and the sides. .... Two *wolves* he had *wounded* on his way were lying on the ground and yelping in pain."
+      },
+      "old_ecapa_contaminated": 0.6253,
+      "new_ecapa_heldout": 0.6415,
+      "dur_ratio": 1.071,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_soprano_20s_f",
+      "role": "failure",
+      "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2603.wav",
+        "similarity": 0.8398,
+        "rank": 1,
+        "text": "AND WITH THAT *SOE* TOOK HIS EYES OFF THE ORK GENERAL .... NO LONGER INTERESTED IN HIM .... HIS WORK WAS DONE AND IT WAS TIME TO TAKE OUT THE TRASH!"
+      },
+      "old_ecapa_contaminated": 0.6054,
+      "new_ecapa_heldout": 0.722,
+      "dur_ratio": 0.895,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_baritone_30s_m_2",
+      "role": "failure",
+      "dataset": "narrator_christian_j_gilliland_hazel_cohen_elemental_summoner_1_b09bxyjxyt_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0207.wav",
+        "similarity": 0.7886,
+        "rank": 1,
+        "text": "sagely, but also pretty *fucking* cryptically in my *opinion*. “Thanks?” I tell him, unsure what he means by that last part."
+      },
+      "old_ecapa_contaminated": 0.4839,
+      "new_ecapa_heldout": 0.5608,
+      "dur_ratio": 0.98,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_tenor_30s_m_literary",
+      "role": "failure",
+      "dataset": "narrator_cindy_kay_water_moon_a_novel_b0d26l1r1d_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2404.wav",
+        "similarity": 0.8345,
+        "rank": 1,
+        "text": "“When did you know *that* what you felt about me was more than just *friendship*?” ... He shook his head. .... “There is no need to talk about this. ...."
+      },
+      "old_ecapa_contaminated": 0.7369,
+      "new_ecapa_heldout": 0.6546,
+      "dur_ratio": 1.101,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_mezzo_20s_f_anime",
+      "role": "failure",
+      "dataset": "narrator_cristina_vee_nekomonogatari_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2003.wav",
+        "similarity": 0.8643,
+        "rank": 1,
+        "text": "A *MISCHIEVOUS* THOUGHT EVEN POPPED INTO MY HEAD AND I CONSIDERED TAKING A PICTURE OF MYSELF AND SENDING IT TO ATARAGI THOUGH I STILL HAD NO IDEA OF WHAT KIND OF SITUATION HE WAS IN ..."
+      },
+      "old_ecapa_contaminated": 0.6655,
+      "new_ecapa_heldout": 0.7239,
+      "dur_ratio": 1.021,
+      "n": 8,
+      "ecapa_error": null
+    }
+  ],
+  "provenance": {
+    "script": "retrain_honest.py",
+    "written": "2026-08-16T11:38:40",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "4ba91062306f7f90a1889055c53cb8de9980ce51",
+      "branch": "agent/promotion-and-reference-gaps-20260816",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M app/experiments/retrain_honest.py",
+        " M app/routers/dataset_builder.py",
+        " M app/test_promote_adapters.py",
+        " M promote_adapters.py"
+      ],
+      "untracked_harness_files": [
+        "app/experiments/generation_state_probe.py",
+        "app/experiments/three_pass_chunk_probe.py"
+      ],
+      "harness_sha256": "0d1f5143031597a67d8e02829e78929593243598eb84baea81d7b450ba596466"
+    },
+    "args": {
+      "adapters": [
+        "silky_baritone_30s_m_fantasy",
+        "husky_soprano_20s_f",
+        "warm_baritone_30s_m_2",
+        "husky_tenor_30s_m_literary",
+        "warm_mezzo_20s_f_anime"
+      ],
+      "controls": [],
+      "models": "lora_models",
+      "zips": "_deduped_labeled",
+      "work": "ab_test_runtime/reference_rank1_all21",
+      "epochs": 6,
+      "lora_r": 64,
+      "lora_alpha": 128,
+      "seed": 1234,
+      "use_medoid": true,
+      "medoid_clips": 14,
+      "reference_rank": 1,
+      "eval_lines": 8,
+      "out": "ab_test_runtime/experiments/reference_rank1_pilot.json",
+      "resume": true
+    },
+    "seed": 1234
+  }
+}

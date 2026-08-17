@@ -1,0 +1,1231 @@
+{
+  "source": "ab_test_runtime/experiments/aishell3_generate.json",
+  "language": "zh",
+  "lines": 150,
+  "results": [
+    {
+      "id": "SSB15850002",
+      "text": "影片的宣传语出现战争即将到来",
+      "syllables": 14,
+      "tone_sequence": "34512314412142",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850003",
+      "text": "我想听首歌张韶涵的歌",
+      "syllables": 10,
+      "tone_sequence": "3313112251",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850004",
+      "text": "十月三十日记者从长春多家律师事务所了解到",
+      "syllables": 20,
+      "tone_sequence": "24124432211141443334",
+      "contoured": 20,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850005",
+      "text": "九百五十八万五千零四十二",
+      "syllables": 12,
+      "tone_sequence": "333214312424",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850007",
+      "text": "无论是世锦赛还是奥运会",
+      "syllables": 11,
+      "tone_sequence": "24443424444",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850008",
+      "text": "浪潮服务器去年同比增长超过百分之七十",
+      "syllables": 18,
+      "tone_sequence": "422444223131431112",
+      "contoured": 18,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850009",
+      "text": "农村承包土地及其他农用地登记",
+      "syllables": 14,
+      "tone_sequence": "21213422124414",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850010",
+      "text": "渠道的分成从百分之五十降到百分之三十在手游平台",
+      "syllables": 23,
+      "tone_sequence": "24512231132443111243222",
+      "contoured": 22,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850011",
+      "text": "上述两个针对特别情况的规定",
+      "syllables": 13,
+      "tone_sequence": "4434144224514",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850012",
+      "text": "为进一步加强保险公司治理监管",
+      "syllables": 14,
+      "tone_sequence": "44241233114313",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850014",
+      "text": "新标准为结构性调整来自保监会的数据显示",
+      "syllables": 19,
+      "tone_sequence": "1134244232431454434",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850017",
+      "text": "每人一点五万元的中介费",
+      "syllables": 11,
+      "tone_sequence": "32433425144",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850019",
+      "text": "新华社记者吴俊宽周欣李嘉",
+      "syllables": 12,
+      "tone_sequence": "124432411131",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850020",
+      "text": "无论是对跨国企业还是本土企业",
+      "syllables": 14,
+      "tone_sequence": "24444234243334",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850022",
+      "text": "我想听首歌李孝利的歌",
+      "syllables": 10,
+      "tone_sequence": "3313134451",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850024",
+      "text": "厦门致博空调工程有限公司",
+      "syllables": 12,
+      "tone_sequence": "424212123411",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850025",
+      "text": "九家保险公司发行次级债七百亿元",
+      "syllables": 15,
+      "tone_sequence": "313311124241342",
+      "contoured": 15,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850026",
+      "text": "累计跌幅达到了百分之十三",
+      "syllables": 12,
+      "tone_sequence": "341224531121",
+      "contoured": 11,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850027",
+      "text": "我想听首歌安瑞兮的歌",
+      "syllables": 10,
+      "tone_sequence": "3313114151",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850028",
+      "text": "资产负债匹配对寿险公司来说",
+      "syllables": 13,
+      "tone_sequence": "1344344431121",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850029",
+      "text": "我想听首歌老猫王麟的歌",
+      "syllables": 11,
+      "tone_sequence": "33131312251",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850031",
+      "text": "阴盛阳衰始终是困扰中国田径的一个尴尬",
+      "syllables": 18,
+      "tone_sequence": "142131443122452414",
+      "contoured": 17,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850032",
+      "text": "苏炳添的提高是中外教练共同努力的结果",
+      "syllables": 18,
+      "tone_sequence": "131521414444234523",
+      "contoured": 16,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850034",
+      "text": "京华时报讯据台湾联合道报道",
+      "syllables": 13,
+      "tone_sequence": "1224442122444",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850036",
+      "text": "保险公司控股股东应当保持财务状态良好稳定",
+      "syllables": 20,
+      "tone_sequence": "33114331113224442334",
+      "contoured": 20,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850038",
+      "text": "抵押登记以及其他登记",
+      "syllables": 10,
+      "tone_sequence": "3114322114",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850039",
+      "text": "照片中林志玲墨镜遮面",
+      "syllables": 10,
+      "tone_sequence": "4112424414",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850040",
+      "text": "目前形成的细则征求意见稿",
+      "syllables": 12,
+      "tone_sequence": "422254212443",
+      "contoured": 11,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850043",
+      "text": "但我们都有乖乖吃完耶",
+      "syllables": 10,
+      "tone_sequence": "4351311122",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850044",
+      "text": "除了运动员和教练员的辛勤努力之外",
+      "syllables": 16,
+      "tone_sequence": "2544224425123414",
+      "contoured": 14,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850045",
+      "text": "这其中有两类例外情况",
+      "syllables": 10,
+      "tone_sequence": "4213344424",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850046",
+      "text": "比如高风险取向还是低风险取向",
+      "syllables": 14,
+      "tone_sequence": "32113342411334",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850048",
+      "text": "我想听首歌黄品源的歌",
+      "syllables": 10,
+      "tone_sequence": "3313123251",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850049",
+      "text": "齐鲁证券有限责任公司",
+      "syllables": 10,
+      "tone_sequence": "2344342411",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850051",
+      "text": "其资本要求与业务规模相关",
+      "syllables": 12,
+      "tone_sequence": "213123441211",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850052",
+      "text": "九百五十七万八千六百九十三",
+      "syllables": 13,
+      "tone_sequence": "3332141143321",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850053",
+      "text": "产险和寿险的差异会很大",
+      "syllables": 11,
+      "tone_sequence": "33243514434",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850056",
+      "text": "偿二代是以风险为导向的",
+      "syllables": 11,
+      "tone_sequence": "24443134345",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850058",
+      "text": "目前中国田径队内共有九名外籍教练",
+      "syllables": 16,
+      "tone_sequence": "4212244443324244",
+      "contoured": 16,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850059",
+      "text": "保监会有关负责人表示",
+      "syllables": 10,
+      "tone_sequence": "3143142234",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850060",
+      "text": "根据苏炳添的教练袁国强介绍",
+      "syllables": 13,
+      "tone_sequence": "1413154422244",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850061",
+      "text": "女子花十万购四十万假币发现是冥币报警后被拘捕",
+      "syllables": 22,
+      "tone_sequence": "3312444243414424434413",
+      "contoured": 22,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850062",
+      "text": "加强保险公司偿付能力的监管",
+      "syllables": 13,
+      "tone_sequence": "1233112424513",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850063",
+      "text": "主导实施戴尔中国的转变",
+      "syllables": 11,
+      "tone_sequence": "33214312534",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850066",
+      "text": "如果两家公司实现合并",
+      "syllables": 10,
+      "tone_sequence": "2331112424",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850067",
+      "text": "中国选手苏炳添半决赛跑出九秒九九",
+      "syllables": 16,
+      "tone_sequence": "1233131424313333",
+      "contoured": 16,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850069",
+      "text": "探矿权采矿权取水权登记",
+      "syllables": 11,
+      "tone_sequence": "44234233214",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850070",
+      "text": "将此解释为特殊管辖问题",
+      "syllables": 11,
+      "tone_sequence": "13344413242",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850071",
+      "text": "要抓紧出台不动产统一登记实施细则",
+      "syllables": 16,
+      "tone_sequence": "4131244331142142",
+      "contoured": 16,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850072",
+      "text": "女子花十三万帮侄女找工作国企没去成中介失踪",
+      "syllables": 21,
+      "tone_sequence": "331214123314232421411",
+      "contoured": 21,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850073",
+      "text": "冷冻温度设为负二十一摄氏度",
+      "syllables": 13,
+      "tone_sequence": "3414444421444",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850074",
+      "text": "我想听首歌苏打绿的歌",
+      "syllables": 10,
+      "tone_sequence": "3313112451",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850075",
+      "text": "有时会请美国的教练来国内帮助训练",
+      "syllables": 16,
+      "tone_sequence": "3243325442241444",
+      "contoured": 15,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850076",
+      "text": "由国土资源部以部令形式签发",
+      "syllables": 13,
+      "tone_sequence": "2231243442411",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850077",
+      "text": "九百五十六万八千零三十七",
+      "syllables": 12,
+      "tone_sequence": "333244112121",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850079",
+      "text": "一个公司全部买的股票",
+      "syllables": 10,
+      "tone_sequence": "2411243534",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850081",
+      "text": "他们的资本要求是一样的",
+      "syllables": 11,
+      "tone_sequence": "15513124145",
+      "contoured": 8,
+      "neutral": 3
+    },
+    {
+      "id": "SSB15850082",
+      "text": "我们也考虑了巨灾的影响",
+      "syllables": 11,
+      "tone_sequence": "35334541533",
+      "contoured": 8,
+      "neutral": 3
+    },
+    {
+      "id": "SSB15850083",
+      "text": "如果两家保险公司的保费规模资产规模是一样的",
+      "syllables": 21,
+      "tone_sequence": "233133115341213124145",
+      "contoured": 19,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850084",
+      "text": "创造了中国参加近十一届世锦赛的最佳战绩",
+      "syllables": 19,
+      "tone_sequence": "4451211421443454144",
+      "contoured": 17,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850085",
+      "text": "而对于保险业的偿一代向偿二代转移",
+      "syllables": 16,
+      "tone_sequence": "2423345224424432",
+      "contoured": 15,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850086",
+      "text": "厦门娇雪贝儿汇成分院",
+      "syllables": 10,
+      "tone_sequence": "4213424244",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850087",
+      "text": "会对偿付能力产生比较大的影响",
+      "syllables": 14,
+      "tone_sequence": "44242431344533",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850088",
+      "text": "都意味着潜在巨大机遇",
+      "syllables": 10,
+      "tone_sequence": "1445244414",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850089",
+      "text": "因为其面临更多的资产风险",
+      "syllables": 12,
+      "tone_sequence": "142424151313",
+      "contoured": 11,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850090",
+      "text": "包括了土地所有权登记",
+      "syllables": 10,
+      "tone_sequence": "1453433214",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850091",
+      "text": "被告人陈某犯购买假币罪",
+      "syllables": 11,
+      "tone_sequence": "44223443344",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850092",
+      "text": "惠普分拆并出售了旗下新华三大部分股权",
+      "syllables": 18,
+      "tone_sequence": "431141452412144432",
+      "contoured": 17,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850093",
+      "text": "其中一部分是因为性生活冷暴力",
+      "syllables": 14,
+      "tone_sequence": "21144414412344",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850095",
+      "text": "果然早起的人才有福利",
+      "syllables": 10,
+      "tone_sequence": "3233522324",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850097",
+      "text": "去年八月末她在德胜驾校建民街分校报的名",
+      "syllables": 19,
+      "tone_sequence": "4214414244442114452",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850098",
+      "text": "团体总分达到历史最高",
+      "syllables": 10,
+      "tone_sequence": "2331244341",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850101",
+      "text": "另一个公司全部买的国债",
+      "syllables": 11,
+      "tone_sequence": "42411243524",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850102",
+      "text": "随细则征求意见稿下发的有关说明称",
+      "syllables": 16,
+      "tone_sequence": "2421244341531121",
+      "contoured": 15,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850103",
+      "text": "而其整体的理念架构和监管体系是没有变的",
+      "syllables": 19,
+      "tone_sequence": "2233534442133442345",
+      "contoured": 17,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850104",
+      "text": "冷冻温度设为负二十一度档",
+      "syllables": 12,
+      "tone_sequence": "341444442244",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850105",
+      "text": "九百五十六万六千五百零五",
+      "syllables": 12,
+      "tone_sequence": "333244413323",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850106",
+      "text": "除上述两个特例情况外",
+      "syllables": 10,
+      "tone_sequence": "2443444244",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850107",
+      "text": "已经要求其在职人员以及部分下属事业单位员工",
+      "syllables": 21,
+      "tone_sequence": "311224222324443441421",
+      "contoured": 21,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850108",
+      "text": "在偿一代资本要求与规模相关的",
+      "syllables": 14,
+      "tone_sequence": "42241312312115",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850109",
+      "text": "很难区别好的公司和坏的公司",
+      "syllables": 13,
+      "tone_sequence": "3212351124511",
+      "contoured": 11,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850110",
+      "text": "中国教练员的业务能力不断提高",
+      "syllables": 14,
+      "tone_sequence": "12442544244421",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850111",
+      "text": "保监会日前颁布的保险公司控股股东管理办法规定",
+      "syllables": 22,
+      "tone_sequence": "3144214533114331334314",
+      "contoured": 21,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850112",
+      "text": "游戏开发者的分成份额从百分之五十改到百分之七十",
+      "syllables": 23,
+      "tone_sequence": "24113512422311323431112",
+      "contoured": 22,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850113",
+      "text": "对于寿险公司来说承担风险就不是那么敏感",
+      "syllables": 19,
+      "tone_sequence": "4243112121134244533",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850114",
+      "text": "她走街串巷寻找十一年",
+      "syllables": 10,
+      "tone_sequence": "1314423212",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850115",
+      "text": "黄陈宏将其策略称为戴尔中国四点零战略",
+      "syllables": 18,
+      "tone_sequence": "222124412431243244",
+      "contoured": 18,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850116",
+      "text": "我想听首歌金复载的歌",
+      "syllables": 10,
+      "tone_sequence": "3313114451",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850117",
+      "text": "但没想到最后却成了高铁上的保洁员",
+      "syllables": 16,
+      "tone_sequence": "4234444251345322",
+      "contoured": 14,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850119",
+      "text": "多位参与细则前期讨论的权威人士告诉记者",
+      "syllables": 19,
+      "tone_sequence": "1414422134521244443",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850120",
+      "text": "按道理来讲应该是买股票的需要更多的资本",
+      "syllables": 19,
+      "tone_sequence": "4432311433451441513",
+      "contoured": 17,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850122",
+      "text": "戴尔欲进一步中国化或将更倚靠中国伙伴搜狐科技",
+      "syllables": 22,
+      "tone_sequence": "4344241244143412341214",
+      "contoured": 22,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850124",
+      "text": "后来逐步实现主要制造能力向中国的转移",
+      "syllables": 18,
+      "tone_sequence": "422424344424412532",
+      "contoured": 17,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850125",
+      "text": "他们的资本要求肯定是不一样的",
+      "syllables": 14,
+      "tone_sequence": "15513123444245",
+      "contoured": 11,
+      "neutral": 3
+    },
+    {
+      "id": "SSB15850127",
+      "text": "黄陈宏被戴尔任命为大中华区总裁",
+      "syllables": 15,
+      "tone_sequence": "222443444412132",
+      "contoured": 15,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850128",
+      "text": "实现生态平台上的物种丰富性",
+      "syllables": 13,
+      "tone_sequence": "2414224543144",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850129",
+      "text": "另一部分则是过于频繁",
+      "syllables": 10,
+      "tone_sequence": "4144244222",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850135",
+      "text": "恭喜苏炳添再次勇破十秒大关",
+      "syllables": 13,
+      "tone_sequence": "1313144342341",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850136",
+      "text": "厦门丰寿物业发展有限公司",
+      "syllables": 12,
+      "tone_sequence": "421444133411",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850137",
+      "text": "搜狐娱乐讯九月二十三日上午",
+      "syllables": 13,
+      "tone_sequence": "1224434421443",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850138",
+      "text": "小米董事长兼首席执行官雷军认为",
+      "syllables": 15,
+      "tone_sequence": "333431322212142",
+      "contoured": 15,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850139",
+      "text": "让我有信心一场一场去拼",
+      "syllables": 11,
+      "tone_sequence": "43341121241",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850140",
+      "text": "女子花万元应聘高姐却成保洁",
+      "syllables": 13,
+      "tone_sequence": "3314244134232",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850142",
+      "text": "中国本土厂商的增长更为耀眼",
+      "syllables": 13,
+      "tone_sequence": "1233315134243",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850143",
+      "text": "她自称无法忍受结婚一年多丈夫的性暴力",
+      "syllables": 18,
+      "tone_sequence": "141233421121415444",
+      "contoured": 17,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850145",
+      "text": "这一点已经写入了细则",
+      "syllables": 10,
+      "tone_sequence": "4433134542",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850146",
+      "text": "萨维诺娃在该片中也承认使用了禁药氧雄龙",
+      "syllables": 19,
+      "tone_sequence": "4242414132434544322",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850147",
+      "text": "不得擅自变更或者解除",
+      "syllables": 10,
+      "tone_sequence": "4244414332",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850148",
+      "text": "主要是在登记颁证的环节",
+      "syllables": 11,
+      "tone_sequence": "34441414522",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850149",
+      "text": "国务院特定重点国有林区的森林林木和林地",
+      "syllables": 19,
+      "tone_sequence": "2444443232151224224",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850152",
+      "text": "因为巴二向巴三的转移更多的是提高标准",
+      "syllables": 18,
+      "tone_sequence": "141441153241542113",
+      "contoured": 16,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850156",
+      "text": "分校说就给我一千块钱",
+      "syllables": 10,
+      "tone_sequence": "1414331142",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850157",
+      "text": "飞机上具医师资格的乘客协助顺利接生",
+      "syllables": 17,
+      "tone_sequence": "11441112524244411",
+      "contoured": 16,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850160",
+      "text": "对资本市场都是比较大的冲击",
+      "syllables": 13,
+      "tone_sequence": "4134314344511",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850161",
+      "text": "让更多的游戏公司进入小米的生态",
+      "syllables": 15,
+      "tone_sequence": "441524114433514",
+      "contoured": 13,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850162",
+      "text": "标准的公开的兼容的系统",
+      "syllables": 11,
+      "tone_sequence": "13511512543",
+      "contoured": 8,
+      "neutral": 3
+    },
+    {
+      "id": "SSB15850163",
+      "text": "保险公司控股股东公开发行债券的",
+      "syllables": 15,
+      "tone_sequence": "331143311112445",
+      "contoured": 14,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850164",
+      "text": "欧赛吉纺织品厦门有限公司",
+      "syllables": 12,
+      "tone_sequence": "142313423411",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850165",
+      "text": "保监会有关负责人表示",
+      "syllables": 10,
+      "tone_sequence": "3143142234",
+      "contoured": 10,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850166",
+      "text": "龙华区卫生监督所和金龙工商所介入调查此事",
+      "syllables": 20,
+      "tone_sequence": "22141113212113444234",
+      "contoured": 20,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850167",
+      "text": "小米投资了爱奇艺优酷等公司",
+      "syllables": 13,
+      "tone_sequence": "3321542414311",
+      "contoured": 12,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850168",
+      "text": "包括布朗教练给我灌输了很强大的信心",
+      "syllables": 17,
+      "tone_sequence": "14434433415324541",
+      "contoured": 15,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850169",
+      "text": "如果两家保险公司的保费规模都是一样的话",
+      "syllables": 19,
+      "tone_sequence": "2331331153412141454",
+      "contoured": 17,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850170",
+      "text": "我想听首歌郑中基的歌",
+      "syllables": 10,
+      "tone_sequence": "3313141151",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850171",
+      "text": "我想听首歌许佳慧的歌",
+      "syllables": 10,
+      "tone_sequence": "3313131451",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850172",
+      "text": "中国企业开始挑战跨国企业",
+      "syllables": 12,
+      "tone_sequence": "123413344234",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850173",
+      "text": "冷冻温度设为负二十一度",
+      "syllables": 11,
+      "tone_sequence": "34144444224",
+      "contoured": 11,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850174",
+      "text": "按照国土资源部六号文件的规定",
+      "syllables": 14,
+      "tone_sequence": "44231244424514",
+      "contoured": 13,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850175",
+      "text": "不仅中国本土竞争对手快速发展壮大",
+      "syllables": 16,
+      "tone_sequence": "4312334143441344",
+      "contoured": 16,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850176",
+      "text": "这两类情况的不动产登记",
+      "syllables": 11,
+      "tone_sequence": "43424544314",
+      "contoured": 10,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850177",
+      "text": "女子花四万买二十八万假币发现是白纸后报警被罚四万",
+      "syllables": 24,
+      "tone_sequence": "331443421434144234434244",
+      "contoured": 24,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850178",
+      "text": "建议叶女士其做医疗事故鉴定",
+      "syllables": 13,
+      "tone_sequence": "4443424124444",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850180",
+      "text": "中国田径队总教练冯树勇就表示",
+      "syllables": 14,
+      "tone_sequence": "12244344243434",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850181",
+      "text": "此外还会不定期组织重点运动员出国外训",
+      "syllables": 18,
+      "tone_sequence": "342444131434421244",
+      "contoured": 18,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850182",
+      "text": "九百四十一万六千四百五十二",
+      "syllables": 13,
+      "tone_sequence": "3342144143324",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850183",
+      "text": "她决定和丈夫离婚并要求索赔",
+      "syllables": 13,
+      "tone_sequence": "1242412141232",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850185",
+      "text": "九百五十八万六千二百一十三",
+      "syllables": 13,
+      "tone_sequence": "3332144143121",
+      "contoured": 13,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850186",
+      "text": "要培育和保护相对弱势的游戏平台",
+      "syllables": 15,
+      "tone_sequence": "424234144452422",
+      "contoured": 14,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850187",
+      "text": "女子花六百元替鳄鱼赎身得知是入侵物种报警",
+      "syllables": 20,
+      "tone_sequence": "33143244221214414343",
+      "contoured": 20,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850188",
+      "text": "杨梅表示如果她要是不同意丈夫的要求对方便会动手",
+      "syllables": 23,
+      "tone_sequence": "22342314442441512414443",
+      "contoured": 22,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850189",
+      "text": "小米新玩法推出开发者扶持计划搜狐科技",
+      "syllables": 18,
+      "tone_sequence": "331231111322441214",
+      "contoured": 18,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850190",
+      "text": "短跑特别是男子短跑作为影响力最大的田径项目之一",
+      "syllables": 23,
+      "tone_sequence": "33424253342334445244411",
+      "contoured": 21,
+      "neutral": 2
+    },
+    {
+      "id": "SSB15850191",
+      "text": "戴尔是硕果仅存的跨国公司",
+      "syllables": 12,
+      "tone_sequence": "434433254211",
+      "contoured": 11,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850193",
+      "text": "都必须依据最后下发执行的细则做出",
+      "syllables": 16,
+      "tone_sequence": "1411444412254241",
+      "contoured": 15,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850195",
+      "text": "我想听首歌蒋雪儿的歌",
+      "syllables": 10,
+      "tone_sequence": "3313133251",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850196",
+      "text": "曾是数据存储的代名词",
+      "syllables": 10,
+      "tone_sequence": "2444235422",
+      "contoured": 9,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850197",
+      "text": "国务院总理李克强签发国务院令",
+      "syllables": 14,
+      "tone_sequence": "24433342112444",
+      "contoured": 14,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850198",
+      "text": "军队不动产的登记也或将依据专门规定办理",
+      "syllables": 19,
+      "tone_sequence": "1444351434114121443",
+      "contoured": 18,
+      "neutral": 1
+    },
+    {
+      "id": "SSB15850199",
+      "text": "厦门蓝域创业科技有限公司",
+      "syllables": 12,
+      "tone_sequence": "422444143411",
+      "contoured": 12,
+      "neutral": 0
+    },
+    {
+      "id": "SSB15850200",
+      "text": "国有土地及建筑物构筑物登记",
+      "syllables": 13,
+      "tone_sequence": "2334244444414",
+      "contoured": 13,
+      "neutral": 0
+    }
+  ],
+  "provenance": {
+    "script": "expected_prosody.py",
+    "written": "2026-08-17T07:12:32",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "branch": "agent/overnight-queue-20260816",
+      "dirty": true,
+      "modified_tracked_files": [
+        "A  app/experiments/expected_prosody.py",
+        " M app/experiments/measure_respellings.py"
+      ],
+      "untracked_harness_files": [
+        "app/experiments/trim_silence_build.py"
+      ],
+      "harness_sha256": "7505e0b782ead534d7e681b10311dd5fff27e5c16c0085db49801f6f60fb41bd"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/aishell3_generate.json",
+      "language": "zh",
+      "limit": 200,
+      "out": "ab_test_runtime/experiments/expected_prosody_zh_n200.json"
+    }
+  }
+}
