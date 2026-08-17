@@ -85,14 +85,30 @@ tree_state() {
         echo unknown
         return
     fi
-    if git -C "$(dirname "$0")" diff --quiet HEAD 2>/dev/null; then
+    local root modified untracked
+    root=$(dirname "$0")
+    modified=$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)
+    # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
+    # modified TRACKED files only, so a brand-new experiment script - which is
+    # untracked for exactly as long as it takes to write and run it - was
+    # invisible. trim_silence_build.py produced goal 5.4's alignment result
+    # that way: reported as a headline while existing on one machine.
+    #
+    # Untracked .md and scratch files are deliberately NOT dirt. Counting them
+    # made an earlier version of this flag true on every run, which is the same
+    # as being false. This mirrors `app/experiments/manifest.py::_git_state`
+    # exactly, and `test_the_shell_gate_agrees_with_the_python_provenance`
+    # fails if the two ever disagree.
+    untracked=$(git -C "$root" ls-files --others --exclude-standard \
+                    -- "$root/app/experiments" 2>/dev/null | grep -c '\.py$')
+    if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
         echo clean
         return
     fi
-    # A hash of the working diff, so two runs from the same commit but
-    # different uncommitted state are distinguishable.
+    # A hash of the uncommitted state, so two runs from the same commit but
+    # different working trees are distinguishable.
     local hash
-    hash=$(git -C "$(dirname "$0")" diff HEAD 2>/dev/null \
+    hash=$(printf '%s\n%s\n' "$modified" "$untracked" \
            | sha256sum 2>/dev/null | cut -c1-12)
     echo "dirty:${hash:-unknown}"
 }

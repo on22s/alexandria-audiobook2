@@ -290,14 +290,23 @@ class DirtyTreeGateTest(unittest.TestCase):
                        capture_output=True)
 
     def _make_repo(self, dirty):
+        os.makedirs(os.path.join(self.root, "app", "experiments"), exist_ok=True)
+        with open(os.path.join(self.root, "app", "experiments", "kept.py"), "w") as h:
+            h.write("TRACKED = True\n")
         self._git("init", "-q")
         self._git("config", "user.email", "t@example.com")
         self._git("config", "user.name", "T")
-        self._git("add", "gpu_job.sh")
+        self._git("add", "gpu_job.sh", "app/experiments/kept.py")
         self._git("commit", "-qm", "baseline")
         if dirty:
             with open(os.path.join(self.root, "gpu_job.sh"), "a") as handle:
                 handle.write("\n# an uncommitted change\n")
+
+    def _add_untracked(self, name):
+        path = os.path.join(self.root, "app", "experiments", name)
+        with open(path, "w") as handle:
+            handle.write("# brand new, not yet committed\n")
+        return path
 
     def _run(self, allow_dirty=None):
         env = dict(os.environ,
@@ -350,3 +359,56 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertIn("tree=unknown", self._log())
         self.assertNotIn("REFUSED", self._log())
+
+    def test_an_untracked_experiment_script_is_refused(self):
+        """The case `git diff HEAD` cannot see.
+
+        A new experiment script is untracked for exactly as long as it takes
+        to write and run it, which is when it produces its artifact.
+        trim_silence_build.py produced goal 5.4's alignment result that way.
+        """
+        self._make_repo(dirty=False)
+        self._add_untracked("brand_new_probe.py")
+        result = self._run()
+        self.assertEqual(5, result.returncode)
+        self.assertIn("REFUSED", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_untracked_notes_are_not_treated_as_dirt(self):
+        """Counting scratch files made an earlier dirty flag true on every
+        run, which is the same as being false."""
+        self._make_repo(dirty=False)
+        self._add_untracked("NOTES.md")
+        with open(os.path.join(self.root, "scratch.txt"), "w") as handle:
+            handle.write("thinking out loud\n")
+        self.assertEqual(0, self._run().returncode)
+        self.assertIn("tree=clean", self._log())
+
+    def test_the_shell_gate_agrees_with_the_python_provenance(self):
+        """Two implementations of one question WILL drift (Rule 15).
+
+        gpu_job.sh cannot import Python - it is the lock wrapper and has to
+        work when the venv does not - so the definition exists twice on
+        purpose. This is the thing that notices when they stop matching, run
+        against whatever state this checkout happens to be in.
+        """
+        from experiments.manifest import _git_state
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        python_says_dirty = _git_state(repo_root)["dirty"]
+
+        state = subprocess.run(
+            ["bash", "-c",
+             f'source <(sed -n "/^tree_state()/,/^}}/p" {GPU_JOB!r}); '
+             f'cd {repo_root!r} && set -- {GPU_JOB!r} && tree_state'],
+            capture_output=True, text=True, timeout=30).stdout.strip()
+        if state == "unknown":
+            self.skipTest("git could not answer in this environment")
+        shell_says_dirty = state.startswith("dirty")
+
+        self.assertEqual(
+            python_says_dirty, shell_says_dirty,
+            f"manifest._git_state says dirty={python_says_dirty} but "
+            f"gpu_job.sh tree_state says {state!r}; the gate and the "
+            "provenance stamp must not disagree about the same tree")
