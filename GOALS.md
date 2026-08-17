@@ -29,7 +29,7 @@ itself is unknown, the goal says so rather than inventing a number.
 
 > **Where things are.** Open goals come first; **met goals begin at line 1497** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
-> **This line number is checked, not trusted.** `app/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
+> **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
 ### A few words that repeat
 
@@ -1565,7 +1565,7 @@ Met, and now re-runnable rather than remembered.
 
 **Metric** — `human_vs_human` must exceed every arm it bounds.
 **Probe** — `find_invalid_anchors` in `ljspeech_score.py`, tested in
-`app/test_score_anchor.py`. Anchor construction: `build_anchor_side`.
+`app/tests/test_score_anchor.py`. Anchor construction: `build_anchor_side`.
 **Current** — **CAUSE FOUND AND FIXED 2026-08-06.**
 
 **Clip length was the whole cause**, established in both directions:
@@ -1635,7 +1635,7 @@ at rather than only a symptom.
 3.0x.**
 
 Training loss looked ordinary (2.9 and 3.4), so only generated output reveals
-this. Protected by the gate plus `app/test_training_defaults.py`.
+this. Protected by the gate plus `app/tests/test_training_defaults.py`.
 
 ---
 
@@ -1824,7 +1824,7 @@ through `_save_wav`.
 
 **Metric** — distinct roster entries sharing a voice through a name-matching
 bug.
-**Probe** — `app/test_generate_personas.py`.
+**Probe** — `app/tests/test_generate_personas.py`.
 **Current** — fixed. **MET.**
 
 **Target — 0, with the couple case and the case-variant case both tested.**
@@ -2007,7 +2007,7 @@ needed a check over real files, not fixtures.
 `is_remote_llm`, and `config["llm"]` versus `config["llm_local"]` — the last
 of which cost an hour on 2026-08-06 when a run dialled a dead endpoint while a
 working server sat idle. **MET 2026-08-16**
-(`app/test_llm_config_source.py`, 8 tests).
+(`app/tests/test_llm_config_source.py`, 8 tests).
 
 `config["llm"]` is a mirror of the active profile, not a source: `/api/config`
 copies the profile named by `llm_mode` into it and refuses to save a
