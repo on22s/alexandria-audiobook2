@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-16 18:19 from `ab_test_runtime/experiments/` — 326 artifacts, 527 arms.
+Generated 2026-08-17 14:37 from `ab_test_runtime/experiments/` — 336 artifacts, 527 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -705,6 +705,12 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `asr_backends_large__kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_backends_large__ljspeech.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_hybrid_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_ja_cutting_control.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_ja_largev3_hybrid.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_ja_readings.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_silero_vad_ja_holdout.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_silero_whisper_ja_confirmation.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_silero_whisper_ja_offset20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_zh_ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_zh_ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `audible_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -747,7 +753,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_speaker_consistency_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `duration_probe_20260811_overnight.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `duration_probe_same_speaker_20260815.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `fallback_policy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `fix_verification.json` | SKIPPED: not a result object (list) |
 | `gate_known_bad.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -765,6 +774,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `instruct_value_seeded.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `kokoro_same_speaker_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `lexicon_attributed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `lexicon_corpus_candidates.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

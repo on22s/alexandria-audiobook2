@@ -18,6 +18,12 @@ asr_backends_large__aishell3.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT IND
 asr_backends_large__kokoro.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr_backends_large__ljspeech.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr_hybrid_zh.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_ja_cutting_control.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_ja_largev3_hybrid.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_ja_readings.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_silero_vad_ja_holdout.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_silero_whisper_ja_confirmation.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+asr_silero_whisper_ja_offset20.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr_zh_ggml-base.bin.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr_zh_ggml-large-v3.bin.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 audible_errors.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -348,7 +354,10 @@ distill_eval__thunder-a6000-distill.json,exploratory,distill_eval,mushoku16,Qwen
 distill_eval__thunder-a6000-distill.json,exploratory,distill_eval,mushoku16,Qwen/Qwen3-14B,local-lmstudio,instance-wa5dh8u3-main,lmstudio,32768,1,f16?,tuned,133,83,62.4,ok,False,,50138.1,08-01 02:49,peft:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/distill/adapter,
 distill_eval__thunder-a6000-distill.json,exploratory,distill_eval,owarimonogatari3,Qwen/Qwen3-14B,local-lmstudio,instance-wa5dh8u3-main,lmstudio,32768,1,f16?,base,162,65,40.1,ok,False,,50138.1,08-01 02:49,peft:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/distill/adapter,
 distill_eval__thunder-a6000-distill.json,exploratory,distill_eval,owarimonogatari3,Qwen/Qwen3-14B,local-lmstudio,instance-wa5dh8u3-main,lmstudio,32768,1,f16?,tuned,162,99,61.1,ok,False,,50138.1,08-01 02:49,peft:/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/distill/adapter,
+duration_outlier_analysis.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 duration_probe.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+duration_probe_20260811_overnight.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+duration_probe_same_speaker_20260815.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 fallback_policy.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 fix_verification.json,exploratory,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
 gate_known_bad.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -406,6 +415,7 @@ joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,supported_me
 joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,supported_measurement,joint_scene,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,16384,1,q8_0,joint-chrono,162,74,45.7,ok,False,04a69e4c,538.3,07-29 04:37,http://127.0.0.1:8090/v1,
 joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,supported_measurement,joint_scene,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,16384,1,q8_0,joint-shuffled,162,74,45.7,ok,False,04a69e4c,538.3,07-29 04:37,http://127.0.0.1:8090/v1,
 kokoro_generate.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+kokoro_same_speaker_generate.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 kokoro_score.json,supported_structure,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lexicon_attributed.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_corpus_candidates.json,exploratory,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
