@@ -46,6 +46,8 @@ APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from utils import atomic_json_write  # noqa: E402
+
 # Kana -> an English reader's spelling. Deliberately blunt: the aim is to stop
 # an English-trained model applying English orthography to a Japanese word,
 # not to encode a phonetic alphabet.
@@ -104,6 +106,56 @@ def respell(kana):
     return "-".join(parts) if len(parts) >= 2 else None
 
 
+
+# RULE B: fewer, more English-looking syllables. Rule A spells mora by mora,
+# which gives `seh-n-seh-ee` where a person writing a pronunciation guide would
+# write `sen-say`. Whether that matters is an empirical question, and the
+# measurement of rule A answers half of it: respelling only helps where the
+# plain form is already wrong (0-0.2 overlap band, +0.246 mean; the 0.8-1.0
+# band scored 0% and -0.564). So rule B is tested ONLY on the terms rule A
+# failed to rescue in that low band - the population where a respelling has
+# something to fix and rule A did not fix it.
+# Merged on rule A's OUTPUT, not on the kana. The first attempt matched kana
+# pairs like エイ and never fired for センセイ, which is セ+イ - so it only
+# stripped hyphens and produced `sehnsehee`, plainly worse. Merging the
+# spellings instead catches the case that matters: a syllable ending in a
+# vowel followed by a bare vowel is one English syllable.
+# A RULE, NOT A TABLE. The first attempt listed pairs and fired for `seh`+`ee`
+# while missing `pah`+`ee`, so senpai came back None. What actually happens is
+# that a syllable's trailing vowel absorbs the following bare vowel, and that
+# is expressible once:
+#
+#     seh + ee -> say      pah + ee -> pie      koh + oo -> koh
+VOWEL_ABSORB = {("eh", "ee"): "ay", ("ah", "ee"): "ie", ("oh", "oo"): "oh",
+                ("oo", "oo"): "oo", ("ee", "ee"): "ee", ("ah", "oo"): "ow"}
+
+
+def respell_b(kana):
+    """-> rule A with vowel sequences absorbed into English syllables.
+
+    `seh-n-seh-ee` becomes `seh-n-say`, which is what a person writing a
+    pronunciation guide would put. Whether the model cares is the question
+    this rule exists to answer - rule A already showed that respelling helps
+    only where the plain spelling is wrong, so this is tested only there.
+    """
+    base = respell(kana)
+    if not base:
+        return None
+    parts, out, index = base.split("-"), [], 0
+    while index < len(parts):
+        current = parts[index]
+        nxt = parts[index + 1] if index + 1 < len(parts) else None
+        tail = current[-2:]
+        if nxt is not None and (tail, nxt) in VOWEL_ABSORB:
+            out.append(current[:-2] + VOWEL_ABSORB[(tail, nxt)])
+            index += 2
+            continue
+        out.append(current)
+        index += 1
+    merged = "-".join(out)
+    return merged if merged != base else None
+
+
 def transcribe(wav, binary, model, language="ja"):
     out = subprocess.run([binary, "-m", model, "-f", wav, "-l", language,
                           "-np", "-nt"], capture_output=True, text=True,
@@ -111,16 +163,86 @@ def transcribe(wav, binary, model, language="ja"):
     return " ".join(out.stdout.split())
 
 
-def kana_overlap(expected, heard):
-    """Fraction of the expected kana present in what was transcribed.
+def scattered_overlap(expected, heard):
+    """Fraction of the expected kana present ANYWHERE in the transcript.
 
-    Crude on purpose. A stricter alignment would imply a precision this
-    comparison does not have - the ASR is transcribing one word inside an
-    English sentence, and its segmentation of that is not reliable.
+    THIS WAS THE HEADLINE SCORE AND IT SHOULD NOT HAVE BEEN. It asks whether
+    each character appears somewhere, in any order, so タナカ scores a perfect
+    1.0 against a transcript holding タ, ナ and カ in three unrelated words.
+    Re-scored over the 5,880-term run: of 768 terms scoring a perfect 1.0
+    after respelling, only 51% actually contained the word. The other half
+    were mispronunciations counted as successes -
+
+        futaba  wanted フタバ  heard フォータバー  ("foh-tah-bah")  scored 1.00
+        seiichi wanted セイイチ heard セイチー      (dropped a mora) scored 1.00
+        saya    wanted サヤ    heard サイヤー      ("sai-yaa")      scored 1.00
+
+    which are precisely the failures a pronunciation lexicon exists to catch.
+    It reported respelling rescuing 38% of badly-pronounced words where
+    `recovers_word` says 4%.
+
+    KEPT, NOT DELETED, because the gap between the two is informative: a high
+    scattered score with no contiguous match means "close but wrong", which
+    calls for a different lexicon entry than "nothing like it". Record it,
+    never lead with it.
     """
     if not expected:
         return 0.0
     return sum(1 for ch in expected if ch in heard) / len(expected)
+
+
+def longest_common_run(expected, heard):
+    """-> the longest run of `expected` appearing unbroken in `heard`, as a
+    fraction. 1.0 means the whole word survived; 0.75 on セイイチ vs セイチー
+    says three of its four morae did, which is a near miss rather than a miss.
+    """
+    if not expected:
+        return 0.0
+    best = 0
+    for start in range(len(expected)):
+        for end in range(len(expected), start + best, -1):
+            if expected[start:end] in heard:
+                best = end - start
+                break
+    return best / len(expected)
+
+
+def score_recovery(expected_kana, heard):
+    """Did the recognizer actually hear this word? -> dict of three views.
+
+    COMPARES SOUNDS, NOT SPELLING. Both sides are reduced to their kana
+    reading first, because a Japanese recognizer writes 人間 where the
+    candidate list holds ニンゲン - identical words, zero character overlap.
+    That normalization is `asr_backends.to_reading`, the same one that took
+    Japanese CER from 28.7% to 9.9%; there is one implementation of it and
+    this calls it rather than growing a second.
+
+    Verified on eight hand-checked cases before being adopted: the four real
+    recoveries (tanaka, chibi, shimizu, ningen) contain the expected reading
+    unbroken, and the four false positives above do not. It separates them
+    all.
+    """
+    from experiments.asr_backends import to_reading
+    expected, transcript = to_reading(expected_kana), to_reading(heard or "")
+    if expected is None or transcript is None:
+        # pykakasi absent. Returning a character-scored number here would be
+        # reporting a reading-scored metric that is nothing of the kind - the
+        # exact failure that made the old score untrustworthy.
+        raise RuntimeError(
+            "cannot reduce text to readings (pykakasi unavailable); refusing "
+            "to fall back to character scoring, which is the bug this "
+            "replaces. pip install pykakasi")
+    return {
+        # The headline: the whole word, unbroken, in order.
+        # `bool(expected)` guards a Python trap - "" is a substring of every
+        # string, so a term whose reading reduces to nothing would otherwise
+        # be scored as perfectly recovered.
+        "recovers_word": bool(expected) and expected in transcript,
+        # How much of it survived, for telling a near miss from a miss.
+        "closeness": round(longest_common_run(expected, transcript), 3),
+        # The old score, recorded for comparison only. See scattered_overlap.
+        "scattered": round(scattered_overlap(expected, transcript), 3),
+    }
 
 
 def main():
@@ -131,6 +253,11 @@ def main():
                     help="only measure terms attributed to this language")
     ap.add_argument("--min-books", type=int, default=20)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--rule", choices=("a", "b"), default="a")
+    ap.add_argument("--only-failed", default=None,
+                    help="a prior result file; measure only the terms whose "
+                         "plain rendering did not produce the word and which "
+                         "the prior rule failed to rescue")
     ap.add_argument("--whisper-cpp-bin", default=os.path.join(
         REPO, "whisper.cpp", "build", "bin", "whisper-cli"))
     ap.add_argument("--whisper-cpp-model", default=os.path.join(
@@ -146,6 +273,28 @@ def main():
     terms = [c for c in candidates
              if c.get("verdict") == args.verdict and c["books"] >= args.min_books]
     terms.sort(key=lambda c: -c["books"])
+    if args.only_failed and os.path.exists(args.only_failed):
+        with open(args.only_failed, encoding="utf-8") as handle:
+            prior = {r["term"]: r for r in json.load(handle)["results"]}
+        # "Failed" means the WORD DID NOT COME OUT, not that a per-character
+        # score fell under a threshold. The old filter used
+        # `plain_kana_overlap < 0.2`, which both admitted terms the plain
+        # rendering had actually said (scattered characters scoring high) and
+        # excluded terms it had mangled (scattered characters scoring low on a
+        # correct rendering). Prior files written before the rescoring carry
+        # only the old field, so they are read through it rather than being
+        # silently treated as failures.
+        def failed(record):
+            if "plain_recovers_word" in record:
+                return not record["plain_recovers_word"]
+            legacy = record.get("plain_kana_overlap")
+            if legacy is None:
+                return False
+            return legacy < 1.0
+
+        terms = [c for c in terms
+                 if (p := prior.get(c["term"]))
+                 and failed(p) and not p.get("helps")]
     if args.limit:
         terms = terms[:args.limit]
     if not terms:
@@ -171,7 +320,7 @@ def main():
         term, kana = candidate["term"], candidate["kana"]
         if term in results:
             continue
-        spelled = respell(kana)
+        spelled = respell_b(kana) if args.rule == 'b' else respell(kana)
         if not spelled:
             results[term] = {"term": term, "kana": kana, "skipped": "unmappable kana"}
             continue
@@ -185,14 +334,19 @@ def main():
                            voice, {"type": "custom"}, path)
                 heard = transcribe(path, args.whisper_cpp_bin, args.whisper_cpp_model)
                 row[f"{label}_heard"] = heard
-                row[f"{label}_kana_overlap"] = round(kana_overlap(kana, heard), 3)
+                for field, value in score_recovery(kana, heard).items():
+                    row[f"{label}_{field}"] = value
             except Exception as exc:                        # noqa: BLE001
                 row[f"{label}_error"] = str(exc)[:120]
-        before = row.get("plain_kana_overlap")
-        after = row.get("respelled_kana_overlap")
+        before, after = row.get("plain_recovers_word"), row.get("respelled_recovers_word")
         if before is not None and after is not None:
-            row["delta"] = round(after - before, 3)
-            row["helps"] = after > before
+            # HELPING MEANS THE WORD CAME OUT, not that some of its characters
+            # turned up somewhere. `closeness_delta` carries the graded view
+            # for terms a respelling improved without fixing.
+            row["helps"] = bool(after and not before)
+            row["hurts"] = bool(before and not after)
+            row["closeness_delta"] = round(
+                row["respelled_closeness"] - row["plain_closeness"], 3)
         results[term] = row
         done += 1
         if done % 5 == 0:
@@ -202,23 +356,29 @@ def main():
                   flush=True)
             _write(args.out, results, terms)
     _write(args.out, results, terms)
-    scored = [r for r in results.values() if "delta" in r]
+    scored = [r for r in results.values() if "helps" in r]
     helped = [r for r in scored if r["helps"]]
-    print(f"\nmeasured {len(scored)} terms; a respelling helped {len(helped)}")
-    for row in sorted(helped, key=lambda r: -r["delta"])[:15]:
-        print(f"   +{row['delta']:.2f}  {row['term']:16} -> {row['respelling']}")
+    hurt = [r for r in scored if r.get("hurts")]
+    print(f"\nmeasured {len(scored)} terms; a respelling recovered the word for "
+          f"{len(helped)} and lost it for {len(hurt)}")
+    for row in sorted(helped, key=lambda r: -r["closeness_delta"])[:15]:
+        print(f"   +{row['closeness_delta']:.2f}  {row['term']:16} -> {row['respelling']}")
     return 0
 
 
 def _write(path, results, terms):
     document = {"carrier": CARRIER,
-                "note": "kana agreement, not WER: a working respelling makes "
-                        "the ASR hear Japanese, which WER would punish",
+                "note": "scored on READINGS, not characters: `recovers_word` is "
+                        "the whole word present unbroken, which is the headline. "
+                        "`scattered` is the retired per-character score, kept "
+                        "only so the two can be compared - see scattered_overlap",
                 "candidates_considered": len(terms),
                 "results": list(results.values())}
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(document, handle, indent=1, ensure_ascii=False)
+    # Atomic: this file is read by other sessions while a multi-hour run is
+    # still appending to it, and a plain open() truncates it for the duration
+    # of the dump. Every mid-run read was a race until this line.
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    atomic_json_write(document, path)
 
 
 if __name__ == "__main__":
