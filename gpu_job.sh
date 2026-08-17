@@ -302,6 +302,26 @@ echo "$(stamp) START    $NAME" >> "$QLOG"
 # it runs directly.
 export ALEXANDRIA_GPU_LOCK_HELD=1
 
+# JOB CONTROL OFF, EXPLICITLY. `setsid` only calls setsid(2) directly when it
+# is NOT already a process group leader; if it is, it forks first. With job
+# control on (`set -m`) bash puts each background job in its own group, so
+# setsid forks, `$!` is the short-lived setsid wrapper, and `wait` returns 0
+# THE INSTANT IT EXITS while the real job runs on. gpu_job.sh would then log
+# OK, release the flock, and let the next queued job start concurrently with
+# one that never finished - the exact overlap this whole script exists to
+# prevent.
+#
+# Measured, and then measured again to find the limit:
+#     set -m; setsid sleep 5 & p=$!; wait $p   -> returns 0 in milliseconds
+#                                                 with sleep still running
+# So the mechanism is real. It is NOT currently reachable here: a script only
+# has job control if it runs `set -m` itself, and `bash -m script` cannot
+# enable it without a controlling terminal ("no job control in this shell",
+# $- = hB). This line is therefore hardening, not a bugfix - it pins an
+# assumption that today holds by default. No test guards it, deliberately: a
+# test for an unreachable state cannot fail, and one that cannot fail
+# advertises coverage that does not exist.
+set +m
 setsid "$@" &
 JOB_PGID=$!
 wait "$JOB_PGID"

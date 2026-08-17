@@ -18,6 +18,7 @@ queue log, so nothing here touches the actual GPU lock.
 """
 import os
 import shutil
+import shlex
 import subprocess
 import tempfile
 import textwrap

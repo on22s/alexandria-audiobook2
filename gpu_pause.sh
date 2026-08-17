@@ -40,9 +40,9 @@ vram_used_mib() {
 running_job() {
     # The job that currently holds the lock, from the queue log: the last
     # START with no matching OK/FAILED after it.
-    tail -40 "$QLOG" 2>/dev/null | awk '
+    tail -200 "$QLOG" 2>/dev/null | awk '
         /START    / {name=$3}
-        /OK       |FAILED   |REFUSED  |NO_VRAM  /  {name=""}
+        /OK       |FAILED   |REFUSED  |NO_VRAM  |KILLED   |LOCK_FAILED/ {name=""}
         END {print name}'
 }
 
