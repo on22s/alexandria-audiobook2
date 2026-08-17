@@ -99,8 +99,13 @@ tree_state() {
     # as being false. This mirrors `app/experiments/manifest.py::_git_state`
     # exactly, and `test_the_shell_gate_agrees_with_the_python_provenance`
     # fails if the two ever disagree.
+    # run_chains/ counts too. Six chains sat untracked while being edited and
+    # run, and the gate could not see them because it only watched
+    # app/experiments for .py. A chain is as much "the code that produced this
+    # artifact" as the script it calls.
     untracked=$(git -C "$root" ls-files --others --exclude-standard \
-                    -- "$root/app/experiments" 2>/dev/null | grep -c '\.py$')
+                    -- "$root/app/experiments" "$root/run_chains" 2>/dev/null \
+                | grep -cE '\.(py|sh)$')
     if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
         echo clean
         return
