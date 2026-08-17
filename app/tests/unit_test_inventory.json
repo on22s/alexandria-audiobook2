@@ -34,6 +34,8 @@
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
   "test_artifact_structural_audit": [
+    "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_indexes_everything",
+    "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_classifies_all_identity_contracts_without_scientific_claims",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_unreadable_json_is_visible_not_skipped"
   ],

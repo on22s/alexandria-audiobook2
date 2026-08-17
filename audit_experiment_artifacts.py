@@ -85,23 +85,39 @@ def classify_artifact(path):
     return row
 
 
-def is_tracked(path):
-    """Is `path` in the repository, i.e. visible to anyone but this machine?
+def tracked_state(path, repo=None):
+    """-> "tracked" | "untracked" | "unknown". The one place that answers this.
 
-    The one place that answers this (Rule 15). Any checked-in index that
-    consults an untracked input encodes local state and will disagree with CI
-    the moment it is regenerated - which is how both index gates broke on
-    PR #340, in two different files, for the same reason.
+    `repo` is which repository to ask, and callers in other modules must pass
+    their own: audit_legacy_attribution resolves gold paths against ITS REPO,
+    which tests patch. Silently asking this module's repo instead answered a
+    question nobody had asked, and reported a temp-dir fixture as untracked.
 
-    Unknown is not tracked: if git cannot answer, say False and let the caller
-    fall back explicitly rather than inventing an answer here.
+    Any checked-in index that consults an untracked input encodes local state
+    and disagrees with CI the moment it is regenerated - which is how both
+    index gates broke on PR #340, in two different files, for the same reason
+    (Rule 15).
+
+    "UNKNOWN IS A THIRD ANSWER" and must not be spelled "untracked", the same
+    distinction gpu_job.sh's tree_state makes for the same reason. A temp
+    directory, a source export or a container without git cannot answer the
+    question, and collapsing that into "untracked" would make an audit run
+    outside a repository silently ignore every gold fixture it was handed -
+    reporting nothing wrong while checking nothing at all.
     """
     try:
         result = subprocess.run(["git", "ls-files", "--error-unmatch", "--", path],
-                                cwd=REPO, capture_output=True, timeout=10)
+                                cwd=repo or REPO, capture_output=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0
+        return "unknown"
+    if result.returncode == 0:
+        return "tracked"
+    stderr = result.stderr.decode("utf-8", "replace").lower()
+    # git distinguishes these itself: "did not match any file(s) known to git"
+    # is an answer; "not a git repository" is a refusal to answer.
+    if "not a git repository" in stderr or "outside repository" in stderr:
+        return "unknown"
+    return "untracked"
 
 
 def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):

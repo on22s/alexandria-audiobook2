@@ -10,7 +10,7 @@ import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(REPO, "app"))
-from audit_experiment_artifacts import is_tracked  # noqa: E402
+from audit_experiment_artifacts import tracked_state  # noqa: E402
 from experiments.manifest import ExperimentRecord  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 
@@ -86,7 +86,10 @@ def _current_gold(meta, rows):
     path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
-    if not rel or not is_tracked(rel) or not os.path.isfile(path):
+    # Skip ONLY on a definite "untracked". Outside a repository git cannot
+    # answer, and refusing to read the fixture there would mean auditing
+    # nothing while reporting success.
+    if not rel or not os.path.isfile(path) or tracked_state(rel, REPO) == "untracked":
         return result
     with open(path, "rb") as handle:
         raw = handle.read()
@@ -234,7 +237,8 @@ def main():
             str(json.load(open(os.path.join(EXPERIMENTS, row["artifact"]),
                                encoding="utf-8"))["meta"].get("gold_path") or "")
             for row in audit["artifacts"])
-        if rel and os.path.isfile(os.path.join(REPO, rel)) and not is_tracked(rel)})
+        if rel and os.path.isfile(os.path.join(REPO, rel))
+        and tracked_state(rel, REPO) == "untracked"})
     if local_only:
         print(f"note: {len(local_only)} gold fixture(s) exist here but are not "
               f"tracked, so artifacts scored on them are audited without gold:",
