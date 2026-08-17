@@ -29,6 +29,29 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
 
+# ADVISORY MARKERS ARE NOT THE LIFECYCLE. gpu_job.sh writes notes alongside the
+# QUEUED -> IDENT -> START -> OK/FAILED sequence: DIRTY_RUN when the tree gate
+# is waived, VRAM_UNKNOWN when rocm-smi cannot answer, HELD/RELEASED when the
+# queue is paused, LLM_UNCHECKED when the preflight cannot run.
+#
+# Which of those appear depends on the MACHINE, not on the code under test.
+# VRAM_UNKNOWN never appears locally (this box has rocm-smi) and always appears
+# in CI (no GPU), so two lifecycle tests passed here and failed there. They were
+# already filtering DIRTY_RUN one marker at a time, which is how the next
+# marker breaks them again.
+#
+# Filter the whole class once, in one place. A test about ORDER should assert
+# the order, not the presence of environment-dependent notes.
+ADVISORY_MARKERS = {"DIRTY_RUN", "VRAM_UNKNOWN", "LLM_UNCHECKED",
+                    "HELD", "RELEASED", "PAUSED", "RESUMED"}
+
+
+def lifecycle(log_text):
+    """-> the QUEUED/IDENT/START/OK markers, advisory notes removed."""
+    kinds = [line.split()[1] for line in log_text.splitlines() if line.strip()]
+    return [k for k in kinds if k not in ADVISORY_MARKERS]
+
+
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 class GpuJobTest(unittest.TestCase):
 
@@ -84,9 +107,8 @@ class GpuJobTest(unittest.TestCase):
         # code that is ABOUT to run. Recorded after the fact it would be a
         # post-mortem, which is what reading logs already gave us.
         self.run_job("ordered", "true")
-        lines = [l.split()[1] for l in self.log().splitlines() if l.strip()]
-        lines = [l for l in lines if l != "DIRTY_RUN"]
-        self.assertEqual(lines, ["QUEUED", "IDENT", "START", "OK"])
+        self.assertEqual(lifecycle(self.log()),
+                         ["QUEUED", "IDENT", "START", "OK"])
 
     # ------------------------------------------------------- failure surfaces
 
@@ -201,11 +223,8 @@ class GpuJobTest(unittest.TestCase):
         afterwards.
         """
         self.run_job("ident", "true")
-        # DIRTY_RUN appears only because these probe runs waive the dirty-tree
-        # gate (see run_job); it is not part of the lifecycle under test.
-        kinds = [l.split()[1] for l in self.log().splitlines() if l.strip()
-                 and l.split()[1] != "DIRTY_RUN"]
-        self.assertEqual(kinds, ["QUEUED", "IDENT", "START", "OK"])
+        self.assertEqual(lifecycle(self.log()),
+                         ["QUEUED", "IDENT", "START", "OK"])
 
     def test_identity_carries_what_is_needed_to_tell_two_runs_apart(self):
         self.run_job("ident", "echo", "hello")
