@@ -131,6 +131,17 @@ def main():
            "median_ecapa": round(median, 4), "lines": len(vals),
            "generation_failures": failed, "threshold": args.min_ecapa,
            "passed": ok, "verdict": verdict}
+    # PROVENANCE, which this gate has never recorded. 87 gate artifacts exist
+    # with no commit, no host and no dirty flag - and goal 2.7 rests on them:
+    # "9 were promoted", and breathy_alto_50s_f_fantasy's 0.404 -> 0.503 rescue
+    # are read straight out of these files. A number that cannot name the code
+    # that produced it is an anecdote, and promote_adapters.py ships voices on
+    # the strength of it. Same idiom as every other experiment here.
+    try:
+        from experiments.provenance import provenance
+        doc["provenance"] = provenance(__file__, args)
+    except Exception as exc:                                    # noqa: BLE001
+        doc["provenance"] = {"error": str(exc)[:120]}
     out = args.out or os.path.join(args.adapter, "identity_check.json")
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(doc, fh, indent=1, ensure_ascii=False)

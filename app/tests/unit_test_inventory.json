@@ -575,6 +575,13 @@
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
+  "test_gate_provenance": [
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_a_provenance_failure_is_recorded_rather_than_swallowed",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_provenance_is_attached_before_the_document_is_written",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_gate_still_exits_nonzero_on_failure",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_identity_gate_records_provenance",
+    "tests.test_gate_provenance.ProvenanceHelperTests.test_the_helper_exists_and_takes_file_and_args"
+  ],
   "test_generate_personas": [
     "tests.test_generate_personas.JaccardTest.test_empty_names_score_zero",
     "tests.test_generate_personas.JaccardTest.test_it_takes_the_same_honorific_decision_as_its_caller",
