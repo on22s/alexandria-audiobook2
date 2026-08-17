@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from test_inventory import (EXCLUDED_TEST_MODULES, INVENTORY_PATH,
+from tests.test_inventory import (EXCLUDED_TEST_MODULES, INVENTORY_PATH,
                             _tracked_test_modules, get_unit_test_inventory)
 
 
@@ -51,7 +51,7 @@ def find_untracked_test_modules():
     if tracked is None:
         return []
     return sorted(
-        path.name for path in Path(__file__).parent.glob("test*.py")
+        path.name for path in Path(__file__).with_name("tests").glob("test*.py")
         if path.stem not in EXCLUDED_TEST_MODULES and path.stem not in tracked)
 
 

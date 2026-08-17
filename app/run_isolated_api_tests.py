@@ -58,10 +58,16 @@ def main():
                     time.sleep(0.1)
             else:
                 raise RuntimeError("Server did not become ready within 20 seconds")
-            # Forward extra CLI args (e.g. --full) straight through to test_api.py
+            # Forward extra CLI args (e.g. --full) straight through to test_api
             # so the GPU/LLM suite can be run against this same disposable state.
+            #
+            # `-m`, not a path. Running `tests/test_api.py` as a script puts
+            # `tests/` on sys.path instead of `app/`, and the suite imports app
+            # modules (`utils`, `tts`, ...) by bare name - it failed on the
+            # first import the moment the file moved. `-m` with cwd=app_dir
+            # puts `app/` on the path, which is what those imports mean.
             result = subprocess.run(
-                [sys.executable, "test_api.py", "--url", f"http://127.0.0.1:{port}",
+                [sys.executable, "-m", "tests.test_api", "--url", f"http://127.0.0.1:{port}",
                  *sys.argv[1:]],
                 cwd=app_dir,
             )

@@ -1077,7 +1077,7 @@ Alexandria/
 ## Contributing
 
 The API-contract and unit-test-inventory snapshots (`app/api_contract/`,
-`app/unit_test_inventory.json`) must be regenerated whenever you add a route or a
+`app/tests/unit_test_inventory.json`) must be regenerated whenever you add a route or a
 test, or the release verifier (`app/verify_release.py`) fails on drift. To catch
 this at commit time, enable the opt-in git hook:
 
