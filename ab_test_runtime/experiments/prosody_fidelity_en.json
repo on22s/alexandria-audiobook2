@@ -1,0 +1,310 @@
+{
+  "source": "ab_test_runtime/experiments/ljspeech_generate.json",
+  "language": null,
+  "gpe_tolerance": 0.2,
+  "results": {
+    "lora": {
+      "n": 12,
+      "f0_correlation_mean": 0.2449,
+      "f0_rmse_semitones_mean": 5.083,
+      "gross_pitch_error_mean": 0.4917,
+      "tempo_irregularity_mean": 0.3194,
+      "rows": [
+        {
+          "id": "LJ020-0001",
+          "voiced_frames": 169,
+          "human_seconds": 5.371,
+          "generated_seconds": 5.28,
+          "f0_correlation": 0.2578,
+          "f0_rmse_semitones": 5.4751,
+          "gross_pitch_error": 0.6686,
+          "tempo_irregularity": 0.3289,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0002",
+          "voiced_frames": 439,
+          "human_seconds": 10.096,
+          "generated_seconds": 11.04,
+          "f0_correlation": 0.2179,
+          "f0_rmse_semitones": 5.4505,
+          "gross_pitch_error": 0.5444,
+          "tempo_irregularity": 0.2668,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0003",
+          "voiced_frames": 327,
+          "human_seconds": 8.947,
+          "generated_seconds": 9.04,
+          "f0_correlation": 0.3507,
+          "f0_rmse_semitones": 5.7017,
+          "gross_pitch_error": 0.4924,
+          "tempo_irregularity": 0.3259,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0005",
+          "voiced_frames": 272,
+          "human_seconds": 7.345,
+          "generated_seconds": 7.92,
+          "f0_correlation": 0.2384,
+          "f0_rmse_semitones": 4.9882,
+          "gross_pitch_error": 0.4963,
+          "tempo_irregularity": 0.2649,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0007",
+          "voiced_frames": 196,
+          "human_seconds": 5.069,
+          "generated_seconds": 5.12,
+          "f0_correlation": 0.3935,
+          "f0_rmse_semitones": 3.9361,
+          "gross_pitch_error": 0.2602,
+          "tempo_irregularity": 0.313,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0009",
+          "voiced_frames": 253,
+          "human_seconds": 6.033,
+          "generated_seconds": 6.32,
+          "f0_correlation": 0.1734,
+          "f0_rmse_semitones": 6.3053,
+          "gross_pitch_error": 0.6166,
+          "tempo_irregularity": 0.2786,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0011",
+          "voiced_frames": 267,
+          "human_seconds": 7.484,
+          "generated_seconds": 6.8,
+          "f0_correlation": 0.5687,
+          "f0_rmse_semitones": 4.2443,
+          "gross_pitch_error": 0.3446,
+          "tempo_irregularity": 0.3435,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0012",
+          "voiced_frames": 236,
+          "human_seconds": 5.15,
+          "generated_seconds": 4.8,
+          "f0_correlation": 0.2817,
+          "f0_rmse_semitones": 4.558,
+          "gross_pitch_error": 0.3559,
+          "tempo_irregularity": 0.3446,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0013",
+          "voiced_frames": 309,
+          "human_seconds": 6.602,
+          "generated_seconds": 5.6,
+          "f0_correlation": -0.0506,
+          "f0_rmse_semitones": 6.0713,
+          "gross_pitch_error": 0.5987,
+          "tempo_irregularity": 0.419,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0014",
+          "voiced_frames": 247,
+          "human_seconds": 5.29,
+          "generated_seconds": 5.2,
+          "f0_correlation": 0.4264,
+          "f0_rmse_semitones": 4.1549,
+          "gross_pitch_error": 0.3684,
+          "tempo_irregularity": 0.331,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0016",
+          "voiced_frames": 506,
+          "human_seconds": 9.191,
+          "generated_seconds": 9.76,
+          "f0_correlation": 0.0652,
+          "f0_rmse_semitones": 5.3652,
+          "gross_pitch_error": 0.5692,
+          "tempo_irregularity": 0.3048,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0017",
+          "voiced_frames": 265,
+          "human_seconds": 4.698,
+          "generated_seconds": 4.8,
+          "f0_correlation": 0.0156,
+          "f0_rmse_semitones": 4.7456,
+          "gross_pitch_error": 0.5849,
+          "tempo_irregularity": 0.3115,
+          "tempo_ratio": 1.0
+        }
+      ]
+    },
+    "clone": {
+      "n": 12,
+      "f0_correlation_mean": 0.2775,
+      "f0_rmse_semitones_mean": 4.7216,
+      "gross_pitch_error_mean": 0.5287,
+      "tempo_irregularity_mean": 0.2985,
+      "rows": [
+        {
+          "id": "LJ020-0001",
+          "voiced_frames": 180,
+          "human_seconds": 5.371,
+          "generated_seconds": 5.28,
+          "f0_correlation": -0.033,
+          "f0_rmse_semitones": 6.8216,
+          "gross_pitch_error": 0.4833,
+          "tempo_irregularity": 0.2905,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0002",
+          "voiced_frames": 532,
+          "human_seconds": 10.096,
+          "generated_seconds": 11.12,
+          "f0_correlation": 0.6454,
+          "f0_rmse_semitones": 3.6919,
+          "gross_pitch_error": 0.391,
+          "tempo_irregularity": 0.2721,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0003",
+          "voiced_frames": 370,
+          "human_seconds": 8.947,
+          "generated_seconds": 9.52,
+          "f0_correlation": 0.1338,
+          "f0_rmse_semitones": 6.1926,
+          "gross_pitch_error": 0.573,
+          "tempo_irregularity": 0.2721,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0005",
+          "voiced_frames": 345,
+          "human_seconds": 7.345,
+          "generated_seconds": 8.16,
+          "f0_correlation": 0.6066,
+          "f0_rmse_semitones": 3.5539,
+          "gross_pitch_error": 0.4203,
+          "tempo_irregularity": 0.2674,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0007",
+          "voiced_frames": 209,
+          "human_seconds": 5.069,
+          "generated_seconds": 4.96,
+          "f0_correlation": 0.0168,
+          "f0_rmse_semitones": 5.3052,
+          "gross_pitch_error": 0.6077,
+          "tempo_irregularity": 0.3539,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0009",
+          "voiced_frames": 287,
+          "human_seconds": 6.033,
+          "generated_seconds": 6.8,
+          "f0_correlation": 0.3958,
+          "f0_rmse_semitones": 3.8485,
+          "gross_pitch_error": 0.554,
+          "tempo_irregularity": 0.2573,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0011",
+          "voiced_frames": 282,
+          "human_seconds": 7.484,
+          "generated_seconds": 7.44,
+          "f0_correlation": 0.3932,
+          "f0_rmse_semitones": 4.5431,
+          "gross_pitch_error": 0.5709,
+          "tempo_irregularity": 0.3402,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0012",
+          "voiced_frames": 234,
+          "human_seconds": 5.15,
+          "generated_seconds": 5.04,
+          "f0_correlation": 0.1042,
+          "f0_rmse_semitones": 4.6279,
+          "gross_pitch_error": 0.5641,
+          "tempo_irregularity": 0.2833,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0013",
+          "voiced_frames": 347,
+          "human_seconds": 6.602,
+          "generated_seconds": 6.24,
+          "f0_correlation": 0.2394,
+          "f0_rmse_semitones": 5.047,
+          "gross_pitch_error": 0.415,
+          "tempo_irregularity": 0.3809,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0014",
+          "voiced_frames": 326,
+          "human_seconds": 5.29,
+          "generated_seconds": 5.52,
+          "f0_correlation": 0.353,
+          "f0_rmse_semitones": 3.8237,
+          "gross_pitch_error": 0.681,
+          "tempo_irregularity": 0.2321,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0016",
+          "voiced_frames": 485,
+          "human_seconds": 9.191,
+          "generated_seconds": 8.56,
+          "f0_correlation": 0.5204,
+          "f0_rmse_semitones": 3.6603,
+          "gross_pitch_error": 0.4845,
+          "tempo_irregularity": 0.3784,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "LJ020-0017",
+          "voiced_frames": 297,
+          "human_seconds": 4.698,
+          "generated_seconds": 5.6,
+          "f0_correlation": -0.0455,
+          "f0_rmse_semitones": 5.5432,
+          "gross_pitch_error": 0.5993,
+          "tempo_irregularity": 0.254,
+          "tempo_ratio": 1.0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "script": "prosody_fidelity.py",
+    "written": "2026-08-16T17:15:50",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "branch": "agent/robotic-proxy-calibration-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/prosody_fidelity.py"
+      ],
+      "harness_sha256": "b75afbc54c731d05f1d1f73c5b28d8b91ada1c7e14535909162dcae6fd66d800"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/ljspeech_generate.json",
+      "arm": null,
+      "limit": 12,
+      "out": "ab_test_runtime/experiments/prosody_fidelity_en.json"
+    }
+  }
+}

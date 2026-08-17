@@ -1,0 +1,84 @@
+{
+ "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+ "limit": 50,
+ "language": "ja",
+ "whisper_cpp_model": "ggml-large-v3.bin",
+ "backends": [
+  "whisper_cpp",
+  "whisper_cpp_hybrid"
+ ],
+ "results": {
+  "whisper_cpp": {
+   "n": 50,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "wer_mean": 0.279,
+   "wer_median": 0.2554,
+   "rtf": 0.272,
+   "seconds_total": 69.3
+  },
+  "whisper_cpp_hybrid": {
+   "n": 50,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "wer_mean": 0.2784,
+   "wer_median": 0.25,
+   "rtf": 0.37,
+   "seconds_total": 94.1
+  }
+ },
+ "alignment": {
+  "whisper_cpp": {
+   "scored": 50,
+   "predicted_segments": 91,
+   "expected_segments": 50,
+   "median_error_s": 0.542,
+   "p90_error_s": 1.09,
+   "worst_error_s": 8.228,
+   "within_tolerance_pct": 20.0,
+   "tolerance_s": 0.3
+  },
+  "whisper_cpp_hybrid": {
+   "scored": 50,
+   "predicted_segments": 61,
+   "expected_segments": 50,
+   "median_error_s": 0.328,
+   "p90_error_s": 1.752,
+   "worst_error_s": 4.297,
+   "within_tolerance_pct": 40.0,
+   "tolerance_s": 0.3
+  }
+ },
+ "alignment_truth_clips": 50,
+ "provenance": {
+  "script": "asr_backends.py",
+  "written": "2026-08-16T15:02:09",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1689c3a8408d1b665579899dcb3092acf87b55ff",
+   "branch": "agent/queue-remaining-goal-work-20260816",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M lora_models/manifest.json"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "f69079758e848c1fe932f4d4ff19adeeb0b751c5dd32d200de145e9ba8abc866"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+   "backends": [
+    "whisper_cpp",
+    "whisper_cpp_hybrid"
+   ],
+   "limit": 50,
+   "row_offset": 0,
+   "align_clips": 50,
+   "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+   "whisper_cpp_model": "whisper.cpp/models/ggml-large-v3.bin",
+   "lang": "ja",
+   "out": "ab_test_runtime/experiments/asr_ja_largev3_hybrid.json"
+  }
+ }
+}

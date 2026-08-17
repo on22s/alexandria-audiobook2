@@ -14,7 +14,9 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 # Artifacts belong with every other artifact, which may be a different checkout
 # than the code being run. Override with RUNTIME=... when they are the same.
 runtime="${RUNTIME:-$repo/ab_test_runtime}"
-python="${PYTHON:-$repo/app/env/bin/python}"
+# NOT $PYTHON: Pinokio exports it pointing at a miniforge path that does not
+# exist here, and because it is SET the `:-` default never applies.
+python="${CHAIN_PYTHON:-$repo/app/env/bin/python}"
 mkdir -p "$runtime/logs" "$runtime/experiments"
 
 failures=0

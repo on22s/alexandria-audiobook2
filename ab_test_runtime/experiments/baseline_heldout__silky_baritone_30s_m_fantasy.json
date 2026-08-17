@@ -1,0 +1,9 @@
+{
+ "adapter": "lora_models/silky_baritone_30s_m_fantasy",
+ "median_ecapa": 0.6523,
+ "lines": 10,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.652)"
+}

@@ -1,0 +1,456 @@
+{
+  "source": "ab_test_runtime/experiments/kokoro_generate.json",
+  "language": "ja",
+  "lines": 8,
+  "results": [
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00001",
+      "text": "「さんぼう本部へんさんの地図をまたくりひらいて見るでもなかろう、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 14,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 7,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 21,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 3,
+      "heiban": 6
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00002",
+      "text": "と思ったけれども、余りの道じゃから、",
+      "accent_phrases": [
+        {
+          "moras": 2,
+          "accent": 1
+        },
+        {
+          "moras": 14,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 9,
+      "accented": 4,
+      "heiban": 5
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00003",
+      "text": "手をさわるさえ暑くるしい、旅のころものそでをかかげて、",
+      "accent_phrases": [
+        {
+          "moras": 3,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 21,
+      "accented": 7,
+      "heiban": 14
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00004",
+      "text": "表紙をつけた折本になってるのをひっぱり出した。",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 6,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 12,
+          "accent": 3
+        }
+      ],
+      "phrase_count": 14,
+      "accented": 6,
+      "heiban": 8
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00005",
+      "text": "ひだから信州へこえるみやまの間道で、ちょうど立休らおうという一",
+      "accent_phrases": [
+        {
+          "moras": 15,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 12,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 4,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 13,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 2
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 12,
+      "accented": 7,
+      "heiban": 5
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00006",
+      "text": "本のこだちも無い、右も左も山ばかりじゃ、手",
+      "accent_phrases": [
+        {
+          "moras": 16,
+          "accent": 1
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 3,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 13,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 4,
+      "heiban": 6
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00058",
+      "text": "ふではまだあおぞらが見えたけれども、",
+      "accent_phrases": [
+        {
+          "moras": 10,
+          "accent": 1
+        },
+        {
+          "moras": 8,
+          "accent": 3
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 12,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 4,
+      "accented": 3,
+      "heiban": 1
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00060",
+      "text": "まいばら、ながはまはうすぐもり、かすかに日がさして、",
+      "accent_phrases": [
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 10,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 5,
+          "accent": 2
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 2,
+          "accent": 0
+        },
+        {
+          "moras": 11,
+          "accent": 2
+        },
+        {
+          "moras": 1,
+          "accent": 0
+        },
+        {
+          "moras": 9,
+          "accent": 2
+        }
+      ],
+      "phrase_count": 10,
+      "accented": 4,
+      "heiban": 6
+    }
+  ],
+  "provenance": {
+    "script": "expected_prosody.py",
+    "written": "2026-08-16T17:20:43",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
+      "branch": "agent/prosody-fidelity-cjk-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/expected_prosody.py"
+      ],
+      "harness_sha256": "6b33e6b3c718a3612480191cde929565c185fa9189c05e7e159d4f6e624d32e6"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/kokoro_generate.json",
+      "language": "ja",
+      "limit": 8,
+      "out": "ab_test_runtime/experiments/expected_prosody_ja.json"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+ "adapter": "ab_test_runtime/reference_rank2_failed/breathy_alto_50s_f_fantasy/adapter",
+ "median_ecapa": 0.5034,
+ "lines": 10,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.503)"
+}

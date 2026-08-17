@@ -18,6 +18,7 @@ queue log, so nothing here touches the actual GPU lock.
 """
 import os
 import shutil
+import shlex
 import subprocess
 import tempfile
 import textwrap
@@ -26,6 +27,29 @@ import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
+
+
+# ADVISORY MARKERS ARE NOT THE LIFECYCLE. gpu_job.sh writes notes alongside the
+# QUEUED -> IDENT -> START -> OK/FAILED sequence: DIRTY_RUN when the tree gate
+# is waived, VRAM_UNKNOWN when rocm-smi cannot answer, HELD/RELEASED when the
+# queue is paused, LLM_UNCHECKED when the preflight cannot run.
+#
+# Which of those appear depends on the MACHINE, not on the code under test.
+# VRAM_UNKNOWN never appears locally (this box has rocm-smi) and always appears
+# in CI (no GPU), so two lifecycle tests passed here and failed there. They were
+# already filtering DIRTY_RUN one marker at a time, which is how the next
+# marker breaks them again.
+#
+# Filter the whole class once, in one place. A test about ORDER should assert
+# the order, not the presence of environment-dependent notes.
+ADVISORY_MARKERS = {"DIRTY_RUN", "VRAM_UNKNOWN", "LLM_UNCHECKED",
+                    "HELD", "RELEASED", "PAUSED", "RESUMED"}
+
+
+def lifecycle(log_text):
+    """-> the QUEUED/IDENT/START/OK markers, advisory notes removed."""
+    kinds = [line.split()[1] for line in log_text.splitlines() if line.strip()]
+    return [k for k in kinds if k not in ADVISORY_MARKERS]
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
@@ -83,9 +107,8 @@ class GpuJobTest(unittest.TestCase):
         # code that is ABOUT to run. Recorded after the fact it would be a
         # post-mortem, which is what reading logs already gave us.
         self.run_job("ordered", "true")
-        lines = [l.split()[1] for l in self.log().splitlines() if l.strip()]
-        lines = [l for l in lines if l != "DIRTY_RUN"]
-        self.assertEqual(lines, ["QUEUED", "IDENT", "START", "OK"])
+        self.assertEqual(lifecycle(self.log()),
+                         ["QUEUED", "IDENT", "START", "OK"])
 
     # ------------------------------------------------------- failure surfaces
 
@@ -200,11 +223,8 @@ class GpuJobTest(unittest.TestCase):
         afterwards.
         """
         self.run_job("ident", "true")
-        # DIRTY_RUN appears only because these probe runs waive the dirty-tree
-        # gate (see run_job); it is not part of the lifecycle under test.
-        kinds = [l.split()[1] for l in self.log().splitlines() if l.strip()
-                 and l.split()[1] != "DIRTY_RUN"]
-        self.assertEqual(kinds, ["QUEUED", "IDENT", "START", "OK"])
+        self.assertEqual(lifecycle(self.log()),
+                         ["QUEUED", "IDENT", "START", "OK"])
 
     def test_identity_carries_what_is_needed_to_tell_two_runs_apart(self):
         self.run_job("ident", "echo", "hello")
@@ -412,3 +432,241 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"manifest._git_state says dirty={python_says_dirty} but "
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class LlmPreflightGateTest(unittest.TestCase):
+    """The lock cannot tell you there was no engine.
+
+    The PR #308 remeasurement ran with nothing on port 8090, recorded rc=1 and
+    wrote an empty results list - which reads as "the experiment failed"
+    rather than "there was nothing to talk to", and stayed undiagnosed for a
+    day. gpu_job.sh serialises the card and propagates exit codes; it has no
+    idea whether a server exists. Hence an opt-in check.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, **extra):
+        env = dict(os.environ,
+                   GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                              env=env, capture_output=True, text=True, timeout=60)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def test_no_check_happens_unless_asked(self):
+        # Most jobs here are TTS and need no language model.
+        self.assertEqual(0, self._run().returncode)
+        self.assertNotIn("NO_LLM", self._log())
+        self.assertNotIn("LLM_UNCHECKED", self._log())
+
+    def test_a_failing_preflight_stops_the_job_before_it_starts(self):
+        result = self._run(REQUIRE_LLM="1", LLM_PREFLIGHT_PYTHON="/bin/false")
+        self.assertEqual(6, result.returncode)
+        self.assertIn("NO_LLM", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_an_unavailable_checker_warns_rather_than_blocking(self):
+        # "Cannot check" is not "failed": missing the checker must not stop a
+        # run, the same third answer tree_state gives for a non-repo.
+        result = self._run(REQUIRE_LLM="1",
+                           LLM_PREFLIGHT_PYTHON="/nonexistent/python")
+        self.assertEqual(0, result.returncode)
+        self.assertIn("LLM_UNCHECKED", self._log())
+        self.assertIn("START", self._log())
+
+    def test_the_gate_does_not_read_the_ambient_PYTHON_variable(self):
+        """Pinokio exports PYTHON=<miniforge>/python, which does not exist.
+
+        `${PYTHON:-default}` therefore takes the broken value - the variable
+        IS set, so the default never fires - and the first version of this
+        gate silently downgraded to "unchecked" on its first real run.
+        """
+        result = self._run(REQUIRE_LLM="1", PYTHON="/nonexistent/python",
+                           LLM_PREFLIGHT_PYTHON="/bin/false")
+        self.assertEqual(6, result.returncode, "PYTHON must not be consulted")
+        self.assertIn("NO_LLM", self._log())
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class VramGateTest(unittest.TestCase):
+    """The lock serialises jobs; it says nothing about memory.
+
+    On 2026-08-17 llama-server held 14.77 GiB of a 15.92 GiB card while
+    regate_with_provenance held the lock, and 14 consecutive adapters died on
+
+        HIP out of memory. Tried to allocate 2.00 MiB.
+        GPU 0 has a total capacity of 15.92 GiB of which 0 bytes is free.
+
+    ensure_llama_server.sh starts that server OUTSIDE the lock on purpose -
+    "the CALLER never kills the server" is what lets consecutive LLM evals
+    share one load - and it has no lifecycle end. So the lock's guarantee was
+    true and useless: one job held the lock, a non-job held the memory.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, **extra):
+        env = dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                              env=env, capture_output=True, text=True, timeout=60)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def _fake_gpu(self, total_bytes, used_bytes):
+        """PATH entry whose rocm-smi reports a card of our choosing.
+
+        These tests used to read the HOST's GPU and skipTest when there was
+        none - so they measured a different thing on every machine and did not
+        run at all in CI. verify_release rejects skips outright, correctly: a
+        silently skipped test is one that is not running. Supplying the reading
+        makes the gate testable anywhere and deterministic everywhere.
+        """
+        shadow = os.path.join(self.tmp.name, "fakegpu")
+        os.makedirs(shadow, exist_ok=True)
+        script = (
+            "#!/bin/sh\n"
+            'case "$*" in\n'
+            "  *showpids*) echo '1234\tllama-server\t1\t%d'; exit 0;;\n"
+            "esac\n"
+            "echo 'GPU[0]\t\t: VRAM Total Memory (B): %d'\n"
+            "echo 'GPU[0]\t\t: VRAM Total Used Memory (B): %d'\n"
+        ) % (used_bytes, total_bytes, used_bytes)
+        path = os.path.join(shadow, "rocm-smi")
+        with open(path, "w") as handle:
+            handle.write(script)
+        os.chmod(path, 0o755)
+        return shadow + os.pathsep + os.environ["PATH"]
+
+    def test_a_job_is_refused_when_the_card_is_nearly_full(self):
+        # 16 GiB card with 15 GiB gone: 1 GiB free against a 4 GiB need.
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 15 * gib))
+        self.assertEqual(7, result.returncode)
+        self.assertIn("NO_VRAM", self._log())
+        self.assertNotIn("START", self._log(),
+                         "the job must not start when the card is full")
+
+    def test_the_same_job_runs_when_the_card_is_free(self):
+        # The other half of the pair: identical job, roomy card.
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 2 * gib))
+        self.assertEqual(0, result.returncode)
+        self.assertIn("START", self._log())
+        self.assertNotIn("NO_VRAM", self._log())
+
+    def test_the_refusal_names_what_to_do_about_it(self):
+        """A gate that only says no gets overridden reflexively."""
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 15 * gib))
+        self.assertIn("llama-server", result.stderr,
+                      "the usual cause must be named")
+        self.assertIn("REQUIRE_VRAM_GB=0", result.stderr,
+                      "the override must be discoverable")
+
+    def test_zero_disables_the_check_for_small_jobs(self):
+        self.assertEqual(0, self._run(REQUIRE_VRAM_GB="0").returncode)
+        self.assertIn("START", self._log())
+
+    def test_an_unreadable_gpu_warns_rather_than_blocking(self):
+        # "Cannot tell" is not "no memory" - the same third answer tree_state
+        # gives for a non-repo. A missing tool must never block the card.
+        #
+        # Shadowing rocm-smi with a failing stub, NOT emptying PATH: an empty
+        # PATH also hides bash and the test then measures its own broken
+        # fixture rather than the gate.
+        shadow = os.path.join(self.tmp.name, "bin")
+        os.makedirs(shadow, exist_ok=True)
+        stub = os.path.join(shadow, "rocm-smi")
+        with open(stub, "w") as handle:
+            handle.write("#!/bin/sh\nexit 1\n")
+        os.chmod(stub, 0o755)
+        result = self._run(PATH=shadow + os.pathsep + os.environ["PATH"],
+                           REQUIRE_VRAM_GB="4096")
+        self.assertEqual(0, result.returncode,
+                         "an unreadable GPU must not stop the job")
+        self.assertIn("VRAM_UNKNOWN", self._log())
+        self.assertIn("START", self._log())
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class PauseAndProcessGroupTest(unittest.TestCase):
+    """Holding the queue for other use, and taking children down with a job."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+        self.flag = os.path.join(self.tmp.name, "paused")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _env(self, **extra):
+        return dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                    GPU_QLOG=self.qlog, GPU_PAUSE_FLAG=self.flag,
+                    ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0", **extra)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def test_a_paused_queue_holds_the_job_before_the_lock(self):
+        """Waiting must happen BEFORE flock, or a held queue blocks everything
+        while looking busy."""
+        open(self.flag, "w").write("paused")
+        with self.assertRaises(subprocess.TimeoutExpired):
+            subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                           env=self._env(), capture_output=True, timeout=8)
+        self.assertIn("HELD", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_releasing_the_flag_lets_the_job_run(self):
+        r = subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                           env=self._env(), capture_output=True, timeout=60)
+        self.assertEqual(0, r.returncode)
+        self.assertIn("START", self._log())
+
+    def test_exit_codes_survive_the_process_group_wrapper(self):
+        # Running the job via setsid must not swallow its status - the whole
+        # contract of this script is that a failure propagates.
+        r = subprocess.run(["bash", GPU_JOB, "probe", "bash", "-c", "exit 37"],
+                           env=self._env(), capture_output=True, timeout=60)
+        self.assertEqual(37, r.returncode)
+        self.assertIn("FAILED   probe rc=37", self._log())
+
+    def test_a_killed_job_takes_its_descendants_with_it(self):
+        """Borrowed from codex's KillMode=control-group, and not theoretical:
+        after the regate chain was killed on 2026-08-17 a python child kept
+        2.11 GiB of the card and starved the next job."""
+        marker = os.path.join(self.tmp.name, "alive")
+        script = (f"bash -c 'while true; do touch {marker}; sleep 1; done' & "
+                  "sleep 30")
+        proc = subprocess.Popen(["bash", GPU_JOB, "probe", "bash", "-c", script],
+                                env=self._env(), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        time.sleep(4)
+        proc.terminate()
+        proc.wait(timeout=20)
+        time.sleep(3)
+        if os.path.exists(marker):
+            os.unlink(marker)
+        time.sleep(3)
+        self.assertFalse(os.path.exists(marker),
+                         "a descendant outlived the job and would hold the GPU")

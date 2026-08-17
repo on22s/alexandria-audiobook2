@@ -1,0 +1,440 @@
+{
+  "epochs": 6,
+  "lora_r": 64,
+  "seed": 1234,
+  "reference_rank": 1,
+  "eval_lines": 8,
+  "requested_adapters": [
+    "breathy_alto_50s_f_fantasy",
+    "husky_baritone_20s_m_supernatural",
+    "husky_baritone_40s_m_2",
+    "husky_baritone_40s_m_scifi",
+    "husky_soprano_20s_f",
+    "husky_tenor_30s_m_literary",
+    "silky_alto_40s_f_literary_1",
+    "silky_baritone_30s_m_fantasy",
+    "silky_baritone_45s_m",
+    "silky_mezzo_30s_f_supernatural",
+    "velvety_mezzo_30s_f_gothic",
+    "warm_alto_50s_f_gothic",
+    "warm_baritone_30s_m_2",
+    "warm_baritone_30s_m_scifi",
+    "warm_baritone_50s_m_gothic",
+    "warm_bass_50s_m_fantasy",
+    "warm_mezzo_20s_f_anime",
+    "warm_mezzo_30s_f",
+    "warm_tenor_20s_m",
+    "warm_tenor_20s_m_scifi",
+    "warm_tenor_30s_m_gothic"
+  ],
+  "requested": 21,
+  "completed": 21,
+  "complete": true,
+  "results": [
+    {
+      "adapter": "silky_baritone_30s_m_fantasy",
+      "role": "failure",
+      "dataset": "narrator_alyssa_poon_robert_bradvica_rise_of_the_weakest_summoner_volume_i_b09nzklscb_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_1203.wav",
+        "similarity": 0.8419,
+        "rank": 1,
+        "text": "Now, it was much easier to hold on, having to focus only on the front and the sides. .... Two *wolves* he had *wounded* on his way were lying on the ground and yelping in pain."
+      },
+      "old_ecapa_contaminated": 0.6253,
+      "new_ecapa_heldout": 0.6415,
+      "dur_ratio": 1.071,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_soprano_20s_f",
+      "role": "failure",
+      "dataset": "narrator_brittney_karbowski_reincarnated_slime_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2603.wav",
+        "similarity": 0.8398,
+        "rank": 1,
+        "text": "AND WITH THAT *SOE* TOOK HIS EYES OFF THE ORK GENERAL .... NO LONGER INTERESTED IN HIM .... HIS WORK WAS DONE AND IT WAS TIME TO TAKE OUT THE TRASH!"
+      },
+      "old_ecapa_contaminated": 0.6054,
+      "new_ecapa_heldout": 0.722,
+      "dur_ratio": 0.895,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_baritone_30s_m_2",
+      "role": "failure",
+      "dataset": "narrator_christian_j_gilliland_hazel_cohen_elemental_summoner_1_b09bxyjxyt_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0207.wav",
+        "similarity": 0.7886,
+        "rank": 1,
+        "text": "sagely, but also pretty *fucking* cryptically in my *opinion*. “Thanks?” I tell him, unsure what he means by that last part."
+      },
+      "old_ecapa_contaminated": 0.4839,
+      "new_ecapa_heldout": 0.5608,
+      "dur_ratio": 0.98,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_tenor_30s_m_literary",
+      "role": "failure",
+      "dataset": "narrator_cindy_kay_water_moon_a_novel_b0d26l1r1d_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2404.wav",
+        "similarity": 0.8345,
+        "rank": 1,
+        "text": "“When did you know *that* what you felt about me was more than just *friendship*?” ... He shook his head. .... “There is no need to talk about this. ...."
+      },
+      "old_ecapa_contaminated": 0.7369,
+      "new_ecapa_heldout": 0.6546,
+      "dur_ratio": 1.101,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_mezzo_20s_f_anime",
+      "role": "failure",
+      "dataset": "narrator_cristina_vee_nekomonogatari_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2003.wav",
+        "similarity": 0.8643,
+        "rank": 1,
+        "text": "A *MISCHIEVOUS* THOUGHT EVEN POPPED INTO MY HEAD AND I CONSIDERED TAKING A PICTURE OF MYSELF AND SENDING IT TO ATARAGI THOUGH I STILL HAD NO IDEA OF WHAT KIND OF SITUATION HE WAS IN ..."
+      },
+      "old_ecapa_contaminated": 0.6655,
+      "new_ecapa_heldout": 0.7239,
+      "dur_ratio": 1.021,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "breathy_alto_50s_f_fantasy",
+      "role": "failure",
+      "dataset": "narrator_mare_trevathan_the_godking_s_legacy_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_3015.wav",
+        "similarity": 0.7421,
+        "rank": 1,
+        "text": "THE WOLF KIN'S VOICE SOUNDED A BIT DEJECTED BUT THAT WASN'T MY PROBLEM ... I STILL *EVEN'T* FOUND A GOOD USE FOR HIM YET."
+      },
+      "old_ecapa_contaminated": 0.2136,
+      "new_ecapa_heldout": 0.4196,
+      "dur_ratio": 0.954,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_baritone_20s_m_supernatural",
+      "role": "failure",
+      "dataset": "narrator_keith_silverstein_kizumonogatari_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": null,
+      "old_ecapa_contaminated": 0.0526,
+      "new_ecapa_heldout": 0.0389,
+      "dur_ratio": 0.96,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_baritone_40s_m_2",
+      "role": "failure",
+      "dataset": "narrator_scott_brick_foundation_s_edge_b005wl4r7e_char2_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_4802.wav",
+        "similarity": 0.7961,
+        "rank": 1,
+        "text": "“It must be a *most* unusual world, then, for it must be able to *manipulate* minds.” “And did you not say a *moment* ago ..."
+      },
+      "old_ecapa_contaminated": 0.5298,
+      "new_ecapa_heldout": 0.5906,
+      "dur_ratio": 0.905,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_baritone_40s_m_scifi",
+      "role": "failure",
+      "dataset": "narrator_jon_lindstrom_nightfall_and_other_stories_059341635x_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_3015.wav",
+        "similarity": 0.8273,
+        "rank": 1,
+        "text": "As for me, I thought of myself as a *noble* idealist, I’m afraid. .... Yet in none of us was the motivation strong enough to get us into a spacesuit and out the ..."
+      },
+      "old_ecapa_contaminated": 0.5595,
+      "new_ecapa_heldout": 0.4996,
+      "dur_ratio": 0.862,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "silky_alto_40s_f_literary_1",
+      "role": "failure",
+      "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char2_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0606.wav",
+        "similarity": 0.736,
+        "rank": 1,
+        "text": "It was dark outside the window, and the glass reflected the bright interior of the restaurant. .... I saw *myself* in the reflection."
+      },
+      "old_ecapa_contaminated": 0.6827,
+      "new_ecapa_heldout": 0.1002,
+      "dur_ratio": 1.204,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "silky_baritone_45s_m",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char4_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0809.wav",
+        "similarity": 0.8602,
+        "rank": 1,
+        "text": "the Szgany and the Slovaks of whom the Count *had* spoken were coming. .... With a last look around and at the box which contained the vile body, I ran from the place and gained the Count’s room, determined to rush out at the moment the door should be *opened*."
+      },
+      "old_ecapa_contaminated": 0.2236,
+      "new_ecapa_heldout": 0.1121,
+      "dur_ratio": 0.957,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "silky_mezzo_30s_f_supernatural",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char6_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_1406.wav",
+        "similarity": 0.846,
+        "rank": 1,
+        "text": "As I was leaving the room it struck me that the clothes she wore might give me some clue to her *dreaming* intention. .... Dressing gown would mean house; dress, outside."
+      },
+      "old_ecapa_contaminated": 0.7077,
+      "new_ecapa_heldout": 0.7351,
+      "dur_ratio": 1.088,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "velvety_mezzo_30s_f_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char9_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2210.wav",
+        "similarity": 0.8357,
+        "rank": 1,
+        "text": "My wrist bled freely, and quite a little pool trickled on to the carpet. .... I saw that my friend was not intent on further effort, and occupied myself binding up my *wrist*,"
+      },
+      "old_ecapa_contaminated": 0.0614,
+      "new_ecapa_heldout": 0.229,
+      "dur_ratio": 0.824,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_alto_50s_f_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char3_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_4011.wav",
+        "similarity": 0.8636,
+        "rank": 1,
+        "text": "He said to Madam Mina, as I see in your diary of yesterday, that he had once had such a belief. .... Why do you smile, *friend* John?’"
+      },
+      "old_ecapa_contaminated": 0.0338,
+      "new_ecapa_heldout": 0.0481,
+      "dur_ratio": 0.934,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_baritone_30s_m_scifi",
+      "role": "failure",
+      "dataset": "narrator_jay_snyder_ex_heroes_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2811.wav",
+        "similarity": 0.78,
+        "rank": 1,
+        "text": "Half the rest glanced up as Rodney yelled DON’T!! The goggles opened and Gorgon cast his *vampiric* gaze out at the frozen crowd. ..."
+      },
+      "old_ecapa_contaminated": 0.6423,
+      "new_ecapa_heldout": 0.6218,
+      "dur_ratio": 1.063,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_baritone_50s_m_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char5_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_5809.wav",
+        "similarity": 0.8193,
+        "rank": 1,
+        "text": "whilst so *armed*, nor Madam Mina whilst she remained within the *ring*, which she could not leave no more than they could *enter*. ...."
+      },
+      "old_ecapa_contaminated": 0.4741,
+      "new_ecapa_heldout": 0.6174,
+      "dur_ratio": 1.02,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_bass_50s_m_fantasy",
+      "role": "failure",
+      "dataset": "narrator_michael_kramer_the_hero_of_ages_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0208.wav",
+        "similarity": 0.8265,
+        "rank": 1,
+        "text": "\"But Venture looked at him. .... His eyes were calm, but his gaze was *firm* and *expectant*. .... The message was simple."
+      },
+      "old_ecapa_contaminated": 0.6282,
+      "new_ecapa_heldout": 0.6889,
+      "dur_ratio": 1.045,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_mezzo_30s_f",
+      "role": "failure",
+      "dataset": "narrator_kate_reading_a_natural_history_of_dragons_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2600.wav",
+        "similarity": 0.8776,
+        "rank": 1,
+        "text": "where Menkem finished his prayers with the holy gesture. .... At that moment, I did not care *in* the slightest what spiritual benefit I might have gained from the *exercise*."
+      },
+      "old_ecapa_contaminated": 0.5195,
+      "new_ecapa_heldout": 0.6401,
+      "dur_ratio": 0.95,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_tenor_20s_m",
+      "role": "failure",
+      "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char4_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0209.wav",
+        "similarity": 0.801,
+        "rank": 1,
+        "text": "That I liked her the same way I’d like a *shirt* or a *pair* of *pants*? But most importantly, what would happen if I rejected her condition?"
+      },
+      "old_ecapa_contaminated": 0.7248,
+      "new_ecapa_heldout": 0.3949,
+      "dur_ratio": 1.034,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_tenor_20s_m_scifi",
+      "role": "failure",
+      "dataset": "narrator_luci_christian_full_metal_panic_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0001.wav",
+        "similarity": 0.769,
+        "rank": 1,
+        "text": "Against the casual clamor of a high school after class, her tone was *sharp* and *serious*. She had black hair that went all the way down her back,"
+      },
+      "old_ecapa_contaminated": 0.5114,
+      "new_ecapa_heldout": 0.6282,
+      "dur_ratio": 1.015,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_tenor_30s_m_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char7_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_3209.wav",
+        "similarity": 0.8461,
+        "rank": 1,
+        "text": "He began by saying that he hoped we would all come with him too, ‘*for*,’ he said, ‘*there* *is* *a* *grave* *duty* *to* *be* *done* *there*."
+      },
+      "old_ecapa_contaminated": 0.4572,
+      "new_ecapa_heldout": 0.6014,
+      "dur_ratio": 1.242,
+      "n": 8,
+      "ecapa_error": null
+    }
+  ],
+  "provenance": {
+    "script": "retrain_honest.py",
+    "written": "2026-08-16T13:10:42",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
+      "branch": "agent/japanese-asr-50-clip-set-20260816",
+      "dirty": false,
+      "modified_tracked_files": null,
+      "untracked_harness_files": null,
+      "harness_sha256": "1da222e52a80962897e88f4c162105765d947124a63a6cf733703b03553d3999"
+    },
+    "args": {
+      "adapters": [
+        "breathy_alto_50s_f_fantasy",
+        "husky_baritone_20s_m_supernatural",
+        "husky_baritone_40s_m_2",
+        "husky_baritone_40s_m_scifi",
+        "husky_soprano_20s_f",
+        "husky_tenor_30s_m_literary",
+        "silky_alto_40s_f_literary_1",
+        "silky_baritone_30s_m_fantasy",
+        "silky_baritone_45s_m",
+        "silky_mezzo_30s_f_supernatural",
+        "velvety_mezzo_30s_f_gothic",
+        "warm_alto_50s_f_gothic",
+        "warm_baritone_30s_m_2",
+        "warm_baritone_30s_m_scifi",
+        "warm_baritone_50s_m_gothic",
+        "warm_bass_50s_m_fantasy",
+        "warm_mezzo_20s_f_anime",
+        "warm_mezzo_30s_f",
+        "warm_tenor_20s_m",
+        "warm_tenor_20s_m_scifi",
+        "warm_tenor_30s_m_gothic"
+      ],
+      "controls": [],
+      "models": "lora_models",
+      "zips": "_deduped_labeled",
+      "work": "ab_test_runtime/reference_rank1_all21",
+      "epochs": 6,
+      "lora_r": 64,
+      "lora_alpha": 128,
+      "seed": 1234,
+      "use_medoid": true,
+      "medoid_clips": 14,
+      "reference_rank": 1,
+      "eval_lines": 8,
+      "out": "ab_test_runtime/experiments/reference_rank1_all21.json",
+      "resume": true
+    },
+    "seed": 1234
+  }
+}

@@ -1,0 +1,9 @@
+{
+ "adapter": "lora_models/warm_baritone_30s_m_scifi",
+ "median_ecapa": 0.6878,
+ "lines": 10,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.688)"
+}

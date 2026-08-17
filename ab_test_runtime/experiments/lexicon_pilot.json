@@ -1,0 +1,1112 @@
+{
+ "roots": [
+  "/run/media/fakemitch/HDD1/audiobook/Officially Translated Light Novels",
+  "/run/media/fakemitch/HHD2/old computer/Officially Translated Light Novels"
+ ],
+ "epubs_found": 40,
+ "books_scanned": 39,
+ "duplicates_skipped": 0,
+ "failed": 1,
+ "min_books": 2,
+ "note": "word statistics only; no sentences are stored",
+ "candidates": [
+  {
+   "term": "gomanga",
+   "occurrences": 16,
+   "books": 16,
+   "series": 1,
+   "kana": "ゴマンガ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.062
+  },
+  {
+   "term": "asura",
+   "occurrences": 28,
+   "books": 11,
+   "series": 1,
+   "kana": "アスラ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.091
+  },
+  {
+   "term": "shizun",
+   "occurrences": 2000,
+   "books": 10,
+   "series": 1,
+   "kana": "シズン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "manga",
+   "occurrences": 65,
+   "books": 10,
+   "series": 1,
+   "kana": "マンガ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "aiya",
+   "occurrences": 59,
+   "books": 10,
+   "series": 1,
+   "kana": "アイヤ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "dantian",
+   "occurrences": 18,
+   "books": 10,
+   "series": 1,
+   "kana": "ダンチアン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "huai",
+   "occurrences": 17,
+   "books": 10,
+   "series": 1,
+   "kana": "フアイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "meimei",
+   "occurrences": 15,
+   "books": 10,
+   "series": 1,
+   "kana": "メイメイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.1
+  },
+  {
+   "term": "weiyu",
+   "occurrences": 184,
+   "books": 9,
+   "series": 1,
+   "kana": "ウェイユ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "bitan",
+   "occurrences": 106,
+   "books": 9,
+   "series": 1,
+   "kana": "ビタン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "jiangui",
+   "occurrences": 92,
+   "books": 9,
+   "series": 1,
+   "kana": "ジアングイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "beidou",
+   "occurrences": 72,
+   "books": 9,
+   "series": 1,
+   "kana": "ベイドウ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "naobaijin",
+   "occurrences": 55,
+   "books": 9,
+   "series": 1,
+   "kana": "ナオバイジン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "jiuge",
+   "occurrences": 46,
+   "books": 9,
+   "series": 1,
+   "kana": "ジウゲ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "danmei",
+   "occurrences": 36,
+   "books": 9,
+   "series": 1,
+   "kana": "ダンメイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "shige",
+   "occurrences": 32,
+   "books": 9,
+   "series": 1,
+   "kana": "シゲ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.111
+  },
+  {
+   "term": "zizi",
+   "occurrences": 22,
+   "books": 9,
+   "series": 1,
+   "kana": "ジジ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "shizu",
+   "occurrences": 21,
+   "books": 9,
+   "series": 1,
+   "kana": "シズ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.111
+  },
+  {
+   "term": "dage",
+   "occurrences": 19,
+   "books": 9,
+   "series": 1,
+   "kana": "ダゲ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "shimei",
+   "occurrences": 19,
+   "books": 9,
+   "series": 1,
+   "kana": "シメイ",
+   "pos": "名詞/固有名詞/一般",
+   "spread": 0.111
+  },
+  {
+   "term": "naihe",
+   "occurrences": 25,
+   "books": 8,
+   "series": 1,
+   "kana": "ナイヘ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.125
+  },
+  {
+   "term": "masse",
+   "occurrences": 15,
+   "books": 8,
+   "series": 1,
+   "kana": "マッセ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.125
+  },
+  {
+   "term": "shen",
+   "occurrences": 320,
+   "books": 7,
+   "series": 1,
+   "kana": "シェン",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.143
+  },
+  {
+   "term": "gouchen",
+   "occurrences": 71,
+   "books": 7,
+   "series": 1,
+   "kana": "ゴウチェン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.143
+  },
+  {
+   "term": "kadokawa",
+   "occurrences": 18,
+   "books": 7,
+   "series": 1,
+   "kana": "カドカワ",
+   "pos": "名詞/固有名詞/一般",
+   "spread": 0.143
+  },
+  {
+   "term": "sarasa",
+   "occurrences": 299,
+   "books": 6,
+   "series": 1,
+   "kana": "サラサ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.167
+  },
+  {
+   "term": "binan",
+   "occurrences": 261,
+   "books": 6,
+   "series": 1,
+   "kana": "ビナン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.167
+  },
+  {
+   "term": "pipa",
+   "occurrences": 20,
+   "books": 6,
+   "series": 1,
+   "kana": "ピパ",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.167
+  },
+  {
+   "term": "aiyo",
+   "occurrences": 14,
+   "books": 6,
+   "series": 1,
+   "kana": "アイヨ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.167
+  },
+  {
+   "term": "mori",
+   "occurrences": 10,
+   "books": 6,
+   "series": 1,
+   "kana": "モリ",
+   "pos": "名詞/固有名詞/人名/姓",
+   "spread": 0.167
+  },
+  {
+   "term": "minsoo",
+   "occurrences": 6,
+   "books": 6,
+   "series": 1,
+   "kana": "ミンソオ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.167
+  },
+  {
+   "term": "marakia",
+   "occurrences": 1135,
+   "books": 5,
+   "series": 1,
+   "kana": "マラキア",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.2
+  },
+  {
+   "term": "mura",
+   "occurrences": 29,
+   "books": 5,
+   "series": 1,
+   "kana": "ムラ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.2
+  },
+  {
+   "term": "kekeke",
+   "occurrences": 22,
+   "books": 5,
+   "series": 1,
+   "kana": "ケケケ",
+   "pos": "副詞",
+   "spread": 0.2
+  },
+  {
+   "term": "katana",
+   "occurrences": 21,
+   "books": 5,
+   "series": 1,
+   "kana": "カタナ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.2
+  },
+  {
+   "term": "taizi",
+   "occurrences": 5,
+   "books": 5,
+   "series": 1,
+   "kana": "タイジ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.2
+  },
+  {
+   "term": "demi",
+   "occurrences": 1392,
+   "books": 4,
+   "series": 1,
+   "kana": "デミ",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "yuki",
+   "occurrences": 256,
+   "books": 4,
+   "series": 1,
+   "kana": "ユキ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.25
+  },
+  {
+   "term": "panchuria",
+   "occurrences": 73,
+   "books": 4,
+   "series": 1,
+   "kana": "パンチュリア",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "sensei",
+   "occurrences": 55,
+   "books": 4,
+   "series": 1,
+   "kana": "センセイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "kukuku",
+   "occurrences": 14,
+   "books": 4,
+   "series": 1,
+   "kana": "ククク",
+   "pos": "感動詞/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "horasan",
+   "occurrences": 7,
+   "books": 4,
+   "series": 1,
+   "kana": "ホラサン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "baitou",
+   "occurrences": 6,
+   "books": 4,
+   "series": 1,
+   "kana": "バイトウ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.25
+  },
+  {
+   "term": "miao",
+   "occurrences": 180,
+   "books": 3,
+   "series": 1,
+   "kana": "ミアオ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "hajime",
+   "occurrences": 49,
+   "books": 3,
+   "series": 1,
+   "kana": "ハジメ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.333
+  },
+  {
+   "term": "deja",
+   "occurrences": 18,
+   "books": 3,
+   "series": 1,
+   "kana": "デジャ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "nanke",
+   "occurrences": 17,
+   "books": 3,
+   "series": 1,
+   "kana": "ナンケ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "jenka",
+   "occurrences": 12,
+   "books": 3,
+   "series": 1,
+   "kana": "ジェンカ",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "ahaha",
+   "occurrences": 11,
+   "books": 3,
+   "series": 1,
+   "kana": "アハハ",
+   "pos": "感動詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "joseon",
+   "occurrences": 9,
+   "books": 3,
+   "series": 1,
+   "kana": "ジョセオン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "bobo",
+   "occurrences": 7,
+   "books": 3,
+   "series": 1,
+   "kana": "ボボ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "dabo",
+   "occurrences": 7,
+   "books": 3,
+   "series": 1,
+   "kana": "ダボ",
+   "pos": "副詞",
+   "spread": 0.333
+  },
+  {
+   "term": "udon",
+   "occurrences": 7,
+   "books": 3,
+   "series": 1,
+   "kana": "ウドン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "soju",
+   "occurrences": 6,
+   "books": 3,
+   "series": 1,
+   "kana": "ソジュ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "isekai",
+   "occurrences": 5,
+   "books": 3,
+   "series": 1,
+   "kana": "イセカイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "otaku",
+   "occurrences": 5,
+   "books": 3,
+   "series": 1,
+   "kana": "オタク",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "hehuan",
+   "occurrences": 3,
+   "books": 3,
+   "series": 1,
+   "kana": "ヘフアン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "suona",
+   "occurrences": 3,
+   "books": 3,
+   "series": 1,
+   "kana": "スオナ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "emoji",
+   "occurrences": 3,
+   "books": 3,
+   "series": 1,
+   "kana": "エモジ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.333
+  },
+  {
+   "term": "fuxuan",
+   "occurrences": 948,
+   "books": 2,
+   "series": 1,
+   "kana": "フゥアン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "yunhai",
+   "occurrences": 294,
+   "books": 2,
+   "series": 1,
+   "kana": "ユンハイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "kariya",
+   "occurrences": 188,
+   "books": 2,
+   "series": 1,
+   "kana": "カリヤ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "sakura",
+   "occurrences": 105,
+   "books": 2,
+   "series": 1,
+   "kana": "サクラ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "taigon",
+   "occurrences": 71,
+   "books": 2,
+   "series": 1,
+   "kana": "タイゴン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "paparupa",
+   "occurrences": 47,
+   "books": 2,
+   "series": 1,
+   "kana": "パパルパ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "rushan",
+   "occurrences": 41,
+   "books": 2,
+   "series": 1,
+   "kana": "ルシャン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "saya",
+   "occurrences": 41,
+   "books": 2,
+   "series": 1,
+   "kana": "サヤ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "kaori",
+   "occurrences": 37,
+   "books": 2,
+   "series": 1,
+   "kana": "カオリ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.5
+  },
+  {
+   "term": "haruto",
+   "occurrences": 34,
+   "books": 2,
+   "series": 1,
+   "kana": "ハルト",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "yukata",
+   "occurrences": 26,
+   "books": 2,
+   "series": 1,
+   "kana": "ユカタ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "anju",
+   "occurrences": 25,
+   "books": 2,
+   "series": 1,
+   "kana": "アンジュ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "shiranui",
+   "occurrences": 25,
+   "books": 2,
+   "series": 1,
+   "kana": "シラヌイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "mian",
+   "occurrences": 23,
+   "books": 2,
+   "series": 1,
+   "kana": "ミアン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "sunbae",
+   "occurrences": 21,
+   "books": 2,
+   "series": 1,
+   "kana": "スンバエ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "unnie",
+   "occurrences": 21,
+   "books": 2,
+   "series": 1,
+   "kana": "ウンイエ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "varan",
+   "occurrences": 19,
+   "books": 2,
+   "series": 1,
+   "kana": "ヴァラン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "aran",
+   "occurrences": 19,
+   "books": 2,
+   "series": 1,
+   "kana": "アラン",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "gacha",
+   "occurrences": 16,
+   "books": 2,
+   "series": 1,
+   "kana": "ガチャ",
+   "pos": "副詞",
+   "spread": 0.5
+  },
+  {
+   "term": "mochi",
+   "occurrences": 14,
+   "books": 2,
+   "series": 1,
+   "kana": "モチ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "doron",
+   "occurrences": 14,
+   "books": 2,
+   "series": 1,
+   "kana": "ドロン",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "shee",
+   "occurrences": 12,
+   "books": 2,
+   "series": 1,
+   "kana": "シェエ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "seri",
+   "occurrences": 11,
+   "books": 2,
+   "series": 1,
+   "kana": "セリ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "onee",
+   "occurrences": 9,
+   "books": 2,
+   "series": 1,
+   "kana": "オネエ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "daisuke",
+   "occurrences": 9,
+   "books": 2,
+   "series": 1,
+   "kana": "ダイスケ",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.5
+  },
+  {
+   "term": "soojin",
+   "occurrences": 9,
+   "books": 2,
+   "series": 1,
+   "kana": "ソオジン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "kire",
+   "occurrences": 8,
+   "books": 2,
+   "series": 1,
+   "kana": "キレ",
+   "pos": "名詞/普通名詞/助数詞可能",
+   "spread": 0.5
+  },
+  {
+   "term": "hanja",
+   "occurrences": 8,
+   "books": 2,
+   "series": 1,
+   "kana": "ハンジャ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "juyan",
+   "occurrences": 8,
+   "books": 2,
+   "series": 1,
+   "kana": "ジュヤン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "dango",
+   "occurrences": 7,
+   "books": 2,
+   "series": 1,
+   "kana": "ダンゴ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "ahahaha",
+   "occurrences": 7,
+   "books": 2,
+   "series": 1,
+   "kana": "アハハハ",
+   "pos": "感動詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "ooki",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "オオキ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "ookiki",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "オオキキ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "titano",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "チタノ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "nanmu",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "ナンム",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "chibi",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "チビ",
+   "pos": "名詞/普通名詞/形状詞可能",
+   "spread": 0.5
+  },
+  {
+   "term": "senpai",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "センパイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "shiina",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "シイナ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "arifureta",
+   "occurrences": 6,
+   "books": 2,
+   "series": 1,
+   "kana": "アリフレタ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "taishan",
+   "occurrences": 5,
+   "books": 2,
+   "series": 1,
+   "kana": "タイシャン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "kiee",
+   "occurrences": 4,
+   "books": 2,
+   "series": 1,
+   "kana": "キエエ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "sashimi",
+   "occurrences": 4,
+   "books": 2,
+   "series": 1,
+   "kana": "サシミ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "guiwei",
+   "occurrences": 4,
+   "books": 2,
+   "series": 1,
+   "kana": "グイウェイ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "taishi",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "タイシ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "shiba",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "シバ",
+   "pos": "名詞/固有名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "tsundere",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "ツンデレ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "huhuhu",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "フフフ",
+   "pos": "感動詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "mino",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "ミノ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "hakama",
+   "occurrences": 3,
+   "books": 2,
+   "series": 1,
+   "kana": "ハカマ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "huashi",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "フアシ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "yumin",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "ユミン",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "noboru",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "ノボル",
+   "pos": "名詞/固有名詞/人名/名",
+   "spread": 0.5
+  },
+  {
+   "term": "choi",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "チョイ",
+   "pos": "副詞",
+   "spread": 0.5
+  },
+  {
+   "term": "ahahahaha",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "アハハハハ",
+   "pos": "感動詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "ehehehe",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "エヘヘヘ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "kiki",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "キキ",
+   "pos": "名詞/固有名詞/人名/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "mikazuki",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "ミカズキ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "munechika",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "ムネチカ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "maruyama",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "マルヤマ",
+   "pos": "名詞/固有名詞/人名/姓",
+   "spread": 0.5
+  },
+  {
+   "term": "feishi",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "フェイシ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "dengeki",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "デンゲキ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "haori",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "ハオリ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  },
+  {
+   "term": "sama",
+   "occurrences": 2,
+   "books": 2,
+   "series": 1,
+   "kana": "サマ",
+   "pos": "名詞/普通名詞/一般",
+   "spread": 0.5
+  }
+ ]
+}

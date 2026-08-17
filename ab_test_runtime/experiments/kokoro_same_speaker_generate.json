@@ -1,0 +1,287 @@
+{
+ "seed": 1234,
+ "arms": [
+  "clone"
+ ],
+ "reference_id": "kokoro-by-soseki-natsume-01625",
+ "test_books": [
+  "kokoro-by-soseki-natsume"
+ ],
+ "rows": [
+  {
+   "id": "kokoro-by-soseki-natsume-00899",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u300d\u300c\u305d\u306e\u304f\u3089\u3044\u5148\u751f\u306b\u5fe0\u5b9f\u306a\u3042\u306a\u305f\u304c\u6025\u306b\u3044\u306a\u304f\u306a\u3063\u305f\u3089\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-00899.flac",
+   "human_seconds": 4.20281179138322,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-00899__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-00914",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u304b\u3089\u305d\u306e\u4eba\u9593\u306e\u3044\u3061\u306b\u3093\u3068\u3057\u3066\u3001\u79c1\u3082\u597d\u304b\u308c\u308b\u306f\u305a\u304c\u306a\u3044\u3058\u3083\u3042\u308a\u307e\u305b\u3093\u304b",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-00914.flac",
+   "human_seconds": 5.758548752834467,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-00914__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-01295",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u982d\u3092\u304a\u3055\u3048\u3066\u60a9\u307f\u59cb\u3081\u305f\u3002\u79c1\u306f\u305d\u308c\u304b\u3089\u8ad6\u6587\u306e\u554f\u984c\u3092\u5c0f\u3055\u304f\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01295.flac",
+   "human_seconds": 6.5712471655328795,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01295__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-01366",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u306f\u304b\u306a\u3081\u306e\u57a3\u304b\u3089\u82e5\u3044\u67d4\u3089\u304b\u3044\u8449\u3092\u3082\u304e\u53d6\u3063\u3066\u3057\u3070\u3076\u3048\u3092\u9cf4\u3089\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01366.flac",
+   "human_seconds": 6.780226757369615,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01366__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-01770",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u300d\u300c\u3069\u3061\u3089\u306e\u898b\u5f53\u3067\u3059\u3002\u3082\u3057\u3044\u3089\u3063\u3057\u3083\u308b\u3068\u3059\u308c\u3070",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-01770.flac",
+   "human_seconds": 4.040272108843538,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-01770__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-02034",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u306f\u5b50\u4f9b\u306e\u6642\u304b\u3089\u5f7c\u3089\u306e\u5e2d\u306b\u3058\u3059\u308b\u306e\u3092",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02034.flac",
+   "human_seconds": 4.435011337868481,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02034__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-02313",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u305d\u306e\u7236\u81ea\u8eab\u3082\u304a\u306e\u308c\u306e\u75c5\u6c17\u3092\u5fd8\u308c\u308b\u4e8b\u304c\u3042\u3063\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02313.flac",
+   "human_seconds": 4.237641723356009,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02313__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-02817",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u307e\u3060\u3086\u3044\u3054\u3093\u3089\u3057\u3044\u3082\u306e\u3092\u53e3\u306b\u51fa\u3055\u306a\u304b\u3063\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02817.flac",
+   "human_seconds": 3.7151927437641725,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02817__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-02839",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u8abf\u5b50\u3092\u5f35\u308a\u4e0a\u3052\u3066\u3001\u8033\u5143\u3078\u53e3\u3092\u5bc4\u305b\u308b\u3088\u3046\u306b\u3057\u306a\u3051\u308c\u3070\u306a\u3089\u306a\u304b\u3063\u305f\u3002\u300c\u982d\u3092\u51b7\u3084\u3059\u3068\u3044\u3044\u5fc3\u6301\u3067\u3059\u304b\u300d\u300c\u3046\u3093",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02839.flac",
+   "human_seconds": 8.126984126984127,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02839__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-02919",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u4e09\u5341\u5206\u307b\u3069\u307e\u304f\u3089\u3082\u3068\u306b\u3059\u308f\u3063\u3066\u3044\u305f\u533b\u8005\u306f\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-02919.flac",
+   "human_seconds": 3.297233560090703,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-02919__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03253",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u53d4\u7236\u306f\u304a\u524d\u306e\u3046\u3061\u3060\u304b\u3089\u3068\u3044\u3063\u3066\u3001\u805e\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03253.flac",
+   "human_seconds": 4.028662131519274,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03253__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03258",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u305d\u308c\u306f\u524d\u5f8c\u3067\u4e01\u5ea6\u4e09\u3001\u56db\u56de\u3082\u7e70\u308a\u8fd4\u3055\u308c\u305f\u3067\u3057\u3087\u3046\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03258.flac",
+   "human_seconds": 4.887800453514739,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03258__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03316",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u89aa\u3057\u304f\u306a\u308a\u904e\u304e\u305f\u306a\u3093\u306b\u3087\u306e\u9593\u306b\u306f\u3001\u604b\u306b\u5fc5\u8981\u306a\u3057\u3052\u304d\u306e\u8d77\u308b",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03316.flac",
+   "human_seconds": 4.771700680272109,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03316__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03491",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3042\u3068\u304b\u3089\u3053\u306e\u53cb\u4eba\u306b\u9001\u3063\u3066\u3082\u3089\u3063\u305f\u91d1\u3060\u3051\u306a\u306e\u3067\u3059\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03491.flac",
+   "human_seconds": 3.541043083900227,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03491__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03532",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3076\u306b\u3093\u3067\u3055\u3080\u3057\u304f\u3063\u3066\u56f0\u308b\u304b\u3089\u76f8\u5f53\u306e\u4eba\u304c\u3042\u3063\u305f\u3089",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03532.flac",
+   "human_seconds": 4.040272108843538,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03532__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03635",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u304c\u6771\u4eac\u3078\u6765\u3066\u4e0b\u5bbf\u3092\u51fa\u3088\u3046\u3068\u3057\u305f\u306e\u3082\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03635.flac",
+   "human_seconds": 4.017052154195011,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03635__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-03682",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3057\u304b\u3057\u305d\u308c\u306f\u304d\u3057\u3087\u3046\u306e\u554f\u984c\u3067\u306f\u3042\u308a\u307e\u305b\u3093\u304b\u3089\u3001\u79c1\u306e\u5185\u751f\u6d3b\u306b\u53d6\u3063\u3066\u307b\u3068\u3093\u3069\u95a2\u4fc2\u306e\u306a\u3044\u306e\u3068\u4e00\u822c\u3067\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-03682.flac",
+   "human_seconds": 8.010884353741497,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-03682__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04009",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3072\u3056\u306e\u4e0a\u3078\u7f6e\u3044\u3066\u306a\u304c\u3081\u3066\u3044\u308b\u3089\u3057\u304b\u3063\u305f\u306e\u3067\u3059\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04009.flac",
+   "human_seconds": 3.274013605442177,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04009__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04289",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u304c\u6c7a\u3057\u3066\u4e16\u8a71\u306e\u713c\u3051\u308b\u4eba\u3067\u306a\u3044\u304b\u3089\u69cb\u3046\u307e\u3044\u3068\u3044\u3046\u3068\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04289.flac",
+   "human_seconds": 4.702040816326531,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04289__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04438",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u5973\u306f\u305d\u3046\u3051\u3044\u3079\u3064\u3059\u3079\u304d\u3082\u306e\u3067\u306a\u3044\u3068\u3044\u3046\u3088\u3046\u306a\u4e8b\u3092\u3044\u3044\u307e\u3057\u305f\u3002\uff2b\u306f\u306f\u3058\u3081\u5973\u304b\u3089\u3082\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04438.flac",
+   "human_seconds": 5.979138321995465,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04438__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04465",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3053\u3046\u3057\u3092\u304c\u3089\u308a\u3068\u958b\u3051\u307e\u3057\u305f\u3002\u305d\u308c\u3068\u540c\u6642\u306b\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04465.flac",
+   "human_seconds": 3.889342403628118,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04465__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04773",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3046\u3093\u3046\u3093\u6c57\u3092\u6d41\u3057\u306a\u304c\u3089\u6b69\u304d\u51fa\u3057\u305f\u306e\u3067\u3059\u3002\u3057\u304b\u3057\u79c1\u306f",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04773.flac",
+   "human_seconds": 4.493061224489796,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04773__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-04936",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u305d\u3053\u306e\u533a\u5225\u304c\u3061\u3087\u3063\u3068\u306f\u3093\u305c\u3093\u3057\u306a\u3044\u70b9\u304c\u3042\u308a\u307e\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-04936.flac",
+   "human_seconds": 3.622312925170068,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-04936__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05073",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3058\u3063\u3068\u6211\u6162\u3057\u3066\u52d5\u304b\u305a\u306b\u3044\u307e\u3057\u305f\u3002\uff2b\u306f\u305d\u306e\u3042\u3044\u3060\u3044\u3064\u3082\u306e\u901a\u308a\u91cd\u3044\u53e3\u3092\u5207\u3063\u3066\u306f\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05073.flac",
+   "human_seconds": 6.164897959183674,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05073__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05211",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3068\u3053\u308d\u304c\uff2b\u306f\u3055\u3063\u304d\u304b\u3089\u4e8c\u5ea6\u304a\u3044\u3068\u547c\u3070\u308c\u3066\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05211.flac",
+   "human_seconds": 3.5874829931972787,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05211__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05354",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\uff2b\u304c\u79c1\u306b\u5411\u3063\u3066\u4f7f\u3063\u305f\u8a00\u8449\u3067\u3059\u3002\u79c1\u306f\u5f7c\u306e\u4f7f\u3063\u305f\u901a\u308a\u3092\u3001",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05354.flac",
+   "human_seconds": 5.746938775510204,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05354__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05746",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u300c\u304a\u3081\u3067\u3068\u3046\u3054\u3056\u3044\u307e\u3059\u300d\u3068\u3044\u3063\u305f\u307e\u307e\u5e2d\u3092\u7acb\u3063\u305f\u305d\u3046\u3067\u3059\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05746.flac",
+   "human_seconds": 3.6687528344671203,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05746__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05811",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u3054\u304f\u3042\u3063\u3055\u308a\u3068\u3057\u305f\u6587\u53e5\u3067\u305d\u306e\u3042\u3068\u306b\u4ed8\u3051\u52a0\u3048\u3066\u3042\u308a\u307e\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05811.flac",
+   "human_seconds": 3.900952380952381,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05811__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-05989",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u306f\u610f\u5473\u3082\u306a\u304f\u305f\u3060\u304e\u3087\u3063\u3068\u3057\u307e\u3057\u305f\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-05989.flac",
+   "human_seconds": 3.7616326530612243,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-05989__clone.wav"
+  },
+  {
+   "id": "kokoro-by-soseki-natsume-06286",
+   "book": "kokoro-by-soseki-natsume",
+   "text": "\u79c1\u306e\u904e\u53bb\u3092\u5584\u60aa\u3068\u3082\u306b\u3072\u3068\u306e\u53c2\u8003\u306b\u4f9b\u3059\u308b\u3064\u3082\u308a\u3067\u3059\u3002",
+   "human_wav": "ab_test_runtime/corpora/kokoro/wavs/kokoro-by-soseki-natsume-06286.flac",
+   "human_seconds": 4.4117913832199545,
+   "clone_wav": "ab_test_runtime/kokoro_same_speaker_eval/generated/kokoro-by-soseki-natsume-06286__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-15T15:35:26",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "d750a6c16265f6440b324acbfa838199ca01ab8f",
+   "branch": "agent/gated-adapter-promotion",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M GOALS.md",
+    " M RESULTS_INDEX.md",
+    " M results_index.csv"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/generation_state_probe.py",
+    "app/experiments/kokoro_same_speaker_build.py",
+    "app/experiments/three_pass_chunk_probe.py"
+   ],
+   "harness_sha256": "5ecb39b2e961bcc218a21b1c00d76c3b7feeb8ea1549aee013174929745d2cf3"
+  },
+  "args": {
+   "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",
+   "adapter": "ab_test_runtime/ljspeech_eval/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/kokoro_same_speaker_eval/generated",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/kokoro_same_speaker_generate.json"
+  },
+  "seed": 1234
+ }
+}

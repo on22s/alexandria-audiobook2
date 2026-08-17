@@ -575,6 +575,13 @@
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
+  "test_gate_provenance": [
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_a_provenance_failure_is_recorded_rather_than_swallowed",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_provenance_is_attached_before_the_document_is_written",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_gate_still_exits_nonzero_on_failure",
+    "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_identity_gate_records_provenance",
+    "tests.test_gate_provenance.ProvenanceHelperTests.test_the_helper_exists_and_takes_file_and_args"
+  ],
   "test_generate_personas": [
     "tests.test_generate_personas.JaccardTest.test_empty_names_score_zero",
     "tests.test_generate_personas.JaccardTest.test_it_takes_the_same_honorific_decision_as_its_caller",
@@ -716,7 +723,20 @@
     "tests.test_gpu_job.GpuJobTest.test_the_second_job_waits_rather_than_failing",
     "tests.test_gpu_job.GpuJobTest.test_timeout_kills_job_releases_lock_and_logs_failure",
     "tests.test_gpu_job.GpuJobTest.test_two_jobs_do_not_overlap",
-    "tests.test_gpu_job.GpuJobTest.test_wrapped_failure_propagates_the_exit_code"
+    "tests.test_gpu_job.GpuJobTest.test_wrapped_failure_propagates_the_exit_code",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_a_failing_preflight_stops_the_job_before_it_starts",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
+    "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable",
+    "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_killed_job_takes_its_descendants_with_it",
+    "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_paused_queue_holds_the_job_before_the_lock",
+    "tests.test_gpu_job.PauseAndProcessGroupTest.test_exit_codes_survive_the_process_group_wrapper",
+    "tests.test_gpu_job.PauseAndProcessGroupTest.test_releasing_the_flag_lets_the_job_run",
+    "tests.test_gpu_job.VramGateTest.test_a_job_is_refused_when_the_card_is_nearly_full",
+    "tests.test_gpu_job.VramGateTest.test_an_unreadable_gpu_warns_rather_than_blocking",
+    "tests.test_gpu_job.VramGateTest.test_the_refusal_names_what_to_do_about_it",
+    "tests.test_gpu_job.VramGateTest.test_the_same_job_runs_when_the_card_is_free",
+    "tests.test_gpu_job.VramGateTest.test_zero_disables_the_check_for_small_jobs"
   ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",
@@ -776,6 +796,21 @@
     "tests.test_lexicon_attribution.TermVerdictTests.test_an_exact_half_of_the_evidence_is_accepted",
     "tests.test_lexicon_attribution.TermVerdictTests.test_too_little_evidence_is_unattributed_even_when_unanimous",
     "tests.test_lexicon_attribution.TermVerdictTests.test_two_books_cannot_outvote_thirty_three_unresolved_ones"
+  ],
+  "test_llama_cpp_status": [
+    "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
+    "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
+    "tests.test_llama_cpp_status.DispatchTests.test_lm_studio_is_still_asked_when_the_endpoint_is_not_llama_cpp",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_bare_model_name_matches_a_namespaced_config_value",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_loaded_model_is_reported_as_loaded",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_non_llama_endpoint_returns_None_so_lm_studio_still_works",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_server_running_the_wrong_model_is_not_loaded",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_an_endpoint_answering_something_else_is_not_claimed",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_optimized_is_none_not_false",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_reasoning_format_is_surfaced",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_refuses_a_mismatched_model",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_still_refuses_an_unverified_server",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_the_experiment_provenance_uses_the_shared_reader"
   ],
   "test_llm_benchmark_worker": [
     "tests.test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_nickname_detection_stage_reuses_run_nickname_case",
@@ -1273,6 +1308,21 @@
     "tests.test_repair_voice_config.TestFindSplits.test_same_voice_under_two_spellings_is_not_a_split",
     "tests.test_repair_voice_config.TestFindSplits.test_voice_type_outranks_line_count"
   ],
+  "test_replay_artifact": [
+    "tests.test_replay_artifact.FlagRoundTripTests.test_a_value_that_cannot_round_trip_is_reported_not_guessed",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_false_and_none_are_omitted_not_passed",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_scalars_lists_and_booleans_become_argv",
+    "tests.test_replay_artifact.FlagRoundTripTests.test_underscores_become_hyphens",
+    "tests.test_replay_artifact.ResolveProducerTests.test_a_missing_producer_script_is_not_replayed",
+    "tests.test_replay_artifact.ResolveProducerTests.test_neither_source_gives_the_none_tier",
+    "tests.test_replay_artifact.ResolveProducerTests.test_provenance_wins_and_yields_a_command",
+    "tests.test_replay_artifact.ResolveProducerTests.test_the_middle_tier_never_emits_a_command",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_a_non_json_path_is_rejected",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_a_suffixed_variant_resolves_to_the_same_producer",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_an_artifact_named_for_its_producer_resolves",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_an_unrelated_name_resolves_to_nothing",
+    "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
+  ],
   "test_respelling_scoring": [
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
@@ -1710,6 +1760,15 @@
     "tests.test_three_pass_unicode_gate.ReadSourceTextTest.test_cp1252_source_is_recovered_not_mangled",
     "tests.test_three_pass_unicode_gate.ReadSourceTextTest.test_literal_replacement_bytes_still_reach_the_gate",
     "tests.test_three_pass_unicode_gate.ReadSourceTextTest.test_utf8_source_reads_as_utf8"
+  ],
+  "test_three_pass_vs_single_paths": [
+    "tests.test_three_pass_vs_single_paths.ArmInvocationTests.test_a_child_process_cannot_see_a_repo_relative_path_from_app",
+    "tests.test_three_pass_vs_single_paths.ArmInvocationTests.test_the_harness_launches_arms_from_the_app_directory",
+    "tests.test_three_pass_vs_single_paths.FailureAdviceTests.test_advice_points_at_the_log_before_the_server",
+    "tests.test_three_pass_vs_single_paths.FailureAdviceTests.test_advice_survives_a_failure_that_has_no_arm",
+    "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_abspath_uses_the_invocation_directory_not_the_repo",
+    "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_resolution_happens_before_the_paths_are_used",
+    "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_the_harness_resolves_its_three_path_arguments"
   ],
   "test_thunder_benchmark_documentation": [
     "tests.test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",

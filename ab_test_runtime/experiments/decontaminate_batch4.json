@@ -1,0 +1,195 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "silky_mezzo_30s_f_fantasy",
+   "role": "failure",
+   "dataset": "narrator_emily_woo_zeller_red_winter_the_complete_trilogy_b0d1z63lzd_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_8805.wav",
+    "similarity": 0.7775
+   },
+   "old_ecapa_contaminated": 0.5643,
+   "new_ecapa_heldout": 0.5986,
+   "dur_ratio": 0.952,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "silky_mezzo_30s_f_supernatural",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char6_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1412.wav",
+    "similarity": 0.851
+   },
+   "old_ecapa_contaminated": 0.7077,
+   "new_ecapa_heldout": 0.6972,
+   "dur_ratio": 1.133,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "velvety_mezzo_30s_f_gothic",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char9_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2211.wav",
+    "similarity": 0.836
+   },
+   "old_ecapa_contaminated": 0.0614,
+   "new_ecapa_heldout": 0.2116,
+   "dur_ratio": 0.911,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_alto_40s_f_1",
+   "role": "failure",
+   "dataset": "narrator_miranda_parkin_my_happy_marriage_vol_1_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0001.wav",
+    "similarity": 0.7849
+   },
+   "old_ecapa_contaminated": 0.5039,
+   "new_ecapa_heldout": 0.5799,
+   "dur_ratio": 1.151,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_alto_40s_f_2",
+   "role": "failure",
+   "dataset": "narrator_suzy_jackson_skyward_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1607.wav",
+    "similarity": 0.8347
+   },
+   "old_ecapa_contaminated": 0.6447,
+   "new_ecapa_heldout": 0.6858,
+   "dur_ratio": 1.118,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_alto_50s_f_anime",
+   "role": "failure",
+   "dataset": "narrator_hollie_jackson_seize_the_day_a_world_conquest_isekai_empress_book_1_b0cxrzxtr9_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0808.wav",
+    "similarity": 0.8564
+   },
+   "old_ecapa_contaminated": 0.6431,
+   "new_ecapa_heldout": 0.7102,
+   "dur_ratio": 0.98,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_alto_50s_f_gothic",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char3_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_4012.wav",
+    "similarity": 0.8666
+   },
+   "old_ecapa_contaminated": 0.0338,
+   "new_ecapa_heldout": 0.0342,
+   "dur_ratio": 1.036,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_30s_m_1",
+   "role": "failure",
+   "dataset": "narrator_brian_nishii_alita_battle_angel_the_official_movie_novelization_b07hhjpkmj_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1601.wav",
+    "similarity": 0.8398
+   },
+   "old_ecapa_contaminated": 0.565,
+   "new_ecapa_heldout": 0.5859,
+   "dur_ratio": 0.935,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_30s_m_2",
+   "role": "failure",
+   "dataset": "narrator_christian_j_gilliland_hazel_cohen_elemental_summoner_1_b09bxyjxyt_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0208.wav",
+    "similarity": 0.7937
+   },
+   "old_ecapa_contaminated": 0.4839,
+   "new_ecapa_heldout": 0.5395,
+   "dur_ratio": 1.046,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_baritone_30s_m_3",
+   "role": "failure",
+   "dataset": "narrator_jay_snyder_ex_heroes_char3_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": null,
+   "old_ecapa_contaminated": 0.4829,
+   "new_ecapa_heldout": 0.5634,
+   "dur_ratio": 1.058,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T07:39:32",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "silky_mezzo_30s_f_fantasy",
+    "silky_mezzo_30s_f_supernatural",
+    "velvety_mezzo_30s_f_gothic",
+    "warm_alto_40s_f_1",
+    "warm_alto_40s_f_2",
+    "warm_alto_50s_f_anime",
+    "warm_alto_50s_f_gothic",
+    "warm_baritone_30s_m_1",
+    "warm_baritone_30s_m_2",
+    "warm_baritone_30s_m_3"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch4",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch4.json"
+  },
+  "seed": 1234
+ }
+}

@@ -654,6 +654,69 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
+def get_llama_cpp_status(base_url, model_name, timeout=5):
+    """-> a status dict if `base_url` is llama.cpp, else None.
+
+    WHY THIS EXISTS. `get_lmstudio_status` asks `lms ps`, which is the right
+    instrument for LM Studio and the wrong one for anything else. Against the
+    llama.cpp server this project actually runs it reported
+
+        {"available": true, "loaded": false, "context_length": null,
+         "parallel": null, "optimized": false}
+
+    for a model answering in 0.2 seconds - reading "LM Studio does not know
+    about this" as "the model is not loaded". The Setup tab has therefore shown
+    an unloaded, unoptimized model on every single load.
+
+    llama.cpp answers /props, which LM Studio does not serve, and that response
+    carries the truth this was guessing at: the served alias, the real context
+    length, and the slot count. So the honest answer is available rather than a
+    third "not applicable" - a llama.cpp server knows exactly what it has
+    loaded, it was simply never asked.
+
+    Returns None - not a status - when /props does not answer, so an LM Studio
+    endpoint falls through to the LM Studio path untouched.
+    """
+    import urllib.request
+
+    root = base_url.rsplit("/v1", 1)[0].rstrip("/")
+    try:
+        with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
+            props = json.loads(response.read())
+    except Exception:                                       # noqa: BLE001
+        return None                                         # not llama.cpp
+    if not isinstance(props, dict) or "default_generation_settings" not in props:
+        return None
+
+    generation = props.get("default_generation_settings") or {}
+    context = generation.get("n_ctx")
+    slots = props.get("total_slots")
+    alias = props.get("model_alias")
+    # A served alias that is not the configured model is a REAL mismatch and
+    # must not be reported as "loaded" - that is how a run gets scored against
+    # a model nobody meant to use.
+    expected = {model_name, str(model_name).rsplit("/", 1)[-1]}
+    return {
+        "available": True,
+        "loaded": bool(context) and alias in expected,
+        "context_length": context,
+        "parallel": slots,
+        # LM Studio's notion of "optimized" is its own load settings; llama.cpp
+        # is configured at launch and has no equivalent, so None means "not a
+        # question that applies here" rather than "no".
+        "optimized": None,
+        "runtime": "llama.cpp",
+        "server_alias": alias,
+        "build": props.get("build_info"),
+        "model_path": props.get("model_path"),
+        "model_ftype": props.get("model_ftype"),
+        "reasoning_format": (generation.get("params") or {}).get("reasoning_format"),
+        "ideal_context_length": context,
+        "ideal_parallel": slots,
+        "settings_reason": "llama.cpp is configured at launch, not reloaded",
+    }
+
+
 def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False):
     """Fetch live status (local or remote) with no self-heal side effect -
     just the is_remote_llm dispatch shared by ensure_ideal_settings's own
@@ -670,6 +733,12 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
         if use_cache:
             return get_remote_lmstudio_status_cached(ssh_alias, model_name)
         return get_remote_lmstudio_status(ssh_alias, model_name)
+    # Ask the endpoint what it IS before asking LM Studio about it. This
+    # project runs llama.cpp, whose /props answer is authoritative; falling
+    # through to `lms ps` reported every llama.cpp model as unloaded.
+    native = get_llama_cpp_status(base_url, model_name)
+    if native is not None:
+        return native
     return get_lmstudio_status(model_name)
 
 

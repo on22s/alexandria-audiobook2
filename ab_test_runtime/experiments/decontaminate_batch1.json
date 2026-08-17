@@ -1,0 +1,198 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "breathy_alto_50s_f_fantasy",
+   "role": "failure",
+   "dataset": "narrator_mare_trevathan_the_godking_s_legacy_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3011.wav",
+    "similarity": 0.7554
+   },
+   "old_ecapa_contaminated": 0.2136,
+   "new_ecapa_heldout": 0.5022,
+   "dur_ratio": 1.034,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_literary",
+   "role": "failure",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char5_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1803.wav",
+    "similarity": 0.8498
+   },
+   "old_ecapa_contaminated": 0.6678,
+   "new_ecapa_heldout": 0.7187,
+   "dur_ratio": 1.112,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_1",
+   "role": "failure",
+   "dataset": "narrator_michael_page_house_of_chains_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1207.wav",
+    "similarity": 0.8109
+   },
+   "old_ecapa_contaminated": 0.4803,
+   "new_ecapa_heldout": 0.7135,
+   "dur_ratio": 1.026,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_baritone_40s_m_military_2",
+   "role": "failure",
+   "dataset": "narrator_qarie_marshall_wolverine_road_of_bones_1662042051_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0006.wav",
+    "similarity": 0.8484
+   },
+   "old_ecapa_contaminated": 0.6995,
+   "new_ecapa_heldout": 0.696,
+   "dur_ratio": 0.972,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_mezzo_20s_f_scifi",
+   "role": "failure",
+   "dataset": "narrator_luci_christian_full_metal_panic_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2201.wav",
+    "similarity": 0.7792
+   },
+   "old_ecapa_contaminated": 0.477,
+   "new_ecapa_heldout": 0.6126,
+   "dur_ratio": 0.951,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_tenor_20s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_liam_price_the_archer_of_beast_woods_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0606.wav",
+    "similarity": 0.8336
+   },
+   "old_ecapa_contaminated": 0.5748,
+   "new_ecapa_heldout": 0.6328,
+   "dur_ratio": 1.088,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "breathy_tenor_50s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_ralph_lister_gardens_of_the_moon_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2801.wav",
+    "similarity": 0.7964
+   },
+   "old_ecapa_contaminated": 0.6646,
+   "new_ecapa_heldout": 0.659,
+   "dur_ratio": 0.983,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "crisp_mezzo_30s_f",
+   "role": "failure",
+   "dataset": "narrator_miranda_parkin_my_happy_marriage_vol_1_char2_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0201.wav",
+    "similarity": 0.8057
+   },
+   "old_ecapa_contaminated": 0.5373,
+   "new_ecapa_heldout": 0.5397,
+   "dur_ratio": 1.131,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "crisp_tenor_20s_m",
+   "role": "failure",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1212.wav",
+    "similarity": 0.8768
+   },
+   "old_ecapa_contaminated": 0.6396,
+   "new_ecapa_heldout": 0.7218,
+   "dur_ratio": 1.014,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "crisp_tenor_30s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_shiromi_arserio_the_jasmine_throne_154910487x_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3613.wav",
+    "similarity": 0.7958
+   },
+   "old_ecapa_contaminated": 0.4706,
+   "new_ecapa_heldout": 0.5788,
+   "dur_ratio": 0.94,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T05:05:55",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "breathy_alto_50s_f_fantasy",
+    "breathy_baritone_40s_m_literary",
+    "breathy_baritone_40s_m_military_1",
+    "breathy_baritone_40s_m_military_2",
+    "breathy_mezzo_20s_f_scifi",
+    "breathy_tenor_20s_m_fantasy",
+    "breathy_tenor_50s_m_fantasy",
+    "crisp_mezzo_30s_f",
+    "crisp_tenor_20s_m",
+    "crisp_tenor_30s_m_fantasy"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch1",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch1.json"
+  },
+  "seed": 1234
+ }
+}

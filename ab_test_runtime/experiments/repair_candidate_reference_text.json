@@ -1,0 +1,393 @@
+{
+  "repaired": [
+    {
+      "adapter": "breathy_alto_50s_f_fantasy",
+      "batch": "batch1",
+      "clip": "sample_3011.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_baritone_40s_m_literary",
+      "batch": "batch1",
+      "clip": "sample_1803.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_baritone_40s_m_military_1",
+      "batch": "batch1",
+      "clip": "sample_1207.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_baritone_40s_m_military_2",
+      "batch": "batch1",
+      "clip": "sample_0006.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_mezzo_20s_f_scifi",
+      "batch": "batch1",
+      "clip": "sample_2201.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_tenor_20s_m_fantasy",
+      "batch": "batch1",
+      "clip": "sample_0606.wav",
+      "changed": false
+    },
+    {
+      "adapter": "breathy_tenor_50s_m_fantasy",
+      "batch": "batch1",
+      "clip": "sample_2801.wav",
+      "changed": false
+    },
+    {
+      "adapter": "crisp_mezzo_30s_f",
+      "batch": "batch1",
+      "clip": "sample_0201.wav",
+      "changed": false
+    },
+    {
+      "adapter": "crisp_tenor_20s_m",
+      "batch": "batch1",
+      "clip": "sample_1212.wav",
+      "changed": false
+    },
+    {
+      "adapter": "crisp_tenor_30s_m_fantasy",
+      "batch": "batch1",
+      "clip": "sample_3613.wav",
+      "changed": false
+    },
+    {
+      "adapter": "gravelly_baritone_50s_m_scifi",
+      "batch": "batch2",
+      "clip": "sample_1211.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_alto_40s_f",
+      "batch": "batch2",
+      "clip": "sample_1603.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_35s_m",
+      "batch": "batch2",
+      "clip": "sample_2401.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_40s_m_1",
+      "batch": "batch2",
+      "clip": "sample_1402.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_40s_m_2",
+      "batch": "batch2",
+      "clip": "sample_4809.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_40s_m_scifi",
+      "batch": "batch2",
+      "clip": "sample_3005.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_50s_m_gothic",
+      "batch": "batch2",
+      "clip": "sample_0201.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_baritone_50s_m_military",
+      "batch": "batch2",
+      "clip": "sample_4201.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_soprano_20s_f",
+      "batch": "batch2",
+      "clip": "sample_2604.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_tenor_30s_m",
+      "batch": "batch3",
+      "clip": "sample_2014.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_tenor_30s_m_fantasy",
+      "batch": "batch3",
+      "clip": "sample_6605.wav",
+      "changed": false
+    },
+    {
+      "adapter": "husky_tenor_30s_m_literary",
+      "batch": "batch3",
+      "clip": "sample_2405.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_alto_40s_f",
+      "batch": "batch3",
+      "clip": "sample_0805.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_alto_40s_f_cyberpunk",
+      "batch": "batch3",
+      "clip": "sample_0213.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_alto_40s_f_literary_1",
+      "batch": "batch3",
+      "clip": "sample_0608.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_baritone_30s_m_fantasy",
+      "batch": "batch3",
+      "clip": "sample_1209.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_baritone_40s_m_scifi",
+      "batch": "batch3",
+      "clip": "sample_6004.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_baritone_45s_m",
+      "batch": "batch3",
+      "clip": "sample_0802.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_mezzo_10s_f_fantasy",
+      "batch": "batch3",
+      "clip": "sample_1001.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_mezzo_30s_f_fantasy",
+      "batch": "batch4",
+      "clip": "sample_8805.wav",
+      "changed": false
+    },
+    {
+      "adapter": "silky_mezzo_30s_f_supernatural",
+      "batch": "batch4",
+      "clip": "sample_1412.wav",
+      "changed": false
+    },
+    {
+      "adapter": "velvety_mezzo_30s_f_gothic",
+      "batch": "batch4",
+      "clip": "sample_2211.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_alto_40s_f_1",
+      "batch": "batch4",
+      "clip": "sample_0001.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_alto_40s_f_2",
+      "batch": "batch4",
+      "clip": "sample_1607.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_alto_50s_f_anime",
+      "batch": "batch4",
+      "clip": "sample_0808.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_alto_50s_f_gothic",
+      "batch": "batch4",
+      "clip": "sample_4012.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_30s_m_1",
+      "batch": "batch4",
+      "clip": "sample_1601.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_30s_m_2",
+      "batch": "batch4",
+      "clip": "sample_0208.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_30s_m_fantasy_1",
+      "batch": "batch5",
+      "clip": "sample_2212.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_30s_m_fantasy_2",
+      "batch": "batch5",
+      "clip": "sample_3008.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_30s_m_scifi",
+      "batch": "batch5",
+      "clip": "sample_2813.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_1",
+      "batch": "batch5",
+      "clip": "sample_4611.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_2",
+      "batch": "batch5",
+      "clip": "sample_3801.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_4",
+      "batch": "batch5",
+      "clip": "sample_0200.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_5",
+      "batch": "batch5",
+      "clip": "sample_3811.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_military",
+      "batch": "batch5",
+      "clip": "sample_9000.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_40s_m_scifi",
+      "batch": "batch5",
+      "clip": "sample_0204.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_50s_m",
+      "batch": "batch5",
+      "clip": "sample_1411.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_baritone_50s_m_gothic",
+      "batch": "batch6",
+      "clip": "sample_5802.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_bass_50s_m_fantasy",
+      "batch": "batch6",
+      "clip": "sample_0211.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_mezzo_20s_f_anime",
+      "batch": "batch6",
+      "clip": "sample_2002.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_mezzo_30s_f",
+      "batch": "batch6",
+      "clip": "sample_2608.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_mezzo_30s_f_fantasy_1",
+      "batch": "batch6",
+      "clip": "sample_0810.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_tenor_20s_m",
+      "batch": "batch6",
+      "clip": "sample_0200.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_tenor_20s_m_scifi",
+      "batch": "batch6",
+      "clip": "sample_0014.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_tenor_30s_m_1",
+      "batch": "batch6",
+      "clip": "sample_0612.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_tenor_30s_m_2",
+      "batch": "batch6",
+      "clip": "sample_1611.wav",
+      "changed": false
+    },
+    {
+      "adapter": "warm_tenor_30s_m_gothic",
+      "batch": "batch6",
+      "clip": "sample_3205.wav",
+      "changed": false
+    }
+  ],
+  "skipped": [
+    {
+      "adapter": "husky_baritone_20s_m_supernatural",
+      "batch": "batch2",
+      "reason": "training produced no candidate"
+    },
+    {
+      "adapter": "warm_baritone_30s_m_3",
+      "batch": "batch4",
+      "reason": "training produced no candidate"
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "script": "repair_candidate_reference_text.py",
+    "written": "2026-08-15T16:49:16",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "branch": "agent/remaining-goals-20260815",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M GOALS.md",
+        " M app/experiments/asr_backends.py",
+        " M app/experiments/retrain_honest.py",
+        " M lora_models/manifest.json"
+      ],
+      "untracked_harness_files": [
+        "app/experiments/duration_outlier_analysis.py",
+        "app/experiments/generation_state_probe.py",
+        "app/experiments/repair_candidate_reference_text.py",
+        "app/experiments/three_pass_chunk_probe.py"
+      ],
+      "harness_sha256": "e61f9ef42fb45715933baa79b5f1d1fc9ef3addb4a834fcf56f7d58f6fa7d4aa"
+    },
+    "args": {
+      "experiments": "ab_test_runtime/experiments",
+      "work": "ab_test_runtime/decontaminate",
+      "out": "ab_test_runtime/experiments/repair_candidate_reference_text.json"
+    }
+  }
+}

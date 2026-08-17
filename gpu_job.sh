@@ -48,6 +48,20 @@ shift
 stamp() { date -u +%FT%TZ; }
 
 echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
+
+# WAIT FOR THE PAUSE FLAG BEFORE TAKING THE LOCK, not after. A job that holds
+# the lock while waiting would block the queue AND look like it was working;
+# waiting first means a paused queue is simply idle, and `gpu_pause.sh status`
+# can tell the truth about what still holds the card.
+PAUSE_FLAG="${GPU_PAUSE_FLAG:-$(dirname "$0")/ab_test_runtime/logs/gpu_paused}"
+if [ -f "$PAUSE_FLAG" ]; then
+    echo "$(stamp) HELD     $NAME (queue paused)" >> "$QLOG"
+    echo "gpu_job: queue is paused; $NAME is waiting. Release with:" >&2
+    echo "gpu_job:   ./gpu_pause.sh off" >&2
+    while [ -f "$PAUSE_FLAG" ]; do sleep 20; done
+    echo "$(stamp) RELEASED $NAME" >> "$QLOG"
+fi
+
 exec 9>"$LOCK" || {
     echo "$(stamp) LOCK_FAILED $NAME (cannot open $LOCK)" >> "$QLOG"
     echo "gpu_job: cannot open lock file $LOCK" >&2
@@ -99,8 +113,13 @@ tree_state() {
     # as being false. This mirrors `app/experiments/manifest.py::_git_state`
     # exactly, and `test_the_shell_gate_agrees_with_the_python_provenance`
     # fails if the two ever disagree.
+    # run_chains/ counts too. Six chains sat untracked while being edited and
+    # run, and the gate could not see them because it only watched
+    # app/experiments for .py. A chain is as much "the code that produced this
+    # artifact" as the script it calls.
     untracked=$(git -C "$root" ls-files --others --exclude-standard \
-                    -- "$root/app/experiments" 2>/dev/null | grep -c '\.py$')
+                    -- "$root/app/experiments" "$root/run_chains" 2>/dev/null \
+                | grep -cE '\.(py|sh)$')
     if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
         echo clean
         return
@@ -164,9 +183,148 @@ case "$dirty_state" in
     ;;
 esac
 
+# OPT-IN LLM PREFLIGHT. Most jobs here are TTS and need no language model, so
+# this is off by default and the chains that need one ask for it:
+#
+#     REQUIRE_LLM=1 ./gpu_job.sh <name> <cmd...>
+#
+# The PR #308 remeasurement ran on 2026-08-16 with nothing listening on 8090.
+# It recorded rc=1 and wrote an artifact with an empty results list, which
+# reads as "the experiment failed" rather than "there was no engine", and it
+# stayed undiagnosed for a day. The lock cannot catch that - it serialises the
+# card and propagates exit codes, it has no idea whether a server exists - so
+# the check lives here, next to the other gate, rather than in each chain.
+if [ "${REQUIRE_LLM:-0}" = "1" ]; then
+    preflight="$(dirname "$0")/app/experiments/llm_preflight.py"
+    # NOT $PYTHON. Pinokio exports PYTHON=<miniforge>/python, which does not
+    # exist on this box, so `${PYTHON:-default}` takes the broken value - the
+    # variable IS set, so the default never fires - and this check silently
+    # downgraded to "unchecked" the first time it ran.
+    preflight_py="${LLM_PREFLIGHT_PYTHON:-$(dirname "$0")/app/env/bin/python}"
+    if [ -x "$preflight_py" ] && [ -f "$preflight" ]; then
+        if ! "$preflight_py" "$preflight" --quiet; then
+            echo "$(stamp) NO_LLM   $NAME (preflight failed)" >> "$QLOG"
+            echo "gpu_job: refusing to run $NAME without a working LLM." >&2
+            exit 6
+        fi
+    else
+        # Cannot check is not the same as failed. Say so and continue rather
+        # than blocking a run on the absence of the checker.
+        echo "$(stamp) LLM_UNCHECKED $NAME (no preflight available)" >> "$QLOG"
+        echo "gpu_job: WARNING - REQUIRE_LLM set but preflight unavailable." >&2
+    fi
+fi
+
+# VRAM IS NOT COVERED BY THE LOCK, and on 2026-08-17 that cost 14 adapters.
+#
+# The lock serialises JOBS. llama-server is not a job - ensure_llama_server.sh
+# starts it deliberately outside the lock, because "the CALLER never kills the
+# server" is what lets consecutive LLM evals share one 8.4 GB load. That fixed
+# a real 2026-08-04 ownership bug, and it has no lifecycle end: nothing ever
+# reclaims the memory.
+#
+# So the lock's guarantee - exactly one job at a time - was true and useless.
+# One job held the lock while a non-job held 14.77 GiB, and regate_with_provenance
+# OOMed on 14 consecutive adapters:
+#
+#     HIP out of memory. Tried to allocate 2.00 MiB.
+#     GPU 0 has a total capacity of 15.92 GiB of which 0 bytes is free.
+#
+# That knowledge existed in exactly one place beforehand -
+# run_chains/moss_vs_lora.sh, "stopping llama-server to free VRAM for the 8B
+# model". One chain knew; every other job was on its own. It belongs here,
+# where every GPU job already passes.
+#
+# UNKNOWN IS NOT ZERO. If rocm-smi cannot answer, this warns and continues -
+# the same third answer tree_state gives for a non-repo. A missing tool must
+# not block the card.
+vram_free_mib() {
+    local total used
+    total=$(rocm-smi --showmeminfo vram 2>/dev/null \
+            | grep -im1 'total memory' | grep -oE '[0-9]+' | tail -1)
+    used=$(rocm-smi --showmeminfo vram 2>/dev/null \
+           | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
+    [ -z "$total" ] || [ -z "$used" ] && return 1
+    echo $(( (total - used) / 1048576 ))
+}
+
+REQUIRE_VRAM_MIB=$(( ${REQUIRE_VRAM_GB:-4} * 1024 ))
+if free_mib=$(vram_free_mib); then
+    if [ "$free_mib" -lt "$REQUIRE_VRAM_MIB" ]; then
+        echo "$(stamp) NO_VRAM  $NAME (${free_mib}MiB free, needs ${REQUIRE_VRAM_MIB}MiB)" >> "$QLOG"
+        echo "gpu_job: refusing to run $NAME - only ${free_mib} MiB of VRAM free," >&2
+        echo "gpu_job: and it needs ${REQUIRE_VRAM_MIB} MiB. Holding the card:" >&2
+        rocm-smi --showpids 2>/dev/null | grep -E '^[0-9]+' | head -4 >&2
+        echo "gpu_job: a persistent llama-server is the usual cause; it is" >&2
+        echo "gpu_job: started outside the lock and never stops on its own." >&2
+        echo "gpu_job: stop it with: pkill -x llama-server" >&2
+        echo "gpu_job: or override with REQUIRE_VRAM_GB=0 if this job is small." >&2
+        exit 7
+    fi
+else
+    echo "$(stamp) VRAM_UNKNOWN $NAME" >> "$QLOG"
+    echo "gpu_job: WARNING - cannot read VRAM; running $NAME unchecked." >&2
+fi
+
+# TAKE THE WHOLE PROCESS GROUP DOWN, not just the wrapper. Borrowed from
+# codex's transient systemd units, which set KillMode=control-group for
+# exactly this reason - and the reason is not theoretical: after the
+# regate chain was killed on 2026-08-17 a python child survived holding
+# 2.11 GiB of the card, which then starved the next job. verify_release.py
+# already implements the same idea in Python (stop_process_group); the lock
+# wrapper had nothing.
+#
+# The job runs in its own process group so a signal reaches every descendant,
+# and the trap escalates INT -> KILL rather than trusting the first signal.
+cleanup_group() {
+    local sig="${1:-INT}"
+    if [ -n "${JOB_PGID:-}" ]; then
+        kill -"$sig" -"$JOB_PGID" 2>/dev/null
+        for _ in 1 2 3 4 5; do
+            kill -0 -"$JOB_PGID" 2>/dev/null || return 0
+            sleep 1
+        done
+        kill -KILL -"$JOB_PGID" 2>/dev/null
+        echo "$(stamp) KILLED   $NAME (group did not stop on $sig)" >> "$QLOG"
+    fi
+}
+trap 'cleanup_group INT; exit 130' INT
+trap 'cleanup_group TERM; exit 143' TERM
+
 echo "$(stamp) START    $NAME" >> "$QLOG"
 
-"$@"
+# TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
+# through this script to acquire the lock (the ALEXANDRIA_GPU_LOCK_HELD idiom).
+# Without this export, running such a chain UNDER gpu_job.sh nests one flock
+# inside another and deadlocks against its own parent - verified, it hangs
+# until killed rather than failing. Exporting the sentinel makes the idiom
+# idempotent: the outermost gpu_job.sh holds the lock, and every chain inside
+# it runs directly.
+export ALEXANDRIA_GPU_LOCK_HELD=1
+
+# JOB CONTROL OFF, EXPLICITLY. `setsid` only calls setsid(2) directly when it
+# is NOT already a process group leader; if it is, it forks first. With job
+# control on (`set -m`) bash puts each background job in its own group, so
+# setsid forks, `$!` is the short-lived setsid wrapper, and `wait` returns 0
+# THE INSTANT IT EXITS while the real job runs on. gpu_job.sh would then log
+# OK, release the flock, and let the next queued job start concurrently with
+# one that never finished - the exact overlap this whole script exists to
+# prevent.
+#
+# Measured, and then measured again to find the limit:
+#     set -m; setsid sleep 5 & p=$!; wait $p   -> returns 0 in milliseconds
+#                                                 with sleep still running
+# So the mechanism is real. It is NOT currently reachable here: a script only
+# has job control if it runs `set -m` itself, and `bash -m script` cannot
+# enable it without a controlling terminal ("no job control in this shell",
+# $- = hB). This line is therefore hardening, not a bugfix - it pins an
+# assumption that today holds by default. No test guards it, deliberately: a
+# test for an unreachable state cannot fail, and one that cannot fail
+# advertises coverage that does not exist.
+set +m
+setsid "$@" &
+JOB_PGID=$!
+wait "$JOB_PGID"
 rc=$?
 
 if [ "$rc" -eq 0 ]; then

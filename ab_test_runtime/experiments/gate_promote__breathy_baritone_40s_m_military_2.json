@@ -1,0 +1,9 @@
+{
+ "adapter": "ab_test_runtime/decontaminate/batch1/breathy_baritone_40s_m_military_2/adapter",
+ "median_ecapa": 0.7072,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.707)"
+}

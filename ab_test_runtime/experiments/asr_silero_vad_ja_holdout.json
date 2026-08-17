@@ -1,0 +1,65 @@
+{
+ "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",
+ "limit": 10,
+ "language": "ja",
+ "whisper_cpp_model": "ggml-base.bin",
+ "backends": [
+  "silero_vad"
+ ],
+ "results": {
+  "silero_vad": {
+   "n": 0,
+   "failures": [],
+   "failed": 0,
+   "clips_without_timestamps": 0,
+   "transcription": "not provided; segmentation-only arm"
+  }
+ },
+ "alignment": {
+  "silero_vad": {
+   "scored": 10,
+   "predicted_segments": 14,
+   "expected_segments": 10,
+   "median_error_s": 0.039,
+   "p90_error_s": 0.226,
+   "worst_error_s": 0.43,
+   "within_tolerance_pct": 90.0,
+   "tolerance_s": 0.3
+  }
+ },
+ "alignment_truth_clips": 10,
+ "provenance": {
+  "script": "asr_backends.py",
+  "written": "2026-08-15T16:46:51",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+   "branch": "agent/remaining-goals-20260815",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M GOALS.md",
+    " M app/experiments/asr_backends.py",
+    " M lora_models/manifest.json"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/duration_outlier_analysis.py",
+    "app/experiments/generation_state_probe.py",
+    "app/experiments/three_pass_chunk_probe.py"
+   ],
+   "harness_sha256": "733f14bb4822d8cd407dc32d21f2bbe40606f5722bf5712f651d7950adbd7a7b"
+  },
+  "args": {
+   "build": "../ab_test_runtime/kokoro_same_speaker_eval/build.json",
+   "backends": [
+    "silero_vad"
+   ],
+   "limit": 10,
+   "row_offset": 20,
+   "align_clips": 10,
+   "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
+   "whisper_cpp_model": "whisper.cpp/models/ggml-base.en.bin",
+   "lang": "ja",
+   "out": "../ab_test_runtime/experiments/asr_silero_vad_ja_holdout.json"
+  }
+ }
+}

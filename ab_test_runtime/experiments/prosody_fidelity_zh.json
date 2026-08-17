@@ -1,0 +1,310 @@
+{
+  "source": "ab_test_runtime/experiments/aishell3_generate.json",
+  "language": null,
+  "gpe_tolerance": 0.2,
+  "results": {
+    "lora": {
+      "n": 12,
+      "f0_correlation_mean": 0.7958,
+      "f0_rmse_semitones_mean": 1.8271,
+      "gross_pitch_error_mean": 0.1435,
+      "tempo_irregularity_mean": 0.3872,
+      "rows": [
+        {
+          "id": "SSB15850002",
+          "voiced_frames": 188,
+          "human_seconds": 3.586,
+          "generated_seconds": 2.96,
+          "f0_correlation": 0.7712,
+          "f0_rmse_semitones": 1.8113,
+          "gross_pitch_error": 0.0532,
+          "tempo_irregularity": 0.3985,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850003",
+          "voiced_frames": 120,
+          "human_seconds": 2.754,
+          "generated_seconds": 2.72,
+          "f0_correlation": 0.7286,
+          "f0_rmse_semitones": 1.7802,
+          "gross_pitch_error": 0.0667,
+          "tempo_irregularity": 0.3417,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850004",
+          "voiced_frames": 248,
+          "human_seconds": 5.087,
+          "generated_seconds": 4.8,
+          "f0_correlation": 0.7981,
+          "f0_rmse_semitones": 2.4065,
+          "gross_pitch_error": 0.1694,
+          "tempo_irregularity": 0.4241,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850005",
+          "voiced_frames": 129,
+          "human_seconds": 2.92,
+          "generated_seconds": 2.48,
+          "f0_correlation": 0.4234,
+          "f0_rmse_semitones": 2.2558,
+          "gross_pitch_error": 0.4729,
+          "tempo_irregularity": 0.3768,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850007",
+          "voiced_frames": 78,
+          "human_seconds": 2.72,
+          "generated_seconds": 2.56,
+          "f0_correlation": 0.8782,
+          "f0_rmse_semitones": 2.7142,
+          "gross_pitch_error": 0.5,
+          "tempo_irregularity": 0.3727,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850008",
+          "voiced_frames": 189,
+          "human_seconds": 4.411,
+          "generated_seconds": 3.68,
+          "f0_correlation": 0.7681,
+          "f0_rmse_semitones": 1.519,
+          "gross_pitch_error": 0.0265,
+          "tempo_irregularity": 0.4239,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850009",
+          "voiced_frames": 167,
+          "human_seconds": 3.976,
+          "generated_seconds": 3.36,
+          "f0_correlation": 0.8147,
+          "f0_rmse_semitones": 1.9712,
+          "gross_pitch_error": 0.0599,
+          "tempo_irregularity": 0.4138,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850010",
+          "voiced_frames": 190,
+          "human_seconds": 5.181,
+          "generated_seconds": 4.48,
+          "f0_correlation": 0.8796,
+          "f0_rmse_semitones": 1.2852,
+          "gross_pitch_error": 0.0737,
+          "tempo_irregularity": 0.4063,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850011",
+          "voiced_frames": 140,
+          "human_seconds": 2.969,
+          "generated_seconds": 2.48,
+          "f0_correlation": 0.925,
+          "f0_rmse_semitones": 1.3116,
+          "gross_pitch_error": 0.0929,
+          "tempo_irregularity": 0.4086,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850012",
+          "voiced_frames": 203,
+          "human_seconds": 3.301,
+          "generated_seconds": 3.2,
+          "f0_correlation": 0.795,
+          "f0_rmse_semitones": 1.6253,
+          "gross_pitch_error": 0.0345,
+          "tempo_irregularity": 0.3479,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850014",
+          "voiced_frames": 217,
+          "human_seconds": 4.048,
+          "generated_seconds": 4.24,
+          "f0_correlation": 0.8668,
+          "f0_rmse_semitones": 1.7259,
+          "gross_pitch_error": 0.0737,
+          "tempo_irregularity": 0.3478,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850017",
+          "voiced_frames": 142,
+          "human_seconds": 2.458,
+          "generated_seconds": 2.56,
+          "f0_correlation": 0.9006,
+          "f0_rmse_semitones": 1.5195,
+          "gross_pitch_error": 0.0986,
+          "tempo_irregularity": 0.3843,
+          "tempo_ratio": 1.0
+        }
+      ]
+    },
+    "clone": {
+      "n": 12,
+      "f0_correlation_mean": 0.7202,
+      "f0_rmse_semitones_mean": 2.1481,
+      "gross_pitch_error_mean": 0.1987,
+      "tempo_irregularity_mean": 0.383,
+      "rows": [
+        {
+          "id": "SSB15850002",
+          "voiced_frames": 198,
+          "human_seconds": 3.586,
+          "generated_seconds": 3.36,
+          "f0_correlation": 0.8068,
+          "f0_rmse_semitones": 1.7082,
+          "gross_pitch_error": 0.0303,
+          "tempo_irregularity": 0.3564,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850003",
+          "voiced_frames": 133,
+          "human_seconds": 2.754,
+          "generated_seconds": 2.72,
+          "f0_correlation": 0.7234,
+          "f0_rmse_semitones": 2.2644,
+          "gross_pitch_error": 0.1955,
+          "tempo_irregularity": 0.405,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850004",
+          "voiced_frames": 220,
+          "human_seconds": 5.087,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.8454,
+          "f0_rmse_semitones": 1.9251,
+          "gross_pitch_error": 0.05,
+          "tempo_irregularity": 0.4152,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850005",
+          "voiced_frames": 123,
+          "human_seconds": 2.92,
+          "generated_seconds": 2.48,
+          "f0_correlation": 0.1268,
+          "f0_rmse_semitones": 2.7243,
+          "gross_pitch_error": 0.4878,
+          "tempo_irregularity": 0.419,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850007",
+          "voiced_frames": 75,
+          "human_seconds": 2.72,
+          "generated_seconds": 2.48,
+          "f0_correlation": 0.982,
+          "f0_rmse_semitones": 2.1568,
+          "gross_pitch_error": 0.4933,
+          "tempo_irregularity": 0.4006,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850008",
+          "voiced_frames": 185,
+          "human_seconds": 4.411,
+          "generated_seconds": 3.44,
+          "f0_correlation": 0.6429,
+          "f0_rmse_semitones": 2.0259,
+          "gross_pitch_error": 0.1027,
+          "tempo_irregularity": 0.4407,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850009",
+          "voiced_frames": 185,
+          "human_seconds": 3.976,
+          "generated_seconds": 3.36,
+          "f0_correlation": 0.7087,
+          "f0_rmse_semitones": 2.602,
+          "gross_pitch_error": 0.1568,
+          "tempo_irregularity": 0.4322,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850010",
+          "voiced_frames": 198,
+          "human_seconds": 5.181,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.8584,
+          "f0_rmse_semitones": 1.5585,
+          "gross_pitch_error": 0.0404,
+          "tempo_irregularity": 0.3679,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850011",
+          "voiced_frames": 151,
+          "human_seconds": 2.969,
+          "generated_seconds": 2.8,
+          "f0_correlation": 0.9029,
+          "f0_rmse_semitones": 1.5136,
+          "gross_pitch_error": 0.1391,
+          "tempo_irregularity": 0.3845,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850012",
+          "voiced_frames": 192,
+          "human_seconds": 3.301,
+          "generated_seconds": 3.12,
+          "f0_correlation": 0.5798,
+          "f0_rmse_semitones": 2.7689,
+          "gross_pitch_error": 0.2031,
+          "tempo_irregularity": 0.3162,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850014",
+          "voiced_frames": 210,
+          "human_seconds": 4.048,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.8225,
+          "f0_rmse_semitones": 2.3603,
+          "gross_pitch_error": 0.1286,
+          "tempo_irregularity": 0.2629,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "SSB15850017",
+          "voiced_frames": 140,
+          "human_seconds": 2.458,
+          "generated_seconds": 2.32,
+          "f0_correlation": 0.6431,
+          "f0_rmse_semitones": 2.1687,
+          "gross_pitch_error": 0.3571,
+          "tempo_irregularity": 0.3957,
+          "tempo_ratio": 1.0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "script": "prosody_fidelity.py",
+    "written": "2026-08-16T17:15:40",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "branch": "agent/robotic-proxy-calibration-20260816",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/prosody_fidelity.py"
+      ],
+      "harness_sha256": "b75afbc54c731d05f1d1f73c5b28d8b91ada1c7e14535909162dcae6fd66d800"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/aishell3_generate.json",
+      "arm": null,
+      "limit": 12,
+      "out": "ab_test_runtime/experiments/prosody_fidelity_zh.json"
+    }
+  }
+}

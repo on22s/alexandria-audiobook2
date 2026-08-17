@@ -1,0 +1,278 @@
+{
+ "books_probed": 5224,
+ "unreadable": 0,
+ "tails_swept": [
+  20000,
+  60000,
+  200000
+ ],
+ "note": "marker counts only; no book text is stored. The control is books whose publisher names one tradition unambiguously, so the marker test is SCORED there before being applied to the books the publisher cannot settle.",
+ "validation_against_unambiguous_publishers": {
+  "20000": {
+   "control_books": 4306,
+   "spoke": 258,
+   "silent": 4048,
+   "agreed": 258,
+   "contradicted_publisher": 0,
+   "precision_when_it_speaks": 1.0,
+   "coverage": 0.0599,
+   "contradicted_examples": []
+  },
+  "60000": {
+   "control_books": 4306,
+   "spoke": 294,
+   "silent": 4012,
+   "agreed": 294,
+   "contradicted_publisher": 0,
+   "precision_when_it_speaks": 1.0,
+   "coverage": 0.0683,
+   "contradicted_examples": []
+  },
+  "200000": {
+   "control_books": 4306,
+   "spoke": 399,
+   "silent": 3907,
+   "agreed": 398,
+   "contradicted_publisher": 1,
+   "precision_when_it_speaks": 0.9975,
+   "coverage": 0.0927,
+   "contradicted_examples": [
+    {
+     "publisher": "Yen On",
+     "hits": {
+      "ja": 0,
+      "zh": 2
+     }
+    }
+   ]
+  }
+ },
+ "application_to_ambiguous_books": {
+  "20000": {
+   "ambiguous_books": 918,
+   "verdicts": {
+    "unknown": 821,
+    "zh": 45,
+    "ja": 52
+   },
+   "resolved": 97,
+   "by_publisher": {
+    "Seven Seas Entertainment": {
+     "unknown": 551,
+     "zh": 44,
+     "ja": 32
+    },
+    "(none)": {
+     "unknown": 122,
+     "ja": 7,
+     "zh": 1
+    },
+    "Seven Seas": {
+     "unknown": 45,
+     "ja": 13
+    },
+    "Haikasoru": {
+     "unknown": 6
+    },
+    "Little, Brown Books for Young Readers": {
+     "unknown": 6
+    },
+    "Del Rey": {
+     "unknown": 4
+    },
+    "Kodansha USA": {
+     "unknown": 4
+    },
+    "The BBB: Breakthrough Bandwagon Books": {
+     "unknown": 4
+    },
+    "Little Brown Books for Young Readers": {
+     "unknown": 4
+    },
+    "Dark Horse Books": {
+     "unknown": 4
+    }
+   }
+  },
+  "60000": {
+   "ambiguous_books": 918,
+   "verdicts": {
+    "unknown": 810,
+    "zh": 46,
+    "ja": 62
+   },
+   "resolved": 108,
+   "by_publisher": {
+    "Seven Seas Entertainment": {
+     "unknown": 547,
+     "zh": 45,
+     "ja": 35
+    },
+    "(none)": {
+     "unknown": 121,
+     "ja": 8,
+     "zh": 1
+    },
+    "Seven Seas": {
+     "unknown": 43,
+     "ja": 15
+    },
+    "Haikasoru": {
+     "unknown": 6
+    },
+    "Little, Brown Books for Young Readers": {
+     "unknown": 6
+    },
+    "Del Rey": {
+     "unknown": 4
+    },
+    "Kodansha USA": {
+     "unknown": 4
+    },
+    "The BBB: Breakthrough Bandwagon Books": {
+     "unknown": 4
+    },
+    "Little Brown Books for Young Readers": {
+     "unknown": 4
+    },
+    "Dark Horse Books": {
+     "unknown": 4
+    }
+   }
+  },
+  "200000": {
+   "ambiguous_books": 918,
+   "verdicts": {
+    "unknown": 772,
+    "zh": 48,
+    "ja": 98
+   },
+   "resolved": 146,
+   "by_publisher": {
+    "Seven Seas Entertainment": {
+     "unknown": 519,
+     "zh": 45,
+     "ja": 63
+    },
+    "(none)": {
+     "unknown": 119,
+     "ja": 9,
+     "zh": 2
+    },
+    "Seven Seas": {
+     "unknown": 39,
+     "ja": 19
+    },
+    "Haikasoru": {
+     "unknown": 5,
+     "ja": 1
+    },
+    "Little, Brown Books for Young Readers": {
+     "unknown": 6
+    },
+    "Del Rey": {
+     "unknown": 4
+    },
+    "Kodansha USA": {
+     "unknown": 3,
+     "ja": 1
+    },
+    "The BBB: Breakthrough Bandwagon Books": {
+     "unknown": 4
+    },
+    "Little Brown Books for Young Readers": {
+     "unknown": 4
+    },
+    "Dark Horse Books": {
+     "unknown": 4
+    }
+   }
+  }
+ },
+ "publisher_counts": {
+  "J-Novel Club": 2092,
+  "Yen On": 1499,
+  "Seven Seas Entertainment": 627,
+  "Cross Infinite World": 172,
+  "Yen Press": 151,
+  "(none)": 130,
+  "Kodansha comics": 64,
+  "Seven Seas": 58,
+  "VIZ Media": 52,
+  "Hanashi Media, LLC": 45,
+  "One Peace Books": 31,
+  "Dark Horse": 27,
+  "Shōsetsuka ni Narō": 24,
+  "JY": 23,
+  "Vertical": 18,
+  "Orbit": 17,
+  "Tentai Books": 15,
+  "Sol Press, LLC.": 14,
+  "Digital Manga Publishing": 12,
+  "TokyoPop": 11,
+  "Haikasoru/VIZ Media": 10,
+  "One Peace Ebooks": 8,
+  "Dark Horse Comics": 8,
+  "Oppatranslations, LLC": 6,
+  "Haikasoru": 6,
+  "Little, Brown Books for Young Readers": 6,
+  "Del Rey": 4,
+  "Kodansha USA": 4,
+  "The BBB: Breakthrough Bandwagon Books": 4,
+  "Little Brown Books for Young Readers": 4,
+  "Dark Horse Books": 4,
+  "enjugroup": 3,
+  "Impress Corporation": 3,
+  "Kodansha Comics": 3,
+  "VIZ Media LLC": 3,
+  "WordExcerpt": 3,
+  "Yen Press, LLC": 3,
+  "Lulu.com": 3,
+  "Ize Press": 2,
+  "Tokyopop": 2,
+  "Digital Manga Inc.": 2,
+  "Regin's Chronicles": 2,
+  "KADOKAWA": 2,
+  "Penguin Books Ltd": 2,
+  "Scholastic Inc.": 2,
+  "Henry Holt and Co. (BYR)": 2,
+  "Tuttle Publishing": 2,
+  "VIZMedia": 2,
+  "Dark Horse Books/Digital Manga Publishing": 2,
+  "Chapter": 1,
+  "Penguin Publishing Group": 1,
+  "Square Enix": 1,
+  "愛中出版株式会社 ＧＬ文庫編集部": 1,
+  "Haika Soru": 1,
+  "Inori Books": 1,
+  "Meteor Strike Media": 1,
+  "Dover Publications, Inc": 1,
+  "ASCII Media Works": 1,
+  "Dover Publications": 1,
+  "Penguin": 1,
+  "Peach Flower House LLC": 1,
+  "Viz Media": 1,
+  "Square Enix, Inc.": 1,
+  "New Directions": 1,
+  "Stone Bridge Press": 1,
+  "SHUEISHA Inc.": 1,
+  "Knopf Doubleday Publishing Group": 1,
+  "Bento Books": 1,
+  "Kodansha": 1,
+  "Paulo27": 1,
+  "Azura Ren": 1,
+  "Locked Room International": 1,
+  "Steerforth Press": 1,
+  "Windmill Books, E.P. Dutton": 1,
+  "Alma Books": 1,
+  "J-Novel Heart": 1,
+  "W. W. Norton &amp; Company": 1,
+  "The University of Adelaide Library": 1,
+  "HarperCollins": 1,
+  "Kodansha International": 1,
+  "Little, Brown Book Group": 1,
+  "VIZ Media, LLC": 1,
+  "No Publisher": 1,
+  "Dark Horse Manga": 1
+ }
+}

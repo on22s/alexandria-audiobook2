@@ -1,0 +1,157 @@
+{
+  "epochs": 6,
+  "lora_r": 64,
+  "seed": 1234,
+  "reference_rank": 2,
+  "eval_lines": 8,
+  "requested_adapters": [
+    "breathy_alto_50s_f_fantasy",
+    "husky_baritone_20s_m_supernatural",
+    "silky_alto_40s_f_literary_1",
+    "silky_baritone_45s_m",
+    "velvety_mezzo_30s_f_gothic",
+    "warm_alto_50s_f_gothic"
+  ],
+  "requested": 6,
+  "completed": 6,
+  "complete": true,
+  "results": [
+    {
+      "adapter": "breathy_alto_50s_f_fantasy",
+      "role": "failure",
+      "dataset": "narrator_mare_trevathan_the_godking_s_legacy_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_3012.wav",
+        "similarity": 0.7296,
+        "rank": 2,
+        "text": "BEFORE HE HAD FALLEN ASLEEP, Derondo HAD TOLD ME TO CONSUME THEM SLOWLY AND FULLY INCORPORATE THEM INTO MY BODY OR IMPURITIES WOULD BUILD UP ..."
+      },
+      "old_ecapa_contaminated": 0.2136,
+      "new_ecapa_heldout": 0.5075,
+      "dur_ratio": 1.032,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "husky_baritone_20s_m_supernatural",
+      "role": "failure",
+      "dataset": "narrator_keith_silverstein_kizumonogatari_char1_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": null,
+      "old_ecapa_contaminated": 0.0526,
+      "new_ecapa_heldout": 0.0327,
+      "dur_ratio": 0.975,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "silky_alto_40s_f_literary_1",
+      "role": "failure",
+      "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char2_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0602.wav",
+        "similarity": 0.734,
+        "rank": 2,
+        "text": "When I didn’t say anything, she stood up. “*Thank* you for everything. I’m sorry to have put you through this. ...."
+      },
+      "old_ecapa_contaminated": 0.6827,
+      "new_ecapa_heldout": 0.0414,
+      "dur_ratio": 1.107,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "silky_baritone_45s_m",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char4_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_0804.wav",
+        "similarity": 0.836,
+        "rank": 2,
+        "text": "The sight seemed to ... paralyse me, and the shovel turned in my hand and glanced from the *face*, merely making a deep gash above the *forehead*."
+      },
+      "old_ecapa_contaminated": 0.2236,
+      "new_ecapa_heldout": 0.1176,
+      "dur_ratio": 0.993,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "velvety_mezzo_30s_f_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char9_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_2205.wav",
+        "similarity": 0.8301,
+        "rank": 2,
+        "text": "September I was engaged after dinner in my study posting up *7* my books, which, through press of other work and the many visits to *Lucy*, had fallen sadly into arrear. ...."
+      },
+      "old_ecapa_contaminated": 0.0614,
+      "new_ecapa_heldout": 0.165,
+      "dur_ratio": 0.889,
+      "n": 8,
+      "ecapa_error": null
+    },
+    {
+      "adapter": "warm_alto_50s_f_gothic",
+      "role": "failure",
+      "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char3_vol01",
+      "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+      "medoid_reference": {
+        "clip": "sample_4009.wav",
+        "similarity": 0.8591,
+        "rank": 2,
+        "text": "so I called an attendant and gave him the necessary instructions. .... Before the Professor left the room I cautioned him against getting any false impression from my *patient*."
+      },
+      "old_ecapa_contaminated": 0.0338,
+      "new_ecapa_heldout": 0.0463,
+      "dur_ratio": 0.945,
+      "n": 8,
+      "ecapa_error": null
+    }
+  ],
+  "provenance": {
+    "script": "retrain_honest.py",
+    "written": "2026-08-16T15:59:29",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
+      "branch": "agent/goals-refresh-and-asr-hypotheses-20260816",
+      "dirty": true,
+      "modified_tracked_files": [
+        "M lora_models/manifest.json"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "93d67afe9a82cc7cc71d1ecf626d41fc7f6163c0b7c45370b57bfa287318ecb9"
+    },
+    "args": {
+      "adapters": [
+        "breathy_alto_50s_f_fantasy",
+        "husky_baritone_20s_m_supernatural",
+        "silky_alto_40s_f_literary_1",
+        "silky_baritone_45s_m",
+        "velvety_mezzo_30s_f_gothic",
+        "warm_alto_50s_f_gothic"
+      ],
+      "controls": [],
+      "models": "lora_models",
+      "zips": "_deduped_labeled",
+      "work": "ab_test_runtime/reference_rank2_failed",
+      "epochs": 6,
+      "lora_r": 64,
+      "lora_alpha": 128,
+      "seed": 1234,
+      "use_medoid": true,
+      "medoid_clips": 14,
+      "reference_rank": 2,
+      "eval_lines": 8,
+      "out": "ab_test_runtime/experiments/reference_rank2_failed.json",
+      "resume": true
+    },
+    "seed": 1234
+  }
+}

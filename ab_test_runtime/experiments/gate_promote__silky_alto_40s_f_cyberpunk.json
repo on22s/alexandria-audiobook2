@@ -1,0 +1,9 @@
+{
+ "adapter": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f_cyberpunk/adapter",
+ "median_ecapa": 0.6983,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": true,
+ "verdict": "PASS - the adapter sounds like its narrator (0.698)"
+}

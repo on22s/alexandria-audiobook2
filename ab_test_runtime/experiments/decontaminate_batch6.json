@@ -1,0 +1,198 @@
+{
+ "epochs": 6,
+ "lora_r": 64,
+ "seed": 1234,
+ "eval_lines": 8,
+ "results": [
+  {
+   "adapter": "warm_baritone_50s_m_gothic",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char5_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_5802.wav",
+    "similarity": 0.8243
+   },
+   "old_ecapa_contaminated": 0.4741,
+   "new_ecapa_heldout": 0.5533,
+   "dur_ratio": 0.966,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_bass_50s_m_fantasy",
+   "role": "failure",
+   "dataset": "narrator_michael_kramer_the_hero_of_ages_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0211.wav",
+    "similarity": 0.8349
+   },
+   "old_ecapa_contaminated": 0.6282,
+   "new_ecapa_heldout": 0.6693,
+   "dur_ratio": 1.008,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_mezzo_20s_f_anime",
+   "role": "failure",
+   "dataset": "narrator_cristina_vee_nekomonogatari_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2002.wav",
+    "similarity": 0.8737
+   },
+   "old_ecapa_contaminated": 0.6655,
+   "new_ecapa_heldout": 0.6317,
+   "dur_ratio": 1.111,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_mezzo_30s_f",
+   "role": "failure",
+   "dataset": "narrator_kate_reading_a_natural_history_of_dragons_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_2608.wav",
+    "similarity": 0.8806
+   },
+   "old_ecapa_contaminated": 0.5195,
+   "new_ecapa_heldout": 0.5716,
+   "dur_ratio": 0.988,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_mezzo_30s_f_fantasy_1",
+   "role": "failure",
+   "dataset": "narrator_emily_woo_zeller_red_winter_the_complete_trilogy_b0d1z63lzd_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0810.wav",
+    "similarity": 0.8383
+   },
+   "old_ecapa_contaminated": 0.6074,
+   "new_ecapa_heldout": 0.6835,
+   "dur_ratio": 1.022,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_tenor_20s_m",
+   "role": "failure",
+   "dataset": "narrator_suzie_yeung_even_if_these_tears_disappear_tonight_char4_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0200.wav",
+    "similarity": 0.8108
+   },
+   "old_ecapa_contaminated": 0.7248,
+   "new_ecapa_heldout": 0.3633,
+   "dur_ratio": 1.122,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_tenor_20s_m_scifi",
+   "role": "failure",
+   "dataset": "narrator_luci_christian_full_metal_panic_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0014.wav",
+    "similarity": 0.7828
+   },
+   "old_ecapa_contaminated": 0.5114,
+   "new_ecapa_heldout": 0.5484,
+   "dur_ratio": 0.935,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_tenor_30s_m_1",
+   "role": "failure",
+   "dataset": "narrator_john_lee_spellmonger_spellmonger_book_1_b01n264eek_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_0612.wav",
+    "similarity": 0.8823
+   },
+   "old_ecapa_contaminated": 0.5494,
+   "new_ecapa_heldout": 0.7124,
+   "dur_ratio": 1.116,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_tenor_30s_m_2",
+   "role": "failure",
+   "dataset": "narrator_kirby_heyborne_out_of_house_and_home_fred_the_vampire_accountant_series_book_7_b09d1hqbvy_char1_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_1611.wav",
+    "similarity": 0.8228
+   },
+   "old_ecapa_contaminated": 0.5892,
+   "new_ecapa_heldout": 0.6044,
+   "dur_ratio": 1.073,
+   "n": 8,
+   "ecapa_error": null
+  },
+  {
+   "adapter": "warm_tenor_30s_m_gothic",
+   "role": "failure",
+   "dataset": "narrator_dracula_audible_edition_b0078pa1oa_char7_vol01",
+   "trained_on": "[DATA] Found 180 entries in train/metadata.jsonl (20 held out in val/ and NOT trained on)",
+   "medoid_reference": {
+    "clip": "sample_3205.wav",
+    "similarity": 0.865
+   },
+   "old_ecapa_contaminated": 0.4572,
+   "new_ecapa_heldout": 0.5665,
+   "dur_ratio": 1.05,
+   "n": 8,
+   "ecapa_error": null
+  }
+ ],
+ "provenance": {
+  "script": "retrain_honest.py",
+  "written": "2026-08-11T09:22:32",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+   "branch": "agent/handoff-2026-08-11",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "a1c679eae49bb94c0ea4bda445b02cc6acde6f5f66a42465fecc63943babc5d5"
+  },
+  "args": {
+   "adapters": [
+    "warm_baritone_50s_m_gothic",
+    "warm_bass_50s_m_fantasy",
+    "warm_mezzo_20s_f_anime",
+    "warm_mezzo_30s_f",
+    "warm_mezzo_30s_f_fantasy_1",
+    "warm_tenor_20s_m",
+    "warm_tenor_20s_m_scifi",
+    "warm_tenor_30s_m_1",
+    "warm_tenor_30s_m_2",
+    "warm_tenor_30s_m_gothic"
+   ],
+   "controls": [],
+   "models": "lora_models",
+   "zips": "_deduped_labeled",
+   "work": "ab_test_runtime/decontaminate/batch6",
+   "epochs": 6,
+   "lora_r": 64,
+   "lora_alpha": 128,
+   "seed": 1234,
+   "use_medoid": true,
+   "medoid_clips": 14,
+   "eval_lines": 8,
+   "out": "ab_test_runtime/experiments/decontaminate_batch6.json"
+  },
+  "seed": 1234
+ }
+}

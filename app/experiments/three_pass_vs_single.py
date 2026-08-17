@@ -166,6 +166,20 @@ def main():
         REPO, "ab_test_runtime", "experiments", "three_pass_vs_single.json"))
     args = ap.parse_args()
 
+    # ABSOLUTE, BECAUSE THE ARMS RUN FROM A DIFFERENT DIRECTORY. Each arm is a
+    # subprocess launched with cwd=APP, so a relative --inputs given at the
+    # repo root resolves against app/ inside the child and vanishes:
+    #
+    #   FileNotFoundError: 'ab_test_runtime/results/.../inputs/index18.txt'
+    #
+    # Both arms then "fail", and the summary's own hint says to check the LLM
+    # server - which sent two sessions chasing a healthy engine for a day. The
+    # paths are resolved here, once, against the directory the user actually
+    # typed them in.
+    args.inputs = os.path.abspath(args.inputs)
+    args.work = os.path.abspath(args.work)
+    args.out = os.path.abspath(args.out)
+
     os.makedirs(args.work, exist_ok=True)
     logs = os.path.join(REPO, "ab_test_runtime", "logs")
     os.makedirs(logs, exist_ok=True)
@@ -260,9 +274,25 @@ def main():
         print("\nno book produced both arms; nothing to compare")
         for f in failures[:4]:
             print(f"    {f}")
-        if any("Connection" in str(f) for f in failures) or failures:
-            print("\n  If every arm failed, check the LLM server first:")
-            print("    ./start_llama_server.sh")
+        # POINT AT THE ARM'S OWN LOG FIRST. This used to say "check the LLM
+        # server", unconditionally, whatever the failure was - and on
+        # 2026-08-16 every arm died on a FileNotFoundError while the server was
+        # healthy, so two sessions went after the engine instead of reading one
+        # traceback. A guess printed as advice is worse than no advice.
+        if failures:
+            print("\n  Read the failing arm's log - it holds the traceback:")
+            for f in failures[:4]:
+                # Not every failure has an arm: a book skipped for a missing
+                # source is recorded as {book, error} and has no log to read.
+                # The first version of this advice indexed f['arm'] blindly and
+                # raised KeyError while explaining someone else's failure.
+                if f.get("arm"):
+                    print(f"    ab_test_runtime/logs/"
+                          f"tpvs_{f['book']}_{f['arm']}.log")
+                elif f.get("error"):
+                    print(f"    {f['book']}: {f['error']}")
+            print("\n  If those show connection errors, then check the server:")
+            print("    app/env/bin/python app/experiments/llm_preflight.py")
     else:
         print(f"\n  {'book':20}{'n':>6}{'single':>9}{'three':>9}{'delta':>8}")
         for r in results:

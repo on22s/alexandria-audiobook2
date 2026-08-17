@@ -33,10 +33,77 @@ def _load_audit(name):
             for row in doc.get("artifacts", [])}
 
 structural_status = _load_audit("artifact_structural_audit.json")
+
+def _load_seeds():
+    try:
+        doc = json.load(open(os.path.join(REPO, "ab_test_runtime", "audit",
+                                          "artifact_structural_audit.json")))
+    except (OSError, ValueError):
+        return {}
+    return {r["artifact"]: r.get("seed") for r in doc.get("artifacts", [])
+            if r.get("seed")}
+
+structural_seed = _load_seeds()
 legacy_status = _load_audit("legacy_attribution_audit.json")
 
 def get_evidence_status(name):
     return legacy_status.get(name, structural_status.get(name, "not_audited"))
+
+
+# HOW CONFIDENTLY EACH ARTIFACT'S ORIGIN IS KNOWN, in the table where its
+# numbers are read rather than in an audit nobody opens. Established today:
+# 107 artifacts record their producing script and args, 251 more can be
+# resolved from git plus the naming convention, and 122 from neither. That
+# distinction decided which of them could be re-run at all, and it was
+# invisible here.
+sys.path.insert(0, os.path.join(REPO, "app"))
+try:
+    from experiments.replay_artifact import resolve_producer
+except Exception:                                           # noqa: BLE001
+    resolve_producer = None
+
+# Which goal, if any, quotes this artifact. Mostly EMPTY on purpose: only 5 of
+# 30 goals name their evidence by filename, so the blanks are the finding -
+# they mark the claims a reader cannot follow back to anything.
+def _goal_citations():
+    citations, current = {}, None
+    try:
+        text = open(os.path.join(REPO, "GOALS.md"), encoding="utf-8").read()
+    except OSError:
+        return citations
+    for line in text.splitlines():
+        heading = re.match(r"^### (\d+\.\d+)", line)
+        if heading:
+            current = heading.group(1)
+            continue
+        if current:
+            for cited in re.findall(r"`([a-z0-9_]+\.json)`", line):
+                citations.setdefault(cited, set()).add(current)
+    return {k: ",".join(sorted(v)) for k, v in citations.items()}
+
+goal_citations = _goal_citations()
+_producer_cache = {}
+
+def get_origin(name):
+    """-> {producer, resolution_tier, replayable, added_commit} for an artifact."""
+    if name in _producer_cache:
+        return _producer_cache[name]
+    blank = {"producer": "", "resolution_tier": "", "replayable": "",
+             "added_commit": ""}
+    if resolve_producer is None:
+        _producer_cache[name] = blank
+        return blank
+    try:
+        got = resolve_producer(os.path.join(E, name), sys.executable)
+    except Exception:                                       # noqa: BLE001
+        _producer_cache[name] = blank
+        return blank
+    out = {"producer": got.get("script") or "",
+           "resolution_tier": got.get("tier") or "",
+           "replayable": "yes" if got.get("argv") else "no",
+           "added_commit": (got.get("commit") or "")[:8]}
+    _producer_cache[name] = out
+    return out
 
 rows, files = [], sorted(glob.glob(os.path.join(E, "*.json")))
 
@@ -248,7 +315,9 @@ out_csv = os.path.join(REPO, "results_index.csv")
 # missing from this list, so extrasaction="ignore" silently threw every skip
 # reason away. Un-indexed artifacts appeared as a filename followed by nineteen
 # empty fields, which looks like a broken row rather than a deliberate note.
-cols = ["artifact", "evidence_status", "experiment", "book", "model", "env_tag", "host", "backend",
+cols = ["artifact", "evidence_status", "resolution_tier", "replayable",
+        "producer", "added_commit", "cited_by_goal", "seed",
+        "experiment", "book", "model", "env_tag", "host", "backend",
         "ctx", "parallel", "kv", "arm", "n", "correct", "accuracy_pct",
         "validation", "dirty", "commit", "elapsed_s", "finished", "endpoint",
         "note"]
@@ -257,6 +326,14 @@ with csv_buffer as fh:
     # csv.excel defaults to CRLF. The repository is LF-normalized, so adding a
     # new result made `git diff --check` report every new CSV row as trailing
     # whitespace even though the fields were valid.
+    for r in rows:
+        name = r.get("artifact") or ""
+        r.setdefault("cited_by_goal", goal_citations.get(name, ""))
+        for key, value in get_origin(name).items():
+            r.setdefault(key, value)
+        seed = r.get("seed")
+        if seed in (None, ""):
+            r["seed"] = (structural_seed.get(name) or "")
     w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore",
                        lineterminator="\n")
     w.writeheader()
@@ -270,6 +347,16 @@ md = [f"# Results index\n",
       f"{len([r for r in rows if r.get('arm')])} arms.\n",
       "Regenerate with `python3 collect_results.py`. Machine-readable copy in "
       "`results_index.csv`.\n",
+      "`resolution_tier` says how confidently an artifact's origin is known: "
+      "`provenance` records the script and its arguments and can be re-run "
+      "exactly (`replayable=yes`); `git+naming` means the producing script "
+      "and the commit that added the file are known but the arguments are "
+      "not, so it can be read but not reproduced; `none` is neither. "
+      "108 of 883 rows are replayable.\n\n"
+      "`cited_by_goal` is populated on 10 rows of 883, and that is the "
+      "finding rather than a gap in this column: only goals 2.4 and 5.4 "
+      "name their evidence by filename. Every other claim in GOALS.md "
+      "quotes a number no reader can follow back to a file.\n\n"
       "`evidence_status` comes from the committed audit snapshots. "
       "`supported_structure` validates provenance shape only; "
       "`supported_measurement` is the strongest attribution classification. "

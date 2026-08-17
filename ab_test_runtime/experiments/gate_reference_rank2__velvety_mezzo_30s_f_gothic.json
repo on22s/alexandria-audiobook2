@@ -1,0 +1,9 @@
+{
+ "adapter": "ab_test_runtime/reference_rank2_failed/velvety_mezzo_30s_f_gothic/adapter",
+ "median_ecapa": 0.165,
+ "lines": 10,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.165 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67."
+}

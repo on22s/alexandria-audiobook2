@@ -50,9 +50,18 @@ def _git_state(repo):
     # reported clean and the artifact claimed a commit that did not contain the
     # code that produced it. Untracked .py inside the harness directory is dirt.
     harness_dir = os.path.dirname(os.path.abspath(__file__))
+    # run_chains/ counts too, and gpu_job.sh's tree_state counts it. These two
+    # are the same decision expressed twice - the shell one cannot import
+    # Python, being the lock wrapper - so they are kept in step by
+    # test_the_shell_gate_agrees_with_the_python_provenance. Six chains sat
+    # untracked while being edited and run because neither watched them.
+    chains_dir = os.path.join(os.path.dirname(os.path.dirname(harness_dir)),
+                              "run_chains")
     untracked = [n for n in (run("git", "ls-files", "--others",
-                                 "--exclude-standard", "--", harness_dir)
-                             or "").splitlines() if n.endswith(".py")]
+                                 "--exclude-standard", "--", harness_dir,
+                                 chains_dir)
+                             or "").splitlines()
+                 if n.endswith(".py") or n.endswith(".sh")]
     return {"commit": run("git", "rev-parse", "HEAD"),
             "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
             "dirty": bool(modified) or bool(untracked),

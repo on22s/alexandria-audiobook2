@@ -49,6 +49,13 @@ def classify_artifact(path):
         args = provenance.get("args") or {}
         row.update({"identity_contract": "tts_provenance",
                     "seed": provenance.get("seed", args.get("seed")),
+                    # WHEN the run happened, from the same block that already
+                    # supplies seed, commit and dirty. Its absence was not a
+                    # design choice: "when was this measured" could only be
+                    # answered by opening each artifact, and the 374 without a
+                    # provenance block have no answer at all - which is worth
+                    # seeing in the audit rather than discovering per file.
+                    "written": provenance.get("written"),
                     "commit": git.get("commit"), "dirty": git.get("dirty")})
         if git.get("commit") and len(git.get("harness_sha256", "")) == 64:
             row.update({"classification": "supported_structure",
@@ -60,6 +67,9 @@ def classify_artifact(path):
         git = meta.get("git") or {}
         row.update({"identity_contract": "experiment_meta",
                     "seed": meta.get("seed"), "commit": git.get("commit"),
+                    # Same field, other contract: experiment metadata calls it
+                    # `written` too, so both paths report it identically.
+                    "written": meta.get("written"),
                     "dirty": git.get("dirty")})
         if git.get("commit"):
             row.update({"classification": "provisional",

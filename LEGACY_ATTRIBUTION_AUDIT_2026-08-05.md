@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 114 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 118 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
 - `historical_only`: 38
 - `provisional`: 21
-- `supported_measurement`: 46
+- `supported_measurement`: 50
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -90,8 +90,12 @@ All 114 legacy-metadata artifacts are listed exactly once. Classification descri
 | `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 198 | 0 | 0 | False |  |
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |
 | `narrator_prior__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 324 | 0 | 0 | False |  |
+| `pdnc_context_evidence__pilot__local-llamacpp.json` | pdnc_context_evidence | supported_measurement | 1200 | None | None | False |  |
+| `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | supported_measurement | 720 | None | None | False |  |
 | `pdnc_narrator_prior__local-llamacpp-generic.json` | pdnc_narrator_prior | provisional | 240 | None | None | True |  |
 | `pdnc_narrator_prior__local-llamacpp.json` | pdnc_narrator_prior | provisional | 480 | None | None | True |  |
+| `pdnc_sequence__pilot__local-llamacpp.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
+| `pdnc_targeted_sequence__pilot__local-llamacpp.json` | pdnc_targeted_sequence | supported_measurement | 1800 | None | None | False |  |
 | `reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json` | reasoning_arms | historical_only | 2000 | 111 | 20 | False |  |
 | `reasoning_arms__grimgar03__qwen__qwen3-14b.json` | reasoning_arms | historical_only | 2000 | 79 | 20 | True |  |
 | `reasoning_arms__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | supported_measurement | 495 | 0 | 0 | False |  |
@@ -144,7 +148,10 @@ All 114 legacy-metadata artifacts are listed exactly once. Classification descri
 - `joint_scene`: Joint and shuffled controls answer ordering only within the tested fixtures.
 - `lora_serving_eval`: Two gold books and one serving stack; not a universal adapter claim.
 - `narrator_prior`: A predeclared book-contrast test, not a general narrator rule.
+- `pdnc_context_evidence`: A five-book English PDNC pilot at 120 lines per book whose arms differ by 5 correct lines in 600 (57.7% vs 58.5%); sized to decide whether the confirmatory run is worth doing, not to establish an effect, and no confirmatory run exists.
 - `pdnc_narrator_prior`: Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.
+- `pdnc_sequence`: A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result.
+- `pdnc_targeted_sequence`: A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure.
 - `reasoning_arms`: Reasoning/justification settings are model- and serving-stack-specific.
 - `reasoning_check`: Justification disagreement is a routing signal, not calibrated confidence.
 - `reexamine`: Selected previously negative results; selection prevents broad inference.
