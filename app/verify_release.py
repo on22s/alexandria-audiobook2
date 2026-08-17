@@ -150,12 +150,31 @@ def validate_api_summary(summary, full):
     return actual_counts
 
 
+# A discovery accident collapses the suite silently. `unittest discover` walks
+# past any directory that is not an importable package, so deleting
+# `tests/__init__.py` makes it print "Ran 0 tests ... OK" - which every check
+# below this line accepted as a pass. Measured, not supposed: the probe was run
+# before the suite moved into `tests/`.
+#
+# The floor is deliberately far under the real count (1592 at the time of the
+# move). It is here to catch the suite vanishing, not to be a second inventory -
+# `update_test_inventory.py --check` is what notices a single test going
+# missing, and it runs as its own gate.
+MINIMUM_UNIT_TESTS = 500
+
+
 def validate_unittest_output(output):
     skipped = re.search(r"\bskipped=(\d+)", output)
     if skipped and int(skipped.group(1)):
         raise ValueError(f"Unit tests reported {skipped.group(1)} skipped test(s)")
-    if not re.search(r"Ran \d+ tests? in ", output) or not re.search(r"^OK", output, re.MULTILINE):
+    ran = re.search(r"Ran (\d+) tests? in ", output)
+    if not ran or not re.search(r"^OK", output, re.MULTILINE):
         raise ValueError("Unit tests did not print a successful summary")
+    if int(ran.group(1)) < MINIMUM_UNIT_TESTS:
+        raise ValueError(
+            f"Unit discovery ran only {ran.group(1)} tests, under the "
+            f"{MINIMUM_UNIT_TESTS} floor - the suite is not being found. "
+            "Check that app/tests/__init__.py still exists.")
 
 
 def run_api_suite(app_dir, full):

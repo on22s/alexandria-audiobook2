@@ -20,10 +20,10 @@ def get_snapshot_hints(changed_files):
     """Return advisory messages for likely omitted generated files."""
     hints = []
     test_sources_changed = any(
-        path.startswith("app/test") and path.endswith(".py")
+        path.startswith("app/tests/") and path.endswith(".py")
         for path in changed_files
     )
-    if test_sources_changed and "app/unit_test_inventory.json" not in changed_files:
+    if test_sources_changed and "app/tests/unit_test_inventory.json" not in changed_files:
         hints.append(
             "Tests changed without unit_test_inventory.json; run "
             "`python app/update_test_inventory.py` if discovery changed."

@@ -209,6 +209,13 @@ Designer/Dataset/Training/Preparer/Voice Lab tabs.
 - `app/train_lora.py` — single-dataset LoRA training (UI Training tab).
 - `app/utils.py` — shared helpers: `atomic_json_write`, `safe_load_json`,
   `file_lock`, `secure_filename`.
+- `app/tests/` — the whole unit suite, plus `unit_test_inventory.json` and the
+  script-style live API suite `test_api.py`. It is a **package**: `__init__.py`
+  must stay, because `unittest discover` walks past a plain directory and
+  prints "Ran 0 tests ... OK". Test modules import app code by bare name
+  (`import tts`) and import each other by package path
+  (`from tests.test_support import ...`). Anything a test reads off disk is
+  `Path(__file__).parent.parent`, not `.parent`.
 
 ### On-disk data (relative to project root)
 - `annotated_script.json` / `voice_config.json` — the "active" book and its
