@@ -33,6 +33,7 @@ FAMILY_LIMITS = {
     "joint_scene": "Joint and shuffled controls answer ordering only within the tested fixtures.",
     "lora_serving_eval": "Two gold books and one serving stack; not a universal adapter claim.",
     "narrator_prior": "A predeclared book-contrast test, not a general narrator rule.",
+    "pdnc_context_evidence": "A five-book English PDNC pilot at 120 lines per book whose arms differ by 5 correct lines in 600 (57.7% vs 58.5%); sized to decide whether the confirmatory run is worth doing, not to establish an effect, and no confirmatory run exists.",
     "pdnc_narrator_prior": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.",
     "reasoning_arms": "Reasoning/justification settings are model- and serving-stack-specific.",
     "reasoning_check": "Justification disagreement is a routing signal, not calibrated confidence.",
