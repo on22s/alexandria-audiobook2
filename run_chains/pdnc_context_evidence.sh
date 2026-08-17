@@ -37,16 +37,65 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if pgrep -x llama-server >/dev/null 2>&1; then
-    echo "ABORT: an existing llama-server is not owned by this campaign"
+# ADOPT A CORRECTLY-CONFIGURED SERVER; ABORT ONLY ON A WRONG ONE.
+#
+# This used to abort whenever ANY llama-server existed - "not owned by this
+# campaign" - which contradicted ensure_llama_server.sh, whose whole design is
+# that a healthy server outlives the job that started it so consecutive evals
+# share one load. Two ownership models in one repo, and this one refused to run
+# at all whenever the other had left a server up.
+#
+# The distinction that actually matters is not who started it but whether it is
+# the RIGHT server. lmstudio_settings.get_llama_cpp_status answers that from
+# /props - alias, context, slots, reasoning - and is the same reader the app
+# and the provenance capture use, so there is one definition of "correct
+# server" rather than three.
+#
+# Ownership still follows starting: server_pid stays empty when we adopt, so
+# cleanup() will not kill a server we did not launch.
+adopt_check=$("$repo/app/env/bin/python" - "$model" <<'PYEOF'
+import json, sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", "app"))
+sys.path.insert(0, "app")
+try:
+    from lmstudio_settings import get_llama_cpp_status
+except ImportError:
+    print("UNKNOWN cannot import the status reader")
+    raise SystemExit(0)
+state = get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b", timeout=5)
+if state is None:
+    print("NONE no server")
+elif not state["loaded"]:
+    print(f"WRONG serves {state.get('server_alias')!r}, not qwen3-14b")
+elif (state.get("context_length") or 0) < 32768:
+    print(f"WRONG context {state.get('context_length')} < 32768")
+elif state.get("reasoning_format") not in (None, "none"):
+    print(f"WRONG reasoning_format={state.get('reasoning_format')!r}; "
+          "structured passes need reasoning off")
+else:
+    print("ADOPT context={} slots={}".format(
+        state.get("context_length"), state.get("parallel")))
+PYEOF
+)
+case "$adopt_check" in
+  ADOPT*)
+    echo "CAMPAIGN_ADOPT $(date -u +%FT%TZ) reusing existing server: ${adopt_check#ADOPT }"
+    ;;
+  WRONG*)
+    echo "ABORT: a llama-server is running but is not the one this needs:"
+    echo "  ${adopt_check#WRONG }"
+    echo "  stop it, or restart with: LLAMA_MODEL=$model ./ensure_llama_server.sh"
     exit 2
-fi
-echo "CAMPAIGN_START $(date -u +%FT%TZ) commit=$(git -C "$repo" rev-parse --short HEAD)"
-/usr/bin/llama-server -m "$model" --port 8090 --host 127.0.0.1 \
-    -c 32768 -np 1 -ngl 999 --alias qwen3-14b \
-    --chat-template-kwargs '{"enable_thinking":false}' \
-    > "$run_dir/llama-server.log" 2>&1 &
-server_pid=$!
+    ;;
+  *)
+    echo "CAMPAIGN_START $(date -u +%FT%TZ) commit=$(git -C "$repo" rev-parse --short HEAD)"
+    /usr/bin/llama-server -m "$model" --port 8090 --host 127.0.0.1 \
+        -c 32768 -np 1 -ngl 999 --alias qwen3-14b \
+        --reasoning off \
+        > "$run_dir/llama-server.log" 2>&1 &
+    server_pid=$!
+    ;;
+esac
 ready=0
 for unused in $(seq 1 60); do
     if curl -fsS -m 5 http://127.0.0.1:8090/v1/models | grep -q qwen3; then

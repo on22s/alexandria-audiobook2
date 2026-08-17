@@ -39,23 +39,36 @@ BATCH = 25
 
 
 def get_llama_server_environment(base_url, expected_model):
-    root = base_url.rsplit("/v1", 1)[0]
-    with urllib.request.urlopen(root + "/props", timeout=10) as response:
-        props = json.loads(response.read())
-    alias = props.get("model_alias")
-    settings = props.get("default_generation_settings", {}).get("params", {})
-    context = props.get("default_generation_settings", {}).get("n_ctx")
-    if alias not in {expected_model, expected_model.rsplit("/", 1)[-1]}:
-        raise RuntimeError(f"server model {alias!r} != {expected_model!r}")
-    if not context or not props.get("total_slots"):
+    """The server's real configuration, or raise. Provenance, not diagnostics.
+
+    Delegates to lmstudio_settings.get_llama_cpp_status, which reads the same
+    /props endpoint this used to parse itself. Two copies of "what is the
+    server running" would drift (Rule 15), and the app's own status route
+    needed this reader anyway - it had been reporting every llama.cpp model as
+    unloaded because it only knew how to ask `lms ps`.
+
+    Still RAISES where the shared reader returns a status: an artifact with an
+    unverified model state cannot be compared against another run, so this
+    caller refuses rather than recording a guess.
+    """
+    from lmstudio_settings import get_llama_cpp_status
+
+    state = get_llama_cpp_status(base_url, expected_model, timeout=10)
+    if state is None:
+        raise RuntimeError(f"no llama.cpp /props at {base_url}")
+    if not state["loaded"]:
+        raise RuntimeError(
+            f"server model {state.get('server_alias')!r} != {expected_model!r}")
+    if not state.get("context_length") or not state.get("parallel"):
         raise RuntimeError("llama.cpp did not report context/slot configuration")
     return {"loaded": True, "verified_model": expected_model,
-            "server_alias": alias,
-            "context_length": context, "parallel": props["total_slots"],
+            "server_alias": state["server_alias"],
+            "context_length": state["context_length"],
+            "parallel": state["parallel"],
             "optimized": None, "runtime": "llama.cpp",
-            "model_path": props.get("model_path"),
-            "model_ftype": props.get("model_ftype"),
-            "reasoning_format": settings.get("reasoning_format")}
+            "model_path": state.get("model_path"),
+            "model_ftype": state.get("model_ftype"),
+            "reasoning_format": state.get("reasoning_format")}
 
 
 def main():
