@@ -128,8 +128,11 @@ class SingleReaderTests(unittest.TestCase):
         the app's status route needed the same answer.
         """
         from experiments import pdnc_narrator_prior
+        # No assertIn("get_llama_cpp_status") here: it is decorative, and
+        # demonstrably so. Stubbing pdnc's call out entirely left that
+        # assertion passing - the name still appears in the import line -
+        # while the two behavioural tests below caught it immediately.
         source = open(pdnc_narrator_prior.__file__, encoding="utf-8").read()
-        self.assertIn("get_llama_cpp_status", source)
         self.assertNotIn('"/props"', source,
                          "the /props URL should exist in one place only")
 

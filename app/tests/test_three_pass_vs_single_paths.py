@@ -99,8 +99,8 @@ class FailureAdviceTests(unittest.TestCase):
         KeyError while explaining someone else's failure.
         """
         source = open(harness.__file__, encoding="utf-8").read()
-        self.assertIn('f.get("arm")', source,
-                      "arm must be read defensively; not every failure has one")
+        # The guard's existence is covered by indexing it below; a separate
+        # assertIn was redundant.
         # The indexed form is fine INSIDE that guard - what raised KeyError was
         # reaching it unguarded - so assert the guard precedes the use rather
         # than banning the pattern outright.

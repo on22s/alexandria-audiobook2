@@ -579,7 +579,6 @@
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_a_provenance_failure_is_recorded_rather_than_swallowed",
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_provenance_is_attached_before_the_document_is_written",
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_gate_still_exits_nonzero_on_failure",
-    "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_identity_gate_records_provenance",
     "tests.test_gate_provenance.ProvenanceHelperTests.test_the_helper_exists_and_takes_file_and_args"
   ],
   "test_generate_personas": [

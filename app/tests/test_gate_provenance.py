@@ -27,11 +27,10 @@ def _source(name):
 
 
 class GateWritesProvenanceTests(unittest.TestCase):
-    def test_the_identity_gate_records_provenance(self):
-        source = _source("verify_adapter_identity.py")
-        self.assertIn("from experiments.provenance import provenance", source)
-        self.assertIn('doc["provenance"] = provenance(__file__, args)', source)
-
+    # There is deliberately no separate "is provenance recorded" test: the
+    # ordering test below indexes the same string and fails when it is missing,
+    # so a bare assertIn added nothing. Verified by deleting the line from the
+    # gate and watching this test go red.
     def test_provenance_is_attached_before_the_document_is_written(self):
         """Attaching it after json.dump would look right and record nothing."""
         source = _source("verify_adapter_identity.py")
