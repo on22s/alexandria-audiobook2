@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1497** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1516** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1362,36 +1362,55 @@ That hybrid is untested; nothing measured rules it out.
 > design (5.2's `pronunciation.py`). What was missing was knowing *which*
 > words need an entry, and that is now measured rather than guessed.
 
-**Metric** — kana agreement between the spoken word and its expected reading.
-Not WER: a respelling that works makes the ASR hear Japanese, which WER
-punishes.
+**Metric** — `recovers_word`: the term's kana reading appears **unbroken and
+in order** in the transcript, compared on readings so 人間 and ニンゲン count as
+the same word. Not WER: a respelling that works makes the ASR hear Japanese,
+which WER punishes.
+
+> **This definition is the goal's second one, and the first was wrong.** Until
+> 2026-08-17 the score asked whether each kana appeared *anywhere*, in any
+> order, so タナカ scored a perfect 1.0 against a transcript holding タ, ナ and
+> カ in three unrelated words. Of 768 terms scoring 1.0, **only 51% contained
+> the word**; the rest were the mispronunciations this goal exists to catch
+> (`フタバ` → フォータバー, `セイイチ` → セイチー) scored as successes. The
+> generation was checked before the scoring was blamed: 12 of 12 stored WAVs
+> re-transcribe byte-identically, 0 of 12 plain/respelled pairs are the same
+> audio, 0 render errors across 5,880 terms. The audio was always fine; the
+> question asked of it was not. See Rule 21 and
+> `app/experiments/rescore_respellings.py`.
+
 **Probe** — `app/experiments/measure_respellings.py`, over candidates found by
-`discover_foreign_terms.py` and `lexicon_corpus_scan.py`.
-**Current** — 9,381 candidate terms scanned from 6,501 EPUBs; 3,765 measured
-so far. **OPEN.**
+`discover_foreign_terms.py` and `lexicon_corpus_scan.py`. Finished runs are
+re-scored without regenerating audio by `rescore_respellings.py`.
+**Current** — 9,381 candidates scanned from 6,501 EPUBs; **6,060 measured and
+re-scored**. **OPEN.**
 
 **The result that matters is not a list of respellings, it is when to use
-one.** By how well the plain spelling already does:
+one** — and the honest answer is *rarely*:
 
-| plain kana overlap | terms | respelling helped | mean change |
-|---|---|---|---|
-| 0.0–0.2 | 1807 | 38% | **+0.246** |
-| 0.2–0.4 | 355 | 27% | −0.039 |
-| 0.4–0.6 | 335 | 27% | −0.147 |
-| 0.6–0.8 | 677 | 14% | −0.350 |
-| 0.8–1.0 | 596 | **0%** | **−0.564** |
+| | terms | outcome |
+|---|---|---|
+| plain spelling already said it right | 967 | respelling **breaks 72%** of them |
+| plain spelling got it wrong | 5,093 | respelling **rescues 13%** of them |
+| net across all 6,060 | | **687 recovered against 701 lost** |
 
-Monotonic across every band. **Respelling a word the engine already says
-correctly makes it worse** — nothing in the top band was helped and the
-average damage there is the largest effect in the table. A lexicon that
-respelled every foreign word would degrade the audio, so the entry rule is:
-respell only where the plain form is already wrong.
+**Respelling is roughly break-even, and actively harmful applied broadly.** The
+entry rule stands and is now the stronger claim: respell only where the plain
+form demonstrably fails, and even there expect it to work about one time in
+eight. Rule B (vowel absorption) is worse — 7 recoveries in 268 terms.
 
-**Target — every term in the shipped books whose plain form scores below 0.2
-either has a measured entry or is recorded as one respelling could not fix.**
-Both halves matter: 62% of the low-scoring band was not rescued by the first
-derivation rule, and a word respelling cannot help needs saying so rather than
-leaving a blank that looks like an oversight.
+The useful output is the near-miss list: terms where the phonemes moved the
+right way and one specific thing is still wrong — `カワラマチ` → こわらマチ,
+`サカキバラ` → さっかきばら, `ウチガタナ` → うちがたんな. Those are fixable by a
+hand-written entry in a way that "the model has no idea" is not.
+
+**Target — every term in the shipped books whose plain form does not produce
+the word either has a measured entry or is recorded as one respelling could
+not fix.** Both halves matter, and the second is now the larger: **87% of that
+band was not rescued** by either derivation rule, so most of this goal's
+output will be recorded failures rather than entries. A word a respelling
+cannot help needs saying so, rather than leaving a blank that reads as an
+oversight.
 
 **Not settled by the ASR.** Kana agreement shows the phonemes moved; it does
 not show the result sounds natural in an English sentence. Entries are

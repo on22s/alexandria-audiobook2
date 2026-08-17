@@ -39,8 +39,14 @@ class GpuJobTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_job(self, *argv, path_prefix=None, lock=None, timeout=30):
-        env = dict(os.environ, GPU_LOCK=lock or self.lock, GPU_QLOG=self.qlog)
+    def run_job(self, *argv, path_prefix=None, lock=None, timeout=30,
+                allow_dirty="1"):
+        # These jobs are `true`/`false` probes, not experiments - nothing here
+        # produces an artifact anyone will cite, so the dirty-tree gate is
+        # legitimately waived. It is exercised on purpose in
+        # DirtyTreeGateTest below rather than being disabled and forgotten.
+        env = dict(os.environ, GPU_LOCK=lock or self.lock, GPU_QLOG=self.qlog,
+                   ALLOW_DIRTY_TREE=allow_dirty)
         if path_prefix:
             env["PATH"] = path_prefix + os.pathsep + env["PATH"]
         return subprocess.run(["bash", GPU_JOB, *argv], env=env,
@@ -78,6 +84,7 @@ class GpuJobTest(unittest.TestCase):
         # post-mortem, which is what reading logs already gave us.
         self.run_job("ordered", "true")
         lines = [l.split()[1] for l in self.log().splitlines() if l.strip()]
+        lines = [l for l in lines if l != "DIRTY_RUN"]
         self.assertEqual(lines, ["QUEUED", "IDENT", "START", "OK"])
 
     # ------------------------------------------------------- failure surfaces
@@ -139,7 +146,8 @@ class GpuJobTest(unittest.TestCase):
             sleep 1
             echo out >> {witness}
         """)
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog)
+        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
+                   ALLOW_DIRTY_TREE="1")
         procs = [subprocess.Popen(["bash", GPU_JOB, f"j{i}", "bash", "-c",
                                    script], env=env,
                                   stdout=subprocess.DEVNULL,
@@ -154,7 +162,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_the_second_job_waits_rather_than_failing(self):
         """Blocking is correct; a queued job must not be dropped."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog)
+        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
+                   ALLOW_DIRTY_TREE="1")
         slow = subprocess.Popen(["bash", GPU_JOB, "slow", "sleep", "2"],
                                 env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -165,7 +174,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_interrupting_a_waiter_releases_nothing_and_logs_no_start(self):
         """A job killed while queued must not appear to have run."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog)
+        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
+                   ALLOW_DIRTY_TREE="1")
         holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "3"],
                                   env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -190,7 +200,10 @@ class GpuJobTest(unittest.TestCase):
         afterwards.
         """
         self.run_job("ident", "true")
-        kinds = [l.split()[1] for l in self.log().splitlines() if l.strip()]
+        # DIRTY_RUN appears only because these probe runs waive the dirty-tree
+        # gate (see run_job); it is not part of the lifecycle under test.
+        kinds = [l.split()[1] for l in self.log().splitlines() if l.strip()
+                 and l.split()[1] != "DIRTY_RUN"]
         self.assertEqual(kinds, ["QUEUED", "IDENT", "START", "OK"])
 
     def test_identity_carries_what_is_needed_to_tell_two_runs_apart(self):
@@ -239,9 +252,101 @@ class GpuJobTest(unittest.TestCase):
     def test_no_name_is_rejected(self):
         r = subprocess.run(["bash", GPU_JOB], capture_output=True, text=True,
                            env=dict(os.environ, GPU_LOCK=self.lock,
-                                    GPU_QLOG=self.qlog))
+                                    GPU_QLOG=self.qlog,
+                                    ALLOW_DIRTY_TREE="1"))
         self.assertEqual(r.returncode, 2)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class DirtyTreeGateTest(unittest.TestCase):
+    """Evidence from uncommitted code is not reproducible.
+
+    86 of 178 recorded runs - 48% - produced artifacts from a dirty tree while
+    gpu_job.sh dutifully wrote `tree=dirty` and nothing read it.
+    `respelling_rule_b.json` was one: the artifact was committed, its source
+    never was.
+
+    The script resolves git state from its OWN directory, so each case here
+    copies it into a throwaway repository rather than depending on the state of
+    the checkout the suite happens to run in.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = self.tmp.name
+        self.script = os.path.join(self.root, "gpu_job.sh")
+        shutil.copy(GPU_JOB, self.script)
+        os.chmod(self.script, 0o755)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _git(self, *args):
+        subprocess.run(["git", "-C", self.root, *args], check=True,
+                       capture_output=True)
+
+    def _make_repo(self, dirty):
+        self._git("init", "-q")
+        self._git("config", "user.email", "t@example.com")
+        self._git("config", "user.name", "T")
+        self._git("add", "gpu_job.sh")
+        self._git("commit", "-qm", "baseline")
+        if dirty:
+            with open(os.path.join(self.root, "gpu_job.sh"), "a") as handle:
+                handle.write("\n# an uncommitted change\n")
+
+    def _run(self, allow_dirty=None):
+        env = dict(os.environ,
+                   GPU_LOCK=os.path.join(self.root, "gpu.lock"),
+                   GPU_QLOG=os.path.join(self.root, "queue.log"))
+        env.pop("ALLOW_DIRTY_TREE", None)
+        if allow_dirty is not None:
+            env["ALLOW_DIRTY_TREE"] = allow_dirty
+        return subprocess.run(["bash", self.script, "probe", "true"],
+                              env=env, capture_output=True, text=True, timeout=30)
+
+    def _log(self):
+        path = os.path.join(self.root, "queue.log")
+        return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+
+    def test_a_dirty_tree_is_refused_and_the_command_never_runs(self):
+        self._make_repo(dirty=True)
+        result = self._run()
+        self.assertEqual(5, result.returncode)
+        self.assertIn("refusing to run", result.stderr)
+        self.assertIn("REFUSED", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_the_refusal_names_what_is_uncommitted(self):
+        # A gate that says only "no" gets overridden reflexively.
+        self._make_repo(dirty=True)
+        self.assertIn("gpu_job.sh", self._run().stderr)
+
+    def test_the_override_runs_but_leaves_a_mark(self):
+        self._make_repo(dirty=True)
+        result = self._run(allow_dirty="1")
+        self.assertEqual(0, result.returncode)
+        self.assertIn("WARNING", result.stderr)
+        log = self._log()
+        self.assertIn("DIRTY_RUN", log)
+        # The provenance line must still say dirty, so an overridden run is
+        # never mistaken for a clean one afterwards.
+        self.assertIn("tree=dirty:", log)
+
+    def test_a_clean_tree_runs_untouched(self):
+        self._make_repo(dirty=False)
+        self.assertEqual(0, self._run().returncode)
+        self.assertIn("tree=clean", self._log())
+        self.assertNotIn("REFUSED", self._log())
+
+    def test_a_directory_that_is_not_a_repository_is_not_called_dirty(self):
+        # "Cannot tell" must not be spelled "dirty": an exported tree or a
+        # container without git has nothing to commit and must still run.
+        result = self._run()
+        self.assertEqual(0, result.returncode)
+        self.assertIn("tree=unknown", self._log())
+        self.assertNotIn("REFUSED", self._log())

@@ -187,6 +187,47 @@ Same family as Rule 19: check the artifact, not the process that was supposed
 to produce it. The committed blob, not the command's exit code. The output
 file, not `pgrep`.
 
+### Rule 21 — Validate the Instrument Before You Trust 5,000 Readings
+
+Rule 19 separates a measured number from the story told around it. This one is
+about the layer under that: **the scorer is itself a judgement call**, and an
+unchecked one is not a measurement, however many digits it prints.
+
+`measure_respellings.kana_overlap` asked whether each of a word's kana appeared
+*anywhere* in the transcript, in any order. タナカ scored a perfect 1.0 against
+a transcript holding タ, ナ and カ in three unrelated words. Of 768 terms
+scoring 1.0, only 51% contained the word; the rest were the exact
+mispronunciations the lexicon exists to catch (`フタバ` → フォータバー,
+`セイイチ` → セイチー) counted as successes. It ran over 5,880 terms and
+reported respelling rescuing **38%** of badly-pronounced words. It rescues
+**13%**.
+
+Nothing procedural caught this, and nothing procedural could: the run was
+checkpointed, provenance-stamped, GPU-locked, fail-loud, one artifact per run.
+All of that governs *how* a measurement is taken. None of it asks whether the
+question is the right one.
+
+**Before a metric is run at scale, hand-check it on cases where the answer is
+already known — including cases it should REJECT — and keep them as tests.**
+`app/tests/test_respelling_scoring.py` is the shape: every fixture is a real
+transcript, the failures are the four that fooled the old scorer, and one test
+asserts the *old* scorer fails them, so the fixtures cannot quietly stop
+discriminating.
+
+Two corollaries, both paid for the same day:
+
+- **A fix is verified by the artifact changing, not by its test passing.** The
+  lexicon reach fix had a green unit test and was completely inert — the
+  regenerated file came back byte-identical, verdict for verdict, which is the
+  only reason the second bug was found.
+- **A fallback that returns a plausible value is the dangerous kind.** An
+  `except` that records the failure into the artifact is fine and there are 30
+  of those here. An `except` that hands back a normal-looking answer turns a
+  configuration error into thousands of individually believable non-results —
+  `back_matter_language` swallowed a `ModuleNotFoundError` and reported "no
+  translator's note" 5,224 times, which is how an entire corpus came to be
+  labelled Japanese.
+
 ## This project: Alexandria Audiobook2
 
 A FastAPI app (`app/app.py`, title "Alexandria Audiobook") for multi-voice AI

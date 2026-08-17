@@ -67,8 +67,12 @@ def f0_contour_correlation(a_path, b_path):
         pairs = np.array(path)
         av, bv = a[pairs[:, 0]], b[pairs[:, 1]]
     except Exception:                                   # noqa: BLE001
-        n = min(len(a), len(b))
-        av, bv = a[:n], b[:n]
+        # NO TRUNCATION FALLBACK. Lining the two up by index instead of
+        # warping them measures pacing rather than pitch shape - this file
+        # says so four lines above - and returning that number anyway hands
+        # back something that looks like an aligned correlation and is not.
+        # None is a usable answer; a wrong float is not.
+        return None
     if len(av) < 10 or np.std(av) == 0 or np.std(bv) == 0:
         return None
     return float(np.corrcoef(av, bv)[0, 1])
@@ -92,8 +96,9 @@ def mel_cepstral_distortion(a_path, b_path):
         pairs = np.array(path)
         diff = a[:, pairs[:, 0]] - b[:, pairs[:, 1]]
     except Exception:                                   # noqa: BLE001
-        n = min(a.shape[1], b.shape[1])
-        diff = a[:, :n] - b[:, :n]
+        # Same reasoning as pitch_correlation: an unaligned MCD is not a
+        # smaller MCD, it is a different quantity wearing the same name.
+        return None
     k = 10.0 / np.log(10) * np.sqrt(2.0)
     return float(k * np.mean(np.sqrt(np.sum(diff ** 2, axis=0))))
 
