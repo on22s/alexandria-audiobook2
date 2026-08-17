@@ -38,12 +38,38 @@ vram_used_mib() {
 }
 
 running_job() {
-    # The job that currently holds the lock, from the queue log: the last
-    # START with no matching OK/FAILED after it.
+    # The job that currently holds the lock: the last START in the queue log
+    # with no matching terminal marker after it, CONFIRMED against a live
+    # process before it is reported.
+    #
+    # The log alone is a record of what was SUPPOSED to happen. On 2026-08-17
+    # the e_row_e arm finished - artifact complete, 400 of 400, and the next
+    # arm queued one second later - and no OK or FAILED line was ever written.
+    # Cause still unknown. The consequence was not: `status` went on reporting
+    # a finished job as running for 24 minutes, so "the card is still busy"
+    # was false, and a paused-for-gaming user was told to keep waiting for
+    # nothing. A missing marker must degrade to "cannot tell", never to a
+    # confident wrong answer.
+    local name
+    name=$(logged_job)
+    [ -n "$name" ] && job_is_live "$name" && echo "$name"
+    return 0
+}
+
+logged_job() {
     tail -200 "$QLOG" 2>/dev/null | awk '
         /START    / {name=$3}
         /OK       |FAILED   |REFUSED  |NO_VRAM  |KILLED   |LOCK_FAILED/ {name=""}
         END {print name}'
+}
+
+job_is_live() {
+    # -f, because the wrapper is only identifiable by its full command line.
+    # The trailing space keeps `e_row_e` from matching `e_row_ei`, and pgrep -f
+    # matching THIS script's own command line is the accident that killed my
+    # shell twice in this repo, so exclude our own pid and our parent's.
+    pgrep -f "gpu_job.sh $1 " 2>/dev/null \
+        | grep -qv -e "^$$\$" -e "^$PPID\$"
 }
 
 case "${1:-status}" in
@@ -80,6 +106,15 @@ case "${1:-status}" in
     fi
     job=$(running_job)
     echo "running job: ${job:-none}"
+    logged=$(logged_job)
+    if [ -z "$job" ] && [ -n "$logged" ]; then
+        # Say which of the two sources disagreed rather than picking one
+        # silently: the log is what was supposed to happen, the process table
+        # is what is happening.
+        echo "note: the queue log's last START is '$logged' with no result"
+        echo "      line, but no such process exists - it finished without"
+        echo "      being recorded. The card is free."
+    fi
     used=$(vram_used_mib)
     echo "VRAM in use: ${used:-unknown} MiB"
     if [ -f "$FLAG" ] && [ -n "$job" ]; then

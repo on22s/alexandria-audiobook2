@@ -29,6 +29,30 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
 
+def isolated_env(tmpdir, **extra):
+    """Every gpu_job.sh knob that otherwise points at REAL, SHARED state.
+
+    GPU_PAUSE_FLAG belongs here for exactly the reason GPU_LOCK does, and was
+    left out when the pause feature landed. The cost showed up the first time
+    the queue was paused for real: gpu_job.sh waits on the flag BEFORE taking
+    the lock (correctly - a paused job must not sit on the GPU), so every test
+    that spawns a probe blocked on the USER's pause flag, 20 seconds at a
+    time, until subprocess.run's 60s timeout turned it into an error. Twelve
+    tests, and the release verifier with them, fail whenever someone pauses
+    the queue - the one moment they are most likely to run the CPU suite.
+
+    Six call sites each rebuilt this env dict by hand and each remembered
+    GPU_LOCK and GPU_QLOG; a seventh variable had to be added to all six and
+    was added to one. One definition, so the next knob cannot half-land.
+    """
+    env = dict(os.environ,
+               GPU_LOCK=os.path.join(tmpdir, "gpu.lock"),
+               GPU_QLOG=os.path.join(tmpdir, "queue.log"),
+               GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"))
+    env.update(extra)
+    return env
+
+
 # ADVISORY MARKERS ARE NOT THE LIFECYCLE. gpu_job.sh writes notes alongside the
 # QUEUED -> IDENT -> START -> OK/FAILED sequence: DIRTY_RUN when the tree gate
 # is waived, VRAM_UNKNOWN when rocm-smi cannot answer, HELD/RELEASED when the
@@ -69,8 +93,8 @@ class GpuJobTest(unittest.TestCase):
         # produces an artifact anyone will cite, so the dirty-tree gate is
         # legitimately waived. It is exercised on purpose in
         # DirtyTreeGateTest below rather than being disabled and forgotten.
-        env = dict(os.environ, GPU_LOCK=lock or self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE=allow_dirty)
+        env = isolated_env(self.tmp.name, GPU_LOCK=lock or self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE=allow_dirty)
         if path_prefix:
             env["PATH"] = path_prefix + os.pathsep + env["PATH"]
         return subprocess.run(["bash", GPU_JOB, *argv], env=env,
@@ -169,8 +193,8 @@ class GpuJobTest(unittest.TestCase):
             sleep 1
             echo out >> {witness}
         """)
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         procs = [subprocess.Popen(["bash", GPU_JOB, f"j{i}", "bash", "-c",
                                    script], env=env,
                                   stdout=subprocess.DEVNULL,
@@ -185,8 +209,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_the_second_job_waits_rather_than_failing(self):
         """Blocking is correct; a queued job must not be dropped."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         slow = subprocess.Popen(["bash", GPU_JOB, "slow", "sleep", "2"],
                                 env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -197,8 +221,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_interrupting_a_waiter_releases_nothing_and_logs_no_start(self):
         """A job killed while queued must not appear to have run."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "3"],
                                   env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -271,9 +295,9 @@ class GpuJobTest(unittest.TestCase):
 
     def test_no_name_is_rejected(self):
         r = subprocess.run(["bash", GPU_JOB], capture_output=True, text=True,
-                           env=dict(os.environ, GPU_LOCK=self.lock,
-                                    GPU_QLOG=self.qlog,
-                                    ALLOW_DIRTY_TREE="1"))
+                           env=isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                                            GPU_QLOG=self.qlog,
+                                            ALLOW_DIRTY_TREE="1"))
         self.assertEqual(r.returncode, 2)
 
 
@@ -329,9 +353,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         return path
 
     def _run(self, allow_dirty=None):
-        env = dict(os.environ,
-                   GPU_LOCK=os.path.join(self.root, "gpu.lock"),
-                   GPU_QLOG=os.path.join(self.root, "queue.log"))
+        env = isolated_env(self.root)
         env.pop("ALLOW_DIRTY_TREE", None)
         if allow_dirty is not None:
             env["ALLOW_DIRTY_TREE"] = allow_dirty
@@ -453,9 +475,8 @@ class LlmPreflightGateTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _run(self, **extra):
-        env = dict(os.environ,
-                   GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
         return subprocess.run(["bash", GPU_JOB, "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
@@ -520,8 +541,8 @@ class VramGateTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _run(self, **extra):
-        env = dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
         return subprocess.run(["bash", GPU_JOB, "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
@@ -620,9 +641,9 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _env(self, **extra):
-        return dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                    GPU_QLOG=self.qlog, GPU_PAUSE_FLAG=self.flag,
-                    ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0", **extra)
+        return isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                            GPU_PAUSE_FLAG=self.flag, ALLOW_DIRTY_TREE="1",
+                            REQUIRE_VRAM_GB="0", **extra)
 
     def _log(self):
         return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
@@ -670,3 +691,151 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         time.sleep(3)
         self.assertFalse(os.path.exists(marker),
                          "a descendant outlived the job and would hold the GPU")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class HarnessIsolationTest(unittest.TestCase):
+    """No test may consult the machine's real pause flag, lock or queue log.
+
+    This is the bug that actually happened, not a hypothetical: the queue was
+    paused to free the GPU for a game, and the whole suite - plus the release
+    verifier - began erroring, because the harness inherited GPU_PAUSE_FLAG
+    from the environment and every probe waited on it.
+
+    Asserting on the env dict rather than on a run is deliberate. Proving it
+    behaviourally means creating the flag at its DEFAULT path inside the repo,
+    and a test that pauses the real queue is a test that can leave the real
+    queue paused when it fails.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.captured = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _capture(self, build):
+        """Run `build` with subprocess.run/Popen stubbed; return the envs used."""
+        real_run, real_popen = subprocess.run, subprocess.Popen
+
+        def fake(args, **kw):
+            self.captured.append(kw.get("env") or {})
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        subprocess.run, subprocess.Popen = fake, fake
+        try:
+            build()
+        finally:
+            subprocess.run, subprocess.Popen = real_run, real_popen
+        return self.captured
+
+    def test_every_entry_point_isolates_all_three_shared_paths(self):
+        harnesses = ((GpuJobTest, lambda t: t.run_job("probe", "true")),
+                     (LlmPreflightGateTest, lambda t: t._run()),
+                     (VramGateTest, lambda t: t._run()))
+
+        for cls, call in harnesses:
+            with self.subTest(harness=cls.__name__):
+                inst = cls.__new__(cls)
+                inst.tmp = tempfile.TemporaryDirectory()
+                inst.lock = os.path.join(inst.tmp.name, "gpu.lock")
+                inst.qlog = os.path.join(inst.tmp.name, "queue.log")
+                self.captured = []
+                envs = self._capture(lambda: call(inst))
+                self.assertTrue(envs, f"{cls.__name__} spawned nothing")
+                for env in envs:
+                    for var in ("GPU_LOCK", "GPU_QLOG", "GPU_PAUSE_FLAG"):
+                        self.assertTrue(
+                            var in env and env[var].startswith(inst.tmp.name),
+                            f"{cls.__name__} does not isolate {var}: "
+                            f"{env.get(var, '<inherited>')}")
+                inst.tmp.cleanup()
+
+    def test_a_paused_machine_does_not_change_what_the_harness_sees(self):
+        """The flag the tests use must never be the one gpu_pause.sh writes."""
+        real = os.path.join(REPO, "ab_test_runtime", "logs", "gpu_paused")
+        env = isolated_env(self.tmp.name)
+        self.assertNotEqual(real, env["GPU_PAUSE_FLAG"])
+        os.environ["GPU_PAUSE_FLAG"] = real
+        try:
+            self.assertNotEqual(real, isolated_env(self.tmp.name)["GPU_PAUSE_FLAG"],
+                                "an inherited pause flag survived isolation")
+        finally:
+            os.environ.pop("GPU_PAUSE_FLAG", None)
+
+
+GPU_PAUSE = os.path.join(REPO, "gpu_pause.sh")
+
+
+@unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
+class PauseStatusTest(unittest.TestCase):
+    """`status` answers "is the card busy?" - so it must not guess.
+
+    Nothing tested gpu_pause.sh at all before this, which is how a feature
+    reviewed at /code-review20 shipped with two defects that only appear once
+    somebody actually pauses.
+
+    The defect: running_job read the queue log alone. A job whose START never
+    got a matching OK - which happened for real to e_row_e on 2026-08-17,
+    artifact complete, cause of the missing marker still unknown - is reported
+    as running forever. Someone waiting for the GPU to free up waits on a job
+    that ended half an hour ago.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_log(self, *lines):
+        with open(self.qlog, "w", encoding="utf-8") as fh:
+            fh.write("".join(f"2026-08-17T00:00:0{i}Z {l}\n"
+                             for i, l in enumerate(lines)))
+
+    def _status(self):
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           GPU_PAUSE_FLAG=os.path.join(self.tmp.name, "paused"))
+        return subprocess.run(["bash", GPU_PAUSE, "status"], env=env,
+                              capture_output=True, text=True, timeout=30).stdout
+
+    def test_a_start_with_no_result_and_no_process_is_not_called_running(self):
+        """THE DEFECT, verbatim: e_row_e's log state, replayed."""
+        self._write_log("QUEUED   e_row_e", "START    e_row_e",
+                        "QUEUED   e_row_ay", "HELD     e_row_ay (queue paused)")
+        out = self._status()
+        self.assertIn("running job: none", out)
+        self.assertIn("e_row_e", out, "the disagreement must still be reported")
+        self.assertIn("finished without", out)
+
+    def test_a_completed_job_is_not_running(self):
+        self._write_log("START    done_job", "OK       done_job")
+        self.assertIn("running job: none", self._status())
+
+    def test_a_job_with_a_live_process_is_reported_as_running(self):
+        """The other half: a real job must not be dismissed as stale."""
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0")
+        proc = subprocess.Popen(["bash", GPU_JOB, "sleeper", "sleep", "20"],
+                                env=env, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if os.path.exists(self.qlog):
+                    with open(self.qlog, encoding="utf-8") as fh:
+                        if "START    sleeper" in fh.read():
+                            break
+                time.sleep(0.2)
+            self.assertIn("running job: sleeper", self._status())
+        finally:
+            proc.terminate()
+            proc.wait(timeout=20)
+
+    def test_status_never_reports_itself_as_the_running_job(self):
+        # pgrep -f matches whole command lines, including the one doing the
+        # matching. Self-matching killed this session's shell twice.
+        self._write_log("START    status", "QUEUED   next")
+        self.assertIn("running job: none", self._status())
