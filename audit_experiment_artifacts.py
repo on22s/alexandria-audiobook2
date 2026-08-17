@@ -85,6 +85,25 @@ def classify_artifact(path):
     return row
 
 
+def is_tracked(path):
+    """Is `path` in the repository, i.e. visible to anyone but this machine?
+
+    The one place that answers this (Rule 15). Any checked-in index that
+    consults an untracked input encodes local state and will disagree with CI
+    the moment it is regenerated - which is how both index gates broke on
+    PR #340, in two different files, for the same reason.
+
+    Unknown is not tracked: if git cannot answer, say False and let the caller
+    fall back explicitly rather than inventing an answer here.
+    """
+    try:
+        result = subprocess.run(["git", "ls-files", "--error-unmatch", "--", path],
+                                cwd=REPO, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):
     """Artifact paths that belong in a CHECKED-IN index: the tracked ones.
 

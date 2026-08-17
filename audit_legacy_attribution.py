@@ -10,6 +10,7 @@ import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(REPO, "app"))
+from audit_experiment_artifacts import is_tracked  # noqa: E402
 from experiments.manifest import ExperimentRecord  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 
@@ -63,10 +64,28 @@ def _commit_is_in_history(commit):
 
 
 def _current_gold(meta, rows):
-    path = os.path.join(REPO, str(meta.get("gold_path") or ""))
+    """Compare an artifact's rows against the gold it was scored on.
+
+    ONLY IF THAT GOLD IS IN THE REPOSITORY. This audit is committed, so a
+    classification derived from a fixture that exists on one machine is not a
+    fact about the evidence - it is a fact about that machine, and CI
+    regenerating the file gets a different answer. ab_test_runtime/pdnc_inputs
+    is 6.5 MB of untracked PDNC fixtures today, and four artifacts' verdicts
+    moved between supported_measurement and historical_only depending purely
+    on whether the machine happened to have them.
+
+    Skipping is recorded as `gold_untracked`, not as `available: false` alone,
+    so "nobody can check this gold" is distinguishable from "this gold is
+    gone" - the remedy for the first is to commit the fixture.
+    """
+    rel = str(meta.get("gold_path") or "")
+    path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
     if not os.path.isfile(path):
+        return result
+    if rel and not is_tracked(rel):
+        result["gold_untracked"] = True
         return result
     with open(path, "rb") as handle:
         raw = handle.read()

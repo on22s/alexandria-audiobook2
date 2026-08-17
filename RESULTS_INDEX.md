@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-17 18:48 from `ab_test_runtime/experiments/` — 481 artifacts, 568 arms.
+Generated 2026-08-17 18:50 from `ab_test_runtime/experiments/` — 481 artifacts, 568 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -458,18 +458,18 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 50.0% | historical_only | ok | False | 422.2s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | historical_only | ok | True | 294.0s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | generic | 120 | 51.7% | historical_only | ok | True | 140.0s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 77.5% | historical_only | ok | False | 422.2s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 77.5% | historical_only | ok | True | 294.0s |
-| TheMysteriousAffairAtStyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 80.8% | historical_only | ok | False | 422.2s |
-| TheMysteriousAffairAtStyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 85.0% | historical_only | ok | False | 422.2s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | historical_only | ok | False | 422.2s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | historical_only | ok | True | 294.0s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | generic | 120 | 53.3% | historical_only | ok | True | 140.0s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 75.8% | historical_only | ok | False | 422.2s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 75.8% | historical_only | ok | True | 294.0s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 50.0% | supported_measurement | ok | False | 422.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | provisional | ok | True | 294.0s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | generic | 120 | 51.7% | provisional | ok | True | 140.0s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 77.5% | supported_measurement | ok | False | 422.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 77.5% | provisional | ok | True | 294.0s |
+| TheMysteriousAffairAtStyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 80.8% | supported_measurement | ok | False | 422.2s |
+| TheMysteriousAffairAtStyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 85.0% | supported_measurement | ok | False | 422.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | supported_measurement | ok | False | 422.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | provisional | ok | True | 294.0s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | generic | 120 | 53.3% | provisional | ok | True | 140.0s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 75.8% | supported_measurement | ok | False | 422.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | narrator | 120 | 75.8% | provisional | ok | True | 294.0s |
 
 ## pdnc_sequence
 
@@ -490,21 +490,21 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 77.5% | historical_only | ok | False | 679.2s |
-| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 75.8% | historical_only | ok | False | 679.2s |
-| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 78.3% | historical_only | ok | False | 679.2s |
-| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 65.0% | historical_only | ok | False | 679.2s |
-| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 61.7% | historical_only | ok | False | 679.2s |
-| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 60.8% | historical_only | ok | False | 679.2s |
-| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 72.5% | historical_only | ok | False | 679.2s |
-| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 75.0% | historical_only | ok | False | 679.2s |
-| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 76.7% | historical_only | ok | False | 679.2s |
-| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 83.3% | historical_only | ok | False | 679.2s |
-| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 90.8% | historical_only | ok | False | 679.2s |
-| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 89.2% | historical_only | ok | False | 679.2s |
-| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 69.2% | historical_only | ok | False | 679.2s |
-| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 69.2% | historical_only | ok | False | 679.2s |
-| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 69.2% | historical_only | ok | False | 679.2s |
+| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 77.5% | supported_measurement | ok | False | 679.2s |
+| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 75.8% | supported_measurement | ok | False | 679.2s |
+| AHandfulOfDust | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 78.3% | supported_measurement | ok | False | 679.2s |
+| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 65.0% | supported_measurement | ok | False | 679.2s |
+| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 61.7% | supported_measurement | ok | False | 679.2s |
+| APassageToIndia | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 60.8% | supported_measurement | ok | False | 679.2s |
+| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 72.5% | supported_measurement | ok | False | 679.2s |
+| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 75.0% | supported_measurement | ok | False | 679.2s |
+| ARoomWithAView | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 76.7% | supported_measurement | ok | False | 679.2s |
+| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 83.3% | supported_measurement | ok | False | 679.2s |
+| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 90.8% | supported_measurement | ok | False | 679.2s |
+| AlicesAdventuresInWonderland | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 89.2% | supported_measurement | ok | False | 679.2s |
+| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 69.2% | supported_measurement | ok | False | 679.2s |
+| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 69.2% | supported_measurement | ok | False | 679.2s |
+| DaisyMiller | qwen3-14b | local-lmstudio | lmstudio | 32768 | targeted_sequence | 120 | 69.2% | supported_measurement | ok | False | 679.2s |
 
 ## pipeline_repeat
 

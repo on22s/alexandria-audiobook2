@@ -3,9 +3,9 @@
   "source_structural_sha256": "080f182d54a7d8b1eccc2098b627fe8db49b28bc833af2909555d494b3cbe82f",
   "summary": {
     "exploratory": 9,
-    "historical_only": 42,
-    "provisional": 19,
-    "supported_measurement": 48
+    "historical_only": 38,
+    "provisional": 21,
+    "supported_measurement": 50
   },
   "artifacts": [
     {
@@ -1711,16 +1711,16 @@
         "baseline",
         "narrator"
       ],
-      "classification": "historical_only",
+      "classification": "supported_measurement",
       "dirty": false,
       "problems": [],
       "current_gold": {
-        "available": true,
-        "hash_changed": false,
-        "missing_rows": 480,
-        "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
-        "line_count_changed": false
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null,
+        "gold_untracked": true
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1731,16 +1731,16 @@
       "arms": [
         "generic"
       ],
-      "classification": "historical_only",
+      "classification": "provisional",
       "dirty": true,
       "problems": [],
       "current_gold": {
-        "available": true,
-        "hash_changed": false,
-        "missing_rows": 120,
-        "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
-        "line_count_changed": false
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null,
+        "gold_untracked": true
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1752,16 +1752,16 @@
         "baseline",
         "narrator"
       ],
-      "classification": "historical_only",
+      "classification": "provisional",
       "dirty": true,
       "problems": [],
       "current_gold": {
-        "available": true,
-        "hash_changed": false,
-        "missing_rows": 240,
-        "expected_changed_rows": 0,
-        "correctness_changed_rows": 0,
-        "line_count_changed": false
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null,
+        "gold_untracked": true
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1794,16 +1794,16 @@
         "sequence",
         "targeted_sequence"
       ],
-      "classification": "historical_only",
+      "classification": "supported_measurement",
       "dirty": false,
       "problems": [],
       "current_gold": {
-        "available": true,
-        "hash_changed": false,
-        "missing_rows": 0,
-        "expected_changed_rows": 0,
-        "correctness_changed_rows": 80,
-        "line_count_changed": false
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null,
+        "gold_untracked": true
       },
       "semantic_limit": "A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure."
     },
