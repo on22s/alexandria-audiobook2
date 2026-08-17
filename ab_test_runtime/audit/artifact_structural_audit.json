@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 108,
-    "exploratory": 254,
+    "exploratory": 255,
     "provisional": 118
   },
   "artifacts": [
@@ -3531,6 +3531,19 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "goal_evidence_audit.json",
+      "bytes": 3632,
+      "sha256": "eee61c02b0bd047aa8d7aa262c73de2d95a58728b4a026d70c83a96dd31e9b35",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "commit": null,
+      "dirty": null,
+      "classification": "exploratory",
+      "reason": "embedded provenance is incomplete"
     },
     {
       "artifact": "grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json",
