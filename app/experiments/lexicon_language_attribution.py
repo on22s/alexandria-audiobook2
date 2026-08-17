@@ -36,6 +36,10 @@ import sys
 import zipfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# `routers.script` lives under app/, and running this file as a script puts
+# only app/experiments/ on the path. Without this line the EPUB extractor
+# cannot be imported at all - see get_epub_extractor for what that cost.
+sys.path.insert(0, os.path.join(REPO, "app"))
 
 # Source tradition by publisher. Only imprints whose catalogue is unambiguous
 # are named; everything else stays unknown, which is a usable answer.
@@ -75,6 +79,32 @@ LANGUAGE_MARKERS = {
 }
 
 
+def get_epub_extractor():
+    """-> `extract_epub_text`, or raise saying why it could not be had.
+
+    THIS FUNCTION EXISTS BECAUSE THE IMPORT USED TO BE INSIDE A
+    `except Exception: return "unknown", {}`. Running this file as a script
+    puts only app/experiments/ on sys.path, so `from routers.script import ...`
+    raised ModuleNotFoundError on EVERY book, was swallowed, and every book came
+    back "unknown". The artifact then reported `resolved_by_back_matter: {}`,
+    which reads as "the translator's notes said nothing" rather than "the
+    extractor was never imported". The whole corpus was labelled `ja: 7775,
+    zh: 0` on the strength of that.
+
+    A missing dependency is not a property of a book. It is raised once, loudly,
+    instead of being folded into 5,224 individually plausible non-answers.
+    """
+    try:
+        from routers.script import extract_epub_text
+    except ImportError as exc:                              # pragma: no cover
+        raise RuntimeError(
+            "cannot import the EPUB extractor (routers.script): "
+            f"{exc}. Back-matter attribution would silently return 'unknown' "
+            "for every book, so this stops instead."
+        ) from exc
+    return extract_epub_text
+
+
 def back_matter_language(path, tail_chars=20000):
     """-> 'ja' | 'zh' | 'unknown', from translator-note markers near the end.
 
@@ -83,9 +113,10 @@ def back_matter_language(path, tail_chars=20000):
     clearly outnumber the other's; a tie is left unknown rather than guessed.
     """
     try:
-        from routers.script import extract_epub_text
-        text = extract_epub_text(path)[-tail_chars:].lower()
-    except Exception:                                       # noqa: BLE001
+        text = get_epub_extractor()(path)[-tail_chars:].lower()
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile):
+        # THIS BOOK is unreadable, which is a fact about the book. An import
+        # or configuration failure is NOT caught here - see get_epub_extractor.
         return "unknown", {}
     hits = {lang: sum(len(re.findall(p, text)) for p in patterns)
             for lang, patterns in LANGUAGE_MARKERS.items()}
@@ -119,6 +150,53 @@ def book_metadata(path):
             "creators": field("creator")[:3]}
 
 
+def resolve_book_language(path):
+    """-> the book's metadata with `language_of` settled as well as it can be.
+
+    The publisher is asked first because it is the stronger claim: an imprint
+    that publishes one tradition is not overruled by a stray "wuxia" in an
+    afterword. The translator's note is consulted only when the publisher
+    cannot settle it.
+
+    `mixed` BELONGS IN THAT SECOND GROUP AND WAS MISSING. Asking only about
+    `unknown` skipped every Seven Seas book - 627 of them, the largest source
+    of Chinese titles in this corpus - so the marker test never ran where it
+    was most needed, and the whole corpus came back `ja: 7775, zh: 0`.
+    `lexicon_backmatter_probe.py` scored the markers against publishers that
+    are not in doubt before this was widened: zero contradictions, and about
+    half the ambiguous books resolved as Chinese.
+    """
+    meta = book_metadata(path)
+    if meta.get("language_of", "unknown") not in ("unknown", "mixed"):
+        return meta
+    guessed, hits = back_matter_language(path)
+    if guessed == "unknown":
+        return meta
+    return {**meta, "language_of": guessed,
+            "attributed_by": "back_matter", "marker_hits": hits}
+
+
+def get_term_verdict(counts):
+    """-> 'ja' | 'zh' | 'straddles' | 'unattributed' for one term's book counts.
+
+    A VERDICT NEEDS TO OUTWEIGH THE AMBIGUITY, NOT MERELY EXIST. The first
+    version asked only "is the other language zero?", which labelled `dantian`
+    Japanese on 2 books out of 37 while the other 33 were Seven Seas and
+    therefore unresolved. Two books cannot outvote thirty-three unknowns, and
+    丹田 is a Chinese term.
+    """
+    ja, zh = counts.get("ja", 0), counts.get("zh", 0)
+    confident = ja + zh
+    total = max(sum(counts.values()), 1)
+    if confident < 3 or confident / total < 0.5:
+        return "unattributed"
+    if zh == 0:
+        return "ja"
+    if ja == 0:
+        return "zh"
+    return "straddles"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--checkpoint", default=os.path.join(
@@ -142,18 +220,9 @@ def main():
     for path, record in done.items():
         if "terms" not in record:
             continue
-        meta = book_metadata(path)
-        # Fan-made EPUBs declare no publisher. Fall back to the translator's
-        # note in the back matter, which names the source when the metadata
-        # does not. Only run for the books that need it - it costs a full
-        # extraction each.
-        if meta.get("language_of", "unknown") == "unknown":
-            guessed, hits = back_matter_language(path)
-            if guessed != "unknown":
-                meta["language_of"] = guessed
-                meta["attributed_by"] = "back_matter"
-                meta["marker_hits"] = hits
-                back_matter_used[guessed] += 1
+        meta = resolve_book_language(path)
+        if meta.get("attributed_by") == "back_matter":
+            back_matter_used[meta["language_of"]] += 1
         per_book[path] = meta
         publishers[meta.get("publisher") or "(none)"] += 1
 
@@ -170,23 +239,8 @@ def main():
     enriched = []
     for candidate in candidates:
         counts = langs.get(candidate["term"], collections.Counter())
-        ja, zh = counts.get("ja", 0), counts.get("zh", 0)
-        mixed, unknown = counts.get("mixed", 0), counts.get("unknown", 0)
-        confident = ja + zh
-        total = max(sum(counts.values()), 1)
-        # A VERDICT NEEDS TO OUTWEIGH THE AMBIGUITY, NOT MERELY EXIST.
-        # The first version asked only "is the other language zero?", which
-        # labelled `dantian` Japanese on 2 books out of 37 while the other 33
-        # were Seven Seas and therefore unresolved. Two books cannot outvote
-        # thirty-three unknowns, and 丹田 is a Chinese term.
-        if confident < 3 or confident / total < 0.5:
-            verdict = "unattributed"
-        elif zh == 0:
-            verdict = "ja"
-        elif ja == 0:
-            verdict = "zh"
-        else:
-            verdict = "straddles"
+        confident = counts.get("ja", 0) + counts.get("zh", 0)
+        verdict = get_term_verdict(counts)
         enriched.append({**candidate, "by_language": dict(counts),
                          "verdict": verdict,
                          # How much of the evidence came from imprints whose
