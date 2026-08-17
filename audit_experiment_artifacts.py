@@ -6,6 +6,7 @@ import glob
 import hashlib
 import json
 import os
+import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
@@ -84,9 +85,42 @@ def classify_artifact(path):
     return row
 
 
+def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):
+    """Artifact paths that belong in a CHECKED-IN index: the tracked ones.
+
+    A committed index is a claim about what evidence exists for everyone. An
+    artifact sitting untracked on one machine is precisely the evidence nobody
+    else can see, so indexing it makes the index unreproducible: CI checks out
+    the committed files, regenerates, and disagrees. That is not hypothetical -
+    it failed PR #340 with six local artifacts in the index, and it would have
+    failed again after every run of the overnight queue.
+
+    This mirrors tests/test_inventory.py::_tracked_test_modules, which exists
+    for the identical reason after breaking the build three times in one day,
+    including its fallback: when git cannot answer (a source export, a
+    container without git), fall back to the filesystem rather than reporting
+    an empty index.
+    """
+    on_disk = sorted(glob.glob(os.path.join(experiment_dir, "*.json")))
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", experiment_dir],
+            cwd=REPO, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return on_disk, []
+    if result.returncode != 0:
+        return on_disk, []
+    tracked = {os.path.basename(name)
+               for name in result.stdout.decode("utf-8").split("\0") if name}
+    keep = [p for p in on_disk if os.path.basename(p) in tracked]
+    skipped = [os.path.basename(p) for p in on_disk
+               if os.path.basename(p) not in tracked]
+    return keep, skipped
+
+
 def build_audit(experiment_dir=EXPERIMENT_DIR):
-    artifacts = [classify_artifact(path) for path in sorted(
-        glob.glob(os.path.join(experiment_dir, "*.json")))]
+    paths, _ = indexable_artifacts(experiment_dir)
+    artifacts = [classify_artifact(path) for path in paths]
     summary = dict(collections.Counter(
         row["classification"] for row in artifacts))
     return {
@@ -100,6 +134,16 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     audit = build_audit()
+    _, untracked = indexable_artifacts()
+    if untracked:
+        # Reported, never indexed. Silence here would mean an artifact could
+        # be produced, cited in conversation, and never noticed as missing
+        # from the record.
+        print(f"note: {len(untracked)} artifact(s) on disk are untracked and "
+              f"therefore not indexed; commit them to have them counted:",
+              file=sys.stderr)
+        for name in untracked[:10]:
+            print(f"  {name}", file=sys.stderr)
     if args.check:
         try:
             with open(args.out, encoding="utf-8") as handle:
