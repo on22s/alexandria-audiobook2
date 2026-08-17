@@ -528,19 +528,55 @@ class VramGateTest(unittest.TestCase):
     def _log(self):
         return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
 
-    def test_a_job_needing_more_vram_than_exists_is_refused(self):
-        result = self._run(REQUIRE_VRAM_GB="4096")
-        if "VRAM_UNKNOWN" in self._log():
-            self.skipTest("no rocm-smi on this host; the gate cannot measure")
+    def _fake_gpu(self, total_bytes, used_bytes):
+        """PATH entry whose rocm-smi reports a card of our choosing.
+
+        These tests used to read the HOST's GPU and skipTest when there was
+        none - so they measured a different thing on every machine and did not
+        run at all in CI. verify_release rejects skips outright, correctly: a
+        silently skipped test is one that is not running. Supplying the reading
+        makes the gate testable anywhere and deterministic everywhere.
+        """
+        shadow = os.path.join(self.tmp.name, "fakegpu")
+        os.makedirs(shadow, exist_ok=True)
+        script = (
+            "#!/bin/sh\n"
+            'case "$*" in\n'
+            "  *showpids*) echo '1234\tllama-server\t1\t%d'; exit 0;;\n"
+            "esac\n"
+            "echo 'GPU[0]\t\t: VRAM Total Memory (B): %d'\n"
+            "echo 'GPU[0]\t\t: VRAM Total Used Memory (B): %d'\n"
+        ) % (used_bytes, total_bytes, used_bytes)
+        path = os.path.join(shadow, "rocm-smi")
+        with open(path, "w") as handle:
+            handle.write(script)
+        os.chmod(path, 0o755)
+        return shadow + os.pathsep + os.environ["PATH"]
+
+    def test_a_job_is_refused_when_the_card_is_nearly_full(self):
+        # 16 GiB card with 15 GiB gone: 1 GiB free against a 4 GiB need.
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 15 * gib))
         self.assertEqual(7, result.returncode)
         self.assertIn("NO_VRAM", self._log())
-        self.assertNotIn("START", self._log())
+        self.assertNotIn("START", self._log(),
+                         "the job must not start when the card is full")
+
+    def test_the_same_job_runs_when_the_card_is_free(self):
+        # The other half of the pair: identical job, roomy card.
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 2 * gib))
+        self.assertEqual(0, result.returncode)
+        self.assertIn("START", self._log())
+        self.assertNotIn("NO_VRAM", self._log())
 
     def test_the_refusal_names_what_to_do_about_it(self):
         """A gate that only says no gets overridden reflexively."""
-        result = self._run(REQUIRE_VRAM_GB="4096")
-        if "VRAM_UNKNOWN" in self._log():
-            self.skipTest("no rocm-smi on this host")
+        gib = 1024 ** 3
+        result = self._run(REQUIRE_VRAM_GB="4",
+                           PATH=self._fake_gpu(16 * gib, 15 * gib))
         self.assertIn("llama-server", result.stderr,
                       "the usual cause must be named")
         self.assertIn("REQUIRE_VRAM_GB=0", result.stderr,
