@@ -752,6 +752,23 @@
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_inventory_is_exhaustive_and_semantically_bounded",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_markdown_lists_every_artifact_once"
   ],
+  "test_lexicon_attribution": [
+    "tests.test_lexicon_attribution.ExtractorFailureTests.test_an_import_failure_is_raised_not_folded_into_a_verdict",
+    "tests.test_lexicon_attribution.ExtractorFailureTests.test_the_extractor_is_importable_the_way_the_script_runs",
+    "tests.test_lexicon_attribution.MarkerRuleTests.test_an_unreadable_book_is_unknown_rather_than_an_exception",
+    "tests.test_lexicon_attribution.MarkerRuleTests.test_balanced_evidence_stays_unknown_rather_than_guessing",
+    "tests.test_lexicon_attribution.ResolveBookLanguageTests.test_a_silent_translator_note_leaves_the_book_as_it_was",
+    "tests.test_lexicon_attribution.ResolveBookLanguageTests.test_an_unambiguous_publisher_is_never_overruled_by_markers",
+    "tests.test_lexicon_attribution.ResolveBookLanguageTests.test_mixed_publisher_is_asked_for_a_translator_note",
+    "tests.test_lexicon_attribution.ResolveBookLanguageTests.test_the_returned_metadata_is_not_the_object_it_was_given",
+    "tests.test_lexicon_attribution.ResolveBookLanguageTests.test_unknown_publisher_is_still_asked",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_a_clear_majority_of_resolved_books_decides",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_a_term_nobody_saw_is_unattributed_rather_than_an_error",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_a_term_used_in_both_traditions_straddles_rather_than_picking",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_an_exact_half_of_the_evidence_is_accepted",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_too_little_evidence_is_unattributed_even_when_unanimous",
+    "tests.test_lexicon_attribution.TermVerdictTests.test_two_books_cannot_outvote_thirty_three_unresolved_ones"
+  ],
   "test_llm_benchmark_worker": [
     "tests.test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_nickname_detection_stage_reuses_run_nickname_case",
     "tests.test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_persona_generation_stage_reuses_run_persona_case",
