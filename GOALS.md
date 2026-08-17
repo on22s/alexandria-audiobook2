@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1387** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1497** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -856,6 +856,60 @@ binding constraint, and rebuilding is still required.
 
 ---
 
+### 2.9 Pitch-carried meaning survives synthesis
+
+> **What this is.** In Japanese and Chinese, pitch is not decoration. 箸
+> (chopsticks) and 橋 (bridge) are both *hashi* and differ only in where the
+> pitch falls; a Chinese syllable spoken on the wrong tone is a different
+> word.
+>
+> **Why it matters, and why nothing else here can see it.** A wrong accent
+> transcribes back to identical characters, so CER reports success. Speaker
+> similarity (2.1) is an embedding distance and is blind to it. The listener
+> this project has speaks English, and for these two languages can honestly
+> report only that something "sounds off". This is the axis that failure hides
+> in.
+>
+> **Why this is reachable.** Both intended pitches are recoverable without a
+> human: OpenJTalk returns the accent nucleus of any Japanese sentence, and
+> pypinyin returns the tone of every Chinese syllable. Verified on the
+> minimal pair — 箸 comes back accent 1, 橋 accent 2.
+
+**Metric** — two, kept separate on purpose. Against a human reading the same
+line: f0 correlation in semitones after DTW, and Gross Pitch Error. Without a
+reference: agreement between the produced f0 and the accent or tone the text
+says it should have.
+**Probe** — `app/experiments/prosody_fidelity.py` (reference-based),
+`app/experiments/expected_prosody.py` (reference-free).
+**Current** — reference-based, 40 lines per arm, 2026-08-17:
+
+| language | arm | f0 correlation | GPE |
+|---|---|---|---|
+| Japanese | clone | 0.728 | 0.146 |
+| Japanese | lora | 0.721 | 0.177 |
+| Chinese | lora | 0.747 | 0.190 |
+| Chinese | clone | 0.730 | 0.165 |
+| English | clone | 0.403 | 0.471 |
+| English | lora | 0.282 | 0.475 |
+
+The fused measure — produced f0 against the *expected* accent, which is the
+one that works on a real audiobook rather than an eval set — is **NO
+BASELINE**. The extraction is built and verified; the comparison is not.
+
+**No target yet, deliberately.** A correlation threshold invented before the
+fused measure has ever run would be the "invented number" this document's
+rules forbid. The first task is the measurement.
+
+**Two things already worth carrying forward.** The Japanese and Chinese arms
+disagree about which method wins — clone leads on Japanese pitch accent, LoRA
+on Chinese tone — so "the clone beats the LoRA" should not be quoted as
+language-independent; it was established on ECAPA, which cannot see either.
+And English agrees with its reference far worse than either CJK language,
+which is either a real weakness of that arm or an artifact of that eval set,
+and n=40 cannot yet separate the two.
+
+---
+
 ## 3. Reliability — does a run finish and produce the right thing
 
 
@@ -1286,6 +1340,62 @@ segment — 1 of 10 boundaries, a 17-second median error.
 So the reachable path is probably not to pick one. Words and boundaries can
 come from different passes, and the failure modes are exactly complementary.
 That hybrid is untested; nothing measured rules it out.
+
+---
+
+### 5.5 Foreign words are said as foreign words
+
+> **What this is.** Ordinary Japanese and Chinese words that appear inside
+> English prose — not character names, which 5.2 already covers. A translated
+> light novel keeps the words the translator chose to leave untranslated.
+>
+> **Why it matters.** These are not mispronounced occasionally, they are
+> mispronounced *every time, identically*, which is why 5.2's consistency
+> metric cannot see them. Measured 2026-08-16 by rendering each in a carrier
+> sentence and transcribing with an English and a Japanese ASR:
+>
+>     arigatou   heard as "Ara got to"   parsed as three English words
+>     kawaii     heard as "Kauai"        the Hawaiian island
+>     senpai     heard correctly         needs no entry at all
+>
+> **Why this is reachable.** The mechanism already exists and ships empty by
+> design (5.2's `pronunciation.py`). What was missing was knowing *which*
+> words need an entry, and that is now measured rather than guessed.
+
+**Metric** — kana agreement between the spoken word and its expected reading.
+Not WER: a respelling that works makes the ASR hear Japanese, which WER
+punishes.
+**Probe** — `app/experiments/measure_respellings.py`, over candidates found by
+`discover_foreign_terms.py` and `lexicon_corpus_scan.py`.
+**Current** — 9,381 candidate terms scanned from 6,501 EPUBs; 3,765 measured
+so far. **OPEN.**
+
+**The result that matters is not a list of respellings, it is when to use
+one.** By how well the plain spelling already does:
+
+| plain kana overlap | terms | respelling helped | mean change |
+|---|---|---|---|
+| 0.0–0.2 | 1807 | 38% | **+0.246** |
+| 0.2–0.4 | 355 | 27% | −0.039 |
+| 0.4–0.6 | 335 | 27% | −0.147 |
+| 0.6–0.8 | 677 | 14% | −0.350 |
+| 0.8–1.0 | 596 | **0%** | **−0.564** |
+
+Monotonic across every band. **Respelling a word the engine already says
+correctly makes it worse** — nothing in the top band was helped and the
+average damage there is the largest effect in the table. A lexicon that
+respelled every foreign word would degrade the audio, so the entry rule is:
+respell only where the plain form is already wrong.
+
+**Target — every term in the shipped books whose plain form scores below 0.2
+either has a measured entry or is recorded as one respelling could not fix.**
+Both halves matter: 62% of the low-scoring band was not rescued by the first
+derivation rule, and a word respelling cannot help needs saying so rather than
+leaving a blank that looks like an oversight.
+
+**Not settled by the ASR.** Kana agreement shows the phonemes moved; it does
+not show the result sounds natural in an English sentence. Entries are
+proposed by measurement and confirmed by ear — see 7.1.
 
 ---
 
