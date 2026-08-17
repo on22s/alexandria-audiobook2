@@ -1265,6 +1265,24 @@
     "tests.test_repair_voice_config.TestFindSplits.test_same_voice_under_two_spellings_is_not_a_split",
     "tests.test_repair_voice_config.TestFindSplits.test_voice_type_outranks_line_count"
   ],
+  "test_respelling_scoring": [
+    "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
+    "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
+    "tests.test_respelling_scoring.LongestCommonRunTests.test_scattered_characters_score_only_their_longest_run",
+    "tests.test_respelling_scoring.LongestCommonRunTests.test_the_whole_word_scores_one",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_a_word_absent_entirely_is_not_recovered",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_an_empty_expected_reading_is_not_a_free_pass",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_closeness_grades_a_near_miss_above_a_miss",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_every_real_case_is_judged_correctly",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_kanji_and_katakana_are_compared_as_sounds",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_missing_pykakasi_raises_instead_of_scoring_characters",
+    "tests.test_respelling_scoring.RecoveryScoringTests.test_the_retired_scorer_would_have_failed_these",
+    "tests.test_respelling_scoring.RescoreTests.test_a_genuine_help_survives_rescoring",
+    "tests.test_respelling_scoring.RescoreTests.test_a_phantom_help_is_demoted_and_the_old_verdict_preserved",
+    "tests.test_respelling_scoring.RescoreTests.test_a_skipped_row_passes_through_untouched",
+    "tests.test_respelling_scoring.RescoreTests.test_breaking_a_working_word_is_recorded_as_hurting",
+    "tests.test_respelling_scoring.RescoreTests.test_the_summary_counts_phantom_helps"
+  ],
   "test_retrain_honest": [
     "tests.test_retrain_honest.RetrainResumeTests.test_resume_refuses_a_different_reference_strategy",
     "tests.test_retrain_honest.RetrainResumeTests.test_resume_restores_completed_adapter_records"
