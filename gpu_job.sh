@@ -48,6 +48,20 @@ shift
 stamp() { date -u +%FT%TZ; }
 
 echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
+
+# WAIT FOR THE PAUSE FLAG BEFORE TAKING THE LOCK, not after. A job that holds
+# the lock while waiting would block the queue AND look like it was working;
+# waiting first means a paused queue is simply idle, and `gpu_pause.sh status`
+# can tell the truth about what still holds the card.
+PAUSE_FLAG="${GPU_PAUSE_FLAG:-$(dirname "$0")/ab_test_runtime/logs/gpu_paused}"
+if [ -f "$PAUSE_FLAG" ]; then
+    echo "$(stamp) HELD     $NAME (queue paused)" >> "$QLOG"
+    echo "gpu_job: queue is paused; $NAME is waiting. Release with:" >&2
+    echo "gpu_job:   ./gpu_pause.sh off" >&2
+    while [ -f "$PAUSE_FLAG" ]; do sleep 20; done
+    echo "$(stamp) RELEASED $NAME" >> "$QLOG"
+fi
+
 exec 9>"$LOCK" || {
     echo "$(stamp) LOCK_FAILED $NAME (cannot open $LOCK)" >> "$QLOG"
     echo "gpu_job: cannot open lock file $LOCK" >&2
@@ -252,6 +266,31 @@ else
     echo "gpu_job: WARNING - cannot read VRAM; running $NAME unchecked." >&2
 fi
 
+# TAKE THE WHOLE PROCESS GROUP DOWN, not just the wrapper. Borrowed from
+# codex's transient systemd units, which set KillMode=control-group for
+# exactly this reason - and the reason is not theoretical: after the
+# regate chain was killed on 2026-08-17 a python child survived holding
+# 2.11 GiB of the card, which then starved the next job. verify_release.py
+# already implements the same idea in Python (stop_process_group); the lock
+# wrapper had nothing.
+#
+# The job runs in its own process group so a signal reaches every descendant,
+# and the trap escalates INT -> KILL rather than trusting the first signal.
+cleanup_group() {
+    local sig="${1:-INT}"
+    if [ -n "${JOB_PGID:-}" ]; then
+        kill -"$sig" -"$JOB_PGID" 2>/dev/null
+        for _ in 1 2 3 4 5; do
+            kill -0 -"$JOB_PGID" 2>/dev/null || return 0
+            sleep 1
+        done
+        kill -KILL -"$JOB_PGID" 2>/dev/null
+        echo "$(stamp) KILLED   $NAME (group did not stop on $sig)" >> "$QLOG"
+    fi
+}
+trap 'cleanup_group INT; exit 130' INT
+trap 'cleanup_group TERM; exit 143' TERM
+
 echo "$(stamp) START    $NAME" >> "$QLOG"
 
 # TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
@@ -263,7 +302,9 @@ echo "$(stamp) START    $NAME" >> "$QLOG"
 # it runs directly.
 export ALEXANDRIA_GPU_LOCK_HELD=1
 
-"$@"
+setsid "$@" &
+JOB_PGID=$!
+wait "$JOB_PGID"
 rc=$?
 
 if [ "$rc" -eq 0 ]; then

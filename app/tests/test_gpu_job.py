@@ -549,3 +549,68 @@ class VramGateTest(unittest.TestCase):
                          "an unreadable GPU must not stop the job")
         self.assertIn("VRAM_UNKNOWN", self._log())
         self.assertIn("START", self._log())
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class PauseAndProcessGroupTest(unittest.TestCase):
+    """Holding the queue for other use, and taking children down with a job."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+        self.flag = os.path.join(self.tmp.name, "paused")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _env(self, **extra):
+        return dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                    GPU_QLOG=self.qlog, GPU_PAUSE_FLAG=self.flag,
+                    ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0", **extra)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def test_a_paused_queue_holds_the_job_before_the_lock(self):
+        """Waiting must happen BEFORE flock, or a held queue blocks everything
+        while looking busy."""
+        open(self.flag, "w").write("paused")
+        with self.assertRaises(subprocess.TimeoutExpired):
+            subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                           env=self._env(), capture_output=True, timeout=8)
+        self.assertIn("HELD", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_releasing_the_flag_lets_the_job_run(self):
+        r = subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                           env=self._env(), capture_output=True, timeout=60)
+        self.assertEqual(0, r.returncode)
+        self.assertIn("START", self._log())
+
+    def test_exit_codes_survive_the_process_group_wrapper(self):
+        # Running the job via setsid must not swallow its status - the whole
+        # contract of this script is that a failure propagates.
+        r = subprocess.run(["bash", GPU_JOB, "probe", "bash", "-c", "exit 37"],
+                           env=self._env(), capture_output=True, timeout=60)
+        self.assertEqual(37, r.returncode)
+        self.assertIn("FAILED   probe rc=37", self._log())
+
+    def test_a_killed_job_takes_its_descendants_with_it(self):
+        """Borrowed from codex's KillMode=control-group, and not theoretical:
+        after the regate chain was killed on 2026-08-17 a python child kept
+        2.11 GiB of the card and starved the next job."""
+        marker = os.path.join(self.tmp.name, "alive")
+        script = (f"bash -c 'while true; do touch {marker}; sleep 1; done' & "
+                  "sleep 30")
+        proc = subprocess.Popen(["bash", GPU_JOB, "probe", "bash", "-c", script],
+                                env=self._env(), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        time.sleep(4)
+        proc.terminate()
+        proc.wait(timeout=20)
+        time.sleep(3)
+        if os.path.exists(marker):
+            os.unlink(marker)
+        time.sleep(3)
+        self.assertFalse(os.path.exists(marker),
+                         "a descendant outlived the job and would hold the GPU")
