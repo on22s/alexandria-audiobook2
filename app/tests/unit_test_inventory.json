@@ -727,7 +727,11 @@
     "tests.test_gpu_job.LlmPreflightGateTest.test_a_failing_preflight_stops_the_job_before_it_starts",
     "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
     "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
-    "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable"
+    "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable",
+    "tests.test_gpu_job.VramGateTest.test_a_job_needing_more_vram_than_exists_is_refused",
+    "tests.test_gpu_job.VramGateTest.test_an_unreadable_gpu_warns_rather_than_blocking",
+    "tests.test_gpu_job.VramGateTest.test_the_refusal_names_what_to_do_about_it",
+    "tests.test_gpu_job.VramGateTest.test_zero_disables_the_check_for_small_jobs"
   ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",

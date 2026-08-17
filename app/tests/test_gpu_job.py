@@ -474,3 +474,78 @@ class LlmPreflightGateTest(unittest.TestCase):
                            LLM_PREFLIGHT_PYTHON="/bin/false")
         self.assertEqual(6, result.returncode, "PYTHON must not be consulted")
         self.assertIn("NO_LLM", self._log())
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class VramGateTest(unittest.TestCase):
+    """The lock serialises jobs; it says nothing about memory.
+
+    On 2026-08-17 llama-server held 14.77 GiB of a 15.92 GiB card while
+    regate_with_provenance held the lock, and 14 consecutive adapters died on
+
+        HIP out of memory. Tried to allocate 2.00 MiB.
+        GPU 0 has a total capacity of 15.92 GiB of which 0 bytes is free.
+
+    ensure_llama_server.sh starts that server OUTSIDE the lock on purpose -
+    "the CALLER never kills the server" is what lets consecutive LLM evals
+    share one load - and it has no lifecycle end. So the lock's guarantee was
+    true and useless: one job held the lock, a non-job held the memory.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, **extra):
+        env = dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
+                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+                              env=env, capture_output=True, text=True, timeout=60)
+
+    def _log(self):
+        return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
+
+    def test_a_job_needing_more_vram_than_exists_is_refused(self):
+        result = self._run(REQUIRE_VRAM_GB="4096")
+        if "VRAM_UNKNOWN" in self._log():
+            self.skipTest("no rocm-smi on this host; the gate cannot measure")
+        self.assertEqual(7, result.returncode)
+        self.assertIn("NO_VRAM", self._log())
+        self.assertNotIn("START", self._log())
+
+    def test_the_refusal_names_what_to_do_about_it(self):
+        """A gate that only says no gets overridden reflexively."""
+        result = self._run(REQUIRE_VRAM_GB="4096")
+        if "VRAM_UNKNOWN" in self._log():
+            self.skipTest("no rocm-smi on this host")
+        self.assertIn("llama-server", result.stderr,
+                      "the usual cause must be named")
+        self.assertIn("REQUIRE_VRAM_GB=0", result.stderr,
+                      "the override must be discoverable")
+
+    def test_zero_disables_the_check_for_small_jobs(self):
+        self.assertEqual(0, self._run(REQUIRE_VRAM_GB="0").returncode)
+        self.assertIn("START", self._log())
+
+    def test_an_unreadable_gpu_warns_rather_than_blocking(self):
+        # "Cannot tell" is not "no memory" - the same third answer tree_state
+        # gives for a non-repo. A missing tool must never block the card.
+        #
+        # Shadowing rocm-smi with a failing stub, NOT emptying PATH: an empty
+        # PATH also hides bash and the test then measures its own broken
+        # fixture rather than the gate.
+        shadow = os.path.join(self.tmp.name, "bin")
+        os.makedirs(shadow, exist_ok=True)
+        stub = os.path.join(shadow, "rocm-smi")
+        with open(stub, "w") as handle:
+            handle.write("#!/bin/sh\nexit 1\n")
+        os.chmod(stub, 0o755)
+        result = self._run(PATH=shadow + os.pathsep + os.environ["PATH"],
+                           REQUIRE_VRAM_GB="4096")
+        self.assertEqual(0, result.returncode,
+                         "an unreadable GPU must not stop the job")
+        self.assertIn("VRAM_UNKNOWN", self._log())
+        self.assertIn("START", self._log())

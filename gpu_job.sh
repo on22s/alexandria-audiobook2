@@ -201,6 +201,57 @@ if [ "${REQUIRE_LLM:-0}" = "1" ]; then
     fi
 fi
 
+# VRAM IS NOT COVERED BY THE LOCK, and on 2026-08-17 that cost 14 adapters.
+#
+# The lock serialises JOBS. llama-server is not a job - ensure_llama_server.sh
+# starts it deliberately outside the lock, because "the CALLER never kills the
+# server" is what lets consecutive LLM evals share one 8.4 GB load. That fixed
+# a real 2026-08-04 ownership bug, and it has no lifecycle end: nothing ever
+# reclaims the memory.
+#
+# So the lock's guarantee - exactly one job at a time - was true and useless.
+# One job held the lock while a non-job held 14.77 GiB, and regate_with_provenance
+# OOMed on 14 consecutive adapters:
+#
+#     HIP out of memory. Tried to allocate 2.00 MiB.
+#     GPU 0 has a total capacity of 15.92 GiB of which 0 bytes is free.
+#
+# That knowledge existed in exactly one place beforehand -
+# run_chains/moss_vs_lora.sh, "stopping llama-server to free VRAM for the 8B
+# model". One chain knew; every other job was on its own. It belongs here,
+# where every GPU job already passes.
+#
+# UNKNOWN IS NOT ZERO. If rocm-smi cannot answer, this warns and continues -
+# the same third answer tree_state gives for a non-repo. A missing tool must
+# not block the card.
+vram_free_mib() {
+    local total used
+    total=$(rocm-smi --showmeminfo vram 2>/dev/null \
+            | grep -im1 'total memory' | grep -oE '[0-9]+' | tail -1)
+    used=$(rocm-smi --showmeminfo vram 2>/dev/null \
+           | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
+    [ -z "$total" ] || [ -z "$used" ] && return 1
+    echo $(( (total - used) / 1048576 ))
+}
+
+REQUIRE_VRAM_MIB=$(( ${REQUIRE_VRAM_GB:-4} * 1024 ))
+if free_mib=$(vram_free_mib); then
+    if [ "$free_mib" -lt "$REQUIRE_VRAM_MIB" ]; then
+        echo "$(stamp) NO_VRAM  $NAME (${free_mib}MiB free, needs ${REQUIRE_VRAM_MIB}MiB)" >> "$QLOG"
+        echo "gpu_job: refusing to run $NAME - only ${free_mib} MiB of VRAM free," >&2
+        echo "gpu_job: and it needs ${REQUIRE_VRAM_MIB} MiB. Holding the card:" >&2
+        rocm-smi --showpids 2>/dev/null | grep -E '^[0-9]+' | head -4 >&2
+        echo "gpu_job: a persistent llama-server is the usual cause; it is" >&2
+        echo "gpu_job: started outside the lock and never stops on its own." >&2
+        echo "gpu_job: stop it with: pkill -x llama-server" >&2
+        echo "gpu_job: or override with REQUIRE_VRAM_GB=0 if this job is small." >&2
+        exit 7
+    fi
+else
+    echo "$(stamp) VRAM_UNKNOWN $NAME" >> "$QLOG"
+    echo "gpu_job: WARNING - cannot read VRAM; running $NAME unchecked." >&2
+fi
+
 echo "$(stamp) START    $NAME" >> "$QLOG"
 
 # TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
