@@ -781,6 +781,21 @@
     "tests.test_lexicon_attribution.TermVerdictTests.test_too_little_evidence_is_unattributed_even_when_unanimous",
     "tests.test_lexicon_attribution.TermVerdictTests.test_two_books_cannot_outvote_thirty_three_unresolved_ones"
   ],
+  "test_llama_cpp_status": [
+    "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
+    "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
+    "tests.test_llama_cpp_status.DispatchTests.test_lm_studio_is_still_asked_when_the_endpoint_is_not_llama_cpp",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_bare_model_name_matches_a_namespaced_config_value",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_loaded_model_is_reported_as_loaded",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_non_llama_endpoint_returns_None_so_lm_studio_still_works",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_server_running_the_wrong_model_is_not_loaded",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_an_endpoint_answering_something_else_is_not_claimed",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_optimized_is_none_not_false",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_reasoning_format_is_surfaced",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_refuses_a_mismatched_model",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_still_refuses_an_unverified_server",
+    "tests.test_llama_cpp_status.SingleReaderTests.test_the_experiment_provenance_uses_the_shared_reader"
+  ],
   "test_llm_benchmark_worker": [
     "tests.test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_nickname_detection_stage_reuses_run_nickname_case",
     "tests.test_llm_benchmark_worker.LlmBenchmarkWorkerTests.test_persona_generation_stage_reuses_run_persona_case",

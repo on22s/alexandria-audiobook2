@@ -198,6 +198,15 @@ fi
 
 echo "$(stamp) START    $NAME" >> "$QLOG"
 
+# TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
+# through this script to acquire the lock (the ALEXANDRIA_GPU_LOCK_HELD idiom).
+# Without this export, running such a chain UNDER gpu_job.sh nests one flock
+# inside another and deadlocks against its own parent - verified, it hangs
+# until killed rather than failing. Exporting the sentinel makes the idiom
+# idempotent: the outermost gpu_job.sh holds the lock, and every chain inside
+# it runs directly.
+export ALEXANDRIA_GPU_LOCK_HELD=1
+
 "$@"
 rc=$?
 
