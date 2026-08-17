@@ -74,18 +74,19 @@ def _current_gold(meta, rows):
     moved between supported_measurement and historical_only depending purely
     on whether the machine happened to have them.
 
-    Skipping is recorded as `gold_untracked`, not as `available: false` alone,
-    so "nobody can check this gold" is distinguishable from "this gold is
-    gone" - the remedy for the first is to commit the fixture.
+    "Untracked" and "absent" must produce the SAME record, because a clean
+    checkout cannot tell them apart: the untracked file simply is not there.
+    Recording the difference is what broke the first attempt at this fix - the
+    machine holding the fixture wrote an extra field that CI could never
+    reproduce. Which artifacts have gold on this machine but not in the
+    repository is reported by --check on stderr, where it is a message to the
+    person running it rather than content in a shared file.
     """
     rel = str(meta.get("gold_path") or "")
     path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
-    if not os.path.isfile(path):
-        return result
-    if rel and not is_tracked(rel):
-        result["gold_untracked"] = True
+    if not rel or not is_tracked(rel) or not os.path.isfile(path):
         return result
     with open(path, "rb") as handle:
         raw = handle.read()
@@ -224,6 +225,22 @@ def main():
     args = parser.parse_args()
     audit = build_audit()
     markdown = render_markdown(audit)
+    # Local-only gold is a message to the operator, never content in the file:
+    # it says "these verdicts could be sharper if you committed the fixture",
+    # and it is the only place that information can live without making the
+    # audit machine-dependent.
+    local_only = sorted({
+        rel for rel in (
+            str(json.load(open(os.path.join(EXPERIMENTS, row["artifact"]),
+                               encoding="utf-8"))["meta"].get("gold_path") or "")
+            for row in audit["artifacts"])
+        if rel and os.path.isfile(os.path.join(REPO, rel)) and not is_tracked(rel)})
+    if local_only:
+        print(f"note: {len(local_only)} gold fixture(s) exist here but are not "
+              f"tracked, so artifacts scored on them are audited without gold:",
+              file=sys.stderr)
+        for rel in local_only[:5]:
+            print(f"  {rel}", file=sys.stderr)
     if args.check:
         with open(args.json, encoding="utf-8") as handle:
             existing = json.load(handle)

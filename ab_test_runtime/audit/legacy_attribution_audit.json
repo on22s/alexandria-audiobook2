@@ -1719,8 +1719,7 @@
         "hash_changed": null,
         "missing_rows": null,
         "expected_changed_rows": null,
-        "correctness_changed_rows": null,
-        "gold_untracked": true
+        "correctness_changed_rows": null
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1739,8 +1738,7 @@
         "hash_changed": null,
         "missing_rows": null,
         "expected_changed_rows": null,
-        "correctness_changed_rows": null,
-        "gold_untracked": true
+        "correctness_changed_rows": null
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1760,8 +1758,7 @@
         "hash_changed": null,
         "missing_rows": null,
         "expected_changed_rows": null,
-        "correctness_changed_rows": null,
-        "gold_untracked": true
+        "correctness_changed_rows": null
       },
       "semantic_limit": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result."
     },
@@ -1802,8 +1799,7 @@
         "hash_changed": null,
         "missing_rows": null,
         "expected_changed_rows": null,
-        "correctness_changed_rows": null,
-        "gold_untracked": true
+        "correctness_changed_rows": null
       },
       "semantic_limit": "A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure."
     },
