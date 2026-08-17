@@ -69,29 +69,60 @@ MORA_SPELLING = {
     "パ": "pah", "ピ": "pee", "プ": "poo", "ペ": "peh", "ポ": "poh",
 }
 SMALL_Y = {"ャ": "ya", "ュ": "yu", "ョ": "yo"}
+
+# THE -eh ROW IS THE TABLE'S WEAKEST CHOICE, and this is measured rather than
+# suspected. Over 7,607 rescored terms, whole-word recovery is 15.0% overall
+# but 6.6% for any word containing an -eh mora against 18.0% for words without
+# one - and the gap survives a length control at every length:
+#
+#     kana length      with -eh      without
+#          2             9.1%         28.5%
+#          3             7.7%         19.5%
+#          4             6.5%         15.2%
+#          5             1.7%          6.7%
+#
+# A consistent 2.3-3.9x penalty on 2,031 terms. What English orthography an
+# unadorned /e/ should get is not obvious - "seh" may read as a schwa - so the
+# alternatives are measured rather than argued. `--e-spelling` swaps the row's
+# vowel so the same pipeline can score each candidate on the same terms.
+E_SPELLINGS = {"eh": "eh", "e": "e", "ay": "ay", "ei": "ei"}
+
+
+def e_row(spelling):
+    """-> MORA_SPELLING with the -eh row's vowel replaced by `spelling`."""
+    if spelling == "eh":
+        return dict(MORA_SPELLING)
+    return {k: (v[:-2] + spelling if v.endswith("eh") and len(v) > 2
+                else spelling if v == "eh" else v)
+            for k, v in MORA_SPELLING.items()}
 CARRIER = "She paused and said {word} before going on."
+_ARGS = None
 
 
-def respell(kana):
+def respell(kana, table=None):
     """-> a hyphenated English-looking spelling, or None if unmappable.
+
+    `table` defaults to MORA_SPELLING; --e-spelling supplies a variant so the
+    -eh row can be measured against alternatives on identical terms.
 
     Returns None rather than a partial guess when a kana is not in the table:
     a half-respelled word is a new word, and would be measured as if it were
     the candidate.
     """
+    table = table or MORA_SPELLING
     parts, index = [], 0
     while index < len(kana):
         char = kana[index]
         nxt = kana[index + 1] if index + 1 < len(kana) else ""
-        if nxt in SMALL_Y and char in MORA_SPELLING:
-            base = MORA_SPELLING[char]
+        if nxt in SMALL_Y and char in table:
+            base = table[char]
             parts.append(base[0] + SMALL_Y[nxt])
             index += 2
             continue
         if char == "ッ":                       # geminate: doubles what follows
             following = kana[index + 1] if index + 1 < len(kana) else ""
-            if following in MORA_SPELLING:
-                parts.append(MORA_SPELLING[following][0])
+            if following in table:
+                parts.append(table[following][0])
             index += 1
             continue
         if char == "ー":                       # long vowel: hold the last one
@@ -99,9 +130,9 @@ def respell(kana):
                 parts[-1] = parts[-1] + parts[-1][-1]
             index += 1
             continue
-        if char not in MORA_SPELLING:
+        if char not in table:
             return None
-        parts.append(MORA_SPELLING[char])
+        parts.append(table[char])
         index += 1
     return "-".join(parts) if len(parts) >= 2 else None
 
@@ -254,6 +285,13 @@ def main():
     ap.add_argument("--min-books", type=int, default=20)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--rule", choices=("a", "b"), default="a")
+    ap.add_argument("--e-spelling", choices=tuple(E_SPELLINGS), default="eh",
+                    help="what the -eh row's vowel becomes. Measured, not "
+                         "assumed: words containing an -eh mora recover at "
+                         "6.6%% against 18.0%% for words without one.")
+    ap.add_argument("--only-e-row", action="store_true",
+                    help="measure only terms containing an -eh mora, which is "
+                         "the population any change to that row can affect")
     ap.add_argument("--only-failed", default=None,
                     help="a prior result file; measure only the terms whose "
                          "plain rendering did not produce the word and which "
@@ -270,8 +308,12 @@ def main():
 
     with open(args.candidates, encoding="utf-8") as handle:
         candidates = json.load(handle)["candidates"]
+    table = e_row(args.e_spelling)
     terms = [c for c in candidates
              if c.get("verdict") == args.verdict and c["books"] >= args.min_books]
+    if args.only_e_row:
+        e_kana = {k for k, v in MORA_SPELLING.items() if v.endswith("eh")}
+        terms = [c for c in terms if any(ch in e_kana for ch in c["kana"])]
     terms.sort(key=lambda c: -c["books"])
     if args.only_failed and os.path.exists(args.only_failed):
         with open(args.only_failed, encoding="utf-8") as handle:
@@ -300,6 +342,8 @@ def main():
     if not terms:
         sys.exit("no candidates match those filters")
 
+    global _ARGS
+    _ARGS = args
     try:
         from experiments.provenance import provenance
         prov = provenance(__file__, args)
@@ -326,7 +370,7 @@ def main():
         term, kana = candidate["term"], candidate["kana"]
         if term in results:
             continue
-        spelled = respell_b(kana) if args.rule == 'b' else respell(kana)
+        spelled = respell_b(kana) if args.rule == 'b' else respell(kana, table)
         if not spelled:
             results[term] = {"term": term, "kana": kana, "skipped": "unmappable kana"}
             continue
@@ -374,6 +418,7 @@ def main():
 
 def _write(path, results, terms, prov=None):
     document = {"carrier": CARRIER,
+                "e_spelling": getattr(_ARGS, "e_spelling", "eh"),
                 "note": "scored on READINGS, not characters: `recovers_word` is "
                         "the whole word present unbroken, which is the headline. "
                         "`scattered` is the retired per-character score, kept "
