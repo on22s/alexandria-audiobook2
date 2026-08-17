@@ -1,9 +1,9 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 73,
-    "exploratory": 236,
-    "provisional": 114
+    "supported_structure": 108,
+    "exploratory": 254,
+    "provisional": 118
   },
   "artifacts": [
     {
@@ -86,6 +86,28 @@
     },
     {
       "artifact": "alignment_diagnosis.json",
+      "bytes": 13759,
+      "sha256": "b778bdac8c8aeb72981851b4c4ac7f8e32f548445a41782cbb5d88edb2519afc",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "alignment_diagnosis_trimmed.json",
+      "bytes": 13585,
+      "sha256": "2e01a8eb501344af50727e348770ef203ec48b0f91eb48c9d6bb41b5cb231393",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "alignment_diagnosis_zh.json",
       "bytes": 13759,
       "sha256": "b778bdac8c8aeb72981851b4c4ac7f8e32f548445a41782cbb5d88edb2519afc",
       "seed": null,
@@ -239,6 +261,19 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "asr_energy_vad_ja.json",
+      "bytes": 1629,
+      "sha256": "2190d164fbd381396dd5e2c806291e607dbf647185cfda362a10fdee9678b4e2",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "asr_hybrid_zh.json",
       "bytes": 1462,
       "sha256": "3814827cd42a9044e1214807eb8c65a26ac5411548181dad898d638639a3a545",
@@ -247,6 +282,19 @@
       "has_rows": false,
       "identity_contract": "tts_provenance",
       "commit": "b08ba6a6cb67661473530861bae364f70784b13c",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_control_preexisting_kouyahijiri.json",
+      "bytes": 1653,
+      "sha256": "702a7351eb9542055b99546ad8af4564bcc8e467efdf87faeedb836fe1d74403",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -265,6 +313,19 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "asr_ja_hypotheses.json",
+      "bytes": 15417,
+      "sha256": "26dd193d24bc09ca97414620df806e98754e71ee20356cfbec2bc036515c0c94",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "asr_ja_largev3_hybrid.json",
       "bytes": 1992,
       "sha256": "14a3343be663d44c8a87c675c355326f0a8ace93ad1cf10b561cde953f1aa4e0",
@@ -278,6 +339,71 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "asr_ja_largev3_readings.json",
+      "bytes": 15555,
+      "sha256": "60e37cf8e052ff1558e5e4c2fbcda708a40e6a6fb48a242760181dfaccde5658",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_reader__botchan-by-soseki-natsume-2.json",
+      "bytes": 1694,
+      "sha256": "35472f23069589bb1e4f6d2332f3bd475e281ed72710ed941ae49be7e98e069c",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_reader__gan-by-ogai-mori.json",
+      "bytes": 1663,
+      "sha256": "a566bfcbaea481a64fa3db7c01f8284a2b3f39534fa25a34f228c0e5915e7f09",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_reader__kouyahijiri-by-kyoka-izumi.json",
+      "bytes": 1692,
+      "sha256": "19253882d18b619a969015b051fba7526b1816f3ae06613a6445e8e3fa9de15e",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_reader__kusamakura-by-soseki-natsume.json",
+      "bytes": 1699,
+      "sha256": "63861519c1842453cc352fbd1a499aa03b2ec8ab64e762259e53614b2b4b825f",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "3f938c68d71a3bda8a9084e52a2922e63b932ae3",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "asr_ja_readings.json",
       "bytes": 15543,
       "sha256": "44b3770f530e228accd88d29f2c8ce51be74013d629c35e971c133ff6db596c3",
@@ -286,6 +412,32 @@
       "has_rows": false,
       "identity_contract": "tts_provenance",
       "commit": "fed4bcf8e63668bda20e36b6095c73495f97c4b9",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_ja_trimmed.json",
+      "bytes": 15587,
+      "sha256": "c7f3c451382b851c36ba48aee19ff252b076830bb9bc78eaa0fb60bd58e7967f",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "asr_silero_vad_ja.json",
+      "bytes": 1659,
+      "sha256": "e0dd194ac95462fda348a8d9beb7643a98877adf8cefdc42368bbd2783e08a31",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -359,6 +511,72 @@
       "artifact": "audible_errors.json",
       "bytes": 981,
       "sha256": "497a22a3af024aeecbd3f04034a0f3f5d95ae82d37169bb0f57b1954150e00dc",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__husky_baritone_40s_m_2.json",
+      "bytes": 222,
+      "sha256": "a3037cdbc343385e2920d8038575fc028894c89f8601d8df64052856cb6b6d70",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__husky_baritone_40s_m_scifi.json",
+      "bytes": 226,
+      "sha256": "f440f0e5c8d6cc8ed97c20e72a9bbd347dc749918ee3b23526388ef91f2d3fb5",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__husky_tenor_30s_m_literary.json",
+      "bytes": 226,
+      "sha256": "dc66e25ba73b39e670f0319113e16cae2c17c332bcffd797f6ed95ca3dc94a0f",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__silky_baritone_30s_m_fantasy.json",
+      "bytes": 228,
+      "sha256": "7a76458bc38279f7abc2112882c9a888378b1086cab40647577dc914e08f513a",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__warm_baritone_30s_m_2.json",
+      "bytes": 221,
+      "sha256": "15493e8cfeff59436766b5bb3db9832953392be4a4ba2c5d24e08cde6b41c2c3",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "baseline_heldout__warm_baritone_30s_m_scifi.json",
+      "bytes": 225,
+      "sha256": "e99b22890e6f63c73a14e5db066437683954b473721db9e8c3802f37f38888c3",
       "seed": null,
       "status": null,
       "has_rows": false,
@@ -1976,6 +2194,84 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "decontaminate_batch1.json",
+      "bytes": 5975,
+      "sha256": "ffb9e5f852e806fc87075c35a6fb54247612560113802ed4c667fa65067eef0a",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "decontaminate_batch2.json",
+      "bytes": 5878,
+      "sha256": "9bd83f34c63d7cb60229f34e5968ebd8b3d78f6e1b83114a4d4688ffff319e63",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "decontaminate_batch3.json",
+      "bytes": 5940,
+      "sha256": "ea5adb471911049eed8673778c24bbb0df5374cb8398a3654f80fe06bc1ca78b",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "decontaminate_batch4.json",
+      "bytes": 5901,
+      "sha256": "a68b80e91b33f9233c70060dc34f889edb5d8723f78ba19acb4ed050d3cedc89",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "decontaminate_batch5.json",
+      "bytes": 5900,
+      "sha256": "53bac2620cf4e18c1da072e06b168ae3b1274c2c5c3685c3b19dbd6afdefbd9b",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "decontaminate_batch6.json",
+      "bytes": 5928,
+      "sha256": "77921d2ccdbbfe2fb990b624179ddec3a0b1a307ff97a6d21272b503f67ac1bd",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "cbb14502bbc375e2ac4932756010641f199edfeb",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "distill_eval__mixed_register.json",
       "bytes": 665516,
       "sha256": "8dc845e6832acbd9d6775815a6f68a8bccb20afe1bb4c063868a0ccd08914e65",
@@ -2028,6 +2324,19 @@
       "reason": "metadata present without commit identity"
     },
     {
+      "artifact": "duration_length_intervention.json",
+      "bytes": 4768,
+      "sha256": "d310c00732c620e91032946361b84cd63701a856fe43691f575a768aeb97fd60",
+      "seed": 1234,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "commit": "642827095ac56042d757d80d0c99bee494ccc4cd",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "duration_outlier_analysis.json",
       "bytes": 24177,
       "sha256": "329264d046b2e49a0894d1fe6dc7ecbdb78904c4ac372223bd4c88df599f7be1",
@@ -2063,6 +2372,17 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "duration_probe_20260811_rerun.json",
+      "bytes": 1640,
+      "sha256": "2f534a24b4bdce43f33ca97666bc93b26a180a2ccc90079119c9a057265f8b44",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "duration_probe_same_speaker_20260815.json",
       "bytes": 1909,
       "sha256": "78393660399232c8a461d177260820b334c49ea28b18fd3fa9f05895a323e6aa",
@@ -2072,6 +2392,71 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "epub_extraction_fidelity.json",
+      "bytes": 1964,
+      "sha256": "0cf2cf709c6977e46b60a6fe8ce789b2ff33718029698892750f3bcde4a38f74",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "419ca2dd7f917282e8591d6cefee75e1e3af9ecd",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "expected_prosody_ja.json",
+      "bytes": 8628,
+      "sha256": "f3077ce2a81602450eed396fd54c1d3eed54fdc6d97203b3922cca6b724b27f0",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "expected_prosody_ja_n200.json",
+      "bytes": 136932,
+      "sha256": "eb710fcddb5f2f8ac04915fd060539fda1a6af5b0f4e43b40c04954ad4878341",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "expected_prosody_zh.json",
+      "bytes": 2511,
+      "sha256": "c9ea3a5ba581acaaa6b4422e88140b10bd5229f0bcf3f48fdd3c9aecff40df67",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "5689a300bbea3c993ce0aa0c790203d466023b95",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "expected_prosody_zh_n200.json",
+      "bytes": 31898,
+      "sha256": "e0436b414f335dfd251c32438c9c2e661eff4dc900a66250619b582838d1a120",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "fallback_policy.json",
@@ -3409,9 +3794,42 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "lexicon_attributed_v2.json",
+      "bytes": 2543643,
+      "sha256": "5a5ff954b7aecdb34acfe27abb0a8b0b7e99c36cc1bc798c3a5d65d4eec34fc0",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lexicon_backmatter_probe.json",
+      "bytes": 5705,
+      "sha256": "341c0f362c455f821b1b2a9e9f540ee58d9a41a7c94bd03160f0a79c2f30c695",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "lexicon_corpus_candidates.json",
       "bytes": 1579871,
       "sha256": "570080c4ccd60c860b0a1b9ed696168b1f7c4ffd8105a90274853f56b1577aee",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lexicon_pilot.json",
+      "bytes": 20456,
+      "sha256": "77615a84e1e373d711584db339e7fd9381b27837fccf071047f71ad926a2de51",
       "seed": null,
       "status": null,
       "has_rows": false,
@@ -3783,6 +4201,19 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "pdnc_context_evidence__pilot__local-llamacpp.json",
+      "bytes": 1973013,
+      "sha256": "cd788b210b8676d939b0b70684c02a63cb98f62215b6b955fa606d157767a630",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "a230f9ac558deed9fb1443a3acead8ba24ce219b",
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "pdnc_eval.json",
       "bytes": 365,
       "sha256": "89e29eb432d3480c662f6ae804c4716b10cc9594881aebe3209fbf11b5e3c34f",
@@ -3827,6 +4258,17 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "pdnc_failure_telemetry.json",
+      "bytes": 439222,
+      "sha256": "040ff2ea2e37c84896879b042a123bd097f0daa82242792abd8f103db66f8da2",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "pdnc_generalisation.json",
       "bytes": 5603,
       "sha256": "79b8e52fb73a3c8d157bfa5e66a17586b827b7300291f04a465da8a0799cea7d",
@@ -3836,6 +4278,19 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pdnc_narrator_prior__clean-3book.json",
+      "bytes": 909661,
+      "sha256": "733c02032aac964926a4aac3cf7c9d2fd7771db2f35d177ab32219b0e5906a73",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "pdnc_narrator_prior__local-llamacpp-generic.json",
@@ -3860,6 +4315,32 @@
       "identity_contract": "experiment_meta",
       "commit": "06aa78478de69452d693511a6d9b620528563993",
       "dirty": true,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "pdnc_sequence__pilot__local-llamacpp.json",
+      "bytes": 1973049,
+      "sha256": "a66e7150d1ff0dbf6a9770450e70077e79dad39ba06da378b1a1c94118aeed4c",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "d476d07fb86dde74fceafc5bb1f6c2feeb4bf698",
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "pdnc_targeted_sequence__pilot__local-llamacpp.json",
+      "bytes": 2794570,
+      "sha256": "02b517ded7d17bb0a3a091cecf15caaf4c3a5918063dd60bdb153ee2abbc39be",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
+      "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
     },
@@ -3978,6 +4459,123 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "prosody_fidelity_en.json",
+      "bytes": 9340,
+      "sha256": "73a458a2e8b2ac8b374c90d30ed4218b9d5ce952279d56ff8027da10af468676",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_en_n100.json",
+      "bytes": 68657,
+      "sha256": "ac948701bb7d3ae5c9cabd10e739b9bdee0e29d3c360d3377dca3f194fbe57d3",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_en_n40.json",
+      "bytes": 28118,
+      "sha256": "ea4fc268721733ec3c0ce1c8968c1d097b69972e85b880d17d0c43fc29f504c7",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_ja.json",
+      "bytes": 9864,
+      "sha256": "dc2e1d7f81916fd61c47349e681f01aed47b77edebacf06e374c09eed8d14d29",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_ja_n100.json",
+      "bytes": 73013,
+      "sha256": "0f5da8483f94608ca8bbdb4fcd7971decf8ecce61f6762e2e063c768f1a0ca1b",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_ja_n40.json",
+      "bytes": 29862,
+      "sha256": "096b00f1d0618ab5ec60a691022bb4ec472d5c51fb60d623e0b63b37bdd0abaa",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_zh.json",
+      "bytes": 9360,
+      "sha256": "a525ecf3dbc1f9f089f7df122109b7aa7986e1de06e12fe9e7d03b2fe734f55e",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_zh_n100.json",
+      "bytes": 68759,
+      "sha256": "f0e6c7483227bc7ddc693e25a00bcf84b77377ba6d749719c84dc9494449d4b8",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_fidelity_zh_n40.json",
+      "bytes": 28165,
+      "sha256": "5699106b666bdfff234e38077d46213f896a0b2ab7bd89d960e4d58190c9b688",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "realizable_router.json",
@@ -4186,9 +4784,105 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "reference_rank1_all21.json",
+      "bytes": 17253,
+      "sha256": "c05307795617e67796b127805c959e74a02f0769615706b699fd4bcf4a000f73",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "reference_rank1_pilot.json",
+      "bytes": 5139,
+      "sha256": "dcdd4596a8f5c731535ab452ac1294eac687c65d20c28c45aff659aee7a408d8",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "4ba91062306f7f90a1889055c53cb8de9980ce51",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "reference_rank2_failed.json",
+      "bytes": 5607,
+      "sha256": "103f801d585886efb1f5f95f0c898e5727156920b07c652685a369ef78d333f5",
+      "seed": 1234,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "repair_candidate_reference_text.json",
+      "bytes": 9399,
+      "sha256": "bdea539c3945805d9bdee9328adbb767209352a51f9d873bb45fb0a20fccb9fd",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "residual_errors.json",
       "bytes": 567,
       "sha256": "cb76e74c8421d6a44be0dfe96687e55df8a5fed1f96dcad531dae6579aeb42a9",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_measure.json",
+      "bytes": 2919011,
+      "sha256": "a0b1b479d9b02921f5a1760010a29b1cfed7fc1ae536150cf937f8aa88a149ce",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_measure_rescored.json",
+      "bytes": 5312026,
+      "sha256": "6f555e5827102526d87b3bc6208415d77c89ff9628ab1f88f7e13fcf1ad5490a",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_rule_b.json",
+      "bytes": 222225,
+      "sha256": "0345ef6af75860a2ff285b5e574bfee9c7a6fb5d53432b1db090aaa4b9d98e37",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_rule_b_rescored.json",
+      "bytes": 333579,
+      "sha256": "ee62f9feef41436d8398358c38bb45c33602cd412cef5a1052f3a5644d69ed90",
       "seed": null,
       "status": null,
       "has_rows": false,
@@ -4234,6 +4928,17 @@
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "robotic_proxy_clips.json",
+      "bytes": 3476,
+      "sha256": "c9e239aa0b13ce68ca08343a7ba737c819a45102679ca26668ec36d93ab32dba",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "roster_quality__grimgar03__llama-3.3-70b__thunder-a6000-70b.json",
