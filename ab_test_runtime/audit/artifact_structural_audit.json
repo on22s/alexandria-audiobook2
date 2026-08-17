@@ -1,8 +1,8 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 108,
-    "exploratory": 255,
+    "supported_structure": 110,
+    "exploratory": 259,
     "provisional": 118
   },
   "artifacts": [
@@ -2243,6 +2243,17 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "cpu_chain_release.json",
+      "bytes": 722,
+      "sha256": "832d84453a7976e2b4c9822017db781be725fa1d6fe6408f4e96c4d46575352f",
+      "seed": null,
+      "status": "failed",
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "crossbook_normalization.json",
       "bytes": 88674,
       "sha256": "e0b824e697b3cc3ed3c2637f702c0ed6d61ca84eef74337a49bb58731e737170",
@@ -2620,11 +2631,33 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "final_release_after_remaining_gpu_research.json",
+      "bytes": 788,
+      "sha256": "29497e1f3c7f014a934fb7707b24830aa2946a1ecbef97a75759c83a94c0e039",
+      "seed": null,
+      "status": "passed",
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "fix_verification.json",
       "bytes": 497,
       "sha256": "dcb950aa2b8867d1a75bc634455b331fb51c0f0dc65d5cdff2d077151566cbfa",
       "classification": "exploratory",
       "reason": "top-level list, no embedded identity"
+    },
+    {
+      "artifact": "full_api_gpu_20260816.json",
+      "bytes": 8868,
+      "sha256": "59491cb85b2e28fb1c8b5e6967b7fef9cc5a864a95a7acad97174b29dd04e203",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "gate_known_bad.json",
@@ -4402,6 +4435,17 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "overnight_release.json",
+      "bytes": 723,
+      "sha256": "3da5bfc3bcfa25f2b598cd69ab596b4b6ad5b2b1bbf321ae59f99506811710f6",
+      "seed": null,
+      "status": "failed",
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "pdnc_context_evidence__pilot__local-llamacpp.json",
       "bytes": 1973013,
       "sha256": "cd788b210b8676d939b0b70684c02a63cb98f62215b6b955fa606d157767a630",
@@ -4622,6 +4666,20 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pr308_narration_context__mushoku16_index18__current.json",
+      "bytes": 1576,
+      "sha256": "cd0094f8a9bfe197025c9e5ae607dded98500ce0f1341bcc99ec1e2be04e6ec7",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-17T15:42:56",
+      "commit": "5513f117d0ede525b245e9ac2131c54b6ed13d04",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "proper_noun_pronunciation.json",
@@ -5083,6 +5141,20 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_e_row__e.json",
+      "bytes": 232001,
+      "sha256": "c8a701cc13eb62307be7b8edf47728bbfc1d5378c81303dd764ed32bd9287eef",
+      "seed": null,
+      "status": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-17T15:59:37",
+      "commit": "7ce3e45251cc3cad1b04df4fcc88aab2724f0b50",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "respelling_measure.json",

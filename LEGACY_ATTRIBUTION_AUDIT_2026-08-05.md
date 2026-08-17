@@ -5,9 +5,9 @@ All 118 legacy-metadata artifacts are listed exactly once. Classification descri
 ## Counts
 
 - `exploratory`: 9
-- `historical_only`: 38
-- `provisional`: 21
-- `supported_measurement`: 50
+- `historical_only`: 42
+- `provisional`: 19
+- `supported_measurement`: 48
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -91,11 +91,11 @@ All 118 legacy-metadata artifacts are listed exactly once. Classification descri
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |
 | `narrator_prior__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 324 | 0 | 0 | False |  |
 | `pdnc_context_evidence__pilot__local-llamacpp.json` | pdnc_context_evidence | supported_measurement | 1200 | None | None | False |  |
-| `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | supported_measurement | 720 | None | None | False |  |
-| `pdnc_narrator_prior__local-llamacpp-generic.json` | pdnc_narrator_prior | provisional | 240 | None | None | True |  |
-| `pdnc_narrator_prior__local-llamacpp.json` | pdnc_narrator_prior | provisional | 480 | None | None | True |  |
+| `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | historical_only | 720 | 0 | 480 | False |  |
+| `pdnc_narrator_prior__local-llamacpp-generic.json` | pdnc_narrator_prior | historical_only | 240 | 0 | 120 | True |  |
+| `pdnc_narrator_prior__local-llamacpp.json` | pdnc_narrator_prior | historical_only | 480 | 0 | 240 | True |  |
 | `pdnc_sequence__pilot__local-llamacpp.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
-| `pdnc_targeted_sequence__pilot__local-llamacpp.json` | pdnc_targeted_sequence | supported_measurement | 1800 | None | None | False |  |
+| `pdnc_targeted_sequence__pilot__local-llamacpp.json` | pdnc_targeted_sequence | historical_only | 1800 | 80 | 0 | False |  |
 | `reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json` | reasoning_arms | historical_only | 2000 | 111 | 20 | False |  |
 | `reasoning_arms__grimgar03__qwen__qwen3-14b.json` | reasoning_arms | historical_only | 2000 | 79 | 20 | True |  |
 | `reasoning_arms__index18__qwen__qwen3-14b__local-llamacpp.json` | reasoning_arms | supported_measurement | 495 | 0 | 0 | False |  |
