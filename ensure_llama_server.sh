@@ -58,9 +58,48 @@ if ready && [ "$(cat "$STAMP" 2>/dev/null)" = "$ADAPTER" ]; then
     exit 0
 fi
 
-pkill -f "llama-server" 2>/dev/null
+# -x, NOT -f. `pkill -f llama-server` matches ANY command line containing the
+# string, including the shell that invoked this script - it killed a test
+# harness mid-command here, exit 144, before the server was ever launched. The
+# exact-name form matches the process, which is what was meant.
+pkill -x llama-server 2>/dev/null
 sleep 5
-ARGS=(-m "$MODEL" --port "$PORT" --host 127.0.0.1 -ngl 99 -c "$CTX" --parallel 1)
+# REASONING OFF, AND AN ALIAS. Both were missing here. Without them the
+# PR #308 remeasurement died on chunk 4/90:
+#
+#   Warning: Could not find JSON array in SEGMENT response (attempt 1)
+#   Token escalation exhausted: effective budget cannot grow beyond 512
+#   Error: pass 1 (segment) failed on chunk 4/90
+#
+# Qwen3 emits reasoning before its answer, so a pass that asks for a JSON array
+# spends its budget thinking and returns prose. Every structured-output pass in
+# this repo needs thinking off; prose passes do not care, which is why a
+# conversational smoke test looks fine on a server that cannot do the work.
+#
+# `--reasoning off` is llama.cpp's own flag for this, not the
+# `--chat-template-kwargs '{"enable_thinking":false}'` that
+# run_chains/pdnc_context_evidence.sh uses. That form works but is
+# template-specific - it depends on the Qwen3 Jinja template honouring that
+# key - where --reasoning is the documented, model-agnostic control.
+#
+# Measured on this box, same prompt asking for a JSON array:
+#     reasoning on  -> 213 completion tokens, 669 reasoning characters
+#     reasoning off ->   5 completion tokens, 0, correct at max_tokens=64
+# That 208-token gap is the whole failure: the segment pass caps at 512 over a
+# long chunk, so with reasoning on there is no room left for the array.
+#
+# The alias makes the served id match config.json's model_name instead of the
+# full .gguf path. llama.cpp ignores the field on requests, so it works either
+# way - but provenance records what was served, and "qwen3-14b" is the name
+# every artifact already uses.
+ARGS=(-m "$MODEL" --port "$PORT" --host 127.0.0.1 -ngl 99 -c "$CTX" --parallel 1
+      --alias "${LLAMA_ALIAS:-qwen3-14b}")
+if [ "${LLAMA_THINKING:-0}" = "1" ]; then
+    echo "ensure_llama_server: WARNING - reasoning ENABLED; structured-output" >&2
+    echo "ensure_llama_server: passes (segment/attribute) will likely fail." >&2
+else
+    ARGS+=(--reasoning off)
+fi
 [ -n "$ADAPTER" ] && ARGS+=(--lora "$ADAPTER")
 "$BIN" "${ARGS[@]}" > "$LOG" 2>&1 &
 

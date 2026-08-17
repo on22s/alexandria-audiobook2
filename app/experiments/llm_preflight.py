@@ -39,10 +39,35 @@ import time
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP = os.path.join(REPO, "app")
 
-# Shaped like the real work - attribute a quoted line - so the check exercises
-# the same behaviour the experiments depend on rather than a greeting.
-PROBE = ('Who speaks the quoted line? Answer with the name only.\n\n'
+# ASKS FOR JSON, because that is what the real passes ask for and it is where
+# this stack actually breaks. The first version asked for prose and passed
+# happily against a server with Qwen3 thinking left ON - which then died on
+# chunk 4/90 with "Could not find JSON array in SEGMENT response", because the
+# model spends its token budget reasoning and answers in prose. A
+# conversational probe cannot see that; a structured one sees it immediately.
+PROBE = ('Return ONLY a JSON array, no prose, of the speaker of each quoted '
+         'line, like ["NAME"].\n\n'
          'Aiko frowned. "You promised you would wait," she said.')
+
+
+def find_json_array(text):
+    """-> the first JSON array in `text`, or None. Mirrors what the generation
+    passes do, so the preflight fails on exactly what they would fail on."""
+    start = text.find("[")
+    while start != -1:
+        depth = 0
+        for index in range(start, len(text)):
+            if text[index] == "[":
+                depth += 1
+            elif text[index] == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:index + 1])
+                    except ValueError:
+                        break
+        start = text.find("[", start + 1)
+    return None
 
 
 def get_endpoint(config_path):
@@ -90,7 +115,27 @@ def check(base_url, model, timeout=180, max_tokens=400):
                        f"(finish_reason={choice.finish_reason}). With "
                        f"finish_reason='length' this is the reasoning-token "
                        f"trap - raise --max-tokens above {max_tokens}.")
-    return True, (f"{base_url} answered in {elapsed:.1f}s "
+    # THINKING ON IS A FAILURE EVEN WHEN THE PROBE SUCCEEDS. This check asks
+    # for one short array and gives it 400 tokens, so the model can reason AND
+    # still fit the answer - it returned '["Aiko"]' after 213 completion tokens
+    # on a server that then died on chunk 4/90 with "Could not find JSON array
+    # in SEGMENT response". The real passes cap at 512 tokens over far longer
+    # inputs, where reasoning crowds the JSON out entirely. So the presence of
+    # reasoning is the signal, not the outcome of this one easy prompt.
+    reasoning = (getattr(choice.message, "reasoning_content", None) or "").strip()
+    if reasoning and os.environ.get("ALLOW_LLM_THINKING") != "1":
+        return False, (
+            f"the server has THINKING ENABLED ({len(reasoning)} reasoning "
+            f"characters on a trivial prompt). It can answer this probe and "
+            f"still fail the real segment pass, which caps at 512 tokens. "
+            f"Restart with ./ensure_llama_server.sh, which passes "
+            f"--chat-template-kwargs '{{\"enable_thinking\":false}}'. "
+            f"Set ALLOW_LLM_THINKING=1 to proceed anyway.")
+    if find_json_array(content) is None:
+        return False, (f"server answers but did not return JSON in "
+                       f"{elapsed:.1f}s: {content[:80]!r}. Every "
+                       f"segment/attribute pass needs parseable JSON.")
+    return True, (f"{base_url} answered with JSON in {elapsed:.1f}s "
                   f"(finish={choice.finish_reason}, "
                   f"{reply.usage.completion_tokens} completion tokens): "
                   f"{content[:60]!r}")
