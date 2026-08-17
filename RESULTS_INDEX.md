@@ -1,8 +1,12 @@
 # Results index
 
-Generated 2026-08-17 15:22 from `ab_test_runtime/experiments/` — 480 artifacts, 568 arms.
+Generated 2026-08-17 15:46 from `ab_test_runtime/experiments/` — 486 artifacts, 568 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
+
+`resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 108 of 883 rows are replayable.
+
+`cited_by_goal` is populated on 10 rows of 883, and that is the finding rather than a gap in this column: only goals 2.4 and 5.4 name their evidence by filename. Every other claim in GOALS.md quotes a number no reader can follow back to a file.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 
@@ -822,6 +826,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `clone_vs_lora_seeded.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cluster_vs_name.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `corpus_hnr_baseline.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `cpu_chain_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `crossbook_normalization.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -845,7 +850,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `fallback_policy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `final_release_after_remaining_gpu_research.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `fix_verification.json` | SKIPPED: not a result object (list) |
+| `full_api_gpu_20260816.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_known_bad.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_known_good.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_promote__breathy_alto_50s_f_fantasy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -942,6 +949,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__silky_baritone_45s_m.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__velvety_mezzo_30s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `goal_evidence_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
@@ -973,6 +981,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `nonprose_split.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `nonprose_split_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `offbyone_turns.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `overnight_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full_summary.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -985,6 +994,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pitch_quality_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_separation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_stability.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pr308_narration_context__mushoku16_index18__current.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `proper_noun_pronunciation.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prose_vs_nonprose.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `prose_vs_nonprose_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
