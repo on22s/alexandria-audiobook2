@@ -76,6 +76,31 @@ def stabilize_speaker_identities(entries, established_speakers=None):
             entry["speaker"] = chosen
             changes.append({"type": "speaker_spelling", "entry_number": index,
                             "before": current, "after": chosen})
+    # A SPLIT NAME WITH NO SURVIVING ALTERNATIVE. Preferring the better
+    # spelling only helps while both are present. In a finished script they are
+    # not: generation collapsed `RUDEUS` onto `R UDEUS` line by line, so the
+    # saved artifact holds 67 of the broken form and none of the good one.
+    #
+    # For that case the book itself is the evidence. If a speaker looks like a
+    # name broken after its first letter, and the joined form actually occurs
+    # in the prose of these entries, the joined form is the name - mushoku18's
+    # text says "Rudeus" 123 times and "R udeus" never. Without that corroboration
+    # nothing is joined: "J SMITH" is a person, not a typo, and guessing would
+    # invent a character.
+    prose = " ".join(str(e.get("text") or "") for e in repaired
+                     if isinstance(e, dict)).casefold()
+    for entry in repaired:
+        if not isinstance(entry, dict):
+            continue
+        name = " ".join(str(entry.get("speaker") or "").split())
+        if not re.fullmatch(r"[A-Za-z]\s[A-Za-z]{2,}", name):
+            continue
+        joined = name.replace(" ", "")
+        if joined.casefold() in prose:
+            entry["speaker"] = joined
+            changes.append({"type": "speaker_split_repair",
+                            "before": name, "after": joined})
+
     canonicals = [n for n in canonicals
                   if _identity_key(n) in roster
                   or best.get(_identity_key(n), (None, None))[1] == n]

@@ -120,3 +120,40 @@ class SplitNameSpellingTest(unittest.TestCase):
         ])
         kinds = {c["type"] for c in out["changes"]}
         self.assertIn("speaker_spelling", kinds)
+
+
+class FinishedScriptRepairTest(unittest.TestCase):
+    """A script already saved with the broken name must still be repairable.
+
+    Preferring the better spelling only helps while both exist. In mushoku18's
+    saved script they do not: generation had already collapsed `RUDEUS` onto
+    `R UDEUS` line by line, leaving 67 of the broken form and none of the good
+    one. The book's own prose is the evidence - it says "Rudeus" 123 times and
+    "R udeus" never.
+    """
+
+    def test_a_split_name_is_rejoined_when_the_prose_confirms_it(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "R UDEUS", "text": "『Ariel-sama.』"},
+            {"speaker": "NARRATOR", "text": "Rudeus turned to look at her."},
+        ])
+        self.assertEqual("RUDEUS", out["entries"][0]["speaker"])
+
+    def test_nothing_is_joined_without_that_evidence(self):
+        """`J SMITH` is a person, not a typo. Guessing invents a character."""
+        out = stabilize_speaker_identities([
+            {"speaker": "J SMITH", "text": "He said nothing at all."},
+        ])
+        self.assertEqual("J SMITH", out["entries"][0]["speaker"])
+
+    def test_a_two_word_name_is_not_glued_together(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "OLD MAN", "text": "The old man walked away."},
+        ])
+        self.assertEqual("OLD MAN", out["entries"][0]["speaker"])
+
+    def test_the_repair_is_recorded(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "R UDEUS", "text": "Rudeus said so himself."},
+        ])
+        self.assertIn("speaker_split_repair", {c["type"] for c in out["changes"]})

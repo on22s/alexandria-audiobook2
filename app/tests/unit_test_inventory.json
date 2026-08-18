@@ -1637,6 +1637,10 @@
     "tests.test_source_span_coverage.SourceSpanCoverageTests.test_spans_keep_order_and_stable_ids"
   ],
   "test_speaker_identity": [
+    "tests.test_speaker_identity.FinishedScriptRepairTest.test_a_split_name_is_rejoined_when_the_prose_confirms_it",
+    "tests.test_speaker_identity.FinishedScriptRepairTest.test_a_two_word_name_is_not_glued_together",
+    "tests.test_speaker_identity.FinishedScriptRepairTest.test_nothing_is_joined_without_that_evidence",
+    "tests.test_speaker_identity.FinishedScriptRepairTest.test_the_repair_is_recorded",
     "tests.test_speaker_identity.SpeakerIdentityTests.test_consistency_report_counts_usage_and_deduplicates_suggestions",
     "tests.test_speaker_identity.SpeakerIdentityTests.test_distinct_names_are_not_reported",
     "tests.test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_is_deterministic_on_duplicate_keys",
