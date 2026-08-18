@@ -418,11 +418,28 @@
     "tests.test_dialogue_attribution.MeasurabilityTest.test_a_quoting_book_is_measured",
     "tests.test_dialogue_attribution.MeasurabilityTest.test_an_unquoted_book_is_refused",
     "tests.test_dialogue_attribution.MeasurabilityTest.test_no_entries_is_refused_rather_than_divided_by_zero",
+    "tests.test_dialogue_attribution.RecordedSpokenFieldTest.test_a_line_recorded_as_narration_is_not_counted_despite_quotes",
+    "tests.test_dialogue_attribution.RecordedSpokenFieldTest.test_older_scripts_still_fall_back_to_the_guess",
+    "tests.test_dialogue_attribution.RecordedSpokenFieldTest.test_the_recorded_field_wins_over_the_punctuation_guess",
     "tests.test_dialogue_attribution.SpokenLineTest.test_an_entry_with_no_quote_is_not_a_spoken_line",
     "tests.test_dialogue_attribution.SpokenLineTest.test_coverage_is_a_share_not_a_count",
     "tests.test_dialogue_attribution.SpokenLineTest.test_narration_holding_a_quote_is_rejected",
     "tests.test_dialogue_attribution.SpokenLineTest.test_real_dialogue_is_detected",
     "tests.test_dialogue_attribution.SpokenLineTest.test_the_naive_rule_would_fail_these"
+  ],
+  "test_dialogue_spans": [
+    "tests.test_dialogue_spans.ConventionTest.test_a_script_style_label_is_recognised",
+    "tests.test_dialogue_spans.ConventionTest.test_a_text_with_no_convention_says_so",
+    "tests.test_dialogue_spans.ConventionTest.test_an_em_dash_convention_is_recognised",
+    "tests.test_dialogue_spans.ConventionTest.test_corner_brackets_are_recognised",
+    "tests.test_dialogue_spans.ConventionTest.test_curly_quotes_are_recognised",
+    "tests.test_dialogue_spans.MarkEntriesTest.test_a_stripped_line_is_still_located_and_marked_spoken",
+    "tests.test_dialogue_spans.MarkEntriesTest.test_an_entry_that_cannot_be_located_is_left_unmarked",
+    "tests.test_dialogue_spans.MarkEntriesTest.test_the_input_entries_are_not_mutated",
+    "tests.test_dialogue_spans.MarkEntriesTest.test_the_source_span_points_at_the_real_words",
+    "tests.test_dialogue_spans.SpanTest.test_an_unmatched_straight_quote_does_not_swallow_the_book",
+    "tests.test_dialogue_spans.SpanTest.test_narration_between_two_quotes_is_not_included",
+    "tests.test_dialogue_spans.SpanTest.test_spans_cover_the_words_and_not_the_marks"
   ],
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
