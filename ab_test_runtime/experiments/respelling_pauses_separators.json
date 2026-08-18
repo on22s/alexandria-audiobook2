@@ -1,0 +1,20 @@
+{
+ "status": "complete",
+ "candidates_considered": 7607,
+ "note": "internal pauses only; leading and trailing room tone excluded",
+ "results": [],
+ "summary": {},
+ "provenance": {
+  "script": "measure_pauses.py",
+  "written": "2026-08-18T16:46:57",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "82722884e61aa6352f5a2a288da39fc7c020e920",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "d4adfd0327f6e4221f66c83e9c3d1fe6d0ac3059a6b7ffd75226b7c87f38883b"
+  }
+ }
+}
