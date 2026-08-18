@@ -774,6 +774,15 @@
     "tests.test_gold_set_builder.ValidationTest.test_narrator_and_ambiguous_are_never_flagged_as_invented",
     "tests.test_gold_set_builder.ValidationTest.test_unanswered_rows_are_reported"
   ],
+  "test_gpu_guard": [
+    "tests.test_gpu_guard.GpuGuardTest.test_a_free_gpu_is_not_busy",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_hand_run_call_is_refused_while_a_job_runs",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_held_lock_reads_as_busy",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_missing_lock_file_is_not_a_reason_to_refuse",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_override_exists_for_a_deliberate_exception",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_probe_does_not_hold_the_lock_it_tests",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_queued_job_itself_is_allowed_through"
+  ],
   "test_gpu_job": [
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_run_writes_no_patch",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_tree_runs_untouched",
