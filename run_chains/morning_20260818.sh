@@ -63,7 +63,11 @@ done
 # ---- 2. unseen_books, this time with the server it needs ------------------
 if [ "$(time_left)" -gt 5400 ]; then
     note "starting llama-server for unseen_books"
-    "$REPO/ensure_llama_server.sh" > "$LOG/server.log" 2>&1 || note "server start failed"
+    # LLAMA_MODEL is required and has no default - the 08:53Z attempt failed
+    # with exactly that message and gave the slot back to nobody. Same path
+    # the pdnc chain uses.
+    LLAMA_MODEL="${ALEXANDRIA_QWEN3_MODEL:-/home/fakemitch/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf}" \
+        "$REPO/ensure_llama_server.sh" > "$LOG/server.log" 2>&1 || note "server start failed"
     note "START unseen_books"
     timeout --signal=INT --kill-after=120s "$(time_left)" \
         "$REPO/run_chains/unseen_books.sh" > "$LOG/unseen_books_retry.log" 2>&1 \
