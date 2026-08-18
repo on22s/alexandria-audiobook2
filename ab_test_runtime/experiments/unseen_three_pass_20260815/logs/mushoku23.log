@@ -1,0 +1,703 @@
+Source health: 1 issue(s) found
+  - stripped_apostrophes: contractions split by a lossy conversion (don t, it s)
+  repaired in memory (3 fixes; your file on disk is unchanged)
+  source is now clean
+LM Studio: WARNING - could not apply ideal settings (Error: LM Studio daemon is not running and no valid installation could be found or installed.
+Error: Failed to start or connect to local LM Studio API server. (unloading the previously-loaded model also failed - it may still be running with different settings)). The model may be running with a higher 'parallel'/context-length configuration, which uses more VRAM per request and increases the risk of an out-of-memory crash. The VRAM watchdog below will still pause batches if usage gets too high, but if you hit OOM, restart LM Studio and re-run.
+Three-pass generation: 812272 chars, chunk_size=3000, model=qwen3-14b, pass2_on_exhaustion=fallback
+  finish_reason=stop | tokens: prompt=1039 completion=1057 | took 22.6s
+  finish_reason=stop | tokens: prompt=1051 completion=1058 | took 22.4s
+  finish_reason=stop | tokens: prompt=1025 completion=944 | took 19.8s
+  finish_reason=stop | tokens: prompt=1022 completion=1049 | took 22.1s
+  finish_reason=stop | tokens: prompt=793 completion=578 | took 12.3s
+  finish_reason=stop | tokens: prompt=2215 completion=192 | took 5.4s
+  finish_reason=stop | tokens: prompt=2879 completion=254 | took 7.0s
+  finish_reason=stop | tokens: prompt=2697 completion=273 | took 7.2s
+  finish_reason=stop | tokens: prompt=3035 completion=227 | took 6.4s
+  finish_reason=stop | tokens: prompt=3498 completion=193 | took 6.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3558 completion=189 | took 4.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3571 completion=189 | took 4.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2546 completion=229 | took 6.2s
+  finish_reason=stop | tokens: prompt=2386 completion=229 | took 6.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2446 completion=2023 | took 43.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2547 completion=205 | took 4.4s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2815 completion=206 | took 5.8s
+  finish_reason=stop | tokens: prompt=3292 completion=279 | took 7.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3378 completion=2918 | took 63.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3473 completion=253 | took 5.5s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=1774 completion=52 | took 2.1s
+  finish_reason=stop | tokens: prompt=2611 completion=206 | took 5.7s
+  finish_reason=stop | tokens: prompt=3093 completion=267 | took 7.3s
+  finish_reason=stop | tokens: prompt=3097 completion=218 | took 6.3s
+  finish_reason=stop | tokens: prompt=2666 completion=259 | took 6.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2713 completion=2282 | took 49.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2847 completion=2282 | took 49.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2730 completion=293 | took 7.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2933 completion=293 | took 6.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2474 completion=253 | took 6.6s
+  finish_reason=stop | tokens: prompt=2325 completion=202 | took 5.5s
+  finish_reason=stop | tokens: prompt=2656 completion=299 | took 7.7s
+  finish_reason=stop | tokens: prompt=2382 completion=223 | took 5.9s
+  finish_reason=stop | tokens: prompt=3308 completion=230 | took 6.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3434 completion=230 | took 5.0s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3440 completion=230 | took 5.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2659 completion=231 | took 6.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2732 completion=2275 | took 48.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2820 completion=199 | took 4.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2771 completion=2275 | took 49.0s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  finish_reason=stop | tokens: prompt=3230 completion=175 | took 5.5s
+  finish_reason=stop | tokens: prompt=3500 completion=246 | took 7.2s
+  finish_reason=stop | tokens: prompt=2892 completion=160 | took 4.9s
+  finish_reason=stop | tokens: prompt=3353 completion=193 | took 5.9s
+  finish_reason=stop | tokens: prompt=2252 completion=259 | took 6.6s
+  finish_reason=stop | tokens: prompt=2500 completion=206 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2573 completion=2116 | took 45.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2671 completion=209 | took 4.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2560 completion=2116 | took 45.2s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  finish_reason=stop | tokens: prompt=2951 completion=237 | took 6.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2982 completion=237 | took 5.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=3125 completion=307 | took 8.2s
+  finish_reason=stop | tokens: prompt=2804 completion=279 | took 7.7s
+  finish_reason=stop | tokens: prompt=2480 completion=216 | took 5.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2605 completion=2088 | took 44.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2631 completion=226 | took 4.8s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=738 completion=19 | took 0.8s
+  finish_reason=stop | tokens: prompt=2440 completion=237 | took 6.2s
+  finish_reason=stop | tokens: prompt=2171 completion=221 | took 5.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2218 completion=1779 | took 37.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2362 completion=222 | took 4.7s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2781 completion=231 | took 6.3s
+  finish_reason=stop | tokens: prompt=2202 completion=202 | took 5.4s
+  finish_reason=stop | tokens: prompt=2709 completion=269 | took 7.1s
+  finish_reason=stop | tokens: prompt=2189 completion=198 | took 5.3s
+  finish_reason=stop | tokens: prompt=531 completion=21 | took 0.8s
+  finish_reason=stop | tokens: prompt=2456 completion=219 | took 5.8s
+  finish_reason=stop | tokens: prompt=3297 completion=296 | took 8.0s
+  finish_reason=stop | tokens: prompt=3342 completion=228 | took 6.6s
+  finish_reason=stop | tokens: prompt=2407 completion=211 | took 5.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2467 completion=1998 | took 42.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2558 completion=208 | took 4.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2454 completion=1998 | took 42.6s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  finish_reason=stop | tokens: prompt=2299 completion=257 | took 6.6s
+  finish_reason=stop | tokens: prompt=2642 completion=247 | took 6.6s
+  finish_reason=stop | tokens: prompt=2255 completion=224 | took 5.9s
+  finish_reason=stop | tokens: prompt=3264 completion=256 | took 7.2s
+  finish_reason=stop | tokens: prompt=2155 completion=234 | took 6.0s
+  finish_reason=stop | tokens: prompt=3200 completion=263 | took 7.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3321 completion=263 | took 5.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2280 completion=231 | took 6.0s
+  finish_reason=stop | tokens: prompt=506 completion=17 | took 0.6s
+  finish_reason=stop | tokens: prompt=2561 completion=197 | took 5.4s
+  finish_reason=stop | tokens: prompt=698 completion=16 | took 0.7s
+  finish_reason=stop | tokens: prompt=3652 completion=258 | took 7.4s
+  finish_reason=stop | tokens: prompt=2919 completion=276 | took 7.4s
+  finish_reason=stop | tokens: prompt=2189 completion=211 | took 5.6s
+  finish_reason=stop | tokens: prompt=2669 completion=228 | took 6.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2729 completion=2248 | took 48.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2830 completion=228 | took 4.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2864 completion=286 | took 7.5s
+  finish_reason=stop | tokens: prompt=2196 completion=240 | took 6.2s
+  finish_reason=stop | tokens: prompt=2452 completion=283 | took 7.2s
+  finish_reason=stop | tokens: prompt=2798 completion=333 | took 8.5s
+  finish_reason=stop | tokens: prompt=2122 completion=188 | took 5.0s
+  finish_reason=stop | tokens: prompt=2476 completion=213 | took 5.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2523 completion=2051 | took 43.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2647 completion=216 | took 4.6s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2590 completion=224 | took 6.1s
+  finish_reason=stop | tokens: prompt=2763 completion=286 | took 7.5s
+  finish_reason=stop | tokens: prompt=1853 completion=210 | took 5.3s
+  finish_reason=stop | tokens: prompt=2397 completion=224 | took 5.9s
+  finish_reason=stop | tokens: prompt=2184 completion=253 | took 6.4s
+  finish_reason=stop | tokens: prompt=2698 completion=202 | took 5.7s
+  finish_reason=stop | tokens: prompt=2063 completion=248 | took 6.2s
+  finish_reason=stop | tokens: prompt=2813 completion=238 | took 6.5s
+  finish_reason=stop | tokens: prompt=2071 completion=217 | took 5.6s
+  finish_reason=stop | tokens: prompt=599 completion=17 | took 0.7s
+  finish_reason=stop | tokens: prompt=2826 completion=270 | took 7.1s
+  finish_reason=stop | tokens: prompt=3411 completion=260 | took 7.3s
+  finish_reason=stop | tokens: prompt=695 completion=21 | took 0.8s
+  finish_reason=stop | tokens: prompt=2062 completion=273 | took 6.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2161 completion=1637 | took 34.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2243 completion=273 | took 5.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2413 completion=250 | took 6.5s
+  finish_reason=stop | tokens: prompt=2543 completion=227 | took 6.1s
+  finish_reason=stop | tokens: prompt=3584 completion=237 | took 7.0s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3657 completion=3159 | took 69.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3745 completion=3159 | took 69.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2447 completion=213 | took 5.8s
+  finish_reason=stop | tokens: prompt=2533 completion=231 | took 6.2s
+  finish_reason=stop | tokens: prompt=2557 completion=288 | took 7.4s
+  finish_reason=stop | tokens: prompt=2771 completion=234 | took 6.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2805 completion=227 | took 4.8s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2942 completion=249 | took 6.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2976 completion=2517 | took 54.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3113 completion=247 | took 5.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=1922 completion=167 | took 4.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2021 completion=1497 | took 31.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2053 completion=1497 | took 37.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2697 completion=224 | took 6.1s
+  finish_reason=stop | tokens: prompt=2681 completion=218 | took 6.0s
+  finish_reason=stop | tokens: prompt=3958 completion=234 | took 7.2s
+  finish_reason=stop | tokens: prompt=2753 completion=205 | took 5.8s
+  finish_reason=stop | tokens: prompt=3763 completion=203 | took 6.4s
+  finish_reason=stop | tokens: prompt=2475 completion=217 | took 5.9s
+  finish_reason=stop | tokens: prompt=3039 completion=211 | took 6.1s
+  finish_reason=stop | tokens: prompt=546 completion=21 | took 0.8s
+  finish_reason=stop | tokens: prompt=1968 completion=115 | took 3.3s
+  finish_reason=stop | tokens: prompt=2239 completion=248 | took 6.3s
+  finish_reason=stop | tokens: prompt=2200 completion=178 | took 4.8s
+  finish_reason=stop | tokens: prompt=691 completion=18 | took 0.7s
+  finish_reason=stop | tokens: prompt=2750 completion=276 | took 7.2s
+  finish_reason=stop | tokens: prompt=2712 completion=189 | took 5.4s
+  finish_reason=stop | tokens: prompt=691 completion=16 | took 0.7s
+  finish_reason=stop | tokens: prompt=3218 completion=176 | took 5.4s
+  finish_reason=stop | tokens: prompt=2429 completion=136 | took 4.1s
+  finish_reason=stop | tokens: prompt=3615 completion=173 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3675 completion=173 | took 3.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=539 completion=16 | took 0.6s
+  finish_reason=stop | tokens: prompt=2654 completion=264 | took 7.4s
+  finish_reason=stop | tokens: prompt=4542 completion=247 | took 7.8s
+  finish_reason=stop | tokens: prompt=2171 completion=176 | took 4.8s
+  finish_reason=stop | tokens: prompt=2545 completion=253 | took 6.6s
+  finish_reason=stop | tokens: prompt=2606 completion=171 | took 4.9s
+  finish_reason=stop | tokens: prompt=3838 completion=163 | took 5.5s
+  finish_reason=stop | tokens: prompt=2040 completion=165 | took 4.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2087 completion=1589 | took 34.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2161 completion=165 | took 3.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=531 completion=21 | took 0.7s
+  finish_reason=stop | tokens: prompt=3204 completion=176 | took 5.4s
+  finish_reason=stop | tokens: prompt=2025 completion=179 | took 4.8s
+  finish_reason=stop | tokens: prompt=2340 completion=239 | took 6.3s
+  finish_reason=stop | tokens: prompt=1279 completion=59 | took 1.9s
+  finish_reason=stop | tokens: prompt=619 completion=16 | took 0.6s
+  finish_reason=stop | tokens: prompt=627 completion=18 | took 0.7s
+  finish_reason=stop | tokens: prompt=532 completion=15 | took 0.8s
+  finish_reason=stop | tokens: prompt=1493 completion=87 | took 2.5s
+  finish_reason=stop | tokens: prompt=533 completion=15 | took 0.6s
+  finish_reason=stop | tokens: prompt=675 completion=18 | took 0.7s
+  finish_reason=stop | tokens: prompt=635 completion=16 | took 0.6s
+  finish_reason=stop | tokens: prompt=744 completion=18 | took 0.7s
+  finish_reason=stop | tokens: prompt=2464 completion=181 | took 5.2s
+  finish_reason=stop | tokens: prompt=758 completion=18 | took 0.8s
+  finish_reason=stop | tokens: prompt=818 completion=18 | took 0.7s
+  finish_reason=stop | tokens: prompt=3203 completion=198 | took 5.8s
+  finish_reason=stop | tokens: prompt=2298 completion=265 | took 6.9s
+  finish_reason=stop | tokens: prompt=3061 completion=315 | took 8.3s
+  finish_reason=stop | tokens: prompt=2730 completion=312 | took 8.0s
+  finish_reason=stop | tokens: prompt=3098 completion=197 | took 5.8s
+  finish_reason=stop | tokens: prompt=2368 completion=178 | took 4.9s
+  finish_reason=stop | tokens: prompt=607 completion=15 | took 0.6s
+  finish_reason=stop | tokens: prompt=2144 completion=176 | took 4.7s
+  finish_reason=stop | tokens: prompt=2419 completion=182 | took 5.0s
+  finish_reason=stop | tokens: prompt=2694 completion=210 | took 6.0s
+  finish_reason=stop | tokens: prompt=2586 completion=271 | took 7.0s
+  finish_reason=stop | tokens: prompt=544 completion=21 | took 0.7s
+  finish_reason=stop | tokens: prompt=3153 completion=272 | took 7.4s
+  finish_reason=stop | tokens: prompt=3526 completion=318 | took 8.6s
+  finish_reason=stop | tokens: prompt=3559 completion=324 | took 9.0s
+  finish_reason=stop | tokens: prompt=2164 completion=206 | took 5.6s
+  finish_reason=stop | tokens: prompt=3535 completion=119 | took 4.4s
+  finish_reason=stop | tokens: prompt=3101 completion=186 | took 5.6s
+  finish_reason=stop | tokens: prompt=2243 completion=171 | took 4.7s
+  finish_reason=stop | tokens: prompt=3469 completion=223 | took 6.5s
+  finish_reason=stop | tokens: prompt=2137 completion=162 | took 4.5s
+  finish_reason=stop | tokens: prompt=738 completion=18 | took 0.8s
+  finish_reason=stop | tokens: prompt=2790 completion=225 | took 6.3s
+  finish_reason=stop | tokens: prompt=3206 completion=293 | took 7.9s
+  finish_reason=stop | tokens: prompt=2331 completion=143 | took 4.2s
+  finish_reason=stop | tokens: prompt=2555 completion=95 | took 3.3s
+  finish_reason=stop | tokens: prompt=2270 completion=194 | took 5.2s
+  finish_reason=stop | tokens: prompt=3653 completion=148 | took 5.1s
+  finish_reason=stop | tokens: prompt=3939 completion=163 | took 5.6s
+  finish_reason=stop | tokens: prompt=1739 completion=166 | took 4.3s
+  finish_reason=stop | tokens: prompt=617 completion=21 | took 0.8s
+  finish_reason=stop | tokens: prompt=593 completion=21 | took 0.7s
+  finish_reason=stop | tokens: prompt=2757 completion=222 | took 6.0s
+  finish_reason=stop | tokens: prompt=2712 completion=256 | took 6.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2785 completion=2240 | took 48.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2903 completion=256 | took 5.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=2759 completion=177 | took 5.2s
+  finish_reason=stop | tokens: prompt=2505 completion=223 | took 5.9s
+  finish_reason=stop | tokens: prompt=3124 completion=273 | took 7.4s
+  finish_reason=stop | tokens: prompt=2610 completion=194 | took 5.4s
+  finish_reason=stop | tokens: prompt=3678 completion=212 | took 6.5s
+  finish_reason=stop | tokens: prompt=2220 completion=160 | took 4.5s
+  finish_reason=stop | tokens: prompt=3016 completion=204 | took 5.9s
+  finish_reason=stop | tokens: prompt=3027 completion=295 | took 7.8s
+  finish_reason=stop | tokens: prompt=3050 completion=240 | took 6.6s
+  finish_reason=stop | tokens: prompt=3393 completion=203 | took 6.1s
+  finish_reason=stop | tokens: prompt=774 completion=31 | took 1.1s
+  finish_reason=stop | tokens: prompt=1527 completion=37 | took 1.5s
+  finish_reason=stop | tokens: prompt=2266 completion=101 | took 3.2s
+  finish_reason=stop | tokens: prompt=3193 completion=255 | took 7.1s
+  finish_reason=stop | tokens: prompt=1442 completion=94 | took 2.6s
+  finish_reason=stop | tokens: prompt=3534 completion=162 | took 5.3s
+  finish_reason=stop | tokens: prompt=3171 completion=224 | took 6.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=3205 completion=236 | took 5.2s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3260 completion=165 | took 5.5s
+  finish_reason=stop | tokens: prompt=2873 completion=255 | took 6.8s
+  finish_reason=stop | tokens: prompt=3415 completion=186 | took 5.7s
+  finish_reason=stop | tokens: prompt=2769 completion=182 | took 5.3s
+  finish_reason=stop | tokens: prompt=2840 completion=222 | took 6.1s
+  finish_reason=stop | tokens: prompt=2645 completion=234 | took 6.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2809 completion=2147 | took 46.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2816 completion=208 | took 4.4s
+  Succeeded on retry 3
+  finish_reason=stop | tokens: prompt=2553 completion=207 | took 5.6s
+  finish_reason=stop | tokens: prompt=2988 completion=320 | took 8.4s
+  finish_reason=stop | tokens: prompt=2319 completion=253 | took 6.4s
+  finish_reason=stop | tokens: prompt=3142 completion=240 | took 6.7s
+  finish_reason=stop | tokens: prompt=3328 completion=202 | took 6.0s
+  finish_reason=stop | tokens: prompt=2611 completion=232 | took 6.2s
+  finish_reason=stop | tokens: prompt=2269 completion=174 | took 4.8s
+  finish_reason=stop | tokens: prompt=794 completion=16 | took 0.7s
+  finish_reason=stop | tokens: prompt=5187 completion=252 | took 8.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5221 completion=188 | took 4.3s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=2509 completion=280 | took 7.2s
+  finish_reason=stop | tokens: prompt=595 completion=16 | took 0.7s
+  finish_reason=stop | tokens: prompt=577 completion=16 | took 0.5s
+  finish_reason=stop | tokens: prompt=2618 completion=309 | took 7.8s
+  finish_reason=stop | tokens: prompt=2715 completion=308 | took 7.9s
+  finish_reason=stop | tokens: prompt=2081 completion=243 | took 6.1s
+  finish_reason=stop | tokens: prompt=3007 completion=245 | took 6.7s
+  finish_reason=stop | tokens: prompt=1949 completion=125 | took 3.6s
+  finish_reason=stop | tokens: prompt=3135 completion=280 | took 7.6s
+  finish_reason=stop | tokens: prompt=2694 completion=289 | took 7.5s
+  finish_reason=stop | tokens: prompt=2667 completion=283 | took 7.3s
+  finish_reason=stop | tokens: prompt=2927 completion=253 | took 6.8s
+  finish_reason=stop | tokens: prompt=693 completion=21 | took 0.8s
+  finish_reason=stop | tokens: prompt=2266 completion=249 | took 6.3s
+  finish_reason=stop | tokens: prompt=607 completion=17 | took 0.7s
+  finish_reason=stop | tokens: prompt=3118 completion=198 | took 5.8s
+  finish_reason=stop | tokens: prompt=3719 completion=220 | took 6.7s
+  finish_reason=stop | tokens: prompt=2519 completion=123 | took 3.9s
+  finish_reason=stop | tokens: prompt=3433 completion=658 | took 16.0s
+  finish_reason=stop | tokens: prompt=4155 completion=554 | took 14.1s
+  finish_reason=stop | tokens: prompt=4123 completion=464 | took 12.2s
+  finish_reason=stop | tokens: prompt=4123 completion=561 | took 14.3s
+  finish_reason=stop | tokens: prompt=5478 completion=575 | took 15.7s
+  finish_reason=stop | tokens: prompt=3876 completion=567 | took 14.2s
+  finish_reason=stop | tokens: prompt=3682 completion=688 | took 16.6s
+  finish_reason=stop | tokens: prompt=4215 completion=655 | took 16.5s
+  finish_reason=stop | tokens: prompt=5435 completion=675 | took 18.3s
+  finish_reason=stop | tokens: prompt=2828 completion=442 | took 10.8s
+  finish_reason=stop | tokens: prompt=4464 completion=446 | took 12.0s
+  finish_reason=stop | tokens: prompt=3710 completion=720 | took 17.3s
+  finish_reason=stop | tokens: prompt=4581 completion=511 | took 13.6s
+  finish_reason=stop | tokens: prompt=4161 completion=556 | took 14.2s
+  finish_reason=stop | tokens: prompt=3731 completion=533 | took 13.5s
+  finish_reason=stop | tokens: prompt=3104 completion=694 | took 16.2s
+  finish_reason=stop | tokens: prompt=2753 completion=588 | took 13.7s
+  finish_reason=stop | tokens: prompt=3103 completion=568 | took 13.8s
+  finish_reason=stop | tokens: prompt=3469 completion=558 | took 13.7s
+  finish_reason=stop | tokens: prompt=3520 completion=552 | took 13.6s
+  finish_reason=stop | tokens: prompt=4796 completion=458 | took 12.5s
+  finish_reason=stop | tokens: prompt=4541 completion=608 | took 15.9s
+  finish_reason=stop | tokens: prompt=4652 completion=571 | took 15.2s
+  finish_reason=stop | tokens: prompt=5627 completion=610 | took 16.6s
+  finish_reason=stop | tokens: prompt=5256 completion=606 | took 16.2s
+  finish_reason=stop | tokens: prompt=5004 completion=599 | took 16.0s
+  finish_reason=stop | tokens: prompt=3594 completion=523 | took 13.0s
+  finish_reason=stop | tokens: prompt=3689 completion=684 | took 16.5s
+  finish_reason=stop | tokens: prompt=5103 completion=651 | took 17.0s
+  finish_reason=stop | tokens: prompt=4340 completion=652 | took 16.6s
+  finish_reason=stop | tokens: prompt=4504 completion=693 | took 17.5s
+  finish_reason=stop | tokens: prompt=4100 completion=544 | took 13.9s
+  finish_reason=stop | tokens: prompt=648 completion=35 | took 1.0s
+  finish_reason=stop | tokens: prompt=3757 completion=630 | took 15.4s
+  finish_reason=stop | tokens: prompt=2702 completion=545 | took 12.8s
+  finish_reason=stop | tokens: prompt=4268 completion=679 | took 16.9s
+  finish_reason=stop | tokens: prompt=3684 completion=640 | took 15.6s
+  finish_reason=stop | tokens: prompt=4281 completion=520 | took 13.5s
+  finish_reason=stop | tokens: prompt=3434 completion=464 | took 11.9s
+  finish_reason=stop | tokens: prompt=433 completion=24 | took 0.7s
+  finish_reason=stop | tokens: prompt=3249 completion=734 | took 17.2s
+  finish_reason=stop | tokens: prompt=3909 completion=733 | took 17.8s
+  finish_reason=stop | tokens: prompt=6198 completion=717 | took 19.5s
+  finish_reason=stop | tokens: prompt=3812 completion=619 | took 15.3s
+  finish_reason=stop | tokens: prompt=3228 completion=597 | took 14.3s
+  finish_reason=stop | tokens: prompt=3752 completion=791 | took 18.9s
+  finish_reason=stop | tokens: prompt=3741 completion=581 | took 14.4s
+  finish_reason=stop | tokens: prompt=5165 completion=669 | took 17.5s
+  finish_reason=stop | tokens: prompt=3194 completion=429 | took 10.7s
+  finish_reason=stop | tokens: prompt=4170 completion=612 | took 15.4s
+  finish_reason=stop | tokens: prompt=3346 completion=567 | took 13.8s
+  finish_reason=stop | tokens: prompt=397 completion=27 | took 0.7s
+  finish_reason=stop | tokens: prompt=5546 completion=503 | took 14.1s
+  finish_reason=stop | tokens: prompt=585 completion=32 | took 0.9s
+  finish_reason=stop | tokens: prompt=5276 completion=589 | took 15.7s
+  finish_reason=stop | tokens: prompt=3817 completion=629 | took 15.5s
+  finish_reason=stop | tokens: prompt=3276 completion=758 | took 17.8s
+  finish_reason=stop | tokens: prompt=3993 completion=716 | took 17.5s
+  finish_reason=stop | tokens: prompt=4058 completion=733 | took 18.0s
+  finish_reason=stop | tokens: prompt=3225 completion=562 | took 13.6s
+  finish_reason=stop | tokens: prompt=2854 completion=597 | took 14.5s
+  finish_reason=stop | tokens: prompt=3431 completion=726 | took 17.2s
+  finish_reason=stop | tokens: prompt=2907 completion=453 | took 11.0s
+  finish_reason=stop | tokens: prompt=3647 completion=721 | took 17.3s
+  finish_reason=stop | tokens: prompt=3853 completion=579 | took 14.4s
+  finish_reason=stop | tokens: prompt=3696 completion=732 | took 17.6s
+  finish_reason=stop | tokens: prompt=2699 completion=601 | took 14.0s
+  finish_reason=stop | tokens: prompt=3323 completion=569 | took 13.8s
+  finish_reason=stop | tokens: prompt=3136 completion=704 | took 16.7s
+  finish_reason=stop | tokens: prompt=4711 completion=508 | took 13.6s
+  finish_reason=stop | tokens: prompt=3156 completion=500 | took 12.2s
+  finish_reason=stop | tokens: prompt=4767 completion=595 | took 15.5s
+  finish_reason=stop | tokens: prompt=2920 completion=524 | took 12.6s
+  finish_reason=stop | tokens: prompt=470 completion=25 | took 0.7s
+  finish_reason=stop | tokens: prompt=4553 completion=755 | took 18.8s
+  finish_reason=stop | tokens: prompt=5295 completion=557 | took 15.1s
+  finish_reason=stop | tokens: prompt=574 completion=26 | took 0.8s
+  finish_reason=stop | tokens: prompt=2644 completion=603 | took 13.9s
+  finish_reason=stop | tokens: prompt=4434 completion=652 | took 16.5s
+  finish_reason=stop | tokens: prompt=3311 completion=664 | took 15.8s
+  finish_reason=stop | tokens: prompt=6506 completion=598 | took 17.1s
+  finish_reason=stop | tokens: prompt=3383 completion=678 | took 16.2s
+  finish_reason=stop | tokens: prompt=2923 completion=598 | took 14.3s
+  finish_reason=stop | tokens: prompt=3513 completion=635 | took 15.3s
+  finish_reason=stop | tokens: prompt=3544 completion=636 | took 15.4s
+  finish_reason=stop | tokens: prompt=4424 completion=576 | took 14.8s
+  finish_reason=stop | tokens: prompt=3027 completion=550 | took 13.2s
+  finish_reason=stop | tokens: prompt=4211 completion=705 | took 17.4s
+  finish_reason=stop | tokens: prompt=4151 completion=624 | took 15.7s
+  finish_reason=stop | tokens: prompt=6978 completion=736 | took 20.7s
+  finish_reason=stop | tokens: prompt=4640 completion=600 | took 15.6s
+  finish_reason=stop | tokens: prompt=6258 completion=765 | took 20.7s
+  finish_reason=stop | tokens: prompt=3393 completion=670 | took 16.3s
+  finish_reason=stop | tokens: prompt=4542 completion=594 | took 15.3s
+  finish_reason=stop | tokens: prompt=395 completion=29 | took 0.8s
+  finish_reason=stop | tokens: prompt=4967 completion=387 | took 11.1s
+  finish_reason=stop | tokens: prompt=2940 completion=681 | took 15.9s
+  finish_reason=stop | tokens: prompt=3977 completion=666 | took 16.4s
+  finish_reason=stop | tokens: prompt=538 completion=25 | took 0.8s
+  finish_reason=stop | tokens: prompt=3834 completion=661 | took 16.1s
+  finish_reason=stop | tokens: prompt=4247 completion=685 | took 17.0s
+  finish_reason=stop | tokens: prompt=534 completion=25 | took 0.8s
+  finish_reason=stop | tokens: prompt=5221 completion=621 | took 16.6s
+  finish_reason=stop | tokens: prompt=4359 completion=598 | took 15.3s
+  finish_reason=stop | tokens: prompt=6571 completion=567 | took 16.5s
+  finish_reason=stop | tokens: prompt=381 completion=28 | took 0.8s
+  finish_reason=stop | tokens: prompt=3602 completion=512 | took 12.7s
+  finish_reason=stop | tokens: prompt=6097 completion=611 | took 17.1s
+  finish_reason=stop | tokens: prompt=3608 completion=684 | took 16.6s
+  finish_reason=stop | tokens: prompt=3593 completion=675 | took 16.3s
+  finish_reason=stop | tokens: prompt=6368 completion=583 | took 16.7s
+  finish_reason=stop | tokens: prompt=7206 completion=804 | took 22.5s
+  finish_reason=stop | tokens: prompt=3526 completion=683 | took 16.5s
+  finish_reason=stop | tokens: prompt=378 completion=28 | took 0.7s
+  finish_reason=stop | tokens: prompt=6498 completion=731 | took 20.5s
+  finish_reason=stop | tokens: prompt=3242 completion=659 | took 15.9s
+  finish_reason=stop | tokens: prompt=3420 completion=521 | took 12.8s
+  finish_reason=stop | tokens: prompt=3360 completion=441 | took 11.1s
+  finish_reason=stop | tokens: prompt=464 completion=36 | took 0.9s
+  finish_reason=stop | tokens: prompt=474 completion=26 | took 0.6s
+  finish_reason=stop | tokens: prompt=367 completion=28 | took 0.6s
+  finish_reason=stop | tokens: prompt=366 completion=31 | took 0.7s
+  finish_reason=stop | tokens: prompt=3351 completion=390 | took 9.9s
+  finish_reason=stop | tokens: prompt=377 completion=27 | took 0.7s
+  finish_reason=stop | tokens: prompt=522 completion=34 | took 0.8s
+  finish_reason=stop | tokens: prompt=480 completion=33 | took 0.8s
+  finish_reason=stop | tokens: prompt=591 completion=32 | took 0.8s
+  finish_reason=stop | tokens: prompt=4267 completion=608 | took 15.3s
+  finish_reason=stop | tokens: prompt=605 completion=34 | took 1.2s
+  finish_reason=stop | tokens: prompt=665 completion=29 | took 0.9s
+  finish_reason=stop | tokens: prompt=6243 completion=806 | took 21.4s
+  finish_reason=stop | tokens: prompt=3261 completion=683 | took 16.2s
+  finish_reason=stop | tokens: prompt=3461 completion=720 | took 17.3s
+  finish_reason=stop | tokens: prompt=3409 completion=565 | took 14.0s
+  finish_reason=stop | tokens: prompt=4694 completion=751 | took 18.9s
+  finish_reason=stop | tokens: prompt=3687 completion=485 | took 12.3s
+  finish_reason=stop | tokens: prompt=445 completion=28 | took 0.7s
+  finish_reason=stop | tokens: prompt=3584 completion=555 | took 13.6s
+  finish_reason=stop | tokens: prompt=3884 completion=766 | took 18.5s
+  finish_reason=stop | tokens: prompt=4263 completion=598 | took 15.2s
+  finish_reason=stop | tokens: prompt=3525 completion=578 | took 14.6s
+  finish_reason=stop | tokens: prompt=390 completion=26 | took 0.7s
+  finish_reason=stop | tokens: prompt=3404 completion=448 | took 11.2s
+  finish_reason=stop | tokens: prompt=3190 completion=442 | took 11.1s
+  finish_reason=stop | tokens: prompt=4708 completion=646 | took 16.6s
+  finish_reason=stop | tokens: prompt=3400 completion=471 | took 11.8s
+  finish_reason=stop | tokens: prompt=417 completion=29 | took 0.8s
+  finish_reason=stop | tokens: prompt=8270 completion=771 | took 23.1s
+  finish_reason=stop | tokens: prompt=5756 completion=825 | took 21.6s
+  finish_reason=stop | tokens: prompt=3566 completion=738 | took 17.7s
+  finish_reason=stop | tokens: prompt=5093 completion=625 | took 16.7s
+  finish_reason=stop | tokens: prompt=3875 completion=715 | took 17.4s
+  finish_reason=stop | tokens: prompt=579 completion=28 | took 0.8s
+  finish_reason=stop | tokens: prompt=4029 completion=707 | took 17.3s
+  finish_reason=stop | tokens: prompt=5474 completion=749 | took 20.0s
+  finish_reason=stop | tokens: prompt=3736 completion=494 | took 12.6s
+  finish_reason=stop | tokens: prompt=5407 completion=651 | took 17.3s
+  finish_reason=stop | tokens: prompt=3717 completion=571 | took 14.2s
+  finish_reason=stop | tokens: prompt=9646 completion=545 | took 19.2s
+  finish_reason=stop | tokens: prompt=8582 completion=416 | took 15.2s
+  finish_reason=stop | tokens: prompt=2764 completion=404 | took 10.0s
+  finish_reason=stop | tokens: prompt=450 completion=24 | took 0.7s
+  finish_reason=stop | tokens: prompt=426 completion=26 | took 0.6s
+  finish_reason=stop | tokens: prompt=4403 completion=604 | took 15.4s
+  finish_reason=stop | tokens: prompt=3783 completion=628 | took 15.4s
+  finish_reason=stop | tokens: prompt=4185 completion=536 | took 13.8s
+  finish_reason=stop | tokens: prompt=3463 completion=600 | took 14.8s
+  finish_reason=stop | tokens: prompt=4334 completion=650 | took 16.4s
+  finish_reason=stop | tokens: prompt=3967 completion=568 | took 14.8s
+  finish_reason=stop | tokens: prompt=7639 completion=613 | took 18.5s
+  finish_reason=stop | tokens: prompt=3736 completion=508 | took 12.9s
+  finish_reason=stop | tokens: prompt=4833 completion=682 | took 17.7s
+  finish_reason=stop | tokens: prompt=3522 completion=734 | took 17.5s
+  finish_reason=stop | tokens: prompt=3523 completion=680 | took 16.3s
+  finish_reason=stop | tokens: prompt=5744 completion=613 | took 16.7s
+  finish_reason=stop | tokens: prompt=2922 completion=575 | took 13.9s
+  finish_reason=stop | tokens: prompt=4748 completion=705 | took 18.1s
+  finish_reason=stop | tokens: prompt=3648 completion=598 | took 14.9s
+  finish_reason=stop | tokens: prompt=5371 completion=449 | took 12.8s
+  finish_reason=stop | tokens: prompt=5805 completion=457 | took 13.4s
+  finish_reason=stop | tokens: prompt=3338 completion=702 | took 16.7s
+  finish_reason=stop | tokens: prompt=2800 completion=620 | took 14.6s
+  finish_reason=stop | tokens: prompt=6500 completion=789 | took 21.4s
+  finish_reason=stop | tokens: prompt=5072 completion=603 | took 16.1s
+  finish_reason=stop | tokens: prompt=6830 completion=651 | took 18.8s
+  finish_reason=stop | tokens: prompt=4426 completion=482 | took 13.2s
+  finish_reason=stop | tokens: prompt=6670 completion=438 | took 13.7s
+  finish_reason=stop | tokens: prompt=4594 completion=735 | took 20.0s
+  finish_reason=stop | tokens: prompt=5107 completion=659 | took 19.3s
+  finish_reason=stop | tokens: prompt=3939 completion=510 | took 13.1s
+  finish_reason=stop | tokens: prompt=3419 completion=634 | took 15.3s
+  finish_reason=stop | tokens: prompt=2893 completion=750 | took 17.3s
+  finish_reason=stop | tokens: prompt=3655 completion=688 | took 16.6s
+  finish_reason=stop | tokens: prompt=5099 completion=437 | took 12.4s
+  finish_reason=stop | tokens: prompt=5689 completion=662 | took 17.8s
+  finish_reason=stop | tokens: prompt=3679 completion=629 | took 15.9s
+  finish_reason=stop | tokens: prompt=4441 completion=604 | took 15.5s
+  finish_reason=stop | tokens: prompt=586 completion=29 | took 0.9s
+  finish_reason=stop | tokens: prompt=7846 completion=627 | took 18.9s
+  finish_reason=stop | tokens: prompt=2992 completion=666 | took 15.8s
+  finish_reason=stop | tokens: prompt=386 completion=25 | took 0.7s
+  finish_reason=stop | tokens: prompt=365 completion=28 | took 0.6s
+  finish_reason=stop | tokens: prompt=3433 completion=594 | took 14.3s
+  finish_reason=stop | tokens: prompt=3620 completion=620 | took 15.1s
+  finish_reason=stop | tokens: prompt=2981 completion=554 | took 13.2s
+  finish_reason=stop | tokens: prompt=3514 completion=771 | took 18.5s
+  finish_reason=stop | tokens: prompt=3824 completion=464 | took 11.9s
+  finish_reason=stop | tokens: prompt=5311 completion=670 | took 17.7s
+  finish_reason=stop | tokens: prompt=3007 completion=631 | took 14.9s
+  finish_reason=stop | tokens: prompt=3311 completion=688 | took 16.3s
+  finish_reason=stop | tokens: prompt=4479 completion=677 | took 17.3s
+  finish_reason=stop | tokens: prompt=486 completion=30 | took 0.8s
+  finish_reason=stop | tokens: prompt=3215 completion=496 | took 12.1s
+  finish_reason=stop | tokens: prompt=392 completion=27 | took 0.8s
+  finish_reason=stop | tokens: prompt=6160 completion=718 | took 19.4s
+  finish_reason=stop | tokens: prompt=7297 completion=632 | took 19.1s
+  finish_reason=stop | tokens: prompt=4866 completion=619 | took 16.3s
+  finish_reason=stop | tokens: prompt=1962 completion=280 | took 6.8s
+Wrote 4637 entries to /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/unseen_three_pass_20260815/mushoku23.json

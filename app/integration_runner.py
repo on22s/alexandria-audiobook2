@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from chunk_quality import validate_chunk_quality
 from config_settings import load_app_config
-from core import CONFIG_PATH
+from core import CONFIG_PATH, llm_timeout_seconds
 from generate_script import LLMGenParams, process_chunk
 from lmstudio_settings import ensure_ideal_settings
 from utils import atomic_json_write
@@ -61,7 +61,8 @@ def run_manifest(manifest, output_path, limit=None):
     _, status, heal_message = ensure_ideal_settings(
         config.get("llm_mode", "local"), base_url, model,
         ssh_alias=config.get("llm_remote_ssh"))
-    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     params = LLMGenParams(
         system_prompt=prompts.get("system_prompt"),
         user_prompt_template=prompts.get("user_prompt"),

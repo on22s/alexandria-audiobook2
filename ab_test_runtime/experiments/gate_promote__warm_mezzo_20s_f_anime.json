@@ -5,5 +5,27 @@
  "generation_failures": 0,
  "threshold": 0.45,
  "passed": true,
- "verdict": "PASS - the adapter sounds like its narrator (0.632)"
+ "verdict": "PASS - the adapter sounds like its narrator (0.632)",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-18T11:01:27",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "223e3955c0a41c7f3e941ee35a5ab132fc15c9f4",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "26c5be024122c65a57d7bdda7ec830c0124b33a59090e20f60663d25556c2070"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch6/warm_mezzo_20s_f_anime/adapter",
+   "dataset": "ab_test_runtime/decontaminate/batch6/warm_mezzo_20s_f_anime/data",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/gate_promote__warm_mezzo_20s_f_anime.json"
+  },
+  "seed": 1234
+ }
 }

@@ -57,6 +57,7 @@ The original file is never modified.
 import argparse
 import json
 import os
+from core import llm_timeout_seconds
 import re
 import sys
 import unicodedata
@@ -167,6 +168,7 @@ def main():
     llm = get_active_llm_config(config)
     model_name = llm.get("model_name")
     client = OpenAI(base_url=llm.get("base_url"),
+                    timeout=llm_timeout_seconds(),
                     api_key=llm.get("api_key") or "local")
     print(f"  endpoint {llm.get('base_url')} model {model_name}")
 

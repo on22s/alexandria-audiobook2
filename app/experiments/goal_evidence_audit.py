@@ -67,7 +67,14 @@ def parse_goals(path):
             continue
         if current is None:
             continue
-        current["cited"] += re.findall(r"`([a-z0-9_]+\.json)`", line)
+        # HYPHENS COUNT. The first pattern was [a-z0-9_]+, which cannot see
+        # any artifact whose name carries a model or endpoint - and that is
+        # most of them: pdnc_evidence__pilot__local-llamacpp.json,
+        # closed_set__grimgar03__mistralai__magistral-small__local-llamacpp.json.
+        # Citations were added to goal 1.3 on 2026-08-18 and the audit went on
+        # reporting "cites none", which reads as missing evidence rather than
+        # as a scanner that cannot spell.
+        current["cited"] += re.findall(r"`([A-Za-z0-9_.-]+\.json)`", line)
     for goal in goals:
         goal["cited"] = sorted(set(goal["cited"]))
     return goals
@@ -79,7 +86,13 @@ def main():
     ap.add_argument("--audit", default=os.path.join(
         REPO, "ab_test_runtime", "audit", "artifact_structural_audit.json"))
     ap.add_argument("--out", default=os.path.join(
-        REPO, "ab_test_runtime", "experiments", "goal_evidence_audit.json"))
+        # audit/, NOT experiments/. This file is an INDEX of the experiments,
+        # and writing it into the directory being indexed made the structural
+        # audit stale the instant refresh_indexes finished: step 1 indexed
+        # experiments/, step 4 then added a tracked file to experiments/, so
+        # `--check` failed on a tree nobody had touched. An index must not be
+        # an input to itself.
+        REPO, "ab_test_runtime", "audit", "goal_evidence_audit.json"))
     args = ap.parse_args()
 
     audit = load_audit(args.audit)

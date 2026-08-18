@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import os
 import unittest
 import json
 from pathlib import Path
@@ -282,3 +283,42 @@ class RollbackRevertsManifestTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EcapaPairPathTest(unittest.TestCase):
+    """Paths must survive the directory change this call makes.
+
+    ecapa_pairs runs its subprocess with cwd=APP, so a relative path the
+    caller handed in is re-resolved against app/. On 2026-08-18 the re-gate
+    chain passed --dataset ab_test_runtime/decontaminate/... from the repo
+    root and all 67 adapters failed identically with "System error" opening
+    clips that were present and readable the whole time - app/ab_test_runtime/
+    was what did not exist. Two GPU hours, zero measurements, and the printed
+    advice ("check the paths") pointed at the datasets rather than at the cwd.
+    """
+
+    def _sent(self, pairs, cwd):
+        from experiments import library_voice_fidelity as lvf
+        with patch("subprocess.run") as run, patch("os.path.exists",
+                                                   return_value=True):
+            run.return_value.returncode = 0
+            run.return_value.stdout = "[0.9]"
+            with patch("os.getcwd", return_value=cwd):
+                lvf.ecapa_pairs(pairs, "/usr/bin/python3")
+            return json.loads(run.call_args.kwargs["input"])
+
+    def test_relative_pairs_are_made_absolute_before_the_subprocess(self):
+        sent = self._sent([["data/a.wav", "data/b.wav"]], "/repo")
+        self.assertTrue(all(os.path.isabs(p) for p in sent[0]), sent)
+
+    def test_absolute_pairs_are_unchanged(self):
+        pair = ["/abs/a.wav", "/abs/b.wav"]
+        self.assertEqual(pair, self._sent([pair], "/repo")[0])
+
+    def test_no_pairs_still_returns_a_reason_not_a_silent_empty(self):
+        # A metric that quietly measures nothing is the failure this whole
+        # investigation keeps rediscovering.
+        from experiments import library_voice_fidelity as lvf
+        values, reason = lvf.ecapa_pairs([], "/usr/bin/python3")
+        self.assertEqual([], values)
+        self.assertIsNotNone(reason)

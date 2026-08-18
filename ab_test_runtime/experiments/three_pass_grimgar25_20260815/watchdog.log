@@ -1,0 +1,4 @@
+SAMPLE 2026-08-15T12:52:34Z gpu=5 vram=8 idle=0
+SAMPLE 2026-08-15T12:53:19Z gpu=8 vram=7 idle=0
+SAMPLE 2026-08-15T12:54:19Z gpu=93 vram=92 idle=0
+SAMPLE 2026-08-15T12:55:19Z gpu=93 vram=88 idle=0

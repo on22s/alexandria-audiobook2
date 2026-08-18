@@ -1,4 +1,5 @@
 import os
+from core import llm_timeout_seconds
 import sys
 import json
 import time
@@ -747,7 +748,8 @@ def main():
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"))
     print(heal_msg)
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=base_url, api_key=api_key,
+                    timeout=llm_timeout_seconds())
 
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}

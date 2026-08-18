@@ -1,0 +1,422 @@
+{
+  "schema_version": 1,
+  "mode": "full",
+  "counts": {
+    "passed": 82,
+    "failed": 0,
+    "skipped": 0,
+    "total": 82
+  },
+  "tests": [
+    {
+      "name": "server_reachable",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_config",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_config_roundtrip",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_pause_config_roundtrip",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "pause_config_defaults",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_review_prompts_roundtrip",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_persona_prompts_roundtrip",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_default_prompts",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "system_stats",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "upload_file",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_annotated_script",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_script",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "list_scripts",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "load_script",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "delete_script",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "delete_script_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_voices",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "save_voice_config",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_chunks",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "update_chunk",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "update_chunk_pause_after",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "update_chunk_pause_after_zero",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "update_chunk_pause_after_negative",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "update_chunk_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "insert_chunk",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "insert_chunk_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "delete_chunk",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "delete_chunk_invalid",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "restore_chunk",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "status_known_tasks",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "status_unknown_task",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "preparer_status",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "batch_preparer_status",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "preparer_cancel_when_idle",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "preparer_list_outputs",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "preparer_download_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "batch_preparer_start_schema",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "batch_preparer_cancel",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "voice_design_list",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "voice_design_delete_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "voice_design_preview",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "voice_design_save_and_delete",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "clone_voices_list",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "clone_voices_upload_bad_format",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "clone_voices_delete_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "clone_voices_upload_and_delete",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_list_datasets",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_delete_dataset_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_upload_bad_file",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_list_models",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_download_invalid",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_delete_model_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_train_bad_dataset",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_preview_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "lora_preview",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_list",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_create",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_update_meta",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_update_rows",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_status_traversal",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_status",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_cancel",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_save_no_samples",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_delete",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_delete_404",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "voicelab_save_config_rejects_bad_rocm_python",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "voicelab_save_config_rejects_bad_profiler_model",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "cancel_persona_not_running",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_audiobook",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_audiobook_m4b",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "get_audacity_export",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "gpu_lock_mutual_exclusion",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "generate_script",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "review_script",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "generate_chunk",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "generate_batch",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "generate_batch_fast",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "cancel_audio",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "export_audacity",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "lora_test_model",
+      "requires_full": true,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_generate_sample_traversal",
+      "requires_full": false,
+      "status": "passed"
+    },
+    {
+      "name": "dataset_builder_generate_sample",
+      "requires_full": true,
+      "status": "passed"
+    }
+  ]
+}

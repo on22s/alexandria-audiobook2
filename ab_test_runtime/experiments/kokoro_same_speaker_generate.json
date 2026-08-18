@@ -252,23 +252,45 @@
  "failures": [],
  "provenance": {
   "script": "ljspeech_generate.py",
-  "written": "2026-08-15T15:35:26",
+  "written": "2026-08-17T21:39:05",
   "host": "mitch-linux",
   "git": {
-   "commit": "d750a6c16265f6440b324acbfa838199ca01ab8f",
-   "branch": "agent/gated-adapter-promotion",
+   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "branch": "agent/pause-status-isolation-20260817",
    "dirty": true,
    "modified_tracked_files": [
-    "M GOALS.md",
-    " M RESULTS_INDEX.md",
-    " M results_index.csv"
+    "M ab_test_runtime/experiments/adapter_stop_check_ljspeech.json",
+    " M ab_test_runtime/experiments/aishell3_score.json",
+    " M ab_test_runtime/experiments/anchor_length_probe.json",
+    " M ab_test_runtime/experiments/asr_backends_large__aishell3.json",
+    " M ab_test_runtime/experiments/asr_backends_large__kokoro.json",
+    " M ab_test_runtime/experiments/asr_backends_large__ljspeech.json",
+    " M ab_test_runtime/experiments/asr_ja_cutting_control.json",
+    " M ab_test_runtime/experiments/asr_ja_hypotheses.json",
+    " M ab_test_runtime/experiments/asr_ja_largev3_hybrid.json",
+    " M ab_test_runtime/experiments/asr_ja_largev3_readings.json",
+    " M ab_test_runtime/experiments/asr_ja_reader__botchan-by-soseki-natsume-2.json",
+    " M ab_test_runtime/experiments/asr_ja_reader__gan-by-ogai-mori.json",
+    " M ab_test_runtime/experiments/asr_ja_reader__kouyahijiri-by-kyoka-izumi.json",
+    " M ab_test_runtime/experiments/asr_ja_reader__kusamakura-by-soseki-natsume.json",
+    " M ab_test_runtime/experiments/asr_ja_readings.json",
+    " M ab_test_runtime/experiments/asr_ja_trimmed.json",
+    " M ab_test_runtime/experiments/asr_silero_whisper_ja_confirmation.json",
+    " M ab_test_runtime/experiments/asr_silero_whisper_ja_offset20.json",
+    " M ab_test_runtime/experiments/crossbook_normalization_pilot.json",
+    " M ab_test_runtime/experiments/dataset_ref_audit.json",
+    " M ab_test_runtime/experiments/dataset_speaker_consistency.json",
+    " M ab_test_runtime/experiments/dataset_speaker_consistency_n10.json",
+    " M ab_test_runtime/experiments/duration_length_intervention.json",
+    " M ab_test_runtime/experiments/duration_outlier_analysis.json",
+    " M ab_test_runtime/experiments/epub_extraction_fidelity.json",
+    " M ab_test_runtime/experiments/expected_prosody_ja.json",
+    " M ab_test_runtime/experiments/expected_prosody_ja_n200.json",
+    " M ab_test_runtime/experiments/expected_prosody_zh.json",
+    " M ab_test_runtime/experiments/expected_prosody_zh_n200.json"
    ],
-   "untracked_harness_files": [
-    "app/experiments/generation_state_probe.py",
-    "app/experiments/kokoro_same_speaker_build.py",
-    "app/experiments/three_pass_chunk_probe.py"
-   ],
-   "harness_sha256": "5ecb39b2e961bcc218a21b1c00d76c3b7feeb8ea1549aee013174929745d2cf3"
+   "untracked_harness_files": null,
+   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",

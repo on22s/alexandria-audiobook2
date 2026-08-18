@@ -44,7 +44,25 @@ def _git_state(repo):
     # Untracked notes and scratch files do not change behaviour; modified
     # tracked files do. Reporting the former as "dirty" made the flag useless -
     # it was true on every run because three markdown drafts sat in the tree.
-    modified = run("git", "status", "--porcelain", "--untracked-files=no")
+    # OUTPUTS ARE NOT INPUT DIRT. A run that rewrites artifacts - which is
+    # replay_dirty_evidence's entire job - modifies tracked files, so from its
+    # second artifact onward it stamped dirty=True on evidence it had produced
+    # in order to BE clean, and gpu_job.sh refused every job behind it (80
+    # minutes idle, 2026-08-18). What provenance needs is "is the CODE that
+    # produced this committed", not "did anything at all change".
+    #
+    # DVC makes this split structural: a stage declares deps (inputs, script
+    # included) and outs, and dvc.lock hashes them SEPARATELY, so a rewritten
+    # output can never look like a changed input. Sacred, whose provenance
+    # block this most resembles, calls a bare repo.is_dirty() with no path
+    # filter - the same defect - and does not rely on it: what it trusts is
+    # the per-file hash of the sources that actually ran.
+    #
+    # So the excluded half is paid for, not dropped: `read_inputs` below hashes
+    # the artifacts a run READ, which catches a locally-edited baseline that
+    # this flag could only ever report as an anonymous "something changed".
+    modified = run("git", "status", "--porcelain", "--untracked-files=no",
+                   "--", ":(exclude)ab_test_runtime/experiments/*.json")
     # An untracked harness is the dangerous case, and the first version missed
     # it: a new experiment script is untracked while it runs, so the tree
     # reported clean and the artifact claimed a commit that did not contain the
@@ -104,11 +122,76 @@ def lmstudio_state(model_name):
     return state
 
 
+
+def completeness(path_or_doc):
+    """-> "complete" | "partial" | "unknown" for an artifact.
+
+    ONE definition, because three readers need it and a fourth will. A
+    checkpointed artifact is written every few items, so an interrupted run
+    leaves a file indistinguishable by eye from a finished one - the n1200
+    respelling block was killed at 1129 of 1200 and committed as evidence.
+
+    Truncation is BIASED, not merely small, wherever items are ordered: in the
+    respelling runs terms come in book-count order, so the missing tail is the
+    rarest words - the ones a pronunciation lexicon exists for.
+
+    Snakemake refuses to proceed on an incomplete output (IncompleteFilesException)
+    and Spark expects readers to check the _SUCCESS marker rather than the data
+    files. "unknown" is a third answer for artifacts written before the status
+    field existed: it warns, because refusing every older artifact would be a
+    worse failure than reading one.
+    """
+    if isinstance(path_or_doc, dict):
+        doc = path_or_doc
+    else:
+        with open(path_or_doc, encoding="utf-8") as handle:
+            doc = json.load(handle)
+    status = doc.get("status")
+    if status in ("complete", "partial"):
+        return status
+    results, requested = doc.get("results"), doc.get("candidates_considered")
+    if isinstance(results, list) and isinstance(requested, int):
+        return "complete" if len(results) >= requested else "partial"
+    return "unknown"
+
+
+def read_inputs(paths, repo):
+    """-> {relative path: sha256} for the artifacts a run READ.
+
+    THE OTHER HALF OF EXCLUDING OUTPUTS FROM THE DIRTY FLAG. Artifacts are not
+    only outputs: 16 scripts here read a committed artifact as input, and the
+    -eh baseline every e-row comparison pairs against is one of them. Dropping
+    them from the tree check without this would trade a noisy guard for none.
+
+    It is also strictly better than what it replaces. `dirty: true` said
+    "something in the tree changed" and named no file a reader could check; a
+    hash per input says WHICH input, and lets a later reader confirm the
+    baseline they hold is the one that produced the number. That is the
+    gold_sha256 pattern already in this file, generalised - and DVC's `deps`
+    hashing, arrived at the same way.
+
+    Missing and unreadable inputs are recorded rather than skipped: a run
+    scored against a file that was not there is a result about nothing, and
+    silence is how that becomes a number nobody questions.
+    """
+    recorded = {}
+    for path in paths or ():
+        if not path:
+            continue
+        key = os.path.relpath(path, repo)
+        try:
+            with open(path, "rb") as handle:
+                recorded[key] = hashlib.sha256(handle.read()).hexdigest()
+        except OSError as exc:
+            recorded[key] = f"unreadable: {type(exc).__name__}"
+    return recorded
+
+
 class ExperimentRecord:
     """Collect per-line records, then write one self-describing artifact."""
 
     def __init__(self, name, repo, model_name, base_url, gold_path,
-                 decoding, notes="", environment=None):
+                 decoding, notes="", environment=None, inputs=None):
         """environment: pass a captured state to skip the live query. Real runs
         leave it None so a missing environment aborts before any GPU time is
         spent; tests supply one so they need no server."""
@@ -129,6 +212,10 @@ class ExperimentRecord:
             "gold_path": os.path.relpath(gold_path, repo),
             "gold_sha256": hashlib.sha256(gold_bytes).hexdigest(),
             "gold_lines": len(json.loads(gold_bytes)["entries"]),
+            # Empty when a run reads nothing but its gold; never absent, so
+            # "this run declared no inputs" and "this artifact predates the
+            # field" stay distinguishable.
+            "read_inputs": read_inputs(inputs, repo),
         }
         self.rows = []
 

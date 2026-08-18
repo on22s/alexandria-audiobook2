@@ -1,0 +1,831 @@
+{
+  "fingerprint": {
+    "source_sha256": "9a5f20b9bbc9d631f29cd8382084edddc4c3150a94b9cdaaca9738224c749e39",
+    "settings_sha256": "9767ec76efd6cae0e17aecd72565aeef5e970ae1fa05569547733d6ae0ae7b1f",
+    "model_name": "qwen3-14b",
+    "pipeline": "three_pass"
+  },
+  "stage": "done",
+  "chunks_done": 1,
+  "segmented": [
+    {
+      "type": "NARRATOR",
+      "text": "Then there was Akira-san and his group on top of that, so it was a real mess. It was like a little—no, that’s a lie, a huge—festival was created on the spot.\n\nIt was decided they’d go for food and some drinks in the back streets, but Haruhiro and the party were all so tense, they couldn’t say much of anything. Even though it was so loud with all of the onlookers, even Ranta was as quiet as could be.\n\nMeanwhile, Soma and Akira-san’s groups were both, with some exceptions, friendly and welcoming, so everyone got used to it eventually. Where’ve you been? What’ve you been up to? They got to the point where they would have been able to ask those questions.\n\nUntil the Tokkis barged in, that was."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Hey, Soma."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Tokimune was easygoing."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Yo."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Tada was brusque."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Heh..."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Inui made no sense."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Here’s Anna-san, yeah!"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Anna-san was her usual Anna-san self."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Hey."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Mimorin waved one hand."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "H-Heya, heya, heeeeya!"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Kikkawa was the only one whose voice cracked a little.\n\nWhen the Tokkis came in making a racket, Akira-san looked amused. He said,"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Oh, yeah, come to think of it—"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "and brought up that topic."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "I hear there’s something interesting going on in the Dusk Realm that Haruhiro-kun, Tokimune-kun, and their group found a little while back."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Soma chewed his meat for a while, then swallowed."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Something interesting?"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "he responded."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "I’d like to hear what it is."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "How about it?"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Akira-san asked."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Why don’t we all go check it out together?"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Let’s."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "That was fast..."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Haruhiro murmured under his breath without meaning to."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Hm?"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Soma’s eyes opened wide with surprise and he looked at Haruhiro."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "What was fast?"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Nothing,"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Haruhiro said, flustered."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Uh, let’s see, how fast you decided, how instantly..."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "It’s a real problem,"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Lilia said with a look of exasperation on her nonetheless all-too-beautiful face."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "I know I always say this, but please, consider your current position and act with prudence, Soma. You are too impulsive at times."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Ooh, she’s mad."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Shima gave a sexy little laugh."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Well, yeah."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Kemuri rubbed his cheek. He had been clean-shaven the last time they’d met, but now his beard had grown a fair bit. It matched his dreadlocks well."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Still, that does work in our favor sometimes."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "It’s because he’s an idiot,"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Pingo said, narrowing his eyes in a way that didn’t suit his childlike face."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Uheheh... Poor thought resembles rest, and so an idiot’s thoughts seem to be at rest... In the end, he’s an idiot, so it’s pointless for him to think. There’s no medicine to cure stupidity..."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "I wish there was a cure."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Soma looked down, as if in thought, then his head snapped back up with a sudden realization."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "I’m an idiot?"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Did you think you weren’t?"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Pingo asked."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Uheheheh..."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Pingo."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Lilia gave him the side-eye."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "You’re going too far. We elves have a saying: Be courteous even among close friends, and—"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Well, I don’t see the harm, Lilia,"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Soma said placatingly.\n\nLilia’s cheeks burned crimson with anger."
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Who do you think I’m saying this for?!"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Who?"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Huh...? Th-That’s, um... B-Basically..."
+    },
+    {
+      "type": "NARRATOR",
+      "text": "The way Lilia fidgeted around was incredibly cute. It was a salve for sore eyes, but it didn’t comfort Haruhiro’s heart. That was because Tokimune’s scheme had succeeded. Just succeeded? No, it had found an unbelievably great success. Soma, Akira-san, and the Day Breakers were all going to invade the Dusk Realm, it seemed.\n\nThe rumors raced around the Lonesome Field Outpost, spreading at an incredible speed.\n\nMe, too! Me, too! People hastened to join.\n\nIncredibly, by the end of that night, messengers from"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "One-on-One"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Max of Iron Knuckle, and"
+    },
+    {
+      "type": "SPOKEN",
+      "text": "Red Devil"
+    },
+    {
+      "type": "NARRATOR",
+      "text": "Ducky of the Berserkers arrived. On the next morning as they were preparing to depart, Shinohara of Orion came to meet with Soma directly.\n\nNow that things had become such a big deal, Nah, I think we’re gonna sit this one out— was something Haruhiro didn’t have the guts to say. After all, Soma of the Day Breakers was saying he was going to do it. Haruhiro was part of the Day Breakers, the clan Soma had founded. Even if they were at the very bottom, they were comrades.\n\nHe couldn’t say it. Couldn’t say, No way. We can’t do it. It would be pathetic, embarrassing, and he would disappoint Soma and the others. He didn’t want them to look down on him.\n\nIgnoring the Tokkis for the moment, if Soma’s party, Akira-san’s party, Iron Knuckle, the Berserkers, and Orion were all taking part, it might not be that dangerous for them, after all. It was hard to deny that this thought had begun to take root in Haruhiro’s mind.\n\nWell, I’m curious, too. It would be a lie to say I’m not.\n\nWhen not only the current and former strongest volunteer soldiers, but also a number of famous clans gathered, what would happen? How would they fight? What sort of scenes would unfold there? Just how much higher of a level were all of them on?\n\nYeah, I want to see that. If we could just watch, honestly, I’d give anything to see it. It’d be a waste not to.\n\nHowever, Haruhiro and the others just so happened to be in the Day Breakers. They couldn’t get away with just watching. They’d need to do something. He couldn’t ask for them to be left out because they were pitifully weak, no matter how much he might have wanted to.\n\nBut what can we do?\n\nAt ten o’clock in the morning, a total of twenty-four people entered the Dusk Realm: eighteen members of the Day Breakers (Soma’s party, Akira-san’s party, and Haruhiro’s party), plus the Tokkis.\n\nWhile standing on the initial hill and looking to the giant god and that mysterious, massive white creature, Haruhiro thought about the situation.\n\nNo, he had been thinking for a while now.\n\nBefore long, Iron Knuckle, the Berserkers, and Orion would catch up with them. When that happened, these guys might start the fight right away.\n\nOne of the hunting skills Yume had acquired had given him the hint he needed.\n\nPit Trap."
+    }
+  ],
+  "named": [
+    {
+      "speaker": "NARRATOR",
+      "text": "Then there was Akira-san and his group on top of that, so it was a real mess. It was like a little—no, that’s a lie, a huge—festival was created on the spot.\n\nIt was decided they’d go for food and some drinks in the back streets, but Haruhiro and the party were all so tense, they couldn’t say much of anything. Even though it was so loud with all of the onlookers, even Ranta was as quiet as could be.\n\nMeanwhile, Soma and Akira-san’s groups were both, with some exceptions, friendly and welcoming, so everyone got used to it eventually. Where’ve you been? What’ve you been up to? They got to the point where they would have been able to ask those questions.\n\nUntil the Tokkis barged in, that was."
+    },
+    {
+      "text": "Hey, Soma.",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Tokimune was easygoing."
+    },
+    {
+      "text": "Yo.",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Tada was brusque."
+    },
+    {
+      "text": "Heh...",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Inui made no sense."
+    },
+    {
+      "text": "Here’s Anna-san, yeah!",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Anna-san was her usual Anna-san self."
+    },
+    {
+      "text": "Hey.",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Mimorin waved one hand."
+    },
+    {
+      "text": "H-Heya, heya, heeeeya!",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Kikkawa was the only one whose voice cracked a little.\n\nWhen the Tokkis came in making a racket, Akira-san looked amused. He said,"
+    },
+    {
+      "text": "Oh, yeah, come to think of it—",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "and brought up that topic."
+    },
+    {
+      "text": "I hear there’s something interesting going on in the Dusk Realm that Haruhiro-kun, Tokimune-kun, and their group found a little while back.",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma chewed his meat for a while, then swallowed."
+    },
+    {
+      "text": "Something interesting?",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "he responded."
+    },
+    {
+      "text": "I’d like to hear what it is.",
+      "speaker": "SOMA"
+    },
+    {
+      "text": "How about it?",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Akira-san asked."
+    },
+    {
+      "text": "Why don’t we all go check it out together?",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "text": "Let’s.",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "text": "That was fast...",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Haruhiro murmured under his breath without meaning to."
+    },
+    {
+      "text": "Hm?",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma’s eyes opened wide with surprise and he looked at Haruhiro."
+    },
+    {
+      "text": "What was fast?",
+      "speaker": "SOMA"
+    },
+    {
+      "text": "Nothing,",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Haruhiro said, flustered."
+    },
+    {
+      "text": "Uh, let’s see, how fast you decided, how instantly...",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "text": "It’s a real problem,",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Lilia said with a look of exasperation on her nonetheless all-too-beautiful face."
+    },
+    {
+      "text": "I know I always say this, but please, consider your current position and act with prudence, Soma. You are too impulsive at times.",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "text": "Ooh, she’s mad.",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Shima gave a sexy little laugh."
+    },
+    {
+      "text": "Well, yeah.",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Kemuri rubbed his cheek. He had been clean-shaven the last time they’d met, but now his beard had grown a fair bit. It matched his dreadlocks well."
+    },
+    {
+      "text": "Still, that does work in our favor sometimes.",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "text": "It’s because he’s an idiot,",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Pingo said, narrowing his eyes in a way that didn’t suit his childlike face."
+    },
+    {
+      "text": "Uheheh... Poor thought resembles rest, and so an idiot’s thoughts seem to be at rest... In the end, he’s an idiot, so it’s pointless for him to think. There’s no medicine to cure stupidity...",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "text": "I wish there was a cure.",
+      "speaker": "UNKNOWN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma looked down, as if in thought, then his head snapped back up with a sudden realization."
+    },
+    {
+      "text": "I’m an idiot?",
+      "speaker": "SOMA"
+    },
+    {
+      "text": "Did you think you weren’t?",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Pingo asked."
+    },
+    {
+      "text": "Uheheheh...",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "text": "Pingo.",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Lilia gave him the side-eye."
+    },
+    {
+      "text": "You’re going too far. We elves have a saying: Be courteous even among close friends, and—",
+      "speaker": "LILIA"
+    },
+    {
+      "text": "Well, I don’t see the harm, Lilia,",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma said placatingly.\n\nLilia’s cheeks burned crimson with anger."
+    },
+    {
+      "text": "Who do you think I’m saying this for?!",
+      "speaker": "LILIA"
+    },
+    {
+      "text": "Who?",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "text": "Huh...? Th-That’s, um... B-Basically...",
+      "speaker": "HARUHIRO"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "The way Lilia fidgeted around was incredibly cute. It was a salve for sore eyes, but it didn’t comfort Haruhiro’s heart. That was because Tokimune’s scheme had succeeded. Just succeeded? No, it had found an unbelievably great success. Soma, Akira-san, and the Day Breakers were all going to invade the Dusk Realm, it seemed.\n\nThe rumors raced around the Lonesome Field Outpost, spreading at an incredible speed.\n\nMe, too! Me, too! People hastened to join.\n\nIncredibly, by the end of that night, messengers from"
+    },
+    {
+      "text": "One-on-One",
+      "speaker": "AKIRA-SAN"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Max of Iron Knuckle, and"
+    },
+    {
+      "text": "Red Devil",
+      "speaker": "SOMA"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Ducky of the Berserkers arrived. On the next morning as they were preparing to depart, Shinohara of Orion came to meet with Soma directly.\n\nNow that things had become such a big deal, Nah, I think we’re gonna sit this one out— was something Haruhiro didn’t have the guts to say. After all, Soma of the Day Breakers was saying he was going to do it. Haruhiro was part of the Day Breakers, the clan Soma had founded. Even if they were at the very bottom, they were comrades.\n\nHe couldn’t say it. Couldn’t say, No way. We can’t do it. It would be pathetic, embarrassing, and he would disappoint Soma and the others. He didn’t want them to look down on him.\n\nIgnoring the Tokkis for the moment, if Soma’s party, Akira-san’s party, Iron Knuckle, the Berserkers, and Orion were all taking part, it might not be that dangerous for them, after all. It was hard to deny that this thought had begun to take root in Haruhiro’s mind.\n\nWell, I’m curious, too. It would be a lie to say I’m not.\n\nWhen not only the current and former strongest volunteer soldiers, but also a number of famous clans gathered, what would happen? How would they fight? What sort of scenes would unfold there? Just how much higher of a level were all of them on?\n\nYeah, I want to see that. If we could just watch, honestly, I’d give anything to see it. It’d be a waste not to.\n\nHowever, Haruhiro and the others just so happened to be in the Day Breakers. They couldn’t get away with just watching. They’d need to do something. He couldn’t ask for them to be left out because they were pitifully weak, no matter how much he might have wanted to.\n\nBut what can we do?\n\nAt ten o’clock in the morning, a total of twenty-four people entered the Dusk Realm: eighteen members of the Day Breakers (Soma’s party, Akira-san’s party, and Haruhiro’s party), plus the Tokkis.\n\nWhile standing on the initial hill and looking to the giant god and that mysterious, massive white creature, Haruhiro thought about the situation.\n\nNo, he had been thinking for a while now.\n\nBefore long, Iron Knuckle, the Berserkers, and Orion would catch up with them. When that happened, these guys might start the fight right away.\n\nOne of the hunting skills Yume had acquired had given him the hint he needed.\n\nPit Trap."
+    }
+  ],
+  "annotated": [
+    {
+      "speaker": "NARRATOR",
+      "text": "Then there was Akira-san and his group on top of that, so it was a real mess. It was like a little—no, that’s a lie, a huge—festival was created on the spot.\n\nIt was decided they’d go for food and some drinks in the back streets, but Haruhiro and the party were all so tense, they couldn’t say much of anything. Even though it was so loud with all of the onlookers, even Ranta was as quiet as could be.\n\nMeanwhile, Soma and Akira-san’s groups were both, with some exceptions, friendly and welcoming, so everyone got used to it eventually. Where’ve you been? What’ve you been up to? They got to the point where they would have been able to ask those questions.\n\nUntil the Tokkis barged in, that was.",
+      "instruct": "Neutral, even narration with a slightly exasperated tone."
+    },
+    {
+      "text": "Hey, Soma.",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, low-volume greeting, as if calling out to someone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Tokimune was easygoing.",
+      "instruct": "Neutral, even narration with a calm and easygoing tone."
+    },
+    {
+      "text": "Yo.",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, short and abrupt, like a friend calling out."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Tada was brusque.",
+      "instruct": "Neutral, even narration with a blunt and direct tone."
+    },
+    {
+      "text": "Heh...",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, hesitant and awkward, like someone unsure how to proceed."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Inui made no sense.",
+      "instruct": "Neutral, even narration with a confused and nonsensical tone."
+    },
+    {
+      "text": "Here’s Anna-san, yeah!",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, excited and enthusiastic, like introducing someone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Anna-san was her usual Anna-san self.",
+      "instruct": "Neutral, even narration with a calm and familiar tone."
+    },
+    {
+      "text": "Hey.",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, short and friendly, like greeting a friend."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Mimorin waved one hand.",
+      "instruct": "Neutral, even narration with a casual and relaxed tone."
+    },
+    {
+      "text": "H-Heya, heya, heeeeya!",
+      "speaker": "UNKNOWN",
+      "instruct": "Casual, nervous and hesitant, with a stutter."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Kikkawa was the only one whose voice cracked a little.\n\nWhen the Tokkis came in making a racket, Akira-san looked amused. He said,",
+      "instruct": "Neutral, even narration with a slightly amused and observational tone."
+    },
+    {
+      "text": "Oh, yeah, come to think of it—",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Casual, conversational and slightly hesitant, like starting a topic."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "and brought up that topic.",
+      "instruct": "Neutral, even narration with a calm and informative tone."
+    },
+    {
+      "text": "I hear there’s something interesting going on in the Dusk Realm that Haruhiro-kun, Tokimune-kun, and their group found a little while back.",
+      "speaker": "SOMA",
+      "instruct": "Casual, conversational and slightly formal, like sharing news."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma chewed his meat for a while, then swallowed.",
+      "instruct": "Neutral, even narration with a descriptive and observational tone."
+    },
+    {
+      "text": "Something interesting?",
+      "speaker": "SOMA",
+      "instruct": "Casual, questioning and curious, like asking for more information."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "he responded.",
+      "instruct": "Neutral, even narration with a direct and responsive tone."
+    },
+    {
+      "text": "I’d like to hear what it is.",
+      "speaker": "SOMA",
+      "instruct": "Casual, curious and interested, like asking for details."
+    },
+    {
+      "text": "How about it?",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Neutral, even narration with a conversational and inquisitive tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Akira-san asked.",
+      "instruct": "Casual, friendly and inviting, like suggesting an activity."
+    },
+    {
+      "text": "Why don’t we all go check it out together?",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Casual, quick and decisive, like agreeing to a plan."
+    },
+    {
+      "text": "Let’s.",
+      "speaker": "HARUHIRO",
+      "instruct": "Casual, surprised and slightly hesitant, like reacting to a suggestion."
+    },
+    {
+      "text": "That was fast...",
+      "speaker": "HARUHIRO",
+      "instruct": "Neutral, even narration with a quiet and reflective tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Haruhiro murmured under his breath without meaning to.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Hm?",
+      "speaker": "HARUHIRO",
+      "instruct": "Confused, hesitant tone with a short pause after 'Hm?'"
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma’s eyes opened wide with surprise and he looked at Haruhiro.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "What was fast?",
+      "speaker": "SOMA",
+      "instruct": "Curious, questioning tone."
+    },
+    {
+      "text": "Nothing,",
+      "speaker": "HARUHIRO",
+      "instruct": "Defeated, reluctant tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Haruhiro said, flustered.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Uh, let’s see, how fast you decided, how instantly...",
+      "speaker": "HARUHIRO",
+      "instruct": "Nervous, stumbling over words."
+    },
+    {
+      "text": "It’s a real problem,",
+      "speaker": "HARUHIRO",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Lilia said with a look of exasperation on her nonetheless all-too-beautiful face.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "I know I always say this, but please, consider your current position and act with prudence, Soma. You are too impulsive at times.",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Authoritative, calm, and slightly reprimanding tone."
+    },
+    {
+      "text": "Ooh, she’s mad.",
+      "speaker": "SOMA",
+      "instruct": "Playful, teasing tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Shima gave a sexy little laugh.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Well, yeah.",
+      "speaker": "SOMA",
+      "instruct": "Casual, dismissive tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Kemuri rubbed his cheek. He had been clean-shaven the last time they’d met, but now his beard had grown a fair bit. It matched his dreadlocks well.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Still, that does work in our favor sometimes.",
+      "speaker": "UNKNOWN",
+      "instruct": "Sarcastic, mocking tone."
+    },
+    {
+      "text": "It’s because he’s an idiot,",
+      "speaker": "UNKNOWN",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Pingo said, narrowing his eyes in a way that didn’t suit his childlike face.",
+      "instruct": "Mocking, mocking tone with a slow, deliberate delivery."
+    },
+    {
+      "text": "Uheheh... Poor thought resembles rest, and so an idiot’s thoughts seem to be at rest... In the end, he’s an idiot, so it’s pointless for him to think. There’s no medicine to cure stupidity...",
+      "speaker": "UNKNOWN",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "I wish there was a cure.",
+      "speaker": "UNKNOWN",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma looked down, as if in thought, then his head snapped back up with a sudden realization.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "I’m an idiot?",
+      "speaker": "SOMA",
+      "instruct": "Accusing, sarcastic tone."
+    },
+    {
+      "text": "Did you think you weren’t?",
+      "speaker": "HARUHIRO",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Pingo asked.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Uheheheh...",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Mocking, teasing tone."
+    },
+    {
+      "text": "Pingo.",
+      "speaker": "HARUHIRO",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Lilia gave him the side-eye.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "You’re going too far. We elves have a saying: Be courteous even among close friends, and—",
+      "speaker": "LILIA",
+      "instruct": "Voice of Lilia, sharp and reprimanding, with a hint of indignation."
+    },
+    {
+      "text": "Well, I don’t see the harm, Lilia,",
+      "speaker": "SOMA",
+      "instruct": "Voice of Soma, calm and conciliatory, trying to ease the tension."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Soma said placatingly.\n\nLilia’s cheeks burned crimson with anger.",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Who do you think I’m saying this for?!",
+      "speaker": "LILIA",
+      "instruct": "Voice of Lilia, exasperated and raising her voice slightly."
+    },
+    {
+      "text": "Who?",
+      "speaker": "HARUHIRO",
+      "instruct": "Voice of Haruhiro, confused and hesitant, with a stutter."
+    },
+    {
+      "text": "Huh...? Th-That’s, um... B-Basically...",
+      "speaker": "HARUHIRO",
+      "instruct": "Voice of Haruhiro, still hesitant but slightly more composed."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "The way Lilia fidgeted around was incredibly cute. It was a salve for sore eyes, but it didn’t comfort Haruhiro’s heart. That was because Tokimune’s scheme had succeeded. Just succeeded? No, it had found an unbelievably great success. Soma, Akira-san, and the Day Breakers were all going to invade the Dusk Realm, it seemed.\n\nThe rumors raced around the Lonesome Field Outpost, spreading at an incredible speed.\n\nMe, too! Me, too! People hastened to join.\n\nIncredibly, by the end of that night, messengers from",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "One-on-One",
+      "speaker": "AKIRA-SAN",
+      "instruct": "Voice of Akira-san, firm and direct, with a commanding tone."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Max of Iron Knuckle, and",
+      "instruct": "Neutral, even narration."
+    },
+    {
+      "text": "Red Devil",
+      "speaker": "SOMA",
+      "instruct": "Voice of Soma, bold and confident, with a hint of bravado."
+    },
+    {
+      "speaker": "NARRATOR",
+      "text": "Ducky of the Berserkers arrived. On the next morning as they were preparing to depart, Shinohara of Orion came to meet with Soma directly.\n\nNow that things had become such a big deal, Nah, I think we’re gonna sit this one out— was something Haruhiro didn’t have the guts to say. After all, Soma of the Day Breakers was saying he was going to do it. Haruhiro was part of the Day Breakers, the clan Soma had founded. Even if they were at the very bottom, they were comrades.\n\nHe couldn’t say it. Couldn’t say, No way. We can’t do it. It would be pathetic, embarrassing, and he would disappoint Soma and the others. He didn’t want them to look down on him.\n\nIgnoring the Tokkis for the moment, if Soma’s party, Akira-san’s party, Iron Knuckle, the Berserkers, and Orion were all taking part, it might not be that dangerous for them, after all. It was hard to deny that this thought had begun to take root in Haruhiro’s mind.\n\nWell, I’m curious, too. It would be a lie to say I’m not.\n\nWhen not only the current and former strongest volunteer soldiers, but also a number of famous clans gathered, what would happen? How would they fight? What sort of scenes would unfold there? Just how much higher of a level were all of them on?\n\nYeah, I want to see that. If we could just watch, honestly, I’d give anything to see it. It’d be a waste not to.\n\nHowever, Haruhiro and the others just so happened to be in the Day Breakers. They couldn’t get away with just watching. They’d need to do something. He couldn’t ask for them to be left out because they were pitifully weak, no matter how much he might have wanted to.\n\nBut what can we do?\n\nAt ten o’clock in the morning, a total of twenty-four people entered the Dusk Realm: eighteen members of the Day Breakers (Soma’s party, Akira-san’s party, and Haruhiro’s party), plus the Tokkis.\n\nWhile standing on the initial hill and looking to the giant god and that mysterious, massive white creature, Haruhiro thought about the situation.\n\nNo, he had been thinking for a while now.\n\nBefore long, Iron Knuckle, the Berserkers, and Orion would catch up with them. When that happened, these guys might start the fight right away.\n\nOne of the hunting skills Yume had acquired had given him the hint he needed.\n\nPit Trap.",
+      "instruct": "Neutral, even narration."
+    }
+  ],
+  "resolutions": [
+    "quote_presegmented"
+  ],
+  "elapsed_s": {
+    "segment": 0.013375043869018555,
+    "attribute": 124.85324120521545,
+    "instruct": 32.88121294975281
+  },
+  "diagnostic_failures": []
+}

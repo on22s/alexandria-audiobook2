@@ -183,6 +183,35 @@ class ManifestGuardTest(unittest.TestCase):
         self.assertEqual(len(written["rows"]), 2)
 
 
+def stage_index_scripts(tmp):
+    """Copy the whole index generator into a miniature repo, not half of it.
+
+    collect_results.py imports indexable_artifacts from
+    audit_experiment_artifacts so that "which artifacts belong in a checked-in
+    index" has one definition (Rule 15). Staging only collect_results.py made
+    these three tests fail on the import - which is the fixture being wrong,
+    not the code: the real repository has both files.
+
+    The staged directory is deliberately NOT a git repository, so it also
+    exercises the fallback where git cannot answer and every artifact on disk
+    is indexed.
+    """
+    for name in ("collect_results.py", "audit_experiment_artifacts.py"):
+        shutil.copy2(os.path.join(os.path.dirname(APP), name),
+                     os.path.join(tmp, name))
+    # audit_experiment_artifacts imports experiments.manifest for the ONE
+    # definition of "did this run finish" (Rule 15), so the miniature repo
+    # needs that package too. It is stdlib-only, so staging it costs nothing;
+    # what it buys is a fixture that matches the real layout instead of a
+    # trimmed one that breaks whenever a shared helper is introduced.
+    pkg = os.path.join(tmp, "app", "experiments")
+    os.makedirs(pkg, exist_ok=True)
+    for name in ("__init__.py", "manifest.py"):
+        src = os.path.join(APP, "experiments", name)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(pkg, name))
+
+
 class CollectResultsRobustnessTest(unittest.TestCase):
     """The index generator must survive an artifact it does not understand."""
 
@@ -198,8 +227,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
     def test_csv_uses_repository_lf_line_endings(self):
         """CRLF made every newly indexed row fail git diff --check."""
         with tempfile.TemporaryDirectory() as tmp:
-            shutil.copy2(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                         os.path.join(tmp, "collect_results.py"))
+            stage_index_scripts(tmp)
             audit = os.path.join(tmp, "ab_test_runtime", "audit")
             os.makedirs(audit)
             for name in ("artifact_structural_audit.json",
@@ -221,8 +249,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
     def test_results_index_check_fails_when_audit_status_changes(self):
         """CI must reject an index whose evidence label no longer matches its audit."""
         with tempfile.TemporaryDirectory() as tmp:
-            shutil.copy2(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                         os.path.join(tmp, "collect_results.py"))
+            stage_index_scripts(tmp)
             experiments = os.path.join(tmp, "ab_test_runtime", "experiments")
             audit = os.path.join(tmp, "ab_test_runtime", "audit")
             os.makedirs(experiments)
@@ -251,8 +278,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
     def test_results_index_is_independent_of_local_timezone(self):
         """The checked-in index must render identically on local and CI hosts."""
         with tempfile.TemporaryDirectory() as tmp:
-            shutil.copy2(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                         os.path.join(tmp, "collect_results.py"))
+            stage_index_scripts(tmp)
             experiments = os.path.join(tmp, "ab_test_runtime", "experiments")
             audit = os.path.join(tmp, "ab_test_runtime", "audit")
             os.makedirs(experiments)
@@ -276,8 +302,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
 
     def test_tts_provenance_rows_are_not_misindexed_as_attribution(self):
         with tempfile.TemporaryDirectory() as tmp:
-            shutil.copy2(os.path.join(os.path.dirname(APP), "collect_results.py"),
-                         os.path.join(tmp, "collect_results.py"))
+            stage_index_scripts(tmp)
             experiments = os.path.join(tmp, "ab_test_runtime", "experiments")
             audit = os.path.join(tmp, "ab_test_runtime", "audit")
             os.makedirs(experiments)

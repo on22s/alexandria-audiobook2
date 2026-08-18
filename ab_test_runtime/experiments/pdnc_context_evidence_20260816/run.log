@@ -1,0 +1,12 @@
+CAMPAIGN_START 2026-08-16T12:32:14Z commit=cfc844e
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+MODEL_READY 2026-08-16T12:32:24Z pid=1903766
+PILOT_START 2026-08-16T12:32:24Z
+PILOT_FAILED rc=1; resume will reuse its validated checkpoint
+CAMPAIGN_EXIT 2026-08-16T12:35:34Z
+CAMPAIGN_START 2026-08-16T13:40:25Z commit=a230f9a
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+MODEL_READY 2026-08-16T13:40:35Z pid=1927772
+PILOT_START 2026-08-16T13:40:35Z
+PILOT_GATE_FAIL 2026-08-16T13:53:23Z; confirmatory set remains sealed
+CAMPAIGN_EXIT 2026-08-16T13:53:24Z

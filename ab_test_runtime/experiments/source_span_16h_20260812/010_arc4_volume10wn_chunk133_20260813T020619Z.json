@@ -1,0 +1,142 @@
+{
+  "experiment": "source_span_coverage",
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/arc4_volume10wn.txt",
+  "chunk": 133,
+  "total_chunks": 155,
+  "span_count": 81,
+  "model": "qwen3-14b",
+  "temperature": 0.6,
+  "repeats": 3,
+  "arms": [
+    "baseline",
+    "span_ids"
+  ],
+  "runs": [
+    {
+      "repeat": 1,
+      "arm": "baseline",
+      "passed": true,
+      "entry_count": 38,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1042,
+          "source_token_recall": 0.9802,
+          "ordered_trigram_recall": 0.9416,
+          "output_source_ratio": 0.9802
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": null,
+      "seconds": 47.4
+    },
+    {
+      "repeat": 1,
+      "arm": "span_ids",
+      "passed": true,
+      "entry_count": 81,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1053,
+          "source_token_recall": 0.9906,
+          "ordered_trigram_recall": 0.9736,
+          "output_source_ratio": 0.9906
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": [],
+      "seconds": 63.4
+    },
+    {
+      "repeat": 2,
+      "arm": "baseline",
+      "passed": true,
+      "entry_count": 38,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1041,
+          "source_token_recall": 0.9793,
+          "ordered_trigram_recall": 0.9406,
+          "output_source_ratio": 0.9793
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": null,
+      "seconds": 47.2
+    },
+    {
+      "repeat": 2,
+      "arm": "span_ids",
+      "passed": true,
+      "entry_count": 81,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1053,
+          "source_token_recall": 0.9906,
+          "ordered_trigram_recall": 0.9736,
+          "output_source_ratio": 0.9906
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": [],
+      "seconds": 62.3
+    },
+    {
+      "repeat": 3,
+      "arm": "baseline",
+      "passed": true,
+      "entry_count": 38,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1041,
+          "source_token_recall": 0.9793,
+          "ordered_trigram_recall": 0.9406,
+          "output_source_ratio": 0.9793
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": null,
+      "seconds": 47.5
+    },
+    {
+      "repeat": 3,
+      "arm": "span_ids",
+      "passed": true,
+      "entry_count": 81,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1063,
+          "output_tokens": 1034,
+          "source_token_recall": 0.9643,
+          "ordered_trigram_recall": 0.9218,
+          "output_source_ratio": 0.9727
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": [],
+      "seconds": 139.3
+    }
+  ]
+}

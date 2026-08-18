@@ -1,0 +1,69 @@
+{
+ "books": [
+  "mushoku16",
+  "index18"
+ ],
+ "results": [
+  {
+   "book": "mushoku16",
+   "gold_lines": 136,
+   "comparable": 134,
+   "single_entries": 3839,
+   "three_entries": 1896,
+   "single_minutes": 0.0,
+   "three_minutes": 42.9,
+   "single": {
+    "correct": 61,
+    "accuracy": 0.4552238805970149
+   },
+   "three_pass": {
+    "correct": 58,
+    "accuracy": 0.43283582089552236
+   }
+  },
+  {
+   "book": "index18",
+   "gold_lines": 99,
+   "comparable": 79,
+   "single_entries": 3645,
+   "three_entries": 2443,
+   "single_minutes": 0.0,
+   "three_minutes": 57.8,
+   "single": {
+    "correct": 54,
+    "accuracy": 0.6835443037974683
+   },
+   "three_pass": {
+    "correct": 24,
+    "accuracy": 0.3037974683544304
+   }
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "three_pass_vs_single.py",
+  "written": "2026-08-17T15:42:56",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "5513f117d0ede525b245e9ac2131c54b6ed13d04",
+   "branch": "agent/llm-preflight-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "9227afc0400ccc12090789b1cb56325d49a538e98e3639f86f2a411efbacb00a"
+  },
+  "args": {
+   "books": [
+    "mushoku16",
+    "index18"
+   ],
+   "inputs": "ab_test_runtime/results/collect_all_20260722-155801/inputs",
+   "work": "ab_test_runtime/pr308_narration_context_20260816",
+   "timeout": 14400,
+   "reuse_complete": true,
+   "model": "qwen3-14b",
+   "pass2_on_exhaustion": "fallback",
+   "out": "ab_test_runtime/experiments/pr308_narration_context__mushoku16_index18__current.json"
+  }
+ }
+}

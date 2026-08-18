@@ -1,0 +1,6 @@
+CAMPAIGN_START 2026-08-18T01:43:48Z commit=bc69c96
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+MODEL_READY 2026-08-18T01:43:58Z pid=1818377
+PILOT_START 2026-08-18T01:43:58Z
+PILOT_GATE_FAIL 2026-08-18T01:57:10Z; confirmatory set remains sealed
+CAMPAIGN_EXIT 2026-08-18T01:57:11Z

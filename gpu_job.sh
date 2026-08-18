@@ -49,6 +49,91 @@ stamp() { date -u +%FT%TZ; }
 
 echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
 
+# A PENDING MARKER, BECAUSE A WAITING JOB AND A DEAD CHAIN LOOK IDENTICAL.
+# Everything queued behind the lock is just a blocked process; nothing lists
+# it. Twice on 2026-08-18 a chain died leaving "QUEUED x" as the last word in
+# the log, and the queue looked busy while the card sat idle - 80 minutes once,
+# an hour the second time. task-spooler answers this with `ts -l`; this is the
+# poor relation of that, one file per waiting job, removed on exit however the
+# job ends. `gpu_pause.sh status` reads them.
+# OVERRIDABLE, LIKE EVERY OTHER PATH HERE. Hardcoding it meant the test suite
+# wrote markers into the REAL pending directory - four stale entries showed up
+# in `gpu_pause.sh status` within an hour, each claiming a chain had died. That
+# is the fourth variable to leak from the harness into live state after
+# GPU_LOCK, GPU_QLOG and GPU_PAUSE_FLAG; isolated_env pins this one too.
+PENDING_DIR="${GPU_PENDING_DIR:-$(dirname "$0")/ab_test_runtime/logs/pending}"
+mkdir -p "$PENDING_DIR" 2>/dev/null
+PENDING_FILE="$PENDING_DIR/$$.$NAME"
+printf '%s\t%s\t%s\n' "$NAME" "$$" "$(stamp)" > "$PENDING_FILE" 2>/dev/null
+# DEFINED HERE, ABOVE THE TRAP THAT CALLS THEM. bash defines a function when
+# it READS that line, and both of these used to sit below `wait`. A job
+# interrupted while waiting ran the TERM trap, which called log_result - a
+# function bash had not reached yet - so the `type log_result` guard silently
+# declined and no terminal marker was written at all. The guard turned a
+# crash into silence, which is precisely the failure it existed to prevent.
+# NOTIFY WHEN THE CARD GOES IDLE. task-spooler mails you when a job finishes
+# (`ts -m`); pterm push is the local equivalent and this repo had zero uses of
+# it. An idle GPU at 2am should announce itself rather than be discovered
+# hours later by someone reading a log. Only fires when NOTHING is pending -
+# a job finishing with more queued behind it is not idleness.
+#
+# Best-effort by design: no notifier, or a failing one, must never change the
+# job's exit code, so everything here is swallowed.
+notify_if_idle() {
+    local outcome="$1"
+    rm -f "$PENDING_FILE" 2>/dev/null
+    local waiting
+    waiting=$(ls "$PENDING_DIR" 2>/dev/null | wc -l)
+    [ "${waiting:-0}" -gt 0 ] && return 0
+    command -v pterm >/dev/null 2>&1 || return 0
+    pterm push "GPU idle: $NAME $outcome, nothing queued" >/dev/null 2>&1 || true
+}
+
+# EVERY STARTED JOB GETS EXACTLY ONE TERMINAL MARKER, from one function that
+# every exit path reaches.
+#
+# THE BUG THIS FIXES, observed and unexplained until now. On 2026-08-17
+# e_row_e finished - artifact complete, 400 of 400, the next arm queued one
+# second later - and neither OK nor FAILED was ever written. The markers were
+# echoed only on the normal fall-through, so any exit through the INT/TERM
+# trap (`exit 130` / `exit 143`) left a START with no terminal line. Nothing
+# downstream can tell that from a job still running: `gpu_pause.sh status`
+# insisted the card was busy for 24 minutes while it sat idle, and I relayed
+# that to the user as fact.
+#
+# Guarded against double-logging, because the trap also fires after the normal
+# path has already written its line.
+log_result() {
+    [ "${RESULT_LOGGED:-0}" = 1 ] && return 0
+    RESULT_LOGGED=1
+    local code="$1"
+    if [ "$code" -eq 0 ]; then
+        echo "$(stamp) OK       $NAME" >> "$QLOG"
+        notify_if_idle "finished"
+    elif [ "$code" -eq 130 ] || [ "$code" -eq 143 ]; then
+        # Interrupted is not the same as failed: the job was told to stop, so
+        # its absence of a result is expected rather than a defect to chase.
+        echo "$(stamp) INTERRUPTED $NAME rc=$code" >> "$QLOG"
+        notify_if_idle "interrupted"
+    else
+        # Loud on purpose. A chained job that fails quietly gets read as a result.
+        echo "$(stamp) FAILED   $NAME rc=$code" >> "$QLOG"
+        echo "gpu_job: $NAME FAILED rc=$code" >&2
+        notify_if_idle "FAILED rc=$code"
+    fi
+}
+
+
+# The trap is set BEFORE the pause wait and the lock: a job interrupted while
+# still queued must not leave a marker claiming it is pending forever.
+# STARTED is set once the job is actually running; before that the early exits
+# (usage, REFUSED, NO_VRAM, NO_LLM) write their own markers and must not get a
+# second one. `type log_result` guards the window where the trap exists but the
+# function is not defined yet.
+trap 'ec=$?; rm -f "$PENDING_FILE" 2>/dev/null; \
+      if [ "${STARTED:-0}" = 1 ] && type log_result >/dev/null 2>&1; then \
+          log_result "$ec"; fi' EXIT
+
 # WAIT FOR THE PAUSE FLAG BEFORE TAKING THE LOCK, not after. A job that holds
 # the lock while waiting would block the queue AND look like it was working;
 # waiting first means a paused queue is simply idle, and `gpu_pause.sh status`
@@ -101,7 +186,12 @@ tree_state() {
     fi
     local root modified untracked
     root=$(dirname "$0")
-    modified=$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)
+    # Artifacts a run WRITES are not evidence that its code changed. See the
+    # long note in app/experiments/manifest.py::_git_state - these two are one
+    # decision expressed twice and are kept in step by
+    # test_the_shell_gate_agrees_with_the_python_provenance.
+    modified=$(git -C "$root" status --porcelain --untracked-files=no \
+                   -- ':(exclude)ab_test_runtime/experiments/*.json' 2>/dev/null)
     # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
     # modified TRACKED files only, so a brand-new experiment script - which is
     # untracked for exactly as long as it takes to write and run it - was
@@ -168,7 +258,46 @@ identity "$@" >> "$QLOG"
 case "$dirty_state" in
   dirty:*)
     if [ "${ALLOW_DIRTY_TREE:-0}" = "1" ]; then
-        echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1)" >> "$QLOG"
+        # CAPTURE THE DIFF INSTEAD OF ONLY NAMING IT. The override exists for
+        # "I know it is dirty, run anyway" - which is exactly where the code
+        # state is least recoverable, because the next edit erases it. Logging
+        # DIRTY_RUN and nothing else left the artifact permanently
+        # unreproducible: a note saying "this was dirty, good luck".
+        #
+        # Weights & Biases does this for every run with local modifications,
+        # writing diff.patch "relative to HEAD" alongside the run, so an
+        # uncommitted state stays inspectable afterwards. Same idea, minus the
+        # server: `git apply` the patch on the recorded commit and you have
+        # the tree that produced the artifact.
+        #
+        # Untracked harness files are appended with --no-index, because a new
+        # experiment script is untracked for exactly as long as it takes to
+        # write and run it - the case the dirty gate exists for - and
+        # `git diff HEAD` cannot see it. --no-index exits 1 on difference,
+        # which is its normal result here, so its status is deliberately
+        # ignored rather than treated as failure.
+        patch_dir="$(dirname "$0")/ab_test_runtime/logs/dirty_patches"
+        patch_file="$patch_dir/${NAME}-$(date -u +%Y%m%dT%H%M%SZ).patch"
+        if mkdir -p "$patch_dir" 2>/dev/null; then
+            {
+                git -C "$(dirname "$0")" diff HEAD 2>/dev/null
+                for f in $(git -C "$(dirname "$0")" ls-files --others \
+                               --exclude-standard -- \
+                               "$(dirname "$0")/app/experiments" \
+                               "$(dirname "$0")/run_chains" 2>/dev/null \
+                           | grep -E '\.(py|sh)$'); do
+                    git -C "$(dirname "$0")" diff --no-index -- /dev/null "$f" 2>/dev/null
+                done
+            } > "$patch_file"
+            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=${patch_file##*/}" >> "$QLOG"
+            echo "gpu_job: uncommitted state saved to $patch_file" >&2
+            echo "gpu_job: reproduce with: git checkout $(git -C "$(dirname "$0")" rev-parse --short HEAD 2>/dev/null) && git apply $patch_file" >&2
+        else
+            # Say so rather than proceeding silently: an override whose code
+            # state was NOT captured is a different thing from one that was.
+            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=UNSAVED" >> "$QLOG"
+            echo "gpu_job: WARNING - could not write a patch to $patch_dir" >&2
+        fi
         echo "gpu_job: WARNING - $NAME is running from uncommitted changes." >&2
         echo "gpu_job: its artifact will not be reproducible from any commit." >&2
     else
@@ -280,18 +409,27 @@ cleanup_group() {
     local sig="${1:-INT}"
     if [ -n "${JOB_PGID:-}" ]; then
         kill -"$sig" -"$JOB_PGID" 2>/dev/null
-        for _ in 1 2 3 4 5; do
-            kill -0 -"$JOB_PGID" 2>/dev/null || return 0
+        local waited=0
+        # 20s, not 5: a torch or whisper process unloading a model is not
+        # ignoring the signal, it is finishing a syscall. Killing it early
+        # loses the checkpoint it was about to write.
+        while [ "$waited" -lt 20 ]; do
+            kill -0 -"$JOB_PGID" 2>/dev/null || {
+                echo "$(stamp) STOPPED  $NAME (on $sig after ${waited}s)" >> "$QLOG"
+                return 0
+            }
             sleep 1
+            waited=$((waited + 1))
         done
         kill -KILL -"$JOB_PGID" 2>/dev/null
-        echo "$(stamp) KILLED   $NAME (group did not stop on $sig)" >> "$QLOG"
+        echo "$(stamp) KILLED   $NAME (still alive ${waited}s after $sig)" >> "$QLOG"
     fi
 }
 trap 'cleanup_group INT; exit 130' INT
 trap 'cleanup_group TERM; exit 143' TERM
 
 echo "$(stamp) START    $NAME" >> "$QLOG"
+STARTED=1
 
 # TELL THE CHILD THE LOCK IS ALREADY HELD. Several chains re-exec themselves
 # through this script to acquire the lock (the ALEXANDRIA_GPU_LOCK_HELD idiom).
@@ -327,11 +465,5 @@ JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?
 
-if [ "$rc" -eq 0 ]; then
-    echo "$(stamp) OK       $NAME" >> "$QLOG"
-else
-    # Loud on purpose. A chained job that fails quietly gets read as a result.
-    echo "$(stamp) FAILED   $NAME rc=$rc" >> "$QLOG"
-    echo "gpu_job: $NAME FAILED rc=$rc" >&2
-fi
+log_result "$rc"
 exit "$rc"

@@ -28,6 +28,55 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
+# `unittest discover` is run from app/, which puts app/ on sys.path and makes
+# `experiments` importable. Running this file directly puts app/tests/ there
+# instead, and the Rule 15 cross-check below died on ModuleNotFoundError - a
+# failure that only appeared once the stray mid-file unittest.main() stopped
+# hiding four of the five classes from direct execution.
+import sys
+if os.path.join(REPO, "app") not in sys.path:
+    sys.path.insert(0, os.path.join(REPO, "app"))
+
+
+def isolated_env(tmpdir, **extra):
+    """Every gpu_job.sh knob that otherwise points at REAL, SHARED state.
+
+    GPU_PAUSE_FLAG belongs here for exactly the reason GPU_LOCK does, and was
+    left out when the pause feature landed. The cost showed up the first time
+    the queue was paused for real: gpu_job.sh waits on the flag BEFORE taking
+    the lock (correctly - a paused job must not sit on the GPU), so every test
+    that spawns a probe blocked on the USER's pause flag, 20 seconds at a
+    time, until subprocess.run's 60s timeout turned it into an error. Twelve
+    tests, and the release verifier with them, fail whenever someone pauses
+    the queue - the one moment they are most likely to run the CPU suite.
+
+    Six call sites each rebuilt this env dict by hand and each remembered
+    GPU_LOCK and GPU_QLOG; a seventh variable had to be added to all six and
+    was added to one. One definition, so the next knob cannot half-land.
+    """
+    env = dict(os.environ,
+               GPU_LOCK=os.path.join(tmpdir, "gpu.lock"),
+               GPU_QLOG=os.path.join(tmpdir, "queue.log"),
+               GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"),
+               # Fourth of its kind. Without this the suite wrote pending
+               # markers into the machine's real queue directory, and
+               # gpu_pause.sh dutifully reported four dead chains that were
+               # only ever tests.
+               GPU_PENDING_DIR=os.path.join(tmpdir, "pending"),
+               # The card is REAL STATE too, and this is the third variable to
+               # be found leaking in. With llama-server resident for an
+               # unseen_books run (14.7 GB), every probe here was refused with
+               # rc=7 NO_VRAM and eight tests failed - the suite reporting on
+               # what the GPU happened to be doing rather than on gpu_job.sh.
+               # Never in CI, which has no GPU and always reads VRAM_UNKNOWN.
+               #
+               # VramGateTest overrides this and supplies its own card through
+               # _fake_gpu, so the gate itself stays tested; everyone else
+               # stops caring what is running.
+               REQUIRE_VRAM_GB="0")
+    env.update(extra)
+    return env
+
 
 # ADVISORY MARKERS ARE NOT THE LIFECYCLE. gpu_job.sh writes notes alongside the
 # QUEUED -> IDENT -> START -> OK/FAILED sequence: DIRTY_RUN when the tree gate
@@ -43,7 +92,7 @@ GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 # Filter the whole class once, in one place. A test about ORDER should assert
 # the order, not the presence of environment-dependent notes.
 ADVISORY_MARKERS = {"DIRTY_RUN", "VRAM_UNKNOWN", "LLM_UNCHECKED",
-                    "HELD", "RELEASED", "PAUSED", "RESUMED"}
+                    "HELD", "RELEASED", "PAUSED", "RESUMED", "STOPPED"}
 
 
 def lifecycle(log_text):
@@ -69,8 +118,8 @@ class GpuJobTest(unittest.TestCase):
         # produces an artifact anyone will cite, so the dirty-tree gate is
         # legitimately waived. It is exercised on purpose in
         # DirtyTreeGateTest below rather than being disabled and forgotten.
-        env = dict(os.environ, GPU_LOCK=lock or self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE=allow_dirty)
+        env = isolated_env(self.tmp.name, GPU_LOCK=lock or self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE=allow_dirty)
         if path_prefix:
             env["PATH"] = path_prefix + os.pathsep + env["PATH"]
         return subprocess.run(["bash", GPU_JOB, *argv], env=env,
@@ -169,8 +218,8 @@ class GpuJobTest(unittest.TestCase):
             sleep 1
             echo out >> {witness}
         """)
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         procs = [subprocess.Popen(["bash", GPU_JOB, f"j{i}", "bash", "-c",
                                    script], env=env,
                                   stdout=subprocess.DEVNULL,
@@ -185,8 +234,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_the_second_job_waits_rather_than_failing(self):
         """Blocking is correct; a queued job must not be dropped."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         slow = subprocess.Popen(["bash", GPU_JOB, "slow", "sleep", "2"],
                                 env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -197,8 +246,8 @@ class GpuJobTest(unittest.TestCase):
 
     def test_interrupting_a_waiter_releases_nothing_and_logs_no_start(self):
         """A job killed while queued must not appear to have run."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   ALLOW_DIRTY_TREE="1")
+        env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                           GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1")
         holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "3"],
                                   env=env, stdout=subprocess.DEVNULL)
         time.sleep(0.4)
@@ -271,14 +320,11 @@ class GpuJobTest(unittest.TestCase):
 
     def test_no_name_is_rejected(self):
         r = subprocess.run(["bash", GPU_JOB], capture_output=True, text=True,
-                           env=dict(os.environ, GPU_LOCK=self.lock,
-                                    GPU_QLOG=self.qlog,
-                                    ALLOW_DIRTY_TREE="1"))
+                           env=isolated_env(self.tmp.name, GPU_LOCK=self.lock,
+                                            GPU_QLOG=self.qlog,
+                                            ALLOW_DIRTY_TREE="1"))
         self.assertEqual(r.returncode, 2)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
@@ -322,6 +368,93 @@ class DirtyTreeGateTest(unittest.TestCase):
             with open(os.path.join(self.root, "gpu_job.sh"), "a") as handle:
                 handle.write("\n# an uncommitted change\n")
 
+    def _commit_artifact(self, name="probe.json"):
+        """A committed artifact, so modifying it later is tracked-file dirt."""
+        d = os.path.join(self.root, "ab_test_runtime", "experiments")
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, name)
+        with open(path, "w") as handle:
+            handle.write('{"rows": []}\n')
+        self._git("add", "--", path)
+        self._git("commit", "-qm", "artifact")
+        return path
+
+    def test_rewriting_an_artifact_is_not_dirt(self):
+        """replay_dirty_evidence rewrites artifacts; that is its JOB.
+
+        Before this, its second replay onward ran with a dirty tree, stamped
+        dirty=True on evidence produced in order to BE clean, and every job
+        queued behind it was REFUSED - 80 idle minutes on 2026-08-18. An
+        output a run wrote is not evidence that its code changed.
+        """
+        self._make_repo(dirty=False)
+        path = self._commit_artifact()
+        with open(path, "w") as handle:
+            handle.write('{"rows": [1, 2, 3]}\n')
+        result = self._run()
+        self.assertEqual(0, result.returncode,
+                         f"a rewritten artifact refused the job: {result.stderr}")
+        self.assertIn("tree=clean", self._log())
+
+    def test_modified_code_is_still_dirt(self):
+        """The half that must NOT be lost: excluding outputs is not amnesty."""
+        self._make_repo(dirty=True)
+        self._commit_artifact()
+        result = self._run()
+        self.assertEqual(5, result.returncode)
+        self.assertIn("REFUSED", self._log())
+
+    def test_an_overridden_dirty_run_saves_the_diff_that_produced_it(self):
+        """The override is where code state is LEAST recoverable.
+
+        ALLOW_DIRTY_TREE=1 used to log DIRTY_RUN and nothing else, so the next
+        edit erased the only copy of the code that made the artifact - a note
+        saying "this was dirty, good luck". W&B writes diff.patch relative to
+        HEAD for exactly this reason; the patch plus the recorded commit
+        rebuilds the tree.
+        """
+        self._make_repo(dirty=True)
+        result = self._run(allow_dirty="1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
+                                 "dirty_patches")
+        patches = os.listdir(patch_dir)
+        self.assertEqual(1, len(patches), f"expected one patch, got {patches}")
+        with open(os.path.join(patch_dir, patches[0]), encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("an uncommitted change", body,
+                      "the patch does not contain the uncommitted change")
+        self.assertIn(f"patch={patches[0]}", self._log(),
+                      "the queue log must name the patch it saved")
+
+    def test_the_saved_patch_includes_an_untracked_harness_script(self):
+        """`git diff HEAD` cannot see a new file, and a new harness script
+        being untracked while it runs is the case this gate exists for."""
+        self._make_repo(dirty=True)
+        self._add_untracked("brand_new_probe.py")
+        self._run(allow_dirty="1")
+        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
+                                 "dirty_patches")
+        body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
+                    encoding="utf-8").read()
+        self.assertIn("brand_new_probe.py", body)
+        self.assertIn("brand new, not yet committed", body)
+
+    def test_a_clean_run_writes_no_patch(self):
+        # Nothing to record, and a stray empty patch would suggest otherwise.
+        self._make_repo(dirty=False)
+        self._run()
+        self.assertFalse(os.path.isdir(os.path.join(
+            self.root, "ab_test_runtime", "logs", "dirty_patches")))
+
+    def test_an_untracked_experiment_script_is_still_dirt(self):
+        # The dangerous case the exclusion must not reach: a harness that
+        # exists on one machine while producing a cited number.
+        self._make_repo(dirty=False)
+        self._commit_artifact()
+        self._add_untracked("brand_new_probe.py")
+        self.assertEqual(5, self._run().returncode)
+
     def _add_untracked(self, name):
         path = os.path.join(self.root, "app", "experiments", name)
         with open(path, "w") as handle:
@@ -329,9 +462,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         return path
 
     def _run(self, allow_dirty=None):
-        env = dict(os.environ,
-                   GPU_LOCK=os.path.join(self.root, "gpu.lock"),
-                   GPU_QLOG=os.path.join(self.root, "queue.log"))
+        env = isolated_env(self.root)
         env.pop("ALLOW_DIRTY_TREE", None)
         if allow_dirty is not None:
             env["ALLOW_DIRTY_TREE"] = allow_dirty
@@ -453,9 +584,8 @@ class LlmPreflightGateTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _run(self, **extra):
-        env = dict(os.environ,
-                   GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
         return subprocess.run(["bash", GPU_JOB, "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
@@ -520,8 +650,8 @@ class VramGateTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _run(self, **extra):
-        env = dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                   GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE="1", **extra)
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
         return subprocess.run(["bash", GPU_JOB, "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
@@ -620,9 +750,9 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _env(self, **extra):
-        return dict(os.environ, GPU_LOCK=os.path.join(self.tmp.name, "gpu.lock"),
-                    GPU_QLOG=self.qlog, GPU_PAUSE_FLAG=self.flag,
-                    ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0", **extra)
+        return isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                            GPU_PAUSE_FLAG=self.flag, ALLOW_DIRTY_TREE="1",
+                            REQUIRE_VRAM_GB="0", **extra)
 
     def _log(self):
         return open(self.qlog, encoding="utf-8").read() if os.path.exists(self.qlog) else ""
@@ -670,3 +800,314 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         time.sleep(3)
         self.assertFalse(os.path.exists(marker),
                          "a descendant outlived the job and would hold the GPU")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class HarnessIsolationTest(unittest.TestCase):
+    """No test may consult the machine's real pause flag, lock or queue log.
+
+    This is the bug that actually happened, not a hypothetical: the queue was
+    paused to free the GPU for a game, and the whole suite - plus the release
+    verifier - began erroring, because the harness inherited GPU_PAUSE_FLAG
+    from the environment and every probe waited on it.
+
+    Asserting on the env dict rather than on a run is deliberate. Proving it
+    behaviourally means creating the flag at its DEFAULT path inside the repo,
+    and a test that pauses the real queue is a test that can leave the real
+    queue paused when it fails.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.captured = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _capture(self, build):
+        """Run `build` with subprocess.run/Popen stubbed; return the envs used."""
+        real_run, real_popen = subprocess.run, subprocess.Popen
+
+        def fake(args, **kw):
+            self.captured.append(kw.get("env") or {})
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        subprocess.run, subprocess.Popen = fake, fake
+        try:
+            build()
+        finally:
+            subprocess.run, subprocess.Popen = real_run, real_popen
+        return self.captured
+
+    def test_every_entry_point_isolates_all_three_shared_paths(self):
+        harnesses = ((GpuJobTest, lambda t: t.run_job("probe", "true")),
+                     (LlmPreflightGateTest, lambda t: t._run()),
+                     (VramGateTest, lambda t: t._run()))
+
+        for cls, call in harnesses:
+            with self.subTest(harness=cls.__name__):
+                inst = cls.__new__(cls)
+                inst.tmp = tempfile.TemporaryDirectory()
+                inst.lock = os.path.join(inst.tmp.name, "gpu.lock")
+                inst.qlog = os.path.join(inst.tmp.name, "queue.log")
+                self.captured = []
+                envs = self._capture(lambda: call(inst))
+                self.assertTrue(envs, f"{cls.__name__} spawned nothing")
+                for env in envs:
+                    for var in ("GPU_LOCK", "GPU_QLOG", "GPU_PAUSE_FLAG"):
+                        self.assertTrue(
+                            var in env and env[var].startswith(inst.tmp.name),
+                            f"{cls.__name__} does not isolate {var}: "
+                            f"{env.get(var, '<inherited>')}")
+                inst.tmp.cleanup()
+
+    def test_a_paused_machine_does_not_change_what_the_harness_sees(self):
+        """The flag the tests use must never be the one gpu_pause.sh writes."""
+        real = os.path.join(REPO, "ab_test_runtime", "logs", "gpu_paused")
+        env = isolated_env(self.tmp.name)
+        self.assertNotEqual(real, env["GPU_PAUSE_FLAG"])
+        os.environ["GPU_PAUSE_FLAG"] = real
+        try:
+            self.assertNotEqual(real, isolated_env(self.tmp.name)["GPU_PAUSE_FLAG"],
+                                "an inherited pause flag survived isolation")
+        finally:
+            os.environ.pop("GPU_PAUSE_FLAG", None)
+
+
+GPU_PAUSE = os.path.join(REPO, "gpu_pause.sh")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class TerminalMarkerTest(unittest.TestCase):
+    """A job that STARTED must always end with a terminal line.
+
+    THE MYSTERY THIS EXPLAINS. On 2026-08-17 e_row_e finished - artifact
+    complete, 400 of 400, next arm queued a second later - and neither OK nor
+    FAILED was ever written. The markers were echoed only on the normal
+    fall-through, so any exit through the INT/TERM trap left a START with no
+    terminal line, which nothing downstream can distinguish from a job still
+    running. gpu_pause.sh insisted the card was busy for 24 minutes while it
+    was idle, and that answer was relayed to the user as fact.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def _env(self, **extra):
+        return isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                            ALLOW_DIRTY_TREE="1", **extra)
+
+    def _log(self):
+        if not os.path.exists(self.qlog):
+            return ""
+        with open(self.qlog, encoding="utf-8") as fh:
+            return fh.read()
+
+    def _terminal_lines(self):
+        terminal = ("OK", "FAILED", "INTERRUPTED", "REFUSED", "NO_VRAM",
+                    "NO_LLM", "LOCK_FAILED")
+        return [l for l in self._log().splitlines()
+                if len(l.split()) > 1 and l.split()[1] in terminal]
+
+    def test_an_interrupted_job_still_records_a_terminal_line(self):
+        """THE DEFECT, reproduced: signal the wrapper mid-run."""
+        proc = subprocess.Popen(["bash", GPU_JOB, "victim", "sleep", "30"],
+                                env=self._env(), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        # Wait for START rather than for a fixed delay. The gates ahead of it
+        # shell out to git and rocm-smi, which take seconds on a busy machine -
+        # the first version of this test signalled during that window, saw a
+        # log holding only QUEUED, and called the fix broken. The invariant is
+        # "a job that STARTED ends with a terminal line", so the test must
+        # actually get it started.
+        deadline = time.time() + 90
+        while time.time() < deadline and "START    victim" not in self._log():
+            time.sleep(0.2)
+        if "START    victim" not in self._log():
+            proc.kill()
+            self.skipTest("job never started; nothing to assert about ending")
+        proc.terminate()
+        proc.wait(timeout=60)
+        self.assertEqual(1, len(self._terminal_lines()),
+                         f"expected one terminal line, got: {self._log()}")
+        self.assertIn("INTERRUPTED victim", self._log())
+
+    def test_a_normal_run_records_exactly_one_terminal_line(self):
+        # The EXIT trap fires after the normal path has already logged, so the
+        # guard against double-logging is as load-bearing as the trap itself.
+        subprocess.run(["bash", GPU_JOB, "fine", "true"], env=self._env(),
+                       capture_output=True, timeout=60)
+        self.assertEqual(["OK"], [l.split()[1] for l in self._terminal_lines()])
+
+    def test_a_failing_run_records_exactly_one_terminal_line(self):
+        subprocess.run(["bash", GPU_JOB, "bad", "bash", "-c", "exit 9"],
+                       env=self._env(), capture_output=True, timeout=60)
+        lines = self._terminal_lines()
+        self.assertEqual(1, len(lines), lines)
+        self.assertIn("FAILED   bad rc=9", lines[0])
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class PendingMarkerTest(unittest.TestCase):
+    """A job WAITING and a chain that DIED must not look the same.
+
+    Everything queued behind the lock is a blocked process that nothing lists,
+    so twice on 2026-08-18 a dead chain left "QUEUED x" as the last line in the
+    log while the card sat idle - 80 minutes, then another hour. task-spooler
+    answers this with `ts -l`; these markers are the small version, one file
+    per waiting job, removed however the job ends.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+        self.pending = os.path.join(self.tmp.name, "pending")
+
+    def _run(self, *argv, **extra):
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, *argv], env=env,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_a_finished_job_leaves_no_marker_behind(self):
+        before = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self._run("probe", "true")
+        after = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self.assertEqual(before, after,
+                         "a completed job left a pending marker claiming it waits")
+
+    def test_a_failed_job_leaves_no_marker_behind(self):
+        # The trap is on EXIT, not on success: a job that dies mid-queue is
+        # exactly the case that produced a stale-looking queue.
+        before = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self._run("probe", "bash", "-c", "exit 3")
+        after = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self.assertEqual(before, after)
+
+    def test_a_waiting_job_is_visible_while_it_waits(self):
+        """The whole point: something must be able to say what is queued."""
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1")
+        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "6"],
+                                  env=env, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+        waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
+                                  env=env, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.time() + 20
+            names = []
+            while time.time() < deadline:
+                if os.path.isdir(self.pending):
+                    names = [n for n in os.listdir(self.pending)
+                             if n.endswith(("waiter", "holder"))]
+                    if any(n.endswith("waiter") for n in names):
+                        break
+                time.sleep(0.2)
+            self.assertTrue(any(n.endswith("waiter") for n in names),
+                            f"the waiting job was not listed: {names}")
+        finally:
+            waiter.wait(timeout=30)
+            holder.wait(timeout=30)
+
+    def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
+        """Best-effort means best-effort: reporting must never fail the job.
+
+        A notification is a courtesy; a job whose result was destroyed by its
+        own progress report is a worse outcome than silence.
+        """
+        shadow = os.path.join(self.tmp.name, "badbin")
+        os.makedirs(shadow, exist_ok=True)
+        fake = os.path.join(shadow, "pterm")
+        with open(fake, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/bash\nexit 9\n")
+        os.chmod(fake, 0o755)
+        r = self._run("probe", "true", PATH=shadow + os.pathsep + os.environ["PATH"])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+
+@unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
+class PauseStatusTest(unittest.TestCase):
+    """`status` answers "is the card busy?" - so it must not guess.
+
+    Nothing tested gpu_pause.sh at all before this, which is how a feature
+    reviewed at /code-review20 shipped with two defects that only appear once
+    somebody actually pauses.
+
+    The defect: running_job read the queue log alone. A job whose START never
+    got a matching OK - which happened for real to e_row_e on 2026-08-17,
+    artifact complete, cause of the missing marker still unknown - is reported
+    as running forever. Someone waiting for the GPU to free up waits on a job
+    that ended half an hour ago.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_log(self, *lines):
+        with open(self.qlog, "w", encoding="utf-8") as fh:
+            fh.write("".join(f"2026-08-17T00:00:0{i}Z {l}\n"
+                             for i, l in enumerate(lines)))
+
+    def _status(self):
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           GPU_PAUSE_FLAG=os.path.join(self.tmp.name, "paused"))
+        return subprocess.run(["bash", GPU_PAUSE, "status"], env=env,
+                              capture_output=True, text=True, timeout=30).stdout
+
+    def test_a_start_with_no_result_and_no_process_is_not_called_running(self):
+        """THE DEFECT, verbatim: e_row_e's log state, replayed."""
+        self._write_log("QUEUED   e_row_e", "START    e_row_e",
+                        "QUEUED   e_row_ay", "HELD     e_row_ay (queue paused)")
+        out = self._status()
+        self.assertIn("running job: none", out)
+        self.assertIn("e_row_e", out, "the disagreement must still be reported")
+        self.assertIn("finished without", out)
+
+    def test_a_completed_job_is_not_running(self):
+        self._write_log("START    done_job", "OK       done_job")
+        self.assertIn("running job: none", self._status())
+
+    def test_a_job_with_a_live_process_is_reported_as_running(self):
+        """The other half: a real job must not be dismissed as stale."""
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0")
+        proc = subprocess.Popen(["bash", GPU_JOB, "sleeper", "sleep", "20"],
+                                env=env, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if os.path.exists(self.qlog):
+                    with open(self.qlog, encoding="utf-8") as fh:
+                        if "START    sleeper" in fh.read():
+                            break
+                time.sleep(0.2)
+            self.assertIn("running job: sleeper", self._status())
+        finally:
+            proc.terminate()
+            proc.wait(timeout=20)
+
+    def test_status_never_reports_itself_as_the_running_job(self):
+        # pgrep -f matches whole command lines, including the one doing the
+        # matching. Self-matching killed this session's shell twice.
+        self._write_log("START    status", "QUEUED   next")
+        self.assertIn("running job: none", self._status())
+
+
+if __name__ == "__main__":
+    # AT THE END, because it was in the MIDDLE. Everything defined after it -
+    # four of the five test classes here - was invisible to `python
+    # tests/test_gpu_job.py`, which ran the first class and printed OK. Under
+    # `unittest discover` the module is imported, __name__ is not "__main__",
+    # and all five classes register, so this hid only from whoever ran the
+    # file directly to check their work. Same family as the tests/ package
+    # needing __init__.py: a runner that silently tests less than you think.
+    unittest.main()

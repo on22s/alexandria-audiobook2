@@ -40,25 +40,21 @@
  ],
  "provenance": {
   "script": "verify_adapter_stops.py",
-  "written": "2026-08-06T04:37:33",
+  "written": "2026-08-17T21:11:51",
   "host": "mitch-linux",
   "git": {
-   "commit": "6b2eb79c5f1e9f929c2a11bc930b895fd45a8dbe",
-   "branch": "agent/simd-evidence",
+   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "branch": "agent/pause-status-isolation-20260817",
    "dirty": true,
    "modified_tracked_files": [
-    "M  RESULTS_INDEX.md",
-    "A  ab_test_runtime/experiments/adapter_stop_check_ljspeech.json",
-    " M ab_test_runtime/experiments/cluster_vs_name.json",
-    " M ab_test_runtime/experiments/listener_impact.json",
-    "A  ab_test_runtime/experiments/proper_noun_pronunciation.json",
-    "A  ab_test_runtime/experiments/three_pass_vs_single.json",
-    "M  app/experiments/ljspeech_build.py",
-    "M  app/experiments/lora_voice_sweep.py",
-    "M  results_index.csv"
+    "M ab_test_runtime/experiments/asr_ja_cutting_control.json",
+    " M ab_test_runtime/experiments/asr_ja_largev3_hybrid.json",
+    " M ab_test_runtime/experiments/asr_ja_readings.json",
+    " M ab_test_runtime/experiments/asr_silero_whisper_ja_confirmation.json",
+    " M ab_test_runtime/experiments/asr_silero_whisper_ja_offset20.json"
    ],
    "untracked_harness_files": null,
-   "harness_sha256": "6f8e28d5632793a0e6eedc9e0fd31c8453bddc6c547823ccddd875e2e970bb51"
+   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
   },
   "args": {
    "build": "ab_test_runtime/ljspeech_eval/build.json",

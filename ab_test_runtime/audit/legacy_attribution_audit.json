@@ -1,11 +1,11 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "080f182d54a7d8b1eccc2098b627fe8db49b28bc833af2909555d494b3cbe82f",
+  "source_structural_sha256": "f240101510b6156a7f389d318e365760e13aad2d76b0edc367a7335446efab65",
   "summary": {
     "exploratory": 9,
     "historical_only": 38,
     "provisional": 21,
-    "supported_measurement": 50
+    "supported_measurement": 51
   },
   "artifacts": [
     {
@@ -1702,6 +1702,26 @@
         "correctness_changed_rows": null
       },
       "semantic_limit": "A five-book English PDNC pilot at 120 lines per book whose arms differ by 5 correct lines in 600 (57.7% vs 58.5%); sized to decide whether the confirmatory run is worth doing, not to establish an effect, and no confirmatory run exists."
+    },
+    {
+      "artifact": "pdnc_evidence__pilot__local-llamacpp.json",
+      "family": "pdnc_evidence",
+      "rows": 1200,
+      "arms": [
+        "baseline",
+        "evidence"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
+      },
+      "semantic_limit": "A five-book English PDNC pilot, 120 lines per book, run 2026-08-18: baseline 58.5% against evidence 59.5% overall (351 vs 357 correct of 600), conditional 59.0% vs 61.1%. Six lines apart on a pre-declared gate the arm did NOT clear, so the twenty-book confirmatory set stayed sealed - which is the pilot working, not a result. Nothing here supports a claim that supplying evidence spans helps attribution; it is the reason not to spend the confirmatory run."
     },
     {
       "artifact": "pdnc_narrator_prior__clean-3book.json",

@@ -11,6 +11,7 @@ can "re-run review with the nicknames in mind". The file is plain JSON and meant
 be human-editable before you re-run the review.
 """
 import os
+from core import llm_timeout_seconds
 import sys
 import json
 import re
@@ -345,6 +346,7 @@ def main():
     llm = config.get("llm", {})
     base_url = llm.get("base_url", "")
     client = OpenAI(base_url=base_url or "http://localhost:11434/v1",
+                    timeout=llm_timeout_seconds(),
                     api_key=llm.get("api_key", "local"))
     model_name = llm.get("model_name", "local-model")
     llm_mode = config.get("llm_mode", "local")

@@ -1,0 +1,76 @@
+{
+  "experiment": "generation_state_probe",
+  "condition": "cold_vary",
+  "seed": 3102,
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar06.txt",
+  "chunk": 25,
+  "total_chunks": 70,
+  "passed": false,
+  "entry_count": 56,
+  "quality": {
+    "passed": false,
+    "metrics": {
+      "source_tokens": 1093,
+      "output_tokens": 933,
+      "source_token_recall": 0.8536,
+      "ordered_trigram_recall": 0.8213,
+      "output_source_ratio": 0.8536
+    },
+    "source_cyrillic": [],
+    "missing_source_spans": [
+      {
+        "start_token": 371,
+        "token_count": 29,
+        "preview": "kemuri rubbed his cheek he had been clean shaven the last time"
+      },
+      {
+        "start_token": 474,
+        "token_count": 17,
+        "preview": "soma looked down as if in thought then his head snapped back"
+      },
+      {
+        "start_token": 415,
+        "token_count": 15,
+        "preview": "pingo said narrowing his eyes in a way that didn t suit"
+      }
+    ],
+    "findings": [
+      {
+        "code": "low_source_token_recall",
+        "value": 0.8536,
+        "minimum": 0.9,
+        "message": "Too much source text is absent from the response."
+      },
+      {
+        "code": "low_ordered_trigram_recall",
+        "value": 0.8213,
+        "minimum": 0.9,
+        "message": "Too many ordered source phrases are absent."
+      },
+      {
+        "code": "output_source_ratio",
+        "value": 0.8536,
+        "minimum": 0.9,
+        "maximum": 1.1,
+        "message": "Output length is implausible for the source chunk."
+      }
+    ]
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "elapsed_seconds": 58.206,
+      "finish_reason": "stop",
+      "requested_max_tokens": 10000,
+      "effective_max_tokens": 10000,
+      "prompt_tokens": 2594,
+      "completion_tokens": 2641,
+      "reasoning_tokens": null,
+      "error": null,
+      "response_fingerprint": "ff78f84b989188160fb5c11caa81453d0928cdeec2f8019124648a6f7f701413",
+      "response_repeat_count": 1,
+      "outcome": "accepted"
+    }
+  ],
+  "seconds": 58.2
+}

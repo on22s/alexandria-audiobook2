@@ -41,6 +41,7 @@ import json, os, re, sys, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord
+from experiments.provenance import provenance
 from experiments.stats import clopper_pearson, exact_mcnemar, paired
 from generate_script import LLMGenParams
 from three_pass_generate import (attribute_batch, build_roster,
@@ -197,6 +198,17 @@ if PHASE == "cheap":
              "route": [str(i) for i in route],
              "failures": {"w1": f1, "w4": f4}, "cheap_windows": nw1,
              "trigger": TRIGGER}
+    # PROVENANCE, because 20 artifacts from this script carry none and cannot
+    # be replayed from anything but memory. The helper never raises: a
+    # provenance block that can fail is one that gets wrapped in try/except and
+    # quietly dropped, which is how the 138 unprovenanced artifacts here
+    # happened in the first place.
+    #
+    # No argparse Namespace in this script - its knobs are module constants -
+    # so they are passed explicitly rather than left out. Recording the wrong
+    # thing is fixable; recording nothing is what made these files dead ends.
+    state["provenance"] = provenance(__file__, None, trigger=TRIGGER,
+                                     big_model=BIG_MODEL)
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
     with open(STATE, "w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=1)

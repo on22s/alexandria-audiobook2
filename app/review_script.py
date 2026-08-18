@@ -1,4 +1,5 @@
 import os
+from core import llm_timeout_seconds
 import sys
 import json
 import re
@@ -893,7 +894,8 @@ def main():
     gen_params.context_length = lm_status.get("context_length")
     gen_params.hard_max_tokens = 32768
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=base_url, api_key=api_key,
+                    timeout=llm_timeout_seconds())
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,

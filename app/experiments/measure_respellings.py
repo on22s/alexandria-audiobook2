@@ -87,6 +87,25 @@ SMALL_Y = {"ャ": "ya", "ュ": "yu", "ョ": "yo"}
 # vowel so the same pipeline can score each candidate on the same terms.
 E_SPELLINGS = {"eh": "eh", "e": "e", "ay": "ay", "ei": "ei"}
 
+# THE ROW IS NOW -ay, AND THAT IS MEASURED, NOT ARGUED. All three alternatives
+# were scored against -eh on identical terms, paired, with the plain (no
+# respelling) arm as an explicit noise floor:
+#
+#     arm      recovery   vs -eh    McNemar p     plain control p
+#     -ay        14.0%     2x        2.5e-11          0.77
+#     -ei        10.5%     -         0.25             0.51
+#     -e          2.0%     0.25x     1.9e-4           0.39
+#
+# The final -ay figure is the WHOLE qualifying pool - 1,419 terms, every word
+# in the corpus containing an -eh mora - not a sample, and the effect held at
+# 391, 780 and 1,419 terms as it grew. The control is null at every size, so
+# this is not the TTS/ASR drift that flips 34 verdicts in 391 on identical
+# input.
+#
+# -eh remains selectable so the comparison stays reproducible; changing the
+# default without keeping the old row would make the evidence unreplayable.
+DEFAULT_E_SPELLING = "ay"
+
 
 def e_row(spelling):
     """-> MORA_SPELLING with the -eh row's vowel replaced by `spelling`."""
@@ -102,14 +121,20 @@ _ARGS = None
 def respell(kana, table=None):
     """-> a hyphenated English-looking spelling, or None if unmappable.
 
-    `table` defaults to MORA_SPELLING; --e-spelling supplies a variant so the
-    -eh row can be measured against alternatives on identical terms.
+    `table` defaults to the CURRENT row choice (DEFAULT_E_SPELLING), not to
+    the historical MORA_SPELLING: the /e/ row was measured and -ay won by two
+    to one over the whole pool, so a caller that asks for no particular table
+    should get the better one. --e-spelling still selects any of the four so
+    the comparison remains reproducible.
 
     Returns None rather than a partial guess when a kana is not in the table:
     a half-respelled word is a new word, and would be measured as if it were
     the candidate.
     """
-    table = table or MORA_SPELLING
+    # e_row(DEFAULT_E_SPELLING), not MORA_SPELLING: the historical table still
+    # holds the -eh row so that arm can be re-measured, but a caller who does
+    # not choose gets the row that won.
+    table = table or e_row(DEFAULT_E_SPELLING)
     parts, index = [], 0
     while index < len(kana):
         char = kana[index]
@@ -285,7 +310,8 @@ def main():
     ap.add_argument("--min-books", type=int, default=20)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--rule", choices=("a", "b"), default="a")
-    ap.add_argument("--e-spelling", choices=tuple(E_SPELLINGS), default="eh",
+    ap.add_argument("--e-spelling", choices=tuple(E_SPELLINGS),
+                    default=DEFAULT_E_SPELLING,
                     help="what the -eh row's vowel becomes. Measured, not "
                          "assumed: words containing an -eh mora recover at "
                          "6.6%% against 18.0%% for words without one.")
@@ -424,6 +450,45 @@ def _write(path, results, terms, prov=None):
                         "`scattered` is the retired per-character score, kept "
                         "only so the two can be compared - see scattered_overlap",
                 "candidates_considered": len(terms),
+                # COMPLETE OR PARTIAL, SAID OUT LOUD.
+                #
+                # PRIOR ART, and why this is in-band rather than a marker file
+                # or a deletion. Three established answers exist:
+                #
+                #   GNU Make deletes the target (.DELETE_ON_ERROR), because
+                #   "when a recipe line fails after changing the target file,
+                #   the file is corrupted or not completely updated, yet the
+                #   file's timestamp says it is now up to date". kbuild adopted
+                #   it after Ctrl-C'd builds left half-written .o files.
+                #
+                #   Snakemake records that a job started, detects incomplete
+                #   outputs on restart, and REFUSES to continue
+                #   (IncompleteFilesException) until told --rerun-incomplete.
+                #
+                #   Spark/Hadoop write an empty _SUCCESS marker beside the
+                #   output, and downstream systems check the marker rather than
+                #   the data files.
+                #
+                # Deletion is wrong for us: this partial file is the checkpoint
+                # the next run RESUMES from, unlike a corrupt object file that
+                # is only ever waste. A sibling marker can be separated from the
+                # artifact by a copy. And Snakemake concedes the case that bit
+                # us - "if you hard terminate the process, it can't delete the
+                # files" - which is every `timeout`-killed run here. A field
+                # inside the file survives all three. _write is the checkpoint
+                # and runs every five terms, so every artifact this produces is
+                # partial right up until the last one - and nothing recorded
+                # which. A 70-minute cap killed the n1200 block at 1129 of 1200
+                # terms on 2026-08-18; the file looked exactly like a finished
+                # one, was committed as evidence, and the chain's
+                # skip-if-exists would have treated it as done forever.
+                #
+                # Truncation here is not a smaller sample, it is a BIASED one:
+                # terms are taken in book-count order, so the missing tail is
+                # the rarest words. A reader must not have to compare two
+                # numbers in the file to notice that.
+                "status": ("complete" if len(results) >= len(terms)
+                           else "partial"),
                 # Captured ONCE by the caller, not here: _write is the
                 # checkpoint and runs every five terms, so recomputing git
                 # state would cost a subprocess per checkpoint across a

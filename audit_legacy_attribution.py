@@ -10,6 +10,7 @@ import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(REPO, "app"))
+from audit_experiment_artifacts import tracked_state  # noqa: E402
 from experiments.manifest import ExperimentRecord  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 
@@ -36,6 +37,7 @@ FAMILY_LIMITS = {
     "pdnc_context_evidence": "A five-book English PDNC pilot at 120 lines per book whose arms differ by 5 correct lines in 600 (57.7% vs 58.5%); sized to decide whether the confirmatory run is worth doing, not to establish an effect, and no confirmatory run exists.",
     "pdnc_sequence": "A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result.",
     "pdnc_targeted_sequence": "A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure.",
+    "pdnc_evidence": "A five-book English PDNC pilot, 120 lines per book, run 2026-08-18: baseline 58.5% against evidence 59.5% overall (351 vs 357 correct of 600), conditional 59.0% vs 61.1%. Six lines apart on a pre-declared gate the arm did NOT clear, so the twenty-book confirmatory set stayed sealed - which is the pilot working, not a result. Nothing here supports a claim that supplying evidence spans helps attribution; it is the reason not to spend the confirmatory run.",
     "pdnc_narrator_prior": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.",
     "reasoning_arms": "Reasoning/justification settings are model- and serving-stack-specific.",
     "reasoning_check": "Justification disagreement is a routing signal, not calibrated confidence.",
@@ -63,10 +65,39 @@ def _commit_is_in_history(commit):
 
 
 def _current_gold(meta, rows):
-    path = os.path.join(REPO, str(meta.get("gold_path") or ""))
+    """Compare an artifact's rows against the gold it was scored on.
+
+    ONLY IF THAT GOLD IS IN THE REPOSITORY. This audit is committed, so a
+    classification derived from a fixture that exists on one machine is not a
+    fact about the evidence - it is a fact about that machine, and CI
+    regenerating the file gets a different answer. ab_test_runtime/pdnc_inputs
+    is 6.5 MB of untracked PDNC fixtures today, and four artifacts' verdicts
+    moved between supported_measurement and historical_only depending purely
+    on whether the machine happened to have them.
+
+    Same reasoning as indexable_artifacts in audit_experiment_artifacts.py,
+    and the same borrowed distinction: DVC hashes a stage's declared `deps`
+    rather than asking whether the tree is dirty, so what a run was scored
+    against is pinned by content instead of by the machine's mood. Gold is a
+    dep in that sense - it just cannot be pinned by a machine nobody else can
+    read the file from.
+
+    "Untracked" and "absent" must produce the SAME record, because a clean
+    checkout cannot tell them apart: the untracked file simply is not there.
+    Recording the difference is what broke the first attempt at this fix - the
+    machine holding the fixture wrote an extra field that CI could never
+    reproduce. Which artifacts have gold on this machine but not in the
+    repository is reported by --check on stderr, where it is a message to the
+    person running it rather than content in a shared file.
+    """
+    rel = str(meta.get("gold_path") or "")
+    path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
-    if not os.path.isfile(path):
+    # Skip ONLY on a definite "untracked". Outside a repository git cannot
+    # answer, and refusing to read the fixture there would mean auditing
+    # nothing while reporting success.
+    if not rel or not os.path.isfile(path) or tracked_state(rel, REPO) == "untracked":
         return result
     with open(path, "rb") as handle:
         raw = handle.read()
@@ -205,6 +236,23 @@ def main():
     args = parser.parse_args()
     audit = build_audit()
     markdown = render_markdown(audit)
+    # Local-only gold is a message to the operator, never content in the file:
+    # it says "these verdicts could be sharper if you committed the fixture",
+    # and it is the only place that information can live without making the
+    # audit machine-dependent.
+    local_only = sorted({
+        rel for rel in (
+            str(json.load(open(os.path.join(EXPERIMENTS, row["artifact"]),
+                               encoding="utf-8"))["meta"].get("gold_path") or "")
+            for row in audit["artifacts"])
+        if rel and os.path.isfile(os.path.join(REPO, rel))
+        and tracked_state(rel, REPO) == "untracked"})
+    if local_only:
+        print(f"note: {len(local_only)} gold fixture(s) exist here but are not "
+              f"tracked, so artifacts scored on them are audited without gold:",
+              file=sys.stderr)
+        for rel in local_only[:5]:
+            print(f"  {rel}", file=sys.stderr)
     if args.check:
         with open(args.json, encoding="utf-8") as handle:
             existing = json.load(handle)

@@ -15,6 +15,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
+from core import llm_timeout_seconds
 
 import lmstudio_settings
 from config_settings import load_app_config
@@ -243,7 +244,8 @@ def _main():
     parser.add_argument("--max-concurrency", type=int, default=16)
     args = parser.parse_args()
 
-    client = OpenAI(base_url=args.base_url, api_key=args.api_key)
+    client = OpenAI(base_url=args.base_url, api_key=args.api_key,
+                    timeout=llm_timeout_seconds())
     print(f"Benchmarking {args.model} at {args.base_url}\n")
 
     level = 1

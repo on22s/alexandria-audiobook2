@@ -1,0 +1,40 @@
+{
+  "experiment": "generation_state_probe",
+  "condition": "cold_vary",
+  "seed": 3101,
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar06.txt",
+  "chunk": 25,
+  "total_chunks": 70,
+  "passed": true,
+  "entry_count": 50,
+  "quality": {
+    "passed": true,
+    "metrics": {
+      "source_tokens": 1093,
+      "output_tokens": 1026,
+      "source_token_recall": 0.9387,
+      "ordered_trigram_recall": 0.9193,
+      "output_source_ratio": 0.9387
+    },
+    "source_cyrillic": [],
+    "missing_source_spans": [],
+    "findings": []
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "elapsed_seconds": 57.536,
+      "finish_reason": "stop",
+      "requested_max_tokens": 10000,
+      "effective_max_tokens": 10000,
+      "prompt_tokens": 2594,
+      "completion_tokens": 2620,
+      "reasoning_tokens": null,
+      "error": null,
+      "response_fingerprint": "722c53004b6f32954f19af72cc11f261195e662f38b331527f5f7fa27606aee3",
+      "response_repeat_count": 1,
+      "outcome": "accepted"
+    }
+  ],
+  "seconds": 57.6
+}

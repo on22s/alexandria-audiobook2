@@ -5,5 +5,27 @@
  "generation_failures": 0,
  "threshold": 0.45,
  "passed": false,
- "verdict": "FAIL - 0.393 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67."
+ "verdict": "FAIL - 0.393 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-18T11:16:31",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0a18e3af134fdae337ec7c4219630e0618bc160b",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "26c5be024122c65a57d7bdda7ec830c0124b33a59090e20f60663d25556c2070"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch1/breathy_alto_50s_f_fantasy/adapter",
+   "dataset": "ab_test_runtime/decontaminate/batch1/breathy_alto_50s_f_fantasy/data",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/gate_promote__breathy_alto_50s_f_fantasy.json"
+  },
+  "seed": 1234
+ }
 }

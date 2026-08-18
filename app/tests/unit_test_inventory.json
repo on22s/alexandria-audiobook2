@@ -34,6 +34,8 @@
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
   "test_artifact_structural_audit": [
+    "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_indexes_everything",
+    "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_classifies_all_identity_contracts_without_scientific_claims",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_unreadable_json_is_visible_not_skipped"
   ],
@@ -218,6 +220,23 @@
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_rows_carry_context",
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_start_of_book_has_no_leading_context",
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_window_is_respected"
+  ],
+  "test_chain_failure_guards": [
+    "tests.test_chain_failure_guards.ChainFailureGuardTest.test_new_chains_that_capture_an_exit_code_also_act_on_it",
+    "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_exempt_a_chain_that_is_already_fixed",
+    "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_name_chains_that_no_longer_exist",
+    "tests.test_chain_failure_guards.ChainIdempotencyTest.test_a_chain_that_skips_on_an_artifact_also_checks_it_finished",
+    "tests.test_chain_failure_guards.ChainIdempotencyTest.test_the_completion_check_is_not_satisfied_by_the_word_alone"
+  ],
+  "test_chain_stage_lib": [
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_later_stage_still_runs_after_an_unrelated_failure",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_timeout_is_reported_as_a_timeout_not_a_generic_failure",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_all_stages_passing_exits_zero",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_each_stage_writes_its_own_log",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_skips_a_stage_whose_predecessor_failed",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_running_the_same_chain_twice_is_idempotent"
   ],
   "test_character_evidence": [
     "tests.test_character_evidence.TestAbstention.test_confidence_scales_with_evidence",
@@ -515,6 +534,10 @@
     "tests.test_experiment_manifest.ManifestTest.test_raw_responses_are_kept_verbatim",
     "tests.test_experiment_manifest.ManifestTest.test_summary_is_recomputable_from_the_rows",
     "tests.test_experiment_manifest.ManifestTest.test_the_written_artifact_round_trips",
+    "tests.test_experiment_manifest.ReadInputsTest.test_a_missing_input_is_recorded_not_skipped",
+    "tests.test_experiment_manifest.ReadInputsTest.test_an_edited_input_produces_a_different_hash",
+    "tests.test_experiment_manifest.ReadInputsTest.test_declaring_no_inputs_is_an_empty_record_not_a_missing_field",
+    "tests.test_experiment_manifest.ReadInputsTest.test_each_input_is_pinned_by_hash_under_a_relative_key",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_a_fully_tracked_harness_reports_none",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_an_untracked_harness_marks_the_tree_dirty"
   ],
@@ -604,6 +627,12 @@
     "tests.test_generate_personas.RosterAmbiguityTest.test_an_ordinary_roster_is_not",
     "tests.test_generate_personas.RosterAmbiguityTest.test_empty_and_none_are_safe"
   ],
+  "test_generate_script_timeout": [
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_every_caller_shares_one_definition_of_how_long_is_too_long",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_no_openai_client_is_built_without_a_timeout",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_sees_a_timeout_hidden_behind_a_nested_call",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_still_catches_a_client_with_no_timeout"
+  ],
   "test_generation_dispatch": [
     "tests.test_generation_dispatch.GenerationDispatchTests.test_batch_generation_uses_same_dispatch_with_output",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_default_output_and_stale_chunks_share_runtime_data_directory",
@@ -654,6 +683,11 @@
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_both_generators_strip_the_same_things",
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_publisher_matter_is_not_left_to_a_flag"
   ],
+  "test_goal_citations": [
+    "tests.test_goal_citations.CitationScannerTest.test_a_hyphenated_artifact_name_is_seen",
+    "tests.test_goal_citations.CitationScannerTest.test_every_cited_artifact_actually_exists",
+    "tests.test_goal_citations.CitationScannerTest.test_goals_measured_this_session_cite_their_artifacts"
+  ],
   "test_goals_navigation": [
     "tests.test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
     "tests.test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
@@ -699,12 +733,18 @@
     "tests.test_gold_set_builder.ValidationTest.test_unanswered_rows_are_reported"
   ],
   "test_gpu_job": [
+    "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_run_writes_no_patch",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_tree_runs_untouched",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_directory_that_is_not_a_repository_is_not_called_dirty",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_dirty_tree_is_refused_and_the_command_never_runs",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_an_overridden_dirty_run_saves_the_diff_that_produced_it",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_refused",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_still_dirt",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_modified_code_is_still_dirt",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_rewriting_an_artifact_is_not_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_override_runs_but_leaves_a_mark",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_refusal_names_what_is_uncommitted",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_the_saved_patch_includes_an_untracked_harness_script",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_shell_gate_agrees_with_the_python_provenance",
     "tests.test_gpu_job.DirtyTreeGateTest.test_untracked_notes_are_not_treated_as_dirt",
     "tests.test_gpu_job.GpuJobTest.test_a_failed_flock_refuses_to_run_the_command",
@@ -723,6 +763,8 @@
     "tests.test_gpu_job.GpuJobTest.test_timeout_kills_job_releases_lock_and_logs_failure",
     "tests.test_gpu_job.GpuJobTest.test_two_jobs_do_not_overlap",
     "tests.test_gpu_job.GpuJobTest.test_wrapped_failure_propagates_the_exit_code",
+    "tests.test_gpu_job.HarnessIsolationTest.test_a_paused_machine_does_not_change_what_the_harness_sees",
+    "tests.test_gpu_job.HarnessIsolationTest.test_every_entry_point_isolates_all_three_shared_paths",
     "tests.test_gpu_job.LlmPreflightGateTest.test_a_failing_preflight_stops_the_job_before_it_starts",
     "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
     "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
@@ -731,6 +773,17 @@
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_paused_queue_holds_the_job_before_the_lock",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_exit_codes_survive_the_process_group_wrapper",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_releasing_the_flag_lets_the_job_run",
+    "tests.test_gpu_job.PauseStatusTest.test_a_completed_job_is_not_running",
+    "tests.test_gpu_job.PauseStatusTest.test_a_job_with_a_live_process_is_reported_as_running",
+    "tests.test_gpu_job.PauseStatusTest.test_a_start_with_no_result_and_no_process_is_not_called_running",
+    "tests.test_gpu_job.PauseStatusTest.test_status_never_reports_itself_as_the_running_job",
+    "tests.test_gpu_job.PendingMarkerTest.test_a_failed_job_leaves_no_marker_behind",
+    "tests.test_gpu_job.PendingMarkerTest.test_a_finished_job_leaves_no_marker_behind",
+    "tests.test_gpu_job.PendingMarkerTest.test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code",
+    "tests.test_gpu_job.PendingMarkerTest.test_a_waiting_job_is_visible_while_it_waits",
+    "tests.test_gpu_job.TerminalMarkerTest.test_a_failing_run_records_exactly_one_terminal_line",
+    "tests.test_gpu_job.TerminalMarkerTest.test_a_normal_run_records_exactly_one_terminal_line",
+    "tests.test_gpu_job.TerminalMarkerTest.test_an_interrupted_job_still_records_a_terminal_line",
     "tests.test_gpu_job.VramGateTest.test_a_job_is_refused_when_the_card_is_nearly_full",
     "tests.test_gpu_job.VramGateTest.test_an_unreadable_gpu_warns_rather_than_blocking",
     "tests.test_gpu_job.VramGateTest.test_the_refusal_names_what_to_do_about_it",
@@ -1028,6 +1081,17 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_runs_of_marks_collapse",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
   ],
+  "test_pair_e_row": [
+    "tests.test_pair_e_row.CompletenessTest.test_an_explicit_partial_status_is_believed",
+    "tests.test_pair_e_row.CompletenessTest.test_counts_decide_when_the_status_field_is_absent",
+    "tests.test_pair_e_row.CompletenessTest.test_neither_source_gives_unknown_rather_than_a_guess",
+    "tests.test_pair_e_row.RefusalTest.test_a_complete_arm_scores_without_a_warning",
+    "tests.test_pair_e_row.RefusalTest.test_a_partial_arm_is_refused_by_default",
+    "tests.test_pair_e_row.RefusalTest.test_allow_partial_scores_it_and_labels_every_output",
+    "tests.test_pair_e_row.RefusalTest.test_the_refusal_says_why_the_subset_is_biased_not_merely_small",
+    "tests.test_pair_e_row.SharedCompletenessTest.test_pair_e_row_uses_the_shared_definition",
+    "tests.test_pair_e_row.SharedCompletenessTest.test_the_audit_records_completeness_for_every_row"
+  ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected",
@@ -1130,6 +1194,11 @@
     "tests.test_preparer_speaker_detection.PlanDetectionWindowsTests.test_ten_hour_book_gets_three_spread_windows",
     "tests.test_preparer_speaker_detection.PlanDetectionWindowsTests.test_windows_are_clamped_inside_the_file"
   ],
+  "test_producer_provenance": [
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_new_producers_stamp_their_artifacts",
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_the_debt_list_does_not_name_scripts_already_fixed",
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_the_debt_list_does_not_name_scripts_that_are_gone"
+  ],
   "test_production_audio_validation": [
     "tests.test_production_audio_validation.ProductionCompletionBoundaryTests.test_batch_deletes_stale_output_before_dispatch",
     "tests.test_production_audio_validation.ProductionCompletionBoundaryTests.test_false_batch_completion_without_fresh_file_is_an_error",
@@ -1165,6 +1234,9 @@
     "tests.test_promote_adapters.AdapterSourceTests.test_manifest_maps_training_num_samples_to_sample_count",
     "tests.test_promote_adapters.AdapterSourceTests.test_refuses_ambiguous_decontamination_sources",
     "tests.test_promote_adapters.AdapterSourceTests.test_resolves_one_decontamination_batch",
+    "tests.test_promote_adapters.EcapaPairPathTest.test_absolute_pairs_are_unchanged",
+    "tests.test_promote_adapters.EcapaPairPathTest.test_no_pairs_still_returns_a_reason_not_a_silent_empty",
+    "tests.test_promote_adapters.EcapaPairPathTest.test_relative_pairs_are_made_absolute_before_the_subprocess",
     "tests.test_promote_adapters.GateCampaignTests.test_every_campaign_is_selectable_and_has_a_distinct_prefix",
     "tests.test_promote_adapters.GateCampaignTests.test_the_parser_offers_exactly_the_table",
     "tests.test_promote_adapters.GateCampaignTests.test_the_rank2_retrain_directory_is_a_permitted_source",
@@ -1323,6 +1395,12 @@
     "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
   ],
   "test_respelling_scoring": [
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_a_finished_run_is_marked_complete",
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_an_interrupted_run_is_marked_partial",
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_the_checkpoint_partway_through_is_partial",
+    "tests.test_respelling_scoring.DefaultRowTest.test_rows_other_than_e_are_untouched_by_the_change",
+    "tests.test_respelling_scoring.DefaultRowTest.test_the_default_row_is_the_one_that_won",
+    "tests.test_respelling_scoring.DefaultRowTest.test_the_losing_rows_are_still_selectable",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_scattered_characters_score_only_their_longest_run",

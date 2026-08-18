@@ -1,0 +1,13 @@
+CAMPAIGN_START 2026-08-15T23:09:31Z commit=5bcc2a8
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+MODEL_READY 2026-08-15T23:09:41Z pid=1622902
+BOOK_START mushoku18 2026-08-15T23:09:41Z
+BOOK_END mushoku18 rc=0 status=complete stage=None completed=None total=None model=qwen3-14b
+BOOK_START grimgar06 2026-08-15T23:49:53Z
+BOOK_END grimgar06 rc=0 status=complete stage=None completed=None total=None model=qwen3-14b
+BOOK_START mushoku23 2026-08-16T00:48:42Z
+BOOK_END mushoku23 rc=0 status=complete stage=None completed=None total=None model=qwen3-14b
+BOOK_START arc4_volume10wn 2026-08-16T02:19:55Z
+BOOK_END arc4_volume10wn rc=0 status=complete stage=None completed=None total=None model=qwen3-14b
+CAMPAIGN_DONE rc=0 2026-08-16T03:29:49Z
+CAMPAIGN_EXIT 2026-08-16T03:29:50Z

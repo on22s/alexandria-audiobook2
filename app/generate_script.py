@@ -8,6 +8,7 @@ import time
 import math
 from dataclasses import dataclass
 from openai import OpenAI
+from core import llm_timeout_seconds
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
@@ -1386,9 +1387,23 @@ def main():
     print(heal_msg)
 
     # Create OpenAI client with custom base URL
+    #
+    # A TIMEOUT, BECAUSE WITHOUT ONE A STALLED SERVER STOPS THE WORLD. This
+    # call had none while core._make_llm_client defaults to 60s - two ways to
+    # build the same client, disagreeing (Rule 15). On 2026-08-18 the
+    # unseen_books run held the GPU for two hours having used two SECONDS of
+    # CPU: one request never came back, nothing timed out, and the job sat
+    # sleeping while the queue behind it waited and the deadline passed.
+    #
+    # 600s rather than core's 60s: a generation batch legitimately takes
+    # minutes on a 14B model, and a timeout shorter than the work turns a slow
+    # request into a failed one. What matters is that SOME finite number
+    # exists, so a dead request becomes an error the retry loop can see rather
+    # than a silent hang.
     client = OpenAI(
         base_url=base_url,
-        api_key=api_key
+        api_key=api_key,
+        timeout=llm_timeout_seconds(),
     )
 
     # Split into chunks at natural boundaries

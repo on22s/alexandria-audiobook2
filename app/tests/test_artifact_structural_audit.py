@@ -1,7 +1,10 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -50,6 +53,58 @@ class StructuralAuditTests(unittest.TestCase):
         result = audit.build_audit(str(self.root))
         self.assertEqual(1, len(result["artifacts"]))
         self.assertIn("unreadable JSON", result["artifacts"][0]["reason"])
+
+
+class IndexableArtifactTests(unittest.TestCase):
+    """A checked-in index may only contain what everyone else can see.
+
+    PR #340 failed CI on exactly this: six artifacts existed on this machine
+    and not in the repository, the local index counted them, and CI - which
+    checks out the committed files and regenerates - reported the index stale.
+    Every run of the overnight queue would have reproduced it.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def _git(self, *args):
+        subprocess.run(["git", *args], cwd=self.tmp.name, check=True,
+                       capture_output=True)
+
+    def _write(self, name):
+        (self.root / name).write_text(json.dumps({"rows": []}), encoding="utf-8")
+
+    def test_only_tracked_artifacts_are_indexed_and_the_rest_are_named(self):
+        self._git("init", "-q")
+        self._git("config", "user.email", "t@example.com")
+        self._git("config", "user.name", "t")
+        self._write("committed.json")
+        self._git("add", "committed.json")
+        self._git("commit", "-qm", "add")
+        self._write("local_only.json")
+
+        with patch.object(audit, "REPO", self.tmp.name):
+            keep, skipped = audit.indexable_artifacts(self.tmp.name)
+
+        self.assertEqual(["committed.json"], [os.path.basename(p) for p in keep])
+        self.assertEqual(["local_only.json"], skipped,
+                         "an unindexed artifact must still be reported")
+
+    def test_a_directory_without_git_indexes_everything(self):
+        """The fallback, asserted rather than assumed.
+
+        Returning an empty index outside a repo would be a plausible-looking
+        answer to a question that was never asked - a source export would
+        silently report that no evidence exists.
+        """
+        self._write("a.json")
+        self._write("b.json")
+        with patch.object(audit, "REPO", self.tmp.name):
+            keep, skipped = audit.indexable_artifacts(self.tmp.name)
+        self.assertEqual(2, len(keep))
+        self.assertEqual([], skipped)
 
 
 if __name__ == "__main__":
