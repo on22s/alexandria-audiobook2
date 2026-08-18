@@ -1060,6 +1060,15 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_runs_of_marks_collapse",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
   ],
+  "test_pair_e_row": [
+    "tests.test_pair_e_row.CompletenessTest.test_an_explicit_partial_status_is_believed",
+    "tests.test_pair_e_row.CompletenessTest.test_counts_decide_when_the_status_field_is_absent",
+    "tests.test_pair_e_row.CompletenessTest.test_neither_source_gives_unknown_rather_than_a_guess",
+    "tests.test_pair_e_row.RefusalTest.test_a_complete_arm_scores_without_a_warning",
+    "tests.test_pair_e_row.RefusalTest.test_a_partial_arm_is_refused_by_default",
+    "tests.test_pair_e_row.RefusalTest.test_allow_partial_scores_it_and_labels_every_output",
+    "tests.test_pair_e_row.RefusalTest.test_the_refusal_says_why_the_subset_is_biased_not_merely_small"
+  ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected",
@@ -1361,6 +1370,9 @@
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_a_finished_run_is_marked_complete",
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_an_interrupted_run_is_marked_partial",
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_the_checkpoint_partway_through_is_partial",
+    "tests.test_respelling_scoring.DefaultRowTest.test_rows_other_than_e_are_untouched_by_the_change",
+    "tests.test_respelling_scoring.DefaultRowTest.test_the_default_row_is_the_one_that_won",
+    "tests.test_respelling_scoring.DefaultRowTest.test_the_losing_rows_are_still_selectable",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_scattered_characters_score_only_their_longest_run",
