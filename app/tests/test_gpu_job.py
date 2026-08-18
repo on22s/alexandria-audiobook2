@@ -58,6 +58,11 @@ def isolated_env(tmpdir, **extra):
                GPU_LOCK=os.path.join(tmpdir, "gpu.lock"),
                GPU_QLOG=os.path.join(tmpdir, "queue.log"),
                GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"),
+               # Fourth of its kind. Without this the suite wrote pending
+               # markers into the machine's real queue directory, and
+               # gpu_pause.sh dutifully reported four dead chains that were
+               # only ever tests.
+               GPU_PENDING_DIR=os.path.join(tmpdir, "pending"),
                # The card is REAL STATE too, and this is the third variable to
                # be found leaking in. With llama-server resident for an
                # unseen_books run (14.7 GB), every probe here was refused with
@@ -887,7 +892,7 @@ class PendingMarkerTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.qlog = os.path.join(self.tmp.name, "queue.log")
-        self.pending = os.path.join(REPO, "ab_test_runtime", "logs", "pending")
+        self.pending = os.path.join(self.tmp.name, "pending")
 
     def _run(self, *argv, **extra):
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,

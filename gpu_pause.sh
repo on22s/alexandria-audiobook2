@@ -111,7 +111,7 @@ case "${1:-status}" in
     # and a chain that died left the same evidence as one patiently waiting -
     # the confusion behind two idle stretches on 2026-08-18. task-spooler has
     # `ts -l` for exactly this; these markers are the small version.
-    pending_dir="$REPO/ab_test_runtime/logs/pending"
+    pending_dir="${GPU_PENDING_DIR:-$REPO/ab_test_runtime/logs/pending}"
     if [ -d "$pending_dir" ]; then
         for marker in "$pending_dir"/*; do
             [ -e "$marker" ] || continue

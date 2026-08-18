@@ -56,7 +56,12 @@ echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
 # an hour the second time. task-spooler answers this with `ts -l`; this is the
 # poor relation of that, one file per waiting job, removed on exit however the
 # job ends. `gpu_pause.sh status` reads them.
-PENDING_DIR="$(dirname "$0")/ab_test_runtime/logs/pending"
+# OVERRIDABLE, LIKE EVERY OTHER PATH HERE. Hardcoding it meant the test suite
+# wrote markers into the REAL pending directory - four stale entries showed up
+# in `gpu_pause.sh status` within an hour, each claiming a chain had died. That
+# is the fourth variable to leak from the harness into live state after
+# GPU_LOCK, GPU_QLOG and GPU_PAUSE_FLAG; isolated_env pins this one too.
+PENDING_DIR="${GPU_PENDING_DIR:-$(dirname "$0")/ab_test_runtime/logs/pending}"
 mkdir -p "$PENDING_DIR" 2>/dev/null
 PENDING_FILE="$PENDING_DIR/$$.$NAME"
 printf '%s\t%s\t%s\n' "$NAME" "$$" "$(stamp)" > "$PENDING_FILE" 2>/dev/null
