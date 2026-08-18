@@ -1184,6 +1184,11 @@
     "tests.test_preparer_speaker_detection.PlanDetectionWindowsTests.test_ten_hour_book_gets_three_spread_windows",
     "tests.test_preparer_speaker_detection.PlanDetectionWindowsTests.test_windows_are_clamped_inside_the_file"
   ],
+  "test_producer_provenance": [
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_new_producers_stamp_their_artifacts",
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_the_debt_list_does_not_name_scripts_already_fixed",
+    "tests.test_producer_provenance.ProducerProvenanceTest.test_the_debt_list_does_not_name_scripts_that_are_gone"
+  ],
   "test_production_audio_validation": [
     "tests.test_production_audio_validation.ProductionCompletionBoundaryTests.test_batch_deletes_stale_output_before_dispatch",
     "tests.test_production_audio_validation.ProductionCompletionBoundaryTests.test_false_batch_completion_without_fresh_file_is_an_error",
