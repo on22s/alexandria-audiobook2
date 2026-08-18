@@ -37,6 +37,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
 from core import llm_timeout_seconds  # noqa: E402
+from experiments.gpu_guard import require_free_gpu  # noqa: E402
 from experiments.provenance import provenance  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 
@@ -63,6 +64,10 @@ worse than an honest UNKNOWN, because nobody can find it later."""
 
 
 def build_client(base_url, api_key="local"):
+    # Not beside a running job. This script talks to the same llama-server a
+    # queued generation uses, and calling it by hand during one is exactly the
+    # collision the queue exists to prevent.
+    require_free_gpu("two_stage_attribution")
     from openai import OpenAI
     return OpenAI(base_url=base_url, api_key=api_key,
                   timeout=llm_timeout_seconds())
