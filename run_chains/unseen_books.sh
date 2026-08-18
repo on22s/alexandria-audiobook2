@@ -58,8 +58,21 @@ restore() { [ -f "$BACKUP" ] && command cp -f "$BACKUP" "$REPO/app/config.json";
 trap restore EXIT INT TERM
 
 
+# START THE SERVER RATHER THAN COMPLAINING ABOUT ITS ABSENCE. This aborted
+# instantly at 01:57Z on 2026-08-18 and gave a 6-hour slot back to nobody: the
+# overnight driver stops llama-server between stages to reclaim VRAM (right
+# for the TTS stages, since nothing else ever reclaims that 8.4 GB), and this
+# chain needed one and would not start it. Every caller would otherwise have
+# to know which stages need a server - so the stage that needs it asks for it.
+#
+# ensure_llama_server.sh is idempotent and reuses a healthy server, so calling
+# it when one is already up costs a health check.
 if ! curl -s -m 20 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
-    echo "ABORT: no qwen3 server on 8090"; exit 1
+    echo "no qwen3 server on 8090; starting one"
+    "$REPO/ensure_llama_server.sh" || { echo "ABORT: could not start a server"; exit 1; }
+    if ! curl -s -m 60 http://127.0.0.1:8090/v1/models | grep -q qwen3; then
+        echo "ABORT: server started but is not serving qwen3 on 8090"; exit 1
+    fi
 fi
 command cp -f "$REPO/app/config.json" "$BACKUP"
 "$PY" - <<'PYEOF'

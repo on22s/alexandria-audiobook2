@@ -28,6 +28,15 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
+# `unittest discover` is run from app/, which puts app/ on sys.path and makes
+# `experiments` importable. Running this file directly puts app/tests/ there
+# instead, and the Rule 15 cross-check below died on ModuleNotFoundError - a
+# failure that only appeared once the stray mid-file unittest.main() stopped
+# hiding four of the five classes from direct execution.
+import sys
+if os.path.join(REPO, "app") not in sys.path:
+    sys.path.insert(0, os.path.join(REPO, "app"))
+
 
 def isolated_env(tmpdir, **extra):
     """Every gpu_job.sh knob that otherwise points at REAL, SHARED state.
@@ -300,9 +309,6 @@ class GpuJobTest(unittest.TestCase):
                                             ALLOW_DIRTY_TREE="1"))
         self.assertEqual(r.returncode, 2)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
@@ -839,3 +845,14 @@ class PauseStatusTest(unittest.TestCase):
         # matching. Self-matching killed this session's shell twice.
         self._write_log("START    status", "QUEUED   next")
         self.assertIn("running job: none", self._status())
+
+
+if __name__ == "__main__":
+    # AT THE END, because it was in the MIDDLE. Everything defined after it -
+    # four of the five test classes here - was invisible to `python
+    # tests/test_gpu_job.py`, which ran the first class and printed OK. Under
+    # `unittest discover` the module is imported, __name__ is not "__main__",
+    # and all five classes register, so this hid only from whoever ran the
+    # file directly to check their work. Same family as the tests/ package
+    # needing __init__.py: a runner that silently tests less than you think.
+    unittest.main()
