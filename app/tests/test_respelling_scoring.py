@@ -181,3 +181,37 @@ class ArtifactCompletenessTest(unittest.TestCase):
         # Every artifact is partial until the last checkpoint; that is exactly
         # why the field has to be written on every checkpoint, not at the end.
         self.assertEqual("partial", self._write(5, 400)["status"])
+
+
+class DefaultRowTest(unittest.TestCase):
+    """The /e/ row ships as -ay because -ay was measured to be twice as good.
+
+    Paired against -eh on identical terms, with the plain (no respelling) arm
+    as an explicit noise floor:
+
+        -ay  14.0% vs 7.0%   p=2.5e-11    control p=0.77
+        -ei  10.5% vs 7.9%   p=0.25       control p=0.51
+        -e    2.0% vs 7.9%   p=1.9e-4     control p=0.39
+
+    The -ay figure is the whole qualifying pool (1,419 terms), not a sample,
+    and the effect was stable at 391, 780 and 1,419 as it grew.
+    """
+
+    def test_the_default_row_is_the_one_that_won(self):
+        self.assertEqual("ay", measure.DEFAULT_E_SPELLING)
+        self.assertEqual("say-n-say-ee", measure.respell("センセイ"))
+
+    def test_the_losing_rows_are_still_selectable(self):
+        """Changing the default without keeping -eh would make the evidence
+        that justified the change unreplayable."""
+        self.assertEqual("seh-n-seh-ee",
+                         measure.respell("センセイ", measure.e_row("eh")))
+        self.assertEqual("se-n-se-ee",
+                         measure.respell("センセイ", measure.e_row("e")))
+
+    def test_rows_other_than_e_are_untouched_by_the_change(self):
+        # The comparison isolated ONE row; anything else moving would mean the
+        # arms differed by more than the thing under test.
+        self.assertEqual("tah-nah-kah", measure.respell("タナカ"))
+        self.assertEqual(measure.respell("タナカ", measure.e_row("eh")),
+                         measure.respell("タナカ"))

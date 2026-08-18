@@ -34,6 +34,37 @@ BASELINE = os.path.join(REPO, "ab_test_runtime", "experiments",
                         "respelling_measure_rescored.json")
 
 
+def completeness(path):
+    """-> "complete" | "partial" | "unknown" for an artifact.
+
+    THE READER MUST CHECK, not just the chain. measure_respellings writes its
+    artifact every five terms, so an interrupted run leaves a file that looks
+    finished; the n1200 block was killed at 1129 of 1200 and committed as
+    evidence. The chain now skips only complete artifacts - but every SCORER
+    would still have consumed that file silently and reported a rate as if it
+    were the whole sample.
+
+    Truncation is biased, not merely small: terms are taken in book-count
+    order, so what is missing is exactly the rarest words - the ones a
+    pronunciation lexicon exists for.
+
+    This is the check Snakemake makes with IncompleteFilesException and the one
+    Spark expects of anything reading a directory (look for _SUCCESS, not for
+    files). "unknown" is a third answer, for artifacts written before the
+    status field existed; it warns rather than refusing, because refusing to
+    read every older artifact would be a worse failure than reading one.
+    """
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    status = doc.get("status")
+    if status in ("complete", "partial"):
+        return status
+    results, requested = doc.get("results"), doc.get("candidates_considered")
+    if isinstance(results, list) and isinstance(requested, int):
+        return "complete" if len(results) >= requested else "partial"
+    return "unknown"
+
+
 def load(path):
     """-> ({term: row} for scored rows, [rows the runner skipped])."""
     with open(path, encoding="utf-8") as fh:
@@ -71,7 +102,9 @@ def compare(arm_path, baseline_path=BASELINE):
     shared = sorted(set(arm) & set(base))
     out = {
         "arm": os.path.basename(arm_path),
+        "arm_completeness": completeness(arm_path),
         "baseline": os.path.basename(baseline_path),
+        "baseline_completeness": completeness(baseline_path),
         "arm_scored": len(arm), "arm_skipped": len(skipped),
         "shared_terms": len(shared),
     }
@@ -103,6 +136,15 @@ def render(result):
         return "\n".join(lines + ["  " + result["error"]])
     lines.append(f"  scored={result['arm_scored']} skipped={result['arm_skipped']} "
                  f"shared={result['shared_terms']}")
+    for side in ("arm", "baseline"):
+        state = result.get(f"{side}_completeness")
+        if state == "partial":
+            lines.append(f"  !! {side.upper()} IS PARTIAL - the run was cut "
+                         f"short, and the terms it is missing are the rarest "
+                         f"ones. Rates below are not over the full sample.")
+        elif state == "unknown":
+            lines.append(f"  ?  {side} completeness unknown (artifact predates "
+                         f"the status field)")
     for label in ("respelled", "plain"):
         r = result[label]
         tail = "  <- same condition twice: the noise floor" if label == "plain" else ""
@@ -120,7 +162,26 @@ def main():
     ap.add_argument("arms", nargs="+", help="arm artifact(s) to compare")
     ap.add_argument("--baseline", default=BASELINE)
     ap.add_argument("--out", help="write the comparison as JSON")
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="score an artifact whose run was cut short (the "
+                         "result is over a biased subset; say so wherever it "
+                         "is quoted)")
     args = ap.parse_args()
+
+    # REFUSE BY DEFAULT, like Snakemake's IncompleteFilesException. A partial
+    # artifact scored silently is how 1129 of 1200 terms nearly became a cited
+    # number; an explicit flag makes using one a decision rather than an
+    # accident.
+    if not args.allow_partial:
+        cut_short = [a for a in args.arms if completeness(a) == "partial"]
+        if cut_short:
+            raise SystemExit(
+                "refusing to score a partial artifact:\n  "
+                + "\n  ".join(os.path.basename(a) for a in cut_short)
+                + "\nIts run was cut short, and because terms are ordered by "
+                  "book count the missing tail is the rarest words - the "
+                  "result would be biased, not just smaller.\nRe-run it, or "
+                  "pass --allow-partial and say so wherever the number goes.")
 
     results = [compare(a, args.baseline) for a in args.arms]
     for result in results:
