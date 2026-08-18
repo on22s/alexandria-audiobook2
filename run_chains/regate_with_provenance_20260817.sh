@@ -73,6 +73,7 @@ echo "REGATE START $(date -u +%FT%TZ)  adapters=$total"
 grep '^#' /tmp/regate_queue.tsv || true
 
 done_n=0
+failed_n=0
 while IFS=$'\t' read -r name adapter data; do
     case "$name" in \#*) continue;; esac
     out="$EXP/gate_promote__$name.json"
@@ -81,8 +82,24 @@ while IFS=$'\t' read -r name adapter data; do
         --out "$out" > "$LOG/$name.log" 2>&1
     rc=$?
     done_n=$((done_n + 1))
+    [ "$rc" -ne 0 ] && failed_n=$((failed_n + 1))
     echo "[$done_n/$total] rc=$rc $name"
 done < /tmp/regate_queue.tsv
+
+# A STRICT GATE, BECAUSE THIS LOOP LIED FOR TWO HOURS. Bash discards each
+# iteration's exit status, and `set -e` does not apply inside a loop body, so
+# on 2026-08-18 all 67 adapters failed with rc=2 and this script still printed
+# REGATE COMPLETE and exited 0 - the caller logged "OK regate" and moved on.
+# Databricks names the same shape SUCCESS_WITH_FAILURES: a run green enough to
+# notify success while containing real failures, and their fix is the one used
+# here - end in a gate that fails when the parts did, and never put a
+# reporting step after it that can restore a zero exit.
+if [ "$failed_n" -gt 0 ]; then
+    echo "REGATE FAILED $(date -u +%FT%TZ): $failed_n of $total adapters" >&2
+    echo "  Nothing here was measured. Read one per-adapter log before" >&2
+    echo "  re-running: $LOG/<adapter>.log" >&2
+    exit 1
+fi
 
 echo "REGATE COMPLETE $(date -u +%FT%TZ)"
 echo
