@@ -5,5 +5,27 @@
  "generation_failures": 0,
  "threshold": 0.45,
  "passed": false,
- "verdict": "FAIL - 0.034 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67."
+ "verdict": "FAIL - 0.034 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-18T10:36:58",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "223e3955c0a41c7f3e941ee35a5ab132fc15c9f4",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "26c5be024122c65a57d7bdda7ec830c0124b33a59090e20f60663d25556c2070"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch4/warm_alto_50s_f_gothic/adapter",
+   "dataset": "ab_test_runtime/decontaminate/batch4/warm_alto_50s_f_gothic/data",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/gate_promote__warm_alto_50s_f_gothic.json"
+  },
+  "seed": 1234
+ }
 }
