@@ -93,3 +93,43 @@ class ParagraphStructureTest(unittest.TestCase):
     def test_headings_and_list_items_also_end_a_paragraph(self):
         out = self._text("<h1>Chapter</h1><li>One</li><li>Two</li>")
         self.assertEqual(3, len([p for p in out.split("\n\n") if p.strip()]))
+
+
+class InvisibleCharacterTest(unittest.TestCase):
+    """Characters a reader cannot see, and text matching cannot survive.
+
+    index18 carries 318 zero-width joiners spliced between ellipsis
+    characters; three other books carry non-breaking spaces where a space
+    belongs. Anything that locates a line in its source - the dialogue span
+    map, the lexicon scan, chunk fingerprinting - fails on a character it
+    cannot see, and reports a missing line rather than an invisible one.
+    """
+
+    def _normalize(self, text):
+        sys.path.insert(0, os.path.join(REPO, "app"))
+        from routers.script import normalize_extracted_text
+        return normalize_extracted_text(text)
+
+    def test_zero_width_characters_are_removed(self):
+        self.assertEqual("abc", self._normalize("a​b‍c"))
+
+    def test_fixed_width_spaces_become_ordinary_spaces(self):
+        self.assertEqual("a b", self._normalize("a b"))
+
+    def test_a_line_stays_findable_after_normalisation(self):
+        # The failure this prevents: text located in the source by find().
+        source = self._normalize("He said, “Wait​…” and left.")
+        self.assertIn("Wait", source)
+        self.assertEqual(-1, source.find("​"))
+
+    def test_long_blank_runs_collapse_to_one_paragraph_break(self):
+        self.assertEqual("a\n\nb", self._normalize("a\n\n\n\n\nb"))
+
+    def test_a_single_line_break_is_preserved(self):
+        # <br> inside a paragraph must survive: promoting or removing it
+        # changes where a spoken line begins and ends.
+        self.assertEqual("a\nb", self._normalize("a\nb"))
+
+    def test_numeric_lines_are_left_alone(self):
+        """They look like page numbers and are chapter numbers here."""
+        self.assertEqual("1\n\n2\n\n3", self._normalize("1\n\n2\n\n3"))

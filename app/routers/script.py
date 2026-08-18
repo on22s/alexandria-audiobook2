@@ -252,6 +252,31 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
     return path
 
 
+# Characters that are invisible to a reader and fatal to everything that
+# matches text. index18 carries 318 zero-width joiners spliced between ellipsis
+# characters, and three books carry non-breaking spaces where a space belongs
+# (101, 39 and 19 of them). Any code that locates a line in its source - the
+# dialogue span map, the lexicon scan, chunk fingerprinting - fails on a
+# character it cannot see and cannot explain why.
+#
+# Deliberately NOT stripped: standalone numeric lines. They look like page
+# numbers and are chapter numbers here (1-8 in index18, 001-008 in
+# owarimonogatari3), so dropping them would delete the book's structure to
+# tidy its whitespace.
+_INVISIBLE = str.maketrans({
+    "\u200b": "", "\u200c": "", "\u200d": "", "\ufeff": "",   # zero width
+    "\u00a0": " ", "\u202f": " ", "\u2009": " ",              # fixed spaces
+})
+
+
+def normalize_extracted_text(text):
+    """-> text with invisible characters removed and blank runs collapsed."""
+    text = text.translate(_INVISIBLE)
+    # Three or more newlines carry no more meaning than two, and uneven runs
+    # make paragraph counts depend on the publisher's spacer markup.
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 class _HTMLTextExtractor(HTMLParser):
     """Strip HTML tags from EPUB content, preserving block-level structure."""
     BLOCK_TAGS = frozenset({
@@ -563,7 +588,7 @@ def extract_epub_text(epub_path: str) -> str:
             if text:
                 chapters.append(text)
 
-    return '\n\n'.join(chapters)
+    return normalize_extracted_text('\n\n'.join(chapters))
 
 
 def _claim_unique_path(directory: str, filename: str) -> str:
