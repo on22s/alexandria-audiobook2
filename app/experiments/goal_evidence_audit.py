@@ -79,7 +79,13 @@ def main():
     ap.add_argument("--audit", default=os.path.join(
         REPO, "ab_test_runtime", "audit", "artifact_structural_audit.json"))
     ap.add_argument("--out", default=os.path.join(
-        REPO, "ab_test_runtime", "experiments", "goal_evidence_audit.json"))
+        # audit/, NOT experiments/. This file is an INDEX of the experiments,
+        # and writing it into the directory being indexed made the structural
+        # audit stale the instant refresh_indexes finished: step 1 indexed
+        # experiments/, step 4 then added a tracked file to experiments/, so
+        # `--check` failed on a tree nobody had touched. An index must not be
+        # an input to itself.
+        REPO, "ab_test_runtime", "audit", "goal_evidence_audit.json"))
     args = ap.parse_args()
 
     audit = load_audit(args.audit)

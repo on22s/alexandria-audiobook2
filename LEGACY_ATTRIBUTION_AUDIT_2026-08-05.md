@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 118 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 119 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
 - `historical_only`: 38
 - `provisional`: 21
-- `supported_measurement`: 50
+- `supported_measurement`: 51
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -91,6 +91,7 @@ All 118 legacy-metadata artifacts are listed exactly once. Classification descri
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |
 | `narrator_prior__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 324 | 0 | 0 | False |  |
 | `pdnc_context_evidence__pilot__local-llamacpp.json` | pdnc_context_evidence | supported_measurement | 1200 | None | None | False |  |
+| `pdnc_evidence__pilot__local-llamacpp.json` | pdnc_evidence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | supported_measurement | 720 | None | None | False |  |
 | `pdnc_narrator_prior__local-llamacpp-generic.json` | pdnc_narrator_prior | provisional | 240 | None | None | True |  |
 | `pdnc_narrator_prior__local-llamacpp.json` | pdnc_narrator_prior | provisional | 480 | None | None | True |  |
@@ -149,6 +150,7 @@ All 118 legacy-metadata artifacts are listed exactly once. Classification descri
 - `lora_serving_eval`: Two gold books and one serving stack; not a universal adapter claim.
 - `narrator_prior`: A predeclared book-contrast test, not a general narrator rule.
 - `pdnc_context_evidence`: A five-book English PDNC pilot at 120 lines per book whose arms differ by 5 correct lines in 600 (57.7% vs 58.5%); sized to decide whether the confirmatory run is worth doing, not to establish an effect, and no confirmatory run exists.
+- `pdnc_evidence`: A five-book English PDNC pilot, 120 lines per book, run 2026-08-18: baseline 58.5% against evidence 59.5% overall (351 vs 357 correct of 600), conditional 59.0% vs 61.1%. Six lines apart on a pre-declared gate the arm did NOT clear, so the twenty-book confirmatory set stayed sealed - which is the pilot working, not a result. Nothing here supports a claim that supplying evidence spans helps attribution; it is the reason not to spend the confirmatory run.
 - `pdnc_narrator_prior`: Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.
 - `pdnc_sequence`: A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result.
 - `pdnc_targeted_sequence`: A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure.
