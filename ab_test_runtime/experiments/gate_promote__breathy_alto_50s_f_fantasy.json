@@ -8,10 +8,10 @@
  "verdict": "FAIL - 0.393 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
  "provenance": {
   "script": "verify_adapter_identity.py",
-  "written": "2026-08-18T09:35:54",
+  "written": "2026-08-18T11:16:31",
   "host": "mitch-linux",
   "git": {
-   "commit": "0d387e0021e582954cfc86332fb3ef141b23128e",
+   "commit": "0a18e3af134fdae337ec7c4219630e0618bc160b",
    "branch": "agent/pause-status-isolation-20260817",
    "dirty": false,
    "modified_tracked_files": null,

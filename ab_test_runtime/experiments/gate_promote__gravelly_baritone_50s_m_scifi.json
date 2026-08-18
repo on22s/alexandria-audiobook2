@@ -8,10 +8,10 @@
  "verdict": "PASS - the adapter sounds like its narrator (0.634)",
  "provenance": {
   "script": "verify_adapter_identity.py",
-  "written": "2026-08-18T09:51:53",
+  "written": "2026-08-18T11:32:18",
   "host": "mitch-linux",
   "git": {
-   "commit": "a06ba383365977d6698f17e1e8ae2ac96b6f203e",
+   "commit": "0a18e3af134fdae337ec7c4219630e0618bc160b",
    "branch": "agent/pause-status-isolation-20260817",
    "dirty": false,
    "modified_tracked_files": null,
