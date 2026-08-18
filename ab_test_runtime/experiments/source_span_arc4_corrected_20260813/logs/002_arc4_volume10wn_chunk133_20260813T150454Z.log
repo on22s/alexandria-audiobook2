@@ -1,0 +1,10 @@
+  finish_reason=stop | tokens: prompt=2490 completion=2256 | took 46.7s
+baseline repeat 1: PASS
+  finish_reason=stop | tokens: prompt=1863 completion=2712 | took 55.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 1): [{"code": "uncovered_source_spans", "span_ids": ["S063", "S064"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1027, 'source_token_recall': 0.9571, 'ordered_trigram_recall': 0.9384, 'output_source_ratio': 0.9571}
+Retrying...
+  finish_reason=stop | tokens: prompt=1911 completion=3436 | took 70.5s
+  Succeeded on retry 2
+span_ids repeat 1: PASS
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/source_span_arc4_corrected_20260813/002_arc4_volume10wn_chunk133_20260813T150454Z.json

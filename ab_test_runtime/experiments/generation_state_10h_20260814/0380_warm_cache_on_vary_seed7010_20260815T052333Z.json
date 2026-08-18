@@ -1,0 +1,76 @@
+{
+  "experiment": "generation_state_probe",
+  "condition": "warm_cache_on_vary",
+  "seed": 7010,
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar06.txt",
+  "chunk": 25,
+  "total_chunks": 70,
+  "passed": false,
+  "entry_count": 52,
+  "quality": {
+    "passed": false,
+    "metrics": {
+      "source_tokens": 1093,
+      "output_tokens": 912,
+      "source_token_recall": 0.8344,
+      "ordered_trigram_recall": 0.802,
+      "output_source_ratio": 0.8344
+    },
+    "source_cyrillic": [],
+    "missing_source_spans": [
+      {
+        "start_token": 371,
+        "token_count": 29,
+        "preview": "kemuri rubbed his cheek he had been clean shaven the last time"
+      },
+      {
+        "start_token": 408,
+        "token_count": 22,
+        "preview": "it s because he s an idiot pingo said narrowing his eyes"
+      },
+      {
+        "start_token": 317,
+        "token_count": 19,
+        "preview": "it s a real problem lilia said with a look of exasperation"
+      }
+    ],
+    "findings": [
+      {
+        "code": "low_source_token_recall",
+        "value": 0.8344,
+        "minimum": 0.9,
+        "message": "Too much source text is absent from the response."
+      },
+      {
+        "code": "low_ordered_trigram_recall",
+        "value": 0.802,
+        "minimum": 0.9,
+        "message": "Too many ordered source phrases are absent."
+      },
+      {
+        "code": "output_source_ratio",
+        "value": 0.8344,
+        "minimum": 0.9,
+        "maximum": 1.1,
+        "message": "Output length is implausible for the source chunk."
+      }
+    ]
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "elapsed_seconds": 56.492,
+      "finish_reason": "stop",
+      "requested_max_tokens": 10000,
+      "effective_max_tokens": 10000,
+      "prompt_tokens": 2594,
+      "completion_tokens": 2629,
+      "reasoning_tokens": null,
+      "error": null,
+      "response_fingerprint": "00138f1df731f80691ed7c2ba617836262df6dcaa5f847bc4b32b7643623aaa9",
+      "response_repeat_count": 1,
+      "outcome": "accepted"
+    }
+  ],
+  "seconds": 56.5
+}

@@ -1,0 +1,58 @@
+{
+  "experiment": "source_span_coverage",
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/uploads/Arc 4 - Volume 10wn.txt",
+  "chunk": 133,
+  "total_chunks": 154,
+  "span_count": 64,
+  "model": "qwen3-14b",
+  "temperature": 0.6,
+  "repeats": 1,
+  "arms": [
+    "baseline",
+    "span_ids"
+  ],
+  "runs": [
+    {
+      "repeat": 1,
+      "arm": "baseline",
+      "passed": true,
+      "entry_count": 36,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1073,
+          "output_tokens": 1063,
+          "source_token_recall": 0.9907,
+          "ordered_trigram_recall": 0.972,
+          "output_source_ratio": 0.9907
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": null,
+      "seconds": 45.6
+    },
+    {
+      "repeat": 1,
+      "arm": "span_ids",
+      "passed": true,
+      "entry_count": 64,
+      "quality": {
+        "passed": true,
+        "metrics": {
+          "source_tokens": 1073,
+          "output_tokens": 1059,
+          "source_token_recall": 0.972,
+          "ordered_trigram_recall": 0.9533,
+          "output_source_ratio": 0.987
+        },
+        "source_cyrillic": [],
+        "missing_source_spans": [],
+        "findings": []
+      },
+      "coverage_findings": [],
+      "seconds": 121.6
+    }
+  ]
+}

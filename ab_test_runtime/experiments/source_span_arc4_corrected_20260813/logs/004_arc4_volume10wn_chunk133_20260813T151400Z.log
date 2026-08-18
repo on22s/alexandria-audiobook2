@@ -1,0 +1,22 @@
+  finish_reason=stop | tokens: prompt=2490 completion=2251 | took 45.6s
+baseline repeat 1: PASS
+  finish_reason=stop | tokens: prompt=1863 completion=2713 | took 54.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 1): [{"code": "uncovered_source_spans", "span_ids": ["S006", "S011", "S022", "S027", "S058", "S064"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1935 completion=3437 | took 69.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 2): Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text.; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1926 completion=3238 | took 65.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 3): [{"code": "uncovered_source_spans", "span_ids": ["S006", "S011", "S022", "S027", "S042", "S059"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1935 completion=3327 | took 67.0s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 4): Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text.; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1919 completion=3152 | took 63.4s
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 5): [{"code": "uncovered_source_spans", "span_ids": ["S006", "S011", "S022", "S027", "S042", "S048", "S059"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1035, 'source_token_recall': 0.9646, 'ordered_trigram_recall': 0.9458, 'output_source_ratio': 0.9646}
+span_ids repeat 1: FAIL
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/source_span_arc4_corrected_20260813/004_arc4_volume10wn_chunk133_20260813T151400Z.json

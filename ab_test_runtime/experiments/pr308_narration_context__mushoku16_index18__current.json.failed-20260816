@@ -1,0 +1,45 @@
+{
+ "books": [
+  "mushoku16",
+  "index18"
+ ],
+ "results": [],
+ "failures": [
+  {
+   "book": "mushoku16",
+   "arm": "three_pass",
+   "rc": 1
+  },
+  {
+   "book": "index18",
+   "arm": "three_pass",
+   "rc": 1
+  }
+ ],
+ "provenance": {
+  "script": "three_pass_vs_single.py",
+  "written": "2026-08-16T13:58:46",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "566dc8f58456bf452193d4ffccdbe0764ff97036",
+   "branch": "agent/japanese-asr-50-clip-set-20260816",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "1da222e52a80962897e88f4c162105765d947124a63a6cf733703b03553d3999"
+  },
+  "args": {
+   "books": [
+    "mushoku16",
+    "index18"
+   ],
+   "inputs": "ab_test_runtime/results/collect_all_20260722-155801/inputs",
+   "work": "ab_test_runtime/pr308_narration_context_20260816",
+   "timeout": 14400,
+   "reuse_complete": true,
+   "model": "qwen3-14b",
+   "pass2_on_exhaustion": "fallback",
+   "out": "ab_test_runtime/experiments/pr308_narration_context__mushoku16_index18__current.json"
+  }
+ }
+}

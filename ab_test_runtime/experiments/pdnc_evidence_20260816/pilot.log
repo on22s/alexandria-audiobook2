@@ -1,0 +1,100 @@
+  finish_reason=stop | tokens: prompt=9836 completion=451 | took 16.4s
+  finish_reason=stop | tokens: prompt=9599 completion=391 | took 15.4s
+  finish_reason=stop | tokens: prompt=9209 completion=439 | took 16.7s
+  finish_reason=stop | tokens: prompt=9004 completion=430 | took 15.7s
+  finish_reason=stop | tokens: prompt=7077 completion=351 | took 12.5s
+AnneOfGreenGables              baseline 71/120 (77s)
+  finish_reason=stop | tokens: prompt=9933 completion=451 | took 17.3s
+  finish_reason=stop | tokens: prompt=9696 completion=429 | took 16.0s
+  finish_reason=stop | tokens: prompt=9306 completion=439 | took 15.8s
+  finish_reason=stop | tokens: prompt=9101 completion=430 | took 15.5s
+  finish_reason=stop | tokens: prompt=7174 completion=351 | took 12.0s
+AnneOfGreenGables              evidence 83/120 (77s)
+  finish_reason=stop | tokens: prompt=9120 completion=413 | took 15.3s
+  finish_reason=stop | tokens: prompt=8297 completion=409 | took 14.8s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8328 completion=409 | took 9.2s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=4412 completion=191 | took 4.0s
+  finish_reason=stop | tokens: prompt=4400 completion=209 | took 7.1s
+  finish_reason=stop | tokens: prompt=8702 completion=427 | took 15.1s
+  finish_reason=stop | tokens: prompt=8299 completion=424 | took 14.8s
+  finish_reason=stop | tokens: prompt=7211 completion=332 | took 12.0s
+MansfieldPark                  baseline 75/120 (92s)
+  finish_reason=stop | tokens: prompt=9217 completion=413 | took 15.6s
+  finish_reason=stop | tokens: prompt=8394 completion=409 | took 14.6s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8425 completion=409 | took 9.7s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=4509 completion=191 | took 4.0s
+  finish_reason=stop | tokens: prompt=4497 completion=209 | took 6.9s
+  finish_reason=stop | tokens: prompt=8799 completion=427 | took 15.3s
+  finish_reason=stop | tokens: prompt=8396 completion=424 | took 14.9s
+  finish_reason=stop | tokens: prompt=7308 completion=332 | took 12.3s
+MansfieldPark                  evidence 72/120 (93s)
+  finish_reason=stop | tokens: prompt=9650 completion=429 | took 16.4s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=9711 completion=421 | took 9.7s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=8815 completion=447 | took 16.4s
+  finish_reason=stop | tokens: prompt=9006 completion=447 | took 15.9s
+  finish_reason=stop | tokens: prompt=9076 completion=453 | took 16.5s
+  finish_reason=stop | tokens: prompt=6781 completion=369 | took 12.4s
+Persuasion                     baseline 72/120 (87s)
+  finish_reason=stop | tokens: prompt=9747 completion=418 | took 16.0s
+  finish_reason=stop | tokens: prompt=8912 completion=446 | took 16.0s
+  finish_reason=stop | tokens: prompt=9103 completion=449 | took 16.0s
+  finish_reason=stop | tokens: prompt=9173 completion=453 | took 16.5s
+  finish_reason=stop | tokens: prompt=6878 completion=360 | took 12.2s
+Persuasion                     evidence 64/120 (77s)
+  finish_reason=stop | tokens: prompt=8603 completion=388 | took 14.7s
+  finish_reason=stop | tokens: prompt=8347 completion=493 | took 16.4s
+  finish_reason=stop | tokens: prompt=7756 completion=389 | took 13.6s
+  finish_reason=stop | tokens: prompt=9412 completion=422 | took 15.6s
+  finish_reason=stop | tokens: prompt=7456 completion=393 | took 14.2s
+TheGambler                     baseline 60/120 (75s)
+  finish_reason=stop | tokens: prompt=8700 completion=404 | took 14.7s
+  finish_reason=stop | tokens: prompt=8444 completion=493 | took 17.3s
+  finish_reason=stop | tokens: prompt=7853 completion=389 | took 13.7s
+  finish_reason=stop | tokens: prompt=9509 completion=422 | took 15.7s
+  finish_reason=stop | tokens: prompt=7553 completion=393 | took 14.2s
+TheGambler                     evidence 62/120 (76s)
+  finish_reason=stop | tokens: prompt=8474 completion=404 | took 14.5s
+  finish_reason=stop | tokens: prompt=8509 completion=405 | took 15.2s
+  finish_reason=stop | tokens: prompt=8246 completion=405 | took 14.3s
+  finish_reason=stop | tokens: prompt=8461 completion=375 | took 13.9s
+  finish_reason=stop | tokens: prompt=7034 completion=302 | took 10.9s
+TheSunAlsoRises                baseline 73/120 (69s)
+  finish_reason=stop | tokens: prompt=8571 completion=404 | took 14.6s
+  finish_reason=stop | tokens: prompt=8606 completion=405 | took 15.0s
+  finish_reason=stop | tokens: prompt=8343 completion=405 | took 14.2s
+  finish_reason=stop | tokens: prompt=8558 completion=381 | took 14.0s
+  finish_reason=stop | tokens: prompt=7131 completion=301 | took 11.1s
+TheSunAlsoRises                evidence 76/120 (69s)
+{
+  "n": 600,
+  "baseline_correct": 351,
+  "evidence_correct": 357,
+  "delta_points": 1.0,
+  "gained": 31,
+  "lost": 25,
+  "p_value": 0.5044037600228366,
+  "advance": false,
+  "gate": {
+    "minimum_delta_points": 3.0,
+    "maximum_p_exclusive": 0.05
+  }
+}
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/pdnc_evidence__pilot__local-llamacpp.json

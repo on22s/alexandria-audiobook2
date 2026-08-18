@@ -14,8 +14,8 @@
    "clips_without_timestamps": 0,
    "wer_mean": 0.0767,
    "wer_median": 0.0625,
-   "rtf": 0.435,
-   "seconds_total": 18.8
+   "rtf": 0.426,
+   "seconds_total": 18.4
   }
  },
  "alignment": {
@@ -33,18 +33,20 @@
  "alignment_truth_clips": 10,
  "provenance": {
   "script": "asr_backends.py",
-  "written": "2026-08-16T11:12:17",
+  "written": "2026-08-17T21:10:54",
   "host": "mitch-linux",
   "git": {
-   "commit": "57a04f4646427f7f3f1df962b4c59b1f5d118925",
-   "branch": "agent/pdnc-context-evidence-20260816",
+   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "branch": "agent/pause-status-isolation-20260817",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/generation_state_probe.py",
-    "app/experiments/three_pass_chunk_probe.py"
+   "modified_tracked_files": [
+    "M ab_test_runtime/experiments/asr_ja_cutting_control.json",
+    " M ab_test_runtime/experiments/asr_ja_largev3_hybrid.json",
+    " M ab_test_runtime/experiments/asr_ja_readings.json",
+    " M ab_test_runtime/experiments/asr_silero_whisper_ja_confirmation.json"
    ],
-   "harness_sha256": "1e4c05f33bd3a0f3e99933e994ef018d4ea6c036fca6a2f9d27d271d19fb7cde"
+   "untracked_harness_files": null,
+   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",
@@ -54,6 +56,8 @@
    "limit": 10,
    "row_offset": 20,
    "align_clips": 10,
+   "score_readings": false,
+   "keep_hypotheses": false,
    "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
    "whisper_cpp_model": "whisper.cpp/models/ggml-base.bin",
    "lang": "ja",

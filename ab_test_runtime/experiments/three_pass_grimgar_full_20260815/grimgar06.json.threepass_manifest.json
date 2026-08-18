@@ -1,0 +1,632 @@
+{
+  "fingerprint": {
+    "source_sha256": "9e10fe32870c61d97003650c2ea130a5b6a12e78b16d084153fd0b48636138e5",
+    "settings_sha256": "39ab39720abed57a883ad549787d3921d8be39afcfbbda1dda13e69d1554b80e",
+    "model_name": "qwen3-14b",
+    "pipeline": "three_pass"
+  },
+  "status": "complete",
+  "chunks": [
+    {
+      "index": 1,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 2,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 3,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 4,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 5,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 6,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 7,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 8,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 9,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 10,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 11,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 12,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 13,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 14,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 15,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 16,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 17,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 18,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 19,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 20,
+      "resolution": "quote_presegmented_repaired"
+    },
+    {
+      "index": 21,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 22,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 23,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 24,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 25,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 26,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 27,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 28,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 29,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 30,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 31,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 32,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 33,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 34,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 35,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 36,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 37,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 38,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 39,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 40,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 41,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 42,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 43,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 44,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 45,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 46,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 47,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 48,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 49,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 50,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 51,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 52,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 53,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 54,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 55,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 56,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 57,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 58,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 59,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 60,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 61,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 62,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 63,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 64,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 65,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 66,
+      "resolution": "clean"
+    },
+    {
+      "index": 67,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 68,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 69,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 70,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 71,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 72,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 73,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 74,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 75,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 76,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 77,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 78,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 79,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 80,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 81,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 82,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 83,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 84,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 85,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 86,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 87,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 88,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 89,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 90,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 91,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 92,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 93,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 94,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 95,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 96,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 97,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 98,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 99,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 100,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 101,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 102,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 103,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 104,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 105,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 106,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 107,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 108,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 109,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 110,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 111,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 112,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 113,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 114,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 115,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 116,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 117,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 118,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 119,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 120,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 121,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 122,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 123,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 124,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 125,
+      "resolution": "clean"
+    },
+    {
+      "index": 126,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 127,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 128,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 129,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 130,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 131,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 132,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 133,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 134,
+      "resolution": "clean"
+    },
+    {
+      "index": 135,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 136,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 137,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 138,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 139,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 140,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 141,
+      "resolution": "quote_presegmented"
+    },
+    {
+      "index": 142,
+      "resolution": "quote_presegmented"
+    }
+  ],
+  "counts": {
+    "near_miss_accepted": 0,
+    "context_rescued": 0,
+    "split_recombined": 0,
+    "quote_repairs": 1,
+    "quote_continuations": 0
+  },
+  "passes": {
+    "segment": {
+      "elapsed_s": 58.582,
+      "status": "complete"
+    },
+    "attribute": {
+      "elapsed_s": 887.626,
+      "status": "complete"
+    },
+    "instruct": {
+      "elapsed_s": 2582.449,
+      "status": "complete"
+    }
+  },
+  "legacy_resume": false,
+  "progress": {
+    "source_words": 71602,
+    "source_words_total": 71602,
+    "source_words_completed": 71602,
+    "chunks_total": 142,
+    "chunks_attempted": 142,
+    "chunks_completed": 142,
+    "segmented_entries": 3305,
+    "attributed_entries": 3305,
+    "instructed_entries": 3305,
+    "llm_calls": 3,
+    "repeated_responses": 0,
+    "completion_tokens": 2646,
+    "failure_codes": {},
+    "response_fingerprints": 3
+  },
+  "diagnostic_failures": [],
+  "telemetry": {
+    "model_name": "qwen3-14b",
+    "thinking_mode": "default",
+    "unicode": {
+      "repaired": 0,
+      "residual": 0,
+      "scripts": [
+        "LATIN"
+      ],
+      "is_nfc": true
+    },
+    "failure_reasons": {},
+    "truncations": 0
+  }
+}

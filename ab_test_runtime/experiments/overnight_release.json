@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "mode": "quick",
+  "status": "failed",
+  "gates": [
+    {
+      "name": "compile_python",
+      "status": "passed",
+      "duration_seconds": 0.556
+    },
+    {
+      "name": "test_inventory",
+      "status": "passed",
+      "duration_seconds": 3.149
+    },
+    {
+      "name": "unit_tests",
+      "status": "failed",
+      "failure": {
+        "type": "RuntimeError",
+        "message": "Unit test discovery (CI-equivalent env) failed with exit status 1"
+      },
+      "duration_seconds": 20.164
+    }
+  ],
+  "failure": {
+    "gate": "unit_tests",
+    "type": "RuntimeError",
+    "message": "Unit test discovery (CI-equivalent env) failed with exit status 1"
+  },
+  "duration_seconds": 23.869
+}

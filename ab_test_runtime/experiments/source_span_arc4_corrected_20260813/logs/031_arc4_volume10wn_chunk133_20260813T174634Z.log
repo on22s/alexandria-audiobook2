@@ -1,0 +1,22 @@
+  finish_reason=stop | tokens: prompt=2490 completion=2240 | took 46.4s
+baseline repeat 1: PASS
+  finish_reason=stop | tokens: prompt=1863 completion=2712 | took 54.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 1): [{"code": "uncovered_source_spans", "span_ids": ["S063", "S064"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1027, 'source_token_recall': 0.9571, 'ordered_trigram_recall': 0.9384, 'output_source_ratio': 0.9571}
+Retrying...
+  finish_reason=stop | tokens: prompt=1911 completion=3114 | took 62.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 2): [{"code": "uncovered_source_spans", "span_ids": ["S006", "S011", "S022", "S027", "S042", "S059"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1935 completion=3304 | took 66.5s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 3): Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text.; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1919 completion=3238 | took 65.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 4): [{"code": "uncovered_source_spans", "span_ids": ["S006", "S011", "S022", "S027", "S042", "S059"]}]; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+Retrying...
+  finish_reason=stop | tokens: prompt=1935 completion=3400 | took 70.3s
+Warning: SPAN CHUNK 133/154 failed quality validation (attempt 5): Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text. Entry contains no speakable text.; metrics={'source_tokens': 1073, 'output_tokens': 1043, 'source_token_recall': 0.972, 'ordered_trigram_recall': 0.9533, 'output_source_ratio': 0.972}
+span_ids repeat 1: FAIL
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/source_span_arc4_corrected_20260813/031_arc4_volume10wn_chunk133_20260813T174634Z.json

@@ -1,0 +1,61 @@
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+  finish_reason=stop | tokens: prompt=1599 completion=203 | took 5.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1698 completion=1270 | took 26.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1760 completion=208 | took 4.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1659 completion=1270 | took 26.4s
+Warning: ATTRIBUTE failed quality validation (attempt 4): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+  Attribution batch exhausted; subdividing 14 -> 7 + 7
+  finish_reason=stop | tokens: prompt=1067 completion=90 | took 1.9s
+  finish_reason=stop | tokens: prompt=861 completion=107 | took 2.5s
+  finish_reason=stop | tokens: prompt=1788 completion=237 | took 5.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1835 completion=1450 | took 30.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1969 completion=234 | took 4.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  Attribution batch exhausted; subdividing 16 -> 8 + 8
+  finish_reason=stop | tokens: prompt=1045 completion=124 | took 2.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1079 completion=124 | took 2.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=1078 completion=111 | took 2.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1112 completion=111 | took 2.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  Attribution batch exhausted; subdividing 8 -> 4 + 4
+  finish_reason=stop | tokens: prompt=791 completion=57 | took 1.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=825 completion=51 | took 1.1s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=628 completion=64 | took 1.4s
+  finish_reason=stop | tokens: prompt=1746 completion=106 | took 2.9s
+  finish_reason=stop | tokens: prompt=2569 completion=623 | took 14.4s
+  finish_reason=stop | tokens: prompt=2544 completion=480 | took 11.2s
+  finish_reason=stop | tokens: prompt=2789 completion=280 | took 7.2s
+three-pass chunk 25: PASS
+RUN_EXIT 2026-08-15T12:56:08Z

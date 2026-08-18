@@ -1,0 +1,75 @@
+  finish_reason=stop | tokens: prompt=8494 completion=432 | took 14.9s
+  finish_reason=stop | tokens: prompt=8791 completion=417 | took 15.2s
+  finish_reason=stop | tokens: prompt=8820 completion=427 | took 15.1s
+  finish_reason=stop | tokens: prompt=8686 completion=368 | took 13.8s
+  finish_reason=stop | tokens: prompt=7014 completion=278 | took 10.6s
+AHandfulOfDust                 baseline 93/120 (69s)
+  finish_reason=stop | tokens: prompt=8614 completion=425 | took 15.7s
+  finish_reason=stop | tokens: prompt=8911 completion=417 | took 15.1s
+  finish_reason=stop | tokens: prompt=8940 completion=424 | took 15.5s
+  finish_reason=stop | tokens: prompt=8806 completion=368 | took 13.7s
+  finish_reason=stop | tokens: prompt=7134 completion=278 | took 10.6s
+AHandfulOfDust                 sequence 91/120 (71s)
+  finish_reason=stop | tokens: prompt=8465 completion=403 | took 14.9s
+  finish_reason=stop | tokens: prompt=7903 completion=407 | took 14.2s
+  finish_reason=stop | tokens: prompt=8122 completion=408 | took 14.9s
+  finish_reason=stop | tokens: prompt=8437 completion=404 | took 14.4s
+  finish_reason=stop | tokens: prompt=6754 completion=306 | took 10.7s
+APassageToIndia                baseline 78/120 (69s)
+  finish_reason=stop | tokens: prompt=8585 completion=417 | took 15.5s
+  finish_reason=stop | tokens: prompt=8023 completion=407 | took 14.2s
+  finish_reason=stop | tokens: prompt=8242 completion=408 | took 14.6s
+  finish_reason=stop | tokens: prompt=8557 completion=404 | took 14.5s
+  finish_reason=stop | tokens: prompt=6874 completion=343 | took 11.8s
+APassageToIndia                sequence 74/120 (71s)
+  finish_reason=stop | tokens: prompt=7888 completion=390 | took 13.6s
+  finish_reason=stop | tokens: prompt=8247 completion=410 | took 14.4s
+  finish_reason=stop | tokens: prompt=8260 completion=408 | took 14.5s
+  finish_reason=stop | tokens: prompt=8274 completion=407 | took 14.4s
+  finish_reason=stop | tokens: prompt=6784 completion=306 | took 11.0s
+ARoomWithAView                 baseline 87/120 (68s)
+  finish_reason=stop | tokens: prompt=8008 completion=388 | took 13.8s
+  finish_reason=stop | tokens: prompt=8367 completion=409 | took 14.4s
+  finish_reason=stop | tokens: prompt=8380 completion=404 | took 14.4s
+  finish_reason=stop | tokens: prompt=8394 completion=408 | took 14.5s
+  finish_reason=stop | tokens: prompt=6904 completion=306 | took 11.1s
+ARoomWithAView                 sequence 90/120 (68s)
+  finish_reason=stop | tokens: prompt=8554 completion=349 | took 13.4s
+  finish_reason=stop | tokens: prompt=8293 completion=343 | took 13.1s
+  finish_reason=stop | tokens: prompt=7975 completion=356 | took 12.8s
+  finish_reason=stop | tokens: prompt=8289 completion=366 | took 13.6s
+  finish_reason=stop | tokens: prompt=6727 completion=283 | took 10.8s
+AlicesAdventuresInWonderland   baseline 100/120 (64s)
+  finish_reason=stop | tokens: prompt=8674 completion=349 | took 13.6s
+  finish_reason=stop | tokens: prompt=8413 completion=347 | took 13.3s
+  finish_reason=stop | tokens: prompt=8095 completion=355 | took 13.0s
+  finish_reason=stop | tokens: prompt=8409 completion=366 | took 13.3s
+  finish_reason=stop | tokens: prompt=6847 completion=283 | took 10.6s
+AlicesAdventuresInWonderland   sequence 109/120 (64s)
+  finish_reason=stop | tokens: prompt=7323 completion=392 | took 13.4s
+  finish_reason=stop | tokens: prompt=7524 completion=400 | took 13.7s
+  finish_reason=stop | tokens: prompt=7843 completion=416 | took 14.2s
+  finish_reason=stop | tokens: prompt=7570 completion=418 | took 14.1s
+  finish_reason=stop | tokens: prompt=6420 completion=344 | took 11.5s
+DaisyMiller                    baseline 83/120 (67s)
+  finish_reason=stop | tokens: prompt=7443 completion=392 | took 13.4s
+  finish_reason=stop | tokens: prompt=7644 completion=400 | took 14.1s
+  finish_reason=stop | tokens: prompt=7963 completion=416 | took 14.4s
+  finish_reason=stop | tokens: prompt=7690 completion=398 | took 13.8s
+  finish_reason=stop | tokens: prompt=6540 completion=344 | took 11.6s
+DaisyMiller                    sequence 83/120 (67s)
+{
+  "n": 600,
+  "baseline_correct": 441,
+  "evidence_correct": 449,
+  "delta_points": 1.3333333333333333,
+  "gained": 15,
+  "lost": 7,
+  "p_value": 0.13380050659179651,
+  "advance": false,
+  "gate": {
+    "minimum_delta_points": 3.0,
+    "maximum_p_exclusive": 0.05
+  }
+}
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/pdnc_targeted_sequence__pilot__local-llamacpp.json

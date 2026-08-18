@@ -1,0 +1,16 @@
+  finish_reason=stop | tokens: prompt=2594 completion=2613 | took 57.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: CHUNK 25/70 failed quality validation (attempt 1): Your previous response was close but only covered about 85% of the source text, missing some content or phrasing precisely. Review it and produce a complete, precise conversion of the entire chunk, filling in whatever was missing. The missing content includes the passage beginning "kemuri rubbed his cheek he had been clean shaven the last time ..." (about 29 words); the passage beginning "soma looked down as if in thought then his head snapped back ..." (about 17 words); the passage beginning "pingo said narrowing his eyes in a way that didn t suit ..." (about 15 words).; metrics={'source_tokens': 1093, 'output_tokens': 933, 'source_token_recall': 0.8536, 'ordered_trigram_recall': 0.8213, 'output_source_ratio': 0.8536}
+Retrying...
+  finish_reason=stop | tokens: prompt=2742 completion=2628 | took 56.4s
+  Succeeded on retry 2
+baseline: PASS
+  finish_reason=stop | tokens: prompt=2594 completion=2617 | took 56.0s
+  finish_reason=stop | tokens: prompt=128 completion=77 | took 1.9s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: REPAIR 1 failed quality validation (attempt 1): Your previous response covered only about 53% of the source text before stopping early. Convert the ENTIRE source chunk from beginning to end this time - do not stop partway through and do not summarize any part of it.; metrics={'source_tokens': 17, 'output_tokens': 9, 'source_token_recall': 0.5294, 'ordered_trigram_recall': 0.3333, 'output_source_ratio': 0.5294}
+Retrying...
+  finish_reason=stop | tokens: prompt=195 completion=75 | took 1.5s
+Warning: REPAIR 1 failed quality validation (attempt 2): Your previous response covered only about 12% of the source text before stopping early. Convert the ENTIRE source chunk from beginning to end this time - do not stop partway through and do not summarize any part of it. The missing content includes the passage beginning "mimorin waved one hand lilia s cheeks burned crimson with anger ..." (about 11 words).; metrics={'source_tokens': 17, 'output_tokens': 3, 'source_token_recall': 0.1176, 'ordered_trigram_recall': 0.0, 'output_source_ratio': 0.1765}
+targeted_repair: FAIL
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/targeted_missing_repair_7h_20260814/001_grimgar06_chunk25_baseline-first_20260814T112449Z.json

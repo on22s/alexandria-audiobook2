@@ -1,0 +1,373 @@
+curl: (7) Failed to connect to 127.0.0.1:8090 after 0 ms: Could not connect to server
+Stripped publisher matter: 0 paragraph(s) from the front, 25 from the back (copyright page / colophon, not narration)
+LM Studio: WARNING - could not apply ideal settings (lms CLI not found on PATH). The model may be running with a higher 'parallel'/context-length configuration, which uses more VRAM per request and increases the risk of an out-of-memory crash. The VRAM watchdog below will still pause batches if usage gets too high, but if you hit OOM, restart LM Studio and re-run.
+Three-pass generation: 430935 chars, chunk_size=3000, model=qwen3-14b, pass2_on_exhaustion=fail
+  finish_reason=stop | tokens: prompt=1074 completion=1111 | took 24.0s
+  finish_reason=stop | tokens: prompt=1015 completion=791 | took 16.8s
+  finish_reason=stop | tokens: prompt=1022 completion=744 | took 15.9s
+  finish_reason=stop | tokens: prompt=3815 completion=149 | took 5.5s
+  finish_reason=stop | tokens: prompt=2332 completion=219 | took 5.6s
+  finish_reason=stop | tokens: prompt=1782 completion=217 | took 5.4s
+  finish_reason=stop | tokens: prompt=1998 completion=223 | took 5.9s
+  finish_reason=stop | tokens: prompt=2686 completion=196 | took 5.4s
+  finish_reason=stop | tokens: prompt=2216 completion=198 | took 5.2s
+  finish_reason=stop | tokens: prompt=2083 completion=217 | took 5.5s
+  finish_reason=stop | tokens: prompt=2141 completion=194 | took 5.0s
+  finish_reason=stop | tokens: prompt=2288 completion=175 | took 4.7s
+  finish_reason=stop | tokens: prompt=2411 completion=195 | took 5.2s
+  finish_reason=stop | tokens: prompt=3838 completion=193 | took 6.2s
+  finish_reason=stop | tokens: prompt=3263 completion=186 | took 5.6s
+  finish_reason=stop | tokens: prompt=2230 completion=274 | took 6.7s
+  finish_reason=stop | tokens: prompt=3752 completion=164 | took 5.5s
+  finish_reason=stop | tokens: prompt=5021 completion=178 | took 6.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=5068 completion=136 | took 3.0s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=3606 completion=194 | took 6.3s
+  finish_reason=stop | tokens: prompt=1911 completion=269 | took 6.6s
+  finish_reason=stop | tokens: prompt=3167 completion=237 | took 6.7s
+  finish_reason=stop | tokens: prompt=1952 completion=281 | took 6.8s
+  finish_reason=stop | tokens: prompt=2211 completion=256 | took 6.4s
+  finish_reason=stop | tokens: prompt=1705 completion=271 | took 6.5s
+  finish_reason=stop | tokens: prompt=2323 completion=306 | took 7.5s
+  finish_reason=stop | tokens: prompt=2260 completion=287 | took 7.2s
+  finish_reason=stop | tokens: prompt=3159 completion=290 | took 7.8s
+  finish_reason=stop | tokens: prompt=3855 completion=221 | took 6.9s
+  finish_reason=stop | tokens: prompt=1674 completion=231 | took 5.8s
+  finish_reason=stop | tokens: prompt=2027 completion=208 | took 5.5s
+  finish_reason=stop | tokens: prompt=1685 completion=181 | took 4.5s
+  finish_reason=stop | tokens: prompt=2575 completion=229 | took 6.0s
+  finish_reason=stop | tokens: prompt=1759 completion=221 | took 5.4s
+  finish_reason=stop | tokens: prompt=2291 completion=207 | took 5.4s
+  finish_reason=stop | tokens: prompt=2551 completion=218 | took 5.9s
+  finish_reason=stop | tokens: prompt=1999 completion=253 | took 6.2s
+  finish_reason=stop | tokens: prompt=2114 completion=254 | took 6.3s
+  finish_reason=stop | tokens: prompt=2573 completion=184 | took 5.3s
+  finish_reason=stop | tokens: prompt=549 completion=19 | took 0.9s
+  finish_reason=stop | tokens: prompt=2016 completion=226 | took 5.6s
+  finish_reason=stop | tokens: prompt=3264 completion=240 | took 7.1s
+  finish_reason=stop | tokens: prompt=2573 completion=224 | took 6.1s
+  finish_reason=stop | tokens: prompt=2363 completion=232 | took 6.0s
+  finish_reason=stop | tokens: prompt=1798 completion=219 | took 5.4s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1845 completion=1392 | took 29.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): expected 15 entries, got 16; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=1829 completion=1392 | took 29.1s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): expected 15 entries, got 16; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  Attribution batch exhausted; subdividing 15 -> 7 + 8
+  finish_reason=stop | tokens: prompt=998 completion=103 | took 2.2s
+  finish_reason=stop | tokens: prompt=1208 completion=112 | took 2.8s
+  finish_reason=stop | tokens: prompt=2046 completion=253 | took 6.1s
+  finish_reason=stop | tokens: prompt=1915 completion=223 | took 5.5s
+  finish_reason=stop | tokens: prompt=2436 completion=233 | took 6.1s
+  finish_reason=stop | tokens: prompt=1765 completion=234 | took 7.4s
+  finish_reason=stop | tokens: prompt=2063 completion=177 | took 4.7s
+  finish_reason=stop | tokens: prompt=481 completion=15 | took 0.4s
+  finish_reason=stop | tokens: prompt=1486 completion=168 | took 4.0s
+  finish_reason=stop | tokens: prompt=494 completion=15 | took 0.5s
+  finish_reason=stop | tokens: prompt=495 completion=15 | took 0.4s
+  finish_reason=stop | tokens: prompt=494 completion=15 | took 0.3s
+  finish_reason=stop | tokens: prompt=2081 completion=207 | took 5.1s
+  finish_reason=stop | tokens: prompt=1815 completion=172 | took 4.4s
+  finish_reason=stop | tokens: prompt=1764 completion=251 | took 5.9s
+  finish_reason=stop | tokens: prompt=2998 completion=216 | took 6.1s
+  finish_reason=stop | tokens: prompt=2964 completion=182 | took 5.4s
+  finish_reason=stop | tokens: prompt=1804 completion=226 | took 5.4s
+  finish_reason=stop | tokens: prompt=1942 completion=212 | took 5.2s
+  finish_reason=stop | tokens: prompt=3573 completion=182 | took 5.7s
+  finish_reason=stop | tokens: prompt=2244 completion=239 | took 6.1s
+  finish_reason=stop | tokens: prompt=1918 completion=236 | took 5.8s
+  finish_reason=stop | tokens: prompt=2115 completion=177 | took 4.7s
+  finish_reason=stop | tokens: prompt=546 completion=16 | took 0.5s
+  finish_reason=stop | tokens: prompt=2173 completion=208 | took 5.2s
+  finish_reason=stop | tokens: prompt=2590 completion=197 | took 5.4s
+  finish_reason=stop | tokens: prompt=2581 completion=240 | took 6.3s
+  finish_reason=stop | tokens: prompt=2690 completion=267 | took 6.8s
+  finish_reason=stop | tokens: prompt=1752 completion=226 | took 5.5s
+  finish_reason=stop | tokens: prompt=2239 completion=214 | took 5.5s
+  finish_reason=stop | tokens: prompt=2222 completion=249 | took 6.2s
+  finish_reason=stop | tokens: prompt=2071 completion=245 | took 6.1s
+  finish_reason=stop | tokens: prompt=2545 completion=199 | took 5.4s
+  finish_reason=stop | tokens: prompt=2274 completion=266 | took 6.6s
+  finish_reason=stop | tokens: prompt=1819 completion=214 | took 5.1s
+  finish_reason=stop | tokens: prompt=2396 completion=190 | took 5.0s
+  finish_reason=stop | tokens: prompt=1886 completion=222 | took 5.4s
+  finish_reason=stop | tokens: prompt=2747 completion=211 | took 5.7s
+  finish_reason=stop | tokens: prompt=3151 completion=177 | took 5.3s
+  finish_reason=stop | tokens: prompt=518 completion=19 | took 0.6s
+  finish_reason=stop | tokens: prompt=2002 completion=182 | took 4.6s
+  finish_reason=stop | tokens: prompt=2612 completion=196 | took 5.3s
+  finish_reason=stop | tokens: prompt=1876 completion=228 | took 5.6s
+  finish_reason=stop | tokens: prompt=2614 completion=209 | took 5.6s
+  finish_reason=stop | tokens: prompt=2275 completion=196 | took 5.2s
+  finish_reason=stop | tokens: prompt=3669 completion=180 | took 5.7s
+  finish_reason=stop | tokens: prompt=4040 completion=187 | took 6.1s
+  finish_reason=stop | tokens: prompt=2277 completion=200 | took 5.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2324 completion=201 | took 4.2s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  Attribution batch exhausted; subdividing 14 -> 7 + 7
+  finish_reason=stop | tokens: prompt=1213 completion=99 | took 2.1s
+  finish_reason=stop | tokens: prompt=1498 completion=101 | took 2.7s
+  finish_reason=stop | tokens: prompt=2295 completion=233 | took 5.8s
+  finish_reason=stop | tokens: prompt=2576 completion=226 | took 6.0s
+  finish_reason=stop | tokens: prompt=2763 completion=223 | took 6.0s
+  finish_reason=stop | tokens: prompt=2288 completion=197 | took 5.2s
+  finish_reason=stop | tokens: prompt=2100 completion=212 | took 5.4s
+  finish_reason=stop | tokens: prompt=2295 completion=209 | took 5.4s
+  finish_reason=stop | tokens: prompt=627 completion=16 | took 0.6s
+  finish_reason=stop | tokens: prompt=2104 completion=195 | took 4.9s
+  finish_reason=stop | tokens: prompt=3209 completion=214 | took 6.1s
+  finish_reason=stop | tokens: prompt=2278 completion=185 | took 5.0s
+  finish_reason=stop | tokens: prompt=2558 completion=197 | took 5.3s
+  finish_reason=stop | tokens: prompt=549 completion=19 | took 0.6s
+  finish_reason=stop | tokens: prompt=2281 completion=201 | took 5.1s
+  finish_reason=stop | tokens: prompt=2986 completion=206 | took 5.8s
+  finish_reason=stop | tokens: prompt=3337 completion=184 | took 5.6s
+  finish_reason=stop | tokens: prompt=3362 completion=175 | took 5.4s
+  finish_reason=stop | tokens: prompt=2807 completion=218 | took 6.0s
+  finish_reason=stop | tokens: prompt=2604 completion=254 | took 6.6s
+  finish_reason=stop | tokens: prompt=1818 completion=219 | took 5.4s
+  finish_reason=stop | tokens: prompt=2413 completion=232 | took 5.9s
+  finish_reason=stop | tokens: prompt=2430 completion=186 | took 5.0s
+  finish_reason=stop | tokens: prompt=2026 completion=228 | took 5.7s
+  finish_reason=stop | tokens: prompt=2588 completion=206 | took 5.5s
+  finish_reason=stop | tokens: prompt=2270 completion=171 | took 4.6s
+  finish_reason=stop | tokens: prompt=2090 completion=176 | took 4.5s
+  finish_reason=stop | tokens: prompt=2952 completion=201 | took 5.6s
+  finish_reason=stop | tokens: prompt=4324 completion=146 | took 5.4s
+  finish_reason=stop | tokens: prompt=1056 completion=17 | took 0.8s
+  finish_reason=stop | tokens: prompt=1880 completion=215 | took 5.2s
+  finish_reason=stop | tokens: prompt=2293 completion=237 | took 6.0s
+  finish_reason=stop | tokens: prompt=1923 completion=242 | took 5.9s
+  finish_reason=stop | tokens: prompt=1795 completion=210 | took 5.1s
+  finish_reason=stop | tokens: prompt=3030 completion=265 | took 7.1s
+  finish_reason=stop | tokens: prompt=2393 completion=268 | took 6.8s
+  finish_reason=stop | tokens: prompt=2054 completion=232 | took 6.5s
+  finish_reason=stop | tokens: prompt=2397 completion=215 | took 5.6s
+  finish_reason=stop | tokens: prompt=2050 completion=222 | took 5.5s
+  finish_reason=stop | tokens: prompt=2101 completion=222 | took 5.6s
+  finish_reason=stop | tokens: prompt=2850 completion=209 | took 5.8s
+  finish_reason=stop | tokens: prompt=3109 completion=173 | took 5.2s
+  finish_reason=stop | tokens: prompt=2402 completion=179 | took 4.8s
+  finish_reason=stop | tokens: prompt=2921 completion=109 | took 3.7s
+  finish_reason=stop | tokens: prompt=2627 completion=176 | took 4.9s
+  finish_reason=stop | tokens: prompt=3311 completion=182 | took 5.5s
+  finish_reason=stop | tokens: prompt=2345 completion=231 | took 5.9s
+  finish_reason=stop | tokens: prompt=2285 completion=210 | took 5.4s
+  finish_reason=stop | tokens: prompt=2056 completion=110 | took 3.2s
+  finish_reason=stop | tokens: prompt=2047 completion=179 | took 4.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 1): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2120 completion=1594 | took 33.7s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=2198 completion=179 | took 3.8s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: ATTRIBUTE failed quality validation (attempt 3): The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text. The speaker does not appear as a name in the source text.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  Attribution batch exhausted; subdividing 13 -> 6 + 7
+  finish_reason=stop | tokens: prompt=989 completion=84 | took 1.8s
+  finish_reason=stop | tokens: prompt=1510 completion=94 | took 2.5s
+  finish_reason=stop | tokens: prompt=2169 completion=189 | took 4.9s
+  finish_reason=stop | tokens: prompt=518 completion=15 | took 0.5s
+  finish_reason=stop | tokens: prompt=517 completion=15 | took 0.4s
+  finish_reason=stop | tokens: prompt=600 completion=15 | took 0.4s
+  finish_reason=stop | tokens: prompt=2529 completion=272 | took 6.8s
+  finish_reason=stop | tokens: prompt=2195 completion=221 | took 7.1s
+  finish_reason=stop | tokens: prompt=549 completion=16 | took 0.5s
+  finish_reason=stop | tokens: prompt=2304 completion=260 | took 6.4s
+  finish_reason=stop | tokens: prompt=1965 completion=199 | took 5.0s
+  finish_reason=stop | tokens: prompt=2679 completion=193 | took 5.3s
+  finish_reason=stop | tokens: prompt=2506 completion=260 | took 6.6s
+  finish_reason=stop | tokens: prompt=933 completion=19 | took 0.8s
+  finish_reason=stop | tokens: prompt=765 completion=51 | took 1.2s
+  finish_reason=stop | tokens: prompt=6086 completion=478 | took 14.1s
+  finish_reason=stop | tokens: prompt=3478 completion=540 | took 13.3s
+  finish_reason=stop | tokens: prompt=2650 completion=519 | took 12.2s
+  finish_reason=stop | tokens: prompt=2896 completion=547 | took 13.0s
+  finish_reason=stop | tokens: prompt=5881 completion=467 | took 13.6s
+  finish_reason=stop | tokens: prompt=3495 completion=542 | took 13.4s
+  finish_reason=stop | tokens: prompt=2896 completion=784 | took 18.0s
+  finish_reason=stop | tokens: prompt=3419 completion=508 | took 12.5s
+  finish_reason=stop | tokens: prompt=3711 completion=530 | took 13.3s
+  finish_reason=stop | tokens: prompt=3871 completion=516 | took 13.0s
+  finish_reason=stop | tokens: prompt=6128 completion=635 | took 17.6s
+  finish_reason=stop | tokens: prompt=5242 completion=553 | took 15.0s
+  finish_reason=stop | tokens: prompt=2879 completion=616 | took 14.5s
+  finish_reason=stop | tokens: prompt=6947 completion=461 | took 14.3s
+  finish_reason=stop | tokens: prompt=10318 completion=802 | took 25.7s
+  finish_reason=stop | tokens: prompt=8463 completion=716 | took 21.8s
+  finish_reason=stop | tokens: prompt=2608 completion=638 | took 14.8s
+  finish_reason=stop | tokens: prompt=5423 completion=573 | took 15.5s
+  finish_reason=stop | tokens: prompt=2525 completion=474 | took 11.2s
+  finish_reason=stop | tokens: prompt=3108 completion=502 | took 12.1s
+  finish_reason=stop | tokens: prompt=377 completion=26 | took 0.6s
+  finish_reason=stop | tokens: prompt=2348 completion=618 | took 13.9s
+  finish_reason=stop | tokens: prompt=2942 completion=621 | took 14.5s
+  finish_reason=stop | tokens: prompt=394 completion=28 | took 0.7s
+  finish_reason=stop | tokens: prompt=3058 completion=522 | took 12.5s
+  finish_reason=stop | tokens: prompt=4474 completion=682 | took 17.1s
+  finish_reason=stop | tokens: prompt=5874 completion=843 | took 22.0s
+  finish_reason=stop | tokens: prompt=377 completion=27 | took 0.8s
+  finish_reason=stop | tokens: prompt=2433 completion=492 | took 11.4s
+  finish_reason=stop | tokens: prompt=3104 completion=623 | took 14.7s
+  finish_reason=stop | tokens: prompt=2790 completion=734 | took 17.7s
+  finish_reason=stop | tokens: prompt=4304 completion=466 | took 12.3s
+  finish_reason=stop | tokens: prompt=2501 completion=539 | took 12.5s
+  finish_reason=stop | tokens: prompt=3821 completion=708 | took 17.1s
+  finish_reason=stop | tokens: prompt=3903 completion=532 | took 13.4s
+  finish_reason=stop | tokens: prompt=2628 completion=525 | took 12.3s
+  finish_reason=stop | tokens: prompt=2929 completion=472 | took 11.4s
+  finish_reason=stop | tokens: prompt=4647 completion=433 | took 11.9s
+  finish_reason=stop | tokens: prompt=455 completion=24 | took 0.7s
+  finish_reason=stop | tokens: prompt=3253 completion=535 | took 12.9s
+  finish_reason=stop | tokens: prompt=5769 completion=656 | took 17.9s
+  finish_reason=stop | tokens: prompt=3919 completion=539 | took 13.7s
+  finish_reason=stop | tokens: prompt=3253 completion=636 | took 15.2s
+  finish_reason=stop | tokens: prompt=2539 completion=697 | took 15.9s
+  finish_reason=stop | tokens: prompt=2679 completion=554 | took 12.9s
+  finish_reason=stop | tokens: prompt=2721 completion=573 | took 13.4s
+  finish_reason=stop | tokens: prompt=3392 completion=637 | took 15.3s
+  finish_reason=stop | tokens: prompt=2356 completion=704 | took 15.9s
+  finish_reason=stop | tokens: prompt=3208 completion=587 | took 14.0s
+  finish_reason=stop | tokens: prompt=426 completion=58 | took 1.3s
+  finish_reason=stop | tokens: prompt=367 completion=29 | took 0.6s
+  finish_reason=stop | tokens: prompt=2358 completion=618 | took 14.0s
+  finish_reason=stop | tokens: prompt=373 completion=28 | took 0.7s
+  finish_reason=stop | tokens: prompt=374 completion=28 | took 0.6s
+  finish_reason=stop | tokens: prompt=373 completion=28 | took 0.6s
+  finish_reason=stop | tokens: prompt=3131 completion=640 | took 15.0s
+  finish_reason=stop | tokens: prompt=3488 completion=708 | took 16.9s
+  finish_reason=stop | tokens: prompt=2433 completion=531 | took 12.3s
+  finish_reason=stop | tokens: prompt=4563 completion=530 | took 13.9s
+  finish_reason=stop | tokens: prompt=6079 completion=513 | took 14.9s
+  finish_reason=stop | tokens: prompt=2548 completion=497 | took 13.1s
+  finish_reason=stop | tokens: prompt=2960 completion=467 | took 11.3s
+  finish_reason=stop | tokens: prompt=6313 completion=769 | took 20.7s
+  finish_reason=stop | tokens: prompt=3060 completion=616 | took 14.6s
+  finish_reason=stop | tokens: prompt=2577 completion=605 | took 13.9s
+  finish_reason=stop | tokens: prompt=3401 completion=500 | took 12.3s
+  finish_reason=stop | tokens: prompt=422 completion=25 | took 0.7s
+  finish_reason=stop | tokens: prompt=3483 completion=713 | took 16.9s
+  finish_reason=stop | tokens: prompt=4130 completion=608 | took 15.3s
+  finish_reason=stop | tokens: prompt=2946 completion=759 | took 17.5s
+  finish_reason=stop | tokens: prompt=3687 completion=642 | took 15.6s
+  finish_reason=stop | tokens: prompt=2497 completion=685 | took 15.6s
+  finish_reason=stop | tokens: prompt=3543 completion=688 | took 16.5s
+  finish_reason=stop | tokens: prompt=2653 completion=569 | took 13.2s
+  finish_reason=stop | tokens: prompt=2880 completion=526 | took 12.5s
+  finish_reason=stop | tokens: prompt=4138 completion=494 | took 12.8s
+  finish_reason=stop | tokens: prompt=2513 completion=579 | took 13.4s
+  finish_reason=stop | tokens: prompt=2864 completion=500 | took 11.9s
+  finish_reason=stop | tokens: prompt=4295 completion=601 | took 15.2s
+  finish_reason=stop | tokens: prompt=2841 completion=546 | took 12.9s
+  finish_reason=stop | tokens: prompt=4420 completion=622 | took 16.7s
+  finish_reason=stop | tokens: prompt=4792 completion=480 | took 13.0s
+  finish_reason=stop | tokens: prompt=391 completion=29 | took 0.8s
+  finish_reason=stop | tokens: prompt=3457 completion=762 | took 17.9s
+  finish_reason=stop | tokens: prompt=4868 completion=530 | took 14.2s
+  finish_reason=stop | tokens: prompt=2689 completion=511 | took 12.1s
+  finish_reason=stop | tokens: prompt=3861 completion=768 | took 18.4s
+  finish_reason=stop | tokens: prompt=3657 completion=666 | took 16.1s
+  finish_reason=stop | tokens: prompt=6112 completion=740 | took 19.9s
+  finish_reason=stop | tokens: prompt=7718 completion=904 | took 25.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: INSTRUCT failed quality validation (attempt 1): expected 25 entries, got 21; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=7749 completion=7658 | took 187.3s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: INSTRUCT failed quality validation (attempt 2): expected 25 entries, got 47; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=7749 completion=8073 | took 197.6s
+  Retry policy: retry_same_budget; token budget remains 10000
+Warning: INSTRUCT failed quality validation (attempt 3): expected 25 entries, got 47; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=7749 completion=7655 | took 187.5s
+Warning: INSTRUCT failed quality validation (attempt 4): expected 25 entries, got 47; metrics={}
+  finish_reason=stop | tokens: prompt=3706 completion=539 | took 13.7s
+  finish_reason=stop | tokens: prompt=3494 completion=500 | took 12.4s
+  finish_reason=stop | tokens: prompt=4193 completion=523 | took 13.5s
+  finish_reason=stop | tokens: prompt=4829 completion=713 | took 18.1s
+  finish_reason=stop | tokens: prompt=3538 completion=501 | took 12.5s
+  finish_reason=stop | tokens: prompt=3157 completion=509 | took 12.4s
+  finish_reason=stop | tokens: prompt=4203 completion=447 | took 11.8s
+  finish_reason=stop | tokens: prompt=484 completion=24 | took 0.7s
+  finish_reason=stop | tokens: prompt=3278 completion=766 | took 17.8s
+  finish_reason=stop | tokens: prompt=5028 completion=662 | took 18.1s
+  finish_reason=stop | tokens: prompt=3798 completion=834 | took 19.9s
+  finish_reason=stop | tokens: prompt=4825 completion=509 | took 13.7s
+  finish_reason=stop | tokens: prompt=409 completion=31 | took 0.8s
+  finish_reason=stop | tokens: prompt=3533 completion=467 | took 11.7s
+  finish_reason=stop | tokens: prompt=5616 completion=477 | took 13.6s
+  finish_reason=stop | tokens: prompt=6079 completion=494 | took 15.9s
+  finish_reason=stop | tokens: prompt=5618 completion=776 | took 20.3s
+  finish_reason=stop | tokens: prompt=4803 completion=710 | took 18.1s
+  finish_reason=stop | tokens: prompt=3558 completion=504 | took 12.6s
+  finish_reason=stop | tokens: prompt=379 completion=27 | took 0.7s
+  finish_reason=stop | tokens: prompt=2532 completion=548 | took 12.6s
+  finish_reason=stop | tokens: prompt=3331 completion=656 | took 15.6s
+  finish_reason=stop | tokens: prompt=4263 completion=671 | took 16.7s
+  finish_reason=stop | tokens: prompt=2899 completion=533 | took 12.7s
+  finish_reason=stop | tokens: prompt=4085 completion=572 | took 14.5s
+  finish_reason=stop | tokens: prompt=3762 completion=588 | took 14.5s
+  finish_reason=stop | tokens: prompt=3390 completion=458 | took 11.5s
+  finish_reason=stop | tokens: prompt=4490 completion=471 | took 12.6s
+  finish_reason=stop | tokens: prompt=8775 completion=629 | took 19.9s
+  finish_reason=stop | tokens: prompt=906 completion=29 | took 2.0s
+  finish_reason=stop | tokens: prompt=2648 completion=637 | took 14.6s
+  finish_reason=stop | tokens: prompt=2783 completion=671 | took 15.5s
+  finish_reason=stop | tokens: prompt=368 completion=27 | took 0.7s
+  finish_reason=stop | tokens: prompt=2644 completion=558 | took 12.9s
+  finish_reason=stop | tokens: prompt=415 completion=19 | took 0.5s
+  finish_reason=stop | tokens: prompt=2614 completion=557 | took 12.9s
+  finish_reason=stop | tokens: prompt=5093 completion=820 | took 20.7s
+  finish_reason=stop | tokens: prompt=3058 completion=629 | took 14.9s
+  finish_reason=stop | tokens: prompt=371 completion=27 | took 0.7s
+  finish_reason=stop | tokens: prompt=2789 completion=575 | took 13.4s
+  finish_reason=stop | tokens: prompt=4090 completion=724 | took 17.7s
+  finish_reason=stop | tokens: prompt=3510 completion=814 | took 19.2s
+  finish_reason=stop | tokens: prompt=3445 completion=634 | took 15.3s
+  finish_reason=stop | tokens: prompt=5182 completion=837 | took 21.2s
+  finish_reason=stop | tokens: prompt=5343 completion=747 | took 19.4s
+  finish_reason=stop | tokens: prompt=4104 completion=461 | took 12.1s
+  finish_reason=stop | tokens: prompt=7274 completion=717 | took 20.5s
+  finish_reason=stop | tokens: prompt=4934 completion=568 | took 15.2s
+  finish_reason=stop | tokens: prompt=5489 completion=597 | took 16.2s
+  finish_reason=stop | tokens: prompt=3261 completion=729 | took 17.2s
+  finish_reason=stop | tokens: prompt=3451 completion=519 | took 12.8s
+  finish_reason=stop | tokens: prompt=6679 completion=645 | took 18.3s
+  finish_reason=stop | tokens: prompt=3169 completion=708 | took 16.7s
+  finish_reason=stop | tokens: prompt=3168 completion=452 | took 11.2s
+  finish_reason=stop | tokens: prompt=354 completion=24 | took 0.6s
+  finish_reason=stop | tokens: prompt=353 completion=28 | took 0.6s
+  finish_reason=stop | tokens: prompt=439 completion=25 | took 0.6s
+  finish_reason=stop | tokens: prompt=3012 completion=478 | took 11.5s
+  finish_reason=stop | tokens: prompt=400 completion=29 | took 0.7s
+  finish_reason=stop | tokens: prompt=2979 completion=685 | took 15.9s
+  finish_reason=stop | tokens: prompt=392 completion=25 | took 0.7s
+  finish_reason=stop | tokens: prompt=2700 completion=563 | took 13.1s
+  finish_reason=stop | tokens: prompt=2881 completion=509 | took 12.2s
+  finish_reason=stop | tokens: prompt=4795 completion=542 | took 14.4s
+  finish_reason=stop | tokens: prompt=4295 completion=603 | took 15.3s
+  finish_reason=stop | tokens: prompt=773 completion=40 | took 1.1s
+  finish_reason=stop | tokens: prompt=753 completion=137 | took 3.0s
+Wrote 3305 entries to /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/three_pass_grimgar_full_20260815/grimgar06.json
+RUN_EXIT 2026-08-15T17:10:20Z

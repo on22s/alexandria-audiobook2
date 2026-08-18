@@ -1,0 +1,101 @@
+  REFUSING to resume: checkpoint does not match this run (differs on harness_sha256). Moved to pdnc_context_evidence__pilot__local-llamacpp.json.ckpt.stale; starting fresh.
+  finish_reason=stop | tokens: prompt=9836 completion=451 | took 16.8s
+  finish_reason=stop | tokens: prompt=9599 completion=387 | took 15.2s
+  finish_reason=stop | tokens: prompt=9209 completion=427 | took 14.9s
+  finish_reason=stop | tokens: prompt=9004 completion=430 | took 15.3s
+  finish_reason=stop | tokens: prompt=7077 completion=351 | took 11.9s
+AnneOfGreenGables              baseline 70/120 (74s)
+  finish_reason=stop | tokens: prompt=9933 completion=451 | took 17.0s
+  finish_reason=stop | tokens: prompt=9696 completion=391 | took 14.7s
+  finish_reason=stop | tokens: prompt=9306 completion=427 | took 14.9s
+  finish_reason=stop | tokens: prompt=9101 completion=430 | took 15.2s
+  finish_reason=stop | tokens: prompt=7174 completion=351 | took 12.0s
+AnneOfGreenGables              evidence 72/120 (74s)
+  finish_reason=stop | tokens: prompt=9120 completion=413 | took 15.7s
+  finish_reason=stop | tokens: prompt=8297 completion=409 | took 13.9s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8328 completion=409 | took 9.1s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=4412 completion=191 | took 3.9s
+  finish_reason=stop | tokens: prompt=4400 completion=209 | took 6.9s
+  finish_reason=stop | tokens: prompt=8702 completion=427 | took 14.6s
+  finish_reason=stop | tokens: prompt=8299 completion=424 | took 14.9s
+  finish_reason=stop | tokens: prompt=7211 completion=332 | took 11.9s
+MansfieldPark                  baseline 75/120 (91s)
+  finish_reason=stop | tokens: prompt=9217 completion=413 | took 15.5s
+  finish_reason=stop | tokens: prompt=8394 completion=409 | took 14.1s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=8425 completion=409 | took 9.5s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 2): A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  ATTRIBUTE: identical prompt already rejected at temperature 0; further retries cannot differ
+  finish_reason=stop | tokens: prompt=4509 completion=191 | took 3.9s
+  finish_reason=stop | tokens: prompt=4497 completion=209 | took 9.3s
+  finish_reason=stop | tokens: prompt=8799 completion=427 | took 14.6s
+  finish_reason=stop | tokens: prompt=8396 completion=424 | took 14.3s
+  finish_reason=stop | tokens: prompt=7308 completion=341 | took 11.7s
+MansfieldPark                  evidence 77/120 (93s)
+  finish_reason=stop | tokens: prompt=9650 completion=429 | took 15.7s
+  Retry policy: retry_same_budget; token budget remains 2000
+Warning: ATTRIBUTE failed quality validation (attempt 1): A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name. A spoken line was not assigned a character name.; metrics={}
+Retrying...
+  finish_reason=stop | tokens: prompt=9711 completion=421 | took 9.5s
+  Succeeded on retry 2
+  finish_reason=stop | tokens: prompt=8815 completion=447 | took 15.4s
+  finish_reason=stop | tokens: prompt=9006 completion=449 | took 16.5s
+  finish_reason=stop | tokens: prompt=9076 completion=454 | took 15.6s
+  finish_reason=stop | tokens: prompt=6781 completion=369 | took 11.8s
+Persuasion                     baseline 74/120 (85s)
+  finish_reason=stop | tokens: prompt=9747 completion=418 | took 15.5s
+  finish_reason=stop | tokens: prompt=8912 completion=446 | took 15.3s
+  finish_reason=stop | tokens: prompt=9103 completion=451 | took 15.5s
+  finish_reason=stop | tokens: prompt=9173 completion=453 | took 15.6s
+  finish_reason=stop | tokens: prompt=6878 completion=360 | took 11.6s
+Persuasion                     evidence 62/120 (74s)
+  finish_reason=stop | tokens: prompt=8603 completion=426 | took 15.3s
+  finish_reason=stop | tokens: prompt=8347 completion=493 | took 15.8s
+  finish_reason=stop | tokens: prompt=7756 completion=389 | took 13.0s
+  finish_reason=stop | tokens: prompt=9412 completion=422 | took 15.2s
+  finish_reason=stop | tokens: prompt=7456 completion=393 | took 12.9s
+TheGambler                     baseline 62/120 (72s)
+  finish_reason=stop | tokens: prompt=8700 completion=426 | took 14.8s
+  finish_reason=stop | tokens: prompt=8444 completion=493 | took 15.9s
+  finish_reason=stop | tokens: prompt=7853 completion=389 | took 13.1s
+  finish_reason=stop | tokens: prompt=9509 completion=422 | took 15.2s
+  finish_reason=stop | tokens: prompt=7553 completion=393 | took 14.4s
+TheGambler                     evidence 62/120 (73s)
+  finish_reason=stop | tokens: prompt=8474 completion=402 | took 14.0s
+  finish_reason=stop | tokens: prompt=8509 completion=405 | took 14.0s
+  finish_reason=stop | tokens: prompt=8246 completion=403 | took 13.7s
+  finish_reason=stop | tokens: prompt=8461 completion=375 | took 13.3s
+  finish_reason=stop | tokens: prompt=7034 completion=324 | took 10.9s
+TheSunAlsoRises                baseline 65/120 (66s)
+  finish_reason=stop | tokens: prompt=8571 completion=404 | took 14.2s
+  finish_reason=stop | tokens: prompt=8606 completion=405 | took 14.0s
+  finish_reason=stop | tokens: prompt=8343 completion=405 | took 13.7s
+  finish_reason=stop | tokens: prompt=8558 completion=381 | took 13.4s
+  finish_reason=stop | tokens: prompt=7131 completion=323 | took 11.0s
+TheSunAlsoRises                evidence 78/120 (66s)
+{
+  "n": 600,
+  "baseline_correct": 346,
+  "evidence_correct": 351,
+  "delta_points": 0.8333333333333334,
+  "gained": 30,
+  "lost": 25,
+  "p_value": 0.5900533317766392,
+  "advance": false,
+  "gate": {
+    "minimum_delta_points": 3.0,
+    "maximum_p_exclusive": 0.05
+  }
+}
+wrote /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/pdnc_context_evidence__pilot__local-llamacpp.json

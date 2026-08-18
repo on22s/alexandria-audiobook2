@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "mode": "full",
+  "status": "passed",
+  "gates": [
+    {
+      "name": "compile_python",
+      "status": "passed",
+      "duration_seconds": 0.551
+    },
+    {
+      "name": "test_inventory",
+      "status": "passed",
+      "duration_seconds": 2.95
+    },
+    {
+      "name": "unit_tests",
+      "status": "passed",
+      "duration_seconds": 20.058
+    },
+    {
+      "name": "api_contract",
+      "status": "passed",
+      "duration_seconds": 0.583
+    },
+    {
+      "name": "api_tests",
+      "status": "passed",
+      "result": {
+        "counts": {
+          "passed": 82,
+          "failed": 0,
+          "skipped": 0,
+          "total": 82
+        },
+        "skips": []
+      },
+      "duration_seconds": 29.503
+    }
+  ],
+  "duration_seconds": 53.645
+}

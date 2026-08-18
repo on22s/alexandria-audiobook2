@@ -1,0 +1,23 @@
+{
+  "experiment": "three_pass_chunk_probe",
+  "source": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar06.txt",
+  "chunk": 25,
+  "total_chunks": 70,
+  "entry_count": 62,
+  "passed": true,
+  "quality": {
+    "passed": true,
+    "metrics": {
+      "source_tokens": 1093,
+      "output_tokens": 1093,
+      "source_token_recall": 1.0,
+      "ordered_trigram_recall": 1.0,
+      "output_source_ratio": 1.0
+    },
+    "source_cyrillic": [],
+    "missing_source_spans": [],
+    "findings": []
+  },
+  "unknown_speakers": 10,
+  "default_instructs": 19
+}

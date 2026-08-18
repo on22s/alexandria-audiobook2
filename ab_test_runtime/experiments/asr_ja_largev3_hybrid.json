@@ -15,8 +15,8 @@
    "clips_without_timestamps": 0,
    "wer_mean": 0.279,
    "wer_median": 0.2554,
-   "rtf": 0.272,
-   "seconds_total": 69.3
+   "rtf": 0.262,
+   "seconds_total": 66.6
   },
   "whisper_cpp_hybrid": {
    "n": 50,
@@ -25,8 +25,8 @@
    "clips_without_timestamps": 0,
    "wer_mean": 0.2784,
    "wer_median": 0.25,
-   "rtf": 0.37,
-   "seconds_total": 94.1
+   "rtf": 0.363,
+   "seconds_total": 92.3
   }
  },
  "alignment": {
@@ -54,17 +54,18 @@
  "alignment_truth_clips": 50,
  "provenance": {
   "script": "asr_backends.py",
-  "written": "2026-08-16T15:02:09",
+  "written": "2026-08-17T21:06:30",
   "host": "mitch-linux",
   "git": {
-   "commit": "1689c3a8408d1b665579899dcb3092acf87b55ff",
-   "branch": "agent/queue-remaining-goal-work-20260816",
+   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "branch": "agent/pause-status-isolation-20260817",
    "dirty": true,
    "modified_tracked_files": [
-    "M lora_models/manifest.json"
+    "M ab_test_runtime/experiments/asr_ja_cutting_control.json",
+    " M ab_test_runtime/experiments/asr_ja_readings.json"
    ],
    "untracked_harness_files": null,
-   "harness_sha256": "f69079758e848c1fe932f4d4ff19adeeb0b751c5dd32d200de145e9ba8abc866"
+   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
@@ -75,6 +76,8 @@
    "limit": 50,
    "row_offset": 0,
    "align_clips": 50,
+   "score_readings": false,
+   "keep_hypotheses": false,
    "whisper_cpp_bin": "whisper.cpp/build/bin/whisper-cli",
    "whisper_cpp_model": "whisper.cpp/models/ggml-large-v3.bin",
    "lang": "ja",

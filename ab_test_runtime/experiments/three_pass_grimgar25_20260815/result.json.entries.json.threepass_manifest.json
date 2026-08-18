@@ -1,0 +1,61 @@
+{
+  "fingerprint": {
+    "source_sha256": "9a5f20b9bbc9d631f29cd8382084edddc4c3150a94b9cdaaca9738224c749e39",
+    "settings_sha256": "9767ec76efd6cae0e17aecd72565aeef5e970ae1fa05569547733d6ae0ae7b1f",
+    "model_name": "qwen3-14b",
+    "pipeline": "three_pass"
+  },
+  "status": "complete",
+  "chunks": [
+    {
+      "index": 1,
+      "resolution": "quote_presegmented"
+    }
+  ],
+  "counts": {
+    "near_miss_accepted": 0,
+    "context_rescued": 0,
+    "split_recombined": 0,
+    "quote_repairs": 0,
+    "quote_continuations": 0
+  },
+  "passes": {
+    "segment": {
+      "elapsed_s": 0.013,
+      "status": "complete"
+    },
+    "attribute": {
+      "elapsed_s": 124.853,
+      "status": "complete"
+    },
+    "instruct": {
+      "elapsed_s": 32.881,
+      "status": "complete"
+    }
+  },
+  "legacy_resume": false,
+  "progress": {
+    "source_words": 1016,
+    "source_words_total": 1016,
+    "source_words_completed": 1016,
+    "chunks_total": 1,
+    "chunks_attempted": 1,
+    "chunks_completed": 1,
+    "segmented_entries": 62,
+    "attributed_entries": 62,
+    "instructed_entries": 62,
+    "llm_calls": 0,
+    "repeated_responses": 0,
+    "completion_tokens": 0,
+    "failure_codes": {},
+    "response_fingerprints": 0
+  },
+  "diagnostic_failures": [],
+  "telemetry": {
+    "model_name": "qwen3-14b",
+    "thinking_mode": "default",
+    "unicode": {},
+    "failure_reasons": {},
+    "truncations": 0
+  }
+}

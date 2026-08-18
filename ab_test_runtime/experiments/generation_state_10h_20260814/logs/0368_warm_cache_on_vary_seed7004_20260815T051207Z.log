@@ -1,0 +1,2 @@
+  finish_reason=stop | tokens: prompt=2594 completion=2612 | took 56.1s
+warm_cache_on_vary: FAIL

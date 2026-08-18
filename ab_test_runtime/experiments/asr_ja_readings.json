@@ -318,8 +318,8 @@
    ],
    "wer_mean": 0.2871,
    "wer_median": 0.262,
-   "rtf": 0.472,
-   "seconds_total": 120.0
+   "rtf": 0.439,
+   "seconds_total": 111.7
   }
  },
  "alignment": {
@@ -337,18 +337,15 @@
  "alignment_truth_clips": 50,
  "provenance": {
   "script": "asr_backends.py",
-  "written": "2026-08-16T16:46:45",
+  "written": "2026-08-17T21:01:18",
   "host": "mitch-linux",
   "git": {
-   "commit": "fed4bcf8e63668bda20e36b6095c73495f97c4b9",
-   "branch": "agent/japanese-reading-score-and-views-20260816",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M app/experiments/asr_backends.py",
-    " M app/requirements.txt"
-   ],
+   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "b9fadc554251a3d875ba92d480bb57a6b7f868ca03f994cc6d88e209e309a7ed"
+   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
