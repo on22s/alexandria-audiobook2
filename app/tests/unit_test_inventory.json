@@ -683,6 +683,11 @@
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_both_generators_strip_the_same_things",
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_publisher_matter_is_not_left_to_a_flag"
   ],
+  "test_goal_citations": [
+    "tests.test_goal_citations.CitationScannerTest.test_a_hyphenated_artifact_name_is_seen",
+    "tests.test_goal_citations.CitationScannerTest.test_every_cited_artifact_actually_exists",
+    "tests.test_goal_citations.CitationScannerTest.test_goals_measured_this_session_cite_their_artifacts"
+  ],
   "test_goals_navigation": [
     "tests.test_goals_navigation.GoalsNavigationTests.test_every_goal_sits_in_the_half_its_status_says",
     "tests.test_goals_navigation.GoalsNavigationTests.test_no_goal_is_listed_twice_or_lost",
