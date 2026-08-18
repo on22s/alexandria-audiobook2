@@ -479,8 +479,28 @@ export ALEXANDRIA_GPU_LOCK_HELD=1
 # assumption that today holds by default. No test guards it, deliberately: a
 # test for an unreachable state cannot fail, and one that cannot fail
 # advertises coverage that does not exist.
+# BACKGROUND WORK SHOULD LOSE TO THE FOREGROUND. Nothing here set priority, so
+# a job competed with the desktop as an equal: on 2026-08-18 a book generation
+# kept llama-server at 169% CPU while a game ran, and pausing the QUEUE could
+# not help because the already-running job was scheduled at parity. Load
+# average sat near 9.
+#
+# nice 15 leaves the job full use of an idle machine and makes it yield the
+# moment anything interactive wants the CPU. ionice -c3 does the same for
+# disk. Both are best-effort: a missing tool must not stop the job, so each is
+# added only if present.
+#
+# GPU_JOB_NICE=0 disables it, for a run that genuinely should compete.
+launcher=(setsid)
+if [ "${GPU_JOB_NICE:-15}" != "0" ] && command -v nice >/dev/null 2>&1; then
+    launcher+=(nice -n "${GPU_JOB_NICE:-15}")
+fi
+if command -v ionice >/dev/null 2>&1; then
+    launcher+=(ionice -c3)
+fi
+
 set +m
-setsid "$@" &
+"${launcher[@]}" "$@" &
 JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?

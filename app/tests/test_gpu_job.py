@@ -1065,6 +1065,43 @@ class PendingMarkerTest(unittest.TestCase):
                   PATH=shadow + os.pathsep + os.environ["PATH"])
         self.assertFalse(os.path.exists(record))
 
+    def test_a_job_runs_at_low_priority_so_the_desktop_wins(self):
+        """Background work must lose to whatever the user is doing.
+
+        Nothing set priority, so a job competed with the foreground as an
+        equal: a book generation held llama-server at 169% CPU while a game
+        ran, load average near 9, and pausing the QUEUE could not help because
+        the already-running job was scheduled at parity.
+        """
+        result = self._run("niced", "bash", "-c", "ps -o ni= -p $$")
+        niceness = [int(line) for line in result.stdout.split()
+                    if line.lstrip("-").isdigit()]
+        self.assertTrue(niceness, f"no niceness reported: {result.stdout!r}")
+        # Relative for the same reason - but niceness CAPS AT 19, so a suite
+        # already running there cannot observe an increase at all. Assert what
+        # is observable from where the test happens to be standing rather than
+        # a fixed number that is right in one context and wrong in the other.
+        mine = os.nice(0)
+        if mine >= 19:
+            self.assertEqual(19, niceness[0])
+        else:
+            self.assertGreater(niceness[0], mine)
+
+    def test_the_priority_can_be_waived_for_a_run_that_should_compete(self):
+        """Waived means "add nothing", not "reset to zero".
+
+        Niceness is inherited, and this suite is often run niced itself - the
+        first version asserted 0 and failed at 19, which was the harness's own
+        priority rather than a broken waiver. Compare against the parent.
+        """
+        mine = os.nice(0)
+        result = self._run("greedy", "bash", "-c", "ps -o ni= -p $$",
+                           GPU_JOB_NICE="0")
+        niceness = [int(line) for line in result.stdout.split()
+                    if line.lstrip("-").isdigit()]
+        self.assertTrue(niceness, result.stdout)
+        self.assertEqual(mine, niceness[0])
+
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.
 
