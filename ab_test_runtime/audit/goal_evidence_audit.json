@@ -84,11 +84,9 @@
   {
    "goal": "2.7",
    "title": "Adapters must not be trained on their own test data",
-   "cited": 3,
+   "cited": 2,
    "not_in_audit": [],
-   "not_experiment_artifacts": [
-    "training_meta.json"
-   ],
+   "not_experiment_artifacts": [],
    "weakest_evidence": "supported_structure",
    "classifications": {
     "supported_structure": 2

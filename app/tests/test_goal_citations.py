@@ -10,8 +10,8 @@ hyphen - which excludes almost every artifact named after a model or endpoint
 invisible to it, and the audit kept reporting "cites none": a scanner that
 cannot spell, reported as missing evidence.
 """
-import glob
 import os
+import subprocess
 import unittest
 
 from experiments.goal_evidence_audit import parse_goals
@@ -40,8 +40,11 @@ class CitationScannerTest(unittest.TestCase):
         self.assertIn("gate_promote__crisp_mezzo_30s_f.json", self._cited_by("2.7"))
 
     def test_every_cited_artifact_actually_exists(self):
-        """A citation to a missing file is worse than none: it reads as
-        checkable and is not.
+        """A citation must point at something COMMITTED.
+
+        Worse than a missing citation is one that reads as checkable and is
+        not. CI has only the committed files, which is the same view any other
+        reader has - so "present on this machine" is not the test.
 
         Not every citation is an experiment artifact, which is why this looks
         in more than one place. `pronunciation.json` is the shipped lexicon at
@@ -50,17 +53,16 @@ class CitationScannerTest(unittest.TestCase):
         earlier version of this test called them missing because it only knew
         about ab_test_runtime/experiments.
         """
-        roots = [os.path.join(REPO, "ab_test_runtime", "experiments"), REPO,
-                 os.path.join(REPO, "app", "fixtures")]
-        missing = []
-        for goal in parse_goals(GOALS):
-            for name in goal["cited"]:
-                if any(os.path.exists(os.path.join(r, name)) for r in roots):
-                    continue
-                # Anywhere under the runtime tree counts: per-adapter files
-                # like training_meta.json exist many times over.
-                found = glob.glob(os.path.join(REPO, "ab_test_runtime", "**", name),
-                                  recursive=True)
-                if not found:
-                    missing.append(f"{goal['number']} -> {name}")
-        self.assertEqual([], missing, "cited artifacts that are nowhere on disk")
+        tracked = subprocess.run(["git", "ls-files"], cwd=REPO,
+                                 capture_output=True, text=True, timeout=60)
+        by_basename = {os.path.basename(p) for p in tracked.stdout.split()}
+        missing = [f"{goal['number']} -> {name}"
+                   for goal in parse_goals(GOALS)
+                   for name in goal["cited"] if name not in by_basename]
+        self.assertEqual([], missing,
+                         "cited files that are not committed: a reader cannot "
+                         "follow them, and 'it exists on my machine' is the "
+                         "property that failed all day - untracked artifacts "
+                         "in the index, untracked gold in the audit, and a "
+                         "citation to a per-adapter file that exists 177 times "
+                         "here and zero times in the repository")

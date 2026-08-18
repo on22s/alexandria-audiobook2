@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1578** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -795,7 +795,9 @@ The live manifest now reports **21 of 75 adapters still trained on 200 clips**,
 with 46 on the clean 180-clip split and eight at other sample counts. Seven
 2026-08-08 promotions already contained clean 180-sample weights but retained
 stale 200-sample manifest counts; reconciling those counts removed the apparent
-disagreement with each adapter's `training_meta.json`. The goal
+disagreement with each adapter's training_meta.json (one per adapter
+directory, 177 on this machine and none committed - so it is a description of
+where to look, not a citation anyone else can follow). The goal
 remains **OPEN**, but deployment—not merely retraining evidence—has removed
 contamination from 20 shipped voices.
 
