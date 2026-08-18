@@ -396,73 +396,73 @@ fix_verification.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED
 full_api_gpu_20260816.json,exploratory,none,no,,67b9a854,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_known_bad.json,exploratory,none,no,,9e6c5be3,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_known_good.json,exploratory,none,no,,9e6c5be3,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_alto_50s_f_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_baritone_40s_m_literary.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_baritone_40s_m_military_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_baritone_40s_m_military_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_mezzo_20s_f_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_tenor_18s_m_supernatural.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_tenor_20s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__breathy_tenor_50s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__crisp_mezzo_30s_f.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__crisp_tenor_20s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__crisp_tenor_30s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__gravelly_baritone_50s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_alto_40s_f.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_20s_m_anime.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_20s_m_supernatural.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_35s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_40s_m_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_40s_m_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_40s_m_military.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_40s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_50s_m_gothic.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_baritone_50s_m_military.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_soprano_20s_f.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_tenor_30s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_tenor_30s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__husky_tenor_30s_m_literary.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_alto_40s_f.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_alto_40s_f_cyberpunk.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_alto_40s_f_literary_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_baritone_30s_m.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_baritone_30s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_baritone_40s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_baritone_45s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_mezzo_10s_f_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_mezzo_30s_f_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__silky_mezzo_30s_f_supernatural.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__velvety_mezzo_30s_f_gothic.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_alto_40s_f_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_alto_40s_f_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_alto_50s_f_anime.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_alto_50s_f_gothic.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_3.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_fantasy_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_fantasy_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_30s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_4.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_5.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_fantasy.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_military.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_40s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_50s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_baritone_50s_m_gothic.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_bass_50s_m_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_mezzo_20s_f_anime.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_mezzo_30s_f.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_mezzo_30s_f_fantasy_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_mezzo_30s_f_fantasy_2.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_20s_m.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_20s_m_scifi.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_25s_m_military.json,exploratory,none,no,,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_30s_m_1.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_30s_m_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-gate_promote__warm_tenor_30s_m_gothic.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+gate_promote__breathy_alto_50s_f_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_baritone_40s_m_literary.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_baritone_40s_m_military_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_baritone_40s_m_military_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_mezzo_20s_f_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_tenor_18s_m_supernatural.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_tenor_20s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__breathy_tenor_50s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__crisp_mezzo_30s_f.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__crisp_tenor_20s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__crisp_tenor_30s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__gravelly_baritone_50s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_alto_40s_f.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_20s_m_anime.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_20s_m_supernatural.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_35s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_40s_m_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_40s_m_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_40s_m_military.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_40s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_50s_m_gothic.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_baritone_50s_m_military.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_soprano_20s_f.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_tenor_30s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_tenor_30s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__husky_tenor_30s_m_literary.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_alto_40s_f.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_alto_40s_f_cyberpunk.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_alto_40s_f_literary_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_baritone_30s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_baritone_30s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_baritone_40s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_baritone_45s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_mezzo_10s_f_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_mezzo_30s_f_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__silky_mezzo_30s_f_supernatural.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__velvety_mezzo_30s_f_gothic.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_alto_40s_f_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_alto_40s_f_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_alto_50s_f_anime.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_alto_50s_f_gothic.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_fantasy_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_fantasy_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_30s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_4.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_5.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_military.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_40s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_50s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_baritone_50s_m_gothic.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_bass_50s_m_fantasy.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_mezzo_20s_f_anime.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_mezzo_30s_f.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_mezzo_30s_f_fantasy_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_mezzo_30s_f_fantasy_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_20s_m.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_20s_m_scifi.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_25s_m_military.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_30s_m_1.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_30s_m_2.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+gate_promote__warm_tenor_30s_m_gothic.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 gate_reference_rank1__breathy_alto_50s_f_fantasy.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_reference_rank1__husky_baritone_20s_m_supernatural.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_reference_rank1__husky_baritone_40s_m_2.json,exploratory,none,no,,61c177b5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
