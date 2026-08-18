@@ -127,6 +127,22 @@ def ecapa_pairs(pairs, python_bin):
     # Contract is STDIN and cwd=APP, per its own docstring. The first version
     # here passed a temp-file path as argv and got an unparsable-output error
     # that looked like a speechbrain problem.
+    #
+    # ABSOLUTE PATHS, BECAUSE THIS CALL CHANGES DIRECTORY. cwd=APP means every
+    # relative path the caller handed us is now resolved against app/ instead
+    # of wherever the caller was standing. On 2026-08-18 the re-gate chain
+    # passed --dataset ab_test_runtime/decontaminate/... from the repo root and
+    # all 67 adapters failed identically:
+    #
+    #     NOT MEASURED: rc=3 opening '.../val/sample_3063.wav': System error
+    #     every one of 6 pairs failed - check the paths
+    #
+    # The clips were present and readable the whole time; app/ab_test_runtime/
+    # is what did not exist. Two hours of GPU time produced no measurement, and
+    # the advice printed - "check the paths" - pointed at the datasets rather
+    # than at the directory this line changes. Whoever crosses a cwd boundary
+    # owns the conversion.
+    pairs = [[os.path.abspath(a), os.path.abspath(b)] for a, b in pairs]
     try:
         out = subprocess.run([python_bin, script],
                              input=json.dumps([[a, b] for a, b in pairs]),

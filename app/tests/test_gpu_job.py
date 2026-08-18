@@ -57,7 +57,18 @@ def isolated_env(tmpdir, **extra):
     env = dict(os.environ,
                GPU_LOCK=os.path.join(tmpdir, "gpu.lock"),
                GPU_QLOG=os.path.join(tmpdir, "queue.log"),
-               GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"))
+               GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"),
+               # The card is REAL STATE too, and this is the third variable to
+               # be found leaking in. With llama-server resident for an
+               # unseen_books run (14.7 GB), every probe here was refused with
+               # rc=7 NO_VRAM and eight tests failed - the suite reporting on
+               # what the GPU happened to be doing rather than on gpu_job.sh.
+               # Never in CI, which has no GPU and always reads VRAM_UNKNOWN.
+               #
+               # VramGateTest overrides this and supplies its own card through
+               # _fake_gpu, so the gate itself stays tested; everyone else
+               # stops caring what is running.
+               REQUIRE_VRAM_GB="0")
     env.update(extra)
     return env
 
