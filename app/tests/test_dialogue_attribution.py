@@ -132,3 +132,50 @@ class ApostropheTest(unittest.TestCase):
         entries = [{"speaker": "SUBARU", "text": t} for t in self.APOSTROPHES] * 40
         ok, why = measurable(entries)
         self.assertFalse(ok, why)
+
+
+class JapaneseQuoteFormTest(unittest.TestCase):
+    """『』 is dialogue too, and this corpus uses it heavily.
+
+    205 entries of mushoku18 and 155 of mushoku23 quote with 『』 - telepathy
+    and quoted concepts. All 67 lines under the split speaker name were 『』
+    speech, and a detector blind to the mark saw one of them.
+    """
+
+    def test_a_double_cornered_line_counts_as_spoken(self):
+        self.assertTrue(is_spoken_line("『Ariel-sama.』"))
+        self.assertTrue(is_spoken_line("『I was able to fight him this time.』"))
+
+    def test_narration_quoting_a_concept_still_does_not(self):
+        # Same rule as every other mark: the quote must be the whole entry.
+        self.assertFalse(is_spoken_line(
+            "Because 『The magic density is thin.』 in most of the area around "
+            "Asura, the spell fizzled before it reached him."))
+
+    def test_single_cornered_brackets_still_count(self):
+        self.assertTrue(is_spoken_line("「そうですね」"))
+
+
+class RecordedSpokenFieldTest(unittest.TestCase):
+    """When the script says whether a line was spoken, believe it.
+
+    Quote coverage was only ever a reconstruction of something generation had
+    thrown away, and it was wrong three times in one day: apostrophes counted
+    as quotes, 『』 was invisible, and a book whose source holds 6,925 quote
+    marks was called unmarked because our own pipeline stripped them.
+    """
+
+    def test_the_recorded_field_wins_over_the_punctuation_guess(self):
+        # No quotes at all, yet marked spoken - exactly arc4's situation.
+        entries = [{"speaker": "NARRATOR", "text": "Say, Petra, isn't this close?",
+                    "spoken": True}]
+        self.assertEqual(1, classify(entries)["spoken_lines"])
+
+    def test_a_line_recorded_as_narration_is_not_counted_despite_quotes(self):
+        entries = [{"speaker": "NARRATOR", "text": '"Incognito," he read aloud.',
+                    "spoken": False}]
+        self.assertEqual(0, classify(entries)["spoken_lines"])
+
+    def test_older_scripts_still_fall_back_to_the_guess(self):
+        entries = [{"speaker": "ERIS", "text": '"Get down!"'}]
+        self.assertEqual(1, classify(entries)["spoken_lines"])

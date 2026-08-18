@@ -37,7 +37,13 @@ from experiments.provenance import provenance  # noqa: E402
 # arc4_volume10wn - a book with no quotation marks at all - passed the
 # measurability floor and got scored anyway. Curly ‘ ’ stay: they cannot be an
 # apostrophe in this corpus without a matching partner.
-QUOTED = re.compile(r'"[^"]{2,}"|“[^”]{2,}”|「[^」]{2,}」|‘[^’]{2,}’')
+# 『』 TOO. It is a real dialogue mark in Japanese - here it carries telepathy
+# and quoted concepts - and 205 entries of mushoku18 use it, 155 of mushoku23.
+# Leaving it out did not produce a wrong number so much as an incomplete one:
+# the 67 lines under the split name were all 『』 speech, and the detector saw
+# exactly one of them, which is how "the repair changes nothing" nearly became
+# the finding instead of "the detector cannot see this book's other quote mark".
+QUOTED = re.compile(r'"[^"]{2,}"|“[^”]{2,}”|「[^」]{2,}」|『[^』]{2,}』|‘[^’]{2,}’')
 CURLY = re.compile(r'“[^”]{2,}”')
 SPOKEN_COVERAGE = 0.85
 
@@ -85,12 +91,26 @@ def measurable(entries):
     return True, None
 
 
+def spoken_field_count(entries):
+    """How many entries carry the recorded answer rather than a guess."""
+    return sum(1 for e in entries if "spoken" in e)
+
+
 def classify(entries, narrator="NARRATOR"):
     spoken, narrator_spoken, curly_spoken, narrator_curly = 0, 0, 0, 0
     examples = []
+    # PREFER THE RECORDED FACT. Scripts generated from 2026-08-18 carry
+    # `spoken`, mapped from the source before the model rewrote anything.
+    # Quote coverage is the fallback for everything written before that, and
+    # it is a guess: it was wrong about apostrophes, about 『』, and about a
+    # book whose quotes our own pipeline had stripped.
     for entry in entries:
         text = str(entry.get("text", ""))
-        if not is_spoken_line(text):
+        recorded = entry.get("spoken")
+        if recorded is None:
+            if not is_spoken_line(text):
+                continue
+        elif not recorded:
             continue
         spoken += 1
         is_narr = str(entry.get("speaker", "")).upper() == narrator

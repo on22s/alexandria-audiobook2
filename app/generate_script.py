@@ -12,6 +12,7 @@ from core import llm_timeout_seconds
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+from dialogue_spans import detect_convention, mark_entries
 from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
                              get_valid_narrator_name, is_narrator_attested)
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
@@ -1579,6 +1580,33 @@ def main():
     if final_manifest["status"] != "verified":
         print("Error: final whole-book quality gate failed; preserving existing output and checkpoint")
         sys.exit(1)
+
+    # THE DIALOGUE MAP TRAVELS WITH THE SCRIPT. The prompt asks for the
+    # outermost quotes to be dropped - a voice should not say punctuation -
+    # and that is fine for the audio and destructive for everything else: the
+    # fact that a line was speech is thrown away, and compliance varies (22%,
+    # 16% and 1% retention across three books), so downstream code cannot even
+    # rely on the punctuation being consistently absent.
+    #
+    # Marking from the SOURCE is what makes the attribution question answerable
+    # later: "who said this known line" rather than "was this speech, and who
+    # said it". `spoken` absent means the line could not be located, which is a
+    # different claim from `spoken: false`.
+    try:
+        convention = detect_convention(book_content)
+        if convention:
+            all_entries = mark_entries(all_entries, book_content, convention)
+            located = sum(1 for e in all_entries if "spoken" in e)
+            spoken = sum(1 for e in all_entries if e.get("spoken"))
+            print(f"Dialogue map: {convention}, {spoken} spoken lines, "
+                  f"{located}/{len(all_entries)} entries located in the source")
+        else:
+            print("Dialogue map: no convention detected; entries left unmarked")
+    except Exception as exc:                              # noqa: BLE001
+        # Never lose a finished book to a mapping failure - but say so, rather
+        # than writing an unmarked script that looks like a book with no
+        # dialogue.
+        print(f"WARNING: dialogue map failed, entries left unmarked: {str(exc)[:160]}")
 
     atomic_json_write(all_entries, output_path)
     save_generation_quality_manifest(output_path, {**final_manifest, "status": "complete"})
