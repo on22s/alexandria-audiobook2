@@ -106,6 +106,26 @@ case "${1:-status}" in
     fi
     job=$(running_job)
     echo "running job: ${job:-none}"
+    # WHAT IS WAITING, not just what is running. Until gpu_job.sh wrote pending
+    # markers there was no way to ask this: queued jobs are blocked processes
+    # and a chain that died left the same evidence as one patiently waiting -
+    # the confusion behind two idle stretches on 2026-08-18. task-spooler has
+    # `ts -l` for exactly this; these markers are the small version.
+    pending_dir="$REPO/ab_test_runtime/logs/pending"
+    if [ -d "$pending_dir" ]; then
+        for marker in "$pending_dir"/*; do
+            [ -e "$marker" ] || continue
+            marker_name=$(cut -f1 "$marker" 2>/dev/null)
+            marker_pid=$(cut -f2 "$marker" 2>/dev/null)
+            # A marker whose process is gone is a LIE, and saying so is the
+            # point: it means a chain died holding a place in the queue.
+            if kill -0 "$marker_pid" 2>/dev/null; then
+                [ "$marker_name" = "$job" ] || echo "  waiting: $marker_name (pid $marker_pid)"
+            else
+                echo "  STALE:   $marker_name (pid $marker_pid is gone; chain died)"
+            fi
+        done
+    fi
     logged=$(logged_job)
     if [ -z "$job" ] && [ -n "$logged" ]; then
         # Say which of the two sources disagreed rather than picking one

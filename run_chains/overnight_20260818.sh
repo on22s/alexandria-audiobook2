@@ -42,16 +42,18 @@ reclaim_vram() {
     fi
 }
 
+# NOW A THIN WRAPPER OVER THE SHARED RUNNER. This function used to swallow
+# every failure: it reported FAIL and returned 0, so the driver finished
+# "successfully" on a night when two of four stages measured nothing. The
+# shared version counts failures, tells a timeout apart from a crash, and
+# stage_summary at the bottom makes the chain exit non-zero when stages died.
+STAGE_LOG_DIR="$LOG"
+source "$(dirname "$0")/lib/stage.sh"
+
 stage() {
     local name="$1" limit="$2"; shift 2
-    note "START $name (cap ${limit})"
     reclaim_vram
-    if timeout --signal=INT --kill-after=120s "$limit" "$@" \
-            > "$LOG/$name.log" 2>&1; then
-        note "OK    $name"
-    else
-        note "FAIL  $name rc=$? (see $LOG/$name.log)"
-    fi
+    run_stage "$name" "$limit" -- "$@"
 }
 
 note "OVERNIGHT START"
@@ -79,4 +81,8 @@ stage unseen_books 6h "$REPO/run_chains/unseen_books.sh"
 stage replay 4h "$REPO/run_chains/replay_dirty_evidence_20260817.sh"
 
 reclaim_vram
-note "OVERNIGHT COMPLETE"
+
+# THE STRICT GATE, LAST. Nothing may run after this that could restore a zero
+# exit - putting a "COMPLETE" echo below a gate is precisely how the failure
+# it guards against comes back.
+stage_summary "overnight"

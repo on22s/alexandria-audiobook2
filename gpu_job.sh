@@ -49,6 +49,21 @@ stamp() { date -u +%FT%TZ; }
 
 echo "$(stamp) QUEUED   $NAME" >> "$QLOG"
 
+# A PENDING MARKER, BECAUSE A WAITING JOB AND A DEAD CHAIN LOOK IDENTICAL.
+# Everything queued behind the lock is just a blocked process; nothing lists
+# it. Twice on 2026-08-18 a chain died leaving "QUEUED x" as the last word in
+# the log, and the queue looked busy while the card sat idle - 80 minutes once,
+# an hour the second time. task-spooler answers this with `ts -l`; this is the
+# poor relation of that, one file per waiting job, removed on exit however the
+# job ends. `gpu_pause.sh status` reads them.
+PENDING_DIR="$(dirname "$0")/ab_test_runtime/logs/pending"
+mkdir -p "$PENDING_DIR" 2>/dev/null
+PENDING_FILE="$PENDING_DIR/$$.$NAME"
+printf '%s\t%s\t%s\n' "$NAME" "$$" "$(stamp)" > "$PENDING_FILE" 2>/dev/null
+# The trap is set BEFORE the pause wait and the lock: a job interrupted while
+# still queued must not leave a marker claiming it is pending forever.
+trap 'rm -f "$PENDING_FILE" 2>/dev/null' EXIT
+
 # WAIT FOR THE PAUSE FLAG BEFORE TAKING THE LOCK, not after. A job that holds
 # the lock while waiting would block the queue AND look like it was working;
 # waiting first means a paused queue is simply idle, and `gpu_pause.sh status`
@@ -371,11 +386,31 @@ JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?
 
+# NOTIFY WHEN THE CARD GOES IDLE. task-spooler mails you when a job finishes
+# (`ts -m`); pterm push is the local equivalent and this repo had zero uses of
+# it. An idle GPU at 2am should announce itself rather than be discovered
+# hours later by someone reading a log. Only fires when NOTHING is pending -
+# a job finishing with more queued behind it is not idleness.
+#
+# Best-effort by design: no notifier, or a failing one, must never change the
+# job's exit code, so everything here is swallowed.
+notify_if_idle() {
+    local outcome="$1"
+    rm -f "$PENDING_FILE" 2>/dev/null
+    local waiting
+    waiting=$(ls "$PENDING_DIR" 2>/dev/null | wc -l)
+    [ "${waiting:-0}" -gt 0 ] && return 0
+    command -v pterm >/dev/null 2>&1 || return 0
+    pterm push "GPU idle: $NAME $outcome, nothing queued" >/dev/null 2>&1 || true
+}
+
 if [ "$rc" -eq 0 ]; then
     echo "$(stamp) OK       $NAME" >> "$QLOG"
+    notify_if_idle "finished"
 else
     # Loud on purpose. A chained job that fails quietly gets read as a result.
     echo "$(stamp) FAILED   $NAME rc=$rc" >> "$QLOG"
     echo "gpu_job: $NAME FAILED rc=$rc" >&2
+    notify_if_idle "FAILED rc=$rc"
 fi
 exit "$rc"

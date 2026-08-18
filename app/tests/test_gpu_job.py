@@ -872,6 +872,86 @@ class HarnessIsolationTest(unittest.TestCase):
 GPU_PAUSE = os.path.join(REPO, "gpu_pause.sh")
 
 
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class PendingMarkerTest(unittest.TestCase):
+    """A job WAITING and a chain that DIED must not look the same.
+
+    Everything queued behind the lock is a blocked process that nothing lists,
+    so twice on 2026-08-18 a dead chain left "QUEUED x" as the last line in the
+    log while the card sat idle - 80 minutes, then another hour. task-spooler
+    answers this with `ts -l`; these markers are the small version, one file
+    per waiting job, removed however the job ends.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+        self.pending = os.path.join(REPO, "ab_test_runtime", "logs", "pending")
+
+    def _run(self, *argv, **extra):
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1", **extra)
+        return subprocess.run(["bash", GPU_JOB, *argv], env=env,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_a_finished_job_leaves_no_marker_behind(self):
+        before = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self._run("probe", "true")
+        after = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self.assertEqual(before, after,
+                         "a completed job left a pending marker claiming it waits")
+
+    def test_a_failed_job_leaves_no_marker_behind(self):
+        # The trap is on EXIT, not on success: a job that dies mid-queue is
+        # exactly the case that produced a stale-looking queue.
+        before = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self._run("probe", "bash", "-c", "exit 3")
+        after = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
+        self.assertEqual(before, after)
+
+    def test_a_waiting_job_is_visible_while_it_waits(self):
+        """The whole point: something must be able to say what is queued."""
+        env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                           ALLOW_DIRTY_TREE="1")
+        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "6"],
+                                  env=env, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+        waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
+                                  env=env, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.time() + 20
+            names = []
+            while time.time() < deadline:
+                if os.path.isdir(self.pending):
+                    names = [n for n in os.listdir(self.pending)
+                             if n.endswith(("waiter", "holder"))]
+                    if any(n.endswith("waiter") for n in names):
+                        break
+                time.sleep(0.2)
+            self.assertTrue(any(n.endswith("waiter") for n in names),
+                            f"the waiting job was not listed: {names}")
+        finally:
+            waiter.wait(timeout=30)
+            holder.wait(timeout=30)
+
+    def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
+        """Best-effort means best-effort: reporting must never fail the job.
+
+        A notification is a courtesy; a job whose result was destroyed by its
+        own progress report is a worse outcome than silence.
+        """
+        shadow = os.path.join(self.tmp.name, "badbin")
+        os.makedirs(shadow, exist_ok=True)
+        fake = os.path.join(shadow, "pterm")
+        with open(fake, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/bash\nexit 9\n")
+        os.chmod(fake, 0o755)
+        r = self._run("probe", "true", PATH=shadow + os.pathsep + os.environ["PATH"])
+        self.assertEqual(0, r.returncode, r.stderr)
+
+
 @unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
 class PauseStatusTest(unittest.TestCase):
     """`status` answers "is the card busy?" - so it must not guess.
