@@ -92,7 +92,7 @@ def isolated_env(tmpdir, **extra):
 # Filter the whole class once, in one place. A test about ORDER should assert
 # the order, not the presence of environment-dependent notes.
 ADVISORY_MARKERS = {"DIRTY_RUN", "VRAM_UNKNOWN", "LLM_UNCHECKED",
-                    "HELD", "RELEASED", "PAUSED", "RESUMED"}
+                    "HELD", "RELEASED", "PAUSED", "RESUMED", "STOPPED"}
 
 
 def lifecycle(log_text):
@@ -875,6 +875,78 @@ class HarnessIsolationTest(unittest.TestCase):
 
 
 GPU_PAUSE = os.path.join(REPO, "gpu_pause.sh")
+
+
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class TerminalMarkerTest(unittest.TestCase):
+    """A job that STARTED must always end with a terminal line.
+
+    THE MYSTERY THIS EXPLAINS. On 2026-08-17 e_row_e finished - artifact
+    complete, 400 of 400, next arm queued a second later - and neither OK nor
+    FAILED was ever written. The markers were echoed only on the normal
+    fall-through, so any exit through the INT/TERM trap left a START with no
+    terminal line, which nothing downstream can distinguish from a job still
+    running. gpu_pause.sh insisted the card was busy for 24 minutes while it
+    was idle, and that answer was relayed to the user as fact.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.qlog = os.path.join(self.tmp.name, "queue.log")
+
+    def _env(self, **extra):
+        return isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
+                            ALLOW_DIRTY_TREE="1", **extra)
+
+    def _log(self):
+        if not os.path.exists(self.qlog):
+            return ""
+        with open(self.qlog, encoding="utf-8") as fh:
+            return fh.read()
+
+    def _terminal_lines(self):
+        terminal = ("OK", "FAILED", "INTERRUPTED", "REFUSED", "NO_VRAM",
+                    "NO_LLM", "LOCK_FAILED")
+        return [l for l in self._log().splitlines()
+                if len(l.split()) > 1 and l.split()[1] in terminal]
+
+    def test_an_interrupted_job_still_records_a_terminal_line(self):
+        """THE DEFECT, reproduced: signal the wrapper mid-run."""
+        proc = subprocess.Popen(["bash", GPU_JOB, "victim", "sleep", "30"],
+                                env=self._env(), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        # Wait for START rather than for a fixed delay. The gates ahead of it
+        # shell out to git and rocm-smi, which take seconds on a busy machine -
+        # the first version of this test signalled during that window, saw a
+        # log holding only QUEUED, and called the fix broken. The invariant is
+        # "a job that STARTED ends with a terminal line", so the test must
+        # actually get it started.
+        deadline = time.time() + 90
+        while time.time() < deadline and "START    victim" not in self._log():
+            time.sleep(0.2)
+        if "START    victim" not in self._log():
+            proc.kill()
+            self.skipTest("job never started; nothing to assert about ending")
+        proc.terminate()
+        proc.wait(timeout=60)
+        self.assertEqual(1, len(self._terminal_lines()),
+                         f"expected one terminal line, got: {self._log()}")
+        self.assertIn("INTERRUPTED victim", self._log())
+
+    def test_a_normal_run_records_exactly_one_terminal_line(self):
+        # The EXIT trap fires after the normal path has already logged, so the
+        # guard against double-logging is as load-bearing as the trap itself.
+        subprocess.run(["bash", GPU_JOB, "fine", "true"], env=self._env(),
+                       capture_output=True, timeout=60)
+        self.assertEqual(["OK"], [l.split()[1] for l in self._terminal_lines()])
+
+    def test_a_failing_run_records_exactly_one_terminal_line(self):
+        subprocess.run(["bash", GPU_JOB, "bad", "bash", "-c", "exit 9"],
+                       env=self._env(), capture_output=True, timeout=60)
+        lines = self._terminal_lines()
+        self.assertEqual(1, len(lines), lines)
+        self.assertIn("FAILED   bad rc=9", lines[0])
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")

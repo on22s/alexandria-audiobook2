@@ -59,7 +59,9 @@ running_job() {
 logged_job() {
     tail -200 "$QLOG" 2>/dev/null | awk '
         /START    / {name=$3}
-        /OK       |FAILED   |REFUSED  |NO_VRAM  |KILLED   |LOCK_FAILED/ {name=""}
+        # INTERRUPTED and STOPPED are terminal too. A marker set that lags the
+        # writer is how a finished job goes on looking busy.
+        /OK       |FAILED   |REFUSED  |NO_VRAM  |KILLED   |LOCK_FAILED|INTERRUPTED |STOPPED  / {name=""}
         END {print name}'
 }
 
