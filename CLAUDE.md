@@ -228,6 +228,39 @@ Two corollaries, both paid for the same day:
   translator's note" 5,224 times, which is how an entire corpus came to be
   labelled Japanese.
 
+### Rule 22 — Never Match a Process by Its Command Line
+
+`pkill -f <pattern>` matches **every** command line containing the pattern —
+including the shell that is running `pkill`, whose own command line contains
+it. This has killed the working shell **four times in this session alone**
+(exit 144), each time in the middle of cleaning something up, and each time it
+looked like the target had died rather than the caller.
+
+- **Kill by PID.** `pgrep -a` first, read the list, then `kill <pid>`. If a
+  whole tree must go, `kill -TERM -<pgid>` on the process group.
+- `pkill -x <name>` (exact name, no `-f`) is safe: `pkill -x llama-server`
+  cannot match a shell. Prefer it whenever the target is a real binary.
+- The same self-match ruins *detection*: `pgrep -f "gpu_job.sh $name"` inside
+  `gpu_pause.sh` reported the status command as the running job until it
+  excluded `$$` and `$PPID`. If a check uses `-f`, it must exclude itself.
+
+### Rule 23 — Never Edit a Running Script; Replace It by Rename
+
+Bash reads a script **incrementally, by byte offset**, so rewriting the file
+under a running shell makes it resume at whatever offset it had reached — in a
+different file. On 2026-08-18 editing a chain that was mid-run killed it with
+`syntax error near unexpected token 'done'`, a token the file did not contain,
+and cost **an hour of idle GPU**.
+
+- Chains: copy to a new name (`foo_20260818b.sh`) and launch that. Never edit
+  the one that is running.
+- `gpu_job.sh`, `gpu_pause.sh` and anything else a live job re-executes: write
+  a temp file and `os.replace()`/`mv` it. Rename swaps the inode, so a running
+  process keeps reading the old one. `shutil.copyfile` and `open(p, "w")`
+  truncate **in place** and are the unsafe forms.
+- This applies to the middle of a session, not just to overnight runs: the GPU
+  queue is usually holding one of these files open.
+
 ## This project: Alexandria Audiobook2
 
 A FastAPI app (`app/app.py`, title "Alexandria Audiobook") for multi-voice AI
