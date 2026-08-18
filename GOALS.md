@@ -383,6 +383,23 @@ apply to it:
 **Gap −12.6 points against a target of 5. OPEN, and failing by more than
 double.**
 
+**Three interventions were piloted against that gap on 2026-08-18 and none
+earned its confirmatory run.** Each is a five-book English PDNC pilot at 120
+lines per book, pre-declared to open a sealed twenty-book set only on passing
+a gate:
+
+| pilot | artifact | baseline → arm |
+|---|---|---|
+| evidence spans | `pdnc_evidence__pilot__local-llamacpp.json` | 58.5% → 59.5% |
+| sequence-aware | `pdnc_sequence__pilot__local-llamacpp.json` | 57.7% → 60.0% |
+| targeted sequence | `pdnc_targeted_sequence__pilot__local-llamacpp.json` | 73.5% / 74.5% / 74.8% |
+
+All three gates held and **the confirmatory sets remain sealed**. Six correct
+lines in 600 is what separates the evidence arm from its baseline; the
+targeted arms span eight. These are reasons not to spend the confirmatory run,
+not results about attribution — and the sealed set stays sealed precisely so
+that a later intervention can still be tested on books nothing has seen.
+
 **The three books this project quotes are not typical books.** Ranked against
 all 28: The Sign of the Four **#2**, The Awakening **#8**, Pride and Prejudice
 **#9** — every one in the top third. Per-book accuracy runs from 50.0%
@@ -695,6 +712,26 @@ which arm failed.
 overlap**, and the trainer now uses the split, but the live manifest still
 contains **12 of 75 shipped adapters trained on all 200 clips**, down from 21.
 **OPEN**, last audited 2026-08-16 from each adapter's own training metadata.
+
+**Evidence** — the identity gate re-ran on **2026-08-18 over all 67 adapters**
+that carry a dataset path, scoring each against its own held-out val clips:
+**59 passed, 8 failed** the 0.45 threshold, median 0.634. Every artifact is
+`gate_promote__<adapter>.json` and now carries a commit, a clean-tree flag and
+a harness hash — for example `gate_promote__crisp_mezzo_30s_f.json` (0.556,
+pass) and `gate_promote__warm_alto_50s_f_gothic.json` (0.034, fail). The 87
+artifacts this goal previously rested on had no provenance at all.
+
+**The prior run of that gate measured nothing and said it had.** On
+2026-08-17 all 67 adapters failed with `System error` opening val clips that
+were readable throughout: the ECAPA subprocess runs with `cwd=app/`, so the
+relative dataset path resolved against the wrong directory. The chain printed
+`REGATE COMPLETE` and exited 0. Both are fixed — absolute paths at the cwd
+boundary, and a strict gate that fails when the parts do — but any figure
+quoted from that run is a figure from zero measurements.
+
+The eight failures are being re-checked before anything is retrained: on
+2026-08-07 all five failures of that day recovered on a rerun, two to ~0.67,
+so failing twice is a different claim from failing once.
 
 **Where the remaining twelve stand, 2026-08-16.** All 21 were retrained on the
 honest split and independently gated; 9 were promoted with a rollback receipt,
@@ -1384,6 +1421,31 @@ which WER punishes.
 re-scored without regenerating audio by `rescore_respellings.py`.
 **Current** — 9,381 candidates scanned from 6,501 EPUBs; **6,060 measured and
 re-scored**. **OPEN.**
+
+**Evidence** — `respelling_measure_rescored.json` (7,775 terms, the -eh
+baseline every arm below is paired against) and `respelling_e_row__ay_n1600.json`
+(1,419 terms, the whole pool containing an -eh mora). The three /e/-row arms
+are `respelling_e_row__e.json`, `respelling_e_row__ei.json` and
+`respelling_e_row__ay.json`; `respelling_e_row__ay_n1200.json` is **partial**
+(1,129 of 1,200 terms) and is labelled so in the structural audit — it is
+superseded by the n1600 run and should not be quoted.
+
+**The /e/ row was measured and changed, 2026-08-18.** Paired on identical
+terms against the shipped `-eh`, with the plain (no respelling) arm as an
+explicit noise floor:
+
+    arm    recovery   vs -eh    McNemar p    plain control p
+    -ay      14.0%     2x        2.5e-11        0.77
+    -ei      10.5%     -         0.25           0.51
+    -e        2.0%     0.25x     1.9e-4         0.39
+
+`-ay` held at 391, 780 and 1,419 terms as the sample grew and the control is
+null at every size, so this is not the TTS→ASR drift that flips 34 verdicts in
+391 on identical input. `respell()` now defaults to `-ay`; `-eh` stays
+selectable so the comparison remains reproducible. **This changes no audio
+today**: `pronunciation.json` ships 42 names with empty respellings and nothing
+in the app calls `respell()` — the table feeds the measurement, not the
+product.
 
 **The result that matters is not a list of respellings, it is when to use
 one** — and the honest answer is *rarely*:
