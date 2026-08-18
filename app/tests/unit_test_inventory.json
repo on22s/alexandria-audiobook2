@@ -705,15 +705,18 @@
     "tests.test_gold_set_builder.ValidationTest.test_unanswered_rows_are_reported"
   ],
   "test_gpu_job": [
+    "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_run_writes_no_patch",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_tree_runs_untouched",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_directory_that_is_not_a_repository_is_not_called_dirty",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_dirty_tree_is_refused_and_the_command_never_runs",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_an_overridden_dirty_run_saves_the_diff_that_produced_it",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_refused",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_still_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_modified_code_is_still_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_rewriting_an_artifact_is_not_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_override_runs_but_leaves_a_mark",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_refusal_names_what_is_uncommitted",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_the_saved_patch_includes_an_untracked_harness_script",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_shell_gate_agrees_with_the_python_provenance",
     "tests.test_gpu_job.DirtyTreeGateTest.test_untracked_notes_are_not_treated_as_dirt",
     "tests.test_gpu_job.GpuJobTest.test_a_failed_flock_refuses_to_run_the_command",

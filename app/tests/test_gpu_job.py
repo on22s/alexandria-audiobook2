@@ -388,6 +388,49 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertEqual(5, result.returncode)
         self.assertIn("REFUSED", self._log())
 
+    def test_an_overridden_dirty_run_saves_the_diff_that_produced_it(self):
+        """The override is where code state is LEAST recoverable.
+
+        ALLOW_DIRTY_TREE=1 used to log DIRTY_RUN and nothing else, so the next
+        edit erased the only copy of the code that made the artifact - a note
+        saying "this was dirty, good luck". W&B writes diff.patch relative to
+        HEAD for exactly this reason; the patch plus the recorded commit
+        rebuilds the tree.
+        """
+        self._make_repo(dirty=True)
+        result = self._run(allow_dirty="1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
+                                 "dirty_patches")
+        patches = os.listdir(patch_dir)
+        self.assertEqual(1, len(patches), f"expected one patch, got {patches}")
+        with open(os.path.join(patch_dir, patches[0]), encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("an uncommitted change", body,
+                      "the patch does not contain the uncommitted change")
+        self.assertIn(f"patch={patches[0]}", self._log(),
+                      "the queue log must name the patch it saved")
+
+    def test_the_saved_patch_includes_an_untracked_harness_script(self):
+        """`git diff HEAD` cannot see a new file, and a new harness script
+        being untracked while it runs is the case this gate exists for."""
+        self._make_repo(dirty=True)
+        self._add_untracked("brand_new_probe.py")
+        self._run(allow_dirty="1")
+        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
+                                 "dirty_patches")
+        body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
+                    encoding="utf-8").read()
+        self.assertIn("brand_new_probe.py", body)
+        self.assertIn("brand new, not yet committed", body)
+
+    def test_a_clean_run_writes_no_patch(self):
+        # Nothing to record, and a stray empty patch would suggest otherwise.
+        self._make_repo(dirty=False)
+        self._run()
+        self.assertFalse(os.path.isdir(os.path.join(
+            self.root, "ab_test_runtime", "logs", "dirty_patches")))
+
     def test_an_untracked_experiment_script_is_still_dirt(self):
         # The dangerous case the exclusion must not reach: a harness that
         # exists on one machine while producing a cited number.

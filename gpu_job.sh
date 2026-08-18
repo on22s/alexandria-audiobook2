@@ -173,7 +173,46 @@ identity "$@" >> "$QLOG"
 case "$dirty_state" in
   dirty:*)
     if [ "${ALLOW_DIRTY_TREE:-0}" = "1" ]; then
-        echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1)" >> "$QLOG"
+        # CAPTURE THE DIFF INSTEAD OF ONLY NAMING IT. The override exists for
+        # "I know it is dirty, run anyway" - which is exactly where the code
+        # state is least recoverable, because the next edit erases it. Logging
+        # DIRTY_RUN and nothing else left the artifact permanently
+        # unreproducible: a note saying "this was dirty, good luck".
+        #
+        # Weights & Biases does this for every run with local modifications,
+        # writing diff.patch "relative to HEAD" alongside the run, so an
+        # uncommitted state stays inspectable afterwards. Same idea, minus the
+        # server: `git apply` the patch on the recorded commit and you have
+        # the tree that produced the artifact.
+        #
+        # Untracked harness files are appended with --no-index, because a new
+        # experiment script is untracked for exactly as long as it takes to
+        # write and run it - the case the dirty gate exists for - and
+        # `git diff HEAD` cannot see it. --no-index exits 1 on difference,
+        # which is its normal result here, so its status is deliberately
+        # ignored rather than treated as failure.
+        patch_dir="$(dirname "$0")/ab_test_runtime/logs/dirty_patches"
+        patch_file="$patch_dir/${NAME}-$(date -u +%Y%m%dT%H%M%SZ).patch"
+        if mkdir -p "$patch_dir" 2>/dev/null; then
+            {
+                git -C "$(dirname "$0")" diff HEAD 2>/dev/null
+                for f in $(git -C "$(dirname "$0")" ls-files --others \
+                               --exclude-standard -- \
+                               "$(dirname "$0")/app/experiments" \
+                               "$(dirname "$0")/run_chains" 2>/dev/null \
+                           | grep -E '\.(py|sh)$'); do
+                    git -C "$(dirname "$0")" diff --no-index -- /dev/null "$f" 2>/dev/null
+                done
+            } > "$patch_file"
+            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=${patch_file##*/}" >> "$QLOG"
+            echo "gpu_job: uncommitted state saved to $patch_file" >&2
+            echo "gpu_job: reproduce with: git checkout $(git -C "$(dirname "$0")" rev-parse --short HEAD 2>/dev/null) && git apply $patch_file" >&2
+        else
+            # Say so rather than proceeding silently: an override whose code
+            # state was NOT captured is a different thing from one that was.
+            echo "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=UNSAVED" >> "$QLOG"
+            echo "gpu_job: WARNING - could not write a patch to $patch_dir" >&2
+        fi
         echo "gpu_job: WARNING - $NAME is running from uncommitted changes." >&2
         echo "gpu_job: its artifact will not be reproducible from any commit." >&2
     else
