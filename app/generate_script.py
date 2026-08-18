@@ -12,7 +12,8 @@ from core import llm_timeout_seconds
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from dialogue_spans import detect_convention, mark_entries
+from dialogue_spans import (apply_source_speakers, detect_convention,
+                            mark_entries)
 from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
                              get_valid_narrator_name, is_narrator_attested)
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
@@ -1600,6 +1601,15 @@ def main():
             spoken = sum(1 for e in all_entries if e.get("spoken"))
             print(f"Dialogue map: {convention}, {spoken} spoken lines, "
                   f"{located}/{len(all_entries)} entries located in the source")
+            # WHERE THE BOOK PRINTS THE SPEAKER, USE IT. Transcript-style
+            # sources name the speaker before each line, and copying that is
+            # exact: on arc4_volume10wn the printed label agrees with the model
+            # on 2,909 of 2,967 lines and is RIGHT in all 59 disagreements,
+            # which were the model misspelling the printed name.
+            all_entries, label_changes = apply_source_speakers(all_entries)
+            if label_changes:
+                print(f"Printed speaker labels: corrected {len(label_changes)} "
+                      f"entries from the source's own attributions")
         else:
             print("Dialogue map: no convention detected; entries left unmarked")
     except Exception as exc:                              # noqa: BLE001
