@@ -412,6 +412,9 @@
     "tests.test_dialogue_attribution.ApostropheTest.test_apostrophes_do_not_make_a_line_look_quoted",
     "tests.test_dialogue_attribution.ClassifyTest.test_curly_quoted_lines_are_reported_separately",
     "tests.test_dialogue_attribution.ClassifyTest.test_it_separates_narrator_attributed_dialogue",
+    "tests.test_dialogue_attribution.JapaneseQuoteFormTest.test_a_double_cornered_line_counts_as_spoken",
+    "tests.test_dialogue_attribution.JapaneseQuoteFormTest.test_narration_quoting_a_concept_still_does_not",
+    "tests.test_dialogue_attribution.JapaneseQuoteFormTest.test_single_cornered_brackets_still_count",
     "tests.test_dialogue_attribution.MeasurabilityTest.test_a_quoting_book_is_measured",
     "tests.test_dialogue_attribution.MeasurabilityTest.test_an_unquoted_book_is_refused",
     "tests.test_dialogue_attribution.MeasurabilityTest.test_no_entries_is_refused_rather_than_divided_by_zero",
@@ -1042,6 +1045,15 @@
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_narration_never_reaches_the_roster",
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_the_dialogue_tag_reaches_the_attribution_prompt",
     "tests.test_narration_context.NarrationOnlyBatchTest.test_a_batch_with_nothing_to_attribute_makes_no_llm_call"
+  ],
+  "test_narrator_and_unknown": [
+    "tests.test_narrator_and_unknown.NarratorPriorTest.test_a_narrator_who_is_not_in_the_book_is_rejected",
+    "tests.test_narrator_and_unknown.NarratorPriorTest.test_first_person_awareness_allows_the_narrator_to_speak",
+    "tests.test_narrator_and_unknown.NarratorPriorTest.test_narrator_and_unknown_are_not_valid_narrator_names",
+    "tests.test_narrator_and_unknown.NarratorPriorTest.test_the_prompt_names_the_narrator",
+    "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_distinguishes_the_two_meanings",
+    "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_forbids_using_narrator_for_that_case",
+    "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_the_prompt_offers_unknown_for_unidentifiable_speech"
   ],
   "test_narrator_prompt": [
     "tests.test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
