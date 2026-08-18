@@ -81,8 +81,19 @@ def ask_single(client, model, entry, roster, temperature=0.0):
 
 
 def score(entries, answers, groups):
+    """Also keeps the answers themselves.
+
+    The first run of this scored 35.5%, 50.0% and 41.0% - below our own
+    one-pass baseline of 61.7% and far below the 90.6% the published
+    formulation reports - and the artifact recorded only the counts. So there
+    was no way to tell a method that does not work from a prompt whose replies
+    are not being parsed: if the model answers "The speaker is Elizabeth", an
+    exact-name comparison scores it wrong and the number looks like a finding.
+    A result that cannot be diagnosed is not a result.
+    """
     correct = unknown = wrong = 0
     by_type = {}
+    misses = []
     for entry, answer in zip(entries, answers):
         kind = entry.get("quote_type") or "unknown"
         bucket = by_type.setdefault(kind, {"n": 0, "correct": 0, "unknown": 0})
@@ -95,6 +106,10 @@ def score(entries, answers, groups):
             bucket["correct"] += 1
         else:
             wrong += 1
+            if len(misses) < 40:
+                misses.append({"expected": entry.get("expected_speaker"),
+                               "model_said": answer[:80],
+                               "quote_type": kind})
     answered = correct + wrong
     return {
         "n": len(entries), "correct": correct, "wrong": wrong,
@@ -104,6 +119,11 @@ def score(entries, answers, groups):
         # neither: one without the other lets a model look good by declining.
         "accuracy_when_answered": round(correct / answered, 4) if answered else None,
         "by_quote_type": by_type,
+        # Verbatim, and capped: the first 40 wrong answers say immediately
+        # whether the model is naming the wrong character or answering in a
+        # shape the scorer cannot read.
+        "wrong_answers": misses,
+        "sample_answers": [a[:80] for a in answers[:10]],
     }
 
 
