@@ -224,7 +224,9 @@
   "test_chain_failure_guards": [
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_new_chains_that_capture_an_exit_code_also_act_on_it",
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_exempt_a_chain_that_is_already_fixed",
-    "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_name_chains_that_no_longer_exist"
+    "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_name_chains_that_no_longer_exist",
+    "tests.test_chain_failure_guards.ChainIdempotencyTest.test_a_chain_that_skips_on_an_artifact_also_checks_it_finished",
+    "tests.test_chain_failure_guards.ChainIdempotencyTest.test_the_completion_check_is_not_satisfied_by_the_word_alone"
   ],
   "test_chain_stage_lib": [
     "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero",

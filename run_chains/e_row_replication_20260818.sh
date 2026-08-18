@@ -23,6 +23,26 @@
 # only.
 set -uo pipefail
 
+# ARTIFACT EXISTS IS NOT ARTIFACT FINISHED. A run killed mid-way leaves a file
+# that looks complete - respelling_e_row__ay_n1200.json sits in this repository
+# at 1129 of 1200 terms - and a chain skipping on existence would skip it
+# forever, on a subset biased toward the commonest items. Ask the artifact.
+artifact_complete() {
+    "$1" - "$2" <<'PYEOF' 2>/dev/null
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+if d.get("status") == "complete":
+    sys.exit(0)
+if d.get("status") == "partial":
+    sys.exit(1)
+r, c = d.get("results"), d.get("candidates_considered")
+sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
+PYEOF
+}
+
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
@@ -59,7 +79,9 @@ for limit in 800 1200 1600; do
         break
     fi
     out="$runtime/experiments/respelling_e_row__ay_n${limit}.json"
-    [ -e "$out" ] && { note "SKIP $limit (artifact exists)"; continue; }
+    if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+        note "SKIP $limit (artifact exists)"; continue
+    fi
     note "START ay block to $limit terms"
     "$REPO/gpu_job.sh" "e_row_ay_n$limit" \
         timeout --signal=INT --kill-after=60s "$BLOCK_SECONDS" \

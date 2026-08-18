@@ -31,6 +31,26 @@
 # GPU lock; it will wait for whatever is running.
 set -uo pipefail
 
+# ARTIFACT EXISTS IS NOT ARTIFACT FINISHED. A run killed mid-way leaves a file
+# that looks complete - respelling_e_row__ay_n1200.json sits in this repository
+# at 1129 of 1200 terms - and a chain skipping on existence would skip it
+# forever, on a subset biased toward the commonest items. Ask the artifact.
+artifact_complete() {
+    "$1" - "$2" <<'PYEOF' 2>/dev/null
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+if d.get("status") == "complete":
+    sys.exit(0)
+if d.get("status") == "partial":
+    sys.exit(1)
+r, c = d.get("results"), d.get("candidates_considered")
+sys.exit(0 if isinstance(r, list) and isinstance(c, int) and len(r) >= c else 1)
+PYEOF
+}
+
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
 runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"

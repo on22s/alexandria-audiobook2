@@ -27,9 +27,7 @@ LEGACY_UNGUARDED = {
     "decontaminate_library.sh", "determinism_chain.sh", "intervention_chain.sh",
     "medoid_retrain_chain.sh", "moss_vs_lora.sh", "overnight_2026_08_08.sh",
     "overnight_2026_08_09.sh", "pdnc_context_evidence.sh", "ref_audit_chain.sh",
-    "regate_reference_text.sh", "replay_dirty_evidence_20260817.sh",
-    "rescore_anchor.sh", "run_consistency.sh", "run_fidelity.sh",
-    "run_rebuild_retrain.sh", "sharp_intervention_chain.sh",
+    "regate_reference_text.sh", "replay_dirty_evidence_20260817.sh", "run_rebuild_retrain.sh", "sharp_intervention_chain.sh",
     "morning_20260818.sh", "unseen_books_run_20260818.sh",
     "unseen_books_run_20260818b.sh",
 }
@@ -74,3 +72,52 @@ class ChainFailureGuardTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Chains that skip work when an artifact already exists. The n1200 respelling
+# block proved that skipping on EXISTENCE is not the same as skipping on
+# COMPLETION: it was killed at 1129 of 1200 terms, left a file that looked
+# finished, and every later run would have skipped it forever.
+SKIP_ON_EXISTENCE = re.compile(r"\[\s*-e\s+\"?\$\{?out|\[\s*-f\s+\"?\$\{?out|"
+                               r"\[\s*-e\s+\"\$out\"\s*\]")
+CHECKS_COMPLETION = re.compile(r"status.*complete|completeness|candidates_considered")
+
+
+class ChainIdempotencyTest(unittest.TestCase):
+    """Re-running a chain must do nothing, and must know what "done" means.
+
+    Every pipeline guide gives the same advice for proving idempotency: run it
+    twice and assert the second run changes nothing. lib/stage.sh has that test
+    directly; this one covers the part a twice-run cannot see - what the chain
+    BELIEVES finished work looks like.
+
+    A chain that skips on existence will skip a truncated artifact forever, and
+    the truncation is biased rather than merely small wherever items are
+    ordered. That is not hypothetical: respelling_e_row__ay_n1200.json is in
+    this repository at 1129 of 1200 terms.
+    """
+
+    def _chains(self):
+        for name in sorted(os.listdir(CHAINS)):
+            if name.endswith(".sh"):
+                with open(os.path.join(CHAINS, name), encoding="utf-8") as fh:
+                    yield name, fh.read()
+
+    def test_a_chain_that_skips_on_an_artifact_also_checks_it_finished(self):
+        offenders = []
+        for name, src in self._chains():
+            if not SKIP_ON_EXISTENCE.search(src):
+                continue
+            if not CHECKS_COMPLETION.search(src):
+                offenders.append(name)
+        self.assertEqual(
+            [], offenders,
+            "these chains treat an artifact's existence as completion; a run "
+            "killed mid-way leaves a file that looks finished and is skipped "
+            "forever. Check status == complete, as morning_20260818.sh does.")
+
+    def test_the_completion_check_is_not_satisfied_by_the_word_alone(self):
+        """Guards this test: a chain merely mentioning 'complete' in prose
+        must not pass. Keeps the pattern honest about what it matches."""
+        self.assertIsNone(CHECKS_COMPLETION.search("# this run is complete-ish"))
+        self.assertIsNotNone(CHECKS_COMPLETION.search("d.get('status')=='complete'"))
