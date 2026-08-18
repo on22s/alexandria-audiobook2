@@ -1360,13 +1360,37 @@ def _validate_local_llm_base_url(base_url: str) -> None:
 # sites use different timeouts - a single-slot cache would thrash between them.
 _llm_client_cache: dict = {}
 
-def _make_llm_client(timeout: float = 60):
+# HOW LONG MAY ONE LLM REQUEST HANG? One answer, imported by every caller.
+#
+# generate_script built its client with no timeout at all while this module
+# defaulted to 60s. On 2026-08-18 that cost two hours: a request never
+# returned, nothing bounded it, and the job slept holding the GPU while the
+# queue waited behind it. Ten other constructions in this app had the same
+# hole.
+#
+# 600s, not core's old 60s, because a generation batch on a 14B model
+# legitimately takes minutes and a timeout shorter than the work turns slow
+# into failed. The number matters less than its existence: a finite timeout
+# converts a dead request into an error a retry loop can act on.
+def llm_timeout_seconds():
+    """-> seconds any single LLM request may take before it is an error."""
+    try:
+        return float(os.environ.get("ALEXANDRIA_LLM_TIMEOUT", 600))
+    except (TypeError, ValueError):
+        return 600.0
+
+
+def _make_llm_client(timeout: float = None):
     """Build an OpenAI-compatible client + model name from config.json's `llm` section.
 
     Validates that the base_url is local/trusted.
     Reuses cached client if config hasn't changed to avoid connection pool leaks.
     """
     from openai import OpenAI
+    # None means "the shared answer", so this function stops being a second
+    # opinion on how long a request may hang. An explicit argument still wins:
+    # a caller that knows its request is quick may want a tighter bound.
+    timeout = llm_timeout_seconds() if timeout is None else timeout
     llm_cfg = _load_llm_config()
 
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")

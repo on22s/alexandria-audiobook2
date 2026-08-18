@@ -27,6 +27,7 @@ import json
 
 import benchmark_runner
 from openai import OpenAI
+from core import llm_timeout_seconds
 
 
 def _repetitions_for(fixture, default_range):
@@ -36,7 +37,8 @@ def _repetitions_for(fixture, default_range):
 def execute_payload(stage, payload):
     """Run every pending fixture/repetition for `stage` and return the same
     case-dict list the local in-process loop would produce."""
-    client = OpenAI(base_url=payload["base_url"], api_key=payload.get("api_key", "local"))
+    client = OpenAI(base_url=payload["base_url"], api_key=payload.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     model_name = payload["model_name"]
     default_range = range(1, (payload.get("repetitions") or 1) + 1)
     cases = []

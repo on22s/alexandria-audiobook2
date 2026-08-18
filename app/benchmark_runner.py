@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+from core import llm_timeout_seconds
 import time
 import json
 import base64
@@ -687,7 +688,8 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     report = load_resumable_benchmark_report(report_path, manifest, environment)
     report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
     save_benchmark_report(report_path, report)
@@ -771,7 +773,8 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     context_length = status.get("context_length") or 4096
     concurrency = status.get("parallel") or 1
     report = load_resumable_benchmark_report(report_path, manifest, environment)
@@ -1112,7 +1115,8 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
         presence_penalty=generation.get("presence_penalty", 0.0),
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"))
-    client = OpenAI(base_url=llm.get("base_url"), api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=llm.get("base_url"), api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     report = load_resumable_benchmark_report(report_path, manifest, environment)
     report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
     save_benchmark_report(report_path, report)
@@ -1242,7 +1246,8 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
         presence_penalty=generation.get("presence_penalty", 0.0),
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"))
-    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=llm["base_url"], api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
     report = load_resumable_benchmark_report(report_path, manifest, environment)
     report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
     save_benchmark_report(report_path, report)
