@@ -1341,6 +1341,9 @@
     "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
   ],
   "test_respelling_scoring": [
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_a_finished_run_is_marked_complete",
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_an_interrupted_run_is_marked_partial",
+    "tests.test_respelling_scoring.ArtifactCompletenessTest.test_the_checkpoint_partway_through_is_partial",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_nothing_in_common_scores_zero",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_scattered_characters_score_only_their_longest_run",

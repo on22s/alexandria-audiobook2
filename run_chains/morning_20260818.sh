@@ -45,12 +45,23 @@ time_left() { echo $(( DEADLINE - $(date +%s) )); }
 
 # ---- 1. The replication the -ay result needs, refused last night ----------
 for limit in 800 1200 1600; do
-    [ "$(time_left)" -lt 4200 ] && { note "STOP before $limit: $(time_left)s left"; break; }
+    [ "$(time_left)" -lt 7800 ] && { note "STOP before $limit: $(time_left)s left"; break; }
     out="$runtime/experiments/respelling_e_row__ay_n${limit}.json"
-    [ -e "$out" ] && { note "SKIP $limit (exists)"; continue; }
+    # EXISTENCE IS NOT COMPLETION. The artifact is checkpointed every five
+    # terms, so a killed run leaves a file that looks finished; n1200 was
+    # committed at 1129 of 1200 terms this way. Skip only what is complete.
+    if [ -e "$out" ] && "$python" -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+sys.exit(0 if d.get('status')=='complete'
+         or len(d.get('results',[]))>=d.get('candidates_considered',0) else 1)
+" "$out" 2>/dev/null; then
+        note "SKIP $limit (complete)"; continue
+    fi
+    [ -e "$out" ] && note "REDO $limit (artifact exists but is partial)"
     note "START ay block to $limit"
     "$REPO/gpu_job.sh" "e_row_ay_n$limit" \
-        timeout --signal=INT --kill-after=60s 4200 \
+        timeout --signal=INT --kill-after=60s 7800 \
         "$python" -u "$REPO/app/experiments/measure_respellings.py" \
         --min-books 5 --only-e-row --e-spelling ay --limit "$limit" \
         --work "$runtime/respelling_e_row_ay" --out "$out" \

@@ -424,6 +424,20 @@ def _write(path, results, terms, prov=None):
                         "`scattered` is the retired per-character score, kept "
                         "only so the two can be compared - see scattered_overlap",
                 "candidates_considered": len(terms),
+                # COMPLETE OR PARTIAL, SAID OUT LOUD. _write is the checkpoint
+                # and runs every five terms, so every artifact this produces is
+                # partial right up until the last one - and nothing recorded
+                # which. A 70-minute cap killed the n1200 block at 1129 of 1200
+                # terms on 2026-08-18; the file looked exactly like a finished
+                # one, was committed as evidence, and the chain's
+                # skip-if-exists would have treated it as done forever.
+                #
+                # Truncation here is not a smaller sample, it is a BIASED one:
+                # terms are taken in book-count order, so the missing tail is
+                # the rarest words. A reader must not have to compare two
+                # numbers in the file to notice that.
+                "status": ("complete" if len(results) >= len(terms)
+                           else "partial"),
                 # Captured ONCE by the caller, not here: _write is the
                 # checkpoint and runs every five terms, so recomputing git
                 # state would cost a subprocess per checkpoint across a
