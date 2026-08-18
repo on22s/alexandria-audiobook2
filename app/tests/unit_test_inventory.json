@@ -620,6 +620,12 @@
     "tests.test_generate_personas.RosterAmbiguityTest.test_an_ordinary_roster_is_not",
     "tests.test_generate_personas.RosterAmbiguityTest.test_empty_and_none_are_safe"
   ],
+  "test_generate_script_timeout": [
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_every_caller_shares_one_definition_of_how_long_is_too_long",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_no_openai_client_is_built_without_a_timeout",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_sees_a_timeout_hidden_behind_a_nested_call",
+    "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_still_catches_a_client_with_no_timeout"
+  ],
   "test_generation_dispatch": [
     "tests.test_generation_dispatch.GenerationDispatchTests.test_batch_generation_uses_same_dispatch_with_output",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_default_output_and_stale_chunks_share_runtime_data_directory",
