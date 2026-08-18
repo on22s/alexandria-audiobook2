@@ -142,6 +142,13 @@ def ecapa_pairs(pairs, python_bin):
     # the advice printed - "check the paths" - pointed at the datasets rather
     # than at the directory this line changes. Whoever crosses a cwd boundary
     # owns the conversion.
+    #
+    # A DOCUMENTED TRAP, not an exotic one: python's tracker has carried the
+    # cwd/relative-path discrepancy since issue 15533 (POSIX and Windows
+    # resolve differently), and the standing advice in the subprocess docs and
+    # every write-up since is the same - pass absolute paths, because `cwd`
+    # changes where the CHILD resolves names without changing what the relative
+    # strings you already built mean.
     pairs = [[os.path.abspath(a), os.path.abspath(b)] for a, b in pairs]
     try:
         out = subprocess.run([python_bin, script],

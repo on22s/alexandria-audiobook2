@@ -130,6 +130,13 @@ def indexable_artifacts(experiment_dir=EXPERIMENT_DIR):
     it failed PR #340 with six local artifacts in the index, and it would have
     failed again after every run of the overnight queue.
 
+    The same separation DVC makes structurally: a stage declares `deps`
+    (inputs, the script included) and `outs`, and dvc.lock hashes the two
+    separately, so a rewritten output can never be mistaken for a changed
+    input. We have no dvc.lock, so "is it in the repository" stands in for
+    "can anyone but this machine see it" - which is the question a committed
+    index is actually asking.
+
     This mirrors tests/test_inventory.py::_tracked_test_modules, which exists
     for the identical reason after breaking the build three times in one day,
     including its fallback: when git cannot answer (a source export, a

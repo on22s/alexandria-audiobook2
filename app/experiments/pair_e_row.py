@@ -126,7 +126,11 @@ def main():
     for result in results:
         print(render(result))
     if args.out:
-        # WHICH baseline, by hash. The dirty-tree gate no longer counts a
+        # WHICH baseline, by hash. This is DVC's `deps` idea in miniature -
+        # record the inputs a stage consumed, by content, so a later reader can
+        # tell whether the copy they hold is the one that produced the number -
+        # and it is what pays for gpu_job.sh no longer counting a rewritten
+        # artifact as dirt. The dirty-tree gate no longer counts a
         # modified artifact, deliberately - a run rewriting its outputs is not
         # a run whose code changed - so the comparison records the inputs it
         # READ instead. An edited baseline is the failure this catches, and it

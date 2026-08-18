@@ -74,6 +74,13 @@ def _current_gold(meta, rows):
     moved between supported_measurement and historical_only depending purely
     on whether the machine happened to have them.
 
+    Same reasoning as indexable_artifacts in audit_experiment_artifacts.py,
+    and the same borrowed distinction: DVC hashes a stage's declared `deps`
+    rather than asking whether the tree is dirty, so what a run was scored
+    against is pinned by content instead of by the machine's mood. Gold is a
+    dep in that sense - it just cannot be pinned by a machine nobody else can
+    read the file from.
+
     "Untracked" and "absent" must produce the SAME record, because a clean
     checkout cannot tell them apart: the untracked file simply is not there.
     Recording the difference is what broke the first attempt at this fix - the

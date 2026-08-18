@@ -424,7 +424,32 @@ def _write(path, results, terms, prov=None):
                         "`scattered` is the retired per-character score, kept "
                         "only so the two can be compared - see scattered_overlap",
                 "candidates_considered": len(terms),
-                # COMPLETE OR PARTIAL, SAID OUT LOUD. _write is the checkpoint
+                # COMPLETE OR PARTIAL, SAID OUT LOUD.
+                #
+                # PRIOR ART, and why this is in-band rather than a marker file
+                # or a deletion. Three established answers exist:
+                #
+                #   GNU Make deletes the target (.DELETE_ON_ERROR), because
+                #   "when a recipe line fails after changing the target file,
+                #   the file is corrupted or not completely updated, yet the
+                #   file's timestamp says it is now up to date". kbuild adopted
+                #   it after Ctrl-C'd builds left half-written .o files.
+                #
+                #   Snakemake records that a job started, detects incomplete
+                #   outputs on restart, and REFUSES to continue
+                #   (IncompleteFilesException) until told --rerun-incomplete.
+                #
+                #   Spark/Hadoop write an empty _SUCCESS marker beside the
+                #   output, and downstream systems check the marker rather than
+                #   the data files.
+                #
+                # Deletion is wrong for us: this partial file is the checkpoint
+                # the next run RESUMES from, unlike a corrupt object file that
+                # is only ever waste. A sibling marker can be separated from the
+                # artifact by a copy. And Snakemake concedes the case that bit
+                # us - "if you hard terminate the process, it can't delete the
+                # files" - which is every `timeout`-killed run here. A field
+                # inside the file survives all three. _write is the checkpoint
                 # and runs every five terms, so every artifact this produces is
                 # partial right up until the last one - and nothing recorded
                 # which. A 70-minute cap killed the n1200 block at 1129 of 1200
