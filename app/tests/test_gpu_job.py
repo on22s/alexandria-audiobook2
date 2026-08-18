@@ -352,6 +352,50 @@ class DirtyTreeGateTest(unittest.TestCase):
             with open(os.path.join(self.root, "gpu_job.sh"), "a") as handle:
                 handle.write("\n# an uncommitted change\n")
 
+    def _commit_artifact(self, name="probe.json"):
+        """A committed artifact, so modifying it later is tracked-file dirt."""
+        d = os.path.join(self.root, "ab_test_runtime", "experiments")
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, name)
+        with open(path, "w") as handle:
+            handle.write('{"rows": []}\n')
+        self._git("add", "--", path)
+        self._git("commit", "-qm", "artifact")
+        return path
+
+    def test_rewriting_an_artifact_is_not_dirt(self):
+        """replay_dirty_evidence rewrites artifacts; that is its JOB.
+
+        Before this, its second replay onward ran with a dirty tree, stamped
+        dirty=True on evidence produced in order to BE clean, and every job
+        queued behind it was REFUSED - 80 idle minutes on 2026-08-18. An
+        output a run wrote is not evidence that its code changed.
+        """
+        self._make_repo(dirty=False)
+        path = self._commit_artifact()
+        with open(path, "w") as handle:
+            handle.write('{"rows": [1, 2, 3]}\n')
+        result = self._run()
+        self.assertEqual(0, result.returncode,
+                         f"a rewritten artifact refused the job: {result.stderr}")
+        self.assertIn("tree=clean", self._log())
+
+    def test_modified_code_is_still_dirt(self):
+        """The half that must NOT be lost: excluding outputs is not amnesty."""
+        self._make_repo(dirty=True)
+        self._commit_artifact()
+        result = self._run()
+        self.assertEqual(5, result.returncode)
+        self.assertIn("REFUSED", self._log())
+
+    def test_an_untracked_experiment_script_is_still_dirt(self):
+        # The dangerous case the exclusion must not reach: a harness that
+        # exists on one machine while producing a cited number.
+        self._make_repo(dirty=False)
+        self._commit_artifact()
+        self._add_untracked("brand_new_probe.py")
+        self.assertEqual(5, self._run().returncode)
+
     def _add_untracked(self, name):
         path = os.path.join(self.root, "app", "experiments", name)
         with open(path, "w") as handle:

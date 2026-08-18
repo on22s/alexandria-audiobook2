@@ -10,7 +10,7 @@ import os
 import tempfile
 import unittest
 
-from experiments.manifest import ExperimentRecord
+from experiments.manifest import ExperimentRecord, read_inputs
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GOLD = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -31,6 +31,61 @@ def _record(environment=LOADED):
 
 def _record_with_env():
     return _record()
+
+
+class ReadInputsTest(unittest.TestCase):
+    """Hashing what a run READ is what pays for excluding what it WROTE.
+
+    The dirty-tree flag stopped counting ab_test_runtime/experiments/*.json,
+    because a run rewriting its own outputs is not a run whose code changed.
+    But artifacts are inputs too - 16 scripts read a committed artifact, and
+    the -eh baseline every e-row comparison pairs against is one of them - so
+    without this the exclusion would be amnesty rather than precision.
+
+    It also says more than the flag it replaces: `dirty: true` named no file,
+    while a hash per input tells a later reader WHICH input, and lets them
+    check the copy they hold is the one that produced the number.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _write(self, name, text):
+        path = os.path.join(self.tmp.name, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return path
+
+    def test_each_input_is_pinned_by_hash_under_a_relative_key(self):
+        path = self._write("baseline.json", '{"results": []}')
+        got = read_inputs([path], self.tmp.name)
+        self.assertEqual(["baseline.json"], list(got))
+        self.assertEqual(64, len(got["baseline.json"]))
+
+    def test_an_edited_input_produces_a_different_hash(self):
+        """The whole point: a locally-edited baseline must be visible.
+
+        This is the case the old whole-tree flag could only report as an
+        anonymous "something changed", and the case the exclusion would
+        otherwise have let through in silence.
+        """
+        path = self._write("baseline.json", '{"results": []}')
+        before = read_inputs([path], self.tmp.name)["baseline.json"]
+        self._write("baseline.json", '{"results": [1]}')
+        after = read_inputs([path], self.tmp.name)["baseline.json"]
+        self.assertNotEqual(before, after)
+
+    def test_a_missing_input_is_recorded_not_skipped(self):
+        # A run scored against a file that was not there is a result about
+        # nothing; silence is how that becomes a number nobody questions.
+        got = read_inputs([os.path.join(self.tmp.name, "gone.json")],
+                          self.tmp.name)
+        self.assertIn("unreadable", got["gone.json"])
+
+    def test_declaring_no_inputs_is_an_empty_record_not_a_missing_field(self):
+        # Distinguishable from an artifact written before the field existed.
+        self.assertEqual({}, _record().meta["read_inputs"])
 
 
 class ManifestTest(unittest.TestCase):

@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from math import comb
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -125,8 +126,17 @@ def main():
     for result in results:
         print(render(result))
     if args.out:
+        # WHICH baseline, by hash. The dirty-tree gate no longer counts a
+        # modified artifact, deliberately - a run rewriting its outputs is not
+        # a run whose code changed - so the comparison records the inputs it
+        # READ instead. An edited baseline is the failure this catches, and it
+        # is one the old flag could only have called "something changed".
+        sys.path.insert(0, os.path.join(REPO, "app"))
+        from experiments.manifest import read_inputs
+        payload = {"comparisons": results,
+                   "read_inputs": read_inputs([args.baseline, *args.arms], REPO)}
         with open(args.out, "w", encoding="utf-8") as fh:
-            json.dump({"comparisons": results}, fh, indent=1, ensure_ascii=False)
+            json.dump(payload, fh, indent=1, ensure_ascii=False)
         print(f"wrote {args.out}")
 
 

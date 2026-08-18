@@ -101,7 +101,12 @@ tree_state() {
     fi
     local root modified untracked
     root=$(dirname "$0")
-    modified=$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)
+    # Artifacts a run WRITES are not evidence that its code changed. See the
+    # long note in app/experiments/manifest.py::_git_state - these two are one
+    # decision expressed twice and are kept in step by
+    # test_the_shell_gate_agrees_with_the_python_provenance.
+    modified=$(git -C "$root" status --porcelain --untracked-files=no \
+                   -- ':(exclude)ab_test_runtime/experiments/*.json' 2>/dev/null)
     # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
     # modified TRACKED files only, so a brand-new experiment script - which is
     # untracked for exactly as long as it takes to write and run it - was
