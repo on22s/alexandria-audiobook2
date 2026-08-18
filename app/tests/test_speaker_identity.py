@@ -73,3 +73,50 @@ class SpeakerIdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SplitNameSpellingTest(unittest.TestCase):
+    """The best-formed spelling wins, not the first-arrived one.
+
+    THE BUG. Generating mushoku18, the model emitted `R UDEUS` 86 times and
+    `RUDEUS` 16 - the name split after its first letter, which happened to
+    exactly one character in three books (every other capitalised name came
+    through whole). Both spellings normalise to the same identity, so they were
+    already being merged; the canonical was simply whichever arrived first, and
+    the split one arrived first. All 102 lines in that book and 137 in
+    mushoku23 ended up attributed to a person no cast list contains, so they
+    match no voice.
+    """
+
+    def test_the_intact_spelling_wins_even_when_the_split_one_comes_first(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "R UDEUS", "text": "first"},
+            {"speaker": "RUDEUS", "text": "second"},
+        ])
+        self.assertEqual(["RUDEUS", "RUDEUS"],
+                         [e["speaker"] for e in out["entries"]])
+        self.assertIn("RUDEUS", out["speakers"])
+        self.assertNotIn("R UDEUS", out["speakers"])
+
+    def test_a_genuinely_multi_word_name_is_left_alone(self):
+        """The repair must not glue real names together: these have no
+        alternative spelling, so there is nothing to prefer."""
+        names = ["NORTH KING WII TAA", "OLD MAN", "KNUCKLE GUARD"]
+        out = stabilize_speaker_identities([{"speaker": n, "text": "x"} for n in names])
+        self.assertEqual(names, [e["speaker"] for e in out["entries"]])
+
+    def test_the_roster_still_wins_over_both_spellings(self):
+        # An explicit cast list is the caller's own answer and outranks
+        # anything inferred from how the model happened to write it.
+        out = stabilize_speaker_identities(
+            [{"speaker": "R UDEUS", "text": "a"}, {"speaker": "RUDEUS", "text": "b"}],
+            established_speakers=["Rudeus"])
+        self.assertEqual(["Rudeus", "Rudeus"], [e["speaker"] for e in out["entries"]])
+
+    def test_the_change_is_recorded_so_it_can_be_audited(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "R UDEUS", "text": "first"},
+            {"speaker": "RUDEUS", "text": "second"},
+        ])
+        kinds = {c["type"] for c in out["changes"]}
+        self.assertIn("speaker_spelling", kinds)

@@ -1643,7 +1643,11 @@
     "tests.test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_matches_punctuation_and_spacing_variants",
     "tests.test_speaker_identity.SpeakerIdentityTests.test_resolve_speaker_label_returns_none_when_no_match",
     "tests.test_speaker_identity.SpeakerIdentityTests.test_safe_variants_reuse_first_established_spelling_without_mutation",
-    "tests.test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged"
+    "tests.test_speaker_identity.SpeakerIdentityTests.test_uncertain_typo_and_extended_name_are_reported_not_merged",
+    "tests.test_speaker_identity.SplitNameSpellingTest.test_a_genuinely_multi_word_name_is_left_alone",
+    "tests.test_speaker_identity.SplitNameSpellingTest.test_the_change_is_recorded_so_it_can_be_audited",
+    "tests.test_speaker_identity.SplitNameSpellingTest.test_the_intact_spelling_wins_even_when_the_split_one_comes_first",
+    "tests.test_speaker_identity.SplitNameSpellingTest.test_the_roster_still_wins_over_both_spellings"
   ],
   "test_speaker_similarity": [
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_embedding_decodes_and_resamples_without_torchaudio",
