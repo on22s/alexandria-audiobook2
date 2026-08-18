@@ -24,6 +24,9 @@ from experiments import pair_e_row
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "app", "experiments", "pair_e_row.py")
+# audit_experiment_artifacts lives at the repo root, not under app/.
+if REPO not in sys.path:
+    sys.path.insert(0, REPO)
 
 
 def _row(term, plain=False, respelled=True):
@@ -106,3 +109,34 @@ class RefusalTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedCompletenessTest(unittest.TestCase):
+    """One definition of "did this run finish", used by every reader.
+
+    The chain, the scorer, the rescorer and the structural audit all ask it.
+    Two copies would drift the way every other duplicated question in this
+    repo has (Rule 15) - and this one decides whether a number gets cited.
+    """
+
+    def test_pair_e_row_uses_the_shared_definition(self):
+        from experiments import manifest
+        self.assertIs(pair_e_row.completeness, manifest.completeness)
+
+    def test_the_audit_records_completeness_for_every_row(self):
+        """A null would be a fourth state no reader handles - including the
+        rows that bail early on an unreadable file."""
+        import audit_experiment_artifacts as audit
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "broken.json"), "w") as fh:
+                fh.write("{")
+            with open(os.path.join(tmp, "listy.json"), "w") as fh:
+                fh.write("[]")
+            with open(os.path.join(tmp, "part.json"), "w") as fh:
+                json.dump({"results": [1], "candidates_considered": 9}, fh)
+            rows = audit.build_audit(tmp)["artifacts"]
+        by_name = {r["artifact"]: r for r in rows}
+        self.assertEqual("unknown", by_name["broken.json"]["completeness"])
+        self.assertEqual("unknown", by_name["listy.json"]["completeness"])
+        self.assertEqual("partial", by_name["part.json"]["completeness"])
+        self.assertTrue(all(r.get("completeness") for r in rows))

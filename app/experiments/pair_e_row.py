@@ -34,36 +34,11 @@ BASELINE = os.path.join(REPO, "ab_test_runtime", "experiments",
                         "respelling_measure_rescored.json")
 
 
-def completeness(path):
-    """-> "complete" | "partial" | "unknown" for an artifact.
-
-    THE READER MUST CHECK, not just the chain. measure_respellings writes its
-    artifact every five terms, so an interrupted run leaves a file that looks
-    finished; the n1200 block was killed at 1129 of 1200 and committed as
-    evidence. The chain now skips only complete artifacts - but every SCORER
-    would still have consumed that file silently and reported a rate as if it
-    were the whole sample.
-
-    Truncation is biased, not merely small: terms are taken in book-count
-    order, so what is missing is exactly the rarest words - the ones a
-    pronunciation lexicon exists for.
-
-    This is the check Snakemake makes with IncompleteFilesException and the one
-    Spark expects of anything reading a directory (look for _SUCCESS, not for
-    files). "unknown" is a third answer, for artifacts written before the
-    status field existed; it warns rather than refusing, because refusing to
-    read every older artifact would be a worse failure than reading one.
-    """
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
-    status = doc.get("status")
-    if status in ("complete", "partial"):
-        return status
-    results, requested = doc.get("results"), doc.get("candidates_considered")
-    if isinstance(results, list) and isinstance(requested, int):
-        return "complete" if len(results) >= requested else "partial"
-    return "unknown"
-
+# completeness() lives in experiments.manifest: three readers need it and a
+# fourth will, and two copies of "is this artifact finished" would drift the
+# way every other duplicated question in this repo has (Rule 15).
+sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.manifest import completeness  # noqa: E402
 
 def load(path):
     """-> ({term: row} for scored rows, [rows the runner skipped])."""

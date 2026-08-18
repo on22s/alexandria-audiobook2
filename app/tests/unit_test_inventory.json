@@ -1078,7 +1078,9 @@
     "tests.test_pair_e_row.RefusalTest.test_a_complete_arm_scores_without_a_warning",
     "tests.test_pair_e_row.RefusalTest.test_a_partial_arm_is_refused_by_default",
     "tests.test_pair_e_row.RefusalTest.test_allow_partial_scores_it_and_labels_every_output",
-    "tests.test_pair_e_row.RefusalTest.test_the_refusal_says_why_the_subset_is_biased_not_merely_small"
+    "tests.test_pair_e_row.RefusalTest.test_the_refusal_says_why_the_subset_is_biased_not_merely_small",
+    "tests.test_pair_e_row.SharedCompletenessTest.test_pair_e_row_uses_the_shared_definition",
+    "tests.test_pair_e_row.SharedCompletenessTest.test_the_audit_records_completeness_for_every_row"
   ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",

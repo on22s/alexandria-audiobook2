@@ -199,6 +199,17 @@ def stage_index_scripts(tmp):
     for name in ("collect_results.py", "audit_experiment_artifacts.py"):
         shutil.copy2(os.path.join(os.path.dirname(APP), name),
                      os.path.join(tmp, name))
+    # audit_experiment_artifacts imports experiments.manifest for the ONE
+    # definition of "did this run finish" (Rule 15), so the miniature repo
+    # needs that package too. It is stdlib-only, so staging it costs nothing;
+    # what it buys is a fixture that matches the real layout instead of a
+    # trimmed one that breaks whenever a shared helper is introduced.
+    pkg = os.path.join(tmp, "app", "experiments")
+    os.makedirs(pkg, exist_ok=True)
+    for name in ("__init__.py", "manifest.py"):
+        src = os.path.join(APP, "experiments", name)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(pkg, name))
 
 
 class CollectResultsRobustnessTest(unittest.TestCase):

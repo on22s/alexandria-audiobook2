@@ -12,6 +12,7 @@ import sys
 REPO = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
+from experiments.manifest import completeness  # noqa: E402
 EXPERIMENT_DIR = os.path.join(REPO, "ab_test_runtime", "experiments")
 DEFAULT_OUT = os.path.join(
     REPO, "ab_test_runtime", "audit", "artifact_structural_audit.json")
@@ -32,14 +33,25 @@ def classify_artifact(path):
         with open(path, encoding="utf-8") as handle:
             doc = json.load(handle)
     except (OSError, ValueError) as exc:
+        # "unknown", not null: an unreadable file is one whose completeness
+        # cannot be determined, which is exactly what unknown means. A null
+        # here would be a fourth state that no reader handles.
         row.update({"identity_contract": None, "seed": None, "status": None,
                     "has_rows": False, "classification": "exploratory",
+                    "completeness": "unknown",
                     "reason": f"unreadable JSON: {type(exc).__name__}"})
         return row
     if not isinstance(doc, dict):
         row.update({"classification": "exploratory",
+                    "completeness": "unknown",
                     "reason": "top-level list, no embedded identity"})
         return row
+
+    # WAS THIS RUN FINISHED? The index is where someone looks before citing a
+    # number, and until now a run killed at 1129 of 1200 terms was
+    # indistinguishable here from one that completed. Same question as the
+    # chains and the scorers ask, one definition (Rule 15).
+    row["completeness"] = completeness(doc)
 
     provenance = doc.get("provenance")
     meta = doc.get("meta")

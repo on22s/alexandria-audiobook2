@@ -32,6 +32,8 @@ import json
 import os
 import sys
 
+from experiments.manifest import completeness
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -117,6 +119,18 @@ def main():
 
     with open(args.artifact, encoding="utf-8") as handle:
         document = json.load(handle)
+
+    # WHAT WAS READ, AND WHETHER IT WAS FINISHED. Rescoring a run that was cut
+    # short produces a rate over a biased subset - terms arrive in book-count
+    # order, so the missing tail is the rarest words - and nothing downstream
+    # could tell, because the rescored file looked like any other. The label
+    # travels with the numbers rather than being a warning nobody sees.
+    state = completeness(document)
+    document["source_completeness"] = state
+    if state != "complete":
+        print(f"WARNING: {os.path.basename(args.artifact)} is {state}; "
+              f"the rescored output is labelled source_completeness={state}",
+              file=sys.stderr)
     rows = [rescore_row(r) for r in document["results"]]
     stats = summarize(rows)
 

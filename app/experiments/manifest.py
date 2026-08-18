@@ -122,6 +122,39 @@ def lmstudio_state(model_name):
     return state
 
 
+
+def completeness(path_or_doc):
+    """-> "complete" | "partial" | "unknown" for an artifact.
+
+    ONE definition, because three readers need it and a fourth will. A
+    checkpointed artifact is written every few items, so an interrupted run
+    leaves a file indistinguishable by eye from a finished one - the n1200
+    respelling block was killed at 1129 of 1200 and committed as evidence.
+
+    Truncation is BIASED, not merely small, wherever items are ordered: in the
+    respelling runs terms come in book-count order, so the missing tail is the
+    rarest words - the ones a pronunciation lexicon exists for.
+
+    Snakemake refuses to proceed on an incomplete output (IncompleteFilesException)
+    and Spark expects readers to check the _SUCCESS marker rather than the data
+    files. "unknown" is a third answer for artifacts written before the status
+    field existed: it warns, because refusing every older artifact would be a
+    worse failure than reading one.
+    """
+    if isinstance(path_or_doc, dict):
+        doc = path_or_doc
+    else:
+        with open(path_or_doc, encoding="utf-8") as handle:
+            doc = json.load(handle)
+    status = doc.get("status")
+    if status in ("complete", "partial"):
+        return status
+    results, requested = doc.get("results"), doc.get("candidates_considered")
+    if isinstance(results, list) and isinstance(requested, int):
+        return "complete" if len(results) >= requested else "partial"
+    return "unknown"
+
+
 def read_inputs(paths, repo):
     """-> {relative path: sha256} for the artifacts a run READ.
 
