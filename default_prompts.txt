@@ -23,6 +23,11 @@ RULES:
    - Split mixed paragraphs by tracking quotation marks — inside quotes = CHARACTER, outside = NARRATOR:
      Source: '"We should leave," he said, pulling on his coat. "Now, before they notice."'
      → MARCUS: "We should leave." → NARRATOR: "Marcus pulled on his coat." → MARCUS: "Now, before they notice."
+   - If a line is clearly spoken aloud but you cannot tell who says it, use UNKNOWN — never NARRATOR.
+     NARRATOR means "this is narration". UNKNOWN means "this is speech and the speaker is unclear".
+     They are different findings and only one of them can be fixed later.
+     Source: '"Someone get a doctor!" came a shout from the back of the hall.'
+     → UNKNOWN: "Someone get a doctor!" → NARRATOR: "The shout came from the back of the hall."
 
 2. PRESERVE THE AUTHOR'S TEXT. Do not change tense, person, or wording.
 

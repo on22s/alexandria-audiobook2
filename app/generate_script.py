@@ -12,6 +12,8 @@ from core import llm_timeout_seconds
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
+                             get_valid_narrator_name, is_narrator_attested)
 from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
                                get_next_retry_max_tokens)
 from repair_source_encoding import preflight_source
@@ -1233,6 +1235,12 @@ def main():
                               "run only, without editing config.json. Smaller chunks shorten "
                               "each call's output. The chunk size is part of the generation "
                               "fingerprint, so a different value starts a fresh checkpoint.")
+    parser.add_argument("--narrator", default=None,
+                        help="Name of the first-person narrator, if the book "
+                             "has one. Measured on PDNC gold: telling the model "
+                             "who narrates took attribution from 61.7% to 79.4% "
+                             "over 720 rows (pdnc_narrator_prior__clean-3book.json), "
+                             "and production has never passed it.")
     args = parser.parse_args()
 
     input_file_path = args.input_file
@@ -1350,6 +1358,30 @@ def main():
     prompts_config = config.get("prompts") or {}
     system_prompt = prompts_config.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
     user_prompt_template = prompts_config.get("user_prompt") or DEFAULT_USER_PROMPT
+
+    # WHO IS NARRATING. On two weak first-person PDNC books this took
+    # attribution from 61.7% to 79.4% over 720 gold rows, and generation has
+    # never passed it - the helper existed, nothing called it. It matters most
+    # for exactly the failure seen on mushoku18: a first-person book where the
+    # narrator also speaks aloud, and 70% of dialogue stayed with NARRATOR.
+    #
+    # The name is checked against the book before it is used. A narrator who
+    # never appears in their own book is a typo or the wrong book, and seeding
+    # the roster from it would teach the model a character that is not there.
+    narrator = args.narrator or (config.get("book") or {}).get("narrator")
+    if narrator:
+        try:
+            narrator = get_valid_narrator_name(narrator)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            sys.exit(1)
+        if not is_narrator_attested(narrator, book_content):
+            print(f"Error: '{narrator}' does not appear in this book often "
+                  f"enough to be its narrator; check the name.")
+            sys.exit(1)
+        system_prompt = add_first_person_awareness(
+            add_narrator_prior(system_prompt, narrator))
+        print(f"First-person narrator: {narrator}")
 
     # Load generation settings
     generation_config = config.get("generation") or {}
