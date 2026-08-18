@@ -991,14 +991,22 @@ class PendingMarkerTest(unittest.TestCase):
         """The whole point: something must be able to say what is queued."""
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1")
-        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "6"],
+        # The holder must outlive the waiter's startup, and startup is not
+        # instant: the gates ahead of the marker shell out to git and rocm-smi,
+        # which took longer than the old 6-second hold when this machine was
+        # running three chains and a generation at once. The test then reported
+        # "the waiting job was not listed" - a real-looking failure of the
+        # feature, caused by the fixture. Same shape as the terminal-marker
+        # test's first version, and the fix is the same: wait for the state
+        # you need instead of assuming a duration.
+        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "45"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         try:
-            deadline = time.time() + 20
+            deadline = time.time() + 60
             names = []
             while time.time() < deadline:
                 if os.path.isdir(self.pending):
@@ -1010,8 +1018,9 @@ class PendingMarkerTest(unittest.TestCase):
             self.assertTrue(any(n.endswith("waiter") for n in names),
                             f"the waiting job was not listed: {names}")
         finally:
-            waiter.wait(timeout=30)
-            holder.wait(timeout=30)
+            holder.terminate()          # release the lock so the waiter ends
+            waiter.wait(timeout=60)
+            holder.wait(timeout=60)
 
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.
