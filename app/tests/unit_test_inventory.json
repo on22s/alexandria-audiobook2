@@ -221,6 +221,16 @@
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_start_of_book_has_no_leading_context",
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_window_is_respected"
   ],
+  "test_chain_stage_lib": [
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_later_stage_still_runs_after_an_unrelated_failure",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_a_timeout_is_reported_as_a_timeout_not_a_generic_failure",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_all_stages_passing_exits_zero",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_each_stage_writes_its_own_log",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_skips_a_stage_whose_predecessor_failed",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_running_the_same_chain_twice_is_idempotent"
+  ],
   "test_character_evidence": [
     "tests.test_character_evidence.TestAbstention.test_confidence_scales_with_evidence",
     "tests.test_character_evidence.TestAbstention.test_empty_inputs_are_safe",
