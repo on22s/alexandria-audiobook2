@@ -1,0 +1,6044 @@
+{
+ "status": "complete",
+ "candidates_considered": 7607,
+ "note": "internal pauses only; leading and trailing room tone excluded",
+ "results": [
+  {
+   "term": "aaze",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 2.303
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.416
+   }
+  },
+  {
+   "term": "aera",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.229
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.465
+   },
+   "ay": {
+    "pauses": 6,
+    "pause_seconds": 2.139
+   }
+  },
+  {
+   "term": "ageha",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.494
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.884
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.135
+   }
+  },
+  {
+   "term": "agen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.708
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "agera",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.536
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.17
+   }
+  },
+  {
+   "term": "ahoge",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.907
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.516
+   }
+  },
+  {
+   "term": "aiden",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.261
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 3.105
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.632
+   }
+  },
+  {
+   "term": "aiee",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.665
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.161
+   }
+  },
+  {
+   "term": "aime",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.466
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.427
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.881
+   }
+  },
+  {
+   "term": "aine",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.458
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.703
+   }
+  },
+  {
+   "term": "aire",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.191
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.745
+   }
+  },
+  {
+   "term": "airena",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 2.169
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 3.572
+   }
+  },
+  {
+   "term": "aite",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.568
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.522
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.745
+   }
+  },
+  {
+   "term": "aiue",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.126
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.348
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.107
+   }
+  },
+  {
+   "term": "aizen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.154
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.355
+   }
+  },
+  {
+   "term": "akabane",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.219
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.924
+   }
+  },
+  {
+   "term": "akabeko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.151
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.275
+   }
+  },
+  {
+   "term": "akagane",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.687
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.131
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.278
+   }
+  },
+  {
+   "term": "akane",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.342
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.422
+   }
+  },
+  {
+   "term": "akebia",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.465
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.019
+   }
+  },
+  {
+   "term": "akebono",
+   "plain": {
+    "pauses": 4,
+    "pause_seconds": 1.336
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.883
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.931
+   }
+  },
+  {
+   "term": "akechi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.527
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.393
+   }
+  },
+  {
+   "term": "akemi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.086
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.463
+   }
+  },
+  {
+   "term": "akeno",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.826
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.318
+   }
+  },
+  {
+   "term": "aketora",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.32
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.425
+   }
+  },
+  {
+   "term": "akigase",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.166
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.302
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.478
+   }
+  },
+  {
+   "term": "akikaze",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.61
+   },
+   "ay": {
+    "pauses": 9,
+    "pause_seconds": 2.961
+   }
+  },
+  {
+   "term": "akishige",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.225
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.948
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 2.485
+   }
+  },
+  {
+   "term": "akitake",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.283
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.614
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.711
+   }
+  },
+  {
+   "term": "akiteru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.709
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.563
+   }
+  },
+  {
+   "term": "amagaeru",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.347
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.628
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.204
+   }
+  },
+  {
+   "term": "amande",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.766
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.921
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.663
+   }
+  },
+  {
+   "term": "amane",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.267
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.9
+   }
+  },
+  {
+   "term": "amanobe",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.392
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.566
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.743
+   }
+  },
+  {
+   "term": "amanohashidate",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 7,
+    "pause_seconds": 4.395
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.194
+   }
+  },
+  {
+   "term": "amante",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.373
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.496
+   }
+  },
+  {
+   "term": "amazake",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.52
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.178
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "ameise",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.708
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.122
+   }
+  },
+  {
+   "term": "ameko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.357
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.619
+   }
+  },
+  {
+   "term": "amemiya",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.008
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.202
+   }
+  },
+  {
+   "term": "amesho",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.744
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.802
+   }
+  },
+  {
+   "term": "ameya",
+   "plain": {
+    "pauses": 4,
+    "pause_seconds": 1.371
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.06
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.593
+   }
+  },
+  {
+   "term": "ande",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.113
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "anee",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 1.183
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.486
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.216
+   }
+  },
+  {
+   "term": "aneko",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.279
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.386
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.484
+   }
+  },
+  {
+   "term": "anessa",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.94
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.948
+   }
+  },
+  {
+   "term": "ange",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.218
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.149
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.863
+   }
+  },
+  {
+   "term": "ankake",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.554
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.525
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.98
+   }
+  },
+  {
+   "term": "annei",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.343
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.327
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.265
+   }
+  },
+  {
+   "term": "anteiku",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.239
+   },
+   "eh": {
+    "pauses": 7,
+    "pause_seconds": 2.806
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.164
+   }
+  },
+  {
+   "term": "aonoesu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 3.279
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.254
+   }
+  },
+  {
+   "term": "arare",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.362
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.773
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.604
+   }
+  },
+  {
+   "term": "araune",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.792
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.524
+   }
+  },
+  {
+   "term": "arein",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.919
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.382
+   }
+  },
+  {
+   "term": "arene",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.173
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.086
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.369
+   }
+  },
+  {
+   "term": "ariake",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.161
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.659
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.33
+   }
+  },
+  {
+   "term": "arie",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.601
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.71
+   }
+  },
+  {
+   "term": "arifureta",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.734
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.51
+   }
+  },
+  {
+   "term": "asean",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.407
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.489
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.925
+   }
+  },
+  {
+   "term": "ashinen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.441
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.997
+   }
+  },
+  {
+   "term": "atobe",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.264
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.512
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.727
+   }
+  },
+  {
+   "term": "atsumete",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.496
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.244
+   }
+  },
+  {
+   "term": "atten",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.69
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.657
+   }
+  },
+  {
+   "term": "aurea",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.178
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.386
+   }
+  },
+  {
+   "term": "aureatia",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.092
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "ayame",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.368
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.338
+   }
+  },
+  {
+   "term": "ayamegumu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.932
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.064
+   }
+  },
+  {
+   "term": "ayane",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.204
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.161
+   }
+  },
+  {
+   "term": "ayase",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.03
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.405
+   }
+  },
+  {
+   "term": "azesion",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 1.691
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 3.398
+   }
+  },
+  {
+   "term": "azueda",
+   "plain": {
+    "pauses": 4,
+    "pause_seconds": 1.115
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.779
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.431
+   }
+  },
+  {
+   "term": "bakeneko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.392
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.685
+   }
+  },
+  {
+   "term": "bakke",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.505
+   }
+  },
+  {
+   "term": "bakuen",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.536
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.331
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.378
+   }
+  },
+  {
+   "term": "barriera",
+   "plain": {
+    "pauses": 6,
+    "pause_seconds": 2.044
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.221
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.953
+   }
+  },
+  {
+   "term": "beako",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.354
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.794
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.53
+   }
+  },
+  {
+   "term": "beku",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.239
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.895
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "bene",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "benibishi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.269
+   },
+   "ay": {
+    "pauses": 7,
+    "pause_seconds": 1.949
+   }
+  },
+  {
+   "term": "benimaru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.848
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.134
+   }
+  },
+  {
+   "term": "benio",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.492
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.875
+   }
+  },
+  {
+   "term": "benkei",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.256
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.39
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.737
+   }
+  },
+  {
+   "term": "bente",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.117
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.703
+   }
+  },
+  {
+   "term": "benten",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.228
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "bento",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.749
+   }
+  },
+  {
+   "term": "bentou",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.979
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.757
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.46
+   }
+  },
+  {
+   "term": "bera",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "berano",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.283
+   }
+  },
+  {
+   "term": "beren",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.824
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.268
+   }
+  },
+  {
+   "term": "beru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.8
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.401
+   }
+  },
+  {
+   "term": "berun",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.694
+   }
+  },
+  {
+   "term": "bessatsu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.713
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 1.829
+   }
+  },
+  {
+   "term": "beto",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.463
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.396
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.13
+   }
+  },
+  {
+   "term": "bien",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.427
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.541
+   }
+  },
+  {
+   "term": "biokite",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.178
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.684
+   }
+  },
+  {
+   "term": "bizen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.387
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "boneire",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.391
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.529
+   }
+  },
+  {
+   "term": "bonodore",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.694
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.605
+   }
+  },
+  {
+   "term": "bukkake",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.446
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.136
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.717
+   }
+  },
+  {
+   "term": "bungei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.365
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.127
+   }
+  },
+  {
+   "term": "butareba",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.691
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.679
+   }
+  },
+  {
+   "term": "chiamatore",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.62
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.828
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.065
+   }
+  },
+  {
+   "term": "chie",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.628
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.314
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 0.901
+   }
+  },
+  {
+   "term": "chikage",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.434
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.968
+   }
+  },
+  {
+   "term": "chikuzen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.97
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.238
+   }
+  },
+  {
+   "term": "chiramune",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.36
+   }
+  },
+  {
+   "term": "chirimen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.585
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.421
+   }
+  },
+  {
+   "term": "chise",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.632
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.134
+   }
+  },
+  {
+   "term": "chome",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.66
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.741
+   }
+  },
+  {
+   "term": "chonmage",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.054
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.083
+   }
+  },
+  {
+   "term": "chorine",
+   "plain": {
+    "pauses": 5,
+    "pause_seconds": 0.973
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.904
+   }
+  },
+  {
+   "term": "daide",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.664
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 0.951
+   }
+  },
+  {
+   "term": "daihasei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.361
+   },
+   "ay": {
+    "pauses": 10,
+    "pause_seconds": 3.469
+   }
+  },
+  {
+   "term": "daisuke",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.98
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.957
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.736
+   }
+  },
+  {
+   "term": "daizen",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.154
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.262
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.466
+   }
+  },
+  {
+   "term": "dake",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.267
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.433
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "dakedo",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 1.287
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.963
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.76
+   }
+  },
+  {
+   "term": "dameningen",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.323
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.158
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.745
+   }
+  },
+  {
+   "term": "dange",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.21
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.857
+   }
+  },
+  {
+   "term": "dangero",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.951
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.014
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.345
+   }
+  },
+  {
+   "term": "danke",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 7,
+    "pause_seconds": 1.563
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.891
+   }
+  },
+  {
+   "term": "darenidemo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.758
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.366
+   }
+  },
+  {
+   "term": "deai",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 1.995
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "dearu",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.147
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.746
+   },
+   "ay": {
+    "pauses": 6,
+    "pause_seconds": 2.086
+   }
+  },
+  {
+   "term": "debau",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 2.423
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.997
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.786
+   }
+  },
+  {
+   "term": "debone",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.504
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.26
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.32
+   }
+  },
+  {
+   "term": "deen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.952
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 3.436
+   }
+  },
+  {
+   "term": "degawa",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.63
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.859
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.554
+   }
+  },
+  {
+   "term": "deguchi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.436
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.126
+   }
+  },
+  {
+   "term": "deishu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.223
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "deja",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.461
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.147
+   }
+  },
+  {
+   "term": "dejima",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.164
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.184
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.911
+   }
+  },
+  {
+   "term": "dejirani",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.475
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.238
+   }
+  },
+  {
+   "term": "deka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.367
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.539
+   }
+  },
+  {
+   "term": "dekinai",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 4.064
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.704
+   }
+  },
+  {
+   "term": "dekiru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.533
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.433
+   }
+  },
+  {
+   "term": "dekite",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.396
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.894
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "dema",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.359
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "demachi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.751
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.808
+   }
+  },
+  {
+   "term": "demi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.728
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.265
+   }
+  },
+  {
+   "term": "demidemon",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.976
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.993
+   }
+  },
+  {
+   "term": "demonia",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.942
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.12
+   }
+  },
+  {
+   "term": "demonkin",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.475
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.483
+   }
+  },
+  {
+   "term": "denden",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.658
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.146
+   }
+  },
+  {
+   "term": "dengeki",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.875
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.617
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "denka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.329
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.768
+   }
+  },
+  {
+   "term": "denki",
+   "plain": {
+    "pauses": 4,
+    "pause_seconds": 1.069
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.74
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 0.963
+   }
+  },
+  {
+   "term": "denkurou",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.396
+   },
+   "ay": {
+    "pauses": 6,
+    "pause_seconds": 1.942
+   }
+  },
+  {
+   "term": "densetsu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.582
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "denso",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.241
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.753
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.86
+   }
+  },
+  {
+   "term": "densuke",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.307
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.372
+   }
+  },
+  {
+   "term": "dente",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.766
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "dentetsu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.786
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.91
+   }
+  },
+  {
+   "term": "dera",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.003
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "deramisian",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.996
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.074
+   }
+  },
+  {
+   "term": "dere",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.792
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "deredere",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.184
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.466
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.864
+   }
+  },
+  {
+   "term": "dereru",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.381
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.122
+   }
+  },
+  {
+   "term": "derri",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.594
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.565
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.859
+   }
+  },
+  {
+   "term": "derriere",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.313
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.669
+   }
+  },
+  {
+   "term": "deshitachi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.398
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.29
+   }
+  },
+  {
+   "term": "desu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.766
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "desuga",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.301
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.641
+   }
+  },
+  {
+   "term": "desuka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.878
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.924
+   }
+  },
+  {
+   "term": "dewa",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.162
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.234
+   }
+  },
+  {
+   "term": "dezain",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.988
+   }
+  },
+  {
+   "term": "diejin",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.744
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.645
+   }
+  },
+  {
+   "term": "diene",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.396
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.708
+   }
+  },
+  {
+   "term": "dokodemo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.619
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.538
+   }
+  },
+  {
+   "term": "doraemon",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.379
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.656
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.75
+   }
+  },
+  {
+   "term": "dore",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.341
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.846
+   }
+  },
+  {
+   "term": "dorei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.497
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.543
+   }
+  },
+  {
+   "term": "dorenne",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.739
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.732
+   }
+  },
+  {
+   "term": "dougen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.708
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.442
+   }
+  },
+  {
+   "term": "doutei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 9,
+    "pause_seconds": 2.599
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.015
+   }
+  },
+  {
+   "term": "eanru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.485
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.262
+   }
+  },
+  {
+   "term": "easi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.308
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.286
+   }
+  },
+  {
+   "term": "ebihara",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.549
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "ebikawa",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.304
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.404
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.706
+   }
+  },
+  {
+   "term": "ebina",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.479
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.91
+   }
+  },
+  {
+   "term": "ebisu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.262
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.429
+   }
+  },
+  {
+   "term": "eboshi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.724
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.465
+   }
+  },
+  {
+   "term": "ecchan",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.213
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.645
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.066
+   }
+  },
+  {
+   "term": "ecchi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.646
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.716
+   }
+  },
+  {
+   "term": "echika",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.786
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "echizen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.238
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.241
+   }
+  },
+  {
+   "term": "edamame",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.612
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.248
+   }
+  },
+  {
+   "term": "edogawa",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.335
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.07
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.601
+   }
+  },
+  {
+   "term": "eehee",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.718
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.904
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.417
+   }
+  },
+  {
+   "term": "eeheehee",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 1.12
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.368
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.215
+   }
+  },
+  {
+   "term": "egawa",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.432
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.167
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.649
+   }
+  },
+  {
+   "term": "egon",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.518
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.524
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "eguchi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.958
+   }
+  },
+  {
+   "term": "ehee",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.565
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.373
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.263
+   }
+  },
+  {
+   "term": "ehehe",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.466
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.375
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.116
+   }
+  },
+  {
+   "term": "ehehehe",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.789
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.896
+   },
+   "ay": {
+    "pauses": 7,
+    "pause_seconds": 4.287
+   }
+  },
+  {
+   "term": "ehime",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.272
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 3.367
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.706
+   }
+  },
+  {
+   "term": "eifuu",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.147
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.577
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.029
+   }
+  },
+  {
+   "term": "eiga",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.387
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.627
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.44
+   }
+  },
+  {
+   "term": "eihou",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.14
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.15
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.73
+   }
+  },
+  {
+   "term": "eiichirou",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.857
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.718
+   }
+  },
+  {
+   "term": "eiji",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.155
+   }
+  },
+  {
+   "term": "eijiro",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 8,
+    "pause_seconds": 2.214
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.652
+   }
+  },
+  {
+   "term": "eijirou",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.134
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.029
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.579
+   }
+  },
+  {
+   "term": "eika",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 2.126
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.898
+   }
+  },
+  {
+   "term": "eikei",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.3
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.408
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.314
+   }
+  },
+  {
+   "term": "eiko",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.46
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.542
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.789
+   }
+  },
+  {
+   "term": "eimei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.096
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.936
+   }
+  },
+  {
+   "term": "eimi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.286
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.563
+   }
+  },
+  {
+   "term": "eina",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.216
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.854
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.746
+   }
+  },
+  {
+   "term": "eine",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.984
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.599
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.405
+   }
+  },
+  {
+   "term": "eiri",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.124
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.175
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.674
+   }
+  },
+  {
+   "term": "eisha",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.528
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.402
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.524
+   }
+  },
+  {
+   "term": "eishiro",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.093
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 1.77
+   }
+  },
+  {
+   "term": "eishirou",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.876
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.408
+   }
+  },
+  {
+   "term": "eitai",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.114
+   },
+   "ay": {
+    "pauses": 9,
+    "pause_seconds": 2.88
+   }
+  },
+  {
+   "term": "eiya",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.234
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.616
+   }
+  },
+  {
+   "term": "eiyu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.751
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.305
+   }
+  },
+  {
+   "term": "eiyuu",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.536
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.395
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.179
+   }
+  },
+  {
+   "term": "eizan",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.713
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "eizo",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.373
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.094
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.973
+   }
+  },
+  {
+   "term": "eizou",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.088
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.381
+   }
+  },
+  {
+   "term": "ekaterina",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.773
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.979
+   }
+  },
+  {
+   "term": "emei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.199
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.855
+   }
+  },
+  {
+   "term": "emerada",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.309
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.264
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "emiri",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.213
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.957
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.819
+   }
+  },
+  {
+   "term": "emoji",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.153
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.563
+   }
+  },
+  {
+   "term": "enami",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.323
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.447
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.131
+   }
+  },
+  {
+   "term": "enbiten",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.131
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.101
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.459
+   }
+  },
+  {
+   "term": "ende",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.269
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.28
+   }
+  },
+  {
+   "term": "endo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.149
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "endou",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.266
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.82
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.406
+   }
+  },
+  {
+   "term": "enen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.368
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.577
+   }
+  },
+  {
+   "term": "enga",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.517
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.159
+   }
+  },
+  {
+   "term": "engawa",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.176
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.842
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.964
+   }
+  },
+  {
+   "term": "enishi",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.795
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.172
+   }
+  },
+  {
+   "term": "enji",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.493
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.611
+   }
+  },
+  {
+   "term": "enjiya",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.111
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.439
+   }
+  },
+  {
+   "term": "enju",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.557
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.446
+   }
+  },
+  {
+   "term": "enka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.898
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.505
+   }
+  },
+  {
+   "term": "enkei",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.218
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.152
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.336
+   }
+  },
+  {
+   "term": "enma",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.282
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.095
+   }
+  },
+  {
+   "term": "enoki",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.442
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.312
+   }
+  },
+  {
+   "term": "enou",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.553
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.782
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.261
+   }
+  },
+  {
+   "term": "ensho",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.557
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.365
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.813
+   }
+  },
+  {
+   "term": "enta",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.261
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.281
+   }
+  },
+  {
+   "term": "entoma",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.514
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.519
+   }
+  },
+  {
+   "term": "enzo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.572
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.08
+   }
+  },
+  {
+   "term": "epona",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.296
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.033
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.413
+   }
+  },
+  {
+   "term": "erakino",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 7,
+    "pause_seconds": 2.865
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.845
+   }
+  },
+  {
+   "term": "eren",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.344
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.566
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.226
+   }
+  },
+  {
+   "term": "eriko",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.953
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.468
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.624
+   }
+  },
+  {
+   "term": "erina",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.516
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.666
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.298
+   }
+  },
+  {
+   "term": "eringin",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.985
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.585
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.719
+   }
+  },
+  {
+   "term": "erio",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.745
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 3.808
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.358
+   }
+  },
+  {
+   "term": "erisu",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.309
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 0.879
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.446
+   }
+  },
+  {
+   "term": "eroge",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.298
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.355
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.858
+   }
+  },
+  {
+   "term": "eromanga",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.931
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.787
+   }
+  },
+  {
+   "term": "erone",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.579
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.338
+   }
+  },
+  {
+   "term": "euri",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.178
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.496
+   }
+  },
+  {
+   "term": "europea",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.335
+   },
+   "ay": {
+    "pauses": 6,
+    "pause_seconds": 1.95
+   }
+  },
+  {
+   "term": "ewan",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.124
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.405
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.979
+   }
+  },
+  {
+   "term": "ezzo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.17
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.577
+   }
+  },
+  {
+   "term": "fukemachi",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.854
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.211
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.261
+   }
+  },
+  {
+   "term": "fukiyose",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.114
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.487
+   }
+  },
+  {
+   "term": "fune",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.144
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.824
+   }
+  },
+  {
+   "term": "furemaru",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.362
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.157
+   }
+  },
+  {
+   "term": "furikake",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.284
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.283
+   }
+  },
+  {
+   "term": "furisode",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.187
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.628
+   }
+  },
+  {
+   "term": "fusemachi",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.507
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.843
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.706
+   }
+  },
+  {
+   "term": "fuugetsu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.868
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.838
+   }
+  },
+  {
+   "term": "gaaze",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.871
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.281
+   }
+  },
+  {
+   "term": "gaen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.909
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.504
+   }
+  },
+  {
+   "term": "gaeshi",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.129
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 0.962
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.366
+   }
+  },
+  {
+   "term": "gaiden",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.629
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.543
+   }
+  },
+  {
+   "term": "gaien",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 2.116
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.056
+   }
+  },
+  {
+   "term": "gakken",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.363
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.744
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 1.517
+   }
+  },
+  {
+   "term": "gakuen",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.126
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.124
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.43
+   }
+  },
+  {
+   "term": "gamei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.482
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.851
+   }
+  },
+  {
+   "term": "gamera",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.724
+   }
+  },
+  {
+   "term": "gare",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.8
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.241
+   }
+  },
+  {
+   "term": "garuge",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.325
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.031
+   }
+  },
+  {
+   "term": "gassen",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.17
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 1.875
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.579
+   }
+  },
+  {
+   "term": "gegege",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.109
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.641
+   }
+  },
+  {
+   "term": "geiko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "gein",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.39
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.781
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.134
+   }
+  },
+  {
+   "term": "geki",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.91
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.293
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "gekka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.766
+   }
+  },
+  {
+   "term": "gekkan",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 1.24
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.755
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 1.579
+   }
+  },
+  {
+   "term": "gekko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.511
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.969
+   }
+  },
+  {
+   "term": "gekkou",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.256
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.187
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.788
+   }
+  },
+  {
+   "term": "gendai",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.127
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.109
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.262
+   }
+  },
+  {
+   "term": "genkai",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.128
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "genki",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.27
+   }
+  },
+  {
+   "term": "genko",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.329
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "genkotsu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.44
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.971
+   }
+  },
+  {
+   "term": "genmate",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.139
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.218
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.297
+   }
+  },
+  {
+   "term": "gennai",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.127
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.479
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.303
+   }
+  },
+  {
+   "term": "gennou",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.972
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.321
+   }
+  },
+  {
+   "term": "genpei",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.139
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.769
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.473
+   }
+  },
+  {
+   "term": "genroku",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.121
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.238
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.358
+   }
+  },
+  {
+   "term": "gensei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.069
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.438
+   }
+  },
+  {
+   "term": "genzou",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.183
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.305
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.241
+   }
+  },
+  {
+   "term": "geppetto",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 2.956
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "gerun",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.123
+   }
+  },
+  {
+   "term": "gesu",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.459
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.788
+   }
+  },
+  {
+   "term": "geta",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.447
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.186
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "ginnie",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.184
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.154
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.129
+   }
+  },
+  {
+   "term": "gitsune",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.841
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "gize",
+   "plain": {
+    "pauses": 5,
+    "pause_seconds": 1.164
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.618
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "gouen",
+   "plain": {
+    "pauses": 6,
+    "pause_seconds": 1.694
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.63
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 0.708
+   }
+  },
+  {
+   "term": "gozen",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 1.047
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.369
+   }
+  },
+  {
+   "term": "guen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.47
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.256
+   }
+  },
+  {
+   "term": "guren",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.209
+   }
+  },
+  {
+   "term": "gyokuen",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.407
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.925
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.138
+   }
+  },
+  {
+   "term": "haade",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.232
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.114
+   }
+  },
+  {
+   "term": "habanero",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.972
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.456
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.261
+   }
+  },
+  {
+   "term": "habutae",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.351
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.576
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.792
+   }
+  },
+  {
+   "term": "haein",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.805
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 3.601
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.683
+   }
+  },
+  {
+   "term": "hagakure",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.334
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.254
+   }
+  },
+  {
+   "term": "hagane",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.335
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.906
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.646
+   }
+  },
+  {
+   "term": "hagure",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.838
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.807
+   }
+  },
+  {
+   "term": "hajime",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.511
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.483
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.048
+   }
+  },
+  {
+   "term": "hajimeru",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 1.019
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.412
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.999
+   }
+  },
+  {
+   "term": "haken",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.613
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.578
+   }
+  },
+  {
+   "term": "hakkei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.935
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.61
+   }
+  },
+  {
+   "term": "hakkeyoi",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.448
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 2.282
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.554
+   }
+  },
+  {
+   "term": "hakone",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.388
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.016
+   }
+  },
+  {
+   "term": "hakumei",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.37
+   },
+   "eh": {
+    "pauses": 6,
+    "pause_seconds": 2.369
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.932
+   }
+  },
+  {
+   "term": "hakurei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.402
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.178
+   }
+  },
+  {
+   "term": "hamakaze",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.376
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.471
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.439
+   }
+  },
+  {
+   "term": "hamusuke",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.159
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.501
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.526
+   }
+  },
+  {
+   "term": "hanae",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.295
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.195
+   }
+  },
+  {
+   "term": "hanayome",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.877
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 1.95
+   }
+  },
+  {
+   "term": "hane",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.706
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.682
+   }
+  },
+  {
+   "term": "haneda",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.149
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.969
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 3.031
+   }
+  },
+  {
+   "term": "hanejima",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.528
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.837
+   }
+  },
+  {
+   "term": "hanekawa",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.308
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.325
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.771
+   }
+  },
+  {
+   "term": "hanekoto",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.266
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.09
+   }
+  },
+  {
+   "term": "hanetsuki",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 1.829
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.212
+   }
+  },
+  {
+   "term": "hanpen",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.382
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.242
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.09
+   }
+  },
+  {
+   "term": "hanten",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.351
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 2.245
+   }
+  },
+  {
+   "term": "happeni",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 3.619
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.986
+   }
+  },
+  {
+   "term": "happine",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.566
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.154
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.276
+   }
+  },
+  {
+   "term": "hareru",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.225
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.331
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.184
+   }
+  },
+  {
+   "term": "harerun",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.151
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.301
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.416
+   }
+  },
+  {
+   "term": "harisen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.579
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.59
+   }
+  },
+  {
+   "term": "haruhime",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.284
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 3.393
+   }
+  },
+  {
+   "term": "harukaze",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.917
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.141
+   }
+  },
+  {
+   "term": "hase",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.735
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.761
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "hasegawa",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.159
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.58
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.485
+   }
+  },
+  {
+   "term": "hasekura",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.345
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.956
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.659
+   }
+  },
+  {
+   "term": "hasse",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.639
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.851
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.623
+   }
+  },
+  {
+   "term": "hatake",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.423
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.668
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.558
+   }
+  },
+  {
+   "term": "hatsume",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.212
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.602
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.48
+   }
+  },
+  {
+   "term": "hatsune",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.25
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.513
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 2.461
+   }
+  },
+  {
+   "term": "haugen",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.202
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.842
+   }
+  },
+  {
+   "term": "haute",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.151
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.344
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.554
+   }
+  },
+  {
+   "term": "hayaken",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.974
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.38
+   }
+  },
+  {
+   "term": "hayate",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 1.474
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 2.083
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.68
+   }
+  },
+  {
+   "term": "hazure",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.561
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.695
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 1.082
+   }
+  },
+  {
+   "term": "hebi",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.61
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.988
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "heebie",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.791
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.46
+   }
+  },
+  {
+   "term": "heehee",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.696
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.446
+   }
+  },
+  {
+   "term": "heero",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.135
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.574
+   }
+  },
+  {
+   "term": "heian",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.979
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.556
+   }
+  },
+  {
+   "term": "heide",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.459
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.18
+   }
+  },
+  {
+   "term": "heiji",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.986
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.744
+   }
+  },
+  {
+   "term": "heike",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.357
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.331
+   }
+  },
+  {
+   "term": "heimann",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.125
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.804
+   }
+  },
+  {
+   "term": "hein",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 1.374
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.718
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.689
+   }
+  },
+  {
+   "term": "heiro",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.126
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.018
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 1.477
+   }
+  },
+  {
+   "term": "heisei",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.808
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "heki",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.901
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.475
+   }
+  },
+  {
+   "term": "hemein",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.961
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.106
+   }
+  },
+  {
+   "term": "hengen",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.126
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.923
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.392
+   }
+  },
+  {
+   "term": "henriette",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 0.976
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.499
+   }
+  },
+  {
+   "term": "henshin",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.223
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.525
+   }
+  },
+  {
+   "term": "hentai",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.29
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.556
+   }
+  },
+  {
+   "term": "herohero",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.626
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 1.375
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 0.748
+   }
+  },
+  {
+   "term": "hessen",
+   "plain": {
+    "pauses": 2,
+    "pause_seconds": 0.383
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.567
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.824
+   }
+  },
+  {
+   "term": "hetaro",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.337
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "heya",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.407
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.299
+   }
+  },
+  {
+   "term": "heyo",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.064
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.9
+   }
+  },
+  {
+   "term": "hideaki",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.174
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.756
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.074
+   }
+  },
+  {
+   "term": "hideki",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.125
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.264
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.654
+   }
+  },
+  {
+   "term": "hideyo",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.128
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.054
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.224
+   }
+  },
+  {
+   "term": "hideyoshi",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.173
+   },
+   "eh": {
+    "pauses": 5,
+    "pause_seconds": 3.278
+   },
+   "ay": {
+    "pauses": 5,
+    "pause_seconds": 0.911
+   }
+  },
+  {
+   "term": "hideyuki",
+   "plain": {
+    "pauses": 3,
+    "pause_seconds": 0.815
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 0.749
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.488
+   }
+  },
+  {
+   "term": "hieda",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.503
+   },
+   "ay": {
+    "pauses": 1,
+    "pause_seconds": 0.505
+   }
+  },
+  {
+   "term": "hien",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.408
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.314
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.33
+   }
+  },
+  {
+   "term": "hieri",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.204
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.441
+   }
+  },
+  {
+   "term": "hige",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 2,
+    "pause_seconds": 1.49
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "higehiro",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 0.802
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.454
+   }
+  },
+  {
+   "term": "hihime",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.409
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.564
+   },
+   "ay": {
+    "pauses": 4,
+    "pause_seconds": 1.806
+   }
+  },
+  {
+   "term": "hime",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 3,
+    "pause_seconds": 1.769
+   },
+   "ay": {
+    "pauses": 0,
+    "pause_seconds": 0
+   }
+  },
+  {
+   "term": "himedaka",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.277
+   },
+   "eh": {
+    "pauses": 4,
+    "pause_seconds": 2.145
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.537
+   }
+  },
+  {
+   "term": "himegami",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.425
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 1.069
+   }
+  },
+  {
+   "term": "himejima",
+   "plain": {
+    "pauses": 1,
+    "pause_seconds": 0.244
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.608
+   },
+   "ay": {
+    "pauses": 3,
+    "pause_seconds": 2.078
+   }
+  },
+  {
+   "term": "himeka",
+   "plain": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "eh": {
+    "pauses": 1,
+    "pause_seconds": 0.796
+   },
+   "ay": {
+    "pauses": 2,
+    "pause_seconds": 0.593
+   }
+  }
+ ],
+ "summary": {
+  "eh_vs_plain": {
+   "more": 341,
+   "fewer": 43,
+   "n": 384,
+   "p": 1.1157025143039439e-58
+  },
+  "ay_vs_plain": {
+   "more": 328,
+   "fewer": 45,
+   "n": 373,
+   "p": 3.373351177687513e-54
+  },
+  "ay_vs_eh": {
+   "more": 181,
+   "fewer": 215,
+   "n": 396,
+   "p": 0.09713117622551644
+  }
+ },
+ "provenance": {
+  "script": "measure_pauses.py",
+  "written": "2026-08-18T14:10:13",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "8b6b459779d85fc1fa2fc820c9df7cf7a7156d26",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/measure_respellings.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/measure_pauses.py"
+   ],
+   "harness_sha256": "6604943a0620f962ad6e18608bcd78644edbb6ce6c738b16a0187b539b6a01cf"
+  }
+ }
+}
