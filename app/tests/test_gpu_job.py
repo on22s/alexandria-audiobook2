@@ -1022,6 +1022,49 @@ class PendingMarkerTest(unittest.TestCase):
             waiter.wait(timeout=60)
             holder.wait(timeout=60)
 
+    def _fake_pterm(self, record):
+        """A pterm on PATH that appends a line per notification."""
+        shadow = os.path.join(self.tmp.name, "notifier")
+        os.makedirs(shadow, exist_ok=True)
+        path = os.path.join(shadow, "pterm")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(f'#!/bin/bash\necho "$@" >> {record}\n')
+        os.chmod(path, 0o755)
+        return shadow
+
+    def test_repeated_jobs_do_not_produce_one_alert_each(self):
+        """THE COMPLAINT. This fires per job, and a chain is many jobs.
+
+        The re-gate runs 67 of them, each finishing with nothing queued behind
+        it in that instant, so it produced 67 desktop alerts saying the same
+        thing. One per quiet period is the information; the rest train you to
+        ignore all of them.
+        """
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        for _ in range(3):
+            self._run("probe", "true",
+                      PATH=shadow + os.pathsep + os.environ["PATH"])
+        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        self.assertEqual(1, len(alerts), f"expected one alert, got {alerts}")
+
+    def test_the_cooldown_can_be_shortened_for_a_genuinely_new_event(self):
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        for _ in range(2):
+            self._run("probe", "true", GPU_NOTIFY_COOLDOWN="0",
+                      PATH=shadow + os.pathsep + os.environ["PATH"])
+        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        self.assertEqual(2, len(alerts))
+
+    def test_notifications_can_be_turned_off_entirely(self):
+        # A courtesy must never be something the user has to tolerate.
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        self._run("probe", "true", GPU_NOTIFY="0",
+                  PATH=shadow + os.pathsep + os.environ["PATH"])
+        self.assertFalse(os.path.exists(record))
+
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.
 
