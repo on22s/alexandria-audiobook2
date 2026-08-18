@@ -1,0 +1,139 @@
+{
+ "status": "complete",
+ "candidates_considered": 3,
+ "results": [
+  {
+   "book": "Another - Volume 01 [Yen Press][iBooks].epub",
+   "extractors": {
+    "ours_stdlib": {
+     "chars": 410509,
+     "replacement_chars": 0,
+     "quote_pairs": 2188,
+     "apostrophes": 2671,
+     "paragraph_breaks": 3900,
+     "words": 69181,
+     "vocab": 5122
+    },
+    "ebooklib_lxml": {
+     "chars": 402864,
+     "replacement_chars": 0,
+     "quote_pairs": 2188,
+     "apostrophes": 2671,
+     "paragraph_breaks": 3830,
+     "words": 69089,
+     "vocab": 5120
+    },
+    "ebooklib_htmlparser": {
+     "chars": 402864,
+     "replacement_chars": 0,
+     "quote_pairs": 2188,
+     "apostrophes": 2671,
+     "paragraph_breaks": 3830,
+     "words": 69089,
+     "vocab": 5120
+    }
+   },
+   "vocab_missing_from_ours": {
+    "ebooklib_lxml": 0,
+    "ebooklib_htmlparser": 0
+   }
+  },
+  {
+   "book": "The Tale of Genji - Complete [Suematsu Kencho_Tuttle][Google Play].epub",
+   "extractors": {
+    "ours_stdlib": {
+     "chars": 498113,
+     "replacement_chars": 0,
+     "quote_pairs": 969,
+     "apostrophes": 394,
+     "paragraph_breaks": 1664,
+     "words": 83379,
+     "vocab": 6968
+    },
+    "ebooklib_lxml": {
+     "chars": 476978,
+     "replacement_chars": 0,
+     "quote_pairs": 969,
+     "apostrophes": 394,
+     "paragraph_breaks": 1445,
+     "words": 83170,
+     "vocab": 6965
+    },
+    "ebooklib_htmlparser": {
+     "chars": 476978,
+     "replacement_chars": 0,
+     "quote_pairs": 969,
+     "apostrophes": 394,
+     "paragraph_breaks": 1445,
+     "words": 83170,
+     "vocab": 6965
+    }
+   },
+   "vocab_missing_from_ours": {
+    "ebooklib_lxml": 4,
+    "ebooklib_htmlparser": 4
+   }
+  },
+  {
+   "book": "Mushoku Tensei - Volume 20 [Seven Seas][Kobo].epub",
+   "extractors": {
+    "ours_stdlib": {
+     "chars": 387965,
+     "replacement_chars": 0,
+     "quote_pairs": 1340,
+     "apostrophes": 2505,
+     "paragraph_breaks": 2567,
+     "words": 65536,
+     "vocab": 6225
+    },
+    "ebooklib_lxml": {
+     "chars": 382015,
+     "replacement_chars": 0,
+     "quote_pairs": 1340,
+     "apostrophes": 2502,
+     "paragraph_breaks": 2545,
+     "words": 65429,
+     "vocab": 6238
+    },
+    "ebooklib_htmlparser": {
+     "chars": 382015,
+     "replacement_chars": 0,
+     "quote_pairs": 1340,
+     "apostrophes": 2502,
+     "paragraph_breaks": 2545,
+     "words": 65429,
+     "vocab": 6238
+    }
+   },
+   "vocab_missing_from_ours": {
+    "ebooklib_lxml": 8,
+    "ebooklib_htmlparser": 8
+   }
+  }
+ ],
+ "provenance": {
+  "script": "compare_epub_extractors.py",
+  "written": "2026-08-18T15:45:22",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "dc5bfb5b86f3dde905527be23094550204c27f78",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/routers/script.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/compare_epub_extractors.py"
+   ],
+   "harness_sha256": "d4adfd0327f6e4221f66c83e9c3d1fe6d0ac3059a6b7ffd75226b7c87f38883b"
+  },
+  "args": {
+   "epubs": [
+    "/run/media/fakemitch/HDD1/audiobook/Officially Translated Light Novels/Another/Another - Volume 01 [Yen Press][iBooks].epub",
+    "/run/media/fakemitch/HDD1/audiobook/Officially Translated Light Novels/The Tale of Genji/The Tale of Genji - Complete [Suematsu Kencho_Tuttle][Google Play].epub",
+    "/run/media/fakemitch/HDD1/audiobook/Officially Translated Light Novels/Mushoku Tensei/Mushoku Tensei - Volume 20 [Seven Seas][Kobo].epub"
+   ],
+   "out": "ab_test_runtime/experiments/epub_extractor_comparison.json"
+  }
+ }
+}

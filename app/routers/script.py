@@ -260,10 +260,26 @@ class _HTMLTextExtractor(HTMLParser):
     })
     SKIP_TAGS = frozenset({'style', 'script'})
 
+    # A paragraph ends with a BLANK LINE, not a single newline. `br` is a line
+    # break inside one paragraph and stays single.
+    #
+    # WHY IT MATTERS: everything downstream that reasons about structure keys
+    # on "\n\n" - the dialogue span map refuses to let a quote cross a
+    # paragraph break, and chunking splits on them. With one newline per block
+    # this extractor produced 162 paragraph breaks for a book where ebooklib
+    # found 3,830, and 25 against 1,445 for another. The words were all there;
+    # the shape was gone, and it depended on the publisher: books that leave an
+    # empty <p> between paragraphs looked fine, books that do not looked like
+    # one enormous paragraph.
+    PARAGRAPH_TAGS = frozenset({
+        'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'li', 'blockquote', 'hr', 'tr', 'section', 'article',
+    })
+
     def __init__(self, anchor_ids=None):
         super().__init__()
         self.parts = []
-        self._pending_newline = False
+        self._pending_newline = 0
         self._skip_depth = 0
         self._anchor_ids = frozenset(anchor_ids or ())
 
@@ -272,7 +288,8 @@ class _HTMLTextExtractor(HTMLParser):
         if tag in self.SKIP_TAGS:
             self._skip_depth += 1
         elif tag in self.BLOCK_TAGS:
-            self._pending_newline = True
+            self._pending_newline = max(
+                self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
         if self._skip_depth == 0 and self._anchor_ids:
             attributes = dict(attrs)
             anchor_id = (attributes.get('id') or attributes.get('xml:id')
@@ -288,8 +305,8 @@ class _HTMLTextExtractor(HTMLParser):
         if self._skip_depth > 0:
             return
         if self._pending_newline and self.parts:
-            self.parts.append('\n')
-            self._pending_newline = False
+            self.parts.append('\n' * self._pending_newline)
+        self._pending_newline = 0
         self.parts.append(data)
 
     def get_text(self):

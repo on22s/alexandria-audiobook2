@@ -59,3 +59,37 @@ class SourceEncodingAuditTest(unittest.TestCase):
         # is not a reason to throw away every measurement made from it.
         self._write("mostly_fine.txt", "�" + "clean text here. " * 500)
         self.assertEqual(0, self._run().returncode)
+
+
+class ParagraphStructureTest(unittest.TestCase):
+    """A block element ends a paragraph, so it must leave a BLANK line.
+
+    The extractor emitted one newline per block, so paragraph boundaries were
+    invisible to everything that keys on "\\n\\n" - the dialogue span map, which
+    refuses to let a quote cross a paragraph break, and chunking, which splits
+    on them. It looked fine on publishers who leave an empty <p> between
+    paragraphs and produced 162 breaks where another extractor found 3,830 on
+    publishers who do not. The words were all present; the shape was gone.
+    """
+
+    def _text(self, html):
+        sys.path.insert(0, os.path.join(REPO, "app"))
+        from routers.script import _HTMLTextExtractor
+        extractor = _HTMLTextExtractor()
+        extractor.feed(html)
+        return extractor.get_text()
+
+    def test_paragraphs_are_separated_by_a_blank_line(self):
+        out = self._text("<p>First paragraph.</p><p>Second paragraph.</p>")
+        self.assertIn("\n\n", out)
+        self.assertEqual(2, len([p for p in out.split("\n\n") if p.strip()]))
+
+    def test_a_line_break_stays_a_single_newline(self):
+        # <br> breaks a line INSIDE a paragraph; promoting it would split one
+        # spoken line into two and let the span map treat each half separately.
+        out = self._text("<p>First line.<br/>Second line.</p>")
+        self.assertIn("First line.\nSecond line.", out.replace("\n\n", "\n", 1))
+
+    def test_headings_and_list_items_also_end_a_paragraph(self):
+        out = self._text("<h1>Chapter</h1><li>One</li><li>Two</li>")
+        self.assertEqual(3, len([p for p in out.split("\n\n") if p.strip()]))

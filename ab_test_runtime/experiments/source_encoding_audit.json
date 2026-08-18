@@ -1,0 +1,84 @@
+{
+ "status": "complete",
+ "candidates_considered": 8,
+ "gate": 0.005,
+ "results": [
+  {
+   "book": "arc4_volume10wn",
+   "replacements": 0,
+   "chars": 912865,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "grimgar03",
+   "replacements": 0,
+   "chars": 305782,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "grimgar06",
+   "replacements": 0,
+   "chars": 432387,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "index18",
+   "replacements": 0,
+   "chars": 481423,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "mushoku16",
+   "replacements": 0,
+   "chars": 282575,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "mushoku18",
+   "replacements": 0,
+   "chars": 376431,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "mushoku23",
+   "replacements": 0,
+   "chars": 785927,
+   "share": 0.0,
+   "passes_gate": true
+  },
+  {
+   "book": "owarimonogatari3",
+   "replacements": 0,
+   "chars": 660312,
+   "share": 0.0,
+   "passes_gate": true
+  }
+ ],
+ "provenance": {
+  "script": "audit_source_encoding.py",
+  "written": "2026-08-18T15:45:46",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "dc5bfb5b86f3dde905527be23094550204c27f78",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/routers/script.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/compare_epub_extractors.py"
+   ],
+   "harness_sha256": "d4adfd0327f6e4221f66c83e9c3d1fe6d0ac3059a6b7ffd75226b7c87f38883b"
+  },
+  "args": {
+   "inputs": "ab_test_runtime/results/collect_all_20260722-155801/inputs",
+   "out": "ab_test_runtime/experiments/source_encoding_audit.json"
+  }
+ }
+}

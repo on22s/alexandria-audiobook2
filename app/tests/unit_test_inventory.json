@@ -1652,6 +1652,9 @@
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_requires_disabled_baseline_and_equivalent_outputs"
   ],
   "test_source_encoding_audit": [
+    "tests.test_source_encoding_audit.ParagraphStructureTest.test_a_line_break_stays_a_single_newline",
+    "tests.test_source_encoding_audit.ParagraphStructureTest.test_headings_and_list_items_also_end_a_paragraph",
+    "tests.test_source_encoding_audit.ParagraphStructureTest.test_paragraphs_are_separated_by_a_blank_line",
     "tests.test_source_encoding_audit.SourceEncodingAuditTest.test_a_clean_book_passes",
     "tests.test_source_encoding_audit.SourceEncodingAuditTest.test_a_damaged_book_fails_and_stops_the_chain",
     "tests.test_source_encoding_audit.SourceEncodingAuditTest.test_a_few_stray_replacements_do_not_condemn_a_book",
