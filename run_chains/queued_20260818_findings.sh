@@ -55,16 +55,22 @@ run_stage mushoku18_narrator 5h -- \
     "$python" -u "$REPO/app/generate_script.py" "$inputs/mushoku18.txt" \
     --narrator RUDEUS --output "$runtime/unseen_books/mushoku18_narrator.json"
 
-# --------------------------------------------------- 4. a second -ay voice
-# Every respelling number in this project comes from one voice. If -ay's
-# advantage is a property of that voice rather than of English orthography,
-# this is where it shows.
-run_stage e_row_second_voice 2h -- \
+# ------------------------------------ 4. a second SAMPLE, not a second voice
+# THIS DOES NOT TEST A SECOND VOICE, and an earlier version of this comment
+# claimed it did. measure_respellings.py has no voice option: it synthesises
+# with whatever the engine defaults to, so every respelling number in this
+# project - including this stage - comes from ONE voice, and no arrangement of
+# its existing flags changes that. Testing a second voice needs a --voice flag
+# on the runner first.
+#
+# What it does test is a different 200-term sample, which is worth having and
+# is not the same claim.
+run_stage e_row_second_sample 2h -- \
     "$REPO/gpu_job.sh" e_row_second_voice \
     "$python" -u "$REPO/app/experiments/measure_respellings.py" \
     --min-books 5 --only-e-row --e-spelling ay --limit 200 \
     --work "$runtime/respelling_voice2" \
-    --out "$runtime/experiments/respelling_e_row__ay_voice2.json"
+    --out "$runtime/experiments/respelling_e_row__ay_sample2.json"
 
 stage_summary queued_20260818
 

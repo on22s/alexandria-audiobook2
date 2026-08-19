@@ -41,11 +41,21 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.manifest import completeness  # noqa: E402
 
 def load(path):
-    """-> ({term: row} for scored rows, [rows the runner skipped])."""
+    """-> ({term: row} scored on BOTH arms, [rows that were not]).
+
+    Both, because a row can carry a plain verdict and no respelled one: the
+    runner records `respelled_error` when synthesis fails for that arm, which
+    is the right thing for it to do and crashed this scorer on the first
+    artifact that contained one. A paired comparison needs a pair; a row with
+    one half is dropped and counted, never half-counted.
+    """
     with open(path, encoding="utf-8") as fh:
         results = json.load(fh)["results"]
-    scored = {r["term"]: r for r in results if "plain_recovers_word" in r}
-    return scored, [r for r in results if "plain_recovers_word" not in r]
+    def complete(row):
+        return ("plain_recovers_word" in row
+                and "respelled_recovers_word" in row)
+    return ({r["term"]: r for r in results if complete(r)},
+            [r for r in results if not complete(r)])
 
 
 def degenerate(transcript):
@@ -109,7 +119,7 @@ def render(result):
     lines = [f"=== {result['arm']} vs {result['baseline']} ==="]
     if "error" in result:
         return "\n".join(lines + ["  " + result["error"]])
-    lines.append(f"  scored={result['arm_scored']} skipped={result['arm_skipped']} "
+    lines.append(f"  scored={result['arm_scored']} unpaired={result['arm_skipped']} "
                  f"shared={result['shared_terms']}")
     for side in ("arm", "baseline"):
         state = result.get(f"{side}_completeness")
