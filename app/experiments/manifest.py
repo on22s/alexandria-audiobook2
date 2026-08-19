@@ -73,6 +73,7 @@ def _git_state(repo):
                    ":(exclude)ab_test_runtime/audit/*.json",
                    ":(exclude)RESULTS_INDEX.md",
                    ":(exclude)results_index.csv",
+                   ":(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md",
                    )
     # An untracked harness is the dangerous case, and the first version missed
     # it: a new experiment script is untracked while it runs, so the tree

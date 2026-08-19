@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 119 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 121 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
-- `historical_only`: 38
+- `historical_only`: 40
 - `provisional`: 21
 - `supported_measurement`: 51
 
@@ -130,6 +130,8 @@ All 119 legacy-metadata artifacts are listed exactly once. Classification descri
 | `tag_priority__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | provisional | 278 | 0 | 0 | True |  |
 | `tag_priority__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | tag_priority | supported_measurement | 324 | 0 | 0 | False |  |
 | `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified |
+| `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
+| `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
 | `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |
 | `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 417 | 0 | 0 | False |  |
@@ -163,4 +165,5 @@ All 119 legacy-metadata artifacts are listed exactly once. Classification descri
 - `segmentation_crossover`: Factorial diagnostic on one book; retain repeat-level uncertainty.
 - `tag_priority`: Prompt rule effects vary by book/model and require per-book reporting.
 - `two_by_two`: The two factors are not independent; this prices context, not batching.
+- `two_stage_attribution`: Three English PDNC books (Pride and Prejudice, The Awakening, The Sign of the Four), 2,494 quotes, one request per quote with the cast supplied, qwen3-14b, 2026-08-19: 54.5% against the one-pass baseline of 83.6% on these SAME books. The arm is 29 points WORSE, so this is evidence against this design, not for it - and it is one form (cast-supplied, single request) of one model, not two-stage attribution in general. The internal split is the interesting part and is also the reason not to read the headline alone: Explicit quotes, where the text names the speaker, score 52.9% - LOWER than Anaphoric at 61.7%. A method that misses half the cases the text answers outright is not a weaker method, it is a broken one, and the number to quote is that contrast rather than the 54.5%.
 - `voting`: Voting cost and routing coverage accompany accuracy; no pooled policy claim.

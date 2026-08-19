@@ -268,7 +268,7 @@ tree_state() {
     # exactly like the experiment JSON: what a run writes, never evidence that
     # its code changed.
     modified=$(git -C "$root" status --porcelain --untracked-files=no \
-                   -- ':(exclude)ab_test_runtime/experiments/*.json' ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' \
+                   -- ':(exclude)ab_test_runtime/experiments/*.json' ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' ':(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md' \
                    2>/dev/null)
     # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
     # modified TRACKED files only, so a brand-new experiment script - which is

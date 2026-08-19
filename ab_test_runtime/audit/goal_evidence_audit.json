@@ -139,19 +139,19 @@
      "name": "asr_ja_cutting_control.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "6a3f6698"
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_ja_largev3_hybrid.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "6a3f6698"
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_ja_readings.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "6a3f6698"
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_silero_vad_ja_holdout.json",
@@ -163,13 +163,13 @@
      "name": "asr_silero_whisper_ja_confirmation.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "6a3f6698"
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_silero_whisper_ja_offset20.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "6a3f6698"
+     "commit": "c509cd2e"
     }
    ]
   },
