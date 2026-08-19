@@ -1,0 +1,168 @@
+{
+ "key": [
+  {
+   "term": "renji",
+   "letters": {
+    "A": "none",
+    "B": "plain",
+    "C": "hyphen",
+    "D": "dot"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 4.854
+   }
+  },
+  {
+   "term": "reijo",
+   "letters": {
+    "A": "plain",
+    "B": "hyphen",
+    "C": "dot",
+    "D": "none"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0.317,
+    "dot": 3.688
+   }
+  },
+  {
+   "term": "setagaya",
+   "letters": {
+    "A": "none",
+    "B": "plain",
+    "C": "dot",
+    "D": "hyphen"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.677
+   }
+  },
+  {
+   "term": "shinkansen",
+   "letters": {
+    "A": "hyphen",
+    "B": "none",
+    "C": "dot",
+    "D": "plain"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.511
+   }
+  },
+  {
+   "term": "doraemon",
+   "letters": {
+    "A": "dot",
+    "B": "plain",
+    "C": "hyphen",
+    "D": "none"
+   },
+   "measured_pause_seconds": {
+    "plain": 0.379,
+    "none": 0,
+    "dot": 3.373
+   }
+  },
+  {
+   "term": "takehaya",
+   "letters": {
+    "A": "hyphen",
+    "B": "dot",
+    "C": "none",
+    "D": "plain"
+   },
+   "measured_pause_seconds": {
+    "plain": 0.124,
+    "none": 0,
+    "dot": 3.36
+   }
+  },
+  {
+   "term": "shuriken",
+   "letters": {
+    "A": "dot",
+    "B": "hyphen",
+    "C": "plain",
+    "D": "none"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.32
+   }
+  },
+  {
+   "term": "haute",
+   "letters": {
+    "A": "none",
+    "B": "plain",
+    "C": "dot",
+    "D": "hyphen"
+   },
+   "measured_pause_seconds": {
+    "plain": 0.151,
+    "none": 0,
+    "dot": 3.264
+   }
+  },
+  {
+   "term": "takeshi",
+   "letters": {
+    "A": "dot",
+    "B": "none",
+    "C": "hyphen",
+    "D": "plain"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 3.226,
+    "dot": 1.378
+   }
+  },
+  {
+   "term": "amane",
+   "letters": {
+    "A": "plain",
+    "B": "dot",
+    "C": "hyphen",
+    "D": "none"
+   },
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0.164,
+    "dot": 3.188
+   }
+  }
+ ],
+ "seed": 20260819,
+ "provenance": {
+  "script": "build_separator_earcheck.py",
+  "written": "2026-08-19T16:56:25",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "f7de4714c4d0d94bcaa162bea53b8a70ccfb188c",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/build_separator_earcheck.py"
+   ],
+   "harness_sha256": "f76ed1f261d64fa15042486d78d3e893d0b505ff9464d196e549ec9301067289"
+  },
+  "args": {
+   "terms": 10,
+   "seed": 20260819,
+   "pauses": "ab_test_runtime/experiments/respelling_pauses_separators_3arm.json",
+   "out_data": "ab_test_runtime/experiments/earcheck_separator_package.json",
+   "out_key": "ab_test_runtime/experiments/earcheck_separator_key.json"
+  },
+  "seed": 20260819
+ }
+}
