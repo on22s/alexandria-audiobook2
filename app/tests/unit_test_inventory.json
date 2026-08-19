@@ -1165,6 +1165,16 @@
     "tests.test_pair_e_row.SharedCompletenessTest.test_pair_e_row_uses_the_shared_definition",
     "tests.test_pair_e_row.SharedCompletenessTest.test_the_audit_records_completeness_for_every_row"
   ],
+  "test_pair_pdnc_pilots": [
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_a_real_one_sided_improvement_is_detected",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_a_third_arm_is_refused_rather_than_picked_from",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_an_arm_identical_to_its_baseline_shows_nothing",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_an_artifact_with_no_baseline_is_refused",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_arms_of_reads_the_real_committed_pilot",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_rows_are_matched_by_id_not_by_position",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_noise_floor_compares_baselines_not_arms",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_same_accuracy_by_different_rows_is_still_no_evidence"
+  ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected",
