@@ -564,6 +564,42 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
 
+    def test_both_gates_exclude_exactly_the_same_generated_files(self):
+        """The live check above only compares the CURRENT tree, so it passes
+        trivially whenever both gates happen to say dirty - which is most of
+        the time during development. This compares the lists themselves.
+
+        The list matters: on 2026-08-19 it named the experiment JSON but not
+        RESULTS_INDEX.md, results_index.csv or ab_test_runtime/audit/*.json.
+        refresh_indexes.py rewrites those at the end of every chain, so a
+        finishing chain dirtied the tree and every stage a CONCURRENT chain
+        still had queued was refused in 0s - six of them, and two idle hours.
+        """
+        import re as _re
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        with open(GPU_JOB, encoding="utf-8") as handle:
+            shell_src = handle.read()
+        with open(os.path.join(repo_root, "app", "experiments", "manifest.py"),
+                  encoding="utf-8") as handle:
+            python_src = handle.read()
+
+        def excludes(source, start_marker):
+            body = source[source.index(start_marker):][:2000]
+            return sorted(set(_re.findall(r':\(exclude\)([^\'"\s,]+)', body)))
+
+        shell = excludes(shell_src, "modified=$(git")
+        python = excludes(python_src, 'modified = run("git"')
+        self.assertTrue(shell, "found no exclusions in gpu_job.sh")
+        self.assertEqual(
+            shell, python,
+            "the shell gate and the Python provenance exclude different "
+            "files; one will let through what the other refuses")
+        for expected in ("RESULTS_INDEX.md", "results_index.csv",
+                         "ab_test_runtime/audit/*.json",
+                         "ab_test_runtime/experiments/*.json"):
+            self.assertIn(expected, shell)
+
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 class LlmPreflightGateTest(unittest.TestCase):

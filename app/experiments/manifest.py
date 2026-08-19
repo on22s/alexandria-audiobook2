@@ -61,8 +61,19 @@ def _git_state(repo):
     # So the excluded half is paid for, not dropped: `read_inputs` below hashes
     # the artifacts a run READ, which catches a locally-edited baseline that
     # this flag could only ever report as an anonymous "something changed".
+    # DERIVED INDEXES ARE OUTPUTS TOO. Leaving RESULTS_INDEX.md,
+    # results_index.csv and the audit JSON out of this list deadlocked the GPU
+    # queue for two hours on 2026-08-19: refresh_indexes.py rewrites them at
+    # the end of every chain, and gpu_job.sh's twin of this gate then refused
+    # every stage a concurrent chain still had queued. Kept in step with the
+    # shell by test_the_shell_gate_agrees_with_the_python_provenance.
     modified = run("git", "status", "--porcelain", "--untracked-files=no",
-                   "--", ":(exclude)ab_test_runtime/experiments/*.json")
+                   "--",
+                   ":(exclude)ab_test_runtime/experiments/*.json",
+                   ":(exclude)ab_test_runtime/audit/*.json",
+                   ":(exclude)RESULTS_INDEX.md",
+                   ":(exclude)results_index.csv",
+                   )
     # An untracked harness is the dangerous case, and the first version missed
     # it: a new experiment script is untracked while it runs, so the tree
     # reported clean and the artifact claimed a commit that did not contain the

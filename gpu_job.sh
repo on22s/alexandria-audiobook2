@@ -240,8 +240,18 @@ tree_state() {
     # long note in app/experiments/manifest.py::_git_state - these two are one
     # decision expressed twice and are kept in step by
     # test_the_shell_gate_agrees_with_the_python_provenance.
+    # DERIVED INDEXES ARE OUTPUTS TOO, and leaving them out of this list
+    # deadlocked the queue on 2026-08-19. refresh_indexes.py rewrites
+    # RESULTS_INDEX.md, results_index.csv and ab_test_runtime/audit/*.json at
+    # the END of every chain; the tree was then dirty, and the six stages a
+    # CONCURRENT chain still had queued were refused in 0s each - two_stage_full,
+    # three separator arms, unseen_books_rest, plus a replay in a third chain.
+    # The card sat idle for two hours. These are regenerated from the artifacts,
+    # exactly like the experiment JSON: what a run writes, never evidence that
+    # its code changed.
     modified=$(git -C "$root" status --porcelain --untracked-files=no \
-                   -- ':(exclude)ab_test_runtime/experiments/*.json' 2>/dev/null)
+                   -- ':(exclude)ab_test_runtime/experiments/*.json' ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' \
+                   2>/dev/null)
     # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
     # modified TRACKED files only, so a brand-new experiment script - which is
     # untracked for exactly as long as it takes to write and run it - was

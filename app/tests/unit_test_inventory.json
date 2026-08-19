@@ -799,6 +799,7 @@
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_overridden_dirty_run_saves_the_diff_that_produced_it",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_refused",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_still_dirt",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_both_gates_exclude_exactly_the_same_generated_files",
     "tests.test_gpu_job.DirtyTreeGateTest.test_modified_code_is_still_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_rewriting_an_artifact_is_not_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_override_runs_but_leaves_a_mark",
