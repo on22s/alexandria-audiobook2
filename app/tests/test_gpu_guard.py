@@ -140,18 +140,35 @@ class LockPathAgreementTest(unittest.TestCase):
             guard.GPU_JOB = original
             default_lock_fn.cache_clear()
 
-    def test_the_chains_use_that_same_lock(self):
+    def test_no_chain_names_a_lock_other_than_the_shared_one(self):
+        """The first version of this test asked only that the FILENAME was not
+        `gpu.lock`, which let $HOME/.alexandria_gpu.lock through - and 15
+        chains were exporting exactly that. Compare the resolved path.
+        """
         repo = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))
-        chains = glob.glob(os.path.join(repo, "run_chains", "*.sh"))
-        exported = [l for path in chains
-                    for l in open(path, encoding="utf-8").read().splitlines()
-                    if "GPU_LOCK=" in l and "alexandria_gpu.lock" not in l
-                    and "gpu.lock" in l]
-        self.assertEqual([], exported,
-                         "a chain exports a lock nothing else uses; every "
-                         "invocation style must serialise against the others")
-
+        shared = subprocess.run(
+            ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
+            capture_output=True, text=True, timeout=60).stdout.strip()
+        runtime = os.path.join(repo, "ab_test_runtime")
+        wrong = []
+        for path in sorted(glob.glob(os.path.join(repo, "run_chains", "*.sh"))
+                           + glob.glob(os.path.join(repo, "*.sh"))):
+            with open(path, encoding="utf-8") as fh:
+                for number, line in enumerate(fh, 1):
+                    if "GPU_LOCK=" not in line or "ALEXANDRIA_GPU_LOCK" in line:
+                        continue
+                    if line.lstrip().startswith("#"):
+                        continue
+                    # $runtime is the only variable these lines use.
+                    resolved = (line.split("GPU_LOCK=", 1)[1].split()[0]
+                                .strip('"').replace("$runtime", runtime))
+                    if os.path.realpath(resolved) != os.path.realpath(shared):
+                        wrong.append("%s:%d %s" % (os.path.basename(path),
+                                                   number, resolved))
+        self.assertEqual([], wrong,
+                         "these name a lock that does not serialise against "
+                         "the one the queue holds:\n  " + "\n  ".join(wrong))
 
 class FailClosedTest(unittest.TestCase):
     """An unopenable lock is a configuration error, not an idle GPU."""

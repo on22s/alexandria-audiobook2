@@ -6,7 +6,11 @@
 # COMPLETE while all 67 of its adapters failed on 2026-08-18.
 set -uo pipefail
 REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git
-export GPU_LOCK="${GPU_LOCK:-$HOME/.alexandria_gpu.lock}"
+# NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
+# third lock file that serialised against neither the repo lock the other
+# chains use nor gpu_job.sh's own - and it sat BELOW the self-re-exec above,
+# so this chain's outer wrapper and its inner jobs took different locks.
+# gpu_job.sh now defaults to the repo lock; letting it decide is the point.
 export GPU_QLOG="$REPO/ab_test_runtime/logs/gpu_jobq.log"
 STAGE_LOG_DIR="$REPO/ab_test_runtime/logs"
 source "$REPO/run_chains/lib/stage.sh"

@@ -785,7 +785,7 @@
     "tests.test_gpu_guard.GpuGuardTest.test_the_probe_does_not_hold_the_lock_it_tests",
     "tests.test_gpu_guard.GpuGuardTest.test_the_queued_job_itself_is_allowed_through",
     "tests.test_gpu_guard.LockPathAgreementTest.test_an_unreadable_gpu_job_raises_instead_of_guessing",
-    "tests.test_gpu_guard.LockPathAgreementTest.test_the_chains_use_that_same_lock",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_no_chain_names_a_lock_other_than_the_shared_one",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_default_is_the_same_from_any_working_directory",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_guard_and_gpu_job_agree_on_the_default_lock",
     "tests.test_gpu_guard.StaleSentinelTest.test_a_live_job_is_still_exempt",

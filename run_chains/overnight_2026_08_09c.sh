@@ -36,7 +36,11 @@ PY="$REPO/app/env/bin/python"
 IN="$REPO/ab_test_runtime/results/collect_all_20260722-155801/inputs"
 OUT="$REPO/ab_test_runtime/goal31"
 BACKUP="$L/config.json.overnight_backup"
-export GPU_LOCK="${GPU_LOCK:-$HOME/.alexandria_gpu.lock}"
+# NO GPU_LOCK EXPORT. This line used to name $HOME/.alexandria_gpu.lock, a
+# third lock file that serialised against neither the repo lock the other
+# chains use nor gpu_job.sh's own - and it sat BELOW the self-re-exec above,
+# so this chain's outer wrapper and its inner jobs took different locks.
+# gpu_job.sh now defaults to the repo lock; letting it decide is the point.
 export GPU_QLOG="$L/gpu_jobq.log"
 mkdir -p "$L" "$OUT"
 cd "$REPO/app"
