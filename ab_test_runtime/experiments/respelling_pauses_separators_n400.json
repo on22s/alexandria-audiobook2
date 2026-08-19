@@ -2305,17 +2305,15 @@
  },
  "provenance": {
   "script": "measure_pauses.py",
-  "written": "2026-08-19T14:04:29",
+  "written": "2026-08-19T14:43:56",
   "host": "mitch-linux",
   "git": {
-   "commit": "ac101a18a5d50dea9531baa71ef526264a41557f",
+   "commit": "49d80ba0722e6c717e7c44927240dad5c973fe3e",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "5f7631f061bc83a9197d03c869ea5dba6629a3b48e18f22be8f7b69be3e3d077"
+   "harness_sha256": "7a2bfb59eec4fbc0940925672a6f32ea594716d999112999f0a8c49bfd7954e4"
   }
  }
 }
