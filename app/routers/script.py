@@ -252,6 +252,31 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
     return path
 
 
+# Characters that are invisible to a reader and fatal to everything that
+# matches text. index18 carries 318 zero-width joiners spliced between ellipsis
+# characters, and three books carry non-breaking spaces where a space belongs
+# (101, 39 and 19 of them). Any code that locates a line in its source - the
+# dialogue span map, the lexicon scan, chunk fingerprinting - fails on a
+# character it cannot see and cannot explain why.
+#
+# Deliberately NOT stripped: standalone numeric lines. They look like page
+# numbers and are chapter numbers here (1-8 in index18, 001-008 in
+# owarimonogatari3), so dropping them would delete the book's structure to
+# tidy its whitespace.
+_INVISIBLE = str.maketrans({
+    "\u200b": "", "\u200c": "", "\u200d": "", "\ufeff": "",   # zero width
+    "\u00a0": " ", "\u202f": " ", "\u2009": " ",              # fixed spaces
+})
+
+
+def normalize_extracted_text(text):
+    """-> text with invisible characters removed and blank runs collapsed."""
+    text = text.translate(_INVISIBLE)
+    # Three or more newlines carry no more meaning than two, and uneven runs
+    # make paragraph counts depend on the publisher's spacer markup.
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 class _HTMLTextExtractor(HTMLParser):
     """Strip HTML tags from EPUB content, preserving block-level structure."""
     BLOCK_TAGS = frozenset({
@@ -260,10 +285,26 @@ class _HTMLTextExtractor(HTMLParser):
     })
     SKIP_TAGS = frozenset({'style', 'script'})
 
+    # A paragraph ends with a BLANK LINE, not a single newline. `br` is a line
+    # break inside one paragraph and stays single.
+    #
+    # WHY IT MATTERS: everything downstream that reasons about structure keys
+    # on "\n\n" - the dialogue span map refuses to let a quote cross a
+    # paragraph break, and chunking splits on them. With one newline per block
+    # this extractor produced 162 paragraph breaks for a book where ebooklib
+    # found 3,830, and 25 against 1,445 for another. The words were all there;
+    # the shape was gone, and it depended on the publisher: books that leave an
+    # empty <p> between paragraphs looked fine, books that do not looked like
+    # one enormous paragraph.
+    PARAGRAPH_TAGS = frozenset({
+        'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'li', 'blockquote', 'hr', 'tr', 'section', 'article',
+    })
+
     def __init__(self, anchor_ids=None):
         super().__init__()
         self.parts = []
-        self._pending_newline = False
+        self._pending_newline = 0
         self._skip_depth = 0
         self._anchor_ids = frozenset(anchor_ids or ())
 
@@ -272,7 +313,8 @@ class _HTMLTextExtractor(HTMLParser):
         if tag in self.SKIP_TAGS:
             self._skip_depth += 1
         elif tag in self.BLOCK_TAGS:
-            self._pending_newline = True
+            self._pending_newline = max(
+                self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
         if self._skip_depth == 0 and self._anchor_ids:
             attributes = dict(attrs)
             anchor_id = (attributes.get('id') or attributes.get('xml:id')
@@ -288,8 +330,8 @@ class _HTMLTextExtractor(HTMLParser):
         if self._skip_depth > 0:
             return
         if self._pending_newline and self.parts:
-            self.parts.append('\n')
-            self._pending_newline = False
+            self.parts.append('\n' * self._pending_newline)
+        self._pending_newline = 0
         self.parts.append(data)
 
     def get_text(self):
@@ -546,7 +588,7 @@ def extract_epub_text(epub_path: str) -> str:
             if text:
                 chapters.append(text)
 
-    return '\n\n'.join(chapters)
+    return normalize_extracted_text('\n\n'.join(chapters))
 
 
 def _claim_unique_path(directory: str, filename: str) -> str:

@@ -1,0 +1,95 @@
+{
+ "status": "complete",
+ "experiment": "respelling_earcheck",
+ "what": "Blinded three-way listening test on the /e/ respelling row: plain vs -eh vs -ay, eight terms, clip positions rotated, key hidden until each answer was saved.",
+ "listener": "project owner; English speaker, judging naturalness rather than Japanese accuracy",
+ "why": "Every number behind the 2026-08-18 -ay change came from ASR. Nobody had listened. The same scorer family previously reported 38% rescue where the truth was 13%.",
+ "candidates_considered": 8,
+ "results": [
+  {
+   "term": "isekai",
+   "listener_picked": "no respelling",
+   "asr_heard": "new spelling (-ay)",
+   "notes": "Take B sounded like it mispronounced it and take C sounded very robotic and pronounced it very wrong "
+  },
+  {
+   "term": "otome",
+   "listener_picked": "no respelling",
+   "asr_heard": "new spelling (-ay)",
+   "notes": "Take a sounded best but all 3 sounded robotic "
+  },
+  {
+   "term": "reina",
+   "listener_picked": "no respelling",
+   "asr_heard": "new spelling (-ay)",
+   "notes": "Take b sounded more natural and whispered for whatever reason and pronounced it well and take a and c sounded  very robotic "
+  },
+  {
+   "term": "seiza",
+   "listener_picked": "old spelling (-eh)",
+   "asr_heard": "new spelling (-ay)",
+   "notes": "All of them sounded weird but the biggest problem is the pausing when trying to pronounce it."
+  },
+  {
+   "term": "bento",
+   "listener_picked": "no respelling",
+   "asr_heard": "no respelling, old spelling (-eh)",
+   "notes": "Take b sounded natural "
+  },
+  {
+   "term": "ningen",
+   "listener_picked": "none sounded right",
+   "asr_heard": "old spelling (-eh)",
+   "notes": "—"
+  },
+  {
+   "term": "sumire",
+   "listener_picked": "new spelling (-ay)",
+   "asr_heard": "old spelling (-eh), new spelling (-ay)",
+   "notes": "All sounded weird and weird pauses"
+  },
+  {
+   "term": "sensei",
+   "listener_picked": "none sounded right",
+   "asr_heard": "none of the three",
+   "notes": "They all sounded weird and had weird pauses "
+  }
+ ],
+ "summary": {
+  "preferred_no_respelling": 4,
+  "preferred_eh": 1,
+  "preferred_ay": 1,
+  "preferred_none_of_them": 2,
+  "listener_pick_also_heard_by_asr": 2,
+  "on_the_four_terms_that_justified_ay": {
+   "listener_chose_ay": 0,
+   "listener_chose_plain": 3,
+   "listener_chose_eh": 1
+  },
+  "notes_mentioning_pauses": [
+   "seiza",
+   "sumire",
+   "sensei"
+  ],
+  "notes_mentioning_robotic": [
+   "isekai",
+   "otome",
+   "reina"
+  ]
+ },
+ "provenance": {
+  "script": "<stdin>",
+  "written": "2026-08-18T14:08:30",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "8b6b459779d85fc1fa2fc820c9df7cf7a7156d26",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "b4bae89a2b1ff273fd8924d93a3b6c5e8e9f77e47f6b27b51f3e452cebc792a0"
+  },
+  "collected": "2026-08-18",
+  "instrument": "human ear, blinded"
+ }
+}

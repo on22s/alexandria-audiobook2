@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-18 13:38 from `ab_test_runtime/experiments/` — 492 artifacts, 578 arms.
+Generated 2026-08-19 17:29 from `ab_test_runtime/experiments/` — 497 artifacts, 578 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -853,6 +853,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `decontaminate_batch4.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch5.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch6.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `dialogue_attribution.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_length_intervention.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -860,6 +861,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `duration_probe_20260811_rerun.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_probe_same_speaker_20260815.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1037,8 +1039,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_e_row__ay_n800.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__e.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ei.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_earcheck.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_measure.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_rule_b_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `retrain_bad_refs.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1053,6 +1057,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `selection_gap_recheck.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `shipping_readiness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `simd_benchmark.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `source_encoding_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `stack_overlap.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `stage6_instruction_source.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `stage6_scene_aware_casting.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

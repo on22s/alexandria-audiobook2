@@ -991,14 +991,22 @@ class PendingMarkerTest(unittest.TestCase):
         """The whole point: something must be able to say what is queued."""
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1")
-        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "6"],
+        # The holder must outlive the waiter's startup, and startup is not
+        # instant: the gates ahead of the marker shell out to git and rocm-smi,
+        # which took longer than the old 6-second hold when this machine was
+        # running three chains and a generation at once. The test then reported
+        # "the waiting job was not listed" - a real-looking failure of the
+        # feature, caused by the fixture. Same shape as the terminal-marker
+        # test's first version, and the fix is the same: wait for the state
+        # you need instead of assuming a duration.
+        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "45"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         try:
-            deadline = time.time() + 20
+            deadline = time.time() + 60
             names = []
             while time.time() < deadline:
                 if os.path.isdir(self.pending):
@@ -1010,8 +1018,52 @@ class PendingMarkerTest(unittest.TestCase):
             self.assertTrue(any(n.endswith("waiter") for n in names),
                             f"the waiting job was not listed: {names}")
         finally:
-            waiter.wait(timeout=30)
-            holder.wait(timeout=30)
+            holder.terminate()          # release the lock so the waiter ends
+            waiter.wait(timeout=60)
+            holder.wait(timeout=60)
+
+    def _fake_pterm(self, record):
+        """A pterm on PATH that appends a line per notification."""
+        shadow = os.path.join(self.tmp.name, "notifier")
+        os.makedirs(shadow, exist_ok=True)
+        path = os.path.join(shadow, "pterm")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(f'#!/bin/bash\necho "$@" >> {record}\n')
+        os.chmod(path, 0o755)
+        return shadow
+
+    def test_repeated_jobs_do_not_produce_one_alert_each(self):
+        """THE COMPLAINT. This fires per job, and a chain is many jobs.
+
+        The re-gate runs 67 of them, each finishing with nothing queued behind
+        it in that instant, so it produced 67 desktop alerts saying the same
+        thing. One per quiet period is the information; the rest train you to
+        ignore all of them.
+        """
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        for _ in range(3):
+            self._run("probe", "true",
+                      PATH=shadow + os.pathsep + os.environ["PATH"])
+        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        self.assertEqual(1, len(alerts), f"expected one alert, got {alerts}")
+
+    def test_the_cooldown_can_be_shortened_for_a_genuinely_new_event(self):
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        for _ in range(2):
+            self._run("probe", "true", GPU_NOTIFY_COOLDOWN="0",
+                      PATH=shadow + os.pathsep + os.environ["PATH"])
+        alerts = open(record).read().splitlines() if os.path.exists(record) else []
+        self.assertEqual(2, len(alerts))
+
+    def test_notifications_can_be_turned_off_entirely(self):
+        # A courtesy must never be something the user has to tolerate.
+        record = os.path.join(self.tmp.name, "alerts")
+        shadow = self._fake_pterm(record)
+        self._run("probe", "true", GPU_NOTIFY="0",
+                  PATH=shadow + os.pathsep + os.environ["PATH"])
+        self.assertFalse(os.path.exists(record))
 
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.

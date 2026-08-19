@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1606** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1432,7 +1432,33 @@ are `respelling_e_row__e.json`, `respelling_e_row__ei.json` and
 (1,129 of 1,200 terms) and is labelled so in the structural audit — it is
 superseded by the n1600 run and should not be quoted.
 
-**The /e/ row was measured and changed, 2026-08-18.** Paired on identical
+**A LISTENER OVERTURNED THE ROW CHANGE THE SAME DAY, and the metric with it.**
+Eight terms, three takes each, positions rotated, key hidden until each answer
+was saved (`respelling_earcheck.json`). On the four terms that justified the
+change — the ones where ASR heard the whole word in `-ay` and not in `-eh` —
+the listener chose the `-ay` take **0 times**, and chose the *un-respelled*
+take 3 of 4. Across all eight: no respelling 4, `-eh` 1, `-ay` 1, "none
+sounded right" 2. The listener's choice matched the recogniser's in **2 of 8**.
+`respell()` is back to `-eh`; `-ay` is not disproven, it is unsupported by the
+only instrument that measures what this goal claims.
+
+**Six of the eight notes named the same thing unprompted — pauses.** "Weird
+pauses", "sounded robotic", "the biggest problem is the pausing". That is a
+mechanism, and it measures: over 400 terms, respelled clips pause internally
+where plain ones do not — **341 of 384 discordant terms, sign test p=1.1e-58**
+(`respelling_pauses.json`) — and the two vowel rows are indistinguishable
+(p=0.10). So the pause belongs to the *form* of a respelling, not its vowels.
+
+**Why that would fool the metric.** `recovers_word` asks whether the reading
+appears unbroken and in order in the transcript. A voice that says the pieces
+cleanly, with gaps between them, satisfies that exactly — while a listener
+hears a chopped non-word. The metric and the ear then diverge systematically,
+which is what happened. **The hyphen is the suspect** (`seh-n-seh-ee`), and
+`--separator none|space|dot` arms are queued to test it, with a second
+listening test to follow. Until that lands, no respelling figure in this goal
+should be read as a claim about how anything sounds.
+
+**The /e/ row was measured and changed, 2026-08-18 — and reverted.** Paired on identical
 terms against the shipped `-eh`, with the plain (no respelling) arm as an
 explicit noise floor:
 

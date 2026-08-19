@@ -86,6 +86,26 @@ notify_if_idle() {
     waiting=$(ls "$PENDING_DIR" 2>/dev/null | wc -l)
     [ "${waiting:-0}" -gt 0 ] && return 0
     command -v pterm >/dev/null 2>&1 || return 0
+
+    # OFF SWITCH FIRST. GPU_NOTIFY=0 silences this entirely; a notification is
+    # a courtesy and must never be something the user has to tolerate.
+    [ "${GPU_NOTIFY:-1}" = "0" ] && return 0
+
+    # AND A COOLDOWN, because "the queue just drained" is one event and this
+    # function fires per JOB. The re-gate chain runs 67 jobs, each finishing
+    # with nothing queued behind it in that instant, so it produced 67 desktop
+    # alerts saying the same thing. One notification per quiet period is the
+    # information; the other 66 are noise that trains you to ignore all of them.
+    # NOT in PENDING_DIR: everything there is a claim that a job is waiting,
+    # and a stamp file sitting among them reads as exactly the stale marker
+    # `gpu_pause.sh status` exists to report.
+    local stamp_file
+    stamp_file="$(dirname "$QLOG")/.gpu_last_notify"
+    local now last
+    now=$(date +%s)
+    last=$(cat "$stamp_file" 2>/dev/null || echo 0)
+    [ $((now - last)) -lt "${GPU_NOTIFY_COOLDOWN:-900}" ] && return 0
+    echo "$now" > "$stamp_file" 2>/dev/null
     pterm push "GPU idle: $NAME $outcome, nothing queued" >/dev/null 2>&1 || true
 }
 

@@ -104,7 +104,27 @@ E_SPELLINGS = {"eh": "eh", "e": "e", "ay": "ay", "ei": "ei"}
 #
 # -eh remains selectable so the comparison stays reproducible; changing the
 # default without keeping the old row would make the evidence unreplayable.
-DEFAULT_E_SPELLING = "ay"
+# REVERTED TO -eh ON THE SAME DAY, BY EAR. The 2026-08-18 blinded listening
+# test (respelling_earcheck.json) put the three arms in front of a listener on
+# eight terms with the key hidden. On the FOUR terms that justified this change
+# - the ones where ASR heard the whole word in -ay and not in -eh - the
+# listener chose the -ay take 0 times, and chose the un-respelled take 3 times.
+# Across all eight: no respelling 4, -eh 1, -ay 1, "none sounded right" 2. The
+# listener's choice matched the recogniser's in 2 of 8.
+#
+# So `recovers_word` and "sounds like the word" are not the same quantity, and
+# the 2.5e-11 was measuring the first while the change was sold on the second.
+# Six of eight notes describe pauses or robotic delivery, which is a mechanism
+# worth chasing: a hyphenated respelling may be making the voice break the word
+# into pieces the ASR then transcribes correctly and a human hears as chopped.
+#
+# -ay stays selectable. It is not disproven - it is unsupported by the only
+# instrument that measures what the goal actually claims.
+DEFAULT_E_SPELLING = "eh"
+
+# How the morae are joined. "-" is what every stored artifact used.
+SEPARATORS = {"hyphen": "-", "none": "", "space": " ", "dot": "\u00b7"}
+SEPARATOR = SEPARATORS["hyphen"]
 
 
 def e_row(spelling):
@@ -159,7 +179,17 @@ def respell(kana, table=None):
             return None
         parts.append(table[char])
         index += 1
-    return "-".join(parts) if len(parts) >= 2 else None
+    # THE SEPARATOR IS NOW A VARIABLE, because it is the leading suspect for
+    # the thing that made a listener reject these clips. Respelled words pause
+    # internally where plain ones do not - 341 of 384 terms, sign test
+    # p=1.1e-58 (respelling_pauses.json) - and both vowel rows do it equally
+    # (p=0.10), so the pause comes from the FORM of a respelling rather than
+    # from which vowel it uses. A hyphen is the obvious candidate: the voice
+    # may be reading it as a break.
+    #
+    # Kept as the default so every stored measurement stays comparable; the
+    # alternatives exist to be measured against it, not to replace it quietly.
+    return SEPARATOR.join(parts) if len(parts) >= 2 else None
 
 
 
@@ -310,6 +340,10 @@ def main():
     ap.add_argument("--min-books", type=int, default=20)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--rule", choices=("a", "b"), default="a")
+    ap.add_argument("--separator", choices=tuple(SEPARATORS), default="hyphen",
+                    help="how to join the morae; the hyphen is the form every "
+                         "stored measurement used, and the suspect for the "
+                         "pauses a listener rejected")
     ap.add_argument("--e-spelling", choices=tuple(E_SPELLINGS),
                     default=DEFAULT_E_SPELLING,
                     help="what the -eh row's vowel becomes. Measured, not "
@@ -334,6 +368,11 @@ def main():
 
     with open(args.candidates, encoding="utf-8") as handle:
         candidates = json.load(handle)["candidates"]
+    # Module-level, because respell() is called from several places and
+    # threading a separator argument through all of them would leave one of
+    # them on the old default - the drift this repo keeps paying for.
+    global SEPARATOR
+    SEPARATOR = SEPARATORS[args.separator]
     table = e_row(args.e_spelling)
     terms = [c for c in candidates
              if c.get("verdict") == args.verdict and c["books"] >= args.min_books]
@@ -445,6 +484,7 @@ def main():
 def _write(path, results, terms, prov=None):
     document = {"carrier": CARRIER,
                 "e_spelling": getattr(_ARGS, "e_spelling", "eh"),
+                "separator": getattr(_ARGS, "separator", "hyphen"),
                 "note": "scored on READINGS, not characters: `recovers_word` is "
                         "the whole word present unbroken, which is the headline. "
                         "`scattered` is the retired per-character score, kept "

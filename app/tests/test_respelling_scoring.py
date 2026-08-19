@@ -197,17 +197,36 @@ class DefaultRowTest(unittest.TestCase):
     and the effect was stable at 391, 780 and 1,419 as it grew.
     """
 
-    def test_the_default_row_is_the_one_that_won(self):
-        self.assertEqual("ay", measure.DEFAULT_E_SPELLING)
-        self.assertEqual("say-n-say-ee", measure.respell("センセイ"))
+    def test_the_default_row_is_the_one_the_ear_did_not_reject(self):
+        """-ay won on ASR and lost on a listener, so the default went back.
 
-    def test_the_losing_rows_are_still_selectable(self):
-        """Changing the default without keeping -eh would make the evidence
-        that justified the change unreplayable."""
-        self.assertEqual("seh-n-seh-ee",
-                         measure.respell("センセイ", measure.e_row("eh")))
+        On the four terms that justified -ay - ASR heard the whole word there
+        and not in -eh - the listener chose the -ay take 0 times and the
+        un-respelled take 3 of 4 (respelling_earcheck.json). A metric that
+        disagrees with the ear on the cases it was chosen for is not measuring
+        the goal's claim.
+        """
+        self.assertEqual("eh", measure.DEFAULT_E_SPELLING)
+        self.assertEqual("seh-n-seh-ee", measure.respell("センセイ"))
+
+    def test_every_row_stays_selectable(self):
+        """-ay is not disproven, only unsupported by the instrument that
+        matters, and the arms must stay reproducible either way."""
+        self.assertEqual("say-n-say-ee",
+                         measure.respell("センセイ", measure.e_row("ay")))
         self.assertEqual("se-n-se-ee",
                          measure.respell("センセイ", measure.e_row("e")))
+
+    def test_the_separator_is_selectable_because_it_is_now_a_suspect(self):
+        # Respelled clips pause where plain ones do not (p=1.1e-58) and the
+        # vowel rows do it equally, so the hyphen is what is on trial.
+        original = measure.SEPARATOR
+        try:
+            measure.SEPARATOR = measure.SEPARATORS["none"]
+            self.assertEqual("sehnsehee", measure.respell("センセイ"))
+        finally:
+            measure.SEPARATOR = original
+        self.assertEqual("seh-n-seh-ee", measure.respell("センセイ"))
 
     def test_rows_other_than_e_are_untouched_by_the_change(self):
         # The comparison isolated ONE row; anything else moving would mean the
