@@ -42,6 +42,7 @@ FAMILY_LIMITS = {
     "reasoning_arms": "Reasoning/justification settings are model- and serving-stack-specific.",
     "reasoning_check": "Justification disagreement is a routing signal, not calibrated confidence.",
     "reexamine": "Selected previously negative results; selection prevents broad inference.",
+    "two_stage_attribution": "Three English PDNC books (Pride and Prejudice, The Awakening, The Sign of the Four), 2,494 quotes, one request per quote with the cast supplied, qwen3-14b, 2026-08-19: 54.5% against the one-pass baseline of 83.6% on these SAME books. The arm is 29 points WORSE, so this is evidence against this design, not for it - and it is one form (cast-supplied, single request) of one model, not two-stage attribution in general. The internal split is the interesting part and is also the reason not to read the headline alone: Explicit quotes, where the text names the speaker, score 52.9% - LOWER than Anaphoric at 61.7%. A method that misses half the cases the text answers outright is not a weaker method, it is a broken one, and the number to quote is that contrast rather than the 54.5%.",
     "roster_quality": "Gold-roster arms are upper bounds and not deployable inputs.",
     "roster_warmup": "Book-quartile diagnostic; oracle roster is not deployable.",
     "scene_cast": "Scene-cast extraction and attribution effects cannot be conflated.",

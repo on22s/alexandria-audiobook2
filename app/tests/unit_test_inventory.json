@@ -831,6 +831,8 @@
     "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
     "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
     "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable",
+    "tests.test_gpu_job.LockInheritanceTest.test_a_surviving_child_does_not_keep_the_lock_held",
+    "tests.test_gpu_job.LockInheritanceTest.test_the_child_does_not_inherit_the_lock_descriptor",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_killed_job_takes_its_descendants_with_it",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_paused_queue_holds_the_job_before_the_lock",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_exit_codes_survive_the_process_group_wrapper",

@@ -16,6 +16,7 @@ machine runs the suite.
 Each test drives the real script in a temporary directory with its own lock and
 queue log, so nothing here touches the actual GPU lock.
 """
+import fcntl
 import os
 import shutil
 import shlex
@@ -602,6 +603,82 @@ class DirtyTreeGateTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class LockInheritanceTest(unittest.TestCase):
+    """An orphaned child must not be able to hold the GPU lock.
+
+    A flock survives as long as ANY descriptor to the file is open, and
+    `exec 9>"$LOCK"` places that descriptor in every child. On 2026-08-19 a
+    stage was stopped, its wrapper died, and one orphaned timeout+python
+    survived holding FD 9: the lock read as HELD with no gpu_job.sh alive to
+    own it, and two queued jobs waited on it with nothing to name as the
+    holder.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.lock = os.path.join(self.tmp.name, "gpu.lock")
+        self.qlog = os.path.join(self.tmp.name, "q.log")
+
+    def _lock_is_held(self):
+        handle = open(self.lock, "a")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+            return False
+        except BlockingIOError:
+            return True
+        finally:
+            handle.close()
+
+    def test_the_child_does_not_inherit_the_lock_descriptor(self):
+        """The direct check: ask the child itself what it is holding."""
+        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
+                   REQUIRE_VRAM_GB="0", ALLOW_DIRTY_TREE="1", GPU_NOTIFY="0")
+        result = subprocess.run(
+            ["bash", GPU_JOB, "fdcheck", "bash", "-c",
+             'ls -l /proc/$$/fd 2>/dev/null | grep -c gpu.lock || true'],
+            capture_output=True, text=True, timeout=180, env=env)
+        held = [l for l in result.stdout.splitlines() if l.strip().isdigit()]
+        self.assertTrue(held, "child produced no count: %r" % result.stdout)
+        self.assertEqual("0", held[-1].strip(),
+                         "the child still has the lock file open; if it "
+                         "outlives its parent the queue deadlocks")
+
+    def test_a_surviving_child_does_not_keep_the_lock_held(self):
+        """The behaviour that actually bit: kill the wrapper, leave the child."""
+        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
+                   REQUIRE_VRAM_GB="0", ALLOW_DIRTY_TREE="1", GPU_NOTIFY="0")
+        marker = os.path.join(self.tmp.name, "child_pid")
+        job = subprocess.Popen(
+            ["bash", GPU_JOB, "orphan", "bash", "-c",
+             "echo $$ > %s; sleep 60" % marker],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(job.kill)
+        deadline = time.time() + 60
+        while time.time() < deadline and not os.path.exists(marker):
+            time.sleep(0.1)
+        if not os.path.exists(marker):
+            self.skipTest("job never started its child")
+        with open(marker) as handle:
+            child = int(handle.read().strip())
+        self.addCleanup(lambda: os.kill(child, 9)
+                        if os.path.exists("/proc/%d" % child) else None)
+
+        self.assertTrue(self._lock_is_held(), "parent should hold it")
+        job.kill()                      # the wrapper dies; the child lives on
+        job.wait(timeout=30)
+        deadline = time.time() + 30
+        while time.time() < deadline and self._lock_is_held():
+            time.sleep(0.25)
+        self.assertTrue(os.path.exists("/proc/%d" % child),
+                        "the child died too - this test proves nothing unless "
+                        "it outlives the wrapper")
+        self.assertFalse(self._lock_is_held(),
+                         "an orphaned child is still holding the GPU lock")
+
+
 class LlmPreflightGateTest(unittest.TestCase):
     """The lock cannot tell you there was no engine.
 

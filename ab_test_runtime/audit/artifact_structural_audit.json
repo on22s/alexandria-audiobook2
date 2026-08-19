@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 197,
     "exploratory": 191,
-    "provisional": 119
+    "provisional": 121
   },
   "artifacts": [
     {
@@ -2605,16 +2605,16 @@
     },
     {
       "artifact": "dialogue_attribution.json",
-      "bytes": 2254,
-      "sha256": "f728e2cd3e6d9b2d68d499851c646346e2403360518dfe36b93e7e1134db14d1",
+      "bytes": 2018,
+      "sha256": "067762462a9f3ac9353792733e4282cecaebd6856dec1bb30598bf9b5ed8d26c",
       "completeness": "complete",
       "seed": null,
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-19T06:10:57",
-      "commit": "fb61d252bb9bdbe15eab4ad3c60fb1494958d3f4",
-      "dirty": true,
+      "written": "2026-08-19T08:19:29",
+      "commit": "bbf61818c80f4d5660ed42c068b07a47d64b6cdc",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
@@ -6000,15 +6000,15 @@
     },
     {
       "artifact": "respelling_pauses_separators.json",
-      "bytes": 818,
-      "sha256": "c1ac735630f7c5fa37d88e2ef3d271a90911dde0a45fa285f8819591d32e0dcf",
+      "bytes": 717,
+      "sha256": "0a60c7ca26c290d2093c557522db96c678df176152eefb70166ce23b9bf175db",
       "completeness": "complete",
       "seed": null,
       "status": "complete",
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-19T06:10:58",
-      "commit": "2a93d1781fb58cc7de599cb902d6dfdd3c6ea572",
+      "written": "2026-08-19T10:00:20",
+      "commit": "b0b82863ff61723081afad2b1119bbd8b742b68f",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -6909,6 +6909,36 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "two_stage_attribution__smoke.json",
+      "bytes": 177455,
+      "sha256": "cc25a8589635d05e1a880de581caae28126c537b599110eeca1dfa11ab58abe8",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "70670ef62b07017c9ec8767897dc7169b1ed86b0",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution_full.json",
+      "bytes": 5298968,
+      "sha256": "9ba1a5e44cfef8a495d7614b65b512752f4906efa3fd9efc99379dc78c9cf010",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "70670ef62b07017c9ec8767897dc7169b1ed86b0",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "two_stage_diagnostic.json",

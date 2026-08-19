@@ -562,7 +562,16 @@ if command -v ionice >/dev/null 2>&1; then
 fi
 
 set +m
-"${launcher[@]}" "$@" &
+# 9>&- CLOSES THE LOCK IN THE CHILD, and without it the queue can deadlock
+# behind a process nobody is tracking. A flock lives as long as ANY open
+# descriptor to the file, and `exec 9>"$LOCK"` above puts that descriptor into
+# every child this script starts. On 2026-08-19 a stage was stopped, its
+# wrapper died, and one orphaned `timeout`+python survived with FD 9 still
+# open: the lock stayed HELD with no gpu_job.sh alive to own it, two queued
+# jobs waited on it indefinitely, and `gpu_pause.sh status` had nothing to
+# name as the holder. The child never needs the lock - its parent holds it for
+# exactly as long as the child runs - so it should never have had it.
+"${launcher[@]}" "$@" 9>&- &
 JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?
