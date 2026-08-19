@@ -52,12 +52,25 @@ class DefaultModelTest(unittest.TestCase):
 
     def test_a_missing_model_file_is_refused_rather_than_served(self):
         """A default pointing at nothing would fail later, somewhere less
-        obvious than the line that chose it."""
+        obvious than the line that chose it.
+
+        Needs a real llama-server binary present: the script checks the binary
+        BEFORE the model, quite correctly, so on a machine without one it
+        exits 2 saying "no binary at ..." and never reaches the model check.
+        That is the script behaving properly, not the behaviour under test, so
+        the precondition is stated rather than asserted around. CI has no
+        binary and this skips there.
+        """
+        import shutil as _shutil
+        binary = os.environ.get("LLAMA_BIN") or _shutil.which("llama-server")
+        if not (binary and os.access(binary, os.X_OK)):
+            self.skipTest("no llama-server binary; the model check is "
+                          "unreachable on this machine")
         with tempfile.TemporaryDirectory() as tmp:
             absent = os.path.join(tmp, "not-here.gguf")
             result = subprocess.run(
                 ["bash", SCRIPT], capture_output=True, text=True, timeout=120,
-                env=self._env(LLAMA_MODEL=absent))
+                env=self._env(LLAMA_MODEL=absent, LLAMA_BIN=binary))
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("no model file at", result.stderr)
 
