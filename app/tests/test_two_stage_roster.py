@@ -1,94 +1,133 @@
-"""The cast shown to the model must be able to express the right answer.
+"""The two-stage arm must measure the method, not the harness.
 
-The two-stage arm scored 35-50% against a published 90.6%, and part of that was
-the harness: the roster was built from the fixture's ALIAS groups, which cover
-19 characters in Pride and Prejudice while its roster covers 74. Eight speakers
-the gold expects appeared in no alias group at all - MR. BENNET, KITTY, MARY,
-MR. HURST among them - together 167 of 1,270 lines. The model was handed a cast
-that could not name the speaker for 13% of the book, and then scored wrong for
-failing to.
+This experiment produced four wrong results before a review, and the review
+found five more ways it could produce a plausible number that was not a
+measurement. Each test below pins one of them.
 """
 import glob
 import json
 import os
 import unittest
 
-from experiments.two_stage_attribution import roster_lines
+from experiments.two_stage_attribution import (clean_answer, is_decline,
+                                               roster_lines, summarise)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FIXTURES = sorted(glob.glob(os.path.join(
     REPO, "app", "fixtures", "attribution_gold_pdnc_*.json")))
 
 
-class RosterCoverageTest(unittest.TestCase):
+def _load(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+class RosterTest(unittest.TestCase):
     @staticmethod
     def _names(lines):
-        return {line.split(" (also")[0] for line in lines}
+        return {line.split(" [also")[0] for line in lines}
 
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
     def test_every_expected_speaker_can_be_named(self):
-        """THE DEFECT: a question the model cannot answer correctly."""
         for path in FIXTURES:
             with self.subTest(book=os.path.basename(path)):
-                with open(path, encoding="utf-8") as fh:
-                    fixture = json.load(fh)
+                fixture = _load(path)
                 shown = self._names(roster_lines(fixture))
                 expected = {e["expected_speaker"] for e in fixture["entries"]}
                 self.assertEqual(set(), expected - shown)
 
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
-    def test_aliases_are_shown_next_to_the_name(self):
-        # Which spellings count as the same person is not obvious - this
-        # corpus treats the bare surname BENNET as MRS. Bennet - and the
-        # published formulation calls the alias list essential.
-        with open(FIXTURES[0], encoding="utf-8") as fh:
-            fixture = json.load(fh)
-        lines = roster_lines(fixture)
-        self.assertTrue(any("also called:" in line for line in lines))
+    def test_aliases_attach_to_the_name_the_gold_uses(self):
+        """PDNC alias groups are alphabetical, so group[0] is not canonical.
+
+        Taking it decorated ELIZA and left ELIZABETH - 401 gold lines - bare.
+        """
+        fixture = _load(FIXTURES[0])
+        lines = {l.split(" [also")[0]: l for l in roster_lines(fixture)}
+        speakers = [e["expected_speaker"] for e in fixture["entries"]]
+        busiest = max(set(speakers), key=speakers.count)
+        group = next((g for g in fixture.get("aliases") or []
+                      if busiest in g), None)
+        if group and len(group) > 1:
+            self.assertIn("also:", lines[busiest])
 
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
-    def test_no_character_is_listed_twice(self):
+    def test_the_cast_is_not_inflated_with_duplicates(self):
+        """84 lines for a 74-name book meant ten characters listed twice."""
         for path in FIXTURES:
             with self.subTest(book=os.path.basename(path)):
-                with open(path, encoding="utf-8") as fh:
-                    lines = roster_lines(json.load(fh))
-                names = [line.split(" (also")[0] for line in lines]
-                self.assertEqual(len(names), len(set(names)))
+                fixture = _load(path)
+                lines = roster_lines(fixture)
+                self.assertEqual(len(lines), len(self._names(lines)))
+                roster = fixture.get("roster")
+                if roster:
+                    self.assertLessEqual(len(lines), len(roster) + 1)
 
-    def test_a_fixture_with_only_aliases_still_produces_a_cast(self):
-        # Older fixtures carry no roster field; falling back to the alias
-        # canonicals is right there, and only there.
-        lines = roster_lines({"aliases": [["ELIZABETH", "LIZZY"], ["JANE"]]})
-        self.assertEqual({"ELIZABETH", "JANE"}, self._names(lines))
+    @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
+    def test_no_decorated_name_is_a_character_who_never_speaks(self):
+        fixture = _load(FIXTURES[0])
+        speakers = {e["expected_speaker"] for e in fixture["entries"]}
+        phantom = [l for l in roster_lines(fixture)
+                   if "also:" in l and l.split(" [also")[0] not in speakers]
+        self.assertEqual([], phantom)
 
 
-class FailedRequestScoringTest(unittest.TestCase):
-    """A request that failed is not a model that was wrong.
+class AnswerShapeTest(unittest.TestCase):
+    """Replies arrive decorated; an exact comparison scored them all wrong."""
 
-    A run made with no llama-server produced "ERROR: APIConnectionError" for
-    every quote and was scored 0% on three books - a number that reads as a
-    verdict on the method and is a verdict on a missing server.
-    """
+    def test_markdown_quotes_and_punctuation_are_stripped(self):
+        for reply in ("**ELIZABETH**", '"ELIZABETH"', "ELIZABETH.",
+                      "`ELIZABETH`", "  ELIZABETH  "):
+            self.assertEqual("ELIZABETH", clean_answer(reply), reply)
 
-    ENTRIES = [{"expected_speaker": "A", "quote_type": "Explicit"}] * 4
+    def test_an_echoed_cast_line_resolves_to_the_name(self):
+        # The prompt shows "NAME [also: ...]"; a model that echoes the line is
+        # obeying, and used to be scored wrong for it.
+        self.assertEqual("ELIZABETH",
+                         clean_answer("ELIZABETH [also: ELIZA, LIZZY]"))
 
-    def test_failed_requests_are_excluded_from_accuracy(self):
-        from experiments.two_stage_attribution import score
-        out = score(self.ENTRIES, ["ERROR: X"] * 4, [])
-        self.assertIsNone(out["accuracy"])
-        self.assertEqual(4, out["failed_requests"])
-        self.assertEqual(0, out["scored"])
+    def test_a_decline_is_recognised_however_it_is_decorated(self):
+        for reply in ("UNKNOWN", "**UNKNOWN**", '"UNKNOWN"',
+                      "UNKNOWN - I cannot tell"):
+            self.assertTrue(is_decline(clean_answer(reply)), reply)
 
-    def test_accuracy_is_over_what_was_actually_answered(self):
-        from experiments.two_stage_attribution import score
-        out = score(self.ENTRIES, ["A", "A", "ERROR: X", "ERROR: X"], [])
-        self.assertEqual(1.0, out["accuracy"])
-        self.assertEqual(2, out["scored"])
+    def test_a_name_is_not_mistaken_for_a_decline(self):
+        self.assertFalse(is_decline(clean_answer("MR. UNKNOWNSON")))
 
-    def test_a_failure_is_not_counted_as_a_declined_answer_either(self):
-        # UNKNOWN means the model looked and could not tell; an error means it
-        # never saw the question. Merging them would make a broken run look
-        # like a cautious one.
-        from experiments.two_stage_attribution import score
-        out = score(self.ENTRIES, ["ERROR: X"] * 4, [])
-        self.assertEqual(0, out["declined_unknown"])
+
+class SummaryTest(unittest.TestCase):
+    """Failures, declines and wrong answers are three different things."""
+
+    def _rows(self, predicted, correct=False, kind="Explicit"):
+        return [{"predicted": p, "correct": c,
+                 "candidate_provenance": f"single|book|{kind}"}
+                for p, c in zip(predicted, correct or [False] * len(predicted))]
+
+    def test_failed_requests_have_no_accuracy(self):
+        out = summarise(self._rows([None, None]))
+        self.assertEqual(2, out["failed_requests"])
+        self.assertIsNone(out["accuracy_when_answered"])
+
+    def test_accuracy_is_over_what_was_answered(self):
+        out = summarise(self._rows(["A", "B", None], [True, False, False]))
+        self.assertEqual(1, out["failed_requests"])
+        self.assertEqual(0.5, out["accuracy_when_answered"])
+
+    def test_a_decline_is_not_a_wrong_answer(self):
+        out = summarise(self._rows(["A", "UNKNOWN"], [True, False]))
+        self.assertEqual(1, out["declined"])
+        self.assertEqual(1.0, out["accuracy_when_answered"])
+        # Charged as a miss only in the figure that says it does.
+        self.assertEqual(0.5, out["accuracy_counting_declines"])
+
+    def test_every_quote_type_bucket_carries_every_category(self):
+        """Per-type rates were uncomputable: no 'wrong', and failures folded
+        into n."""
+        out = summarise(self._rows(["A", "UNKNOWN", None, "B"],
+                                   [True, False, False, False]))
+        bucket = out["by_quote_type"]["Explicit"]
+        self.assertEqual({"n", "correct", "declined", "failed", "wrong"},
+                         set(bucket))
+        self.assertEqual(4, bucket["n"])
+        self.assertEqual(1, bucket["wrong"])
+        self.assertEqual(1, bucket["failed"])

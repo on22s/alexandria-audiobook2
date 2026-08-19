@@ -37,7 +37,37 @@
 # belong to the job.
 set -uo pipefail
 
-LOCK="${GPU_LOCK:-$HOME/.gpu.lock}"
+# ONE LOCK, and it is the one the chains use. This defaulted to
+# $HOME/.gpu.lock while 21 chain lines export
+# ab_test_runtime/logs/alexandria_gpu.lock and 15 more export
+# $HOME/.alexandria_gpu.lock - three files, none of which serialise against
+# each other. Measured 2026-08-19 with a chain job running: the repo lock was
+# HELD and both home-directory locks were FREE, so a hand-run ./gpu_job.sh
+# would have taken a different lock, found it free, and run a second job on
+# the card the queue exists to protect.
+if [ -n "${GPU_LOCK:-}" ]; then
+    # OPERATOR-SUPPLIED: take it exactly as given. Creating the directory for
+    # it would turn a mistyped path into a brand-new lock that is always free -
+    # the same failure as the three-lock split above, one caller at a time.
+    LOCK="$GPU_LOCK"
+else
+    # ABSOLUTE. `dirname "$0"` is relative whenever the script is invoked as
+    # ./gpu_job.sh, and a relative lock path is a DIFFERENT FILE for a caller
+    # with a different working directory - the split this block exists to end.
+    LOCK="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/alexandria_gpu.lock"
+    mkdir -p "$(dirname "$LOCK")" 2>/dev/null   # fresh clone has no logs/ yet
+fi
+# ASK, DO NOT PARSE. app/experiments/gpu_guard.py used to recover this path by
+# regexing the assignment above, which meant reformatting one shell line
+# silently changed which file Python thought was the lock - and its fallback
+# was a plausible-looking path rather than an error, so the break would not
+# have announced itself. This makes gpu_job.sh the single source of the answer
+# (Rule 15) and a wrong answer impossible to get quietly.
+if [ "${1:-}" = "--print-lock" ]; then
+    echo "$LOCK"
+    exit 0
+fi
+
 QLOG="${GPU_QLOG:-$HOME/gpu_jobq.log}"
 
 NAME="${1:-}"
@@ -459,6 +489,10 @@ STARTED=1
 # idempotent: the outermost gpu_job.sh holds the lock, and every chain inside
 # it runs directly.
 export ALEXANDRIA_GPU_LOCK_HELD=1
+# Paired with the pid that holds the lock, so a shell that inherits the
+# sentinel from a chain cannot keep claiming to be a queued job after that job
+# has ended (see app/experiments/gpu_guard.py).
+export ALEXANDRIA_GPU_LOCK_PID=$$
 
 # JOB CONTROL OFF, EXPLICITLY. `setsid` only calls setsid(2) directly when it
 # is NOT already a process group leader; if it is, it forks first. With job

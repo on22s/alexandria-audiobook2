@@ -42,7 +42,8 @@ run_stage source_encoding_audit 10m -- \
 run_stage two_stage_attribution 4h -- \
     env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
     "$REPO/gpu_job.sh" two_stage_attribution \
-    "$python" -u "$REPO/app/experiments/two_stage_attribution.py" --limit 200
+    "$python" -u "$REPO/app/experiments/two_stage_attribution.py" --limit 200 \
+    --tag queued200
 
 # ------------------------------------------- 3. mushoku18 with its narrator
 # The narrator prior is wired into generation and unmeasured there. This book
