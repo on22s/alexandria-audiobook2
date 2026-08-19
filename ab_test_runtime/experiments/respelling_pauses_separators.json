@@ -6,21 +6,15 @@
  "summary": {},
  "provenance": {
   "script": "measure_pauses.py",
-  "written": "2026-08-19T06:10:58",
+  "written": "2026-08-19T09:57:50",
   "host": "mitch-linux",
   "git": {
-   "commit": "2a93d1781fb58cc7de599cb902d6dfdd3c6ea572",
+   "commit": "d7b326a247e67af4fdea4ec817d2783cb464c143",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M RESULTS_INDEX.md",
-    " M ab_test_runtime/audit/artifact_structural_audit.json",
-    " M ab_test_runtime/audit/goal_evidence_audit.json",
-    " M ab_test_runtime/audit/legacy_attribution_audit.json",
-    " M results_index.csv"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
+   "harness_sha256": "89756994d81ee0f7b93ad89c35427437dc3c4b9a75fb8f6c655939c77e975355"
   }
  }
 }
