@@ -133,13 +133,22 @@ def score(entries, answers, groups):
     exact-name comparison scores it wrong and the number looks like a finding.
     A result that cannot be diagnosed is not a result.
     """
-    correct = unknown = wrong = 0
+    correct = unknown = wrong = failed = 0
     by_type = {}
     misses = []
     for entry, answer in zip(entries, answers):
         kind = entry.get("quote_type") or "unknown"
         bucket = by_type.setdefault(kind, {"n": 0, "correct": 0, "unknown": 0})
         bucket["n"] += 1
+        # A REQUEST THAT FAILED IS NOT A MODEL THAT WAS WRONG. The comment on
+        # the call site said so and the scorer did the opposite: a run made
+        # with no llama-server produced "ERROR: APIConnectionError" for every
+        # quote and was scored as 0% accuracy - a number that looks like a
+        # verdict on the method and is a verdict on a missing server.
+        if answer.startswith("ERROR:"):
+            failed += 1
+            bucket["failed"] = bucket.get("failed", 0) + 1
+            continue
         if answer.startswith("UNKNOWN"):
             unknown += 1
             bucket["unknown"] += 1
@@ -155,8 +164,13 @@ def score(entries, answers, groups):
     answered = correct + wrong
     return {
         "n": len(entries), "correct": correct, "wrong": wrong,
+        # Reported, and excluded from every rate below. A run whose requests
+        # failed has no accuracy, and printing one invites it to be quoted.
+        "failed_requests": failed,
+        "scored": len(entries) - failed,
         "declined_unknown": unknown,
-        "accuracy": round(correct / max(len(entries), 1), 4),
+        "accuracy": (round(correct / (len(entries) - failed), 4)
+                     if len(entries) - failed else None),
         # Accuracy over the quotes it was willing to answer. Both numbers or
         # neither: one without the other lets a model look good by declining.
         "accuracy_when_answered": round(correct / answered, 4) if answered else None,
@@ -182,7 +196,19 @@ def main():
         REPO, "ab_test_runtime", "experiments", "two_stage_attribution.json"))
     args = ap.parse_args()
 
-    client = build_client(args.base_url)
+    # REFUSE WITHOUT A SERVER, rather than recording an error per quote. The
+    # queue has REQUIRE_LLM=1 for this and I queued a run without it: every
+    # request failed, and the artifact reported 0% accuracy on three books.
+    # A script should own its own dependency instead of relying on the caller
+    # to remember a flag.
+    try:
+        client = build_client(args.base_url)
+        client.models.list()
+    except Exception as exc:                              # noqa: BLE001
+        raise SystemExit(
+            f"no LLM at {args.base_url} ({type(exc).__name__}). Start one with "
+            f"./ensure_llama_server.sh, or queue this with REQUIRE_LLM=1 so "
+            f"the gate refuses it before any GPU time is spent.")
     results = []
     for path in args.fixtures:
         with open(path, encoding="utf-8") as handle:

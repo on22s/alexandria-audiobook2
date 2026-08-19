@@ -60,3 +60,35 @@ class RosterCoverageTest(unittest.TestCase):
         # canonicals is right there, and only there.
         lines = roster_lines({"aliases": [["ELIZABETH", "LIZZY"], ["JANE"]]})
         self.assertEqual({"ELIZABETH", "JANE"}, self._names(lines))
+
+
+class FailedRequestScoringTest(unittest.TestCase):
+    """A request that failed is not a model that was wrong.
+
+    A run made with no llama-server produced "ERROR: APIConnectionError" for
+    every quote and was scored 0% on three books - a number that reads as a
+    verdict on the method and is a verdict on a missing server.
+    """
+
+    ENTRIES = [{"expected_speaker": "A", "quote_type": "Explicit"}] * 4
+
+    def test_failed_requests_are_excluded_from_accuracy(self):
+        from experiments.two_stage_attribution import score
+        out = score(self.ENTRIES, ["ERROR: X"] * 4, [])
+        self.assertIsNone(out["accuracy"])
+        self.assertEqual(4, out["failed_requests"])
+        self.assertEqual(0, out["scored"])
+
+    def test_accuracy_is_over_what_was_actually_answered(self):
+        from experiments.two_stage_attribution import score
+        out = score(self.ENTRIES, ["A", "A", "ERROR: X", "ERROR: X"], [])
+        self.assertEqual(1.0, out["accuracy"])
+        self.assertEqual(2, out["scored"])
+
+    def test_a_failure_is_not_counted_as_a_declined_answer_either(self):
+        # UNKNOWN means the model looked and could not tell; an error means it
+        # never saw the question. Merging them would make a broken run look
+        # like a cautious one.
+        from experiments.two_stage_attribution import score
+        out = score(self.ENTRIES, ["ERROR: X"] * 4, [])
+        self.assertEqual(0, out["declined_unknown"])

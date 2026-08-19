@@ -1981,6 +1981,15 @@
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_sweep_uses_peak_across_all_sub_batches"
   ],
+  "test_two_stage_roster": [
+    "tests.test_two_stage_roster.FailedRequestScoringTest.test_a_failure_is_not_counted_as_a_declined_answer_either",
+    "tests.test_two_stage_roster.FailedRequestScoringTest.test_accuracy_is_over_what_was_actually_answered",
+    "tests.test_two_stage_roster.FailedRequestScoringTest.test_failed_requests_are_excluded_from_accuracy",
+    "tests.test_two_stage_roster.RosterCoverageTest.test_a_fixture_with_only_aliases_still_produces_a_cast",
+    "tests.test_two_stage_roster.RosterCoverageTest.test_aliases_are_shown_next_to_the_name",
+    "tests.test_two_stage_roster.RosterCoverageTest.test_every_expected_speaker_can_be_named",
+    "tests.test_two_stage_roster.RosterCoverageTest.test_no_character_is_listed_twice"
+  ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_lowercase_phrase_is_not_a_name_however_it_is_hyphenated",
