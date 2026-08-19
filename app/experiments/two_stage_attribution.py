@@ -73,7 +73,44 @@ def build_client(base_url, api_key="local"):
                   timeout=llm_timeout_seconds())
 
 
+def roster_lines(fixture):
+    """-> one line per character: the name it must answer with, and its aliases.
+
+    `MRS. BENNET (also called: BENNET, MRS BENNET)` rather than `MRS. BENNET`.
+    Without the aliases the model cannot know which spellings this book's
+    answer key treats as the same person, and the gold map is not obvious:
+    here the bare surname belongs to MRS. Bennet, not to MR. Bennet.
+    """
+    # BUILT FROM THE ROSTER, decorated with aliases - not from the alias groups
+    # alone. In Pride and Prejudice the alias list covers 19 characters and the
+    # roster 74, and EIGHT speakers the gold expects appear in no alias group
+    # at all: MR. BENNET, KITTY, MARY, MR. HURST and four more, together 167 of
+    # 1,270 lines. Building the list from aliases handed the model a cast that
+    # could not express the right answer for 13% of the book, and then scored
+    # it wrong for failing to.
+    by_canonical = {}
+    for names in (fixture.get("aliases") or []):
+        if names:
+            by_canonical[names[0]] = [n for n in names[1:] if n != names[0]]
+    lines = []
+    for name in (fixture.get("roster") or sorted(by_canonical)):
+        rest = by_canonical.get(name) or []
+        lines.append(f"{name} (also called: {', '.join(rest)})" if rest else name)
+    # Any alias canonical missing from the roster still belongs in the cast.
+    for name, rest in by_canonical.items():
+        if name not in (fixture.get("roster") or []):
+            lines.append(f"{name} (also called: {', '.join(rest)})" if rest else name)
+    return sorted(set(lines))
+
+
 def ask_single(client, model, entry, roster, temperature=0.0):
+    # THE ALIASES, NOT JUST THE CANONICAL NAMES. The published result the
+    # comparison is against calls the character-to-alias list essential, and
+    # this arm was passing one name per character - so the model had no way to
+    # know that this corpus counts "BENNET" as MRS. Bennet, and answering the
+    # bare surname on a MR. Bennet line is wrong by the gold's own map rather
+    # than merely under-specified. Showing the aliases is what the formulation
+    # actually asks for.
     prompt = SINGLE_PROMPT.format(
         roster="\n".join(f"- {name}" for name in roster),
         prev=str(entry.get("prev_context") or "")[-1500:],
@@ -152,8 +189,7 @@ def main():
             fixture = json.load(handle)
         entries = fixture["entries"][:args.limit]
         groups = alias_groups(fixture)
-        roster = sorted({names[0] for names in (fixture.get("aliases") or [])
-                         if names}) or sorted(fixture.get("roster") or [])
+        roster = roster_lines(fixture)
         started = time.time()
         answers = []
         for index, entry in enumerate(entries, 1):
