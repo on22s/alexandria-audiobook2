@@ -4815,21 +4815,15 @@
  },
  "provenance": {
   "script": "voice_drift.py",
-  "written": "2026-08-07T03:39:00",
+  "written": "2026-08-19T06:05:32",
   "host": "mitch-linux",
   "git": {
-   "commit": "054d6982d643e12290d0fb4bf7a04c5365368e28",
-   "branch": "agent/anchor-fix-clean",
-   "dirty": true,
+   "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/dataset_speaker_consistency.py",
-    "app/experiments/library_voice_fidelity.py",
-    "app/experiments/ref_clip_match.py",
-    "app/experiments/voice_compare_view.py",
-    "app/experiments/voice_drift.py"
-   ],
-   "harness_sha256": "6c4d63a9faff16b82ec8c8529de7e388d330558f44cad82741de0468c82e38cb"
+   "untracked_harness_files": null,
+   "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
   },
   "args": {
    "adapter": "husky_tenor_30s_m_literary",

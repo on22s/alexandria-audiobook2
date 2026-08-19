@@ -2,18 +2,15 @@
   "status": "complete",
   "provenance": {
     "script": "pitch_profile_matrix.py",
-    "written": "2026-08-04T21:48:08",
+    "written": "2026-08-19T05:38:09",
     "host": "mitch-linux",
     "git": {
-      "commit": "7e9cfd80707f97e028bdbd90bcadba91ccdcb990",
-      "branch": "agent/overnight-costcurve",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M ab_test_runtime/experiments/cluster_vs_name.json",
-        " M ab_test_runtime/experiments/listener_impact.json"
-      ],
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
       "untracked_harness_files": null,
-      "harness_sha256": "fbaa72c9eb2fb4aca1e0850c5625076889752cd942752e6c8012caf55d3fb7c4"
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "source": "app/experiments/pitch_profile_passages.json",
@@ -35,10 +32,10 @@
       "checkpoint": null
     },
     "input_sha256": {
-      "app/experiments/pitch_profile_passages.json": "5e195d0380843b577e41751ac1589a289b942af41181c167afa645ac06572503",
-      "chunks.json": "0b0a9fbb3c601489ce997fc2ed574d663da8820b1f3e35435ceaddad99542584",
-      "app/config.json": "7220c6793168c7484f15ef4f257d3291ac06f5e8eb38e5caa47c8ac9671c6579",
-      "lora_models/manifest.json": "fdccf31cd5fe88e1003aef92ffe5bfbd32cad572d513fae8bae44ac4a43a6e0b"
+      "app/experiments/pitch_profile_passages.json": "55869275aec7e388e423d45eadbbfcf15c1077f38c99765d13eb7dcc85e385bd",
+      "app/experiments/pitch_profile_source_chunks.json": "60aa579344912445ec732da138ac271d7b8541e6def09fe2f47f223b92f69712",
+      "app/config.json": "f4458164be7291f7f440df2c02710374145f8c6506c7b377296893cab66e2a7a",
+      "lora_models/manifest.json": "a306c9d454d50b967834c8974a5ae18588f12c6b17852319fb567c23612afdbf"
     },
     "adapter_sha256": {
       "silky_baritone_30s_m_fantasy": {
@@ -52,8 +49,8 @@
     "passages": [
       {
         "category": "narration",
-        "source_path": "chunks.json",
-        "source_index": 60,
+        "source_path": "app/experiments/pitch_profile_source_chunks.json",
+        "source_index": 0,
         "speaker": "NARRATOR",
         "text": "They had blond hair, red hair, and brown hair…some even had blue or green hair, among others, and they were wearing armor, or black robes, or the kind of costume a dancer might wear…that sort of thing.",
         "source_sha256": "72cd59af8eca44d6e866c414011f52e5c079ac7127cb743d9a67fb01adc3b462",
@@ -61,8 +58,8 @@
       },
       {
         "category": "plain_dialogue",
-        "source_path": "chunks.json",
-        "source_index": 189,
+        "source_path": "app/experiments/pitch_profile_source_chunks.json",
+        "source_index": 1,
         "speaker": "MAN 1",
         "text": "I’m going to remember your face, you bitch. The next time we see you it won’t go this well for you.",
         "source_sha256": "1e0da240eb37f890c789aed9168ba3667adde0290093c08b8516e90463e66afb",

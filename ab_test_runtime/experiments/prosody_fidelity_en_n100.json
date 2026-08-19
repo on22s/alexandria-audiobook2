@@ -2224,20 +2224,15 @@
   },
   "provenance": {
     "script": "prosody_fidelity.py",
-    "written": "2026-08-17T07:12:32",
+    "written": "2026-08-19T05:48:55",
     "host": "mitch-linux",
     "git": {
-      "commit": "0e37386530ffba37d366136b66ddc6891c10ad3e",
-      "branch": "agent/overnight-queue-20260816",
-      "dirty": true,
-      "modified_tracked_files": [
-        "A  app/experiments/expected_prosody.py",
-        " M app/experiments/measure_respellings.py"
-      ],
-      "untracked_harness_files": [
-        "app/experiments/trim_silence_build.py"
-      ],
-      "harness_sha256": "7505e0b782ead534d7e681b10311dd5fff27e5c16c0085db49801f6f60fb41bd"
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
+      "untracked_harness_files": null,
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "generated": "ab_test_runtime/experiments/ljspeech_generate.json",

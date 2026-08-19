@@ -364,25 +364,15 @@
   "errors": [],
   "provenance": {
     "script": "repair_candidate_reference_text.py",
-    "written": "2026-08-15T16:49:16",
+    "written": "2026-08-19T05:50:46",
     "host": "mitch-linux",
     "git": {
-      "commit": "0d0f4d0e4496f97bcfb786a1687be15f3ba050bd",
-      "branch": "agent/remaining-goals-20260815",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M GOALS.md",
-        " M app/experiments/asr_backends.py",
-        " M app/experiments/retrain_honest.py",
-        " M lora_models/manifest.json"
-      ],
-      "untracked_harness_files": [
-        "app/experiments/duration_outlier_analysis.py",
-        "app/experiments/generation_state_probe.py",
-        "app/experiments/repair_candidate_reference_text.py",
-        "app/experiments/three_pass_chunk_probe.py"
-      ],
-      "harness_sha256": "e61f9ef42fb45715933baa79b5f1d1fc9ef3addb4a834fcf56f7d58f6fa7d4aa"
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
+      "untracked_harness_files": null,
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "experiments": "ab_test_runtime/experiments",

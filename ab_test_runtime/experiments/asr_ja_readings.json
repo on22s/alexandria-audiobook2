@@ -318,8 +318,8 @@
    ],
    "wer_mean": 0.2871,
    "wer_median": 0.262,
-   "rtf": 0.439,
-   "seconds_total": 111.7
+   "rtf": 0.428,
+   "seconds_total": 109.0
   }
  },
  "alignment": {
@@ -337,15 +337,15 @@
  "alignment_truth_clips": 50,
  "provenance": {
   "script": "asr_backends.py",
-  "written": "2026-08-17T21:01:18",
+  "written": "2026-08-19T00:42:21",
   "host": "mitch-linux",
   "git": {
-   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
    "branch": "agent/pause-status-isolation-20260817",
    "dirty": false,
    "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
+   "harness_sha256": "711497b46b79691b8e5f9fdeb7a0ce7c7b6901c210ddc61eac1d58d139df7a69"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
