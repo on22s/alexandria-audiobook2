@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 184,
+    "supported_structure": 187,
     "exploratory": 191,
     "provisional": 119
   },
@@ -2604,6 +2604,21 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "dialogue_attribution.json",
+      "bytes": 3015,
+      "sha256": "2d8797dc5211ec909df50cc528e73a7d35b163af758c7b78d919dab3b675253a",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-18T14:51:45",
+      "commit": "7e9b49a3a3c2d717a3e2881bb6a73dd575e10d67",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "distill_eval__mixed_register.json",
       "bytes": 665516,
       "sha256": "8dc845e6832acbd9d6775815a6f68a8bccb20afe1bb4c063868a0ccd08914e65",
@@ -2752,6 +2767,21 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-17T21:37:05",
       "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "epub_extractor_comparison.json",
+      "bytes": 3552,
+      "sha256": "8be74bcb29139d170ccaaae84572269e6c7b96c80e03400f5322ee1db3296fb2",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-18T15:45:22",
+      "commit": "dc5bfb5b86f3dde905527be23094550204c27f78",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -6372,6 +6402,21 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-05T04:55:11",
       "commit": "e97aa517ce8fbbc08a37bec084f8b7db2db0f9fa",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "source_encoding_audit.json",
+      "bytes": 1685,
+      "sha256": "fc171eddde4b10c63ab8c948b0ba3d26bd91825f33dd23292db875e0fb74064b",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-18T15:45:46",
+      "commit": "dc5bfb5b86f3dde905527be23094550204c27f78",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
