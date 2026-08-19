@@ -56,7 +56,22 @@ run_stage() {
         # doing the matching and has killed a shell in this repo (Rule 22).
         stage_note "  reclaiming VRAM from llama-server before $name"
         pkill -x llama-server
-        sleep 5
+        # WAIT FOR THE MEMORY, NOT FOR A FIXED FIVE SECONDS. The driver frees
+        # VRAM some time after the process exits, and a flat `sleep 5` lost the
+        # separator_space arm on 2026-08-19: gpu_job.sh measured 939 MiB free
+        # against a 4096 MiB floor and refused the stage, then the next stage
+        # started five seconds later and ran perfectly on the same card. Poll
+        # the same number gpu_job.sh gates on, so the two cannot disagree.
+        local waited=0 free
+        while [ "$waited" -lt "${STAGE_VRAM_WAIT:-90}" ]; do
+            free=$(rocm-smi --showmeminfo vram 2>/dev/null \
+                   | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
+            [ -n "$free" ] || break          # cannot tell: do not spin on it
+            # `free` here is USED bytes; stop once the card is mostly clear.
+            [ "$free" -lt 2147483648 ] && break
+            sleep 3; waited=$((waited + 3))
+        done
+        stage_note "  VRAM reclaimed after ${waited}s"
     fi
 
     # -W semantics. A missing predecessor is NOT treated as satisfied: if the

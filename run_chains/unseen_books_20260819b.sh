@@ -117,17 +117,27 @@ sys.exit(0 if isinstance(entries, list) and len(entries) > 50 else 1)
 PYEOF
 }
 
+failed_books=0; skipped_books=0; total_books=0; failed_names=""
 for book in mushoku18 grimgar06 mushoku23 arc4_volume10wn; do
+    total_books=$((total_books + 1))
     echo ""
     echo "=== $book  $(date -u +%FT%TZ) ==="
     if book_complete "$OUT/$book.json"; then
         echo "  SKIP - already generated ($(stat -c%s "$OUT/$book.json") bytes)"
+        skipped_books=$((skipped_books + 1))
         continue
     fi
     timeout 43200 "$PY" -u generate_script.py "$IN/$book.txt" \
         --output "$OUT/$book.json" > "$L/unseen_$book.log" 2>&1
     rc=$?
     echo "  rc=$rc"
+    # Judge by the ARTIFACT as well as the code: a book can exit 0 having
+    # written nothing, and "written: NO" below is already computed from the
+    # file. Both must be right for the book to count as produced.
+    if [ "$rc" -ne 0 ] || ! book_complete "$OUT/$book.json"; then
+        failed_books=$((failed_books + 1))
+        failed_names="$failed_names $book"
+    fi
     grep -E "Stripped publisher|Stripped [0-9]+ characters|Split into" "$L/unseen_$book.log" \
         | sed 's/^/  /' | cut -c1-95
     echo "  chunks done : $(grep -c 'Got .* entries' "$L/unseen_$book.log")"
@@ -137,4 +147,14 @@ for book in mushoku18 grimgar06 mushoku23 arc4_volume10wn; do
     grep -E "^Error" "$L/unseen_$book.log" | tail -2 | sed 's/^/  /' | cut -c1-95
 done
 echo ""
-echo "UNSEEN BOOKS DONE $(date -u +%FT%TZ)"
+# A BOOK THAT FAILED MUST NOT REPORT DONE. grimgar06 died on 2026-08-19 with
+# rc=1 ("chunk 29/70 failed validation after retries"), wrote no output, and
+# this script still printed DONE and exited 0 - so gpu_job.sh logged OK and the
+# chain counted the stage as a pass. One of four books produced nothing and
+# every layer above said success (Rule 8).
+if [ "$failed_books" -gt 0 ]; then
+    echo "UNSEEN BOOKS INCOMPLETE $(date -u +%FT%TZ): $failed_books of $total_books failed"
+    echo "  failed: $failed_names"
+    exit 1
+fi
+echo "UNSEEN BOOKS DONE $(date -u +%FT%TZ) ($total_books books, $skipped_books already present)"
