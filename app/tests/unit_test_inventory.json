@@ -477,6 +477,13 @@
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_ranks_average_ties",
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_spearman_detects_monotonic_directions"
   ],
+  "test_ensure_llama_server_default": [
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_it_resolves_a_model_with_no_environment_at_all",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_no_chain_needs_to_paste_the_path_to_make_it_work",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_the_project_override_is_honoured"
+  ],
   "test_env_doctor": [
     "tests.test_env_doctor.EvaluateEnvTests.test_all_required_present_is_ok",
     "tests.test_env_doctor.EvaluateEnvTests.test_interpreter_not_found_fails_all_required",

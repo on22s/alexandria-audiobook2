@@ -42,7 +42,12 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$repo/ab_test_runtime"; python="$repo/app/env/bin/python"
 export GPU_LOCK="$runtime/logs/alexandria_gpu.lock" GPU_QLOG="$runtime/logs/gpu_jobq.log"
 out="$runtime/experiments/respelling_rule_b.json"
-if [ -e "$out" ]; then echo "already measured: $out"; exit 0; fi
+# artifact_complete() was defined above and never called - see the note in
+# app/tests/test_chain_skip_guards.py. A partial file must not read as done.
+if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+    echo "already measured: $out"; exit 0
+fi
+[ -e "$out" ] && echo "re-running: $out exists but is incomplete"
 "$repo/gpu_job.sh" respelling_rule_b \
     timeout --signal=INT --kill-after=60s 7200 \
     "$python" -u "$repo/app/experiments/measure_respellings.py" \

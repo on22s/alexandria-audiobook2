@@ -77,7 +77,9 @@ unfair_baseline=(
 )
 for adapter in "${unfair_baseline[@]}"; do
     out="$runtime/experiments/baseline_heldout__${adapter}.json"
-    [ -f "$out" ] && continue
+    # Existence alone read a cut-short run as finished; artifact_complete()
+    # was defined at the top of this file and never called.
+    [ -f "$out" ] && artifact_complete "$python" "$out" && continue
     data="$runtime/reference_rank1_all21/$adapter/data"
     if [ ! -d "$data" ]; then
         echo "SKIP $adapter: no held-out split at $data"
