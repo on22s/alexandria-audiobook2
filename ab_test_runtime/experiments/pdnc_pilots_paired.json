@@ -70,20 +70,15 @@
  },
  "provenance": {
   "script": "pair_pdnc_pilots.py",
-  "written": "2026-08-19T05:15:36",
+  "written": "2026-08-19T12:18:18",
   "host": "mitch-linux",
   "git": {
-   "commit": "6f53aff97d41d6356d54eed49db7e3cb550b17e5",
+   "commit": "c509cd2e40eaefac7ee0c9b74638e04e7c7a0950",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M GOALS.md",
-    " M app/experiments/pair_e_row.py"
-   ],
-   "untracked_harness_files": [
-    "app/experiments/pair_pdnc_pilots.py"
-   ],
-   "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "e880e5a5d67cff894c4acd3677a2c430cbe4db29a61d69a66fd346a4b7dd154f"
   },
   "args": {
    "pilots": [
