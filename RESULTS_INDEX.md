@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-19 14:56 from `ab_test_runtime/experiments/` — 513 artifacts, 584 arms.
+Generated 2026-08-19 17:29 from `ab_test_runtime/experiments/` — 516 artifacts, 584 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -871,6 +871,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `duration_probe_20260811_overnight.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_probe_20260811_rerun.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_probe_same_speaker_20260815.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `earcheck_separator_key.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `earcheck_separator_package.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `earcheck_separator_results.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1060,7 +1063,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
-| `respelling_pauses_separators_n400.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_rule_b_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_separator__dot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
