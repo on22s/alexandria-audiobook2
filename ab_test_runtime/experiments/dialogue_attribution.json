@@ -34,21 +34,15 @@
  ],
  "provenance": {
   "script": "measure_dialogue_attribution.py",
-  "written": "2026-08-19T06:10:57",
+  "written": "2026-08-19T08:19:29",
   "host": "mitch-linux",
   "git": {
-   "commit": "fb61d252bb9bdbe15eab4ad3c60fb1494958d3f4",
+   "commit": "bbf61818c80f4d5660ed42c068b07a47d64b6cdc",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M RESULTS_INDEX.md",
-    " M ab_test_runtime/audit/artifact_structural_audit.json",
-    " M ab_test_runtime/audit/goal_evidence_audit.json",
-    " M ab_test_runtime/audit/legacy_attribution_audit.json",
-    " M results_index.csv"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
+   "harness_sha256": "89756994d81ee0f7b93ad89c35427437dc3c4b9a75fb8f6c655939c77e975355"
   },
   "args": {
    "scripts": [

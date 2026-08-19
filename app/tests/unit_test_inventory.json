@@ -786,8 +786,10 @@
     "tests.test_gpu_guard.GpuGuardTest.test_the_queued_job_itself_is_allowed_through",
     "tests.test_gpu_guard.LockPathAgreementTest.test_an_unreadable_gpu_job_raises_instead_of_guessing",
     "tests.test_gpu_guard.LockPathAgreementTest.test_no_chain_names_a_lock_other_than_the_shared_one",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_no_chain_writes_its_queue_log_outside_the_repo",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_default_is_the_same_from_any_working_directory",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_guard_and_gpu_job_agree_on_the_default_lock",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_the_queue_log_default_is_the_repo_one_too",
     "tests.test_gpu_guard.StaleSentinelTest.test_a_live_job_is_still_exempt",
     "tests.test_gpu_guard.StaleSentinelTest.test_a_sentinel_from_a_dead_job_no_longer_exempts"
   ],
@@ -862,6 +864,12 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_falls_back_to_rocm_smi",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
+  ],
+  "test_ideal_settings_endpoint": [
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_remote_endpoint_is_unaffected_by_the_local_probe",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_the_message_does_not_warn_about_a_risk_that_cannot_occur"
   ],
   "test_integration_corpus": [
     "tests.test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
@@ -1391,6 +1399,16 @@
     "tests.test_reasoning_budget.TruncatedObservationTest.test_complete_observation_is_taken_at_face_value",
     "tests.test_reasoning_budget.TruncatedObservationTest.test_truncated_observation_is_inflated",
     "tests.test_reasoning_budget.TruncatedObservationTest.test_truncation_does_not_affect_a_non_reasoning_model"
+  ],
+  "test_recheck_reporting": [
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_real_below_threshold_verdict_is_still_reported_as_one",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_refused_job_is_not_called_a_failed_adapter",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_stale_artifact_is_not_read_as_this_runs_measurement",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_chain_counts_the_stage_in_its_summary",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_new_score_is_reported_not_the_old_one",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_fails_when_nothing_was_measured",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
   ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",

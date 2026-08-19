@@ -789,6 +789,23 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
         ok_warning = ("Proceeding with whatever is currently loaded, which may truncate "
                       "responses or fail outright if the context is too small.")
     else:
+        # ASK WHOSE SERVER THIS IS BEFORE CONFIGURING IT. A local endpoint is
+        # not necessarily LM Studio - this project runs llama.cpp on 8090 for
+        # every chain - and `lms` cannot configure a server it does not own.
+        # Every unseen-book run on 2026-08-19 therefore logged "could not apply
+        # ideal settings ... increases the risk of an out-of-memory crash",
+        # which is both alarming and inapplicable: llama.cpp fixes its context
+        # and slot count at launch, so there is nothing to apply and no risk to
+        # warn about. get_llama_cpp_status already answers this question and
+        # returns None for anything that is not llama.cpp (Rule 15) - the local
+        # branch simply never asked it.
+        llama_cpp = get_llama_cpp_status(base_url, model_name)
+        if llama_cpp is not None:
+            return (False, llama_cpp,
+                    "llama.cpp server at %s - context %s, %s slot(s), fixed at "
+                    "launch. No LM Studio settings to apply."
+                    % (base_url, llama_cpp.get("context_length"),
+                       llama_cpp.get("parallel")))
         get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias)
         apply_settings = lambda: apply_lmstudio_settings(model_name, ideal=True)
         label = "LM Studio"

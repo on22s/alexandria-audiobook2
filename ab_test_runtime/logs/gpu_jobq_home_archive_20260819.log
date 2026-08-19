@@ -1,0 +1,110 @@
+2026-08-05T02:19:52Z QUEUED   stage6_instruction_source
+2026-08-05T02:19:52Z IDENT    stage6_instruction_source commit=a304214 tree=dirty:7b4765a59bef gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=timeout 7200 /home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u experiments/instruct_listening.py --out-dir /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/stage6_instruction --out /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/stage6_instruction_source.json
+2026-08-05T02:19:52Z START    stage6_instruction_source
+2026-08-05T02:22:18Z OK       stage6_instruction_source
+2026-08-05T02:22:18Z QUEUED   stage6_casting_source
+2026-08-05T02:22:18Z IDENT    stage6_casting_source commit=a304214 tree=dirty:7b4765a59bef gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=timeout 7200 /home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u experiments/casting_ab_audio.py --casting /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/stage6_scene_aware_casting.json --out-dir /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/stage6_casting
+2026-08-05T02:22:18Z START    stage6_casting_source
+2026-08-05T02:27:19Z OK       stage6_casting_source
+2026-08-08T21:46:33Z QUEUED   pitch_quality_n100
+2026-08-08T21:46:33Z IDENT    pitch_quality_n100 commit=024ee28 tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/pitch_quality_probe.py --lines 100
+2026-08-08T21:46:33Z START    pitch_quality_n100
+2026-08-08T21:48:24Z OK       pitch_quality_n100
+2026-08-08T22:23:40Z QUEUED   pq_both
+2026-08-08T22:23:40Z IDENT    pq_both commit=024ee28 tree=dirty:a4ce93ed4fe7 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/pitch_quality_probe.py --lines 100
+2026-08-08T22:23:40Z START    pq_both
+2026-08-08T22:27:15Z OK       pq_both
+2026-08-08T22:46:24Z QUEUED   hnr_len
+2026-08-08T22:46:24Z IDENT    hnr_len commit=e4b575f tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/hnr_length_probe.py --lines 100
+2026-08-08T22:46:24Z START    hnr_len
+2026-08-08T22:47:13Z OK       hnr_len
+2026-08-08T22:53:44Z QUEUED   corpus_hnr
+2026-08-08T22:53:45Z IDENT    corpus_hnr commit=ba25ff8 tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/corpus_hnr_baseline.py --speakers 40 --clips 15
+2026-08-08T22:53:45Z START    corpus_hnr
+2026-08-08T22:55:03Z OK       corpus_hnr
+2026-08-08T23:31:43Z QUEUED   asr_hybrid
+2026-08-08T23:31:43Z IDENT    asr_hybrid commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --backends whisper_cpp_hybrid --whisper-cpp-model ../whisper.cpp/models/ggml-base.bin --out ../ab_test_runtime/experiments/asr_hybrid_zh.json
+2026-08-08T23:31:43Z START    asr_hybrid
+2026-08-08T23:35:48Z OK       asr_hybrid
+2026-08-08T23:36:01Z QUEUED   asr_ggml-base.bin
+2026-08-08T23:36:01Z IDENT    asr_ggml-base.bin commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --backends whisper_cpp --whisper-cpp-model ../whisper.cpp/models/ggml-base.bin --out ../ab_test_runtime/experiments/asr_zh_ggml-base.bin.json
+2026-08-08T23:36:01Z START    asr_ggml-base.bin
+2026-08-08T23:37:19Z OK       asr_ggml-base.bin
+2026-08-08T23:37:19Z QUEUED   asr_ggml-large-v3.bin
+2026-08-08T23:37:19Z IDENT    asr_ggml-large-v3.bin commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --backends whisper_cpp --whisper-cpp-model ../whisper.cpp/models/ggml-large-v3.bin --out ../ab_test_runtime/experiments/asr_zh_ggml-large-v3.bin.json
+2026-08-08T23:37:19Z START    asr_ggml-large-v3.bin
+2026-08-08T23:39:02Z OK       asr_ggml-large-v3.bin
+2026-08-08T23:39:51Z QUEUED   asr2_whisper_cpp_ggml-base.bin
+2026-08-08T23:39:51Z IDENT    asr2_whisper_cpp_ggml-base.bin commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --build ../ab_test_runtime/aishell3_eval/build.json --backends whisper_cpp --whisper-cpp-model ../whisper.cpp/models/ggml-base.bin --out ../ab_test_runtime/experiments/asr2_whisper_cpp__ggml-base.bin.json
+2026-08-08T23:39:51Z START    asr2_whisper_cpp_ggml-base.bin
+2026-08-08T23:40:10Z OK       asr2_whisper_cpp_ggml-base.bin
+2026-08-08T23:40:10Z QUEUED   asr2_whisper_cpp_ggml-large-v3.bin
+2026-08-08T23:40:10Z IDENT    asr2_whisper_cpp_ggml-large-v3.bin commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --build ../ab_test_runtime/aishell3_eval/build.json --backends whisper_cpp --whisper-cpp-model ../whisper.cpp/models/ggml-large-v3.bin --out ../ab_test_runtime/experiments/asr2_whisper_cpp__ggml-large-v3.bin.json
+2026-08-08T23:40:10Z START    asr2_whisper_cpp_ggml-large-v3.bin
+2026-08-08T23:41:19Z OK       asr2_whisper_cpp_ggml-large-v3.bin
+2026-08-08T23:41:19Z QUEUED   asr2_whisper_cpp_hybrid_ggml-base.bin
+2026-08-08T23:41:19Z IDENT    asr2_whisper_cpp_hybrid_ggml-base.bin commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang zh --limit 50 --align-clips 10 --build ../ab_test_runtime/aishell3_eval/build.json --backends whisper_cpp_hybrid --whisper-cpp-model ../whisper.cpp/models/ggml-base.bin --out ../ab_test_runtime/experiments/asr2_whisper_cpp_hybrid__ggml-base.bin.json
+2026-08-08T23:41:19Z START    asr2_whisper_cpp_hybrid_ggml-base.bin
+2026-08-08T23:42:59Z OK       asr2_whisper_cpp_hybrid_ggml-base.bin
+2026-08-08T23:43:10Z QUEUED   asr2_ja
+2026-08-08T23:43:10Z IDENT    asr2_ja commit=b08ba6a tree=dirty:b7feff487d7f gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/asr_backends.py --lang ja --limit 50 --align-clips 10 --build ../ab_test_runtime/kokoro_eval/build.json --backends whisper_cpp_hybrid --whisper-cpp-model ../whisper.cpp/models/ggml-base.bin --out ../ab_test_runtime/experiments/asr2_hybrid__kokoro.json
+2026-08-08T23:43:10Z START    asr2_ja
+2026-08-08T23:44:55Z OK       asr2_ja
+2026-08-08T23:57:11Z QUEUED   cn_generate
+2026-08-08T23:57:11Z IDENT    cn_generate commit=d76fe0c tree=dirty:5fb2ff84d542 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/ljspeech_generate.py --build ../ab_test_runtime/aishell3_SSB0748_eval/build.json --adapter ../ab_test_runtime/aishell3_SSB0748_eval/adapter --arms lora clone --limit 150 --seed 1234 --out-dir ../ab_test_runtime/aishell3_SSB0748_eval/generated --out ../ab_test_runtime/experiments/aishell3_SSB0748_generate.json
+2026-08-08T23:57:11Z START    cn_generate
+2026-08-09T00:07:22Z QUEUED   cn_generate
+2026-08-09T00:07:22Z IDENT    cn_generate commit=d76fe0c tree=dirty:5fb2ff84d542 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/ljspeech_generate.py --build ../ab_test_runtime/aishell3_SSB0748_eval/build.json --adapter ../ab_test_runtime/aishell3_SSB0748_eval/adapter --arms lora clone --limit 150 --seed 1234 --out-dir ../ab_test_runtime/aishell3_SSB0748_eval/generated --out ../ab_test_runtime/experiments/aishell3_SSB0748_generate.json
+2026-08-09T00:07:22Z START    cn_generate
+2026-08-09T00:28:29Z OK       cn_generate
+2026-08-09T00:31:34Z QUEUED   cn_hnr
+2026-08-09T00:31:34Z IDENT    cn_hnr commit=d76fe0c tree=dirty:5fb2ff84d542 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env/bin/python -u experiments/pitch_quality_probe.py --lines 100 --manifest zh=aishell3_SSB0748_generate.json --out ../ab_test_runtime/experiments/pitch_quality_SSB0748.json
+2026-08-09T00:31:34Z START    cn_hnr
+2026-08-09T00:35:21Z OK       cn_hnr
+2026-08-09T15:22:20Z QUEUED   vtl_n100
+2026-08-09T15:22:20Z IDENT    vtl_n100 commit=860fecd tree=dirty:af1680205e3b gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u experiments/pitch_quality_probe.py --lines 100 --out /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/pitch_quality_probe.json
+2026-08-09T15:22:20Z START    vtl_n100
+2026-08-09T15:28:23Z OK       vtl_n100
+2026-08-09T16:00:07Z QUEUED   grimgar_fix
+2026-08-09T16:00:08Z IDENT    grimgar_fix commit=860fecd tree=dirty:8e4ecb206e24 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u generate_script.py /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar03.txt --output /home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/e5db5129-c65a-459a-82cf-736dd0a173e7/scratchpad/grimgar_fix_test.json
+2026-08-09T16:00:08Z START    grimgar_fix
+2026-08-09T18:34:55Z FAILED   grimgar_fix rc=1
+2026-08-09T19:30:24Z QUEUED   grimgar_final
+2026-08-09T19:30:24Z IDENT    grimgar_final commit=78d74ac tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u generate_script.py /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs/grimgar03.txt --output /home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/e5db5129-c65a-459a-82cf-736dd0a173e7/scratchpad/grimgar_fix_test.json
+2026-08-09T19:30:24Z START    grimgar_final
+2026-08-09T20:24:21Z FAILED   grimgar_final rc=1
+2026-08-10T06:39:53Z QUEUED   index18_v2
+2026-08-10T06:39:53Z IDENT    index18_v2 commit=78d74ac tree=dirty:186942ec6587 gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u generate_script.py /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/repaired_inputs/index18.repaired.txt --output /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/goal31/index18.json
+2026-08-10T06:39:53Z START    index18_v2
+2026-08-10T07:54:18Z QUEUED   index18_v3
+2026-08-10T07:54:18Z IDENT    index18_v3 commit=2242a7c tree=dirty:52d66a5feb1e gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/env/bin/python -u generate_script.py /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/repaired_inputs/index18.repaired.txt --output /home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/goal31/index18.json
+2026-08-10T07:54:18Z START    index18_v3
+2026-08-10T08:07:54Z QUEUED   index18_v4
+2026-08-15T23:08:39Z QUEUED   unseen_three_pass_9h
+2026-08-15T23:09:31Z QUEUED   unseen_three_pass_9h
+2026-08-15T23:09:31Z IDENT    unseen_three_pass_9h commit=5bcc2a8 tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=timeout --signal=TERM --kill-after=45 33300 ./ab_test_runtime/experiments/unseen_three_pass_20260815/run.sh
+2026-08-15T23:09:31Z START    unseen_three_pass_9h
+2026-08-16T03:29:50Z OK       unseen_three_pass_9h
+2026-08-16T18:58:42Z QUEUED   pr308_narration_context_remeasure
+2026-08-16T18:58:42Z IDENT    pr308_narration_context_remeasure commit=566dc8f tree=clean gpu_job_sha=dd2d055c1923 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=timeout --signal=INT --kill-after=30s 14400 app/env/bin/python -u app/experiments/three_pass_vs_single.py --books mushoku16 index18 --work ab_test_runtime/pr308_narration_context_20260816 --reuse-complete --model qwen3-14b --pass2-on-exhaustion fallback --out ab_test_runtime/experiments/pr308_narration_context__mushoku16_index18__current.json
+2026-08-16T18:58:42Z START    pr308_narration_context_remeasure
+2026-08-16T18:58:46Z FAILED   pr308_narration_context_remeasure rc=3
+2026-08-18T23:55:09Z QUEUED   two_stage_diagnostic
+2026-08-18T23:55:09Z IDENT    two_stage_diagnostic commit=b846bea tree=clean gpu_job_sha=48c11511afe9 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=env REQUIRE_VRAM_GB=0 app/env/bin/python -u app/experiments/two_stage_attribution.py --limit 20 --out ab_test_runtime/experiments/two_stage_diagnostic.json
+2026-08-18T23:55:09Z NO_VRAM  two_stage_diagnostic (927MiB free, needs 4096MiB)
+2026-08-18T23:56:03Z QUEUED   two_stage_diagnostic
+2026-08-18T23:56:03Z IDENT    two_stage_diagnostic commit=b846bea tree=clean gpu_job_sha=48c11511afe9 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=app/env/bin/python -u app/experiments/two_stage_attribution.py --limit 20 --out ab_test_runtime/experiments/two_stage_diagnostic.json
+2026-08-18T23:56:03Z START    two_stage_diagnostic
+2026-08-18T23:56:19Z OK       two_stage_diagnostic
+2026-08-19T08:06:37Z QUEUED   two_stage_diagnostic2
+2026-08-19T08:06:38Z IDENT    two_stage_diagnostic2 commit=f20b97b tree=clean gpu_job_sha=48c11511afe9 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=app/env/bin/python -u app/experiments/two_stage_attribution.py --limit 40 --out ab_test_runtime/experiments/two_stage_diagnostic2.json
+2026-08-19T08:06:38Z START    two_stage_diagnostic2
+2026-08-19T08:09:15Z OK       two_stage_diagnostic2
+2026-08-19T09:43:55Z QUEUED   two_stage_diagnostic3
+2026-08-19T09:43:55Z IDENT    two_stage_diagnostic3 commit=77edc96 tree=clean gpu_job_sha=48c11511afe9 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=app/env/bin/python -u app/experiments/two_stage_attribution.py --limit 40 --out ab_test_runtime/experiments/two_stage_diagnostic3.json
+2026-08-19T09:43:57Z NO_LLM   two_stage_diagnostic3 (preflight failed)
+2026-08-19T13:06:44Z QUEUED   two_stage_smoke
+2026-08-19T13:06:44Z IDENT    two_stage_smoke commit=70670ef tree=clean gpu_job_sha=f00ff1c004f6 host=mitch-linux gpu=AMD Radeon RX 9070 XT cmd=timeout 900 app/env/bin/python -u app/experiments/two_stage_attribution.py --limit 30 --tag smoke
+2026-08-19T13:06:45Z START    two_stage_smoke
+2026-08-19T13:07:11Z OK       two_stage_smoke
+2026-08-19T14:51:11Z QUEUED   unseen_books_b

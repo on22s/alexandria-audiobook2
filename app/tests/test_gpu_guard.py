@@ -123,6 +123,52 @@ class LockPathAgreementTest(unittest.TestCase):
                 timeout=60).stdout.strip())
         self.assertEqual(1, len(answers), answers)
 
+    def test_the_queue_log_default_is_the_repo_one_too(self):
+        """The lock and the queue log had the SAME split, one file over: 14 of
+        51 chains left GPU_QLOG unset, and their provenance went to
+        $HOME/gpu_jobq.log where gpu_pause.sh cannot see it. 110 lines of
+        history accumulated there, including whole ASR benchmark runs.
+        """
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        spoken = subprocess.run(
+            ["bash", os.path.join(repo, "gpu_job.sh"), "--print-qlog"],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(0, spoken.returncode, spoken.stderr)
+        qlog = spoken.stdout.strip()
+        self.assertTrue(qlog.startswith("/"), qlog)
+        self.assertEqual(os.path.join(repo, "ab_test_runtime", "logs",
+                                      "gpu_jobq.log"), qlog)
+        self.assertNotIn(os.path.expanduser("~") + "/gpu_jobq.log", qlog)
+
+    def test_no_chain_writes_its_queue_log_outside_the_repo(self):
+        """Chains spell the repo root four different ways ($runtime, $REPO/...,
+        $L, $runtime_root) and all four are fine - they name the same file.
+        What is NOT fine is a path under $HOME, which is where the 110 stray
+        lines went. Check the basename and the absence of a home reference -
+        expanding shell variables here would just be a second, worse copy of
+        bash.
+        """
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        wrong = []
+        for path in sorted(glob.glob(os.path.join(repo, "run_chains", "*.sh"))
+                           + glob.glob(os.path.join(repo, "*.sh"))):
+            with open(path, encoding="utf-8") as handle:
+                for number, line in enumerate(handle, 1):
+                    if "GPU_QLOG=" not in line or line.lstrip().startswith("#"):
+                        continue
+                    value = line.split("GPU_QLOG=", 1)[1].split()[0].strip('"')
+                    if "$HOME" in value or value.startswith("~"):
+                        wrong.append("%s:%d %s" % (os.path.basename(path),
+                                                   number, value))
+                    elif os.path.basename(value.rstrip('"}')) != "gpu_jobq.log":
+                        wrong.append("%s:%d %s" % (os.path.basename(path),
+                                                   number, value))
+        self.assertEqual([], wrong,
+                         "these write queue provenance somewhere nothing "
+                         "reads:\n  " + "\n  ".join(wrong))
+
     def test_an_unreadable_gpu_job_raises_instead_of_guessing(self):
         """The old parser returned a plausible path when it could not read the
         script. A guessed lock is the exact failure this module exists to

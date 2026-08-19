@@ -68,7 +68,25 @@ if [ "${1:-}" = "--print-lock" ]; then
     exit 0
 fi
 
-QLOG="${GPU_QLOG:-$HOME/gpu_jobq.log}"
+# THE SAME SPLIT THE LOCK HAD, one file over. 37 of 51 chains export GPU_QLOG
+# pointing at the repo log; the other 14 - and every hand-run job - wrote their
+# provenance to $HOME/gpu_jobq.log instead, where gpu_pause.sh cannot see it and
+# no analysis reads it. 110 lines of queue history accumulated there between
+# 2026-08-05 and 2026-08-19, including entire ASR benchmark runs that appear
+# nowhere in the repository. Archived as
+# ab_test_runtime/logs/gpu_jobq_home_archive_20260819.log; the default now
+# points where everything else already does.
+if [ -n "${GPU_QLOG:-}" ]; then
+    QLOG="$GPU_QLOG"
+else
+    QLOG="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/gpu_jobq.log"
+    mkdir -p "$(dirname "$QLOG")" 2>/dev/null
+fi
+
+if [ "${1:-}" = "--print-qlog" ]; then
+    echo "$QLOG"
+    exit 0
+fi
 
 NAME="${1:-}"
 [ -z "$NAME" ] && { echo "usage: gpu_job.sh <name> <command...>" >&2; exit 2; }
