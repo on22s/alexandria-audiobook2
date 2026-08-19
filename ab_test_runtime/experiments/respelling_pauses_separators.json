@@ -6,14 +6,20 @@
  "summary": {},
  "provenance": {
   "script": "measure_pauses.py",
-  "written": "2026-08-19T09:57:50",
+  "written": "2026-08-19T10:00:20",
   "host": "mitch-linux",
   "git": {
-   "commit": "d7b326a247e67af4fdea4ec817d2783cb464c143",
+   "commit": "b0b82863ff61723081afad2b1119bbd8b742b68f",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": false,
-   "modified_tracked_files": null,
-   "untracked_harness_files": null,
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/tests/test_gpu_job.py",
+    " M gpu_job.sh",
+    " M run_chains/lib/stage.sh"
+   ],
+   "untracked_harness_files": [
+    "run_chains/continuation_20260819b.sh"
+   ],
    "harness_sha256": "89756994d81ee0f7b93ad89c35427437dc3c4b9a75fb8f6c655939c77e975355"
   }
  }
