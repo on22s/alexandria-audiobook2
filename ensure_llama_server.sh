@@ -34,7 +34,15 @@ ADAPTER="${1:-}"
 #
 # LLAMA_BIN still overrides, for deliberately testing a specific build.
 BIN="${LLAMA_BIN:-$(command -v llama-server 2>/dev/null || echo "$HOME/llama.cpp/build/bin/llama-server")}"
-MODEL="${LLAMA_MODEL:-}"
+# ONE DEFAULT, HERE. Four chains pasted the same GGUF path inline to satisfy
+# the "required" check below, and every caller that forgot - unseen_books.sh,
+# which starts a server only when none is running - aborted with
+# "LLAMA_MODEL is required" at the moment it needed one, wasting the slot. The
+# script that serves the model is the right place to know which model that is;
+# ALEXANDRIA_QWEN3_MODEL still overrides, and an explicit LLAMA_MODEL still
+# wins over both.
+DEFAULT_MODEL="${ALEXANDRIA_QWEN3_MODEL:-$HOME/.lmstudio/models/lmstudio-community/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf}"
+MODEL="${LLAMA_MODEL:-$DEFAULT_MODEL}"
 PORT="${LLAMA_PORT:-8090}"
 CTX="${LLAMA_CTX:-32768}"
 LOG="${LLAMA_LOG:-$HOME/llama_server.log}"
@@ -43,6 +51,9 @@ URL="http://127.0.0.1:${PORT}/v1/models"
 
 [ -x "$BIN" ] || { echo "ensure_llama_server: no binary at $BIN" >&2; exit 2; }
 [ -n "$MODEL" ] || { echo "ensure_llama_server: LLAMA_MODEL is required" >&2; exit 2; }
+# A default that does not exist is worse than no default: it would start a
+# server against a missing file and fail later, somewhere less obvious.
+[ -f "$MODEL" ] || { echo "ensure_llama_server: no model file at $MODEL" >&2; exit 2; }
 [ -f "$MODEL" ] || { echo "ensure_llama_server: no model at $MODEL" >&2; exit 2; }
 [ -n "$ADAPTER" ] && [ ! -f "$ADAPTER" ] && {
     echo "ensure_llama_server: no adapter at $ADAPTER" >&2; exit 2; }
