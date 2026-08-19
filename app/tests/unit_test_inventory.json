@@ -1110,6 +1110,12 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_verifies_produced_adapter_and_reports_metrics"
   ],
+  "test_measure_pauses_arms": [
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
+  ],
   "test_multi_process_state": [
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
@@ -2069,6 +2075,11 @@
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_real_character_passes",
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_unknown_placeholder_still_allowed",
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_without_source_nothing_is_rejected"
+  ],
+  "test_unseen_books_reporting": [
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_a_book_that_exits_zero_but_writes_nothing_also_fails",
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_a_failed_book_makes_the_run_fail",
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_all_books_succeeding_reports_done"
   ],
   "test_verbalization": [
     "tests.test_verbalization.BracketedSpanTest.test_an_emoticon_is_not_treated_as_a_span",

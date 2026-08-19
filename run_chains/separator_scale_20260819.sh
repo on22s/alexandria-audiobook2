@@ -39,12 +39,12 @@ stage_commit_artifacts separator_none_n400 "$REPO"
 
 # Pauses over the widened `none` arm, against plain. Refuses rather than
 # writing an empty artifact if an arm has no clips.
-run_stage separator_pauses_n400 1h -- \
+run_stage separator_pauses_3arm 1h -- \
     "$python" -u "$REPO/app/experiments/measure_pauses.py" --limit 400 \
     --arm none=respelling_sep_none --arm space=respelling_sep_space \
     --arm dot=respelling_sep_dot \
-    --out "$runtime/experiments/respelling_pauses_separators_n400.json"
-stage_commit_artifacts separator_pauses_n400 "$REPO"
+    --out "$runtime/experiments/respelling_pauses_separators_3arm.json"
+stage_commit_artifacts separator_pauses_3arm "$REPO"
 
 # The book that genuinely failed. Its three companions are already on disk and
 # are skipped in seconds by the corrected copy.

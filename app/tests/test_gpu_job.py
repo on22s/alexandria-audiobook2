@@ -618,8 +618,8 @@ class LockInheritanceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        # Same path isolated_env() hands to gpu_job.sh.
         self.lock = os.path.join(self.tmp.name, "gpu.lock")
-        self.qlog = os.path.join(self.tmp.name, "q.log")
 
     def _lock_is_held(self):
         handle = open(self.lock, "a")
@@ -634,8 +634,13 @@ class LockInheritanceTest(unittest.TestCase):
 
     def test_the_child_does_not_inherit_the_lock_descriptor(self):
         """The direct check: ask the child itself what it is holding."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   REQUIRE_VRAM_GB="0", ALLOW_DIRTY_TREE="1", GPU_NOTIFY="0")
+        # isolated_env, not a hand-built dict. This was the seventh call site
+        # to rebuild it by hand and it duly forgot two knobs: GPU_PENDING_DIR
+        # (eight stale `orphan` markers in the machine's real queue directory)
+        # and GPU_PAUSE_FLAG, which made both tests hang for the full timeout
+        # the moment the queue was genuinely paused.
+        env = isolated_env(self.tmp.name, ALLOW_DIRTY_TREE="1",
+                           GPU_NOTIFY="0")
         result = subprocess.run(
             ["bash", GPU_JOB, "fdcheck", "bash", "-c",
              'ls -l /proc/$$/fd 2>/dev/null | grep -c gpu.lock || true'],
@@ -648,8 +653,13 @@ class LockInheritanceTest(unittest.TestCase):
 
     def test_a_surviving_child_does_not_keep_the_lock_held(self):
         """The behaviour that actually bit: kill the wrapper, leave the child."""
-        env = dict(os.environ, GPU_LOCK=self.lock, GPU_QLOG=self.qlog,
-                   REQUIRE_VRAM_GB="0", ALLOW_DIRTY_TREE="1", GPU_NOTIFY="0")
+        # isolated_env, not a hand-built dict. This was the seventh call site
+        # to rebuild it by hand and it duly forgot two knobs: GPU_PENDING_DIR
+        # (eight stale `orphan` markers in the machine's real queue directory)
+        # and GPU_PAUSE_FLAG, which made both tests hang for the full timeout
+        # the moment the queue was genuinely paused.
+        env = isolated_env(self.tmp.name, ALLOW_DIRTY_TREE="1",
+                           GPU_NOTIFY="0")
         marker = os.path.join(self.tmp.name, "child_pid")
         job = subprocess.Popen(
             ["bash", GPU_JOB, "orphan", "bash", "-c",
