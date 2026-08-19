@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 201,
+    "supported_structure": 204,
     "exploratory": 191,
     "provisional": 121
   },
@@ -2947,6 +2947,54 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "earcheck_separator_key.json",
+      "bytes": 2902,
+      "sha256": "8eba66d603ac0cdd6f7fddd04844fe948238e9dc2cad368b5ae414528ad671ee",
+      "completeness": "unknown",
+      "seed": 20260819,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-19T16:56:25",
+      "commit": "f7de4714c4d0d94bcaa162bea53b8a70ccfb188c",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "earcheck_separator_package.json",
+      "bytes": 1017497,
+      "sha256": "5ae95da0de0f153df3beeb978635703f570b2ad5ad3adcfb343572e2615fe14f",
+      "completeness": "unknown",
+      "seed": 20260819,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-19T16:56:25",
+      "commit": "f7de4714c4d0d94bcaa162bea53b8a70ccfb188c",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "earcheck_separator_results.json",
+      "bytes": 4035,
+      "sha256": "4e5b8be1b21cf4b6a078ada6a454c0d9ea70bb19b5b0426e2253be27e9beafbf",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 9,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-19T17:20:44",
+      "commit": "7571c8795b8da1c5afa682cac204f882f0b42448",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "epub_extraction_fidelity.json",
@@ -6436,7 +6484,7 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
-      "artifact": "respelling_pauses_separators_n400.json",
+      "artifact": "respelling_pauses_separators_3arm.json",
       "bytes": 34033,
       "sha256": "7e1b982c3eb32128643b22c665f95b7deedb1f00c09733c45981ba2053dab621",
       "completeness": "complete",
