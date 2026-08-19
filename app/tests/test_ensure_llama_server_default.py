@@ -8,6 +8,7 @@ around the same check (Rule 15).
 """
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -54,25 +55,26 @@ class DefaultModelTest(unittest.TestCase):
         """A default pointing at nothing would fail later, somewhere less
         obvious than the line that chose it.
 
-        Needs a real llama-server binary present: the script checks the binary
-        BEFORE the model, quite correctly, so on a machine without one it
-        exits 2 saying "no binary at ..." and never reaches the model check.
-        That is the script behaving properly, not the behaviour under test, so
-        the precondition is stated rather than asserted around. CI has no
-        binary and this skips there.
+        LLAMA_BIN is pointed at /bin/true so the binary guard - which runs
+        first, and rightly, since there is no point resolving a model for a
+        server that cannot start - is satisfied without needing a real
+        llama-server. The first version of this test skipped when no binary was
+        present, which CI's verifier correctly refused: it counts a skipped
+        test as a failure, and a test that quietly does not run on the machine
+        that matters is not a test.
         """
-        import shutil as _shutil
-        binary = os.environ.get("LLAMA_BIN") or _shutil.which("llama-server")
-        if not (binary and os.access(binary, os.X_OK)):
-            self.skipTest("no llama-server binary; the model check is "
-                          "unreachable on this machine")
+        satisfied_binary = "/bin/true"
+        if not os.access(satisfied_binary, os.X_OK):   # pragma: no cover
+            satisfied_binary = sys.executable
         with tempfile.TemporaryDirectory() as tmp:
             absent = os.path.join(tmp, "not-here.gguf")
             result = subprocess.run(
                 ["bash", SCRIPT], capture_output=True, text=True, timeout=120,
-                env=self._env(LLAMA_MODEL=absent, LLAMA_BIN=binary))
+                env=self._env(LLAMA_MODEL=absent, LLAMA_BIN=satisfied_binary))
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("no model file at", result.stderr)
+            self.assertIn(absent, result.stderr,
+                          "the message must name the path it looked for")
 
     def test_no_chain_needs_to_paste_the_path_to_make_it_work(self):
         """Documents why the default exists: the literal was in four files."""
