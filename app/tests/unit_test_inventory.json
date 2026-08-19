@@ -36,6 +36,10 @@
   "test_artifact_structural_audit": [
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_indexes_everything",
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
+    "tests.test_artifact_structural_audit.RowCountTest.test_a_populated_rows_list_counts",
+    "tests.test_artifact_structural_audit.RowCountTest.test_an_artifact_with_neither_reports_no_count_rather_than_zero",
+    "tests.test_artifact_structural_audit.RowCountTest.test_an_empty_rows_list_is_not_rows",
+    "tests.test_artifact_structural_audit.RowCountTest.test_the_results_contract_is_counted_too",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_classifies_all_identity_contracts_without_scientific_claims",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_unreadable_json_is_visible_not_skipped"
   ],
@@ -227,6 +231,11 @@
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_name_chains_that_no_longer_exist",
     "tests.test_chain_failure_guards.ChainIdempotencyTest.test_a_chain_that_skips_on_an_artifact_also_checks_it_finished",
     "tests.test_chain_failure_guards.ChainIdempotencyTest.test_the_completion_check_is_not_satisfied_by_the_word_alone"
+  ],
+  "test_chain_skip_guards": [
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_a_chain_that_defines_the_completeness_helper_calls_it",
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_no_chain_skips_on_existence_alone",
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_the_known_partial_artifact_would_be_rejected"
   ],
   "test_chain_stage_lib": [
     "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero",
@@ -1226,6 +1235,16 @@
     "tests.test_pass_quality.SegmentQualityTests.test_rejects_attribution_tag_marked_spoken",
     "tests.test_pass_quality.SegmentQualityTests.test_rejects_narration_combined_with_quoted_dialogue",
     "tests.test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
+  ],
+  "test_pause_scoring": [
+    "tests.test_pause_scoring.PauseScoringTest.test_a_gap_shorter_than_the_floor_is_not_a_pause",
+    "tests.test_pause_scoring.PauseScoringTest.test_an_unreadable_clip_reports_nothing_rather_than_guessing",
+    "tests.test_pause_scoring.PauseScoringTest.test_continuous_speech_has_no_pauses",
+    "tests.test_pause_scoring.PauseScoringTest.test_edges_and_an_internal_gap_together",
+    "tests.test_pause_scoring.PauseScoringTest.test_leading_and_trailing_room_tone_are_not_pauses",
+    "tests.test_pause_scoring.PauseScoringTest.test_one_internal_gap_between_two_words",
+    "tests.test_pause_scoring.PauseScoringTest.test_the_old_rule_fails_that_case",
+    "tests.test_pause_scoring.PauseScoringTest.test_two_internal_gaps_are_both_counted"
   ],
   "test_pdnc_context_evidence": [
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",

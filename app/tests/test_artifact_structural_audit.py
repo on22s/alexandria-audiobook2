@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import json
 import unittest
 from unittest.mock import patch
 
@@ -109,3 +110,50 @@ class IndexableArtifactTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RowCountTest(unittest.TestCase):
+    """`has_rows` must mean there ARE rows.
+
+    It was `isinstance(doc.get("rows"), list)`, which is true of an empty list,
+    and it looked under one key while the measurement scripts write their list
+    as `results` - so it answered "is there a rows key" for half the directory
+    and "no" for the other half regardless of content.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def write(self, payload):
+        path = os.path.join(self.tmp.name, "artifact.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        return path
+
+    def test_an_empty_rows_list_is_not_rows(self):
+        row = audit.classify_artifact(self.write({"rows": [], "meta": {}}))
+        self.assertFalse(row["has_rows"])
+        self.assertEqual(0, row["row_count"])
+
+    def test_a_populated_rows_list_counts(self):
+        row = audit.classify_artifact(self.write({"rows": [{"a": 1}, {"a": 2}],
+                                            "meta": {}}))
+        self.assertTrue(row["has_rows"])
+        self.assertEqual(2, row["row_count"])
+
+    def test_the_results_contract_is_counted_too(self):
+        """respelling_e_row__ay_n1200.json holds 1,129 measured terms under
+        `results`; reading only `rows` would report it as having none."""
+        row = audit.classify_artifact(self.write({"results": [1, 2, 3],
+                                            "provenance": {}}))
+        self.assertTrue(row["has_rows"])
+        self.assertEqual(3, row["row_count"])
+
+    def test_an_artifact_with_neither_reports_no_count_rather_than_zero(self):
+        """A comparison artifact keeps its data under its own keys. Zero would
+        claim it was measured and found empty; None says it was not counted."""
+        row = audit.classify_artifact(self.write({"pilots": [{"p": 1}],
+                                            "provenance": {}}))
+        self.assertIsNone(row["row_count"])
+        self.assertFalse(row["has_rows"])
