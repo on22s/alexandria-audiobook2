@@ -13,6 +13,10 @@
     "pauses": 1,
     "pause_seconds": 0.127
    },
+   "space": {
+    "pauses": 5,
+    "pause_seconds": 1.575
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.556
@@ -27,6 +31,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.837
    },
    "dot": {
     "pauses": 3,
@@ -43,6 +51,10 @@
     "pauses": 1,
     "pause_seconds": 0.164
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.642
+   },
    "dot": {
     "pauses": 9,
     "pause_seconds": 3.188
@@ -57,6 +69,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 6,
+    "pause_seconds": 3.234
    },
    "dot": {
     "pauses": 2,
@@ -73,6 +89,10 @@
     "pauses": 1,
     "pause_seconds": 0.125
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.494
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 2.82
@@ -87,6 +107,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.77
    },
    "dot": {
     "pauses": 3,
@@ -103,6 +127,10 @@
     "pauses": 1,
     "pause_seconds": 0.881
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.294
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.347
@@ -117,6 +145,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.4
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.39
    },
    "dot": {
     "pauses": 3,
@@ -133,6 +165,10 @@
     "pauses": 2,
     "pause_seconds": 0.473
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.491
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.91
@@ -147,6 +183,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.144
+   },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
    },
    "dot": {
     "pauses": 3,
@@ -163,6 +203,10 @@
     "pauses": 1,
     "pause_seconds": 0.12
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.877
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 0.897
@@ -177,6 +221,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.34
    },
    "dot": {
     "pauses": 3,
@@ -193,6 +241,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.207
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.245
@@ -207,6 +259,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.414
    },
    "dot": {
     "pauses": 1,
@@ -223,6 +279,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.742
+   },
    "dot": {
     "pauses": 1,
     "pause_seconds": 1.144
@@ -237,6 +297,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.164
    },
    "dot": {
     "pauses": 5,
@@ -253,6 +317,10 @@
     "pauses": 3,
     "pause_seconds": 0.977
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 2.317
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 2.844
@@ -267,6 +335,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.848
+   },
+   "space": {
+    "pauses": 6,
+    "pause_seconds": 2.08
    },
    "dot": {
     "pauses": 3,
@@ -283,6 +355,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.564
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.749
@@ -297,6 +373,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.57
    },
    "dot": {
     "pauses": 3,
@@ -313,6 +393,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 4,
+    "pause_seconds": 1.784
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 2.098
@@ -327,6 +411,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 1.009
    },
    "dot": {
     "pauses": 3,
@@ -343,6 +431,10 @@
     "pauses": 2,
     "pause_seconds": 0.525
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.79
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.111
@@ -357,6 +449,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.327
    },
    "dot": {
     "pauses": 3,
@@ -373,6 +469,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.268
+   },
    "dot": {
     "pauses": 1,
     "pause_seconds": 0.669
@@ -387,6 +487,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.304
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.259
    },
    "dot": {
     "pauses": 4,
@@ -403,6 +507,10 @@
     "pauses": 3,
     "pause_seconds": 1.14
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.173
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 1.562
@@ -417,6 +525,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.847
    },
    "dot": {
     "pauses": 4,
@@ -433,6 +545,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.993
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.245
@@ -447,6 +563,10 @@
    "none": {
     "pauses": 3,
     "pause_seconds": 1.394
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.992
    },
    "dot": {
     "pauses": 4,
@@ -463,6 +583,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 1.726
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.264
@@ -477,6 +601,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.557
+   },
+   "space": {
+    "pauses": 5,
+    "pause_seconds": 1.723
    },
    "dot": {
     "pauses": 4,
@@ -493,6 +621,10 @@
     "pauses": 1,
     "pause_seconds": 0.587
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.548
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 1.569
@@ -507,6 +639,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.14
    },
    "dot": {
     "pauses": 4,
@@ -523,6 +659,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.934
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.673
@@ -537,6 +677,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.996
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.631
    },
    "dot": {
     "pauses": 3,
@@ -553,6 +697,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.736
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 0.898
@@ -568,6 +716,10 @@
     "pauses": 1,
     "pause_seconds": 0.159
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.107
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.322
@@ -580,6 +732,10 @@
     "pause_seconds": 0.173
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -598,6 +754,10 @@
     "pauses": 1,
     "pause_seconds": 0.189
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.616
+   },
    "dot": {
     "pauses": 8,
     "pause_seconds": 2.834
@@ -612,6 +772,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.291
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.921
    },
    "dot": {
     "pauses": 2,
@@ -628,6 +792,10 @@
     "pauses": 1,
     "pause_seconds": 0.152
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 1.249
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.113
@@ -642,6 +810,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 1.682
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.192
    },
    "dot": {
     "pauses": 3,
@@ -658,6 +830,10 @@
     "pauses": 2,
     "pause_seconds": 0.69
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.492
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.265
@@ -672,6 +848,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.167
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.605
    },
    "dot": {
     "pauses": 2,
@@ -688,6 +868,10 @@
     "pauses": 1,
     "pause_seconds": 0.222
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.737
@@ -702,6 +886,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.554
    },
    "dot": {
     "pauses": 2,
@@ -718,6 +906,10 @@
     "pauses": 1,
     "pause_seconds": 0.131
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.327
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.08
@@ -732,6 +924,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.137
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.281
    },
    "dot": {
     "pauses": 3,
@@ -748,6 +944,10 @@
     "pauses": 1,
     "pause_seconds": 0.529
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.541
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.906
@@ -760,6 +960,10 @@
     "pause_seconds": 0.126
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -778,6 +982,10 @@
     "pauses": 1,
     "pause_seconds": 0.146
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.947
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.75
@@ -792,6 +1000,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.767
    },
    "dot": {
     "pauses": 4,
@@ -808,6 +1020,10 @@
     "pauses": 2,
     "pause_seconds": 1.126
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.696
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.654
@@ -822,6 +1038,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 5,
+    "pause_seconds": 1.35
    },
    "dot": {
     "pauses": 4,
@@ -838,6 +1058,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.599
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.237
@@ -852,6 +1076,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.382
    },
    "dot": {
     "pauses": 7,
@@ -868,6 +1096,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.912
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.091
@@ -880,6 +1112,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -898,6 +1134,10 @@
     "pauses": 2,
     "pause_seconds": 0.58
    },
+   "space": {
+    "pauses": 39,
+    "pause_seconds": 14.269
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.309
@@ -912,6 +1152,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.394
    },
    "dot": {
     "pauses": 3,
@@ -928,6 +1172,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.372
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.109
@@ -943,6 +1191,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.899
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.396
@@ -955,6 +1207,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -973,6 +1229,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.089
@@ -987,6 +1247,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.573
    },
    "dot": {
     "pauses": 7,
@@ -1003,6 +1267,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.513
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 2.298
@@ -1017,6 +1285,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.323
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.634
    },
    "dot": {
     "pauses": 3,
@@ -1033,6 +1305,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.784
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.871
@@ -1045,6 +1321,10 @@
     "pause_seconds": 0.168
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1063,6 +1343,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 4,
+    "pause_seconds": 1.222
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.709
@@ -1077,6 +1361,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.342
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.528
    },
    "dot": {
     "pauses": 2,
@@ -1093,6 +1381,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.268
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 0.849
@@ -1107,6 +1399,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.26
+   },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
    },
    "dot": {
     "pauses": 2,
@@ -1123,6 +1419,10 @@
     "pauses": 2,
     "pause_seconds": 0.317
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.588
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.688
@@ -1137,6 +1437,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.296
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.641
    },
    "dot": {
     "pauses": 3,
@@ -1153,6 +1457,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.27
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 2.251
@@ -1167,6 +1475,10 @@
    "none": {
     "pauses": 4,
     "pause_seconds": 0.999
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.185
    },
    "dot": {
     "pauses": 0,
@@ -1183,6 +1495,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.339
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 4.854
@@ -1197,6 +1513,10 @@
    "none": {
     "pauses": 3,
     "pause_seconds": 1.143
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.644
    },
    "dot": {
     "pauses": 2,
@@ -1213,6 +1533,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.462
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.01
@@ -1227,6 +1551,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.956
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.123
    },
    "dot": {
     "pauses": 2,
@@ -1243,6 +1571,10 @@
     "pauses": 1,
     "pause_seconds": 0.474
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 1.425
@@ -1257,6 +1589,10 @@
    "none": {
     "pauses": 2,
     "pause_seconds": 0.737
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.484
    },
    "dot": {
     "pauses": 2,
@@ -1273,6 +1609,10 @@
     "pauses": 1,
     "pause_seconds": 0.18
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.417
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 2.726
@@ -1288,6 +1628,10 @@
     "pauses": 2,
     "pause_seconds": 0.358
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.472
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.719
@@ -1300,6 +1644,10 @@
     "pause_seconds": 0.226
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1318,6 +1666,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.431
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 2.218
@@ -1333,6 +1685,10 @@
     "pauses": 3,
     "pause_seconds": 0.741
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.913
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 0.971
@@ -1345,6 +1701,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1363,6 +1723,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.138
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.677
@@ -1375,6 +1739,10 @@
     "pause_seconds": 0.125
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1393,6 +1761,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.565
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.041
@@ -1405,6 +1777,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1423,6 +1799,10 @@
     "pauses": 2,
     "pause_seconds": 1.429
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.98
+   },
    "dot": {
     "pauses": 5,
     "pause_seconds": 2.443
@@ -1437,6 +1817,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.333
    },
    "dot": {
     "pauses": 3,
@@ -1453,6 +1837,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.824
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.511
@@ -1467,6 +1855,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.776
    },
    "dot": {
     "pauses": 5,
@@ -1483,6 +1875,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 1.395
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.389
@@ -1497,6 +1893,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.549
    },
    "dot": {
     "pauses": 4,
@@ -1513,6 +1913,10 @@
     "pauses": 2,
     "pause_seconds": 1.252
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 1.454
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.608
@@ -1527,6 +1931,10 @@
    "none": {
     "pauses": 1,
     "pause_seconds": 0.146
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.593
    },
    "dot": {
     "pauses": 3,
@@ -1543,6 +1951,10 @@
     "pauses": 1,
     "pause_seconds": 0.127
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.6
@@ -1557,6 +1969,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.719
    },
    "dot": {
     "pauses": 2,
@@ -1573,6 +1989,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 6,
+    "pause_seconds": 1.699
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 3.36
@@ -1587,6 +2007,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.176
    },
    "dot": {
     "pauses": 5,
@@ -1603,6 +2027,10 @@
     "pauses": 6,
     "pause_seconds": 3.226
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 1.378
@@ -1618,6 +2046,10 @@
     "pauses": 2,
     "pause_seconds": 0.6
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.453
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.759
@@ -1630,6 +2062,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1648,6 +2084,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.67
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 0.861
@@ -1662,6 +2102,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.591
    },
    "dot": {
     "pauses": 3,
@@ -1678,6 +2122,10 @@
     "pauses": 2,
     "pause_seconds": 0.475
    },
+   "space": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
    "dot": {
     "pauses": 2,
     "pause_seconds": 0.817
@@ -1692,6 +2140,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 5,
+    "pause_seconds": 2.058
    },
    "dot": {
     "pauses": 3,
@@ -1708,6 +2160,10 @@
     "pauses": 2,
     "pause_seconds": 0.557
    },
+   "space": {
+    "pauses": 4,
+    "pause_seconds": 1.153
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 2.479
@@ -1720,6 +2176,10 @@
     "pause_seconds": 0
    },
    "none": {
+    "pauses": 0,
+    "pause_seconds": 0
+   },
+   "space": {
     "pauses": 0,
     "pause_seconds": 0
    },
@@ -1738,6 +2198,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.912
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 1.501
@@ -1752,6 +2216,10 @@
    "none": {
     "pauses": 0,
     "pause_seconds": 0
+   },
+   "space": {
+    "pauses": 2,
+    "pause_seconds": 0.723
    },
    "dot": {
     "pauses": 3,
@@ -1768,6 +2236,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 3,
+    "pause_seconds": 0.997
+   },
    "dot": {
     "pauses": 4,
     "pause_seconds": 1.739
@@ -1783,6 +2255,10 @@
     "pauses": 0,
     "pause_seconds": 0
    },
+   "space": {
+    "pauses": 1,
+    "pause_seconds": 0.53
+   },
    "dot": {
     "pauses": 3,
     "pause_seconds": 0.735
@@ -1796,29 +2272,47 @@
    "n": 74,
    "p": 0.20067820312938578
   },
+  "space_vs_plain": {
+   "more": 87,
+   "fewer": 20,
+   "n": 107,
+   "p": 3.796286088538812e-11
+  },
   "dot_vs_plain": {
    "more": 115,
    "fewer": 3,
    "n": 118,
    "p": 1.6487043659548457e-30
   },
+  "space_vs_none": {
+   "more": 86,
+   "fewer": 21,
+   "n": 107,
+   "p": 1.601006080436169e-10
+  },
   "dot_vs_none": {
    "more": 116,
    "fewer": 3,
    "n": 119,
    "p": 8.454832455859965e-31
+  },
+  "dot_vs_space": {
+   "more": 106,
+   "fewer": 13,
+   "n": 119,
+   "p": 2.6709648488912807e-19
   }
  },
  "provenance": {
   "script": "measure_pauses.py",
-  "written": "2026-08-19T13:04:37",
+  "written": "2026-08-19T13:51:14",
   "host": "mitch-linux",
   "git": {
-   "commit": "c509cd2e40eaefac7ee0c9b74638e04e7c7a0950",
+   "commit": "3b200af260657af18fbcd508d1295f8a19f5f100",
    "branch": "agent/pause-status-isolation-20260817",
    "dirty": true,
    "modified_tracked_files": [
-    "M app/experiments/measure_pauses.py"
+    "M LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "5f7631f061bc83a9197d03c869ea5dba6629a3b48e18f22be8f7b69be3e3d077"
