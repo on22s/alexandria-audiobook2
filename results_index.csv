@@ -351,6 +351,7 @@ decontaminate_batch3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,
 decontaminate_batch4.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch5.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch6.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+dialogue_attribution.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 distill_eval__mixed_register.json,exploratory,git+naming,no,distill_eval.py,e7b1f6c1,,,distill_eval,grimgar03,Qwen/Qwen3-14B,local-lmstudio,instance-ycl36zlz-main,lmstudio,32768,1,f16?,base,385,265,68.8,ok,False,,40304.5,08-04 13:44,peft:ab_test_runtime/distill/adapter_mixed,
 distill_eval__mixed_register.json,exploratory,git+naming,no,distill_eval.py,e7b1f6c1,,,distill_eval,grimgar03,Qwen/Qwen3-14B,local-lmstudio,instance-ycl36zlz-main,lmstudio,32768,1,f16?,tuned,385,325,84.4,ok,False,,40304.5,08-04 13:44,peft:ab_test_runtime/distill/adapter_mixed,
 distill_eval__mixed_register.json,exploratory,git+naming,no,distill_eval.py,e7b1f6c1,,,distill_eval,index18,Qwen/Qwen3-14B,local-lmstudio,instance-ycl36zlz-main,lmstudio,32768,1,f16?,base,92,66,71.7,ok,False,,40304.5,08-04 13:44,peft:ab_test_runtime/distill/adapter_mixed,
@@ -386,6 +387,7 @@ duration_probe_20260811_overnight.json,exploratory,git+naming,no,duration_probe.
 duration_probe_20260811_rerun.json,exploratory,git+naming,no,duration_probe.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 duration_probe_same_speaker_20260815.json,exploratory,git+naming,no,duration_probe.py,41111766,2.4,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 epub_extraction_fidelity.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+epub_extractor_comparison.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_ja.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_ja_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_zh.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -827,6 +829,7 @@ segmentation_classifier.json,exploratory,git+naming,no,segmentation_classifier.p
 selection_gap_recheck.json,exploratory,git+naming,no,selection_gap_recheck.py,803be47d,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 shipping_readiness.json,exploratory,git+naming,no,shipping_readiness.py,edba0ca7,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 simd_benchmark.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+source_encoding_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 stack_overlap.json,exploratory,git+naming,no,stack_overlap.py,85877735,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 stage6_instruction_source.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 stage6_scene_aware_casting.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
