@@ -1,0 +1,26 @@
+diff --git a/app/experiments/two_stage_attribution.py b/app/experiments/two_stage_attribution.py
+index 1d449e0..4217535 100644
+--- a/app/experiments/two_stage_attribution.py
++++ b/app/experiments/two_stage_attribution.py
+@@ -239,7 +239,7 @@ def main():
+     ap.add_argument("--quote-type", default=None,
+                     help="measure only one PDNC quote type (Explicit, "
+                          "Implicit, Anaphoric). Explicit quotes NAME the "
+-                         "speaker in the text and are wrong 47.1% of the time "
++                         "speaker in the text and are wrong 47.1%% of the time "
+                          "with the right name in the supplied cast, which is "
+                          "the standout anomaly of the full run.")
+     ap.add_argument("--keep-prompts", action="store_true",
+diff --git a/app/generate_script.py b/app/generate_script.py
+index a51393f..fd4e596 100644
+--- a/app/generate_script.py
++++ b/app/generate_script.py
+@@ -1240,7 +1240,7 @@ def main():
+     parser.add_argument("--narrator", default=None,
+                         help="Name of the first-person narrator, if the book "
+                              "has one. Measured on PDNC gold: telling the model "
+-                             "who narrates took attribution from 61.7% to 79.4% "
++                             "who narrates took attribution from 61.7%% to 79.4%% "
+                              "over 720 rows (pdnc_narrator_prior__clean-3book.json), "
+                              "and production has never passed it.")
+     args = parser.parse_args()

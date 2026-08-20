@@ -1240,7 +1240,7 @@ def main():
     parser.add_argument("--narrator", default=None,
                         help="Name of the first-person narrator, if the book "
                              "has one. Measured on PDNC gold: telling the model "
-                             "who narrates took attribution from 61.7% to 79.4% "
+                             "who narrates took attribution from 61.7%% to 79.4%% "
                              "over 720 rows (pdnc_narrator_prior__clean-3book.json), "
                              "and production has never passed it.")
     args = parser.parse_args()

@@ -33,6 +33,11 @@
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_argparse_help_strings": [
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_no_help_string_contains_an_unescaped_percent",
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_recognises_the_shapes_it_must_allow"
+  ],
   "test_artifact_shrinkage": [
     "tests.test_artifact_shrinkage.ExplainedTest.test_a_recorded_failure_counts_as_an_explanation",
     "tests.test_artifact_shrinkage.ExplainedTest.test_an_empty_failures_list_explains_nothing",
