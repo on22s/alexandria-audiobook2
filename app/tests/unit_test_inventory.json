@@ -65,6 +65,19 @@
     "tests.test_asr_energy_vad.EnergyVadTests.test_splits_long_silence_but_keeps_short_pause",
     "tests.test_asr_energy_vad.SileroWhisperWindowTests.test_transcribes_every_vad_window_without_coalescing_boundaries"
   ],
+  "test_asr_reading_rescore": [
+    "tests.test_asr_reading_rescore.AggregationTest.test_a_failing_reader_is_named_not_absorbed_by_the_pool",
+    "tests.test_asr_reading_rescore.AggregationTest.test_an_artifact_without_hypotheses_yields_nothing",
+    "tests.test_asr_reading_rescore.AggregationTest.test_hypotheses_are_read_from_every_backend_present",
+    "tests.test_asr_reading_rescore.AggregationTest.test_the_target_is_the_one_goals_states",
+    "tests.test_asr_reading_rescore.ReaderIdTest.test_a_reader_name_ending_in_a_digit_is_not_truncated",
+    "tests.test_asr_reading_rescore.ReaderIdTest.test_an_id_with_no_index_has_no_reader",
+    "tests.test_asr_reading_rescore.ReaderIdTest.test_the_reader_is_everything_before_the_clip_number",
+    "tests.test_asr_reading_rescore.ReadingScoreTest.test_a_genuine_mishearing_is_still_punished",
+    "tests.test_asr_reading_rescore.ReadingScoreTest.test_conversion_drops_punctuation_not_content",
+    "tests.test_asr_reading_rescore.ReadingScoreTest.test_kanji_and_kana_spellings_of_one_word_score_as_equal",
+    "tests.test_asr_reading_rescore.ReadingScoreTest.test_the_real_botchan_pair_scores_far_better_on_readings"
+  ],
   "test_attribution_accuracy": [
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_book_and_entry_index_are_unique_in_every_fixture",
     "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_every_entry_has_an_expected_speaker",
@@ -1549,6 +1562,17 @@
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_fails_when_nothing_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
+  ],
+  "test_reference_rebuild": [
+    "tests.test_reference_rebuild.BandConstantTest.test_the_band_is_the_published_one",
+    "tests.test_reference_rebuild.CandidateBandTest.test_a_corpus_that_cannot_reach_the_band_yields_nothing",
+    "tests.test_reference_rebuild.CandidateBandTest.test_no_candidate_may_exceed_the_upper_bound",
+    "tests.test_reference_rebuild.CandidateBandTest.test_no_candidate_may_fall_below_the_lower_bound",
+    "tests.test_reference_rebuild.CandidateBandTest.test_the_join_gap_counts_toward_the_length",
+    "tests.test_reference_rebuild.DistanceTest.test_an_exact_match_scores_zero",
+    "tests.test_reference_rebuild.DistanceTest.test_being_high_is_penalised_exactly_as_much_as_being_low",
+    "tests.test_reference_rebuild.DistanceTest.test_it_uses_both_measures_not_just_pitch",
+    "tests.test_reference_rebuild.DistanceTest.test_missing_measures_do_not_crash_the_ranking"
   ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",

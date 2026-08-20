@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 537 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 538 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -813,6 +813,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `asr_ja_reader__gan-by-ogai-mori.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_ja_reader__kouyahijiri-by-kyoka-izumi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_ja_reader__kusamakura-by-soseki-natsume.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `asr_ja_reading_per_reader.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_ja_readings.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_ja_trimmed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_silero_vad_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

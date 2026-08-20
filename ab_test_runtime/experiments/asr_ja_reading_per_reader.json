@@ -1,0 +1,471 @@
+{
+ "scope": "per-reader Japanese CER scored on kana readings, recomputed from stored hypotheses; no audio and no model involved",
+ "target_cer": 0.2,
+ "clips": 50,
+ "excluded_no_kana_in_reference": 0,
+ "pooled": {
+  "cer_written_mean": 0.2871,
+  "cer_reading_mean": 0.0989,
+  "cer_reading_median": 0.0733
+ },
+ "per_reader": {
+  "botchan-by-soseki-natsume-2": {
+   "n": 11,
+   "cer_written_mean": 0.2921,
+   "cer_reading_mean": 0.063,
+   "cer_reading_median": 0.0488,
+   "passes_target": true
+  },
+  "gan-by-ogai-mori": {
+   "n": 13,
+   "cer_written_mean": 0.3486,
+   "cer_reading_mean": 0.101,
+   "cer_reading_median": 0.1071,
+   "passes_target": true
+  },
+  "kouyahijiri-by-kyoka-izumi": {
+   "n": 13,
+   "cer_written_mean": 0.2465,
+   "cer_reading_mean": 0.1362,
+   "cer_reading_median": 0.129,
+   "passes_target": true
+  },
+  "kusamakura-by-soseki-natsume": {
+   "n": 13,
+   "cer_written_mean": 0.262,
+   "cer_reading_mean": 0.0899,
+   "cer_reading_median": 0.08,
+   "passes_target": true
+  }
+ },
+ "readers_failing_target": [],
+ "rows": [
+  {
+   "id": "botchan-by-soseki-natsume-2-00001",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2308,
+   "cer_reading": 0.0345
+  },
+  {
+   "id": "gan-by-ogai-mori-00002",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1364,
+   "cer_reading": 0.1724
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00001",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3,
+   "cer_reading": 0.129
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00002",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.32,
+   "cer_reading": 0.0333
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00304",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4074,
+   "cer_reading": 0.129
+  },
+  {
+   "id": "gan-by-ogai-mori-00123",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1667,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00058",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3529,
+   "cer_reading": 0.0588
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00294",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2692,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00525",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.25,
+   "cer_reading": 0.0488
+  },
+  {
+   "id": "gan-by-ogai-mori-00205",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4,
+   "cer_reading": 0.037
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00124",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1429,
+   "cer_reading": 0.08
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00514",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.129,
+   "cer_reading": 0.1053
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-00741",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.25,
+   "cer_reading": 0.0571
+  },
+  {
+   "id": "gan-by-ogai-mori-00233",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.0,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00179",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1875,
+   "cer_reading": 0.1471
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-00865",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.0385,
+   "cer_reading": 0.0357
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01025",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1739,
+   "cer_reading": 0.04
+  },
+  {
+   "id": "gan-by-ogai-mori-00359",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2414,
+   "cer_reading": 0.1081
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00232",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3478,
+   "cer_reading": 0.3462
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01133",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1667,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01318",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1111,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "gan-by-ogai-mori-00448",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3793,
+   "cer_reading": 0.2647
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00287",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1111,
+   "cer_reading": 0.0312
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01376",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.5,
+   "cer_reading": 0.25
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01725",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4762,
+   "cer_reading": 0.0455
+  },
+  {
+   "id": "gan-by-ogai-mori-00552",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2609,
+   "cer_reading": 0.0667
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00340",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4231,
+   "cer_reading": 0.1379
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01681",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.125,
+   "cer_reading": 0.1429
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-01996",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3438,
+   "cer_reading": 0.1143
+  },
+  {
+   "id": "gan-by-ogai-mori-00660",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.5,
+   "cer_reading": 0.0476
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00392",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1143,
+   "cer_reading": 0.0513
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-01882",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.6,
+   "cer_reading": 0.0909
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02229",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2778,
+   "cer_reading": 0.1667
+  },
+  {
+   "id": "gan-by-ogai-mori-00793",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.0,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00445",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1111,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02126",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3143,
+   "cer_reading": 0.025
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02549",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3846,
+   "cer_reading": 0.0571
+  },
+  {
+   "id": "gan-by-ogai-mori-00899",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.5385,
+   "cer_reading": 0.2333
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00497",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1724,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02311",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.0588,
+   "cer_reading": 0.08
+  },
+  {
+   "id": "botchan-by-soseki-natsume-2-02831",
+   "reader": "botchan-by-soseki-natsume-2",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3077,
+   "cer_reading": 0.0
+  },
+  {
+   "id": "gan-by-ogai-mori-00964",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 1.1111,
+   "cer_reading": 0.1429
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00546",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2632,
+   "cer_reading": 0.1667
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02558",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4444,
+   "cer_reading": 0.2273
+  },
+  {
+   "id": "gan-by-ogai-mori-01136",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.56,
+   "cer_reading": 0.1333
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00601",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.4286,
+   "cer_reading": 0.2727
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-02793",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.1071,
+   "cer_reading": 0.0667
+  },
+  {
+   "id": "gan-by-ogai-mori-01242",
+   "reader": "gan-by-ogai-mori",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.2381,
+   "cer_reading": 0.1071
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00648",
+   "reader": "kouyahijiri-by-kyoka-izumi",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.25,
+   "cer_reading": 0.35
+  },
+  {
+   "id": "kusamakura-by-soseki-natsume-03134",
+   "reader": "kusamakura-by-soseki-natsume",
+   "backend": "silero_whisper_cpp",
+   "artifact": "asr_ja_hypotheses.json",
+   "cer_written": 0.3333,
+   "cer_reading": 0.1111
+  }
+ ],
+ "read_inputs": {
+  "../../../../../../../api/alexandria-audiobook2.git/ab_test_runtime/experiments/asr_ja_hypotheses.json": "d9863f8febe0476ab795d6926fba67d3726411405cb8ccc8cb963c1cb334d1c1"
+ },
+ "status": "complete",
+ "provenance": {
+  "script": "asr_reading_rescore.py",
+  "written": "2026-08-20T14:44:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0a73b0fcaa987394943d8ac694ae372a8c4cc046",
+   "branch": "agent/instrument-null-tests-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M GOALS.md"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/asr_reading_rescore.py"
+   ],
+   "harness_sha256": "48868ea7bd02dcdbee7fa3b3919085765d5cb32558cd8eb1d277b85ee6e3525d"
+  },
+  "args": {
+   "artifacts": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/asr_ja_hypotheses.json"
+   ],
+   "out": "ja_reading_per_reader.json"
+  }
+ }
+}
