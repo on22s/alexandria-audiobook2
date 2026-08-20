@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 531 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 533 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -998,6 +998,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instruct_value_seeded.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `instrument_null_test.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_same_speaker_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1061,6 +1062,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_fidelity_zh_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `realizable_router.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ref_clip_match.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_intervention__husky_baritone_20s_m_anime.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_intervention_sharp.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_rank1_all21.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

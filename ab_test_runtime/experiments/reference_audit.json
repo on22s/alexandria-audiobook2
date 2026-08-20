@@ -1,0 +1,330 @@
+{
+ "scope": "reference-clip duration and representativeness per eval set; inputs to the clone arm, not outputs",
+ "recommended_band_seconds": [
+  10.0,
+  15.0
+ ],
+ "clips_per_set": 25,
+ "rows": [
+  {
+   "build": "ab_test_runtime/aishell3_SSB0748_eval/build.json",
+   "corpus": {
+    "f0_median": 205.3,
+    "f0_spread": 66.3,
+    "vtl_cm": 14.02
+   },
+   "ref_sample": "ab_test_runtime/aishell3_SSB0748_eval/ref_sample.wav",
+   "ref_source_id": "SSB07480349",
+   "ref_seconds": 4.398,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 5.6,
+   "reference": {
+    "f0_median": 192.7,
+    "f0_spread": 78.5,
+    "vtl_cm": 13.22
+   },
+   "corpus_clips_measured": 25,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.9386,
+    "f0_spread": 1.184,
+    "vtl_cm": 0.9429
+   }
+  },
+  {
+   "build": "ab_test_runtime/aishell3_eval/build.json",
+   "corpus": {
+    "f0_median": 179.8,
+    "f0_spread": 88.4,
+    "vtl_cm": 13.34
+   },
+   "ref_sample": "ab_test_runtime/aishell3_eval/ref_sample.wav",
+   "ref_source_id": "SSB15850339",
+   "ref_seconds": 3.446,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 6.55,
+   "reference": {
+    "f0_median": 180.3,
+    "f0_spread": 112.4,
+    "vtl_cm": 13.82
+   },
+   "corpus_clips_measured": 25,
+   "ratio_reference_over_corpus": {
+    "f0_median": 1.0028,
+    "f0_spread": 1.2715,
+    "vtl_cm": 1.036
+   }
+  },
+  {
+   "build": "ab_test_runtime/kokoro_eval/build.json",
+   "corpus": {
+    "f0_median": 122.8,
+    "f0_spread": 61.6,
+    "vtl_cm": 14.75
+   },
+   "ref_sample": "ab_test_runtime/kokoro_eval/ref_sample.wav",
+   "ref_source_id": "gan-by-ogai-mori-01138",
+   "ref_seconds": 5.166,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 4.83,
+   "reference": {
+    "f0_median": 125.0,
+    "f0_spread": 73.4,
+    "vtl_cm": 14.86
+   },
+   "corpus_clips_measured": 25,
+   "ratio_reference_over_corpus": {
+    "f0_median": 1.0179,
+    "f0_spread": 1.1916,
+    "vtl_cm": 1.0075
+   }
+  },
+  {
+   "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+   "corpus": "Kokoro Speech Dataset v1.3 / LibriVox",
+   "ref_sample": null,
+   "ref_source_id": null,
+   "error": "reference clip not found in any audio root"
+  },
+  {
+   "build": "ab_test_runtime/kokoro_same_speaker_eval/build.json",
+   "corpus": {
+    "f0_median": 128.6,
+    "f0_spread": 56.5,
+    "vtl_cm": 14.57
+   },
+   "ref_sample": "ab_test_runtime/kokoro_same_speaker_eval/ref_sample.flac",
+   "ref_source_id": "kokoro-by-soseki-natsume-01625",
+   "ref_seconds": 6.107,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 3.89,
+   "reference": {
+    "f0_median": 125.0,
+    "f0_spread": 57.5,
+    "vtl_cm": 15.17
+   },
+   "corpus_clips_measured": 25,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.972,
+    "f0_spread": 1.0177,
+    "vtl_cm": 1.0412
+   }
+  },
+  {
+   "build": "ab_test_runtime/ljspeech_eval/build.json",
+   "corpus": {
+    "f0_median": 215.7,
+    "f0_spread": 133.2,
+    "vtl_cm": 14.34
+   },
+   "ref_sample": "ab_test_runtime/ljspeech_eval/ref_sample.wav",
+   "ref_source_id": "LJ025-0006",
+   "ref_seconds": 6.149,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 3.85,
+   "reference": {
+    "f0_median": 203.6,
+    "f0_spread": 97.5,
+    "vtl_cm": 15.35
+   },
+   "corpus_clips_measured": 25,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.9439,
+    "f0_spread": 0.732,
+    "vtl_cm": 1.0704
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military_build.json",
+   "corpus": {
+    "f0_median": 133.1,
+    "f0_spread": 77.65,
+    "vtl_cm": 15.115
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 8.3,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 1.7,
+   "reference": {
+    "f0_median": 140.3,
+    "f0_spread": 44.1,
+    "vtl_cm": 15.3
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 1.0541,
+    "f0_spread": 0.5679,
+    "vtl_cm": 1.0122
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/husky_soprano_20s_f_build.json",
+   "corpus": {
+    "f0_median": 233.2,
+    "f0_spread": 103.95,
+    "vtl_cm": 15.1
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 10.9,
+   "ref_in_recommended_band": true,
+   "seconds_short_of_band": 0.0,
+   "reference": {
+    "f0_median": 254.3,
+    "f0_spread": 126.6,
+    "vtl_cm": 15.1
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 1.0905,
+    "f0_spread": 1.2179,
+    "vtl_cm": 1.0
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/silky_alto_40s_f_build.json",
+   "corpus": {
+    "f0_median": 210.1,
+    "f0_spread": 74.8,
+    "vtl_cm": 15.05
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 10.58,
+   "ref_in_recommended_band": true,
+   "seconds_short_of_band": 0.0,
+   "reference": {
+    "f0_median": 192.1,
+    "f0_spread": 76.2,
+    "vtl_cm": 14.12
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.9143,
+    "f0_spread": 1.0187,
+    "vtl_cm": 0.9382
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi_build.json",
+   "corpus": {
+    "f0_median": 99.2,
+    "f0_spread": 56.95,
+    "vtl_cm": 14.925
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 10.84,
+   "ref_in_recommended_band": true,
+   "seconds_short_of_band": 0.0,
+   "reference": {
+    "f0_median": 85.8,
+    "f0_spread": 50.2,
+    "vtl_cm": 15.07
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.8649,
+    "f0_spread": 0.8815,
+    "vtl_cm": 1.0097
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1_build.json",
+   "corpus": {
+    "f0_median": 132.0,
+    "f0_spread": 70.1,
+    "vtl_cm": 16.0
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 10.4,
+   "ref_in_recommended_band": true,
+   "seconds_short_of_band": 0.0,
+   "reference": {
+    "f0_median": 130.1,
+    "f0_spread": 69.9,
+    "vtl_cm": 15.74
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.9856,
+    "f0_spread": 0.9971,
+    "vtl_cm": 0.9838
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi_build.json",
+   "corpus": {
+    "f0_median": 96.5,
+    "f0_spread": 77.65,
+    "vtl_cm": 16.56
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 10.96,
+   "ref_in_recommended_band": true,
+   "seconds_short_of_band": 0.0,
+   "reference": {
+    "f0_median": 90.9,
+    "f0_spread": 76.3,
+    "vtl_cm": 16.22
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.942,
+    "f0_spread": 0.9826,
+    "vtl_cm": 0.9795
+   }
+  },
+  {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_50s_m_build.json",
+   "corpus": {
+    "f0_median": 90.55,
+    "f0_spread": 64.0,
+    "vtl_cm": 16.655
+   },
+   "ref_sample": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/ref.wav",
+   "ref_source_id": "ref",
+   "ref_seconds": 9.14,
+   "ref_in_recommended_band": false,
+   "seconds_short_of_band": 0.86,
+   "reference": {
+    "f0_median": 81.3,
+    "f0_spread": 49.5,
+    "vtl_cm": 17.53
+   },
+   "corpus_clips_measured": 20,
+   "ratio_reference_over_corpus": {
+    "f0_median": 0.8978,
+    "f0_spread": 0.7734,
+    "vtl_cm": 1.0525
+   }
+  }
+ ],
+ "status": "complete",
+ "provenance": {
+  "script": "reference_audit.py",
+  "written": "2026-08-20T14:23:27",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c59da6ef85a1fb22e14c8f06af68f6643be4eb36",
+   "branch": "agent/instrument-null-tests-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M  GOALS.md",
+    "AM app/experiments/instrument_null_test.py",
+    "AM app/experiments/reference_audit.py",
+    "A  app/tests/test_instrument_null_test.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "06497c2948458f14edc029444c97098f04ae0e8747450dd21aebb9009ae5c1f4"
+  },
+  "args": {
+   "build": [],
+   "clips": 25,
+   "audio_root": [],
+   "out": "ab_test_runtime/experiments/reference_audit.json"
+  }
+ }
+}

@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1650** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1714** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -346,6 +346,22 @@ different held-out line).
 | Japanese | 0.796 | 0.779 | 0.755 | 98% |
 | Chinese | *0.691 — anchor invalid* | 0.765 | 0.720 | — |
 
+**Every eval set clones from a reference below the published useful range,
+measured 2026-08-20** (`reference_audit.json`). Qwen's own cloning guide puts
+the band at 10–15s and describes quality as "roughly linear from 3 to 15
+seconds"; the BSC Wildspoof 2026 submission measured speaker similarity
+degrading as prompts shorten. Ours: **aishell3 3.45s, kokoro 5.17s, ljspeech
+6.15s** — all three in the bottom quarter of that range, and the shortest is
+Chinese. The seven library voices are better at 8.3–11.0s, five of seven inside
+the band and none above 11s.
+
+This is an input we control and the audio to lengthen it already exists, so it
+is the cheapest untried lever on this goal. One caution from the same
+literature, worth stating so it is not tried by accident: BSC measured
+*enhancing* the reference improving audio quality (UTMOS 3.51 → 3.89) while
+**degrading** speaker similarity (SECS 0.35 → 0.28). Cleaning the reference is
+the plausible move that backfires.
+
 **Target — reach 95% of the ceiling in every language with a valid anchor.**
 
 **A result worth stating plainly: the simple method beat the elaborate one.**
@@ -400,6 +416,16 @@ English clone at 0.83x and Chinese LoRA at 0.81x — and both were sample size:
 the same arms measure 0.92x and 0.96x over 100 clips. The 12-clip run's
 artifact is not in the evidence tree, so the two runs cannot be reconciled
 directly; what is claimed here is only what the n=100 artifact shows.
+
+**The English median failure is real, and one MET cell is shakier than it
+looks.** The human-vs-human null described at 2.6 puts English `f0_median`
+between 0.9410 and 1.0658 across its whole range, so cloning's 0.81x is not
+instrument spread. But the same null flags a cell this goal currently reads as
+MET: **Chinese `f0_spread` falls outside its own 0.90–1.15 band on 13.65% of
+same-speaker splits** (p5 0.8741, p95 1.1465) with nothing synthesised. The
+Chinese spread cells at 1.03x and 0.96x are inside a band the measure cannot
+reliably stay inside, so they are weak evidence rather than a clear pass. No
+other measure in any language exceeds 0.8%.
 
 **Target — f0 spread within 0.90–1.15x of the human, and f0 median within
 0.95–1.05x.**
@@ -463,6 +489,44 @@ and consistent rather than noisy. Closing 2.6 now means either accepting that
 cloning misses this cell, or not shipping cloning for Chinese - a product
 decision, not a measurement, and the document should not pretend another run
 will resolve it.
+
+**The ruler was checked before that decision was taken, 2026-08-20, and it
+holds.** "The band is achievable" was an assumption nobody had tested: every
+number in 2.5 and 2.6 is a ratio of two medians, and that statistic has a
+spread of its own. `instrument_null_test.py` measures it by splitting the
+speaker's OWN human recordings into two disjoint halves and computing exactly
+the ratio the goal computes — same speaker, same session, nothing synthesised
+— over 2,000 random splits at the goal's own n=150.
+
+| null, human vs human | zh `vtl_cm` | en `f0_median` |
+|---|---|---|
+| median | 1.0000 | 1.0000 |
+| p5 – p95 | 0.9888 – 1.0106 | 0.9685 – 1.0326 |
+| **full range** | **0.9588 – 1.0337** | **0.9410 – 1.0658** |
+| outside its band | **0.0%** | 0.8% |
+
+The Chinese clone's 1.0607x and English cloning's 0.81x both sit **outside the
+entire null range**, not merely outside the band. So the instrument is
+exonerated and **both failing cells are real measurements of the arm.** The
+hypothesis that a 6% miss was formant-estimation noise is refuted, and the
+product decision above stands unchanged.
+
+**A mechanism did survive, and it is an input rather than the model.** The
+clone arm has exactly one input besides the text, and `reference_audit.py`
+(2026-08-20) shows it is unrepresentative in the same direction as each
+failure:
+
+| eval set | ref seconds | ref f0 ÷ corpus | ref vtl ÷ corpus | the arm's miss |
+|---|---|---|---|---|
+| aishell3 (zh) | **3.45** | 1.0028 | **1.0360** | vtl 1.0607x |
+| ljspeech (en) | **6.15** | **0.9439** | 1.0704 | f0 median 0.81x |
+
+The reference clip a Chinese clone is built from already has a 3.6% longer
+apparent vocal tract than the speaker's own corpus median, and the English
+reference is pitched 5.6% below its speaker's median. A clone copies its
+reference; if the reference is off-centre, so is the clone. This is a
+directional match on two of two, not a demonstration — it does not show the
+magnitude follows — but it is cheap to test and it is an input we choose.
 
 | set | jitter | shimmer | HNR |
 |---|---|---|---|

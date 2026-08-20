@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 217,
+    "supported_structure": 219,
     "exploratory": 192,
     "provisional": 122
   },
@@ -4769,6 +4769,22 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "instrument_null_test.json",
+      "bytes": 5567,
+      "sha256": "2b964db3de301d25fc37a3830e14b3e3093a47f4702392113811b21153a0ccaa",
+      "completeness": "complete",
+      "seed": 1234,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T14:25:55",
+      "commit": "c59da6ef85a1fb22e14c8f06af68f6643be4eb36",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "japanese_quote_robustness.json",
       "bytes": 904,
       "sha256": "8a4c16bb37a1e4bde768fbec6223585ab7f4b41ef2138f9e4e612ab4d767f98a",
@@ -6310,6 +6326,22 @@
       "written": "2026-08-07T05:39:32",
       "commit": "382582f8c430ce51e2592a23b6d694ed2eca86e4",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "reference_audit.json",
+      "bytes": 8559,
+      "sha256": "c81ffd77950724f32cf89a0a424fe531c2a37eeb8cdfe3a426048cc0463022be",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 13,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T14:23:27",
+      "commit": "c59da6ef85a1fb22e14c8f06af68f6643be4eb36",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
