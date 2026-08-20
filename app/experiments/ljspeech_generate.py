@@ -103,9 +103,21 @@ def main():
             print(f"  [{i}/{len(rows)}] {len(produced)} complete, "
                   f"{len(failures)} dropped")
 
+    # NOTHING AFTER THE GENERATION MAY THROW. Every clip is already rendered by
+    # this point - five to seven minutes of card per voice - and on 2026-08-20
+    # this line discarded all of it eight times over: `build["test_books"]` is
+    # present on the corpus builds and absent on the library ones, so
+    # KeyError: 'test_books' landed AFTER the work, at the write.
+    #
+    # That is the same shape #355 fixed for `book` and did not finish: one key
+    # repaired, the next left to crash. Metadata a build may not carry is read
+    # with .get and recorded as absent, because "which books the test split
+    # came from" is provenance - a library voice has one audiobook and no book
+    # list - and provenance that is missing should be reported, never fatal.
     doc = {"seed": args.seed, "arms": args.arms,
-           "reference_id": build["ref_source_id"],
-           "test_books": build["test_books"],
+           "reference_id": build.get("ref_source_id"),
+           "test_books": build.get("test_books"),
+           "corpus": build.get("corpus"),
            "rows": produced, "failures": failures}
     try:
         from experiments.provenance import provenance

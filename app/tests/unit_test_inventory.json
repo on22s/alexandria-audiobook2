@@ -773,6 +773,13 @@
     "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_sees_a_timeout_hidden_behind_a_nested_call",
     "tests.test_generate_script_timeout.LlmClientTimeoutTest.test_the_scanner_still_catches_a_client_with_no_timeout"
   ],
+  "test_generate_survives_build_shape": [
+    "tests.test_generate_survives_build_shape.BuilderShapeTest.test_a_build_missing_the_key_still_produces_a_document",
+    "tests.test_generate_survives_build_shape.BuilderShapeTest.test_a_library_build_round_trips_through_the_consumer_contract",
+    "tests.test_generate_survives_build_shape.BuilderShapeTest.test_the_library_builder_emits_test_books",
+    "tests.test_generate_survives_build_shape.WriteMustNotThrowTest.test_no_required_subscript_on_build_AFTER_generation_begins",
+    "tests.test_generate_survives_build_shape.WriteMustNotThrowTest.test_the_document_records_absent_metadata_rather_than_omitting_it"
+  ],
   "test_generation_dispatch": [
     "tests.test_generation_dispatch.GenerationDispatchTests.test_batch_generation_uses_same_dispatch_with_output",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_default_output_and_stale_chunks_share_runtime_data_directory",

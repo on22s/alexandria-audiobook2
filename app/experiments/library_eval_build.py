@@ -85,6 +85,12 @@ def main():
         "ref_sample": os.path.relpath(ref, REPO),
         "ref_text": ref_text,
         "ref_source_id": "ref",
+        # ONE AUDIOBOOK, SO ONE "BOOK". The corpus builds carry `test_books`
+        # because their test split is drawn from named volumes; a library voice
+        # has a single source. Emitting it anyway means every consumer sees the
+        # same shape whichever builder produced the file - the shape mismatch
+        # that crashed ljspeech_generate after it had rendered every clip.
+        "test_books": [book],
         # `test` is the name ljspeech_generate.py reads. Same shape, so the
         # existing generator and prosody probe work unchanged.
         "test": rows,
