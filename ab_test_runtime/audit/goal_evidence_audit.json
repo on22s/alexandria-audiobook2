@@ -1,12 +1,11 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 6,
+ "goals_scored": 7,
  "goals_citing_no_artifact": [
   "1.1",
   "1.2",
   "2.1",
   "2.5",
-  "2.6",
   "2.9",
   "3.1",
   "5.3",
@@ -78,6 +77,40 @@
      "classification": "provisional",
      "dirty": false,
      "commit": "566dc8f5"
+    }
+   ]
+  },
+  {
+   "goal": "2.6",
+   "title": "Voice quality, the measures the field says matter most",
+   "cited": 3,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "supported_structure": 1,
+    "exploratory": 2
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 2,
+   "artifacts": [
+    {
+     "name": "aishell3_SSB0748_generate.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "d76fe0cf"
+    },
+    {
+     "name": "corpus_hnr_baseline.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "pitch_quality_SSB0748.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },

@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 03:17 from `ab_test_runtime/experiments/` — 521 artifacts, 594 arms.
+Generated 2026-08-20 06:57 from `ab_test_runtime/experiments/` — 523 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1069,11 +1069,13 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_e_row__e.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ei.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_earcheck.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_hyphen_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_measure.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_none_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_none_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_pauses_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

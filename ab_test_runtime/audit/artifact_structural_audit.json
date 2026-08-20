@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 208,
+    "supported_structure": 210,
     "exploratory": 191,
     "provisional": 122
   },
@@ -6442,6 +6442,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "respelling_hyphen_allrows_n1600.json",
+      "bytes": 929290,
+      "sha256": "7fb5ed2d08e30ac3df691420ae7d47c6a591176825bbe061fe17b7440680ad4b",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 1600,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T01:17:33",
+      "commit": "ce12a5a4bf915614e99dd630cbc1ebad9b1efe08",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "respelling_measure.json",
       "bytes": 2919011,
       "sha256": "a0b1b479d9b02921f5a1760010a29b1cfed7fc1ae536150cf937f8aa88a149ce",
@@ -6516,6 +6532,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "respelling_pauses_allrows.json",
+      "bytes": 177349,
+      "sha256": "734a23c4db231b99a09219859930f03bb5fbed55c0a7ad6669682cfd600d9517",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 800,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T05:00:40",
+      "commit": "5fd3c4c3d8c7a33907987a1a8027a2c586bed055",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "respelling_pauses_separators.json",
       "bytes": 34081,
       "sha256": "59a9308d08a829bbe56dab170b9cc207709417e7d7e181d2b9ca0ac6d6fda56f",
@@ -6575,17 +6607,17 @@
     },
     {
       "artifact": "respelling_selectivity.json",
-      "bytes": 1287,
-      "sha256": "a1a4c1c042fc9687cdadde563e6006a09726632151c900216ec79d13ce9b886c",
+      "bytes": 1773,
+      "sha256": "7acb97e66354756de448b5adc8f59c07e1ca2cac42db3530544bef8c50306610",
       "completeness": "unknown",
       "seed": null,
       "status": null,
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-20T03:10:39",
-      "commit": "da310f086952d35b33f084c8a7af80595bab6794",
-      "dirty": true,
+      "written": "2026-08-20T06:44:10",
+      "commit": "40dcc83e736d2581f9e718e88ae945bf477ad0a8",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
