@@ -1,0 +1,55 @@
+{
+ "comparisons": [
+  {
+   "artifact": "respelling_none_allrows_n1600.json",
+   "completeness": "complete",
+   "paired_terms": 1582,
+   "applied_to_everything": {
+    "wins": 131,
+    "losses": 219,
+    "p_value": 2.9580793087778316e-06,
+    "net_words": -88
+   },
+   "where_plain_fails": {
+    "n": 1281,
+    "rescued": 131,
+    "rescue_pct": 10.2,
+    "ci95": [
+     8.6,
+     12.0
+    ]
+   },
+   "where_plain_already_works": {
+    "n": 301,
+    "broken": 219,
+    "break_pct": 72.8,
+    "ci95": [
+     67.4,
+     77.7
+    ]
+   },
+   "net_if_applied_selectively": 131
+  }
+ ],
+ "provenance": {
+  "script": "respelling_selectivity.py",
+  "written": "2026-08-20T03:10:39",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "da310f086952d35b33f084c8a7af80595bab6794",
+   "branch": "agent/two-stage-selection-gap-20260820",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/respelling_selectivity.py"
+   ],
+   "harness_sha256": "f3742e8489c53f5811afa199d10cca15fd10bb441c869179ba055f1f779a7b7c"
+  },
+  "args": {
+   "artifacts": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/respelling_none_allrows_n1600.json"
+   ],
+   "out": "ab_test_runtime/experiments/respelling_selectivity.json"
+  }
+ }
+}

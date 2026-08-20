@@ -1,0 +1,298 @@
+diff --git a/RESULTS_INDEX.md b/RESULTS_INDEX.md
+index d86367d..d7da679 100644
+--- a/RESULTS_INDEX.md
++++ b/RESULTS_INDEX.md
+@@ -1,6 +1,6 @@
+ # Results index
+ 
+-Generated 2026-08-20 01:53 from `ab_test_runtime/experiments/` — 519 artifacts, 594 arms.
++Generated 2026-08-20 03:01 from `ab_test_runtime/experiments/` — 519 artifacts, 594 arms.
+ 
+ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
+ 
+diff --git a/app/experiments/manifest.py b/app/experiments/manifest.py
+index b809e8a..ffbd68e 100644
+--- a/app/experiments/manifest.py
++++ b/app/experiments/manifest.py
+@@ -199,6 +199,23 @@ def read_inputs(paths, repo):
+     return recorded
+ 
+ 
++def _checked_candidates(candidates):
++    """-> the candidate list, or raise if it looks like prompt text.
++
++    See the note at `in_candidates`. The marker is deliberately narrow: it
++    catches the one decoration this repo actually produces rather than trying
++    to guess at names in general.
++    """
++    decorated = [c for c in candidates if isinstance(c, str) and "[also:" in c]
++    if decorated:
++        raise ValueError(
++            "candidates must be NAMES, not the lines shown to the model: %r. "
++            "Pass the names the roster line stands for (canonical and aliases) "
++            "so `in_candidates` means what it says; keep the decoration for the "
++            "prompt." % decorated[:2])
++    return candidates
++
++
+ class ExperimentRecord:
+     """Collect per-line records, then write one self-describing artifact."""
+ 
+@@ -244,8 +261,18 @@ class ExperimentRecord:
+             "correct": bool(correct),
+             "candidates": candidates,
+             "candidate_provenance": provenance,
++            # CANDIDATES ARE NAMES, NOT PROMPT TEXT. This is an exact
++            # membership test, so a caller passing display lines like
++            # "MRS. BENNET [also: BENNET]" gets False for every character that
++            # has an alias. two_stage_attribution did exactly that and the
++            # artifact reported the expected speaker missing from the cast on
++            # 2,250 of 2,494 rows; the true figure was zero, and the mistake
++            # inverted the finding - it reads as "the model was never given the
++            # answer" when in fact it was given it every single time.
++            # Refusing is the only safe response: a silently wrong field is
++            # worse than a crash, because it gets analysed.
+             "in_candidates": (None if candidates is None
+-                              else expected in (candidates or [])),
++                              else expected in _checked_candidates(candidates)),
+             "prompt_sha256": _sha(prompt) if prompt is not None else None,
+             "prompt_chars": len(prompt) if prompt is not None else None,
+             "raw_response": raw,
+diff --git a/app/experiments/two_stage_attribution.py b/app/experiments/two_stage_attribution.py
+index 9fd726c..f775f6b 100644
+--- a/app/experiments/two_stage_attribution.py
++++ b/app/experiments/two_stage_attribution.py
+@@ -80,6 +80,24 @@ def build_client(base_url, api_key="local"):
+                   timeout=llm_timeout_seconds())
+ 
+ 
++def roster_names(lines):
++    """-> every name a roster line stands for, canonical and aliases alike.
++
++    "MRS. BENNET [also: BENNET]" -> {"MRS. BENNET", "BENNET"}. Used for the
++    artifact's candidate set, which is a question about membership rather than
++    about how the cast was shown to the model.
++    """
++    names = []
++    for line in lines:
++        match = re.match(r"^(.*?)\s*\[also:\s*(.*?)\]\s*$", line)
++        if not match:
++            names.append(line.strip())
++            continue
++        names.append(match.group(1).strip())
++        names.extend(alias.strip() for alias in match.group(2).split(","))
++    return [n for n in names if n]
++
++
+ def roster_lines(fixture):
+     """-> one line per character, canonical name FIRST, aliases in brackets.
+ 
+@@ -256,9 +274,16 @@ def main():
+             correct = bool(predicted and predicted != DECLINE
+                            and same_speaker(entry.get("expected_speaker"),
+                                             predicted, groups))
++            # THE NAMES, not the display lines. `roster` is prompt text -
++            # "MRS. BENNET [also: BENNET]" - and manifest.add records
++            # `in_candidates` as an exact membership test, so passing the
++            # decorated form made it False for every character that has an
++            # alias: it reported the expected speaker missing from the cast on
++            # 2,250 of 2,494 rows when the true figure is ZERO. The prompt keeps
++            # the aliases; the artifact records the set they belong to.
+             record.add("single", gold_id, entry.get("line"),
+                        entry.get("expected_speaker"), predicted, correct,
+-                       candidates=roster,
++                       candidates=roster_names(roster),
+                        provenance=f"single|{book}|{entry.get('quote_type')}",
+                        raw=(raw if raw is not None else failure))
+             if index % 25 == 0:
+diff --git a/app/tests/test_two_stage_roster.py b/app/tests/test_two_stage_roster.py
+index 77c0b6e..04531ff 100644
+--- a/app/tests/test_two_stage_roster.py
++++ b/app/tests/test_two_stage_roster.py
+@@ -131,3 +131,55 @@ class SummaryTest(unittest.TestCase):
+         self.assertEqual(4, bucket["n"])
+         self.assertEqual(1, bucket["wrong"])
+         self.assertEqual(1, bucket["failed"])
++
++
++class CandidateRecordingTest(unittest.TestCase):
++    """`in_candidates` must mean what it says.
++
++    two_stage_attribution passed the roster DISPLAY lines - "MRS. BENNET
++    [also: BENNET]" - to ExperimentRecord.add, whose in_candidates is an exact
++    membership test. The artifact therefore reported the expected speaker
++    missing from the cast on 2,250 of 2,494 rows. The true figure is zero: the
++    model was handed the right name every single time, and the failure is
++    entirely one of selection.
++
++    That inversion is why this is a crash now and not a lenient parse. A field
++    that is silently wrong gets analysed; one that raises does not.
++    """
++
++    def test_roster_names_expands_aliases(self):
++        from experiments.two_stage_attribution import roster_names
++        self.assertEqual(
++            ["MRS. BENNET", "BENNET", "MR. DARCY", "JANE", "MISS BENNET"],
++            roster_names(["MRS. BENNET [also: BENNET]", "MR. DARCY",
++                          "JANE [also: MISS BENNET]"]))
++
++    def test_a_name_with_no_aliases_survives_unchanged(self):
++        from experiments.two_stage_attribution import roster_names
++        self.assertEqual(["MR. DARCY"], roster_names(["MR. DARCY"]))
++
++    @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
++    def test_every_gold_speaker_is_in_the_recorded_candidate_set(self):
++        """The property the broken field denied, on every real fixture.
++
++        The artifact claimed the expected speaker was absent from the cast on
++        2,250 of 2,494 rows. This asserts the opposite directly against the
++        gold: for each book, every speaker the gold names appears in the
++        candidate set the artifact would record.
++        """
++        from experiments.two_stage_attribution import roster_lines, roster_names
++        for path in FIXTURES:
++            with self.subTest(book=os.path.basename(path)):
++                with open(path, encoding="utf-8") as handle:
++                    fixture = json.load(handle)
++                names = set(roster_names(roster_lines(fixture)))
++                missing = sorted({e["expected_speaker"]
++                                  for e in fixture["entries"]} - names)
++                self.assertEqual([], missing,
++                                 "gold speakers absent from the recorded cast")
++
++    def test_the_manifest_refuses_display_lines(self):
++        from experiments.manifest import _checked_candidates
++        with self.assertRaises(ValueError):
++            _checked_candidates(["MRS. BENNET [also: BENNET]"])
++        self.assertEqual(["MRS. BENNET"], _checked_candidates(["MRS. BENNET"]))
+diff --git a/app/tests/unit_test_inventory.json b/app/tests/unit_test_inventory.json
+index b041456..4b9a908 100644
+--- a/app/tests/unit_test_inventory.json
++++ b/app/tests/unit_test_inventory.json
+@@ -2070,6 +2070,10 @@
+     "tests.test_two_stage_roster.AnswerShapeTest.test_a_name_is_not_mistaken_for_a_decline",
+     "tests.test_two_stage_roster.AnswerShapeTest.test_an_echoed_cast_line_resolves_to_the_name",
+     "tests.test_two_stage_roster.AnswerShapeTest.test_markdown_quotes_and_punctuation_are_stripped",
++    "tests.test_two_stage_roster.CandidateRecordingTest.test_a_name_with_no_aliases_survives_unchanged",
++    "tests.test_two_stage_roster.CandidateRecordingTest.test_every_gold_speaker_is_in_the_recorded_candidate_set",
++    "tests.test_two_stage_roster.CandidateRecordingTest.test_roster_names_expands_aliases",
++    "tests.test_two_stage_roster.CandidateRecordingTest.test_the_manifest_refuses_display_lines",
+     "tests.test_two_stage_roster.RosterTest.test_aliases_attach_to_the_name_the_gold_uses",
+     "tests.test_two_stage_roster.RosterTest.test_every_expected_speaker_can_be_named",
+     "tests.test_two_stage_roster.RosterTest.test_no_decorated_name_is_a_character_who_never_speaks",
+diff --git a/app/experiments/two_stage_selection_gap.py b/app/experiments/two_stage_selection_gap.py
+new file mode 100644
+index 0000000..e7dc558
+--- /dev/null
++++ b/app/experiments/two_stage_selection_gap.py
+@@ -0,0 +1,110 @@
++"""Was the two-stage model ever given the answer? Yes - every single time.
++
++WHY THIS EXISTS. two_stage_attribution_full.json records `in_candidates: false`
++on 2,250 of its 2,494 rows, which reads as "the correct speaker was not in the
++cast the model was shown" and would make 54.5% accuracy a story about roster
++recall. It is an artefact of a bug: the run passed the roster DISPLAY lines
++("MRS. BENNET [also: BENNET]") where ExperimentRecord expects names, and the
++field is an exact membership test.
++
++Recomputed by expanding each line into the names it stands for, the expected
++speaker was available in 2,494 of 2,494 rows. Every wrong answer was a wrong
++CHOICE from a list containing the right name.
++
++Reads the committed artifact and calls no model, so it costs nothing to re-run.
++"""
++import argparse
++import collections
++import glob
++import json
++import os
++import re
++import sys
++
++REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++sys.path.insert(0, os.path.join(REPO, "app"))
++from experiments.provenance import provenance  # noqa: E402
++from experiments.two_stage_attribution import roster_names  # noqa: E402
++
++
++def gold_index():
++    """-> {row id: gold entry} across every PDNC fixture."""
++    index = {}
++    for path in glob.glob(os.path.join(REPO, "app", "fixtures",
++                                       "attribution_gold_pdnc_*.json")):
++        stem = os.path.basename(path)[:-5]
++        with open(path, encoding="utf-8") as handle:
++            for entry in json.load(handle)["entries"]:
++                index["%s:%s" % (stem, entry["id"])] = entry
++    return index
++
++
++def analyse(artifact):
++    with open(artifact, encoding="utf-8") as handle:
++        rows = json.load(handle)["rows"]
++    gold = gold_index()
++    per_type = collections.defaultdict(
++        lambda: {"n": 0, "wrong": 0, "answer_available": 0,
++                 "wrong_but_available": 0})
++    stated_absent = 0
++    for row in rows:
++        available = row["expected"] in set(roster_names(row["candidates"]))
++        stated_absent += row.get("in_candidates") is False
++        entry = gold.get(row["id"]) or {}
++        bucket = per_type[entry.get("quote_type", "unknown")]
++        bucket["n"] += 1
++        bucket["answer_available"] += available
++        if not row["correct"]:
++            bucket["wrong"] += 1
++            bucket["wrong_but_available"] += available
++    total = len(rows)
++    available = sum(b["answer_available"] for b in per_type.values())
++    return {
++        "artifact": os.path.basename(artifact),
++        "rows": total,
++        "field_said_absent": stated_absent,
++        "actually_available": available,
++        "selection_failures": sum(b["wrong_but_available"]
++                                  for b in per_type.values()),
++        "by_quote_type": {k: dict(v) for k, v in sorted(per_type.items())},
++    }
++
++
++def render(summary):
++    lines = ["=== %s ===" % summary["artifact"],
++             "  rows                          %d" % summary["rows"],
++             "  in_candidates said absent     %d  (the bug)"
++             % summary["field_said_absent"],
++             "  answer actually available     %d" % summary["actually_available"],
++             "  wrong WITH the answer present %d  <- every failure is a choice"
++             % summary["selection_failures"], ""]
++    lines.append("  %-11s %6s %6s %8s" % ("quote type", "n", "wrong", "wrong%"))
++    for name, bucket in summary["by_quote_type"].items():
++        lines.append("  %-11s %6d %6d %7.1f%%"
++                     % (name, bucket["n"], bucket["wrong"],
++                        100.0 * bucket["wrong"] / max(1, bucket["n"])))
++    lines.append("")
++    lines.append("  Explicit quotes NAME the speaker in the text, and are the")
++    lines.append("  second-worst bucket. That is the finding worth chasing.")
++    return "\n".join(lines)
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
++    parser.add_argument("--artifact", default=os.path.join(
++        REPO, "ab_test_runtime", "experiments",
++        "two_stage_attribution_full.json"))
++    parser.add_argument("--out", default=os.path.join(
++        REPO, "ab_test_runtime", "experiments", "two_stage_selection_gap.json"))
++    args = parser.parse_args()
++
++    summary = analyse(args.artifact)
++    print(render(summary))
++    payload = dict(summary, provenance=provenance(__file__, args))
++    with open(args.out, "w", encoding="utf-8") as handle:
++        json.dump(payload, handle, indent=1, ensure_ascii=False)
++    print("\nwrote %s" % args.out)
++
++
++if __name__ == "__main__":
++    main()

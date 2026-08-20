@@ -131,3 +131,55 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(4, bucket["n"])
         self.assertEqual(1, bucket["wrong"])
         self.assertEqual(1, bucket["failed"])
+
+
+class CandidateRecordingTest(unittest.TestCase):
+    """`in_candidates` must mean what it says.
+
+    two_stage_attribution passed the roster DISPLAY lines - "MRS. BENNET
+    [also: BENNET]" - to ExperimentRecord.add, whose in_candidates is an exact
+    membership test. The artifact therefore reported the expected speaker
+    missing from the cast on 2,250 of 2,494 rows. The true figure is zero: the
+    model was handed the right name every single time, and the failure is
+    entirely one of selection.
+
+    That inversion is why this is a crash now and not a lenient parse. A field
+    that is silently wrong gets analysed; one that raises does not.
+    """
+
+    def test_roster_names_expands_aliases(self):
+        from experiments.two_stage_attribution import roster_names
+        self.assertEqual(
+            ["MRS. BENNET", "BENNET", "MR. DARCY", "JANE", "MISS BENNET"],
+            roster_names(["MRS. BENNET [also: BENNET]", "MR. DARCY",
+                          "JANE [also: MISS BENNET]"]))
+
+    def test_a_name_with_no_aliases_survives_unchanged(self):
+        from experiments.two_stage_attribution import roster_names
+        self.assertEqual(["MR. DARCY"], roster_names(["MR. DARCY"]))
+
+    @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
+    def test_every_gold_speaker_is_in_the_recorded_candidate_set(self):
+        """The property the broken field denied, on every real fixture.
+
+        The artifact claimed the expected speaker was absent from the cast on
+        2,250 of 2,494 rows. This asserts the opposite directly against the
+        gold: for each book, every speaker the gold names appears in the
+        candidate set the artifact would record.
+        """
+        from experiments.two_stage_attribution import roster_lines, roster_names
+        for path in FIXTURES:
+            with self.subTest(book=os.path.basename(path)):
+                with open(path, encoding="utf-8") as handle:
+                    fixture = json.load(handle)
+                names = set(roster_names(roster_lines(fixture)))
+                missing = sorted({e["expected_speaker"]
+                                  for e in fixture["entries"]} - names)
+                self.assertEqual([], missing,
+                                 "gold speakers absent from the recorded cast")
+
+    def test_the_manifest_refuses_display_lines(self):
+        from experiments.manifest import _checked_candidates
+        with self.assertRaises(ValueError):
+            _checked_candidates(["MRS. BENNET [also: BENNET]"])
+        self.assertEqual(["MRS. BENNET"], _checked_candidates(["MRS. BENNET"]))

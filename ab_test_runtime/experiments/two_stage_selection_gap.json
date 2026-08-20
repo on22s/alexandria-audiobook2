@@ -1,0 +1,50 @@
+{
+ "artifact": "two_stage_attribution_full.json",
+ "rows": 2494,
+ "field_said_absent": 2250,
+ "actually_available": 2494,
+ "selection_failures": 1134,
+ "by_quote_type": {
+  "Anaphoric": {
+   "n": 723,
+   "wrong": 277,
+   "answer_available": 723,
+   "wrong_but_available": 277
+  },
+  "Explicit": {
+   "n": 543,
+   "wrong": 256,
+   "answer_available": 543,
+   "wrong_but_available": 256
+  },
+  "Implicit": {
+   "n": 1228,
+   "wrong": 601,
+   "answer_available": 1228,
+   "wrong_but_available": 601
+  }
+ },
+ "provenance": {
+  "script": "two_stage_selection_gap.py",
+  "written": "2026-08-20T02:59:49",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "d666f3a71e76bf7a71d516e2efb6fa14acef6a82",
+   "branch": "agent/dev-worktree-convention-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/manifest.py",
+    " M app/experiments/two_stage_attribution.py",
+    " M app/tests/test_two_stage_roster.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/two_stage_selection_gap.py"
+   ],
+   "harness_sha256": "02bf997dbd494ecbb483195c171e904d7c827bf58c23d3933746e05abe2bdc79"
+  },
+  "args": {
+   "artifact": "ab_test_runtime/experiments/two_stage_attribution_full.json",
+   "out": "ab_test_runtime/experiments/two_stage_selection_gap.json"
+  }
+ }
+}

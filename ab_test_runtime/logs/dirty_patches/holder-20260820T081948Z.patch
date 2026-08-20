@@ -1,0 +1,165 @@
+diff --git a/RESULTS_INDEX.md b/RESULTS_INDEX.md
+index d7da679..f1abdaf 100644
+--- a/RESULTS_INDEX.md
++++ b/RESULTS_INDEX.md
+@@ -1,6 +1,6 @@
+ # Results index
+ 
+-Generated 2026-08-20 03:01 from `ab_test_runtime/experiments/` — 519 artifacts, 594 arms.
++Generated 2026-08-20 03:17 from `ab_test_runtime/experiments/` — 521 artifacts, 594 arms.
+ 
+ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
+ 
+@@ -1078,6 +1078,7 @@ These artifacts exist and hold real results; this table only represents per-arm
+ | `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+ | `respelling_rule_b_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
++| `respelling_selectivity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `respelling_separator__dot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `respelling_separator__none.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `respelling_separator__none_n400.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+@@ -1112,6 +1113,7 @@ These artifacts exist and hold real results; this table only represents per-arm
+ | `two_stage_attribution.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `two_stage_diagnostic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `two_stage_diagnostic2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
++| `two_stage_selection_gap.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+ | `validation_baseline.json` | SKIPPED: 'rows' is not a list of scored arms |
+ | `validation_manifest.json` | SKIPPED: not a result object (list) |
+ | `validation_smoke.json` | SKIPPED: 'rows' is not a list of scored arms |
+diff --git a/ab_test_runtime/audit/artifact_structural_audit.json b/ab_test_runtime/audit/artifact_structural_audit.json
+index 335cd85..8685f3f 100644
+--- a/ab_test_runtime/audit/artifact_structural_audit.json
++++ b/ab_test_runtime/audit/artifact_structural_audit.json
+@@ -1,7 +1,7 @@
+ {
+   "scope": "structural audit only; classifications do not validate scientific conclusions",
+   "summary": {
+-    "supported_structure": 206,
++    "supported_structure": 208,
+     "exploratory": 191,
+     "provisional": 122
+   },
+@@ -6573,6 +6573,22 @@
+       "classification": "exploratory",
+       "reason": "no embedded provenance or experiment metadata"
+     },
++    {
++      "artifact": "respelling_selectivity.json",
++      "bytes": 1287,
++      "sha256": "a1a4c1c042fc9687cdadde563e6006a09726632151c900216ec79d13ce9b886c",
++      "completeness": "unknown",
++      "seed": null,
++      "status": null,
++      "row_count": null,
++      "has_rows": false,
++      "identity_contract": "tts_provenance",
++      "written": "2026-08-20T03:10:39",
++      "commit": "da310f086952d35b33f084c8a7af80595bab6794",
++      "dirty": true,
++      "classification": "supported_structure",
++      "reason": "embedded provenance and identifiable harness"
++    },
+     {
+       "artifact": "respelling_separator__dot.json",
+       "bytes": 73359,
+@@ -7619,6 +7635,22 @@
+       "classification": "supported_structure",
+       "reason": "embedded provenance and identifiable harness"
+     },
++    {
++      "artifact": "two_stage_selection_gap.json",
++      "bytes": 1281,
++      "sha256": "b25d51a942b1f18a3abb390cfc4738409bd2fee2a7dc96f7bc75f0d84f487fe2",
++      "completeness": "unknown",
++      "seed": null,
++      "status": null,
++      "row_count": null,
++      "has_rows": false,
++      "identity_contract": "tts_provenance",
++      "written": "2026-08-20T02:59:49",
++      "commit": "d666f3a71e76bf7a71d516e2efb6fa14acef6a82",
++      "dirty": true,
++      "classification": "supported_structure",
++      "reason": "embedded provenance and identifiable harness"
++    },
+     {
+       "artifact": "validation_baseline.json",
+       "bytes": 32620,
+diff --git a/ab_test_runtime/audit/legacy_attribution_audit.json b/ab_test_runtime/audit/legacy_attribution_audit.json
+index c786f72..a5d95ec 100644
+--- a/ab_test_runtime/audit/legacy_attribution_audit.json
++++ b/ab_test_runtime/audit/legacy_attribution_audit.json
+@@ -1,6 +1,6 @@
+ {
+   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
+-  "source_structural_sha256": "6fd1d637525315875b2da8ca7e1c9cd936c0e6ec434fedc52d8c8bc9fe61a7ab",
++  "source_structural_sha256": "d16f40eb80086fe6dc522a5a54300a1425a603b47e45b43b80eaa988217adeca",
+   "summary": {
+     "exploratory": 9,
+     "historical_only": 40,
+diff --git a/app/tests/test_release_verifier.py b/app/tests/test_release_verifier.py
+index d7959e6..f70cf02 100644
+--- a/app/tests/test_release_verifier.py
++++ b/app/tests/test_release_verifier.py
+@@ -262,8 +262,14 @@ class ReleaseVerifierTests(unittest.TestCase):
+ 
+         self.assertEqual("passed", report["status"])
+         self.assertEqual("quick", report["mode"])
++        # The three evidence-index gates sit between unit_tests and
++        # api_contract, matching the order CI runs them in. They were added
++        # after "verifier green" was followed by a red CI three times in two
++        # days, every time on an index that had not been regenerated.
+         self.assertEqual(
+-            ["compile_python", "test_inventory", "unit_tests", "api_contract", "api_tests"],
++            ["compile_python", "test_inventory", "unit_tests",
++             "evidence_index", "legacy_audit", "results_index",
++             "api_contract", "api_tests"],
+             [gate["name"] for gate in report["gates"]],
+         )
+         self.assertEqual(api_result, report["gates"][-1]["result"])
+diff --git a/app/verify_release.py b/app/verify_release.py
+index 3f4be89..c6de17e 100644
+--- a/app/verify_release.py
++++ b/app/verify_release.py
+@@ -271,6 +271,21 @@ def main(argv=None):
+                 app_dir, reject_unittest_skips=True,
+             ),
+         )
++        # THE THREE CHECKS CI RUNS AND THIS DID NOT. "verifier green" was
++        # followed by a red CI three times on 2026-08-19/20, every time because
++        # a regenerated index was not committed - and each fix surfaced only
++        # the next one, because the CI step runs them in sequence and stops at
++        # the first. They belong here, where they cost two seconds, rather than
++        # in a four-minute round trip. Run from the repo root, not app/.
++        for gate, script in (("evidence_index", "audit_experiment_artifacts.py"),
++                             ("legacy_audit", "audit_legacy_attribution.py"),
++                             ("results_index", "collect_results.py")):
++            run_report_gate(
++                report, gate, lambda script=script: run_report_command(
++                    "Evidence index (%s)" % script,
++                    [sys.executable, script, "--check"], repo_dir,
++                ),
++            )
+         run_report_gate(
+             report, "api_contract", lambda: run_report_command(
+                 "API contract snapshots",
+diff --git a/results_index.csv b/results_index.csv
+index de3d7d4..c9b30e4 100644
+--- a/results_index.csv
++++ b/results_index.csv
+@@ -772,6 +772,7 @@ respelling_pauses_separators.json,supported_structure,none,no,,58d548bd,,,,,,,,,
+ respelling_pauses_separators_3arm.json,supported_structure,none,no,,f7de4714,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ respelling_rule_b.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+ respelling_rule_b_rescored.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
++respelling_selectivity.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ respelling_separator__dot.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ respelling_separator__none.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ respelling_separator__none_n400.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+@@ -905,6 +906,7 @@ two_stage_attribution_full.json,historical_only,git+naming,no,two_stage_attribut
+ two_stage_attribution_full.json,historical_only,git+naming,no,two_stage_attribution.py,bbf61818,,,two_stage_attribution,attribution_gold_pdnc_thesignofthefour,qwen3-14b,local-lmstudio,mitch-linux,lmstudio,32768,1,f16?,single,640,324,50.6,ok,False,70670ef6,718.1,08-19 13:19,http://127.0.0.1:8090/v1,
+ two_stage_diagnostic.json,supported_structure,none,no,,6a3f6698,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ two_stage_diagnostic2.json,supported_structure,none,no,,fba8b1ad,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
++two_stage_selection_gap.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ validation_baseline.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+ validation_manifest.json,exploratory,none,no,,6cccebc0,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
+ validation_smoke.json,exploratory,none,no,,568f558f,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms

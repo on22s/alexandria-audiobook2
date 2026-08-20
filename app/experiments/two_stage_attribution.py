@@ -80,6 +80,24 @@ def build_client(base_url, api_key="local"):
                   timeout=llm_timeout_seconds())
 
 
+def roster_names(lines):
+    """-> every name a roster line stands for, canonical and aliases alike.
+
+    "MRS. BENNET [also: BENNET]" -> {"MRS. BENNET", "BENNET"}. Used for the
+    artifact's candidate set, which is a question about membership rather than
+    about how the cast was shown to the model.
+    """
+    names = []
+    for line in lines:
+        match = re.match(r"^(.*?)\s*\[also:\s*(.*?)\]\s*$", line)
+        if not match:
+            names.append(line.strip())
+            continue
+        names.append(match.group(1).strip())
+        names.extend(alias.strip() for alias in match.group(2).split(","))
+    return [n for n in names if n]
+
+
 def roster_lines(fixture):
     """-> one line per character, canonical name FIRST, aliases in brackets.
 
@@ -132,13 +150,22 @@ def is_decline(answer):
     return normalize(answer).startswith(DECLINE)
 
 
-def ask(client, model, entry, roster, decoding):
-    """-> (answer, raw, failure_reason). failure_reason set means no answer."""
-    prompt = SINGLE_PROMPT.format(
+def build_prompt(entry, roster):
+    """-> the exact text sent to the model.
+
+    Extracted so `--keep-prompts` records what was actually asked rather than a
+    second copy of this formatting that could drift from it (Rule 15).
+    """
+    return SINGLE_PROMPT.format(
         roster="\n".join(f"- {name}" for name in roster),
         prev=str(entry.get("prev_context") or ""),
         line=str(entry.get("line") or ""),
         next=str(entry.get("next_context") or ""))
+
+
+def ask(client, model, entry, roster, decoding):
+    """-> (answer, raw, failure_reason). failure_reason set means no answer."""
+    prompt = build_prompt(entry, roster)
     try:
         response = client.chat.completions.create(
             model=model, temperature=decoding["temperature"],
@@ -209,6 +236,17 @@ def main():
     ap.add_argument("--tag", default="current",
                     help="artifact suffix; two runs with different --limit "
                          "must not share one path")
+    ap.add_argument("--quote-type", default=None,
+                    help="measure only one PDNC quote type (Explicit, "
+                         "Implicit, Anaphoric). Explicit quotes NAME the "
+                         "speaker in the text and are wrong 47.1% of the time "
+                         "with the right name in the supplied cast, which is "
+                         "the standout anomaly of the full run.")
+    ap.add_argument("--keep-prompts", action="store_true",
+                    help="record the prompt text, not only its hash. The full "
+                         "run stores prompt_sha256 alone, which is enough to "
+                         "prove two rows saw the same prompt and useless for "
+                         "asking WHY a row failed.")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -243,6 +281,14 @@ def main():
         with open(path, encoding="utf-8") as handle:
             fixture = json.load(handle)
         entries = fixture["entries"]
+        if args.quote_type:
+            entries = [e for e in entries
+                       if e.get("quote_type") == args.quote_type]
+            if not entries:
+                raise SystemExit(
+                    "no %r entries in %s; the gold uses %s"
+                    % (args.quote_type, book,
+                       sorted({e.get("quote_type") for e in fixture["entries"]})))
         if args.limit and args.limit < len(entries):
             entries = random.Random(args.seed).sample(entries, args.limit)
         groups = alias_groups(fixture)
@@ -256,11 +302,20 @@ def main():
             correct = bool(predicted and predicted != DECLINE
                            and same_speaker(entry.get("expected_speaker"),
                                             predicted, groups))
+            # THE NAMES, not the display lines. `roster` is prompt text -
+            # "MRS. BENNET [also: BENNET]" - and manifest.add records
+            # `in_candidates` as an exact membership test, so passing the
+            # decorated form made it False for every character that has an
+            # alias: it reported the expected speaker missing from the cast on
+            # 2,250 of 2,494 rows when the true figure is ZERO. The prompt keeps
+            # the aliases; the artifact records the set they belong to.
             record.add("single", gold_id, entry.get("line"),
                        entry.get("expected_speaker"), predicted, correct,
-                       candidates=roster,
+                       candidates=roster_names(roster),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
-                       raw=(raw if raw is not None else failure))
+                       raw=(raw if raw is not None else failure),
+                       prompt=(build_prompt(entry, roster)
+                               if args.keep_prompts else None))
             if index % 25 == 0:
                 print(f"  {book}: {index}/{len(entries)}", flush=True)
         rows = [r for r in record.rows if r["id"].startswith(book + ":")]

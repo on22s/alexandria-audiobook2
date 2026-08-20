@@ -271,6 +271,21 @@ def main(argv=None):
                 app_dir, reject_unittest_skips=True,
             ),
         )
+        # THE THREE CHECKS CI RUNS AND THIS DID NOT. "verifier green" was
+        # followed by a red CI three times on 2026-08-19/20, every time because
+        # a regenerated index was not committed - and each fix surfaced only
+        # the next one, because the CI step runs them in sequence and stops at
+        # the first. They belong here, where they cost two seconds, rather than
+        # in a four-minute round trip. Run from the repo root, not app/.
+        for gate, script in (("evidence_index", "audit_experiment_artifacts.py"),
+                             ("legacy_audit", "audit_legacy_attribution.py"),
+                             ("results_index", "collect_results.py")):
+            run_report_gate(
+                report, gate, lambda script=script: run_report_command(
+                    "Evidence index (%s)" % script,
+                    [sys.executable, script, "--check"], repo_dir,
+                ),
+            )
         run_report_gate(
             report, "api_contract", lambda: run_report_command(
                 "API contract snapshots",
