@@ -212,3 +212,4 @@ ab_test_runtime/blinded_listening_concealed_key.json
 # regenerable by rerunning the scan. The candidate artifacts it produces are
 # word statistics and are committed; this is the working file.
 ab_test_runtime/lexicon_scan/
+ab_test_runtime/logs/dirty_patches/

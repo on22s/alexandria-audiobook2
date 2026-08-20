@@ -1,0 +1,8 @@
+warm_baritone_50s_m|ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m|0.781
+silky_alto_40s_f|ab_test_runtime/decontaminate/batch3/silky_alto_40s_f|0.712
+silky_baritone_40s_m_scifi|ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi|0.694
+warm_baritone_30s_m_scifi|ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi|0.667
+husky_baritone_50s_m_military|ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military|0.654
+husky_soprano_20s_f|ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f|0.611
+warm_baritone_30s_m_1|ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1|0.586
+silky_baritone_30s_m|ab_test_runtime/retrain_honest/silky_baritone_30s_m|0.555

@@ -33,6 +33,11 @@
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_argparse_help_strings": [
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_no_help_string_contains_an_unescaped_percent",
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
+    "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_recognises_the_shapes_it_must_allow"
+  ],
   "test_artifact_shrinkage": [
     "tests.test_artifact_shrinkage.ExplainedTest.test_a_recorded_failure_counts_as_an_explanation",
     "tests.test_artifact_shrinkage.ExplainedTest.test_an_empty_failures_list_explains_nothing",
@@ -952,6 +957,15 @@
     "tests.test_lexicon_attribution.TermVerdictTests.test_an_exact_half_of_the_evidence_is_accepted",
     "tests.test_lexicon_attribution.TermVerdictTests.test_too_little_evidence_is_unattributed_even_when_unanimous",
     "tests.test_lexicon_attribution.TermVerdictTests.test_two_books_cannot_outvote_thirty_three_unresolved_ones"
+  ],
+  "test_lexicon_from_measurements": [
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_a_rescued_term_becomes_an_entry",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_a_term_measured_once_is_not_counted_as_disagreement",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_a_term_no_respelling_saved_is_recorded_not_dropped",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_a_term_the_plain_reading_says_gets_no_entry",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_rescue_in_one_arm_is_enough_to_qualify_but_is_marked",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_the_agreement_rate_uses_only_terms_measured_twice",
+    "tests.test_lexicon_from_measurements.ClassifyTest.test_two_arms_agreeing_is_marked_corroborated"
   ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
