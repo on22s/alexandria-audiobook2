@@ -80,6 +80,24 @@ def build_client(base_url, api_key="local"):
                   timeout=llm_timeout_seconds())
 
 
+def roster_names(lines):
+    """-> every name a roster line stands for, canonical and aliases alike.
+
+    "MRS. BENNET [also: BENNET]" -> {"MRS. BENNET", "BENNET"}. Used for the
+    artifact's candidate set, which is a question about membership rather than
+    about how the cast was shown to the model.
+    """
+    names = []
+    for line in lines:
+        match = re.match(r"^(.*?)\s*\[also:\s*(.*?)\]\s*$", line)
+        if not match:
+            names.append(line.strip())
+            continue
+        names.append(match.group(1).strip())
+        names.extend(alias.strip() for alias in match.group(2).split(","))
+    return [n for n in names if n]
+
+
 def roster_lines(fixture):
     """-> one line per character, canonical name FIRST, aliases in brackets.
 
@@ -256,9 +274,16 @@ def main():
             correct = bool(predicted and predicted != DECLINE
                            and same_speaker(entry.get("expected_speaker"),
                                             predicted, groups))
+            # THE NAMES, not the display lines. `roster` is prompt text -
+            # "MRS. BENNET [also: BENNET]" - and manifest.add records
+            # `in_candidates` as an exact membership test, so passing the
+            # decorated form made it False for every character that has an
+            # alias: it reported the expected speaker missing from the cast on
+            # 2,250 of 2,494 rows when the true figure is ZERO. The prompt keeps
+            # the aliases; the artifact records the set they belong to.
             record.add("single", gold_id, entry.get("line"),
                        entry.get("expected_speaker"), predicted, correct,
-                       candidates=roster,
+                       candidates=roster_names(roster),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
                        raw=(raw if raw is not None else failure))
             if index % 25 == 0:

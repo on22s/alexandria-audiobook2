@@ -199,6 +199,23 @@ def read_inputs(paths, repo):
     return recorded
 
 
+def _checked_candidates(candidates):
+    """-> the candidate list, or raise if it looks like prompt text.
+
+    See the note at `in_candidates`. The marker is deliberately narrow: it
+    catches the one decoration this repo actually produces rather than trying
+    to guess at names in general.
+    """
+    decorated = [c for c in candidates if isinstance(c, str) and "[also:" in c]
+    if decorated:
+        raise ValueError(
+            "candidates must be NAMES, not the lines shown to the model: %r. "
+            "Pass the names the roster line stands for (canonical and aliases) "
+            "so `in_candidates` means what it says; keep the decoration for the "
+            "prompt." % decorated[:2])
+    return candidates
+
+
 class ExperimentRecord:
     """Collect per-line records, then write one self-describing artifact."""
 
@@ -244,8 +261,18 @@ class ExperimentRecord:
             "correct": bool(correct),
             "candidates": candidates,
             "candidate_provenance": provenance,
+            # CANDIDATES ARE NAMES, NOT PROMPT TEXT. This is an exact
+            # membership test, so a caller passing display lines like
+            # "MRS. BENNET [also: BENNET]" gets False for every character that
+            # has an alias. two_stage_attribution did exactly that and the
+            # artifact reported the expected speaker missing from the cast on
+            # 2,250 of 2,494 rows; the true figure was zero, and the mistake
+            # inverted the finding - it reads as "the model was never given the
+            # answer" when in fact it was given it every single time.
+            # Refusing is the only safe response: a silently wrong field is
+            # worse than a crash, because it gets analysed.
             "in_candidates": (None if candidates is None
-                              else expected in (candidates or [])),
+                              else expected in _checked_candidates(candidates)),
             "prompt_sha256": _sha(prompt) if prompt is not None else None,
             "prompt_chars": len(prompt) if prompt is not None else None,
             "raw_response": raw,
