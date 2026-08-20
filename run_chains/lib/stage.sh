@@ -121,12 +121,46 @@ run_stage() {
 # work-in-progress.
 stage_commit_artifacts() {
     local what="$1" repo="${2:-$PWD}"
+
+    # DID THIS STAGE TURN A MEASUREMENT INTO AN EMPTY ONE? Every chain commits
+    # through here, so it is the one place that can ask. dataset_ref_audit.json
+    # went from 101 measured rows to `results: []` with no explanation, was
+    # committed by this function, and sat on main for two days - the only
+    # surviving copy of the rows was on two old feature branches nobody had
+    # pruned yet.
+    #
+    # It commits ANYWAY and says so, rather than refusing. Refusing would leave
+    # the tree dirty and the dirty-tree gate would then turn one bad artifact
+    # into a dead queue - and the data was never actually lost, git had it all
+    # along. What failed was that nobody looked. So the finding goes into the
+    # commit message, where `git log` keeps it, and into the stage log.
+    local shrink_report="" python="$repo/app/env/bin/python"
+    if [ -x "$python" ]; then
+        shrink_report=$("$python" "$repo/app/experiments/check_artifact_shrinkage.py" \
+                        --repo "$repo" 2>&1 | grep -E "rows$|LOST ROWS" || true)
+    fi
+
     git -C "$repo" add ab_test_runtime/experiments/ >/dev/null 2>&1 || return 0
     git -C "$repo" diff --cached --quiet && return 0
+
+    local body="Committed by a chain so the dirty-tree gate does not refuse the next
+stage on this stage's own output."
+    if printf '%s' "$shrink_report" | grep -q "LOST ROWS"; then
+        stage_note "  !! $what SHRANK AN ARTIFACT WITHOUT EXPLAINING IT:"
+        printf '%s\n' "$shrink_report" | sed 's/^/     /'
+        body="$body
+
+ARTIFACTS LOST ROWS WITH NO EXPLANATION IN THIS STAGE:
+$shrink_report
+
+A run that measures less than the one before it either failed or changed what
+it measures. This commit records which, because the previous time it happened
+the empty version was indistinguishable from a success."
+    fi
+
     git -C "$repo" commit -q -m "Artifacts from the $what stage
 
-Committed by a chain so the dirty-tree gate does not refuse the next
-stage on this stage's own output.
+$body
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" && stage_note "committed $what artifacts"
 }
