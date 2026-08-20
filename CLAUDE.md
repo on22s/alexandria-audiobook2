@@ -261,6 +261,36 @@ and cost **an hour of idle GPU**.
 - This applies to the middle of a session, not just to overnight runs: the GPU
   queue is usually holding one of these files open.
 
+### Rule 24 — Edit in a Worktree; the Queue Runs From the Live Tree
+
+`gpu_job.sh` refuses any job from a dirty tree, correctly: evidence produced
+from uncommitted code cannot be reproduced. But the queue runs from THIS
+checkout, so every minute spent editing here is a minute the queue cannot
+start anything.
+
+Measured 2026-08-20 over 257 queue outcomes. On 2026-08-19 alone there were
+**16 REFUSED against 14 OK** — more jobs turned away than run — and all 22
+refusals in the log say the same thing, `uncommitted changes`. They cluster in
+three tight windows (9 at 11:00, 5 at 15:00, 2 at 19:00), which are exactly
+the hours spent editing while chains sat queued.
+
+- **Develop in `git worktree add <scratch>/dev -b <branch> origin/main`.** Run
+  tests there, commit there, push and PR from there.
+- **Keep the live checkout on `main` and clean**, and `git pull --ff-only`
+  between stages. It exists to run the queue, not to hold work in progress.
+- Never `git checkout` another branch in the live tree while a chain runs: the
+  chain reads its scripts and experiment code from these files by path, and
+  swapping them mid-run is Rule 23 by another route.
+- The exception is a one-line fix to something the *running* chain needs. Then
+  commit it immediately — an edit that sits uncommitted for ten minutes costs
+  whatever the queue would have started in those ten minutes.
+
+Two related habits this replaces: launching a chain before committing (a chain
+whose first stage is refused in 0s reaches its summary in minutes and exits,
+leaving the card idle), and treating `rc=3` as a failure — it is the identity
+gate's VERDICT, and counting the 18 of them as failures overstated the queue's
+failure rate by about 38%.
+
 ## This project: Alexandria Audiobook2
 
 A FastAPI app (`app/app.py`, title "Alexandria Audiobook") for multi-voice AI
