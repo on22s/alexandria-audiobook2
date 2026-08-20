@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1629** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1650** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -442,6 +442,27 @@ vocal tract length from formant dispersion.
 dropped (jitter/shimmer/HNR 2026-08-08, tract length 2026-08-09). **MET on
 jitter and shimmer. MET on HNR after the eval speaker was corrected. OPEN on
 tract length, one cell: the Chinese clone arm at 1.064x.**
+
+**IT IS NOT SAMPLE SIZE. Re-measured 2026-08-20 over every clip the corpus has**
+(`pitch_quality_probe_n200.json`; 200 requested, 150 available):
+
+| Chinese arm | n=100 | n=150 |
+|---|---|---|
+| LoRA | 1.032x | **1.0272x** — inside |
+| clone | 1.064x | **1.0607x** — outside |
+
+Twice the sample moved the failing cell by 0.003. Sample size was the answer
+the last two times a cell of this goal read OPEN - both were measured at n=12
+and came inside at n=100 - and it was worth one run to find out whether that
+held a third time. It does not.
+
+So this stops being "one cell away" and becomes a statement about the method:
+**zero-shot cloning does not preserve Chinese vocal tract length, and the LoRA
+arm of the same measure does.** The gap is 1.1% past a 5% band, which is small
+and consistent rather than noisy. Closing 2.6 now means either accepting that
+cloning misses this cell, or not shipping cloning for Chinese - a product
+decision, not a measurement, and the document should not pretend another run
+will resolve it.
 
 | set | jitter | shimmer | HNR |
 |---|---|---|---|
