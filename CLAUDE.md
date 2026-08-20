@@ -261,6 +261,37 @@ and cost **an hour of idle GPU**.
 - This applies to the middle of a session, not just to overnight runs: the GPU
   queue is usually holding one of these files open.
 
+### Rule 25 — Run `./ready.sh` Before Committing, Not the Verifier After
+
+Four CI failures in two days, none of them a code fault. Every one was a
+generated file that had not been regenerated before the commit: the structural
+audit twice, the legacy attribution audit, the results index, and the unit test
+inventory. Each cost a four-minute round trip to learn something a two-second
+local command already knew.
+
+The verifier checks all five. The failure is one of ORDER — verify, then edit,
+then commit — so the fix is a single command that regenerates FIRST and checks
+second:
+
+```
+./ready.sh          # regenerate, show what moved, then run the verifier
+```
+
+- It regenerates rather than only reporting staleness, because the next thing
+  anyone types after "the index is stale" is the regenerate command.
+- It asks `--check`, not `git diff`, whether the indexes are current.
+  `RESULTS_INDEX.md` embeds its generation time **to the minute**, so it shows
+  a diff on every regeneration whether or not the data moved; a first version
+  of this script refused to proceed on exactly that churn. The `--check`
+  commands compare the data and are what CI runs, so they decide. It still
+  lists the files to stage, but a timestamp-only `RESULTS_INDEX.md` diff is
+  noise and does not block anything.
+- It finds `app/env` in the main checkout when run from a worktree, which is
+  where development happens under [[Rule 24]] and where there is no venv.
+
+`verify_release.py` on its own is still right for "is this tree good?". It is
+the wrong tool for "am I ready to commit?", which is what kept going wrong.
+
 ### Rule 24 — Edit in a Worktree; the Queue Runs From the Live Tree
 
 `gpu_job.sh` refuses any job from a dirty tree, correctly: evidence produced
