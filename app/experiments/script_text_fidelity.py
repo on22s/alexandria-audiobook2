@@ -58,6 +58,18 @@ from speech_text import normalize_for_speech, SPEECH_BREAKS  # noqa: E402
 from experiments.provenance import provenance  # noqa: E402
 
 QUOTES = '"“”「」«»'
+# A quoted SPAN, not a quote character: the source's own count of how many
+# pieces of dialogue it marks. Retention is measured against this, because
+# entry counts alone cannot say whether an arm kept the book's dialogue or
+# merely happened to segment it into fewer lines.
+SPAN_RE_STRAIGHT = re.compile(r'"[^"]{1,400}"')
+SPAN_RE_CURLY = re.compile(r'\u201c[^\u201d]{1,400}\u201d')
+
+
+def source_spans(path):
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        text = handle.read()
+    return len(SPAN_RE_STRAIGHT.findall(text)) + len(SPAN_RE_CURLY.findall(text))
 CLASSES = {
     "quote": lambda t: any(c in t for c in QUOTES),
     "underscore": lambda t: "_" in t,
@@ -120,11 +132,22 @@ def main():
         help="directory holding <book>__<arm>.json from the 5.3 run")
     ap.add_argument("--audio-root", action="append", default=[],
                     help="extra roots to resolve --work against")
+    ap.add_argument("--source", action="append", default=[], metavar="BOOK=FILE",
+                    help="the book's source text, so retention can be measured "
+                         "against what the author actually wrote rather than "
+                         "against the other arm. Repeatable.")
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "script_text_fidelity.json"))
     args = ap.parse_args()
 
     ROOTS[:] = [r for r in (args.audio_root or []) if r] or [REPO]
+    sources = {}
+    for spec in args.source:
+        name, _, path = spec.partition("=")
+        full = resolve(path) or path
+        if not os.path.exists(full):
+            raise SystemExit(f"--source {name}: no such file {path}")
+        sources[name] = full
     work = resolve(args.work) or args.work
     if not os.path.isdir(work):
         raise SystemExit(f"no such directory: {work}")
@@ -151,6 +174,13 @@ def main():
             entry["delta_vs_single"] = {
                 name: entry["three_pass"][name] - entry["single"][name]
                 for name in CLASSES}
+        if book in sources:
+            spans = source_spans(sources[book])
+            entry["source_quoted_spans"] = spans
+            for arm in ("single", "three_pass"):
+                if arm in entry and spans:
+                    entry[arm]["quote_retention_vs_source"] = round(
+                        entry[arm]["quote"] / spans, 4)
         books[book] = entry
 
     payload = {

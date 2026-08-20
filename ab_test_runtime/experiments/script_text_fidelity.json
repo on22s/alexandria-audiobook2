@@ -13,7 +13,8 @@
     "quote_survives_tts": 460,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 1158,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.3695
    },
    "three_pass": {
     "entries": 2479,
@@ -24,14 +25,16 @@
     "quote_survives_tts": 0,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 983,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.0
    },
    "delta_vs_single": {
     "quote": -460,
     "underscore": 0,
     "hyphen_or_dash": -175,
     "asterisk": 0
-   }
+   },
+   "source_quoted_spans": 1245
   },
   "mushoku16": {
    "single": {
@@ -43,7 +46,8 @@
     "quote_survives_tts": 657,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 155,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.6117
    },
    "three_pass": {
     "entries": 2056,
@@ -54,14 +58,16 @@
     "quote_survives_tts": 0,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 154,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.0
    },
    "delta_vs_single": {
     "quote": -657,
     "underscore": 0,
     "hyphen_or_dash": -2,
     "asterisk": 0
-   }
+   },
+   "source_quoted_spans": 1074
   },
   "owarimonogatari3": {
    "single": {
@@ -73,7 +79,8 @@
     "quote_survives_tts": 1033,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 1712,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.4645
    },
    "three_pass": {
     "entries": 3929,
@@ -84,37 +91,44 @@
     "quote_survives_tts": 0,
     "underscore_survives_tts": 0,
     "hyphen_or_dash_survives_tts": 1477,
-    "asterisk_survives_tts": 0
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.0
    },
    "delta_vs_single": {
     "quote": -1033,
     "underscore": 0,
     "hyphen_or_dash": -235,
     "asterisk": 0
-   }
+   },
+   "source_quoted_spans": 2224
   }
  },
  "status": "complete",
  "provenance": {
   "script": "script_text_fidelity.py",
-  "written": "2026-08-20T15:04:48",
+  "written": "2026-08-20T15:18:46",
   "host": "mitch-linux",
   "git": {
-   "commit": "b5404965adf450d27d60446039a9096f70b6a93f",
+   "commit": "38ce596a95ab35b98ae6181861ec8c230d95214a",
    "branch": "agent/script-text-fidelity-20260820",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/script_text_fidelity.py"
+   "modified_tracked_files": [
+    "M app/experiments/script_text_fidelity.py"
    ],
-   "harness_sha256": "7162001c7bf53ee046c3ca965ca29f4ff9ad2ec4d10fde910862dc6e6e67f897"
+   "untracked_harness_files": null,
+   "harness_sha256": "dd3a59fd8071d0db95b64507bbbaf08c4d711f2e21724e17ff43b2e4972dcfc7"
   },
   "args": {
    "work": "ab_test_runtime/three_pass_vs_single",
    "audio_root": [
     "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
    ],
-   "out": "script_text_fidelity.json"
+   "source": [
+    "index18=ab_test_runtime/tpvs_inputs/index18.txt",
+    "mushoku16=ab_test_runtime/results/collect_all_20260722-155801/inputs/mushoku16.txt",
+    "owarimonogatari3=ab_test_runtime/results/collect_all_20260722-155801/inputs/owarimonogatari3.txt"
+   ],
+   "out": "ab_test_runtime/experiments/script_text_fidelity.json"
   }
  }
 }
