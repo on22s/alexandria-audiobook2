@@ -59,11 +59,27 @@ done
 [ "$stale" = 0 ] || exit 2
 
 echo
-echo "== files to stage (a RESULTS_INDEX.md timestamp-only diff is noise) =="
-git -C "$REPO" diff --name-only -- \
+echo "== anything regenerated must be staged =="
+# --check VALIDATES THE WORKING TREE, NOT THE COMMIT. This script regenerates
+# first, so --check then passes against files that may never be staged - and
+# #352 failed CI on a stale unit_test_inventory.json for exactly that reason,
+# the PR that adds this script failing the thing it exists to prevent.
+#
+# The strict form was dropped earlier because RESULTS_INDEX.md embedded a
+# minute-resolution timestamp and therefore always differed. #349 made it
+# record the date, so regenerating twice in one day produces no diff and this
+# can refuse again.
+unstaged=$(git -C "$REPO" diff --name-only -- \
     app/tests/unit_test_inventory.json RESULTS_INDEX.md results_index.csv \
-    ab_test_runtime/audit LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md \
-    | sed 's/^/   /' || true
+    ab_test_runtime/audit LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md)
+if [ -n "$unstaged" ]; then
+    printf '%s\n' "$unstaged" | sed 's/^/   /'
+    echo
+    echo "NOT READY: regeneration changed these and they are not staged."
+    echo "   git add $(printf '%s ' $unstaged)"
+    exit 2
+fi
+echo "   nothing unstaged"
 
 echo
 echo "== release verifier =="

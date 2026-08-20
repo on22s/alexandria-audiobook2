@@ -261,6 +261,38 @@ and cost **an hour of idle GPU**.
 - This applies to the middle of a session, not just to overnight runs: the GPU
   queue is usually holding one of these files open.
 
+### Rule 26 — Generated-File Conflicts Have One Command
+
+Five pull requests came back CONFLICTING in a single morning on 2026-08-20, and
+every one of them conflicted on the same derived files: `RESULTS_INDEX.md`,
+`results_index.csv`, `ab_test_runtime/audit/*.json`, and GOALS.md's
+`met goals begin at line N` pointer. None was a disagreement about content. Any
+branch that regenerates an index conflicts with any other branch that
+regenerated it, because both rewrote the same lines.
+
+They cannot simply be untracked — [[Rule 6.3]] in GOALS.md requires the
+committed index to describe the committed artifacts — so the fix is to make
+resolving them one command instead of a five-command dance from memory:
+
+```
+git merge origin/main        # conflicts, only in generated files
+./resolve_generated.sh       # regenerate, recompute the pointer, stage
+./ready.sh && git commit --no-edit
+```
+
+**It refuses when anything outside that set is conflicted**, and that refusal is
+the point. On the same day one branch moved goal 1.2 to Part II while another
+added evidence to it in Part I; regenerating would have silently discarded one
+side. A real conflict still needs reading.
+
+Two things it must keep doing, both learned by getting them wrong:
+
+- Operate on the repository you are **standing in** (`git rev-parse
+  --show-toplevel`), not the one the script lives in. Taking it from `$0` made
+  it report "nothing is conflicted" while a real conflict sat in front of you.
+- Do not require the interpreter until it actually regenerates, so the refusal
+  works in a checkout with no venv rather than exiting for the wrong reason.
+
 ### Rule 25 — Run `./ready.sh` Before Committing, Not the Verifier After
 
 Four CI failures in two days, none of them a code fault. Every one was a
