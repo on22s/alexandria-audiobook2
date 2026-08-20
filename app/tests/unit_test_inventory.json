@@ -1521,6 +1521,17 @@
     "tests.test_publisher_matter.StripPublisherMatterTest.test_story_is_untouched_when_there_is_no_colophon",
     "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentioning_copyright_mid_book_is_kept"
   ],
+  "test_queue_chain_lib": [
+    "tests.test_queue_chain_lib.ChainTest.test_every_chain_finds_the_interpreter_from_a_worktree",
+    "tests.test_queue_chain_lib.ChainTest.test_every_chain_refuses_a_dirty_tree_before_doing_work",
+    "tests.test_queue_chain_lib.ChainTest.test_every_committed_chain_parses",
+    "tests.test_queue_chain_lib.ChainTest.test_the_resume_chain_treats_cannot_tell_as_a_refusal",
+    "tests.test_queue_chain_lib.ChainTest.test_the_table_chain_refuses_a_partial_arm",
+    "tests.test_queue_chain_lib.LibraryTest.test_it_can_wait_for_a_chain_that_has_not_started",
+    "tests.test_queue_chain_lib.LibraryTest.test_it_excludes_itself_from_its_own_process_match",
+    "tests.test_queue_chain_lib.LibraryTest.test_the_dirty_tree_refusal_excludes_generated_artifacts",
+    "tests.test_queue_chain_lib.LibraryTest.test_the_interpreter_resolver_lives_here_only"
+  ],
   "test_quote_gate_telemetry": [
     "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_a_quoted_source_reports_the_gate_ran",
     "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_a_source_with_no_quotes_reports_the_gate_skipped",
