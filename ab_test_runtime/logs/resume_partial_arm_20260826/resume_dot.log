@@ -1,0 +1,4 @@
+gpu_job: refusing to run resume_dot from a dirty tree.
+gpu_job: uncommitted changes:
+gpu_job: commit them, or re-run with ALLOW_DIRTY_TREE=1 if this
+gpu_job: is a throwaway whose output nobody will cite.
