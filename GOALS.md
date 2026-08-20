@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1797** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1849** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1221,7 +1221,32 @@ Measured over the very artifacts this verdict was computed from
 **2,150 entries differ between the arms in a way the comparison could not
 report.**
 
-#### The shipped pipeline loses them too, and on one real book it loses nearly all
+#### CORRECTION: the quote-dropping is deliberate, and the real defect was fixed 2026-08-18
+
+Written before reading `1f6be7a`, which says it plainly: generation is *told*
+to drop the outermost quotes, because `text` is what the TTS voice says. That
+is right for the audio. The defect was never the missing punctuation — it was
+that **the fact of a line being speech was thrown away rather than moved**, and
+that compliance varied so widely (22%, 16%, 1% across three books) that
+downstream code could rely on the marks being neither present nor absent.
+
+`dialogue_spans.py` fixed it: the spoken text is mapped from the **source**,
+before any model runs, and each entry carries `spoken` and `source_span`.
+`spoken` absent means the line could not be located — a different claim from
+`spoken: false`.
+
+The commit also records, in advance, the trap this section fell into: *"a book
+whose source carries 6,925 quote marks came to be recorded here as one that
+does not mark dialogue with quotes: I was reading our own lossy output and
+calling it the author's convention."* The retention figures below are from
+artifacts generated on 2026-08-09 and 2026-07-19 — **both predate the fix** —
+so they measure the old behaviour, not the current pipeline.
+
+They are kept because they still establish the one thing the accuracy metric
+could not see, and because the asymmetry they expose is real and was not fixed
+until today: single-pass carried the map, **three-pass never did**.
+
+#### The pre-fix numbers, and what they were mistaken for
 
 Measured against the SOURCE rather than against the other arm, single-pass is
 not a clean baseline that three-pass departs from. It discards 39–63% of the
@@ -1235,12 +1260,12 @@ retention collapses:
 | entries carrying a quote in the generated script | **67** |
 | **retention** | **2.0%** |
 
-So this is not a three-pass defect with a healthy alternative beside it. It is
-a **pipeline-wide loss of dialogue delimiters** that three-pass takes to its
-limit, and it reaches shipped audiobooks. Whether a given run keeps 61% or 2%
-appears to vary by book and model rather than by design, which is itself the
-finding: nothing in the pipeline was holding this invariant, so nothing
-reported when it broke.
+Read correctly, that spread — 61% to 2% on the same instruction — is not a
+scandal about lost punctuation. It is the evidence that **punctuation was never
+a usable signal for whether a line is speech**, in either arm, which is exactly
+why the map was built. The 2.0% book is not a broken audiobook; it is a book
+whose script could no longer answer "which lines are dialogue" until
+`source_span` carried the answer beside it.
 
 **One caveat on the metric, and it is the user's.** Quote marks are one
 convention among several — dialogue can be marked with dashes, with nothing at
@@ -1272,6 +1297,33 @@ produced the verdict remains unable to say so on its own. The blindness is
 pinned by `test_script_text_fidelity.py` rather than fixed, because fixing it
 would break the pairing; the tests exist so the next reader of 5.3 finds a
 statement of what it does not measure.
+
+#### THE NEW TEST, 2026-08-20
+
+The map makes 5.3 answerable on something the old key could not delete.
+`dialogue_map_compare.py` compares the arms on `spoken`/`source_span` rather
+than on punctuation: how many of each arm's entries can still be located in the
+source, whether the source calls them speech, and — on the lines **both** arms
+located — whether they agree, with McNemar over the disagreements.
+
+**Three-pass was wired to the same map to make that fair.** It had never
+carried one. Comparing before that would have measured which arm received a
+patch, not which design is better — the same confound, one level up, that this
+whole section is about.
+
+Nothing can be scored yet: every script on disk predates the map, and the
+comparator **refuses** such a pair rather than reporting 0% located as an arm
+failure. `run_chains/dialogue_map_5_3_20260826.sh` re-runs both arms on
+mushoku16 and owarimonogatari3 through the existing harness — one definition of
+how to run an arm, not a second — and then scores accuracy, dialogue map and
+text fidelity **on that one run**, so the axes cannot be attributed to
+different generations. Roughly four hours.
+
+What would move the verdict: 5.3 says delete three-pass on a 5.2–17.5 point
+accuracy deficit. If it locates its lines as well as single-pass does, that
+deficit is the whole case and it still loses. If it locates markedly fewer, the
+case is stronger than recorded. If it locates **more**, that is the first
+evidence in its favour and this goal should say so.
 
 **Still not measured:** whether a listener can hear the difference between a
 quote reaching the engine and not. That is 7.1's question and needs ears.
