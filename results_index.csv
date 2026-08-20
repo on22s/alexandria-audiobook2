@@ -694,12 +694,15 @@ prose_vs_nonprose_v2.json,exploratory,git+naming,no,prose_vs_nonprose.py,5bb2510
 prose_vs_nonprose_v3.json,exploratory,git+naming,no,prose_vs_nonprose.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 prosody_fidelity_en.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_en_n100.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+prosody_fidelity_en_n150.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_en_n40.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_ja.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_ja_n100.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+prosody_fidelity_ja_n150.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_ja_n40.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_zh.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_zh_n100.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+prosody_fidelity_zh_n150.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prosody_fidelity_zh_n40.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 realizable_router.json,exploratory,git+naming,no,realizable_router.py,7f3578a5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json,historical_only,git+naming,no,reasoning_arms.py,7746a7ae,,,reasoning_arms,grimgar03,google/gemma-3-27b,cloud-a6000-lmstudio,mitch-linux,lmstudio,16384,1,f16?,baseline,400,286,71.5,ok,False,13e9a77a,9454.9,07-27 19:33,https://lho3lk5l-1234.thundercompute.net/v1,
@@ -771,6 +774,7 @@ respelling_measure.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT I
 respelling_measure_rescored.json,exploratory,none,no,,0cbbe0d5,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 respelling_none_allrows.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_none_allrows_n1600.json,supported_structure,provenance,yes,,,5.2,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+respelling_none_allrows_n3200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses.json,supported_structure,none,no,,209b38bf,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses_allrows.json,supported_structure,none,no,,40dcc83e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses_separators.json,supported_structure,none,no,,58d548bd,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly

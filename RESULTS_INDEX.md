@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 526 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 530 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1048,12 +1048,15 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prose_vs_nonprose_v3.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `prosody_fidelity_en.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_en_n100.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_fidelity_en_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_en_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_ja_n100.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_fidelity_ja_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_ja_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n100.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_fidelity_zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `realizable_router.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ref_clip_match.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1077,6 +1080,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_none_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_none_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_none_allrows_n3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
