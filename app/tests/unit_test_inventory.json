@@ -479,6 +479,14 @@
     "tests.test_dialogue_attribution.SpokenLineTest.test_real_dialogue_is_detected",
     "tests.test_dialogue_attribution.SpokenLineTest.test_the_naive_rule_would_fail_these"
   ],
+  "test_dialogue_attribution_gate": [
+    "tests.test_dialogue_attribution_gate.GateTest.test_a_barely_mapped_book_does_not_slip_through",
+    "tests.test_dialogue_attribution_gate.GateTest.test_a_book_with_no_quotes_and_no_map_is_still_refused",
+    "tests.test_dialogue_attribution_gate.GateTest.test_an_empty_book_is_refused_before_any_division",
+    "tests.test_dialogue_attribution_gate.GateTest.test_classify_prefers_the_record_over_the_punctuation",
+    "tests.test_dialogue_attribution_gate.GateTest.test_spoken_false_counts_as_recorded_too",
+    "tests.test_dialogue_attribution_gate.GateTest.test_the_recorded_fact_overrides_the_punctuation_gate"
+  ],
   "test_dialogue_map_compare": [
     "tests.test_dialogue_map_compare.AttributionTest.test_a_missing_or_blank_speaker_is_not_an_attribution",
     "tests.test_dialogue_map_compare.AttributionTest.test_a_named_character_is",

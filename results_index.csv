@@ -353,6 +353,7 @@ decontaminate_batch4.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,
 decontaminate_batch5.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch6.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dialogue_attribution.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+dialogue_attribution_library.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dialogue_map_compare.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 distill_eval__mixed_register.json,exploratory,git+naming,no,distill_eval.py,e7b1f6c1,,,distill_eval,grimgar03,Qwen/Qwen3-14B,local-lmstudio,instance-ycl36zlz-main,lmstudio,32768,1,f16?,base,385,265,68.8,ok,False,,40304.5,08-04 13:44,peft:ab_test_runtime/distill/adapter_mixed,
 distill_eval__mixed_register.json,exploratory,git+naming,no,distill_eval.py,e7b1f6c1,,,distill_eval,grimgar03,Qwen/Qwen3-14B,local-lmstudio,instance-ycl36zlz-main,lmstudio,32768,1,f16?,tuned,385,325,84.4,ok,False,,40304.5,08-04 13:44,peft:ab_test_runtime/distill/adapter_mixed,
@@ -793,6 +794,7 @@ respelling_separator__space.json,supported_structure,provenance,yes,,,,,,,,,,,,,
 retrain_bad_refs.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 retrain_honest.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 retrain_rebuild_group.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+retrofit_dialogue_map.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 robotic_proxy_clips.json,exploratory,git+naming,no,robotic_proxy.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 roster_quality__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,roster_quality.py,44704c7c,,,roster_quality,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,augmented,385,330,85.7,ok,False,,8051.1,07-30 03:34,http://127.0.0.1:8090/v1,
 roster_quality__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,roster_quality.py,44704c7c,,,roster_quality,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,generated,385,327,84.9,ok,False,,8051.1,07-30 03:34,http://127.0.0.1:8090/v1,

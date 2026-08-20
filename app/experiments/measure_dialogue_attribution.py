@@ -62,6 +62,15 @@ def is_spoken_line(text):
 
 
 QUOTED_SHARE_FLOOR = 0.06
+# Enough entries carrying `spoken` that the measure rests on the map rather
+# than on punctuation. Retrofitting locates 89-96% on this corpus, and a book
+# far below that has not really been mapped.
+RECORDED_SHARE_FLOOR = 0.50
+
+
+def spoken_field_count(entries):
+    """How many entries carry the recorded answer rather than a guess."""
+    return sum(1 for e in entries if "spoken" in e)
 
 
 def measurable(entries):
@@ -81,6 +90,22 @@ def measurable(entries):
     """
     if not entries:
         return False, "no entries"
+
+    # THE RECORDED FACT OVERRIDES THE PUNCTUATION GATE. This refusal was
+    # written when the only way to see dialogue was to look for quote marks,
+    # and it is right for that case. It is wrong once `spoken` is present:
+    # classify() already prefers the recorded answer, so a book whose entries
+    # carry it can be measured no matter what its punctuation looks like.
+    #
+    # Leaving the gate ahead of that check refused 28 of 29 retrofitted books
+    # on 2026-08-20 - every one of them carrying a source-derived map, and
+    # every one reported as "does not mark dialogue with quotes" when the
+    # source marks it 3,434 times. A guard built for the guess was still
+    # blocking after the guess had been replaced.
+    recorded = spoken_field_count(entries)
+    if recorded / len(entries) >= RECORDED_SHARE_FLOOR:
+        return True, None
+
     quoted = sum(1 for e in entries
                  if QUOTED.search(str(e.get("text", ""))))
     share = quoted / len(entries)
@@ -89,11 +114,6 @@ def measurable(entries):
                        f"this book does not mark dialogue with quotes, so a "
                        f"quote-based measure cannot see it")
     return True, None
-
-
-def spoken_field_count(entries):
-    """How many entries carry the recorded answer rather than a guess."""
-    return sum(1 for e in entries if "spoken" in e)
 
 
 def classify(entries, narrator="NARRATOR"):

@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1927** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1963** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1341,6 +1341,42 @@ question, not this one's.
 **The target should no longer read "wire it in or delete it."** Neither arm
 dominates. The open question is whether the choice is per-book, and 5.3's
 two-book sample cannot answer that.
+
+#### THE WHOLE LIBRARY IS NOW MEASURABLE — 29 books, not 1
+
+The map is derived from the source, so it retrofits: `retrofit_dialogue_map.py`
+matched all **29 saved books** to their source texts by content (filenames do
+not map, and no manifest records the pairing) and located **89.4–96.5%** of
+entries in each. Nothing was regenerated and `scripts/` was not modified.
+
+Asked which source to trust, the two candidates were measured rather than
+argued. Extracting `Arc 1 - Volume 1.epub` through the app's own
+`extract_epub_text` against the plain-text copy: 0.414 M chars against 0.418 M,
+**89.3% of script lines located against 89.7%**, same convention detected. The
+text extractions are faithful; either source serves.
+
+**A third instance of the same bug had to be fixed first.**
+`measure_dialogue_attribution.measurable()` refuses a book whose entries carry
+too few quotation marks — correct when punctuation was the only way to see
+dialogue, and paid for by the detector that found 22 spoken lines in a
+6,173-entry book. But `classify()` already prefers the recorded `spoken` fact,
+and the gate ran ahead of it and never consulted it. It refused **28 of 29
+retrofitted books**, each reported as "does not mark dialogue with quotes"
+while carrying a map built from a source that quotes 3,434 times. A guard built
+for the guess, still blocking after the guess had been replaced.
+
+**With that fixed, the shipped pipeline measures well:**
+
+| | |
+|---|---|
+| books measured | **29 of 29** (was 1) |
+| spoken lines | 36,705 |
+| left attributed to NARRATOR | 951 |
+| **rate** | **2.6%** (range 0.5–6.6% per book) |
+
+This goal previously rested on one book. It now rests on the whole library, on
+source-derived truth rather than punctuation, and the answer is that dialogue
+is misfiled as narration about once in forty lines.
 
 #### THE EXPANDED TEST, QUEUED 2026-08-20
 
