@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 210,
+    "supported_structure": 211,
     "exploratory": 191,
     "provisional": 122
   },
@@ -4981,6 +4981,22 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "lexicon_candidates.json",
+      "bytes": 1994552,
+      "sha256": "2162cecd7b3801e3660ecc09f9d7e7f427e0873529ada7ffe5bc50656d7fc698",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T07:57:46",
+      "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "lexicon_corpus_candidates.json",
       "bytes": 1579871,
       "sha256": "570080c4ccd60c860b0a1b9ed696168b1f7c4ffd8105a90274853f56b1577aee",
@@ -6607,17 +6623,17 @@
     },
     {
       "artifact": "respelling_selectivity.json",
-      "bytes": 1773,
-      "sha256": "7acb97e66354756de448b5adc8f59c07e1ca2cac42db3530544bef8c50306610",
+      "bytes": 1287,
+      "sha256": "a1a4c1c042fc9687cdadde563e6006a09726632151c900216ec79d13ce9b886c",
       "completeness": "unknown",
       "seed": null,
       "status": null,
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-20T06:44:10",
-      "commit": "40dcc83e736d2581f9e718e88ae945bf477ad0a8",
-      "dirty": false,
+      "written": "2026-08-20T03:10:39",
+      "commit": "da310f086952d35b33f084c8a7af80595bab6794",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },

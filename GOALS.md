@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1707** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1561,9 +1561,43 @@ right way and one specific thing is still wrong — `カワラマチ` → こわ
 `サカキバラ` → さっかきばら, `ウチガタナ` → うちがたんな. Those are fixable by a
 hand-written entry in a way that "the model has no idea" is not.
 
+**BOTH HALVES NOW EXIST, over the measured corpus (2026-08-20,
+`lexicon_candidates.json`, built by `lexicon_from_measurements.py` from
+artifacts already on disk - no GPU, no regeneration).** Of 7,607 measured terms:
+
+| | |
+|---|---|
+| the plain reading already says the word | 933 — *an entry here would do harm* |
+| measured to help → **entry** | **1,056** |
+| recorded as one respelling could not fix | **5,618** |
+
+Every term the plain reading fails is now in one of the two required states.
+The 933 are excluded on measurement, not taste: respelling breaks **69.7%** of
+the words the engine already said correctly.
+
+**How far to trust the 1,056 is a separate question, and the answer is "less
+than it looks".** Restricted to terms that more than one arm actually measured,
+a rescue reproduced only **101 of 380 times (26.6%)**. Some of that gap is a
+real separator effect - the hyphen rescues 15.2% against the no-separator
+form's 10.2% - and the rest is the pipeline's own churn, which is not small: 34
+of 391 verdicts flipped on IDENTICAL input in the plain control. Each entry
+therefore records `arms_measuring`, `arms_rescuing` and `corroborated`, and
+**101** of the 1,056 are corroborated by more than one arm while **676** were
+measured only once and cannot be corroborated either way.
+
+**So the lexicon is not written from this file automatically.** Shipping 1,056
+entries built on single readings would be the 38%-versus-13% mistake wearing a
+different hat. `--write-lexicon` exists and is off by default.
+
 **Target — every term in the shipped books whose plain form does not produce
 the word either has a measured entry or is recorded as one respelling could
-not fix.** Both halves matter, and the second is now the larger: **87% of that
+not fix.**
+
+**What remains between this and MET:** the record above is over the *measured
+corpus*, not over *the shipped books*. Terms carry a book COUNT, not a book
+list, so mapping these terms onto a specific shipped book needs a scan of that
+book's text - which is cheap and has not been run. Until it is, this is the
+right record of the wrong population, and the goal stays open. Both halves matter, and the second is now the larger: **87% of that
 band was not rescued** by either derivation rule, so most of this goal's
 output will be recorded failures rather than entries. A word a respelling
 cannot help needs saying so, rather than leaving a blank that reads as an

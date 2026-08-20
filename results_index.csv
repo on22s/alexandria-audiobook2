@@ -549,6 +549,7 @@ kokoro_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT 
 lexicon_attributed.json,exploratory,none,no,,a3f6a384,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_attributed_v2.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_backmatter_probe.json,exploratory,git+naming,no,lexicon_backmatter_probe.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+lexicon_candidates.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lexicon_corpus_candidates.json,exploratory,none,no,,a3f6a384,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 lexicon_pilot.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 library_voice_fidelity.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
