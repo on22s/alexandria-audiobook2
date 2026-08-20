@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 212,
+    "supported_structure": 213,
     "exploratory": 191,
     "provisional": 122
   },
@@ -4995,6 +4995,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lexicon_candidates.json",
+      "bytes": 1994552,
+      "sha256": "2162cecd7b3801e3660ecc09f9d7e7f427e0873529ada7ffe5bc50656d7fc698",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T07:57:46",
+      "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "lexicon_corpus_candidates.json",
