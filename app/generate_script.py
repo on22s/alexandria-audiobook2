@@ -1125,7 +1125,8 @@ def split_failed_chunk(chunk, minimum_chars=400):
 
 
 def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
-                             params, previous_entries=None, attempt_observer=None):
+                             params, previous_entries=None, attempt_observer=None,
+                             near_miss_out=None):
     """Try a full chunk, then a bounded natural-boundary split on exhaustion.
 
     Each split half gets its own independent retry budget. Measured on real
@@ -1167,26 +1168,71 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
         return entries, False
     parts = split_failed_chunk(chunk)
     if not parts:
+        _report_near_miss(near_miss, near_miss_out)
         return _accept_near_miss(near_miss, chunk_num, total_chunks), False
     print(f"  Adaptive split: chunk {chunk_num}/{total_chunks} -> "
           f"{len(parts[0])} + {len(parts[1])} chars")
     combined = []
     any_part_failed = False
+    part_results = []
     for part_number, part in enumerate(parts, 1):
         context_entries = list(previous_entries or []) + combined
+        part_near_miss = []
         part_entries, _ = process_chunk_adaptively(
             client, model_name, part, chunk_num, total_chunks, params,
+            near_miss_out=part_near_miss,
             previous_entries=context_entries,
             attempt_observer=(
                 (lambda attempt, part_number=part_number: record_attempt_context(
                     attempt_observer, attempt, "split", part_number))
                 if attempt_observer else None))
+        part_results.append((part_entries, part_near_miss))
         if not part_entries:
-            print(f"  Adaptive split part {part_number}/{len(parts)} failed")
+            print(f"  Adaptive split part {part_number}/{len(parts)} failed"
+                  + (" (a trigram-only near-miss was kept)" if part_near_miss else ""))
             any_part_failed = True
             continue
         combined.extend(part_entries)
     if any_part_failed:
+        # A PART THAT NEARLY SUCCEEDED USED TO BE THROWN AWAY. grimgar06 failed
+        # five times on chunk 27 this way: the full chunk never produced a
+        # trigram-only near-miss (its recall was below 0.90 too, so two codes
+        # fired), the split produced one part at 0.8868 - a clean trigram-only
+        # near-miss over the 0.82 floor - and the sibling part failed outright,
+        # which discarded it and forfeited the whole book.
+        #
+        # Rebuild the chunk from whatever each part managed, using a part's
+        # near-miss entries where it has them, and judge the RESULT against the
+        # full chunk. The 0.90 gate stays authoritative: this is accepted only
+        # if the recombined text is itself a trigram-only near-miss, the same
+        # test used a few lines below for the all-parts-succeeded case. Still
+        # exhaustion-only, and a chunk that recovers by any other means has
+        # already returned above (Rule 9).
+        salvaged, used_near_miss = [], False
+        for part_entries, part_near_miss in part_results:
+            if part_entries:
+                salvaged.extend(part_entries)
+            elif part_near_miss:
+                salvaged.extend(part_near_miss)
+                used_near_miss = True
+            else:
+                salvaged = []
+                break
+        if salvaged and used_near_miss:
+            salvaged_quality = validate_chunk_quality(chunk, salvaged)
+            # PASSING IS THE BEST CASE, not a disqualification. An earlier
+            # version asked only is_trigram_only_near_miss, which requires
+            # `not passed` - so a rebuild that cleared 0.90 outright was thrown
+            # away while a worse one was kept. Accept either, and nothing below.
+            if (salvaged_quality["passed"]
+                    or is_trigram_only_near_miss(salvaged_quality)):
+                print(f"  CHUNK {chunk_num}/{total_chunks} rebuilt from split "
+                      f"parts including a trigram-only near-miss "
+                      f"({'passes 0.90' if salvaged_quality['passed'] else 'near-miss'}, "
+                      f"ordered_trigram_recall="
+                      f"{salvaged_quality['metrics']['ordered_trigram_recall']})")
+                return salvaged, True
+        _report_near_miss(near_miss, near_miss_out)
         return _accept_near_miss(near_miss, chunk_num, total_chunks), True
     combined_quality = validate_chunk_quality(chunk, combined)
     if not combined_quality["passed"]:
@@ -1206,6 +1252,20 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
         print("  Adaptive split recombination failed original-chunk validation")
         return _accept_near_miss(near_miss, chunk_num, total_chunks), True
     return combined, True
+
+
+def _report_near_miss(near_miss, near_miss_out):
+    """Hand a failing call's captured near-miss entries back to its caller.
+
+    A split part that reaches a trigram-only near-miss still returns [] - it did
+    not clear the 0.90 gate - but the parent may be able to rebuild the whole
+    chunk from it. Without this the material is simply lost, which is how
+    grimgar06 forfeited a book five times over a chunk one of whose halves was
+    at 0.8868.
+    """
+    if near_miss_out is None or not near_miss:
+        return
+    near_miss_out[:] = list(near_miss[0][0])
 
 
 def _accept_near_miss(near_miss, chunk_num, total_chunks):
