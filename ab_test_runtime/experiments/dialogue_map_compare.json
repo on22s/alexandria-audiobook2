@@ -1,0 +1,118 @@
+{
+ "scope": "generation arms compared on the source-derived dialogue map (`spoken`/`source_span`), not on punctuation",
+ "books": {
+  "index18": {
+   "single": {
+    "entries": 3832,
+    "located": 3221,
+    "spoken": 827,
+    "located_rate": 0.8406,
+    "spoken_rate": 0.2568
+   },
+   "three_pass": {
+    "entries": 2479,
+    "located": 1742,
+    "spoken": 974,
+    "located_rate": 0.7027,
+    "spoken_rate": 0.5591
+   },
+   "paired_entries": 1325,
+   "agree": 1325,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 760,
+    "single_attributed": 0.8447,
+    "three_pass_attributed": 0.7566,
+    "single_only": 131,
+    "three_pass_only": 64,
+    "mcnemar_p": 1.8299205748632546e-06
+   }
+  },
+  "mushoku16": {
+   "single": {
+    "entries": 4044,
+    "located": 3870,
+    "spoken": 923,
+    "located_rate": 0.957,
+    "spoken_rate": 0.2385
+   },
+   "three_pass": {
+    "entries": 2056,
+    "located": 1655,
+    "spoken": 999,
+    "located_rate": 0.805,
+    "spoken_rate": 0.6036
+   },
+   "paired_entries": 1452,
+   "agree": 1452,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 917,
+    "single_attributed": 0.5889,
+    "three_pass_attributed": 0.8451,
+    "single_only": 26,
+    "three_pass_only": 261,
+    "mcnemar_p": 5.531660512897515e-50
+   }
+  },
+  "owarimonogatari3": {
+   "single": {
+    "entries": 4701,
+    "located": 4354,
+    "spoken": 1678,
+    "located_rate": 0.9262,
+    "spoken_rate": 0.3854
+   },
+   "three_pass": {
+    "entries": 3929,
+    "located": 3465,
+    "spoken": 2217,
+    "located_rate": 0.8819,
+    "spoken_rate": 0.6398
+   },
+   "paired_entries": 2436,
+   "agree": 2436,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 1663,
+    "single_attributed": 0.8653,
+    "three_pass_attributed": 0.7709,
+    "single_only": 319,
+    "three_pass_only": 162,
+    "mcnemar_p": 7.149011468470252e-13
+   }
+  }
+ },
+ "skipped_no_dialogue_map": [],
+ "status": "complete",
+ "provenance": {
+  "script": "dialogue_map_compare.py",
+  "written": "2026-08-20T17:06:52",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "8889d3bb4c3aaa8cd3526c5cb9e3a81a1ad3a88b",
+   "branch": "agent/script-text-fidelity-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/dialogue_map_compare.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/retrofit_dialogue_map.py"
+   ],
+   "harness_sha256": "eaeae9fced9e1f17a75962c8f2bf2cd340bff8d3bfb092151a1d7fa1d7763a45"
+  },
+  "args": {
+   "work": "retrofit_5_3",
+   "audio_root": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
+   ],
+   "out": "ab_test_runtime/experiments/dialogue_map_compare.json"
+  }
+ }
+}

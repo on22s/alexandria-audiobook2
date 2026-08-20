@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1849** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1893** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1298,7 +1298,51 @@ pinned by `test_script_text_fidelity.py` rather than fixed, because fixing it
 would break the pairing; the tests exist so the next reader of 5.3 finds a
 statement of what it does not measure.
 
-#### THE NEW TEST, 2026-08-20
+#### THE NEW TEST RAN, AND IT SPLITS 2-1 — 2026-08-20
+
+**No GPU was needed after all.** The map is derived from the SOURCE, so it can
+be applied to scripts generated before it existed: `retrofit_dialogue_map.py`
+locates each entry's text in its own source and marks it. On the worst case in
+the library — `arc4_volume10wn`, the 2%-retention book — it still locates 89.4%
+of entries. The 5.3 pair retrofits at 84.1–95.7% (single) and 70.3–88.2%
+(three-pass).
+
+**Of the lines the source confirms are dialogue, and that BOTH arms located,
+how many did each arm attribute to a character at all?**
+
+| book | paired lines | single | three-pass | McNemar |
+|---|---|---|---|---|
+| index18 | 760 | **84.5%** | 75.7% | 1.8e-06 |
+| mushoku16 | 917 | 58.9% | **84.5%** | 5.5e-50 |
+| owarimonogatari3 | 1663 | **86.5%** | 77.1% | 7.2e-13 |
+
+**Single-pass wins two, three-pass wins one — and it wins it on the book where
+single-pass is worst** (58.9%, its only sub-80 figure). Every result is
+overwhelmingly significant, so this is not noise; the arms fail *differently*,
+and which is better depends on the book. That matches [[style_routing_per_book]]:
+methods here split hard by writing style.
+
+**This nearly went out wrong, twice.** The first version of the comparison
+scored agreement about `spoken` and got 100% on every book — a tautology, since
+both arms read that fact from the same source. The second counted `UNKNOWN` as
+an attribution because it is not `NARRATOR`, which put three-pass ahead by
+10–37 points on all three books; three-pass alone carries 118 UNKNOWN lines on
+mushoku16. Counting an explicit "I cannot tell" as a success reversed two of
+three results. Both traps are now pinned by tests.
+
+**What it does NOT say.** This metric asks whether the arm named *anyone*, not
+whether it named the right person — a wrong name counts as attributed. That is
+the old 5.3 metric's question, and both are needed: single-pass is better at
+*who*, three-pass is better at *not giving up*. For an audiobook the two
+failures sound different — dialogue read in the narrator's voice against
+dialogue read in the wrong character's voice — and which is worse is 7.1's
+question, not this one's.
+
+**The target should no longer read "wire it in or delete it."** Neither arm
+dominates. The open question is whether the choice is per-book, and 5.3's
+two-book sample cannot answer that.
+
+#### THE TEST AS ORIGINALLY QUEUED, 2026-08-20
 
 The map makes 5.3 answerable on something the old key could not delete.
 `dialogue_map_compare.py` compares the arms on `spoken`/`source_span` rather

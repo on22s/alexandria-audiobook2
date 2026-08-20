@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 534 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 535 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -876,6 +876,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `decontaminate_batch5.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch6.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dialogue_attribution.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `dialogue_map_compare.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_length_intervention.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

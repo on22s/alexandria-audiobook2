@@ -26,8 +26,15 @@ WHAT IT REPORTS, per book and arm:
   agreement      on entries BOTH arms located, how often they agree about
                  whether the line is speech - the paired comparison, since an
                  arm that locates fewer lines is not thereby more accurate.
-  disagreements  sample rows, so a reader can see which arm is wrong rather
-                 than only that they differ.
+  attribution    THE ONE THAT DISCRIMINATES. Of the lines the SOURCE confirms
+                 are dialogue and both arms located, how many did each arm
+                 attribute to a character at all - counting NARRATOR and
+                 UNKNOWN alike as unattributed.
+
+  agreement      100% by construction, and kept as a CHECK rather than a
+                 finding: `spoken` comes from the source, so two arms that
+                 located the same span cannot disagree about it. A value below
+                 100% means the pairing is broken, not that an arm is wrong.
 
 WHAT IT IS NOT. Not an attribution score - that is three_pass_vs_single's job
 and it remains valid on its own terms. This asks the prior question: does the
@@ -47,6 +54,13 @@ sys.path.insert(0, os.path.join(APP, "experiments"))
 from experiments.provenance import provenance  # noqa: E402
 from experiments.stats import exact_mcnemar  # noqa: E402
 
+# NOT AN ATTRIBUTION. NARRATOR means the arm read dialogue as narration;
+# UNKNOWN means it declined to name a speaker. Counting UNKNOWN as a success
+# because it is not NARRATOR inflated three-pass by 10-37 points on 2026-08-20
+# and reversed the ranking on two of three books - it has 118 UNKNOWN lines on
+# mushoku16 alone. An explicit "I cannot tell" is a better failure than a wrong
+# guess, and it is still a failure.
+UNATTRIBUTED = {"NARRATOR", "UNKNOWN", "", "?"}
 ROOTS = [REPO]
 
 
@@ -83,9 +97,14 @@ def key_of(entry):
     return None
 
 
+def attributed(entry):
+    return (entry.get("speaker") or "").upper().strip() not in UNATTRIBUTED
+
+
 def profile(path):
     entries = load_entries(path)
     by_key = {}
+    attribution = {}
     n = located = spoken = 0
     for entry in entries:
         if not isinstance(entry, dict) or not (entry.get("text") or ""):
@@ -99,7 +118,10 @@ def profile(path):
         key = key_of(entry)
         if key is not None:
             by_key[key] = bool(entry.get("spoken"))
+            if entry.get("spoken"):
+                attribution[key] = attributed(entry)
     return {"entries": n, "located": located, "spoken": spoken,
+            "attribution": attribution,
             "located_rate": round(located / n, 4) if n else None,
             "spoken_rate": round(spoken / located, 4) if located else None,
             "by_key": by_key}
@@ -112,8 +134,10 @@ def compare(single_path, three_path):
     single_only = [k for k in shared if a["by_key"][k] and not b["by_key"][k]]
     three_only = [k for k in shared if b["by_key"][k] and not a["by_key"][k]]
     out = {
-        "single": {k: v for k, v in a.items() if k != "by_key"},
-        "three_pass": {k: v for k, v in b.items() if k != "by_key"},
+        "single": {k: v for k, v in a.items()
+                   if k not in ("by_key", "attribution")},
+        "three_pass": {k: v for k, v in b.items()
+                       if k not in ("by_key", "attribution")},
         "paired_entries": len(shared),
         "agree": agree,
         "agreement_rate": round(agree / len(shared), 4) if shared else None,
@@ -126,6 +150,30 @@ def compare(single_path, three_path):
     if single_only or three_only:
         p, _bb, _cc = exact_mcnemar(len(single_only), len(three_only))
         out["mcnemar_p"] = p
+
+    # THE NON-TAUTOLOGICAL COMPARISON. `spoken` comes from the SOURCE, so where
+    # both arms located the same span they cannot disagree about it - the
+    # agreement above is 100% by construction and is a check that the pairing
+    # works, not a finding. What the ARMS decided is the speaker, and that is
+    # what this measures: of the lines the source confirms are dialogue, how
+    # many did each arm attribute to a character at all.
+    spoken_shared = sorted(set(a["attribution"]) & set(b["attribution"]))
+    if spoken_shared:
+        sa = sum(a["attribution"][k] for k in spoken_shared)
+        sb = sum(b["attribution"][k] for k in spoken_shared)
+        s_only = [k for k in spoken_shared
+                  if a["attribution"][k] and not b["attribution"][k]]
+        t_only = [k for k in spoken_shared
+                  if b["attribution"][k] and not a["attribution"][k]]
+        att = {
+            "paired_spoken_lines": len(spoken_shared),
+            "single_attributed": round(sa / len(spoken_shared), 4),
+            "three_pass_attributed": round(sb / len(spoken_shared), 4),
+            "single_only": len(s_only), "three_pass_only": len(t_only),
+        }
+        if s_only or t_only:
+            att["mcnemar_p"] = exact_mcnemar(len(s_only), len(t_only))[0]
+        out["attribution_on_source_confirmed_dialogue"] = att
     return out
 
 

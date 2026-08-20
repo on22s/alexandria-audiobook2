@@ -133,6 +133,43 @@ class ComparisonTest(unittest.TestCase):
         self.assertNotIn("mcnemar_p", got)
 
 
+class AttributionTest(unittest.TestCase):
+    """UNKNOWN is not an attribution, and counting it as one reverses results.
+
+    Measured 2026-08-20: counting UNKNOWN as success because it is not NARRATOR
+    put three-pass ahead by 10-37 points on all three books. Counting it
+    honestly flipped two of the three back to single-pass. Three-pass carries
+    118 UNKNOWN lines on mushoku16 alone, so this is not a rounding concern.
+    """
+
+    def setUp(self):
+        from experiments import dialogue_map_compare as m
+        self.m = m
+
+    def test_narrator_is_not_an_attribution(self):
+        self.assertFalse(self.m.attributed({"speaker": "NARRATOR"}))
+
+    def test_unknown_is_not_an_attribution(self):
+        """An explicit 'I cannot tell' is a better failure than a wrong guess,
+        and it is still a failure."""
+        self.assertFalse(self.m.attributed({"speaker": "UNKNOWN"}))
+        self.assertFalse(self.m.attributed({"speaker": "unknown"}))
+
+    def test_a_missing_or_blank_speaker_is_not_an_attribution(self):
+        self.assertFalse(self.m.attributed({}))
+        self.assertFalse(self.m.attributed({"speaker": "   "}))
+
+    def test_a_named_character_is(self):
+        self.assertTrue(self.m.attributed({"speaker": "RUDI"}))
+        self.assertTrue(self.m.attributed({"speaker": "Eris Greyrat"}))
+
+    def test_a_wrong_name_still_counts_as_attributed(self):
+        """Stated so nobody reads this metric as accuracy. It asks whether the
+        arm named ANYONE, not whether it named the right person - that is the
+        old 5.3 metric's question and both are needed."""
+        self.assertTrue(self.m.attributed({"speaker": "SOMEONE ELSE ENTIRELY"}))
+
+
 class WiringTest(unittest.TestCase):
     """Both arms must carry the map, or the comparison measures which arm got
     patched rather than which design is better."""
