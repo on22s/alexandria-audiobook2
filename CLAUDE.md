@@ -279,8 +279,13 @@ second:
 
 - It regenerates rather than only reporting staleness, because the next thing
   anyone types after "the index is stale" is the regenerate command.
-- It prints which generated files moved, so they get staged. A clean verifier
-  followed by an unstaged index is the same failure again.
+- It asks `--check`, not `git diff`, whether the indexes are current.
+  `RESULTS_INDEX.md` embeds its generation time **to the minute**, so it shows
+  a diff on every regeneration whether or not the data moved; a first version
+  of this script refused to proceed on exactly that churn. The `--check`
+  commands compare the data and are what CI runs, so they decide. It still
+  lists the files to stage, but a timestamp-only `RESULTS_INDEX.md` diff is
+  noise and does not block anything.
 - It finds `app/env` in the main checkout when run from a worktree, which is
   where development happens under [[Rule 24]] and where there is no venv.
 

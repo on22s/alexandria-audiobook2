@@ -41,15 +41,29 @@ for script in audit_experiment_artifacts audit_legacy_attribution collect_result
 done
 
 echo
-echo "== what changed =="
-git -C "$REPO" status --porcelain -- \
+echo "== is what CI checks actually current? =="
+# THE AUTHORITY IS --check, NOT A GIT DIFF. RESULTS_INDEX.md embeds its
+# generation time to the minute, so it shows a diff on every regeneration even
+# when nothing about the data moved - an earlier version of this script refused
+# to proceed on exactly that churn. The --check commands compare the DATA and
+# are what CI runs, so they decide.
+stale=0
+for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
+    if ( cd "$REPO" && "$python" "$REPO/$script.py" --check >/dev/null 2>&1 ); then
+        echo "   $script  current"
+    else
+        echo "   $script  STALE - regeneration did not settle it" >&2
+        stale=1
+    fi
+done
+[ "$stale" = 0 ] || exit 2
+
+echo
+echo "== files to stage (a RESULTS_INDEX.md timestamp-only diff is noise) =="
+git -C "$REPO" diff --name-only -- \
     app/tests/unit_test_inventory.json RESULTS_INDEX.md results_index.csv \
     ab_test_runtime/audit LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md \
     | sed 's/^/   /' || true
-git -C "$REPO" status --porcelain -- app/tests/unit_test_inventory.json \
-    RESULTS_INDEX.md results_index.csv ab_test_runtime/audit \
-    | grep -q . && echo "   ^ stage these before committing" \
-                || echo "   nothing - the generated files were already current"
 
 echo
 echo "== release verifier =="
