@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 210,
+    "supported_structure": 211,
     "exploratory": 191,
     "provisional": 122
   },
@@ -633,6 +633,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "audio_views.json",
+      "bytes": 4741,
+      "sha256": "1cbd43dddf43ec07bd9a0070c181ce8d8b8cf1462affaf33b697e8b2306d541c",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T07:21:29",
+      "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "baseline_heldout__husky_baritone_40s_m_2.json",
@@ -6607,17 +6623,17 @@
     },
     {
       "artifact": "respelling_selectivity.json",
-      "bytes": 1773,
-      "sha256": "7acb97e66354756de448b5adc8f59c07e1ca2cac42db3530544bef8c50306610",
+      "bytes": 1287,
+      "sha256": "a1a4c1c042fc9687cdadde563e6006a09726632151c900216ec79d13ce9b886c",
       "completeness": "unknown",
       "seed": null,
       "status": null,
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-20T06:44:10",
-      "commit": "40dcc83e736d2581f9e718e88ae945bf477ad0a8",
-      "dirty": false,
+      "written": "2026-08-20T03:10:39",
+      "commit": "da310f086952d35b33f084c8a7af80595bab6794",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },

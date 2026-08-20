@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1494** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -161,212 +161,6 @@ Two consequences worth keeping straight:
 **Before any cross-set comparison, harmonise the sampling.** Running every
 method on every book — which is worth doing — will produce nonsense if a hard
 subset is scored against a full set.
-
----
-
-### 1.2 Close the selection gap
-
-> **What this is.** Before deciding who spoke, the app assembles a shortlist of
-> plausible characters. Two separate things can go wrong: the right name might
-> not be on the shortlist at all, or it might be there and get passed over.
-> This measures the second.
->
-> **Why it matters.** It tells us where the real problem is. The shortlist
-> contains the correct name **85%** of the time, but the app only picks it
-> **29.9%** of the time. So the information is already sitting in front of it in
-> the overwhelming majority of cases — and it looks straight past it. That is a
-> very different problem from not knowing, and it needs a very different fix.
->
-> **Why 50% is reachable.** We are not asking for new information, new models,
-> or more reading. The answer is already present. Getting from "picks it 3 times
-> in 10" to "picks it 5 times in 10", when the answer is on the page 8.5 times
-> in 10, is closing a gap rather than inventing an ability. This is the single
-> biggest known opportunity in the app.
-
-**Metric** — of lines where the correct speaker is present in the candidate
-roster, the percent where the model picks it.
-**Probe** — see memory `attribution_selection_not_recall`.
-**Current** — re-measured 2026-08-08 on the shipped **qwen3-14b**
-(`selection_gap_recheck.py`, closed_set OPEN arm, 793 rows across four books).
-**MET.**
-
-| | qwen3.5-9b (this goal's original basis) | qwen3-14b (shipped) |
-|---|---|---|
-| roster recall | 85.0% | **91.6%** |
-| selection | **29.9%** | **62.9%** |
-
-| book | recall | selection | n |
-|---|---|---|---|
-| grimgar03 | 95.2% | 65.3% | 396 |
-| index18 | 89.9% | 73.0% | 99 |
-| mushoku16 | 84.6% | 60.9% | 136 |
-| owarimonogatari3 | 89.5% | 52.4% | 162 |
-
-**Target — selection ≥ 50% with roster recall held at ≥ 85%. MET: 62.9% at
-91.6% recall, and every individual book clears 50% as well.**
-
-**The gap was the model, not the method.** 29.9% was measured on qwen3.5-9b,
-which a later six-model comparison put ~17 points behind the shipped model on
-this task; the true difference here is 33 points. Selection is stable across
-backends — the same book varies by 3.1 points (grimgar03) and 5.0 (mushoku16)
-across four and five runs — so this is not one lucky artifact.
-
-Nothing was built to close this. The goal was written around a number from a
-model that does not ship, and the warning to re-measure before spending
-anything on it was correct: the entire 55-point gap it described was 29
-points of weaker model.
-
-The four rejected approaches in the table below were therefore tested against
-a deficit that mostly was not there on the shipped model. That does not
-resurrect them — they were measured and they failed — but it does mean the
-premise they were attacking has changed, and owarimonogatari3 at 52.4% is now
-the only book near the line.
-
-> **CAUTION: these figures were measured on a model that is not the one that
-> ships.** The 147-line random gold set behind them has `source_run`
-> **qwen3.5-9b**, and a six-model comparison on the same frozen harness later
-> showed that model to be the *weakest selector tested*:
->
-> | model | open | closed-6 | oracle |
-> |---|---|---|---|
-> | **qwen/qwen3-14b** (production) | 48.3% | 36.7% | **66.0%** |
-> | ministral-3-14b | 47.6% | 41.5% | 61.2% |
-> | phi-4 | 45.6% | 32.7% | 59.2% |
-> | **qwen3.5-9b** (source of 29.9%) | 35.4% | 34.7% | **49.0%** |
->
-> The 49% "conditional ceiling" this goal was written against is a property of
-> **qwen3.5-9b, not of the task**. The production model reaches 66.0% on the
-> same measurement.
->
-> To be exact: 29.9% is end-to-end pipeline selection and 66.0% is conditional
-> selection given an oracle set, so they are not the same number and one does
-> not replace the other. But the *framing* — "the answer is present and the
-> model looks past it" — was calibrated on a model 17 points worse at exactly
-> that.
->
-> **That re-measurement was done on 2026-08-08 and closed the goal:** selection
-> is 62.9% on qwen3-14b at 91.6% roster recall. The warning is kept because it
-> was correct — the entire gap this goal was built around was a weaker model —
-> but it is no longer an instruction. Nothing here needs re-measuring.
-
-**Why this and not more context.** Two independent measurements say supply is
-not the constraint. Feeding the model more of the book is treating the wrong
-problem, and has been tried.
-
-#### What has already been tried, with numbers
-
-Recorded here because this knowledge lived in ~30 scattered artifacts, and on
-2026-08-06 that cost a session in which three already-rejected ideas were
-proposed as if new. **Read this before proposing a fix for the selection gap.**
-
-| approach | result | verdict |
-|---|---|---|
-| widen attribution context (w1→w4) | +10.0 grimgar03 (4 repeats), +3.0 index18, **−5.0 mushoku16**, 0.0 owari | book-dependent, not a fix |
-| route per book | leave-one-out router **56.5%** vs fixed **57.2%** | **worse than picking one setting** |
-| constrain decoding to the roster (GBNF) | open arm: 0.0, −1.0, −1.4, −1.2 | no gain where it matters |
-| shrink candidate set to 6 | +1.8 grimgar03, **−6.1 index18, −12.5 mushoku16, −4.9 owari** | loses the right name |
-| oracle candidate set | +10 to +18 everywhere | not achievable; it needs the answer |
-
-The shape of it: **`closed-oracle` wins big and `closed-6` loses**, and the only
-difference is whether the shortlist contains the right name. Constraining the
-model is not the lever. Whether the answer is *in the list* is.
-
-**Routing deserves its own warning.** Every routing gain quoted before
-`realizable_router` was fitted — the best arm per book read off the results
-afterwards. When the choice must be made without seeing the held-out book, the
-router wins 4 families, loses 5, ties 6, and lands **below** a fixed setting.
-An oracle-routed number is not an achievable number.
-
-#### The one lever positive on all four tested books — and only four
-
-**Scope first, because the result is easy to overstate and was.** This ran on
-grimgar03, index18, mushoku16 and owarimonogatari3. All four are Japanese light
-novels **in English translation** — one genre, one language, one translation
-pipeline. It has never run on the three PDNC public-domain English novels, on
-the Chinese WP/JY sets, or on any Japanese-language text. Read every number
-below as "four books of one kind", not "every book".
-
-`roster_quality` varied the roster instead of the model. Adding the names
-`build_roster` missed beats the generated roster on all four, and beats a
-*perfect* roster too:
-
-| book | generated | augmented | gold |
-|---|---|---|---|
-| grimgar03 | 59.7 | **63.6** | 61.6 |
-| index18 | 67.4 | **71.7** | 69.6 |
-| mushoku16 | 48.9 | **51.9** | 48.9 |
-| owarimonogatari3 | 40.7 | **45.1** | 42.6 |
-
-**+3.0 to +4.4, same direction every time** — the only intervention measured so
-far with no book that it hurts. The experiment pre-registered this reading:
-*"augmented >> generated → roster extraction is worth fixing, and the size of
-the effect is the prize."*
-
-The misses are not walk-on parts: ten characters across four books that
-`build_roster` never found, including HITOGAMI with 9 lines in mushoku16 and
-OUGI with 10 in owarimonogatari3.
-
-The `inflated` arm — a gold roster plus twenty decoys — is the guard rail:
-30.9% on owarimonogatari3 against 40.7% generated. **Adding names is only safe
-when they are real.** A recall fix that pads the list will lose more than it
-gains.
-
-**So the next move on 1.2 is `build_roster` in `three_pass_generate.py`, not a
-prompt, a constraint, or a router — but see the scope note first.**
-
-#### Before acting on it: widen the book set
-
-The cheapest way to find out whether this generalises is to run the same
-experiment on PDNC. It is not blocked by missing data:
-
-- PDNC ships its own curated roster (74 names for Pride and Prejudice), which
-  is what the `gold` arm needs, and from a published annotated corpus rather
-  than this project's own judging.
-- Its gold sets are LARGER than the light novels': 1270 / 640 / 584 rows
-  against 396 / 162 / 136 / 99.
-- **PDNC contamination does not apply here.** That contamination concerns the
-  distilled adapter's training set. `roster_quality` trains nothing; it runs
-  the base model and varies only the roster at inference. Nothing is fitted, so
-  held-out status is irrelevant to this particular experiment.
-
-**What it actually costs** — corrected after reading the script's data
-dependencies rather than guessing at them, having first written "an afternoon"
-here without checking:
-
-1. **A three-pass checkpoint per book. This is the real cost.**
-   `roster_quality` reads `segmented` and `named` from a prior pipeline run
-   (`matrix_20260725-115148/<model>/<book>/result.json.threepass_checkpoint.json`).
-   Only six light novels have one. The PDNC books have never been through the
-   pipeline, so each needs a **GPU segmentation run first** — mushoku16's single
-   pass took 80 minutes at 45 chunks, and Pride and Prejudice is a longer book.
-   Budget hours per novel, not minutes.
-2. **Source text** must be placed where the script expects it; the matrix
-   `inputs/` directory holds only the eight light novels.
-3. **`roster_additions` does not exist in PDNC gold.** The light novels carry a
-   hand-curated list of names the judges found missing; PDNC instead carries a
-   `roster` of 74 curated names. So `additions` becomes `roster - generated`,
-   which is arguably a cleaner definition — derived from a published corpus
-   rather than from this project's own judging.
-4. The hardcoded four-book decoy pool needs widening. This part *is* trivial;
-   it was the only part visible without reading the data flow.
-
-Chinese (WP/JY) would need more work: those sets use a different structure
-(`dataset`/`results` rather than `entries`). No Japanese-language attribution
-gold exists at all — the light novels are Japanese-origin but English text.
-
-If roster augmentation holds on three English public-domain novels of a
-different century and genre, it is a real finding and goal 1.3 gains evidence
-at the same time. If it does not, then it was a property of translated light
-novels and the whole recommendation changes.
-
-#### Still open
-
-`candidates.py` exists, states its own plan — *"an upper bound on recall;
-ablate afterwards to find the smallest reliable set"* — and has no artifact.
-The size-versus-recall curve it proposed was never run. Given `closed-6` fails
-by losing the right name and `closed-oracle` wins by keeping it, that curve is
-the one measurement that would say whether a small, honest candidate set is
-reachable at all.
 
 ---
 
@@ -569,7 +363,13 @@ closed.
 **Metric** — generated f0 spread (p90 − p10) ÷ human f0 spread, on the same line.
 **Probe** — `app/experiments/pitch_quality_probe.py` (calls `pitch_stats`; the
 `voice_compare_view` CLI renders a view, it does not report numbers).
-**Current** — 100 clips per language, both arms, 0 dropped, 2026-08-08. **MET.**
+**Current** — 100 clips per language, both arms, 0 dropped, 2026-08-08.
+**MET ON SPREAD, OPEN ON MEDIAN.** The table below is the f0 *spread* ratio and
+every cell is inside 0.90–1.15x. The target's second band is the f0 *median*
+within 0.95–1.05x, and English cloning sits at **0.81x** - a voice pitched a
+fifth of an octave low for a whole book, recorded further down this section.
+A bare "MET." here read as though the goal were finished and nearly got it
+promoted on 2026-08-20; the promotion was stopped by re-reading the target.
 
 | set | clone | LoRA |
 |---|---|---|
@@ -1624,6 +1424,27 @@ not have said that, and had not, across three backends and six weeks.
 **Still unlooked-at:** the honest retrains, both reference-rank campaigns, the
 21 identity gates, and the promoted adapters now shipping.
 
+**The gates could not be looked at, and now can.** `verify_adapter_identity.py`
+records one number and a verdict - `median_ecapa`, `passed` - with no rows and
+no clip paths, so nothing said which audio a gate had scored. The audio was
+there the whole time: the gate renders into `<adapter>/identity_check/` and
+leaves it, 95 such directories exist, and it consumes the dataset's val split
+in order, so `check_<i>.wav` is the model's reading of val line `<i>`.
+`gate_view.py` reconstructs the pairs without regenerating anything - which
+matters, because a regenerated clip is a different sample and could not explain
+the number already recorded. Four rendered 2026-08-20, deliberately spanning
+the range: 0.034 and 0.393 (both FAIL) against 0.752 and 0.781 (both PASS).
+
+**And the views are not in the repository.** Every one of the six this goal
+credits is untracked - they are 9-18 MB of HTML with the audio embedded, and
+the view directories are gitignored on purpose. Seventy gates at ten megabytes
+each is not a repository, so that will not change. But it means this goal's
+evidence has never survived a clone, which is the condition 6.1-6.3 exist to
+prevent. `audio_views.json` is the part that does survive: for each view, the
+arm, the file, its size and SHA-256, and the gate number it was rendered to
+explain. It records `looked_at: false` for all ten, because rendering is not
+looking and this goal is about the looking.
+
 **Target — a rendered view for every audio arm whose numbers appear in this
 document.**
 
@@ -1673,6 +1494,230 @@ headphones, and the concealed key afterwards.
 # Part II — Met
 
 *Measured at or beyond target, each keeping a test so it stays there. Nothing here needs work; it needs not to regress.*
+
+## 1. Speaker attribution — who says which line
+
+### 1.2 Close the selection gap
+
+> **What this is.** Before deciding who spoke, the app assembles a shortlist of
+> plausible characters. Two separate things can go wrong: the right name might
+> not be on the shortlist at all, or it might be there and get passed over.
+> This measures the second.
+>
+> **Why it matters.** It tells us where the real problem is. The shortlist
+> contains the correct name **85%** of the time, but the app only picks it
+> **29.9%** of the time. So the information is already sitting in front of it in
+> the overwhelming majority of cases — and it looks straight past it. That is a
+> very different problem from not knowing, and it needs a very different fix.
+>
+> **Why 50% is reachable.** We are not asking for new information, new models,
+> or more reading. The answer is already present. Getting from "picks it 3 times
+> in 10" to "picks it 5 times in 10", when the answer is on the page 8.5 times
+> in 10, is closing a gap rather than inventing an ability. This is the single
+> biggest known opportunity in the app.
+
+**Metric** — of lines where the correct speaker is present in the candidate
+roster, the percent where the model picks it.
+**Probe** — see memory `attribution_selection_not_recall`.
+**Current** — re-measured 2026-08-08 on the shipped **qwen3-14b**
+(`selection_gap_recheck.py`, the `closed_set` open-roster arm, 793 rows across four books).
+**MET.**
+
+| | qwen3.5-9b (this goal's original basis) | qwen3-14b (shipped) |
+|---|---|---|
+| roster recall | 85.0% | **91.6%** |
+| selection | **29.9%** | **62.9%** |
+
+| book | recall | selection | n |
+|---|---|---|---|
+| grimgar03 | 95.2% | 65.3% | 396 |
+| index18 | 89.9% | 73.0% | 99 |
+| mushoku16 | 84.6% | 60.9% | 136 |
+| owarimonogatari3 | 89.5% | 52.4% | 162 |
+
+**Target — selection ≥ 50% with roster recall held at ≥ 85%. MET: 62.9% at
+91.6% recall, and every individual book clears 50% as well.**
+
+**The gap was the model, not the method.** 29.9% was measured on qwen3.5-9b,
+which a later six-model comparison put ~17 points behind the shipped model on
+this task; the true difference here is 33 points. Selection is stable across
+backends — the same book varies by 3.1 points (grimgar03) and 5.0 (mushoku16)
+across four and five runs — so this is not one lucky artifact.
+
+Nothing was built to close this. The goal was written around a number from a
+model that does not ship, and the warning to re-measure before spending
+anything on it was correct: the entire 55-point gap it described was 29
+points of weaker model.
+
+The four rejected approaches in the table below were therefore tested against
+a deficit that mostly was not there on the shipped model. That does not
+resurrect them — they were measured and they failed — but it does mean the
+premise they were attacking has changed, and owarimonogatari3 at 52.4% is now
+the only book near the line.
+
+> **CAUTION: these figures were measured on a model that is not the one that
+> ships.** The 147-line random gold set behind them has `source_run`
+> **qwen3.5-9b**, and a six-model comparison on the same frozen harness later
+> showed that model to be the *weakest selector tested*:
+>
+> | model | open | closed-6 | oracle |
+> |---|---|---|---|
+> | **qwen/qwen3-14b** (production) | 48.3% | 36.7% | **66.0%** |
+> | ministral-3-14b | 47.6% | 41.5% | 61.2% |
+> | phi-4 | 45.6% | 32.7% | 59.2% |
+> | **qwen3.5-9b** (source of 29.9%) | 35.4% | 34.7% | **49.0%** |
+>
+> The 49% "conditional ceiling" this goal was written against is a property of
+> **qwen3.5-9b, not of the task**. The production model reaches 66.0% on the
+> same measurement.
+>
+> To be exact: 29.9% is end-to-end pipeline selection and 66.0% is conditional
+> selection given an oracle set, so they are not the same number and one does
+> not replace the other. But the *framing* — "the answer is present and the
+> model looks past it" — was calibrated on a model 17 points worse at exactly
+> that.
+>
+> **That re-measurement was done on 2026-08-08 and closed the goal:** selection
+> is 62.9% on qwen3-14b at 91.6% roster recall. The warning is kept because it
+> was correct — the entire gap this goal was built around was a weaker model —
+> but it is no longer an instruction. Nothing here needs re-measuring.
+
+**Why this and not more context.** Two independent measurements say supply is
+not the constraint. Feeding the model more of the book is treating the wrong
+problem, and has been tried.
+
+#### What has already been tried, with numbers
+
+Recorded here because this knowledge lived in ~30 scattered artifacts, and on
+2026-08-06 that cost a session in which three already-rejected ideas were
+proposed as if new. **Read this before proposing a fix for the selection gap.**
+
+| approach | result | verdict |
+|---|---|---|
+| widen attribution context (w1→w4) | +10.0 grimgar03 (4 repeats), +3.0 index18, **−5.0 mushoku16**, 0.0 owari | book-dependent, not a fix |
+| route per book | leave-one-out router **56.5%** vs fixed **57.2%** | **worse than picking one setting** |
+| constrain decoding to the roster (GBNF) | open arm: 0.0, −1.0, −1.4, −1.2 | no gain where it matters |
+| shrink candidate set to 6 | +1.8 grimgar03, **−6.1 index18, −12.5 mushoku16, −4.9 owari** | loses the right name |
+| oracle candidate set | +10 to +18 everywhere | not achievable; it needs the answer |
+
+The shape of it: **`closed-oracle` wins big and `closed-6` loses**, and the only
+difference is whether the shortlist contains the right name. Constraining the
+model is not the lever. Whether the answer is *in the list* is.
+
+**Routing deserves its own warning.** Every routing gain quoted before
+`realizable_router` was fitted — the best arm per book read off the results
+afterwards. When the choice must be made without seeing the held-out book, the
+router wins 4 families, loses 5, ties 6, and lands **below** a fixed setting.
+An oracle-routed number is not an achievable number.
+
+#### The one lever positive on all four tested books — and only four
+
+**Scope first, because the result is easy to overstate and was.** This ran on
+grimgar03, index18, mushoku16 and owarimonogatari3. All four are Japanese light
+novels **in English translation** — one genre, one language, one translation
+pipeline. It has never run on the three PDNC public-domain English novels, on
+the Chinese WP/JY sets, or on any Japanese-language text. Read every number
+below as "four books of one kind", not "every book".
+
+`roster_quality` varied the roster instead of the model. Adding the names
+`build_roster` missed beats the generated roster on all four, and beats a
+*perfect* roster too:
+
+| book | generated | augmented | gold |
+|---|---|---|---|
+| grimgar03 | 59.7 | **63.6** | 61.6 |
+| index18 | 67.4 | **71.7** | 69.6 |
+| mushoku16 | 48.9 | **51.9** | 48.9 |
+| owarimonogatari3 | 40.7 | **45.1** | 42.6 |
+
+**+3.0 to +4.4, same direction every time** — the only intervention measured so
+far with no book that it hurts. The experiment pre-registered this reading:
+*"augmented >> generated → roster extraction is worth fixing, and the size of
+the effect is the prize."*
+
+The misses are not walk-on parts: ten characters across four books that
+`build_roster` never found, including HITOGAMI with 9 lines in mushoku16 and
+OUGI with 10 in owarimonogatari3.
+
+The `inflated` arm — a gold roster plus twenty decoys — is the guard rail:
+30.9% on owarimonogatari3 against 40.7% generated. **Adding names is only safe
+when they are real.** A recall fix that pads the list will lose more than it
+gains.
+
+**So the next move on 1.2 is `build_roster` in `three_pass_generate.py`, not a
+prompt, a constraint, or a router — but see the scope note first.**
+
+#### Before acting on it: widen the book set
+
+The cheapest way to find out whether this generalises is to run the same
+experiment on PDNC. It is not blocked by missing data:
+
+- PDNC ships its own curated roster (74 names for Pride and Prejudice), which
+  is what the `gold` arm needs, and from a published annotated corpus rather
+  than this project's own judging.
+- Its gold sets are LARGER than the light novels': 1270 / 640 / 584 rows
+  against 396 / 162 / 136 / 99.
+- **PDNC contamination does not apply here.** That contamination concerns the
+  distilled adapter's training set. `roster_quality` trains nothing; it runs
+  the base model and varies only the roster at inference. Nothing is fitted, so
+  held-out status is irrelevant to this particular experiment.
+
+**What it actually costs** — corrected after reading the script's data
+dependencies rather than guessing at them, having first written "an afternoon"
+here without checking:
+
+1. **A three-pass checkpoint per book. This is the real cost.**
+   `roster_quality` reads `segmented` and `named` from a prior pipeline run
+   (`matrix_20260725-115148/<model>/<book>/result.json.threepass_checkpoint.json`).
+   Only six light novels have one. The PDNC books have never been through the
+   pipeline, so each needs a **GPU segmentation run first** — mushoku16's single
+   pass took 80 minutes at 45 chunks, and Pride and Prejudice is a longer book.
+   Budget hours per novel, not minutes.
+2. **Source text** must be placed where the script expects it; the matrix
+   `inputs/` directory holds only the eight light novels.
+3. **`roster_additions` does not exist in PDNC gold.** The light novels carry a
+   hand-curated list of names the judges found missing; PDNC instead carries a
+   `roster` of 74 curated names. So `additions` becomes `roster - generated`,
+   which is arguably a cleaner definition — derived from a published corpus
+   rather than from this project's own judging.
+4. The hardcoded four-book decoy pool needs widening. This part *is* trivial;
+   it was the only part visible without reading the data flow.
+
+Chinese (WP/JY) would need more work: those sets use a different structure
+(`dataset`/`results` rather than `entries`). No Japanese-language attribution
+gold exists at all — the light novels are Japanese-origin but English text.
+
+If roster augmentation holds on three English public-domain novels of a
+different century and genre, it is a real finding and goal 1.3 gains evidence
+at the same time. If it does not, then it was a property of translated light
+novels and the whole recommendation changes.
+
+#### Still open
+
+`candidates.py` exists, states its own plan — *"an upper bound on recall;
+ablate afterwards to find the smallest reliable set"* — and has no artifact.
+The size-versus-recall curve it proposed was never run. Given `closed-6` fails
+by losing the right name and `closed-oracle` wins by keeping it, that curve is
+the one measurement that would say whether a small, honest candidate set is
+reachable at all.
+
+---
+
+**The arm is written "open-roster" rather than by its bare code name.**
+`test_goals_navigation` decides which half a goal belongs in by reading its
+status words, and treats a goal claiming both statuses as unfinished - which is
+right, and is why 2.6 stays where it is. This section used to name that arm by
+its code name, which is one of those two status words, so the check read the
+whole goal as unfinished. Its placement in Part I passed for two weeks while
+its own target line said MET. Do not restore the code name here.
+
+**Promoted to Part II on 2026-08-20**, after checking the claim rather than
+taking the wording: pooled selection 62.9% at 91.6% recall clears the target,
+every individual book clears 50% selection, and the result survives dropping
+`index18` - whose source file was later found corrupt (6,662 replacement
+characters, no quote marks) - at 61.5% selection and 91.8% recall over the
+remaining 694 rows. `mushoku16`'s own recall is 84.6%, just under the 85%
+figure, which the target states pooled rather than per book.
 
 ## 7. The finished audiobook
 

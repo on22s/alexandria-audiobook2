@@ -64,6 +64,9 @@ def isolated_env(tmpdir, **extra):
                # gpu_pause.sh dutifully reported four dead chains that were
                # only ever tests.
                GPU_PENDING_DIR=os.path.join(tmpdir, "pending"),
+               # Fifth. The dirty-tree tests write a patch per run, and
+               # 202 of them accumulated in the real working tree.
+               GPU_PATCH_DIR=os.path.join(tmpdir, "dirty_patches"),
                # The card is REAL STATE too, and this is the third variable to
                # be found leaking in. With llama-server resident for an
                # unseen_books run (14.7 GB), every probe here was refused with
@@ -417,8 +420,10 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._make_repo(dirty=True)
         result = self._run(allow_dirty="1")
         self.assertEqual(0, result.returncode, result.stderr)
-        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
-                                 "dirty_patches")
+        # Wherever isolated_env pinned it, not where gpu_job.sh would put it
+        # by default - the point of pinning is that the suite stops writing
+        # into the real tree.
+        patch_dir = os.path.join(self.tmp.name, "dirty_patches")
         patches = os.listdir(patch_dir)
         self.assertEqual(1, len(patches), f"expected one patch, got {patches}")
         with open(os.path.join(patch_dir, patches[0]), encoding="utf-8") as fh:
@@ -434,8 +439,10 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._make_repo(dirty=True)
         self._add_untracked("brand_new_probe.py")
         self._run(allow_dirty="1")
-        patch_dir = os.path.join(self.root, "ab_test_runtime", "logs",
-                                 "dirty_patches")
+        # Wherever isolated_env pinned it, not where gpu_job.sh would put it
+        # by default - the point of pinning is that the suite stops writing
+        # into the real tree.
+        patch_dir = os.path.join(self.tmp.name, "dirty_patches")
         body = open(os.path.join(patch_dir, os.listdir(patch_dir)[0]),
                     encoding="utf-8").read()
         self.assertIn("brand_new_probe.py", body)
