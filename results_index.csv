@@ -519,6 +519,7 @@ hnr_length_probe.json,exploratory,git+naming,no,hnr_length_probe.py,ba25ff88,,,,
 instruct_listening.json,exploratory,git+naming,no,instruct_listening.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 instruct_value.json,exploratory,git+naming,no,instruct_value.py,a19adc68,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 instruct_value_seeded.json,exploratory,git+naming,no,instruct_value.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+instrument_null_test.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 japanese_quote_robustness.json,exploratory,git+naming,no,japanese_quote_robustness.py,a081167c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 joint_scene__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,joint_scene.py,e57d697b,,,joint_scene,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,independent,400,286,71.5,ok,False,,2149.6,07-28 21:25,http://127.0.0.1:8090/v1,
 joint_scene__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,joint_scene.py,e57d697b,,,joint_scene,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,joint-chrono,400,253,63.2,ok,False,,2149.6,07-28 21:25,http://127.0.0.1:8090/v1,
@@ -755,6 +756,7 @@ reexamine__qwen__qwen3-14b.json,provisional,git+naming,no,reexamine.py,2ce90a96,
 reexamine__qwen__qwen3-14b.json,provisional,git+naming,no,reexamine.py,2ce90a96,,,reexamine,mushoku16,qwen/qwen3-14b,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,prose,139,66,47.5,ok,True,b1b783d6,2737.5,07-27 08:43,http://localhost:1234/v1,
 reexamine__qwen__qwen3-14b.json,provisional,git+naming,no,reexamine.py,2ce90a96,,,reexamine,mushoku16,qwen/qwen3-14b,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,voting,139,69,49.6,ok,True,b1b783d6,2737.5,07-27 08:43,http://localhost:1234/v1,
 ref_clip_match.json,supported_structure,provenance,yes,,,,5,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+reference_audit.json,supported_structure,provenance,yes,,,2.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 reference_intervention__husky_baritone_20s_m_anime.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 reference_intervention_sharp.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 reference_rank1_all21.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly

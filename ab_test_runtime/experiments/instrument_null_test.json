@@ -1,0 +1,269 @@
+{
+ "scope": "human-vs-human null test: the ratio goals 2.5 and 2.6 report when both sides are the same speaker's own recordings and nothing was synthesised",
+ "seed": 1234,
+ "trials_per_measure": 2000,
+ "clips_requested": 150,
+ "languages": {
+  "en": {
+   "n_clips": 150,
+   "dropped": 0,
+   "measures": {
+    "f0_median": {
+     "trials": 2000,
+     "median": 1.0,
+     "p5": 0.9685,
+     "p95": 1.0326,
+     "worst_low": 0.941,
+     "worst_high": 1.0658,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 16,
+     "outside_band_pct": 0.8
+    },
+    "f0_spread": {
+     "trials": 2000,
+     "median": 0.9984,
+     "p5": 0.9437,
+     "p95": 1.0642,
+     "worst_low": 0.886,
+     "worst_high": 1.1317,
+     "band": [
+      0.9,
+      1.15
+     ],
+     "outside_band": 3,
+     "outside_band_pct": 0.15
+    },
+    "jitter_local": {
+     "trials": 2000,
+     "median": 0.9952,
+     "p5": 0.9533,
+     "p95": 1.0539,
+     "worst_low": 0.9309,
+     "worst_high": 1.0746,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "shimmer_local": {
+     "trials": 2000,
+     "median": 1.0011,
+     "p5": 0.9703,
+     "p95": 1.0317,
+     "worst_low": 0.9464,
+     "worst_high": 1.0613,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "vtl_cm": {
+     "trials": 2000,
+     "median": 1.0,
+     "p5": 0.9919,
+     "p95": 1.0081,
+     "worst_low": 0.984,
+     "worst_high": 1.0156,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    }
+   }
+  },
+  "ja": {
+   "n_clips": 150,
+   "dropped": 0,
+   "measures": {
+    "f0_median": {
+     "trials": 2000,
+     "median": 0.9946,
+     "p5": 0.9861,
+     "p95": 1.0117,
+     "worst_low": 0.971,
+     "worst_high": 1.0293,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "f0_spread": {
+     "trials": 2000,
+     "median": 1.0015,
+     "p5": 0.94,
+     "p95": 1.0655,
+     "worst_low": 0.8681,
+     "worst_high": 1.1623,
+     "band": [
+      0.9,
+      1.15
+     ],
+     "outside_band": 13,
+     "outside_band_pct": 0.65
+    },
+    "jitter_local": {
+     "trials": 2000,
+     "median": 0.9922,
+     "p5": 0.9468,
+     "p95": 1.0524,
+     "worst_low": 0.9179,
+     "worst_high": 1.0891,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "shimmer_local": {
+     "trials": 2000,
+     "median": 1.0088,
+     "p5": 0.9644,
+     "p95": 1.0384,
+     "worst_low": 0.9255,
+     "worst_high": 1.0713,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "vtl_cm": {
+     "trials": 2000,
+     "median": 1.0014,
+     "p5": 0.9886,
+     "p95": 1.0116,
+     "worst_low": 0.9766,
+     "worst_high": 1.0225,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    }
+   }
+  },
+  "zh": {
+   "n_clips": 150,
+   "dropped": 0,
+   "measures": {
+    "f0_median": {
+     "trials": 2000,
+     "median": 1.0,
+     "p5": 0.9799,
+     "p95": 1.0177,
+     "worst_low": 0.9549,
+     "worst_high": 1.0352,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "f0_spread": {
+     "trials": 2000,
+     "median": 0.9909,
+     "p5": 0.8741,
+     "p95": 1.1465,
+     "worst_low": 0.7935,
+     "worst_high": 1.2653,
+     "band": [
+      0.9,
+      1.15
+     ],
+     "outside_band": 273,
+     "outside_band_pct": 13.65
+    },
+    "jitter_local": {
+     "trials": 2000,
+     "median": 1.0036,
+     "p5": 0.951,
+     "p95": 1.0481,
+     "worst_low": 0.915,
+     "worst_high": 1.0855,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "shimmer_local": {
+     "trials": 2000,
+     "median": 1.0031,
+     "p5": 0.9741,
+     "p95": 1.0266,
+     "worst_low": 0.9471,
+     "worst_high": 1.0576,
+     "band": [
+      0.85,
+      1.15
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    },
+    "vtl_cm": {
+     "trials": 2000,
+     "median": 1.0,
+     "p5": 0.9888,
+     "p95": 1.0106,
+     "worst_low": 0.9588,
+     "worst_high": 1.0337,
+     "band": [
+      0.95,
+      1.05
+     ],
+     "outside_band": 0,
+     "outside_band_pct": 0.0
+    }
+   }
+  }
+ },
+ "read_inputs": {
+  "ab_test_runtime/experiments/ljspeech_generate.json": "fc4e7c04bf6ce3e53677cdc2c5a660386c74aaf913df8d60bb4b17b64c3c26b2",
+  "ab_test_runtime/experiments/kokoro_generate.json": "17a12a85b2bd1f7c556576ab096614f23f6204beba4de47a5ce4a3549f0fb22c",
+  "ab_test_runtime/experiments/aishell3_generate.json": "85d00d8496d0361d91c63a28aae125462f13176d75023c90cc0685179c3bdbbf"
+ },
+ "status": "complete",
+ "provenance": {
+  "script": "instrument_null_test.py",
+  "written": "2026-08-20T14:25:55",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c59da6ef85a1fb22e14c8f06af68f6643be4eb36",
+   "branch": "agent/instrument-null-tests-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M  GOALS.md",
+    "AM app/experiments/instrument_null_test.py",
+    "AM app/experiments/reference_audit.py",
+    "A  app/tests/test_instrument_null_test.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "06497c2948458f14edc029444c97098f04ae0e8747450dd21aebb9009ae5c1f4"
+  },
+  "args": {
+   "limit": 150,
+   "trials": 2000,
+   "seed": 1234,
+   "manifest": [],
+   "audio_root": [],
+   "out": "ab_test_runtime/experiments/instrument_null_test.json"
+  },
+  "seed": 1234
+ }
+}

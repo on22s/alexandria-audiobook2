@@ -932,6 +932,21 @@
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_remote_endpoint_is_unaffected_by_the_local_probe",
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_the_message_does_not_warn_about_a_risk_that_cannot_occur"
   ],
+  "test_instrument_null_test": [
+    "tests.test_instrument_null_test.BandsMatchGoalsTest.test_goals_still_states_those_bands",
+    "tests.test_instrument_null_test.BandsMatchGoalsTest.test_the_bands_are_the_ones_goals_states",
+    "tests.test_instrument_null_test.ReferenceAuditTest.test_a_missing_reference_is_an_error_not_a_zero",
+    "tests.test_instrument_null_test.ReferenceAuditTest.test_resolve_prefers_a_root_that_actually_holds_the_file",
+    "tests.test_instrument_null_test.ReferenceAuditTest.test_resolve_returns_none_when_no_root_has_it",
+    "tests.test_instrument_null_test.ReferenceAuditTest.test_the_recommended_band_is_the_published_one",
+    "tests.test_instrument_null_test.SplitRatioTest.test_identical_clips_give_a_ratio_of_exactly_one",
+    "tests.test_instrument_null_test.SplitRatioTest.test_it_is_seeded",
+    "tests.test_instrument_null_test.SplitRatioTest.test_the_two_halves_are_disjoint",
+    "tests.test_instrument_null_test.SummariseTest.test_a_ratio_exactly_on_the_boundary_is_inside",
+    "tests.test_instrument_null_test.SummariseTest.test_it_counts_both_tails",
+    "tests.test_instrument_null_test.SummariseTest.test_it_reports_the_full_range_not_only_percentiles",
+    "tests.test_instrument_null_test.SummariseTest.test_no_trials_is_reported_as_no_trials"
+  ],
   "test_integration_corpus": [
     "tests.test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
     "tests.test_integration_corpus.IntegrationCorpusTests.test_passage_selection_covers_distinct_text_features",
