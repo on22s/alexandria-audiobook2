@@ -288,17 +288,15 @@
   },
   "provenance": {
     "script": "prosody_fidelity.py",
-    "written": "2026-08-16T17:15:26",
+    "written": "2026-08-19T05:49:02",
     "host": "mitch-linux",
     "git": {
-      "commit": "64cc7af46dc3d995278c11374546332458b61c99",
-      "branch": "agent/robotic-proxy-calibration-20260816",
-      "dirty": true,
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
       "modified_tracked_files": null,
-      "untracked_harness_files": [
-        "app/experiments/prosody_fidelity.py"
-      ],
-      "harness_sha256": "b75afbc54c731d05f1d1f73c5b28d8b91ada1c7e14535909162dcae6fd66d800"
+      "untracked_harness_files": null,
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "generated": "ab_test_runtime/experiments/kokoro_generate.json",

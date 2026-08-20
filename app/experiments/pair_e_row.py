@@ -27,7 +27,6 @@ import json
 import os
 import re
 import sys
-from math import comb
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BASELINE = os.path.join(REPO, "ab_test_runtime", "experiments",
@@ -39,13 +38,24 @@ BASELINE = os.path.join(REPO, "ab_test_runtime", "experiments",
 # way every other duplicated question in this repo has (Rule 15).
 sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.manifest import completeness  # noqa: E402
+from experiments.stats import exact_mcnemar  # noqa: E402
 
 def load(path):
-    """-> ({term: row} for scored rows, [rows the runner skipped])."""
+    """-> ({term: row} scored on BOTH arms, [rows that were not]).
+
+    Both, because a row can carry a plain verdict and no respelled one: the
+    runner records `respelled_error` when synthesis fails for that arm, which
+    is the right thing for it to do and crashed this scorer on the first
+    artifact that contained one. A paired comparison needs a pair; a row with
+    one half is dropped and counted, never half-counted.
+    """
     with open(path, encoding="utf-8") as fh:
         results = json.load(fh)["results"]
-    scored = {r["term"]: r for r in results if "plain_recovers_word" in r}
-    return scored, [r for r in results if "plain_recovers_word" not in r]
+    def complete(row):
+        return ("plain_recovers_word" in row
+                and "respelled_recovers_word" in row)
+    return ({r["term"]: r for r in results if complete(r)},
+            [r for r in results if not complete(r)])
 
 
 def degenerate(transcript):
@@ -58,17 +68,13 @@ def degenerate(transcript):
     return bool(re.fullmatch(r"(.)\1{5,}", (transcript or "").strip()))
 
 
+# mcnemar() USED TO LIVE HERE. experiments/stats.py opens with "the two tests
+# every harness in this investigation needs, written once", and this file had a
+# second copy - two implementations of the same test, which is the drift Rule 15
+# is about. The shared one returns (p, b, c) and is the tested one.
 def mcnemar(wins, losses):
-    """Two-sided exact p over the DISCORDANT pairs only.
-
-    Terms both arms get right, or both get wrong, carry no information about
-    which arm is better and are correctly excluded.
-    """
-    n = wins + losses
-    if n == 0:
-        return 1.0
-    k = min(wins, losses)
-    return min(1.0, sum(comb(n, i) for i in range(k + 1)) * 2 / 2 ** n)
+    """-> two-sided exact p over the discordant pairs, via experiments.stats."""
+    return exact_mcnemar(wins, losses)[0]
 
 
 def compare(arm_path, baseline_path=BASELINE):
@@ -109,7 +115,7 @@ def render(result):
     lines = [f"=== {result['arm']} vs {result['baseline']} ==="]
     if "error" in result:
         return "\n".join(lines + ["  " + result["error"]])
-    lines.append(f"  scored={result['arm_scored']} skipped={result['arm_skipped']} "
+    lines.append(f"  scored={result['arm_scored']} unpaired={result['arm_skipped']} "
                  f"shared={result['shared_terms']}")
     for side in ("arm", "baseline"):
         state = result.get(f"{side}_completeness")

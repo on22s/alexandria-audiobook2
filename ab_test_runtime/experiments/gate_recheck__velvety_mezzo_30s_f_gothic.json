@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/decontaminate/batch4/velvety_mezzo_30s_f_gothic/adapter",
+ "median_ecapa": 0.2609,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.261 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-19T12:15:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c509cd2e40eaefac7ee0c9b74638e04e7c7a0950",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "e880e5a5d67cff894c4acd3677a2c430cbe4db29a61d69a66fd346a4b7dd154f"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch4/velvety_mezzo_30s_f_gothic/adapter",
+   "dataset": "ab_test_runtime/decontaminate/batch4/velvety_mezzo_30s_f_gothic/data",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/gate_recheck__velvety_mezzo_30s_f_gothic.json"
+  },
+  "seed": 1234
+ }
+}

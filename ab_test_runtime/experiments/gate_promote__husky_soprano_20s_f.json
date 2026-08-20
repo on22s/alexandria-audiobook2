@@ -8,17 +8,15 @@
  "verdict": "PASS - the adapter sounds like its narrator (0.611)",
  "provenance": {
   "script": "verify_adapter_identity.py",
-  "written": "2026-08-18T10:10:54",
+  "written": "2026-08-19T01:31:50",
   "host": "mitch-linux",
   "git": {
-   "commit": "ca00e93fe735954d2f88a4e31eb563af88137aa0",
+   "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M app/tests/unit_test_inventory.json"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "26c5be024122c65a57d7bdda7ec830c0124b33a59090e20f60663d25556c2070"
+   "harness_sha256": "711497b46b79691b8e5f9fdeb7a0ce7c7b6901c210ddc61eac1d58d139df7a69"
   },
   "args": {
    "adapter": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/adapter",

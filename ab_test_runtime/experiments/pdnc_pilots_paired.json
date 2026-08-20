@@ -1,0 +1,38 @@
+{
+ "pilots": [
+  {
+   "artifact": "pdnc_sequence__pilot__local-llamacpp.json",
+   "completeness": "unknown",
+   "arm": "sequence",
+   "shared_rows": 600,
+   "baseline_accuracy": 0.5766666666666667,
+   "arm_accuracy": 0.6,
+   "arm_only_wins": 30,
+   "baseline_only_wins": 16,
+   "p_value": 0.05407603185886988
+  }
+ ],
+ "baseline_noise_floor": [],
+ "read_inputs": {
+  "ab_test_runtime/experiments/pdnc_sequence__pilot__local-llamacpp.json": "a66e7150d1ff0dbf6a9770450e70077e79dad39ba06da378b1a1c94118aeed4c"
+ },
+ "provenance": {
+  "script": "pair_pdnc_pilots.py",
+  "written": "2026-08-20T01:16:51",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "47d59950f50cd698411b63489833fbaeb156fc92",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "cbdd71f0e542830792c44436fe9798a5fdb7b2da88c4d2860d70f6bd528a08c2"
+  },
+  "args": {
+   "pilots": [
+    "pdnc_sequence"
+   ],
+   "out": "ab_test_runtime/experiments/pdnc_pilots_paired.json"
+  }
+ }
+}

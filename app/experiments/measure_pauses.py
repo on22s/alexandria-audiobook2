@@ -41,15 +41,64 @@ ARMS = {
 }
 
 
-def internal_pauses(path, floor_db=-35, min_seconds=0.12, edge_seconds=1.5):
-    """-> (count, total seconds) of silences inside the utterance."""
+def clip_duration(path):
+    """-> seconds, or None when ffprobe cannot say.
+
+    None rather than 0.0: a clip whose length is unknown cannot have its
+    silences classified by position, and returning a number would let it be
+    classified wrongly instead of skipped.
+    """
+    proc = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", path], capture_output=True, text=True)
+    try:
+        return float(proc.stdout.strip())
+    except ValueError:
+        return None
+
+
+def internal_pauses(path, floor_db=-35, min_seconds=0.12, edge_tolerance=0.05):
+    """-> (count, total seconds) of silences INSIDE the utterance.
+
+    "Inside" is decided by POSITION, which is what the word means. This used to
+    decide it by duration - any silence shorter than 1.5s counted as internal -
+    and the docstring at the top of this file states the requirement the rule
+    failed to implement: "leading and trailing room tone is not the voice
+    breaking a word up, and counting it would swamp the signal being measured".
+    These are short TTS clips, so their leading and trailing room tone is
+    almost always well under 1.5s, and was therefore counted every time.
+
+    silencedetect reports silence_start and silence_end alongside the duration,
+    so the honest test was available all along: a silence that begins at the
+    top of the clip is leading, one that ends at the bottom is trailing, and
+    neither is the voice chopping a word into pieces.
+    """
     proc = subprocess.run(
         ["ffmpeg", "-i", path, "-af",
          f"silencedetect=noise={floor_db}dB:d={min_seconds}", "-f", "null", "-"],
         capture_output=True, text=True)
+    starts = [float(x) for x in
+              re.findall(r"silence_start: (-?[0-9.]+)", proc.stderr)]
+    ends = [float(x) for x in
+            re.findall(r"silence_end: (-?[0-9.]+)", proc.stderr)]
     durations = [float(x) for x in
                  re.findall(r"silence_duration: ([0-9.]+)", proc.stderr)]
-    inner = [d for d in durations if d < edge_seconds]
+    total = clip_duration(path)
+    if total is None:
+        return 0, 0.0
+    # silencedetect emits start/end/duration as a group, but a silence running
+    # to the very end of the file can be reported with a start and no end. Pair
+    # them by index and treat a missing end as "runs to the end", i.e. trailing.
+    inner = []
+    for index, start in enumerate(starts):
+        if index >= len(durations):
+            break
+        end = ends[index] if index < len(ends) else total
+        if start <= edge_tolerance:
+            continue                      # leading room tone
+        if end >= total - edge_tolerance:
+            continue                      # trailing room tone
+        inner.append(durations[index])
     return len(inner), round(sum(inner), 3)
 
 
@@ -88,9 +137,20 @@ def main():
         REPO, "ab_test_runtime", "experiments", "respelling_pauses.json"))
     args = ap.parse_args()
 
-    arms = dict(ARMS)
-    for name, directory, suffix in (args.arm or []):
-        arms[name] = (directory, suffix)
+    # ASKING FOR ARMS MEANS THOSE ARMS. This used to seed the three built-ins
+    # and add the requested ones on top, and because a row requires EVERY arm
+    # to have a clip, `--arm none= --arm space= --arm dot=` silently also
+    # demanded plain, eh and ay. On 2026-08-19 the space arm had never been
+    # generated (its stage was refused for VRAM), so the six-way intersection
+    # was empty: the run considered 7,607 terms, matched none, and wrote
+    # status=complete with results=[] in under a second. `plain` stays because
+    # it is the baseline every arm is measured against.
+    if args.arm:
+        arms = {"plain": ARMS["plain"]}
+        for name, directory, suffix in args.arm:
+            arms[name] = (directory, suffix)
+    else:
+        arms = dict(ARMS)
     runtime = os.path.join(REPO, "ab_test_runtime")
     plain_dir = os.path.join(runtime, ARMS["plain"][0])
     terms = sorted(f[:-len("_plain.wav")] for f in os.listdir(plain_dir)
@@ -112,6 +172,24 @@ def main():
             _write(args.out, rows, len(terms))
         if done >= args.limit:
             break
+
+    # A RUN THAT MATCHED NOTHING IS NOT A COMPLETE RUN. Writing status=complete
+    # over an empty results list is how a stage reports OK in 0s having
+    # measured nothing, which is the failure this repository keeps paying for.
+    # Say which arm is empty, because that is always the actual cause.
+    if not rows:
+        counts = {arm: sum(1 for term in terms
+                           if os.path.exists(os.path.join(runtime, d, term + suffix)))
+                  for arm, (d, suffix) in arms.items()}
+        missing = [arm for arm, n in counts.items() if n == 0]
+        raise SystemExit(
+            "measured nothing: %d terms considered, 0 had a clip in every "
+            "arm.\n  per-arm clip counts: %s\n%s"
+            % (len(terms), counts,
+               "  arms with no clips at all: %s - generate them, or leave "
+               "them out of --arm\n" % ", ".join(missing) if missing else
+               "  every arm has clips but no single term appears in all of "
+               "them; the arms were generated over different term sets\n"))
 
     _write(args.out, rows, len(terms), final=True)
     names = [a for a in arms if any(a in r for r in rows)]

@@ -116,17 +116,15 @@
   ],
   "provenance": {
     "script": "retrain_honest.py",
-    "written": "2026-08-16T15:59:29",
+    "written": "2026-08-19T05:50:46",
     "host": "mitch-linux",
     "git": {
-      "commit": "14f6b8cc41ee7ee3e8595179734aaef2fd8c91a9",
-      "branch": "agent/goals-refresh-and-asr-hypotheses-20260816",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M lora_models/manifest.json"
-      ],
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
       "untracked_harness_files": null,
-      "harness_sha256": "93d67afe9a82cc7cc71d1ecf626d41fc7f6163c0b7c45370b57bfa287318ecb9"
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "adapters": [

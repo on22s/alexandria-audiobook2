@@ -54,8 +54,19 @@ reclaim_vram
 # whatever ran before it, and this one may be restarted tomorrow.
 FAILED_LIST="$runtime/failed_adapters.tsv"
 
+# EXIT 3 IS A VERDICT. ANYTHING ELSE IS AN ABSENCE.
+#
+# verify_adapter_identity.py exits 3 when it measured the adapter and the score
+# was below threshold, 2 when it could not measure at all, and gpu_job.sh has
+# its own codes on top: 5 for a dirty tree, 4 for the lock, 7 for VRAM, 124 for
+# a timeout. This function used to collapse every one of those into "recheck
+# FAIL $name", and on 2026-08-19 that printed eight verdict-shaped lines for a
+# night in which SIX of the eight jobs were refused before they started - the
+# tree was dirty - and only two were ever measured. A reader would have
+# concluded that eight adapters failed a retest, which is the kind of claim
+# that gets a dataset rebuilt.
 recheck_one() {
-    local name="$1" adapter="$2" data="$3" score="$4"
+    local name="$1" adapter="$2" data="$3"
     "$REPO/gpu_job.sh" "regate2_$name" \
         "$python" -u "$REPO/app/experiments/verify_adapter_identity.py" \
         --adapter "$REPO/$adapter" --dataset "$REPO/$data" --lines 6 \
@@ -63,26 +74,63 @@ recheck_one() {
         > "$STAGE_LOG_DIR/recheck_$name.log" 2>&1
 }
 
+# The score this run measured, read from the artifact rather than echoed back
+# from the input file. "(was 0.0342)" is the OLD number and says nothing about
+# the recheck; printing it beside the word FAIL is what made the absent runs
+# unreadable.
+recheck_score() {
+    "$python" - "$runtime/experiments/gate_recheck__$1.json" "$2" <<'PYEOF' 2>/dev/null
+import json, os, sys
+path, started = sys.argv[1], float(sys.argv[2])
+# VERIFY BY ARTIFACT, NOT BY EXIT CODE (Rule 20). A stale file from an earlier
+# run would otherwise be reported as this run's measurement.
+if not os.path.exists(path) or os.path.getmtime(path) < started - 1:
+    sys.exit(1)
+with open(path, encoding="utf-8") as handle:
+    doc = json.load(handle)
+print("%.4f" % doc["median_ecapa"])
+PYEOF
+}
+
 recheck_failures() {
-    local failures=0
+    local measured=0 below=0 never_ran=0 total=0 rc started score
     while IFS=$'\t' read -r name adapter data score; do
         [ -n "${adapter:-}" ] || continue
-        if recheck_one "$name" "$adapter" "$data" "$score"; then
-            stage_note "  recheck OK   $name (was $score)"
-        else
-            stage_note "  recheck FAIL $name (was $score)"
-            failures=$((failures + 1))
-        fi
+        total=$((total + 1))
+        started=$(date +%s)
+        recheck_one "$name" "$adapter" "$data"
+        rc=$?
+        new=$(recheck_score "$name" "$started")
+        case "$rc" in
+            0)  measured=$((measured + 1))
+                stage_note "  recheck PASS  $name  was $score, now ${new:-?}" ;;
+            3)  measured=$((measured + 1)); below=$((below + 1))
+                stage_note "  recheck BELOW $name  was $score, now ${new:-?}" ;;
+            *)  never_ran=$((never_ran + 1))
+                stage_note "  recheck NOT MEASURED $name (rc=$rc, no run) - see $STAGE_LOG_DIR/recheck_$name.log" ;;
+        esac
     done < "$FAILED_LIST"
-    # Report the count rather than swallowing it - eight adapters failing
-    # twice is a different claim from eight failing once, and it is the claim
-    # that justifies rebuilding a dataset.
-    stage_note "  $failures of 8 rechecks errored"
+    stage_note "  $measured of $total measured; $below below threshold; $never_ran never ran"
+    # FAIL LOUD. A stage that measured nothing must not report success, or the
+    # chain summary calls the night a pass (Rule 8).
+    if [ "$never_ran" -gt 0 ]; then
+        stage_note "  recheck_failures INCOMPLETE: $never_ran of $total never ran"
+        return 1
+    fi
     return 0
 }
 
+# COUNTED LIKE ANY OTHER STAGE. Called bare, its return value went nowhere and
+# a night in which nothing was measured still reached "SUMMARY everything" as
+# though the stage had passed.
 stage_note "START recheck_failures"
-recheck_failures
+STAGE_TOTAL=$((STAGE_TOTAL + 1))
+if recheck_failures; then
+    STAGE_RESULT[recheck_failures]=ok
+else
+    STAGE_RESULT[recheck_failures]=incomplete
+    STAGE_FAILURES=$((STAGE_FAILURES + 1))
+fi
 stage_commit_artifacts recheck_failures "$REPO"
 
 # ---- 3. Replay the evidence that cannot currently be reproduced ------------

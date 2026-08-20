@@ -66,8 +66,8 @@
    ],
    "wer_mean": 0.2848,
    "wer_median": 0.2912,
-   "rtf": 0.469,
-   "seconds_total": 17.8
+   "rtf": 0.446,
+   "seconds_total": 16.9
   }
  },
  "alignment": {
@@ -85,17 +85,15 @@
  "alignment_truth_clips": 8,
  "provenance": {
   "script": "asr_backends.py",
-  "written": "2026-08-17T21:01:54",
+  "written": "2026-08-19T12:05:08",
   "host": "mitch-linux",
   "git": {
-   "commit": "bc69c96a52e6b7085f900c22ef4179b3fe90eb67",
+   "commit": "c509cd2e40eaefac7ee0c9b74638e04e7c7a0950",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M ab_test_runtime/experiments/asr_ja_readings.json"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "73d2156618fea678e6d940e15e621809ca7e4f4cf885526f0f30f2a62daaa8ab"
+   "harness_sha256": "e880e5a5d67cff894c4acd3677a2c430cbe4db29a61d69a66fd346a4b7dd154f"
   },
   "args": {
    "build": "ab_test_runtime/kokoro_ja_cutting_control/build.json",

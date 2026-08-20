@@ -36,6 +36,10 @@
   "test_artifact_structural_audit": [
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_indexes_everything",
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
+    "tests.test_artifact_structural_audit.RowCountTest.test_a_populated_rows_list_counts",
+    "tests.test_artifact_structural_audit.RowCountTest.test_an_artifact_with_neither_reports_no_count_rather_than_zero",
+    "tests.test_artifact_structural_audit.RowCountTest.test_an_empty_rows_list_is_not_rows",
+    "tests.test_artifact_structural_audit.RowCountTest.test_the_results_contract_is_counted_too",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_classifies_all_identity_contracts_without_scientific_claims",
     "tests.test_artifact_structural_audit.StructuralAuditTests.test_unreadable_json_is_visible_not_skipped"
   ],
@@ -227,6 +231,11 @@
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_name_chains_that_no_longer_exist",
     "tests.test_chain_failure_guards.ChainIdempotencyTest.test_a_chain_that_skips_on_an_artifact_also_checks_it_finished",
     "tests.test_chain_failure_guards.ChainIdempotencyTest.test_the_completion_check_is_not_satisfied_by_the_word_alone"
+  ],
+  "test_chain_skip_guards": [
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_a_chain_that_defines_the_completeness_helper_calls_it",
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_no_chain_skips_on_existence_alone",
+    "tests.test_chain_skip_guards.ChainSkipGuardTest.test_the_known_partial_artifact_would_be_rejected"
   ],
   "test_chain_stage_lib": [
     "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero",
@@ -476,6 +485,13 @@
   "test_duration_outlier_analysis": [
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_ranks_average_ties",
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_spearman_detects_monotonic_directions"
+  ],
+  "test_ensure_llama_server_default": [
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_it_resolves_a_model_with_no_environment_at_all",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_no_chain_needs_to_paste_the_path_to_make_it_work",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_the_project_override_is_honoured"
   ],
   "test_env_doctor": [
     "tests.test_env_doctor.EvaluateEnvTests.test_all_required_present_is_ok",
@@ -774,6 +790,25 @@
     "tests.test_gold_set_builder.ValidationTest.test_narrator_and_ambiguous_are_never_flagged_as_invented",
     "tests.test_gold_set_builder.ValidationTest.test_unanswered_rows_are_reported"
   ],
+  "test_gpu_guard": [
+    "tests.test_gpu_guard.FailClosedTest.test_a_lock_that_does_not_exist_is_not_busy",
+    "tests.test_gpu_guard.FailClosedTest.test_an_unreadable_lock_reads_as_busy",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_free_gpu_is_not_busy",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_hand_run_call_is_refused_while_a_job_runs",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_held_lock_reads_as_busy",
+    "tests.test_gpu_guard.GpuGuardTest.test_a_missing_lock_file_is_not_a_reason_to_refuse",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_override_exists_for_a_deliberate_exception",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_probe_does_not_hold_the_lock_it_tests",
+    "tests.test_gpu_guard.GpuGuardTest.test_the_queued_job_itself_is_allowed_through",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_an_unreadable_gpu_job_raises_instead_of_guessing",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_no_chain_names_a_lock_other_than_the_shared_one",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_no_chain_writes_its_queue_log_outside_the_repo",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_the_default_is_the_same_from_any_working_directory",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_the_guard_and_gpu_job_agree_on_the_default_lock",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_the_queue_log_default_is_the_repo_one_too",
+    "tests.test_gpu_guard.StaleSentinelTest.test_a_live_job_is_still_exempt",
+    "tests.test_gpu_guard.StaleSentinelTest.test_a_sentinel_from_a_dead_job_no_longer_exempts"
+  ],
   "test_gpu_job": [
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_run_writes_no_patch",
     "tests.test_gpu_job.DirtyTreeGateTest.test_a_clean_tree_runs_untouched",
@@ -782,6 +817,7 @@
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_overridden_dirty_run_saves_the_diff_that_produced_it",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_refused",
     "tests.test_gpu_job.DirtyTreeGateTest.test_an_untracked_experiment_script_is_still_dirt",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_both_gates_exclude_exactly_the_same_generated_files",
     "tests.test_gpu_job.DirtyTreeGateTest.test_modified_code_is_still_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_rewriting_an_artifact_is_not_dirt",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_override_runs_but_leaves_a_mark",
@@ -811,6 +847,8 @@
     "tests.test_gpu_job.LlmPreflightGateTest.test_an_unavailable_checker_warns_rather_than_blocking",
     "tests.test_gpu_job.LlmPreflightGateTest.test_no_check_happens_unless_asked",
     "tests.test_gpu_job.LlmPreflightGateTest.test_the_gate_does_not_read_the_ambient_PYTHON_variable",
+    "tests.test_gpu_job.LockInheritanceTest.test_a_surviving_child_does_not_keep_the_lock_held",
+    "tests.test_gpu_job.LockInheritanceTest.test_the_child_does_not_inherit_the_lock_descriptor",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_killed_job_takes_its_descendants_with_it",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_a_paused_queue_holds_the_job_before_the_lock",
     "tests.test_gpu_job.PauseAndProcessGroupTest.test_exit_codes_survive_the_process_group_wrapper",
@@ -821,11 +859,13 @@
     "tests.test_gpu_job.PauseStatusTest.test_status_never_reports_itself_as_the_running_job",
     "tests.test_gpu_job.PendingMarkerTest.test_a_failed_job_leaves_no_marker_behind",
     "tests.test_gpu_job.PendingMarkerTest.test_a_finished_job_leaves_no_marker_behind",
+    "tests.test_gpu_job.PendingMarkerTest.test_a_job_runs_at_low_priority_so_the_desktop_wins",
     "tests.test_gpu_job.PendingMarkerTest.test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code",
     "tests.test_gpu_job.PendingMarkerTest.test_a_waiting_job_is_visible_while_it_waits",
     "tests.test_gpu_job.PendingMarkerTest.test_notifications_can_be_turned_off_entirely",
     "tests.test_gpu_job.PendingMarkerTest.test_repeated_jobs_do_not_produce_one_alert_each",
     "tests.test_gpu_job.PendingMarkerTest.test_the_cooldown_can_be_shortened_for_a_genuinely_new_event",
+    "tests.test_gpu_job.PendingMarkerTest.test_the_priority_can_be_waived_for_a_run_that_should_compete",
     "tests.test_gpu_job.TerminalMarkerTest.test_a_failing_run_records_exactly_one_terminal_line",
     "tests.test_gpu_job.TerminalMarkerTest.test_a_normal_run_records_exactly_one_terminal_line",
     "tests.test_gpu_job.TerminalMarkerTest.test_an_interrupted_job_still_records_a_terminal_line",
@@ -842,6 +882,12 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_falls_back_to_rocm_smi",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
+  ],
+  "test_ideal_settings_endpoint": [
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_remote_endpoint_is_unaffected_by_the_local_probe",
+    "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_the_message_does_not_warn_about_a_risk_that_cannot_occur"
   ],
   "test_integration_corpus": [
     "tests.test_integration_corpus.IntegrationCorpusTests.test_manifest_is_deterministic_and_records_bad_books",
@@ -1064,6 +1110,12 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_verifies_produced_adapter_and_reports_metrics"
   ],
+  "test_measure_pauses_arms": [
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
+    "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
+  ],
   "test_multi_process_state": [
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
@@ -1146,6 +1198,16 @@
     "tests.test_pair_e_row.SharedCompletenessTest.test_pair_e_row_uses_the_shared_definition",
     "tests.test_pair_e_row.SharedCompletenessTest.test_the_audit_records_completeness_for_every_row"
   ],
+  "test_pair_pdnc_pilots": [
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_a_real_one_sided_improvement_is_detected",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_a_third_arm_is_refused_rather_than_picked_from",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_an_arm_identical_to_its_baseline_shows_nothing",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_an_artifact_with_no_baseline_is_refused",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_arms_of_reads_the_real_committed_pilot",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_rows_are_matched_by_id_not_by_position",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_noise_floor_compares_baselines_not_arms",
+    "tests.test_pair_pdnc_pilots.PairedScoringTest.test_the_same_accuracy_by_different_rows_is_still_no_evidence"
+  ],
   "test_pass_quality": [
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes",
     "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected",
@@ -1179,6 +1241,16 @@
     "tests.test_pass_quality.SegmentQualityTests.test_rejects_attribution_tag_marked_spoken",
     "tests.test_pass_quality.SegmentQualityTests.test_rejects_narration_combined_with_quoted_dialogue",
     "tests.test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
+  ],
+  "test_pause_scoring": [
+    "tests.test_pause_scoring.PauseScoringTest.test_a_gap_shorter_than_the_floor_is_not_a_pause",
+    "tests.test_pause_scoring.PauseScoringTest.test_an_unreadable_clip_reports_nothing_rather_than_guessing",
+    "tests.test_pause_scoring.PauseScoringTest.test_continuous_speech_has_no_pauses",
+    "tests.test_pause_scoring.PauseScoringTest.test_edges_and_an_internal_gap_together",
+    "tests.test_pause_scoring.PauseScoringTest.test_leading_and_trailing_room_tone_are_not_pauses",
+    "tests.test_pause_scoring.PauseScoringTest.test_one_internal_gap_between_two_words",
+    "tests.test_pause_scoring.PauseScoringTest.test_the_old_rule_fails_that_case",
+    "tests.test_pause_scoring.PauseScoringTest.test_two_internal_gaps_are_both_counted"
   ],
   "test_pdnc_context_evidence": [
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
@@ -1361,6 +1433,16 @@
     "tests.test_reasoning_budget.TruncatedObservationTest.test_complete_observation_is_taken_at_face_value",
     "tests.test_reasoning_budget.TruncatedObservationTest.test_truncated_observation_is_inflated",
     "tests.test_reasoning_budget.TruncatedObservationTest.test_truncation_does_not_affect_a_non_reasoning_model"
+  ],
+  "test_recheck_reporting": [
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_real_below_threshold_verdict_is_still_reported_as_one",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_refused_job_is_not_called_a_failed_adapter",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_a_stale_artifact_is_not_read_as_this_runs_measurement",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_chain_counts_the_stage_in_its_summary",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_new_score_is_reported_not_the_old_one",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_fails_when_nothing_was_measured",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
+    "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
   ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
@@ -1970,6 +2052,20 @@
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_sweep_uses_peak_across_all_sub_batches"
   ],
+  "test_two_stage_roster": [
+    "tests.test_two_stage_roster.AnswerShapeTest.test_a_decline_is_recognised_however_it_is_decorated",
+    "tests.test_two_stage_roster.AnswerShapeTest.test_a_name_is_not_mistaken_for_a_decline",
+    "tests.test_two_stage_roster.AnswerShapeTest.test_an_echoed_cast_line_resolves_to_the_name",
+    "tests.test_two_stage_roster.AnswerShapeTest.test_markdown_quotes_and_punctuation_are_stripped",
+    "tests.test_two_stage_roster.RosterTest.test_aliases_attach_to_the_name_the_gold_uses",
+    "tests.test_two_stage_roster.RosterTest.test_every_expected_speaker_can_be_named",
+    "tests.test_two_stage_roster.RosterTest.test_no_decorated_name_is_a_character_who_never_speaks",
+    "tests.test_two_stage_roster.RosterTest.test_the_cast_is_not_inflated_with_duplicates",
+    "tests.test_two_stage_roster.SummaryTest.test_a_decline_is_not_a_wrong_answer",
+    "tests.test_two_stage_roster.SummaryTest.test_accuracy_is_over_what_was_answered",
+    "tests.test_two_stage_roster.SummaryTest.test_every_quote_type_bucket_carries_every_category",
+    "tests.test_two_stage_roster.SummaryTest.test_failed_requests_have_no_accuracy"
+  ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_lowercase_phrase_is_not_a_name_however_it_is_hyphenated",
@@ -1979,6 +2075,11 @@
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_real_character_passes",
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_unknown_placeholder_still_allowed",
     "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_without_source_nothing_is_rejected"
+  ],
+  "test_unseen_books_reporting": [
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_a_book_that_exits_zero_but_writes_nothing_also_fails",
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_a_failed_book_makes_the_run_fail",
+    "tests.test_unseen_books_reporting.UnseenBooksReportingTest.test_all_books_succeeding_reports_done"
   ],
   "test_verbalization": [
     "tests.test_verbalization.BracketedSpanTest.test_an_emoticon_is_not_treated_as_a_span",

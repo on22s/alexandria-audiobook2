@@ -1,0 +1,103 @@
+{
+ "status": "complete",
+ "candidates_considered": 3,
+ "results": [
+  {
+   "book": "attribution_gold_pdnc_prideandprejudice.json",
+   "arm": "single",
+   "seconds": 52.9,
+   "n": 200,
+   "correct": 71,
+   "wrong": 128,
+   "declined_unknown": 1,
+   "accuracy": 0.355,
+   "accuracy_when_answered": 0.3568,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 32,
+     "correct": 14,
+     "unknown": 1
+    },
+    "Implicit": {
+     "n": 106,
+     "correct": 34,
+     "unknown": 0
+    },
+    "Explicit": {
+     "n": 62,
+     "correct": 23,
+     "unknown": 0
+    }
+   }
+  },
+  {
+   "book": "attribution_gold_pdnc_theawakening.json",
+   "arm": "single",
+   "seconds": 45.9,
+   "n": 200,
+   "correct": 100,
+   "wrong": 95,
+   "declined_unknown": 5,
+   "accuracy": 0.5,
+   "accuracy_when_answered": 0.5128,
+   "by_quote_type": {
+    "Explicit": {
+     "n": 36,
+     "correct": 17,
+     "unknown": 1
+    },
+    "Anaphoric": {
+     "n": 77,
+     "correct": 49,
+     "unknown": 1
+    },
+    "Implicit": {
+     "n": 87,
+     "correct": 34,
+     "unknown": 3
+    }
+   }
+  },
+  {
+   "book": "attribution_gold_pdnc_thesignofthefour.json",
+   "arm": "single",
+   "seconds": 61.0,
+   "n": 200,
+   "correct": 82,
+   "wrong": 118,
+   "declined_unknown": 0,
+   "accuracy": 0.41,
+   "accuracy_when_answered": 0.41,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 119,
+     "correct": 58,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 56,
+     "correct": 20,
+     "unknown": 0
+    },
+    "Explicit": {
+     "n": 25,
+     "correct": 4,
+     "unknown": 0
+    }
+   }
+  }
+ ],
+ "provenance": {
+  "script": "two_stage_attribution.py",
+  "written": "2026-08-18T16:49:43",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "82722884e61aa6352f5a2a288da39fc7c020e920",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "d4adfd0327f6e4221f66c83e9c3d1fe6d0ac3059a6b7ffd75226b7c87f38883b"
+  }
+ }
+}

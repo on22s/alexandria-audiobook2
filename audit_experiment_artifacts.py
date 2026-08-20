@@ -55,8 +55,18 @@ def classify_artifact(path):
 
     provenance = doc.get("provenance")
     meta = doc.get("meta")
+    # has_rows USED TO MEAN "there is a rows key of list type", which is true
+    # of an EMPTY list - so an artifact recording no answers at all reported
+    # has_rows=true. It now means what it says, and it looks under BOTH names
+    # the artifacts in this directory use: the experiment contract calls the
+    # list `rows`, the measurement scripts call it `results`, and checking only
+    # one would call 1,129 measured terms "empty".
+    records = doc.get("rows")
+    if not isinstance(records, list):
+        records = doc.get("results")
     row.update({"seed": None, "status": doc.get("status"),
-                "has_rows": isinstance(doc.get("rows"), list)})
+                "row_count": len(records) if isinstance(records, list) else None,
+                "has_rows": bool(isinstance(records, list) and records)})
     if isinstance(provenance, dict):
         git = provenance.get("git") or {}
         args = provenance.get("args") or {}
@@ -94,6 +104,7 @@ def classify_artifact(path):
         row.update({"identity_contract": "none",
                     "classification": "exploratory",
                     "reason": "no embedded provenance or experiment metadata"})
+
     return row
 
 

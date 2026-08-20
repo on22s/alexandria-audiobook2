@@ -1,0 +1,164 @@
+{
+ "note": "Blinded 4-way listening test on respelling separators. The listener does not read Japanese and judged only which take sounds like a person saying a word rather than a machine spelling one. Nine of ten terms answered; the tenth was not reached and is absent rather than guessed.",
+ "n_terms": 9,
+ "tally": {
+  "plain": 5,
+  "none": 3,
+  "hyphen": 1
+ },
+ "picked_the_quietest_take": "6/9",
+ "tests": {
+  "dot_never_chosen": {
+   "observed": "0/9",
+   "chance": 0.25,
+   "p_one_sided": 0.07508468627929688
+  },
+  "plain_or_none": {
+   "observed": "8/9",
+   "chance": 0.5,
+   "p_one_sided": 0.01953125
+  },
+  "plain_alone": {
+   "observed": "5/9",
+   "chance": 0.25,
+   "p_one_sided": 0.04892730712890625
+  }
+ },
+ "reading": "The two forms with no internal pauses - plain (no respelling) and none (respelled, separator removed) - took 8 of 9. The most chopped form was never chosen. takeshi is the informative exception: it is the one term where `none` misfired (3.23s of pause against dot's 1.38s), and the listener picked the quiet take there too, so the pattern is pauses rather than labels.",
+ "limits": "Nine terms, one listener, chosen for the WIDEST measured pause spread so the contrast would be audible - not a random sample of respellings. It establishes that audible pauses track the separator and that listeners dislike them. It does not measure how often respelling helps, which is respelling_none_allrows.",
+ "rows": [
+  {
+   "term": "renji",
+   "letter": "B",
+   "form": "plain",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 4.854
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": true
+  },
+  {
+   "term": "reijo",
+   "letter": "D",
+   "form": "none",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0.317,
+    "dot": 3.688
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": false
+  },
+  {
+   "term": "setagaya",
+   "letter": "B",
+   "form": "plain",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.677
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": true
+  },
+  {
+   "term": "shinkansen",
+   "letter": "B",
+   "form": "none",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.511
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": true
+  },
+  {
+   "term": "doraemon",
+   "letter": "B",
+   "form": "plain",
+   "measured_pause_seconds": {
+    "plain": 0.379,
+    "none": 0,
+    "dot": 3.373
+   },
+   "quietest_form": "none",
+   "picked_the_quietest": false
+  },
+  {
+   "term": "takehaya",
+   "letter": "D",
+   "form": "plain",
+   "measured_pause_seconds": {
+    "plain": 0.124,
+    "none": 0,
+    "dot": 3.36
+   },
+   "quietest_form": "none",
+   "picked_the_quietest": true
+  },
+  {
+   "term": "shuriken",
+   "letter": "C",
+   "form": "plain",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0,
+    "dot": 3.32
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": true
+  },
+  {
+   "term": "takeshi",
+   "letter": "C",
+   "form": "hyphen",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 3.226,
+    "dot": 1.378
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": false
+  },
+  {
+   "term": "amane",
+   "letter": "D",
+   "form": "none",
+   "measured_pause_seconds": {
+    "plain": 0,
+    "none": 0.164,
+    "dot": 3.188
+   },
+   "quietest_form": "plain",
+   "picked_the_quietest": true
+  }
+ ],
+ "answers_as_given": {
+  "renji": "B",
+  "reijo": "D",
+  "setagaya": "B",
+  "shinkansen": "B",
+  "doraemon": "B",
+  "takehaya": "D",
+  "shuriken": "C",
+  "takeshi": "C",
+  "amane": "D"
+ },
+ "provenance": {
+  "script": "<stdin>",
+  "written": "2026-08-19T17:20:44",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "7571c8795b8da1c5afa682cac204f882f0b42448",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "cbdd71f0e542830792c44436fe9798a5fdb7b2da88c4d2860d70f6bd528a08c2"
+  },
+  "source": "user listening session 2026-08-19"
+ }
+}

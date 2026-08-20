@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1606** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1646** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -89,6 +89,25 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 
 **Target — every book ≥ 75% on the local model.** Two of four already clear it;
 owarimonogatari3 needs +5.9 and mushoku16 +2.1.
+
+#### index18's row is measured on a CORRUPT source and is not comparable
+
+Found 2026-08-19. The `index18` text every arm in that row read holds **6,662
+U+FFFD replacement characters** (1.4% of the file, against a 0.5% gate) and
+**zero quote marks of any kind** — the encoding damage removed them. The book
+was being attributed with the single strongest dialogue cue absent from the
+page.
+
+Re-extracted from the user's own EPUB it comes back with **0 replacement
+characters and 1,375 spoken spans**, and on that clean text it attributes
+*better than any other book in the corpus*: 11.1% of dialogue left with the
+narrator, 97.1% token recall.
+
+So 81.5% is not index18's accuracy. It is the accuracy of a method reading a
+damaged copy, and the direction of the error is known (the clean text is
+easier) but its size is not. **32 artifacts** rest on the corrupt file. Until
+they are replayed, treat this row as withdrawn rather than as evidence either
+way, and do not average it into a cross-book claim.
 
 **Why not higher.** Setting it at 90% would be asking for something nothing has
 reached on any book by any method.
@@ -399,6 +418,27 @@ lines in 600 is what separates the evidence arm from its baseline; the
 targeted arms span eight. These are reasons not to spend the confirmatory run,
 not results about attribution — and the sealed set stays sealed precisely so
 that a later intervention can still be tested on books nothing has seen.
+
+**Scored as PAIRED comparisons 2026-08-19** — the rows are the same lines in
+both arms, so the headline percentages above understate how little separates
+them. Discordant pairs and a two-sided exact McNemar:
+
+| pilot | arm-only wins | baseline-only wins | p |
+|---|---|---|---|
+| evidence spans | 31 | 25 | 0.50 |
+| sequence-aware | 30 | 16 | **0.054** |
+| context evidence | 30 | 25 | 0.59 |
+
+And the noise floor, which is the number that decides how to read them: the
+`evidence` and `sequence` runs each measured **the identical baseline
+condition**, hours apart, and disagreed on **33 of 600 rows (5.5%)**. That
+churn is the same size as the discordant counts the interventions are being
+judged on — 56, 46 and 55 pairs. (`sequence` and `context_evidence` disagreed
+on 0 rows, so those two baselines are one measurement reused, not two.)
+
+Sequence-aware at p=0.054 is the only one worth another look, and the right
+next step is a repeat rather than a confirmatory run: one arm at p≈0.05 with a
+5.5% run-to-run floor is exactly the shape a lucky draw takes.
 
 **The three books this project quotes are not typical books.** Ranked against
 all 28: The Sign of the Four **#2**, The Awakening **#8**, Pride and Prejudice

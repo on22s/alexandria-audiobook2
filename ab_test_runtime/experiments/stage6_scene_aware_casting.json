@@ -2,18 +2,15 @@
   "status": "complete",
   "provenance": {
     "script": "scene_aware_casting.py",
-    "written": "2026-08-04T21:19:52",
+    "written": "2026-08-19T05:53:08",
     "host": "mitch-linux",
     "git": {
-      "commit": "a30421404c28aaf2d83092581a465eff304e2813",
-      "branch": "agent/overnight-costcurve",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M ab_test_runtime/experiments/cluster_vs_name.json",
-        " M ab_test_runtime/experiments/listener_impact.json"
-      ],
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
       "untracked_harness_files": null,
-      "harness_sha256": "9a268cbea2ddbaea35475911a8f91919eb1ec4331e5116f9d0c53850b95e87d1"
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "script": "chunks.json",
@@ -25,8 +22,8 @@
     },
     "input_sha256": {
       "chunks.json": "0b0a9fbb3c601489ce997fc2ed574d663da8820b1f3e35435ceaddad99542584",
-      "voice_config.json": "711aaead85ebdec2e9e094db7d9a8799c72a4a3e097f309780ddf94a40976e75",
-      "lora_models/manifest.json": "fdccf31cd5fe88e1003aef92ffe5bfbd32cad572d513fae8bae44ac4a43a6e0b",
+      "voice_config.json": "6c9f6277b0dcfd35670f21a57d24982e3817cdc8a0e148d8a7b2cde6e886f047",
+      "lora_models/manifest.json": "a306c9d454d50b967834c8974a5ae18588f12c6b17852319fb567c23612afdbf",
       "character_aliases.json": "4f963bb679c6d4548c281e2598d1c75c8c2e71f6a00de17676e0a24e4c13d683"
     }
   },

@@ -132,26 +132,26 @@
    "classifications": {
     "supported_structure": 6
    },
-   "dirty_artifacts": 5,
+   "dirty_artifacts": 1,
    "no_commit": 0,
    "artifacts": [
     {
      "name": "asr_ja_cutting_control.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_ja_largev3_hybrid.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_ja_readings.json",
      "classification": "supported_structure",
      "dirty": false,
-     "commit": "bc69c96a"
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_silero_vad_ja_holdout.json",
@@ -162,14 +162,14 @@
     {
      "name": "asr_silero_whisper_ja_confirmation.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "c509cd2e"
     },
     {
      "name": "asr_silero_whisper_ja_offset20.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "c509cd2e"
     }
    ]
   },
@@ -250,14 +250,14 @@
     "supported_structure": 2,
     "exploratory": 2
    },
-   "dirty_artifacts": 2,
+   "dirty_artifacts": 0,
    "no_commit": 2,
    "artifacts": [
     {
      "name": "duration_outlier_analysis.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "6a3f6698"
     },
     {
      "name": "duration_probe_20260811_overnight.json",
@@ -274,8 +274,8 @@
     {
      "name": "kokoro_same_speaker_generate.json",
      "classification": "supported_structure",
-     "dirty": true,
-     "commit": "bc69c96a"
+     "dirty": false,
+     "commit": "6a3f6698"
     }
    ]
   }

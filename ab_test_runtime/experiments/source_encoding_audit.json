@@ -27,7 +27,7 @@
   {
    "book": "index18",
    "replacements": 0,
-   "chars": 481423,
+   "chars": 477276,
    "share": 0.0,
    "passes_gate": true
   },
@@ -62,18 +62,14 @@
  ],
  "provenance": {
   "script": "audit_source_encoding.py",
-  "written": "2026-08-18T15:45:46",
+  "written": "2026-08-18T16:46:47",
   "host": "mitch-linux",
   "git": {
-   "commit": "dc5bfb5b86f3dde905527be23094550204c27f78",
+   "commit": "443df812576444991e94155617c09ab0936c6de0",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M app/routers/script.py"
-   ],
-   "untracked_harness_files": [
-    "app/experiments/compare_epub_extractors.py"
-   ],
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
    "harness_sha256": "d4adfd0327f6e4221f66c83e9c3d1fe6d0ac3059a6b7ffd75226b7c87f38883b"
   },
   "args": {

@@ -16,6 +16,7 @@ machine runs the suite.
 Each test drives the real script in a temporary directory with its own lock and
 queue log, so nothing here touches the actual GPU lock.
 """
+import fcntl
 import os
 import shutil
 import shlex
@@ -564,8 +565,130 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
 
+    def test_both_gates_exclude_exactly_the_same_generated_files(self):
+        """The live check above only compares the CURRENT tree, so it passes
+        trivially whenever both gates happen to say dirty - which is most of
+        the time during development. This compares the lists themselves.
+
+        The list matters: on 2026-08-19 it named the experiment JSON but not
+        RESULTS_INDEX.md, results_index.csv or ab_test_runtime/audit/*.json.
+        refresh_indexes.py rewrites those at the end of every chain, so a
+        finishing chain dirtied the tree and every stage a CONCURRENT chain
+        still had queued was refused in 0s - six of them, and two idle hours.
+        """
+        import re as _re
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        with open(GPU_JOB, encoding="utf-8") as handle:
+            shell_src = handle.read()
+        with open(os.path.join(repo_root, "app", "experiments", "manifest.py"),
+                  encoding="utf-8") as handle:
+            python_src = handle.read()
+
+        def excludes(source, start_marker):
+            body = source[source.index(start_marker):][:2000]
+            return sorted(set(_re.findall(r':\(exclude\)([^\'"\s,]+)', body)))
+
+        shell = excludes(shell_src, "modified=$(git")
+        python = excludes(python_src, 'modified = run("git"')
+        self.assertTrue(shell, "found no exclusions in gpu_job.sh")
+        self.assertEqual(
+            shell, python,
+            "the shell gate and the Python provenance exclude different "
+            "files; one will let through what the other refuses")
+        for expected in ("RESULTS_INDEX.md", "results_index.csv",
+                         "ab_test_runtime/audit/*.json",
+                         "ab_test_runtime/experiments/*.json"):
+            self.assertIn(expected, shell)
+
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+class LockInheritanceTest(unittest.TestCase):
+    """An orphaned child must not be able to hold the GPU lock.
+
+    A flock survives as long as ANY descriptor to the file is open, and
+    `exec 9>"$LOCK"` places that descriptor in every child. On 2026-08-19 a
+    stage was stopped, its wrapper died, and one orphaned timeout+python
+    survived holding FD 9: the lock read as HELD with no gpu_job.sh alive to
+    own it, and two queued jobs waited on it with nothing to name as the
+    holder.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        # Same path isolated_env() hands to gpu_job.sh.
+        self.lock = os.path.join(self.tmp.name, "gpu.lock")
+
+    def _lock_is_held(self):
+        handle = open(self.lock, "a")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+            return False
+        except BlockingIOError:
+            return True
+        finally:
+            handle.close()
+
+    def test_the_child_does_not_inherit_the_lock_descriptor(self):
+        """The direct check: ask the child itself what it is holding."""
+        # isolated_env, not a hand-built dict. This was the seventh call site
+        # to rebuild it by hand and it duly forgot two knobs: GPU_PENDING_DIR
+        # (eight stale `orphan` markers in the machine's real queue directory)
+        # and GPU_PAUSE_FLAG, which made both tests hang for the full timeout
+        # the moment the queue was genuinely paused.
+        env = isolated_env(self.tmp.name, ALLOW_DIRTY_TREE="1",
+                           GPU_NOTIFY="0")
+        result = subprocess.run(
+            ["bash", GPU_JOB, "fdcheck", "bash", "-c",
+             'ls -l /proc/$$/fd 2>/dev/null | grep -c gpu.lock || true'],
+            capture_output=True, text=True, timeout=180, env=env)
+        held = [l for l in result.stdout.splitlines() if l.strip().isdigit()]
+        self.assertTrue(held, "child produced no count: %r" % result.stdout)
+        self.assertEqual("0", held[-1].strip(),
+                         "the child still has the lock file open; if it "
+                         "outlives its parent the queue deadlocks")
+
+    def test_a_surviving_child_does_not_keep_the_lock_held(self):
+        """The behaviour that actually bit: kill the wrapper, leave the child."""
+        # isolated_env, not a hand-built dict. This was the seventh call site
+        # to rebuild it by hand and it duly forgot two knobs: GPU_PENDING_DIR
+        # (eight stale `orphan` markers in the machine's real queue directory)
+        # and GPU_PAUSE_FLAG, which made both tests hang for the full timeout
+        # the moment the queue was genuinely paused.
+        env = isolated_env(self.tmp.name, ALLOW_DIRTY_TREE="1",
+                           GPU_NOTIFY="0")
+        marker = os.path.join(self.tmp.name, "child_pid")
+        job = subprocess.Popen(
+            ["bash", GPU_JOB, "orphan", "bash", "-c",
+             "echo $$ > %s; sleep 60" % marker],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(job.kill)
+        deadline = time.time() + 60
+        while time.time() < deadline and not os.path.exists(marker):
+            time.sleep(0.1)
+        if not os.path.exists(marker):
+            self.skipTest("job never started its child")
+        with open(marker) as handle:
+            child = int(handle.read().strip())
+        self.addCleanup(lambda: os.kill(child, 9)
+                        if os.path.exists("/proc/%d" % child) else None)
+
+        self.assertTrue(self._lock_is_held(), "parent should hold it")
+        job.kill()                      # the wrapper dies; the child lives on
+        job.wait(timeout=30)
+        deadline = time.time() + 30
+        while time.time() < deadline and self._lock_is_held():
+            time.sleep(0.25)
+        self.assertTrue(os.path.exists("/proc/%d" % child),
+                        "the child died too - this test proves nothing unless "
+                        "it outlives the wrapper")
+        self.assertFalse(self._lock_is_held(),
+                         "an orphaned child is still holding the GPU lock")
+
+
 class LlmPreflightGateTest(unittest.TestCase):
     """The lock cannot tell you there was no engine.
 
@@ -1064,6 +1187,43 @@ class PendingMarkerTest(unittest.TestCase):
         self._run("probe", "true", GPU_NOTIFY="0",
                   PATH=shadow + os.pathsep + os.environ["PATH"])
         self.assertFalse(os.path.exists(record))
+
+    def test_a_job_runs_at_low_priority_so_the_desktop_wins(self):
+        """Background work must lose to whatever the user is doing.
+
+        Nothing set priority, so a job competed with the foreground as an
+        equal: a book generation held llama-server at 169% CPU while a game
+        ran, load average near 9, and pausing the QUEUE could not help because
+        the already-running job was scheduled at parity.
+        """
+        result = self._run("niced", "bash", "-c", "ps -o ni= -p $$")
+        niceness = [int(line) for line in result.stdout.split()
+                    if line.lstrip("-").isdigit()]
+        self.assertTrue(niceness, f"no niceness reported: {result.stdout!r}")
+        # Relative for the same reason - but niceness CAPS AT 19, so a suite
+        # already running there cannot observe an increase at all. Assert what
+        # is observable from where the test happens to be standing rather than
+        # a fixed number that is right in one context and wrong in the other.
+        mine = os.nice(0)
+        if mine >= 19:
+            self.assertEqual(19, niceness[0])
+        else:
+            self.assertGreater(niceness[0], mine)
+
+    def test_the_priority_can_be_waived_for_a_run_that_should_compete(self):
+        """Waived means "add nothing", not "reset to zero".
+
+        Niceness is inherited, and this suite is often run niced itself - the
+        first version asserted 0 and failed at 19, which was the harness's own
+        priority rather than a broken waiver. Compare against the parent.
+        """
+        mine = os.nice(0)
+        result = self._run("greedy", "bash", "-c", "ps -o ni= -p $$",
+                           GPU_JOB_NICE="0")
+        niceness = [int(line) for line in result.stdout.split()
+                    if line.lstrip("-").isdigit()]
+        self.assertTrue(niceness, result.stdout)
+        self.assertEqual(mine, niceness[0])
 
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.

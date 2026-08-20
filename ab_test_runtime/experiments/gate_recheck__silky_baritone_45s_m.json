@@ -1,0 +1,31 @@
+{
+ "adapter": "ab_test_runtime/decontaminate/batch3/silky_baritone_45s_m/adapter",
+ "median_ecapa": 0.1241,
+ "lines": 6,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.124 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-19T00:38:42",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "711497b46b79691b8e5f9fdeb7a0ce7c7b6901c210ddc61eac1d58d139df7a69"
+  },
+  "args": {
+   "adapter": "ab_test_runtime/decontaminate/batch3/silky_baritone_45s_m/adapter",
+   "dataset": "ab_test_runtime/decontaminate/batch3/silky_baritone_45s_m/data",
+   "lines": 6,
+   "min_ecapa": 0.45,
+   "seed": 1234,
+   "out": "ab_test_runtime/experiments/gate_recheck__silky_baritone_45s_m.json"
+  },
+  "seed": 1234
+ }
+}

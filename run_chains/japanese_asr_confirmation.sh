@@ -48,10 +48,14 @@ clips="${JA_CONFIRM_CLIPS:-50}"
 build_dir="$runtime/kokoro_ja_asr_eval"
 out="$runtime/experiments/asr_silero_whisper_ja_confirmation.json"
 
-if [ -f "$out" ]; then
+# ASK THE ARTIFACT, not the directory entry. artifact_complete() is defined
+# above and was never called: a confirmation run cut short leaves a file that
+# this test reads as "already confirmed", and the run never happens again.
+if [ -f "$out" ] && artifact_complete "$python" "$out"; then
     echo "already confirmed: $out"
     exit 0
 fi
+[ -f "$out" ] && echo "re-running: $out exists but is incomplete"
 
 # CPU only, and outside the GPU lock - cutting audio must not hold the card.
 if ! "$python" -u "$repo/app/experiments/kokoro_ja_asr_set.py" \

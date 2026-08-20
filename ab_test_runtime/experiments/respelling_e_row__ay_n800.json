@@ -1,23 +1,21 @@
 {
   "carrier": "She paused and said {word} before going on.",
   "e_spelling": "ay",
+  "separator": "hyphen",
   "note": "scored on READINGS, not characters: `recovers_word` is the whole word present unbroken, which is the headline. `scattered` is the retired per-character score, kept only so the two can be compared - see scattered_overlap",
   "candidates_considered": 800,
+  "status": "complete",
   "provenance": {
     "script": "measure_respellings.py",
-    "written": "2026-08-18T03:53:56",
+    "written": "2026-08-19T05:50:46",
     "host": "mitch-linux",
     "git": {
-      "commit": "e8c182beb7a1d2e8229a2a1b369a8d6befe93b83",
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
       "branch": "agent/pause-status-isolation-20260817",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M app/experiments/manifest.py",
-        " M app/tests/test_gpu_job.py",
-        " M gpu_job.sh"
-      ],
+      "dirty": false,
+      "modified_tracked_files": null,
       "untracked_harness_files": null,
-      "harness_sha256": "d94f45ec73cb8902db89095c72a8bb0523a4e21b7230ce621a7ada4856e974ff"
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "candidates": "ab_test_runtime/experiments/lexicon_attributed.json",
@@ -25,6 +23,7 @@
       "min_books": 5,
       "limit": 800,
       "rule": "a",
+      "separator": "hyphen",
       "e_spelling": "ay",
       "only_e_row": true,
       "only_failed": null,

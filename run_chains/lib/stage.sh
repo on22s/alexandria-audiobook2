@@ -30,13 +30,49 @@ stage_note() { echo "[$(date -u +%FT%TZ)] $*"; }
 #
 # Records the outcome under <name> so later stages can require it, writes the
 # stage's own log, and counts failures for stage_summary.
+# --needs-vram: stop llama-server before running this stage.
+#
+# WHY IT IS OPT-IN. llama-server is deliberately started OUTSIDE the lock so
+# consecutive LLM stages share one 8.4 GB load; reclaiming before every stage
+# would throw that away. But nothing ever reclaims it either, and on 2026-08-19
+# continuation_20260819.sh started a server for its LLM stage and then had
+# FIVE consecutive TTS stages refused with rc=7 (1568 MiB free, needs 4096) -
+# the chain reported "6 of 9 failed" for a card that was simply still full.
+# The stage that needs the memory is the one that knows, so it asks.
 run_stage() {
     local name="$1" limit="$2"; shift 2
-    local requires=()
-    while [ "${1:-}" = "--requires-ok" ]; do
-        requires+=("$2"); shift 2
+    local requires=() needs_vram=0
+    while [ "${1:-}" = "--requires-ok" ] || [ "${1:-}" = "--needs-vram" ]; do
+        if [ "$1" = "--needs-vram" ]; then
+            needs_vram=1; shift
+        else
+            requires+=("$2"); shift 2
+        fi
     done
     [ "${1:-}" = "--" ] && shift
+
+    if [ "$needs_vram" = 1 ] && pgrep -x llama-server >/dev/null 2>&1; then
+        # -x, never -f: `pkill -f` matches the command line of whatever is
+        # doing the matching and has killed a shell in this repo (Rule 22).
+        stage_note "  reclaiming VRAM from llama-server before $name"
+        pkill -x llama-server
+        # WAIT FOR THE MEMORY, NOT FOR A FIXED FIVE SECONDS. The driver frees
+        # VRAM some time after the process exits, and a flat `sleep 5` lost the
+        # separator_space arm on 2026-08-19: gpu_job.sh measured 939 MiB free
+        # against a 4096 MiB floor and refused the stage, then the next stage
+        # started five seconds later and ran perfectly on the same card. Poll
+        # the same number gpu_job.sh gates on, so the two cannot disagree.
+        local waited=0 free
+        while [ "$waited" -lt "${STAGE_VRAM_WAIT:-90}" ]; do
+            free=$(rocm-smi --showmeminfo vram 2>/dev/null \
+                   | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
+            [ -n "$free" ] || break          # cannot tell: do not spin on it
+            # `free` here is USED bytes; stop once the card is mostly clear.
+            [ "$free" -lt 2147483648 ] && break
+            sleep 3; waited=$((waited + 3))
+        done
+        stage_note "  VRAM reclaimed after ${waited}s"
+    fi
 
     # -W semantics. A missing predecessor is NOT treated as satisfied: if the
     # chain was resumed and the earlier stage never ran in this process, we

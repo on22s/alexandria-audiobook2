@@ -1,0 +1,320 @@
+{
+ "status": "complete",
+ "candidates_considered": 3,
+ "results": [
+  {
+   "book": "attribution_gold_pdnc_prideandprejudice.json",
+   "arm": "single",
+   "seconds": 5.8,
+   "n": 20,
+   "correct": 6,
+   "wrong": 14,
+   "declined_unknown": 0,
+   "accuracy": 0.3,
+   "accuracy_when_answered": 0.3,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 4,
+     "correct": 2,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 16,
+     "correct": 4,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "CATHERINE",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "BENNET",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "BINGLEY",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "CATHERINE",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "CATHERINE",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "MRS. REYNOLDS",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "MR. COLLINS",
+     "quote_type": "Implicit"
+    }
+   ],
+   "sample_answers": [
+    "CATHERINE",
+    "BENNET",
+    "BENNET",
+    "MR. BENNET",
+    "MRS. REYNOLDS",
+    "BENNET",
+    "BINGLEY",
+    "MRS. REYNOLDS",
+    "MRS. REYNOLDS",
+    "MR. BENNET"
+   ]
+  },
+  {
+   "book": "attribution_gold_pdnc_theawakening.json",
+   "arm": "single",
+   "seconds": 4.6,
+   "n": 20,
+   "correct": 8,
+   "wrong": 12,
+   "declined_unknown": 0,
+   "accuracy": 0.4,
+   "accuracy_when_answered": 0.4,
+   "by_quote_type": {
+    "Explicit": {
+     "n": 5,
+     "correct": 2,
+     "unknown": 0
+    },
+    "Anaphoric": {
+     "n": 13,
+     "correct": 6,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 2,
+     "correct": 0,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "LEBRUN",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "LEBRUN",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "EDNA",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "EDNA",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "LEBRUN",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "LEONCE",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "LEONCE",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "EDNA",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ADELE",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "EDNA",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ROBERT",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ROBERT\n\n(NOTE: ALTHOUGH ROBERT IS NOT LISTED IN THE PROVIDED CHARACTER LIST, THE",
+     "quote_type": "Explicit"
+    }
+   ],
+   "sample_answers": [
+    "LEBRUN",
+    "LEBRUN",
+    "LEONCE",
+    "EDNA",
+    "EDNA",
+    "LEBRUN",
+    "LEONCE",
+    "EDNA",
+    "EDNA",
+    "LEONCE"
+   ]
+  },
+  {
+   "book": "attribution_gold_pdnc_thesignofthefour.json",
+   "arm": "single",
+   "seconds": 5.6,
+   "n": 20,
+   "correct": 10,
+   "wrong": 10,
+   "declined_unknown": 0,
+   "accuracy": 0.5,
+   "accuracy_when_answered": 0.5,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 15,
+     "correct": 9,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 3,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Explicit": {
+     "n": 2,
+     "correct": 1,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "SHERLOCK HOLMES",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "SHERLOCK HOLMES",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "DR. WATSON",
+     "quote_type": "Implicit"
+    }
+   ],
+   "sample_answers": [
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON",
+    "DR. WATSON"
+   ]
+  }
+ ],
+ "provenance": {
+  "script": "two_stage_attribution.py",
+  "written": "2026-08-18T18:56:19",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b846beaeff1e18099ae33b9e8bb9a1e521dc281d",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "711497b46b79691b8e5f9fdeb7a0ce7c7b6901c210ddc61eac1d58d139df7a69"
+  }
+ }
+}

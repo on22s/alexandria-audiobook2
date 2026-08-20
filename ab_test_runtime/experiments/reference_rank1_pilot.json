@@ -4,6 +4,16 @@
   "seed": 1234,
   "reference_rank": 1,
   "eval_lines": 8,
+  "requested_adapters": [
+    "silky_baritone_30s_m_fantasy",
+    "husky_soprano_20s_f",
+    "warm_baritone_30s_m_2",
+    "husky_tenor_30s_m_literary",
+    "warm_mezzo_20s_f_anime"
+  ],
+  "requested": 5,
+  "completed": 5,
+  "complete": true,
   "results": [
     {
       "adapter": "silky_baritone_30s_m_fantasy",
@@ -93,23 +103,15 @@
   ],
   "provenance": {
     "script": "retrain_honest.py",
-    "written": "2026-08-16T11:38:40",
+    "written": "2026-08-19T05:50:46",
     "host": "mitch-linux",
     "git": {
-      "commit": "4ba91062306f7f90a1889055c53cb8de9980ce51",
-      "branch": "agent/promotion-and-reference-gaps-20260816",
-      "dirty": true,
-      "modified_tracked_files": [
-        "M app/experiments/retrain_honest.py",
-        " M app/routers/dataset_builder.py",
-        " M app/test_promote_adapters.py",
-        " M promote_adapters.py"
-      ],
-      "untracked_harness_files": [
-        "app/experiments/generation_state_probe.py",
-        "app/experiments/three_pass_chunk_probe.py"
-      ],
-      "harness_sha256": "0d1f5143031597a67d8e02829e78929593243598eb84baea81d7b450ba596466"
+      "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+      "branch": "agent/pause-status-isolation-20260817",
+      "dirty": false,
+      "modified_tracked_files": null,
+      "untracked_harness_files": null,
+      "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
     },
     "args": {
       "adapters": [

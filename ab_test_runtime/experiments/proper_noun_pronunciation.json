@@ -25,7 +25,7 @@
   "substituted": {
    "failed": 0,
    "n": 24,
-   "wer": 0.0
+   "wer": 0.0014367816091954023
   }
  },
  "fails_only_with_name": 0,
@@ -256,10 +256,10 @@
     "wer": 0.0
    },
    "substituted": {
-    "errors": 0,
+    "errors": 1,
     "words": 29,
     "failed": false,
-    "wer": 0.0
+    "wer": 0.034482758620689655
    },
    "name_heard": false
   },
@@ -552,20 +552,15 @@
  },
  "provenance": {
   "script": "proper_noun_pronunciation.py",
-  "written": "2026-08-06T03:18:15",
+  "written": "2026-08-19T05:47:21",
   "host": "mitch-linux",
   "git": {
-   "commit": "1578a1cbf10c3e88aeba1af30c739cf7e1ed3eda",
-   "branch": "agent/simd-evidence",
-   "dirty": true,
-   "modified_tracked_files": [
-    "M ab_test_runtime/experiments/cluster_vs_name.json",
-    " M ab_test_runtime/experiments/listener_impact.json",
-    " M app/experiments/ljspeech_build.py",
-    " M app/experiments/lora_voice_sweep.py"
-   ],
+   "commit": "ef0a60ae272a61767275827e024079868ebfeb11",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "6f8e28d5632793a0e6eedc9e0fd31c8453bddc6c547823ccddd875e2e970bb51"
+   "harness_sha256": "1cb0b5ba45817d177d3fdf237e89a5c173b91f0e37de1731bcdb6e1b3f640da9"
   },
   "args": {
    "script": "chunks.json",

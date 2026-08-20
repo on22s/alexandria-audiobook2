@@ -37,8 +37,56 @@
 # belong to the job.
 set -uo pipefail
 
-LOCK="${GPU_LOCK:-$HOME/.gpu.lock}"
-QLOG="${GPU_QLOG:-$HOME/gpu_jobq.log}"
+# ONE LOCK, and it is the one the chains use. This defaulted to
+# $HOME/.gpu.lock while 21 chain lines export
+# ab_test_runtime/logs/alexandria_gpu.lock and 15 more export
+# $HOME/.alexandria_gpu.lock - three files, none of which serialise against
+# each other. Measured 2026-08-19 with a chain job running: the repo lock was
+# HELD and both home-directory locks were FREE, so a hand-run ./gpu_job.sh
+# would have taken a different lock, found it free, and run a second job on
+# the card the queue exists to protect.
+if [ -n "${GPU_LOCK:-}" ]; then
+    # OPERATOR-SUPPLIED: take it exactly as given. Creating the directory for
+    # it would turn a mistyped path into a brand-new lock that is always free -
+    # the same failure as the three-lock split above, one caller at a time.
+    LOCK="$GPU_LOCK"
+else
+    # ABSOLUTE. `dirname "$0"` is relative whenever the script is invoked as
+    # ./gpu_job.sh, and a relative lock path is a DIFFERENT FILE for a caller
+    # with a different working directory - the split this block exists to end.
+    LOCK="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/alexandria_gpu.lock"
+    mkdir -p "$(dirname "$LOCK")" 2>/dev/null   # fresh clone has no logs/ yet
+fi
+# ASK, DO NOT PARSE. app/experiments/gpu_guard.py used to recover this path by
+# regexing the assignment above, which meant reformatting one shell line
+# silently changed which file Python thought was the lock - and its fallback
+# was a plausible-looking path rather than an error, so the break would not
+# have announced itself. This makes gpu_job.sh the single source of the answer
+# (Rule 15) and a wrong answer impossible to get quietly.
+if [ "${1:-}" = "--print-lock" ]; then
+    echo "$LOCK"
+    exit 0
+fi
+
+# THE SAME SPLIT THE LOCK HAD, one file over. 37 of 51 chains export GPU_QLOG
+# pointing at the repo log; the other 14 - and every hand-run job - wrote their
+# provenance to $HOME/gpu_jobq.log instead, where gpu_pause.sh cannot see it and
+# no analysis reads it. 110 lines of queue history accumulated there between
+# 2026-08-05 and 2026-08-19, including entire ASR benchmark runs that appear
+# nowhere in the repository. Archived as
+# ab_test_runtime/logs/gpu_jobq_home_archive_20260819.log; the default now
+# points where everything else already does.
+if [ -n "${GPU_QLOG:-}" ]; then
+    QLOG="$GPU_QLOG"
+else
+    QLOG="$(cd "$(dirname "$0")" && pwd)/ab_test_runtime/logs/gpu_jobq.log"
+    mkdir -p "$(dirname "$QLOG")" 2>/dev/null
+fi
+
+if [ "${1:-}" = "--print-qlog" ]; then
+    echo "$QLOG"
+    exit 0
+fi
 
 NAME="${1:-}"
 [ -z "$NAME" ] && { echo "usage: gpu_job.sh <name> <command...>" >&2; exit 2; }
@@ -210,8 +258,18 @@ tree_state() {
     # long note in app/experiments/manifest.py::_git_state - these two are one
     # decision expressed twice and are kept in step by
     # test_the_shell_gate_agrees_with_the_python_provenance.
+    # DERIVED INDEXES ARE OUTPUTS TOO, and leaving them out of this list
+    # deadlocked the queue on 2026-08-19. refresh_indexes.py rewrites
+    # RESULTS_INDEX.md, results_index.csv and ab_test_runtime/audit/*.json at
+    # the END of every chain; the tree was then dirty, and the six stages a
+    # CONCURRENT chain still had queued were refused in 0s each - two_stage_full,
+    # three separator arms, unseen_books_rest, plus a replay in a third chain.
+    # The card sat idle for two hours. These are regenerated from the artifacts,
+    # exactly like the experiment JSON: what a run writes, never evidence that
+    # its code changed.
     modified=$(git -C "$root" status --porcelain --untracked-files=no \
-                   -- ':(exclude)ab_test_runtime/experiments/*.json' 2>/dev/null)
+                   -- ':(exclude)ab_test_runtime/experiments/*.json' ':(exclude)ab_test_runtime/audit/*.json' ':(exclude)RESULTS_INDEX.md' ':(exclude)results_index.csv' ':(exclude)LEGACY_ATTRIBUTION_AUDIT_*.md' \
+                   2>/dev/null)
     # AN UNTRACKED HARNESS IS THE CASE THIS MISSED. `git diff HEAD` sees
     # modified TRACKED files only, so a brand-new experiment script - which is
     # untracked for exactly as long as it takes to write and run it - was
@@ -459,6 +517,10 @@ STARTED=1
 # idempotent: the outermost gpu_job.sh holds the lock, and every chain inside
 # it runs directly.
 export ALEXANDRIA_GPU_LOCK_HELD=1
+# Paired with the pid that holds the lock, so a shell that inherits the
+# sentinel from a chain cannot keep claiming to be a queued job after that job
+# has ended (see app/experiments/gpu_guard.py).
+export ALEXANDRIA_GPU_LOCK_PID=$$
 
 # JOB CONTROL OFF, EXPLICITLY. `setsid` only calls setsid(2) directly when it
 # is NOT already a process group leader; if it is, it forks first. With job
@@ -479,8 +541,37 @@ export ALEXANDRIA_GPU_LOCK_HELD=1
 # assumption that today holds by default. No test guards it, deliberately: a
 # test for an unreachable state cannot fail, and one that cannot fail
 # advertises coverage that does not exist.
+# BACKGROUND WORK SHOULD LOSE TO THE FOREGROUND. Nothing here set priority, so
+# a job competed with the desktop as an equal: on 2026-08-18 a book generation
+# kept llama-server at 169% CPU while a game ran, and pausing the QUEUE could
+# not help because the already-running job was scheduled at parity. Load
+# average sat near 9.
+#
+# nice 15 leaves the job full use of an idle machine and makes it yield the
+# moment anything interactive wants the CPU. ionice -c3 does the same for
+# disk. Both are best-effort: a missing tool must not stop the job, so each is
+# added only if present.
+#
+# GPU_JOB_NICE=0 disables it, for a run that genuinely should compete.
+launcher=(setsid)
+if [ "${GPU_JOB_NICE:-15}" != "0" ] && command -v nice >/dev/null 2>&1; then
+    launcher+=(nice -n "${GPU_JOB_NICE:-15}")
+fi
+if command -v ionice >/dev/null 2>&1; then
+    launcher+=(ionice -c3)
+fi
+
 set +m
-setsid "$@" &
+# 9>&- CLOSES THE LOCK IN THE CHILD, and without it the queue can deadlock
+# behind a process nobody is tracking. A flock lives as long as ANY open
+# descriptor to the file, and `exec 9>"$LOCK"` above puts that descriptor into
+# every child this script starts. On 2026-08-19 a stage was stopped, its
+# wrapper died, and one orphaned `timeout`+python survived with FD 9 still
+# open: the lock stayed HELD with no gpu_job.sh alive to own it, two queued
+# jobs waited on it indefinitely, and `gpu_pause.sh status` had nothing to
+# name as the holder. The child never needs the lock - its parent holds it for
+# exactly as long as the child runs - so it should never have had it.
+"${launcher[@]}" "$@" 9>&- &
 JOB_PGID=$!
 wait "$JOB_PGID"
 rc=$?

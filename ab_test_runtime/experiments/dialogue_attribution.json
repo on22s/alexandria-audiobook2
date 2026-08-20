@@ -1,90 +1,52 @@
 {
  "status": "complete",
- "candidates_considered": 3,
+ "candidates_considered": 1,
  "spoken_line_threshold": 0.85,
  "results": [
   {
-   "book": "mushoku18",
-   "entries": 6115,
+   "book": "index18_clean",
+   "entries": 3888,
    "measurable": true,
-   "spoken_lines": 487,
-   "left_with_narrator": 359,
-   "rate": 0.7372,
+   "spoken_lines": 1123,
+   "left_with_narrator": 125,
+   "rate": 0.1113,
    "straight_quoted_only": {
-    "spoken_lines": 406,
-    "left_with_narrator": 283,
-    "rate": 0.697,
+    "spoken_lines": 932,
+    "left_with_narrator": 60,
+    "rate": 0.0644,
     "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
    },
    "examples_left_with_narrator": [
-    "\"Oh.\"",
-    "\"Everybody, please come here.\"",
-    "\"Whew ......\"",
-    "\"......Anyway.\"",
-    "“I'm going to patrol the surroundings.”",
-    "“......”",
-    "“Eek!”",
-    "“Ha......Excuse me. Thanks for your effort. Orsted-sama.”",
-    "“Ah.”",
-    "“What’s the news?”",
-    "“Luke isn’t making any suspicious moves. The journey is also going smoothly.”",
-    "“That's good. Maybe there won’t be anything for a few days.”"
+    "“Understood, ma’am.”",
+    "“Your enemy will be an old friend. Don’t pull any punches.”",
+    "“I assure you, I have no acquaintances within the enemy ranks.”",
+    "You have no need to fight any further, either.",
+    "You may try your hardest and wield your sword for someone who doesn’t trust you, but it would all be empty, wouldn’t it?",
+    "“The third princess is that way, then?”",
+    "“But why do you stand in my way now? Acqua of the Back is a member of the Roman Orthodox Church’s God’s Right Seat. He s",
+    "“I see. No matter what your attachment, it doesn’t change what you need to do. That way of thinking is so truly like you",
+    "“…More men to die.”",
+    "“I will duel you.”",
+    "“I meant it in the old sense—a duel to the death.”",
+    "“Hrunting?”"
    ]
-  },
-  {
-   "book": "mushoku23",
-   "entries": 11387,
-   "measurable": true,
-   "spoken_lines": 964,
-   "left_with_narrator": 750,
-   "rate": 0.778,
-   "straight_quoted_only": {
-    "spoken_lines": 195,
-    "left_with_narrator": 189,
-    "rate": 0.9692,
-    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
-   },
-   "examples_left_with_narrator": [
-    "\"Zanoba, be careful.\"",
-    "\"Oh, that's right…\"",
-    "\"So you wanted to leave Julie behind?\"",
-    "\"Eris too, are you alright?\"",
-    "\"I'm worried about Rudeus being alone.\"",
-    "\"Well, I'll make it work out somehow.\"",
-    "\"What will Orsted-sama be doing? I'd be thankful if you could stay here to manage the communication lithographs and prot",
-    "\"Thank you very much.\"",
-    "\"Rudeus. Just in case, you should wear that ring.\"",
-    "\"Can I ask the reason?\"",
-    "\"It's just in case. Simply wearing it has an effect.\"",
-    "\"Also, there's one…\""
-   ]
-  },
-  {
-   "book": "arc4_volume10wn",
-   "entries": 6173,
-   "measurable": false,
-   "not_measured": "only 4.8% of entries carry quotation marks; this book does not mark dialogue with quotes, so a quote-based measure cannot see it"
   }
  ],
  "provenance": {
   "script": "measure_dialogue_attribution.py",
-  "written": "2026-08-18T14:51:45",
+  "written": "2026-08-19T08:19:29",
   "host": "mitch-linux",
   "git": {
-   "commit": "7e9b49a3a3c2d717a3e2881bb6a73dd575e10d67",
+   "commit": "bbf61818c80f4d5660ed42c068b07a47d64b6cdc",
    "branch": "agent/pause-status-isolation-20260817",
-   "dirty": true,
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/measure_dialogue_attribution.py"
-   ],
-   "harness_sha256": "bd0107ad86b803f7f65c7914572afba58fc65050b35c23041d1c12409e867081"
+   "untracked_harness_files": null,
+   "harness_sha256": "89756994d81ee0f7b93ad89c35427437dc3c4b9a75fb8f6c655939c77e975355"
   },
   "args": {
    "scripts": [
-    "ab_test_runtime/unseen_books/mushoku18.json",
-    "ab_test_runtime/unseen_books/mushoku23.json",
-    "ab_test_runtime/unseen_books/arc4_volume10wn.json"
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/unseen_books/index18_clean.json"
    ],
    "out": "ab_test_runtime/experiments/dialogue_attribution.json"
   }

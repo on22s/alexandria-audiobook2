@@ -62,7 +62,18 @@ note() { echo "[$(date -u +%FT%TZ)] $*"; }
 
 for spelling in e ay ei; do
     out="$runtime/experiments/respelling_e_row__${spelling}.json"
-    if [ -e "$out" ]; then note "SKIP $spelling (artifact exists)"; continue; fi
+    # artifact_complete() is defined above and was never called here: the skip
+    # asked only whether the FILE existed. A run cut short leaves a file that
+    # looks finished - respelling_e_row__ay_n1200.json sits in this repository
+    # at 1129 of 1200 terms - and because terms are ordered by book count, the
+    # missing tail is the rarest words. This chain would have skipped such an
+    # arm forever, on a biased subset, while reporting SKIP as though it were
+    # done. Three sibling chains already ask the artifact; this one wrote the
+    # helper and kept the old test.
+    if [ -e "$out" ] && artifact_complete "$python" "$out"; then
+        note "SKIP $spelling (artifact complete)"; continue
+    fi
+    [ -e "$out" ] && note "REDO $spelling (artifact exists but is incomplete)"
     note "START e-row arm: $spelling"
     "$REPO/gpu_job.sh" "e_row_$spelling" \
         timeout --signal=INT --kill-after=60s 7200 \

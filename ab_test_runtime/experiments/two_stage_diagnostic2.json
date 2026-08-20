@@ -1,0 +1,745 @@
+{
+ "status": "complete",
+ "candidates_considered": 3,
+ "results": [
+  {
+   "book": "attribution_gold_pdnc_prideandprejudice.json",
+   "arm": "single",
+   "seconds": 51.7,
+   "n": 40,
+   "correct": 0,
+   "wrong": 40,
+   "declined_unknown": 0,
+   "accuracy": 0.0,
+   "accuracy_when_answered": 0.0,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 9,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 27,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Explicit": {
+     "n": 4,
+     "correct": 0,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ELIZABETH",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "KITTY",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "ELIZABETH",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MRS. BENNET",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    }
+   ],
+   "sample_answers": [
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError"
+   ]
+  },
+  {
+   "book": "attribution_gold_pdnc_theawakening.json",
+   "arm": "single",
+   "seconds": 52.8,
+   "n": 40,
+   "correct": 0,
+   "wrong": 40,
+   "declined_unknown": 0,
+   "accuracy": 0.0,
+   "accuracy_when_answered": 0.0,
+   "by_quote_type": {
+    "Explicit": {
+     "n": 10,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Anaphoric": {
+     "n": 22,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 8,
+     "correct": 0,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "LEONCE PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "EDNA PONTELLIER",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MADAME RATIGNOLLE",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "ROBERT LEBRUN",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    }
+   ],
+   "sample_answers": [
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError"
+   ]
+  },
+  {
+   "book": "attribution_gold_pdnc_thesignofthefour.json",
+   "arm": "single",
+   "seconds": 52.2,
+   "n": 40,
+   "correct": 0,
+   "wrong": 40,
+   "declined_unknown": 0,
+   "accuracy": 0.0,
+   "accuracy_when_answered": 0.0,
+   "by_quote_type": {
+    "Anaphoric": {
+     "n": 26,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Implicit": {
+     "n": 12,
+     "correct": 0,
+     "unknown": 0
+    },
+    "Explicit": {
+     "n": 2,
+     "correct": 0,
+     "unknown": 0
+    }
+   },
+   "wrong_answers": [
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Explicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Anaphoric"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "MR. SHERLOCK HOLMES",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    },
+    {
+     "expected": "DR. WATSON",
+     "model_said": "ERROR: APIConnectionError",
+     "quote_type": "Implicit"
+    }
+   ],
+   "sample_answers": [
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError",
+    "ERROR: APIConnectionError"
+   ]
+  }
+ ],
+ "provenance": {
+  "script": "two_stage_attribution.py",
+  "written": "2026-08-19T03:09:15",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "f20b97bee840bd336777ddc6063824c959e9ab36",
+   "branch": "agent/pause-status-isolation-20260817",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "4e96448026fa2099f48532177899199f7f2d77163129897f54fcef694839d034"
+  }
+ }
+}

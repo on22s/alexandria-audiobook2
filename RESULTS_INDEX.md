@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-19 17:29 from `ab_test_runtime/experiments/` — 497 artifacts, 578 arms.
+Generated 2026-08-20 01:18 from `ab_test_runtime/experiments/` — 519 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -491,15 +491,25 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 64.2% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 60.0% | supported_measurement | ok | False | 823.6s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 61.7% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 55.0% | supported_measurement | ok | False | 823.6s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 823.6s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 63.3% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 
 ## pdnc_targeted_sequence
 
@@ -740,6 +750,17 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3.5-9b-uncensored-hauh | local-lmstudio | lmstudio |  | C | 139 | 34.5% | exploratory | ['no LM Studio load state recorded', 'en | True | 698.2s |
 | mushoku16 | qwen3.5-9b-uncensored-hauh | local-lmstudio | lmstudio |  | D | 139 | 18.7% | exploratory | ['no LM Studio load state recorded', 'en | True | 698.2s |
 
+## two_stage_attribution
+
+| book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
+|---|---|---|---|---:|---|---:|---:|---|---|---|---:|
+| attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 50.0% | historical_only | ok | False | 25.9s |
+| attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 53.8% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 70.0% | historical_only | ok | False | 25.9s |
+| attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 60.4% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 60.0% | historical_only | ok | False | 25.9s |
+| attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 50.6% | historical_only | ok | False | 718.1s |
+
 ## voting
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
@@ -860,6 +881,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `duration_probe_20260811_overnight.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_probe_20260811_rerun.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_probe_same_speaker_20260815.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `earcheck_separator_key.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `earcheck_separator_package.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `earcheck_separator_results.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -939,6 +963,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_promote__warm_tenor_30s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_promote__warm_tenor_30s_m_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_promote__warm_tenor_30s_m_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `gate_recheck__silky_alto_40s_f_literary_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `gate_recheck__silky_baritone_45s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `gate_recheck__velvety_mezzo_30s_f_gothic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_reference_rank1__breathy_alto_50s_f_fantasy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank1__husky_baritone_20s_m_supernatural.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank1__husky_baritone_40s_m_2.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1004,6 +1031,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_eval_mixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_failure_telemetry.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_generalisation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_pilots_paired.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_quality_SSB0748.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1037,14 +1065,23 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_e_row__ay_n1200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n800.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_e_row__ay_sample2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__e.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ei.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_earcheck.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_measure.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_none_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_none_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_rule_b_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_separator__dot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_separator__none.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_separator__none_n400.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_separator__space.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_bad_refs.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_honest.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1072,6 +1109,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `trivial_baselines.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `tts_boundary_audit.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `tuned_disagreement.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `two_stage_attribution.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `two_stage_diagnostic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `two_stage_diagnostic2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `validation_baseline.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `validation_manifest.json` | SKIPPED: not a result object (list) |
 | `validation_smoke.json` | SKIPPED: 'rows' is not a list of scored arms |
