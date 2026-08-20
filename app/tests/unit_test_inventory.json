@@ -1508,6 +1508,13 @@
     "tests.test_publisher_matter.StripPublisherMatterTest.test_story_is_untouched_when_there_is_no_colophon",
     "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentioning_copyright_mid_book_is_kept"
   ],
+  "test_quote_gate_telemetry": [
+    "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_a_quoted_source_reports_the_gate_ran",
+    "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_a_source_with_no_quotes_reports_the_gate_skipped",
+    "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_skipping_does_not_fail_the_chunk",
+    "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_the_gate_still_catches_a_real_misclassification",
+    "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_the_report_always_carries_the_field"
+  ],
   "test_reasoning_budget": [
     "tests.test_reasoning_budget.NullContentTest.test_a_null_content_response_does_not_raise",
     "tests.test_reasoning_budget.NullContentTest.test_null_content_classifies_as_escalate_then_overflow",

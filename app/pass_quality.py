@@ -17,6 +17,10 @@ from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 _QUOTE_CHARS = {'"', '“', '”', '「', '」', '『', '』'}
+# Set by _quote_region_findings when it declines to run, read by the report so
+# a caller can tell "checked and clean" from "did not check". A list rather
+# than a flag because one report covers many entries.
+_skipped = []
 _CURLY_AND_JAPANESE_OPEN = {'“', '「', '『'}
 _CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
 
@@ -187,7 +191,33 @@ def _region_contains_entry(regions, entry_text):
 
 
 def _quote_region_findings(source_text, entries, quote_analysis=None):
+    """Findings, or ONE finding saying this gate does not apply to this book.
+
+    NOT A FINDING - TELEMETRY. A narration-only chunk legitimately contains no
+    quotes and must still pass, so the skip cannot block. It is recorded in the
+    report as `quote_gate` instead, which is the difference between "checked
+    and clean" and "did not check".
+
+    THE EARLY RETURN USED TO BE SILENT. A source with no quote characters got
+    `[]`, which every caller reads as "no problems found" - indistinguishable
+    from a book that passed. This gate only understands paired quotes, but
+    `dialogue_spans` knows two other conventions a novel can use (a leading
+    em-dash, and a script-style `NAME:` label), and on such a book the gate
+    would quietly check nothing at all.
+
+    Measured 2026-08-20 over all 85 sources on this machine - the light
+    novels, the saved library and PDNC - every one uses paired quotes, so this
+    is latent rather than live. It is fixed anyway because a guard that
+    disables itself without saying so is the shape that has already cost this
+    project three separate measurements ([[Rule 8]]).
+    """
     if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
+        try:
+            from dialogue_spans import detect_convention
+            convention = detect_convention(source_text)
+        except Exception:                                   # noqa: BLE001
+            convention = None
+        _skipped.append(convention or "none_detected")
         return []
     if quote_analysis:
         source_regions = quote_analysis["regions"]
@@ -299,14 +329,21 @@ def validate_segment_quality(source_text, entries, quote_analysis=None):
         findings.append({"code": "output_source_ratio", "value": round(ratio, 4),
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
+    del _skipped[:]
     findings.extend(_quote_region_findings(source_text, entries, quote_analysis))
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
-    return _report(sc, oc, recall, trigram, ratio, findings)
+    return _report(sc, oc, recall, trigram, ratio, findings,
+                   quote_gate=("skipped:" + _skipped[0]) if _skipped else "ran")
 
 
-def _report(source_count, output_count, recall, trigram, ratio, findings):
+def _report(source_count, output_count, recall, trigram, ratio, findings,
+            quote_gate="ran"):
     return {
         "passed": not findings,
+        # "ran" or "skipped:<convention>". A reader comparing two clean reports
+        # can otherwise not tell which of them actually had its dialogue
+        # checked, and the quote gate only understands paired quotes.
+        "quote_gate": quote_gate,
         "metrics": {
             "source_tokens": source_count, "output_tokens": output_count,
             "source_token_recall": round(recall, 4),

@@ -56,6 +56,7 @@ def norm(t):
 
 def features(seg, index, text):
     """Structural and lexical signals, all computable without labels."""
+    current = seg[index] if index < len(seg) else {}
     nxt = seg[index + 1] if index + 1 < len(seg) else None
     prev = seg[index - 1] if index else None
     nxt_text = (nxt.get("text") or "").lstrip() if nxt else ""
@@ -69,7 +70,20 @@ def features(seg, index, text):
         "first": float(len(re.findall(FIRST, low))),
         "past": float(len(re.findall(PAST, low))),
         "chars": min(len(text or ""), 400) / 100.0,
-        "has_quote": 1.0 if re.search(r"[\"“”]", text or "") else 0.0,
+        # PREFER THE RECORDED FACT. `has_quote` asks the punctuation whether a
+        # line is dialogue, and generation removes the outermost quotes - on
+        # the three books this classifier reads, three-pass retains 0 of them
+        # and single-pass 37-61%. So this feature was dead or half-dead
+        # depending on which arm produced the script, which is worse than
+        # absent: it varies with the arm rather than with the line.
+        #
+        # `spoken` is mapped from the source before any model runs, so it is
+        # the same fact regardless of arm. The punctuation remains the
+        # fallback for scripts written before the map existed, and a script
+        # can be retrofitted with retrofit_dialogue_map.py.
+        "has_quote": (1.0 if current.get("spoken") else 0.0)
+        if "spoken" in current
+        else (1.0 if re.search(r"[\"“”]", text or "") else 0.0),
         "commas": float((text or "").count(",")),
         "starts_upper": 1.0 if (text or "")[:1].isupper() else 0.0,
     }
