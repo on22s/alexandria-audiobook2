@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1646** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -682,7 +682,7 @@ arithmetic on two medians, not a measurement.
 **SSB0748**, the speaker closest to the corpus median (12.025 dB, +0.005 off),
 with every other setting matched to the original: same trainer, lr 1e-6, 6
 epochs, lora_r 64, seed 1234. New adapter, 150 lines, 300 clips, 0 dropped.
-Artifacts and the chain script are on the `agent/asr-hybrid-cjk` branch.
+Artifacts are on main: `pitch_quality_SSB0748.json`, `aishell3_SSB0748_generate.json` and `corpus_hnr_baseline.json`. (This line used to cite an `agent/asr-hybrid-cjk` branch, which no longer exists on the remote - a closed goal pointing at evidence nobody can fetch. The artifacts themselves were merged and are named here instead.)
 
 | | SSB1585 (9.39 dB, 8th percentile) | SSB0748 (12.02 dB, median) |
 |---|---|---|

@@ -1,0 +1,37 @@
+diff --git a/GOALS.md b/GOALS.md
+index c0191c4..09ae977 100644
+--- a/GOALS.md
++++ b/GOALS.md
+@@ -682,7 +682,7 @@ arithmetic on two medians, not a measurement.
+ **SSB0748**, the speaker closest to the corpus median (12.025 dB, +0.005 off),
+ with every other setting matched to the original: same trainer, lr 1e-6, 6
+ epochs, lora_r 64, seed 1234. New adapter, 150 lines, 300 clips, 0 dropped.
+-Artifacts and the chain script are on the `agent/asr-hybrid-cjk` branch.
++Artifacts are on main: `pitch_quality_SSB0748.json`, `aishell3_SSB0748_generate.json` and `corpus_hnr_baseline.json`. (This line used to cite an `agent/asr-hybrid-cjk` branch, which no longer exists on the remote - a closed goal pointing at evidence nobody can fetch. The artifacts themselves were merged and are named here instead.)
+ 
+ | | SSB1585 (9.39 dB, 8th percentile) | SSB0748 (12.02 dB, median) |
+ |---|---|---|
+diff --git a/app/tests/unit_test_inventory.json b/app/tests/unit_test_inventory.json
+index a45cf38..b041456 100644
+--- a/app/tests/unit_test_inventory.json
++++ b/app/tests/unit_test_inventory.json
+@@ -33,6 +33,19 @@
+     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
+     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
+   ],
++  "test_artifact_shrinkage": [
++    "tests.test_artifact_shrinkage.ExplainedTest.test_a_recorded_failure_counts_as_an_explanation",
++    "tests.test_artifact_shrinkage.ExplainedTest.test_an_empty_failures_list_explains_nothing",
++    "tests.test_artifact_shrinkage.ExplainedTest.test_silence_is_not_an_explanation",
++    "tests.test_artifact_shrinkage.RowCountTest.test_a_document_with_no_row_list_is_not_judged",
++    "tests.test_artifact_shrinkage.RowCountTest.test_both_list_contracts_are_counted",
++    "tests.test_artifact_shrinkage.ScanTest.test_a_brand_new_artifact_has_nothing_to_shrink_from",
++    "tests.test_artifact_shrinkage.ScanTest.test_a_shape_without_rows_is_skipped_rather_than_guessed_at",
++    "tests.test_artifact_shrinkage.ScanTest.test_a_silent_emptying_is_reported",
++    "tests.test_artifact_shrinkage.ScanTest.test_an_explained_emptying_is_allowed",
++    "tests.test_artifact_shrinkage.ScanTest.test_an_unchanged_artifact_is_not_reported",
++    "tests.test_artifact_shrinkage.ScanTest.test_growth_is_not_a_shrink"
++  ],
+   "test_artifact_structural_audit": [
+     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_indexes_everything",
+     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
