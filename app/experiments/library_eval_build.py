@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.provenance import provenance  # noqa: E402
 
 
-def held_out(dataset):
+def held_out(dataset, book):
     """-> [{human_wav, text, id}] from the val split, paths relative to REPO."""
     meta = os.path.join(dataset, "val", "metadata.jsonl")
     if not os.path.exists(meta):
@@ -42,10 +42,18 @@ def held_out(dataset):
             wav = os.path.join(dataset, entry["audio_filepath"])
             if not os.path.exists(wav):
                 continue
+            # EVERY KEY ljspeech_generate.py READS: id, book, text, human_wav
+            # and seconds. The first build shipped three of those and 14 of 15
+            # stages died on KeyError: 'book' after the chain had taken the GPU.
+            # The row shape is a contract with the consumer, and a build that
+            # cannot be consumed is not a build.
             rows.append({"id": os.path.splitext(
                              os.path.basename(entry["audio_filepath"]))[0],
+                         "book": book,
                          "human_wav": os.path.relpath(wav, REPO),
-                         "text": entry.get("text") or ""})
+                         "text": entry.get("text") or "",
+                         "seconds": entry.get("duration")
+                                    or entry.get("seconds") or 0.0})
     return [r for r in rows if r["text"].strip()]
 
 
@@ -57,7 +65,8 @@ def main():
     args = parser.parse_args()
 
     dataset = os.path.abspath(args.dataset)
-    rows = held_out(dataset)
+    book = os.path.basename(os.path.dirname(dataset))
+    rows = held_out(dataset, book)
     if not rows:
         raise SystemExit("no usable val lines in %s" % dataset)
 
@@ -70,7 +79,7 @@ def main():
         ref_text = handle.read().strip()
 
     build = {
-        "corpus": os.path.basename(os.path.dirname(dataset)),
+        "corpus": book,
         "licence": "user's own audiobook library; not redistributable",
         "target_rate": 24000,
         "ref_sample": os.path.relpath(ref, REPO),

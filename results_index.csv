@@ -685,6 +685,7 @@ pitch_profile_matrix.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,
 pitch_profile_matrix_pilot.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 pitch_quality_SSB0748.json,exploratory,none,no,,9e6837e4,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pitch_quality_probe.json,exploratory,git+naming,no,pitch_quality_probe.py,e4b575fc,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+pitch_quality_probe_n200.json,exploratory,git+naming,no,pitch_quality_probe.py,d66d7ed8,2.6,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pitch_separation.json,exploratory,git+naming,no,pitch_separation.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pitch_stability.json,exploratory,git+naming,no,pitch_stability.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pr308_narration_context__mushoku16_index18__current.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly

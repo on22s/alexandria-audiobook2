@@ -970,6 +970,12 @@
     "tests.test_lexicon_from_measurements.ClassifyTest.test_the_agreement_rate_uses_only_terms_measured_twice",
     "tests.test_lexicon_from_measurements.ClassifyTest.test_two_arms_agreeing_is_marked_corroborated"
   ],
+  "test_library_eval_build": [
+    "tests.test_library_eval_build.BuildShapeTest.test_a_line_with_no_text_is_dropped_not_shipped_empty",
+    "tests.test_library_eval_build.BuildShapeTest.test_a_missing_val_split_is_refused",
+    "tests.test_library_eval_build.BuildShapeTest.test_every_key_the_consumer_reads_is_present",
+    "tests.test_library_eval_build.BuildShapeTest.test_the_book_is_the_voice_it_came_from"
+  ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
     "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
