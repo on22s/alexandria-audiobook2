@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 210,
+    "supported_structure": 211,
     "exploratory": 191,
     "provisional": 122
   },
@@ -633,6 +633,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "audio_views.json",
+      "bytes": 4741,
+      "sha256": "1cbd43dddf43ec07bd9a0070c181ce8d8b8cf1462affaf33b697e8b2306d541c",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T07:21:29",
+      "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "baseline_heldout__husky_baritone_40s_m_2.json",
