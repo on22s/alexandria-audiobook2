@@ -2372,6 +2372,20 @@ identical to `へ` the particle. Any rule that dropped it would delete Japanese
 text. Catching that needs context, not character class, and is not attempted
 here.
 
+**Outside evidence that the exclusion is the expensive half.** Liu et al.,
+*A First Look at Bugs in LLM Inference Engines* (ACM TOSEM 2025, DOI
+10.1145/3788873), hand-coded 929 closed bug reports across llama.cpp, vLLM,
+DeepSpeed, MLC-LLM and TensorRT-LLM. Among the bugs whose symptom was bad
+output rather than a crash, **character-level faults are the largest single
+factor at 36%** — ahead of incoherent semantics (20%), inconsistent output
+(17%), length (15%) and repetition (13%). That is a survey of *engines*, not
+of this app, and it says nothing about how often pictographic kana appear in a
+real book; it is a prior about where output faults cluster, not a measurement
+of ours. Taken with the fact that every other factor on their list already has
+a gate here, it argues the remaining context-dependent character work is worth
+more than it looks, and it is the reason this goal is recorded as MET *with*
+an exclusion rather than simply MET.
+
 ---
 
 ## 6. Measurement integrity
