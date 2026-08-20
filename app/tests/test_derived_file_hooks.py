@@ -158,14 +158,43 @@ class SingleSourceTest(unittest.TestCase):
                               f"{caller} must delegate to tools/regen_derived.sh "
                               f"rather than keep its own copy of the list")
 
-    def test_regen_derived_reports_its_paths_and_interpreter(self):
-        """Callers need both, and resolving either twice is how they drift."""
-        for flag in ("--paths", "--python"):
-            with self.subTest(flag=flag):
-                out = subprocess.run(["bash", str(REPO / "tools" / "regen_derived.sh"), flag],
-                                     cwd=REPO, capture_output=True, text=True)
-                self.assertEqual(0, out.returncode, out.stderr)
-                self.assertTrue(out.stdout.strip(), f"{flag} printed nothing")
+    def _run(self, flag):
+        return subprocess.run(["bash", str(REPO / "tools" / "regen_derived.sh"), flag],
+                              cwd=REPO, capture_output=True, text=True)
+
+    def test_paths_works_without_an_interpreter(self):
+        """--paths must answer in ANY checkout, venv or not.
+
+        CI has no app/env, and resolve_generated.sh's refusal path has to work
+        there too - a script that cannot say which files are derived until it
+        finds a venv fails for the wrong reason, which is the mistake that
+        version of resolve_generated.sh already made once.
+        """
+        out = self._run("--paths")
+        self.assertEqual(0, out.returncode, out.stderr)
+        self.assertTrue(out.stdout.strip(), "--paths printed nothing")
+
+    def test_python_either_answers_or_fails_loudly(self):
+        """It must never invent a plausible interpreter.
+
+        This test asserted a bare success and CI failed it on the first run,
+        correctly: there is no app/env on a runner. The contract is not "always
+        succeeds", it is "prints a real interpreter or refuses with a legible
+        reason" - falling back to a bare python3 would get a
+        ModuleNotFoundError halfway through a regeneration and read as a broken
+        branch ([[Rule 21]]: the dangerous fallback is the one that looks fine).
+        """
+        out = self._run("--python")
+        if out.returncode == 0:
+            path = out.stdout.strip()
+            self.assertTrue(os.access(path, os.X_OK),
+                            f"reported {path!r} but it is not executable")
+        else:
+            self.assertIn("no interpreter", (out.stderr + out.stdout).lower(),
+                          "it failed without saying why")
+            self.assertFalse(out.stdout.strip(),
+                             "it printed something on stdout while failing; a "
+                             "caller doing python=$(... --python) would use it")
 
     def test_every_path_it_claims_is_derived_exists(self):
         out = subprocess.run(["bash", str(REPO / "tools" / "regen_derived.sh"), "--paths"],

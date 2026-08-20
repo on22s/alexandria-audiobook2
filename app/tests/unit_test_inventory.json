@@ -442,7 +442,8 @@
     "tests.test_derived_file_hooks.InstallerTest.test_ready_installs_the_hooks",
     "tests.test_derived_file_hooks.InstallerTest.test_the_installer_sets_both_halves",
     "tests.test_derived_file_hooks.SingleSourceTest.test_every_path_it_claims_is_derived_exists",
-    "tests.test_derived_file_hooks.SingleSourceTest.test_regen_derived_reports_its_paths_and_interpreter",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_paths_works_without_an_interpreter",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_python_either_answers_or_fails_loudly",
     "tests.test_derived_file_hooks.SingleSourceTest.test_the_derived_list_lives_in_exactly_one_script"
   ],
   "test_deterministic_classification": [
