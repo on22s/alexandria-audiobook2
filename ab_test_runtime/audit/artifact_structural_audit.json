@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 211,
+    "supported_structure": 212,
     "exploratory": 191,
     "provisional": 122
   },
@@ -5477,6 +5477,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pdnc_context_audit.json",
+      "bytes": 2084,
+      "sha256": "8d3679b62e10e6b4098e5bb030efb52b7b02925b84719eea92047edba9976ca1",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T08:56:24",
+      "commit": "a4ae03c6336c4fab6cc9e20b05bb8a0e7996af3e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "pdnc_context_evidence__pilot__local-llamacpp.json",

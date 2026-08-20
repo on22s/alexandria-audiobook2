@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 524 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 525 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1026,6 +1026,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `nonprose_split_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `offbyone_turns.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `overnight_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full_summary.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

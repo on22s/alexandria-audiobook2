@@ -1,0 +1,108 @@
+{
+ "books": [
+  "PrideAndPrejudice",
+  "TheAwakening",
+  "TheSignOfTheFour"
+ ],
+ "by_window": {
+  "400": {
+   "Anaphoric": {
+    "quotes": 723,
+    "name_in_view": 443,
+    "pct": 61.3
+   },
+   "Explicit": {
+    "quotes": 543,
+    "name_in_view": 372,
+    "pct": 68.5
+   },
+   "Implicit": {
+    "quotes": 1228,
+    "name_in_view": 618,
+    "pct": 50.3
+   }
+  },
+  "800": {
+   "Anaphoric": {
+    "quotes": 723,
+    "name_in_view": 549,
+    "pct": 75.9
+   },
+   "Explicit": {
+    "quotes": 543,
+    "name_in_view": 454,
+    "pct": 83.6
+   },
+   "Implicit": {
+    "quotes": 1228,
+    "name_in_view": 884,
+    "pct": 72.0
+   }
+  },
+  "1600": {
+   "Anaphoric": {
+    "quotes": 723,
+    "name_in_view": 632,
+    "pct": 87.4
+   },
+   "Explicit": {
+    "quotes": 543,
+    "name_in_view": 508,
+    "pct": 93.6
+   },
+   "Implicit": {
+    "quotes": 1228,
+    "name_in_view": 1036,
+    "pct": 84.4
+   }
+  },
+  "3200": {
+   "Anaphoric": {
+    "quotes": 723,
+    "name_in_view": 682,
+    "pct": 94.3
+   },
+   "Explicit": {
+    "quotes": 543,
+    "name_in_view": 533,
+    "pct": 98.2
+   },
+   "Implicit": {
+    "quotes": 1228,
+    "name_in_view": 1097,
+    "pct": 89.3
+   }
+  }
+ },
+ "note": "Characters of novel text either side of the quote. PDNC defines an explicit quotation as one introduced by a named mention, so explicit should approach 100% once the window contains it.",
+ "provenance": {
+  "script": "pdnc_context_audit.py",
+  "written": "2026-08-20T08:56:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "a4ae03c6336c4fab6cc9e20b05bb8a0e7996af3e",
+   "branch": "agent/attribution-context-window-20260820",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/pdnc_context_audit.py"
+   ],
+   "harness_sha256": "e40b76fc6f7233311dbb9ee9d791bc98841fa7afa5ca6a7d312794c7cfe832ff"
+  },
+  "args": {
+   "pdnc": "data",
+   "books": [
+    "PrideAndPrejudice",
+    "TheAwakening",
+    "TheSignOfTheFour"
+   ],
+   "windows": [
+    400,
+    800,
+    1600,
+    3200
+   ],
+   "out": "ab_test_runtime/experiments/pdnc_context_audit.json"
+  }
+ }
+}
