@@ -1670,6 +1670,16 @@
     "tests.test_retrain_honest.RetrainResumeTests.test_resume_refuses_a_different_reference_strategy",
     "tests.test_retrain_honest.RetrainResumeTests.test_resume_restores_completed_adapter_records"
   ],
+  "test_retrofit_matcher": [
+    "tests.test_retrofit_matcher.LooseMatchTest.test_a_stripped_line_matches_its_quoted_source",
+    "tests.test_retrofit_matcher.LooseMatchTest.test_an_apostrophe_inside_a_word_is_preserved",
+    "tests.test_retrofit_matcher.LooseMatchTest.test_curly_and_corner_quotes_are_stripped_too",
+    "tests.test_retrofit_matcher.LooseMatchTest.test_whitespace_differences_do_not_break_a_match",
+    "tests.test_retrofit_matcher.SourceSelectionTest.test_a_book_with_no_matching_source_is_refused",
+    "tests.test_retrofit_matcher.SourceSelectionTest.test_short_lines_are_not_used_as_probes",
+    "tests.test_retrofit_matcher.SourceSelectionTest.test_the_right_source_wins_and_is_reported",
+    "tests.test_retrofit_matcher.SourceSelectionTest.test_two_equally_good_sources_are_refused"
+  ],
   "test_review_surfacing": [
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_a_mapped_glyph_is_not_flagged",
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_an_unmapped_symbol_is_collected",
@@ -1921,11 +1931,21 @@
   ],
   "test_speech_fact_preferred": [
     "tests.test_speech_fact_preferred.ClassifierFeatureTest.test_has_quote_prefers_the_record",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_catches_a_coverage_threshold",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_catches_a_membership_test",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_catches_a_precompiled_pattern",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_catches_startswith",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_catches_the_conditional_expression_shape",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_does_not_fire_on_a_path_or_prefix_check",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_does_not_fire_on_ordinary_string_handling",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_ignores_the_same_shape_inside_a_comment",
+    "tests.test_speech_fact_preferred.DetectorSelfTest.test_it_ignores_the_same_shape_inside_a_docstring",
     "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_repeated_line_is_still_excluded",
     "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_source_confirmed_line_is_eligible_though_the_model_said_narrator",
     "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_source_confirmed_narration_line_is_not_eligible",
     "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_an_unmapped_entry_still_uses_the_model_type",
     "tests.test_speech_fact_preferred.InventoryTest.test_every_speech_decider_consults_the_fact_or_is_listed",
+    "tests.test_speech_fact_preferred.InventoryTest.test_the_allow_list_has_no_stale_entries",
     "tests.test_speech_fact_preferred.MeasurabilityGateTest.test_mapped_book_without_quotes_is_measurable",
     "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_narration_line_labels_narration",
     "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_spoken_line_labels_speech_without_quotes",
