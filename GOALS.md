@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1893** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1927** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1341,6 +1341,40 @@ question, not this one's.
 **The target should no longer read "wire it in or delete it."** Neither arm
 dominates. The open question is whether the choice is per-book, and 5.3's
 two-book sample cannot answer that.
+
+#### THE EXPANDED TEST, QUEUED 2026-08-20
+
+The retrofitted answer above is on scripts generated 2026-08-09, which predate
+a fortnight of changes to both generators — near-miss repair, narrator hints,
+source speaker labels, the map itself. So it describes a pipeline that no
+longer exists, and it rests entirely on **four Japanese light novels from one
+person's library**, which is [[Rule 1.3]]'s standing complaint about this whole
+project's evidence base.
+
+`run_chains/dialogue_map_5_3_20260826.sh` re-runs both arms fresh on seven
+books: the three light novels, plus **four PDNC novels** — public domain, with
+quotation annotations published by other researchers, so the result is on
+record and checkable by someone who is not us. PDNC also carries **gold speaker
+labels**, which lets both axes be measured on one run: did the arm name anyone,
+and was that anyone right.
+
+**The four were chosen by PDNC's own quote types, not by feel.** Explicit
+quotations name the speaker beside the line and are the easy case:
+
+| novel | Explicit | Anaphoric | Implicit | quotes | characters |
+|---|---|---|---|---|---|
+| TheGambler | 12% | 50% | 39% | 767 | 27 |
+| TheSignOfTheFour | 13% | 36% | 51% | 640 | 35 |
+| TheMysteriousAffairAtStyles | 13% | 19% | 68% | 1861 | 30 |
+| AHandfulOfDust | 18% | 9% | **74%** | 2337 | **104** |
+
+`AHandfulOfDust` is the extreme on both axes at once — three quarters of its
+dialogue names nobody, across a cast of 104. `AlicesAdventuresInWonderland`, at
+82% Explicit, is deliberately excluded: it would flatter both arms.
+
+Cost, scaled from mushoku16's measured 75.5 min single / 39.7 min three-pass at
+0.29 MB: roughly **12–14 hours**. The public books run first, so a chain that
+dies overnight has still produced the evidence that is not already here.
 
 #### THE TEST AS ORIGINALLY QUEUED, 2026-08-20
 
