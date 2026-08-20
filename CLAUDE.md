@@ -261,31 +261,54 @@ and cost **an hour of idle GPU**.
 - This applies to the middle of a session, not just to overnight runs: the GPU
   queue is usually holding one of these files open.
 
-### Rule 26 — Generated-File Conflicts Have One Command
+### Rule 26 — Derived Files Are Never Merged; They Are Rebuilt
 
-Five pull requests came back CONFLICTING in a single morning on 2026-08-20, and
-every one of them conflicted on the same derived files: `RESULTS_INDEX.md`,
-`results_index.csv`, `ab_test_runtime/audit/*.json`, and GOALS.md's
-`met goals begin at line N` pointer. None was a disagreement about content. Any
-branch that regenerates an index conflicts with any other branch that
-regenerated it, because both rewrote the same lines.
+**Superseded the "one command" version on 2026-08-20.** One command was still a
+command someone had to remember, and the conflicts kept arriving. `git` now
+does it: `.gitattributes` marks every derived file `merge=ours`, so a merge
+takes this side instead of stopping, and the `post-merge` / `post-rewrite`
+hooks rebuild it from the merged tree and commit the result. Merging and
+rebasing a branch that touched an index now needs nothing typed at all.
 
-They cannot simply be untracked — [[Rule 6.3]] in GOALS.md requires the
-committed index to describe the committed artifacts — so the fix is to make
-resolving them one command instead of a five-command dance from memory:
+Run `./ready.sh` once in any new checkout or worktree — it installs both
+halves, which are **local git config and therefore not cloned**:
+`core.hooksPath=.githooks` and `merge.ours.driver=true`.
 
-```
-git merge origin/main        # conflicts, only in generated files
-./resolve_generated.sh       # regenerate, recompute the pointer, stage
-./ready.sh && git commit --no-edit
-```
+Three ways this failed silently while looking perfectly correct, all measured
+the day it was built, all now pinned by `app/tests/test_derived_file_hooks.py`:
 
-**It refuses when anything outside that set is conflicted**, and that refusal is
-the point. On the same day one branch moved goal 1.2 to Part II while another
+- **`.gitignore` line 8 is `.*`**, which swallowed `.gitattributes`. `git add
+  -A` reported nothing wrong, the file was never committed, and merges went on
+  conflicting with no visible cause. A `!.gitattributes` negation holds it open.
+- **Hooks inherit `GIT_DIR`** — and in a worktree, a `GIT_DIR` with no
+  `GIT_WORK_TREE` beside it, in which state `git rev-parse --show-toplevel`
+  *fails*. The helper exited on its first line behind a `|| exit 0` and printed
+  nothing. It now unsets the inherited git environment first.
+- **`MERGE_HEAD` still exists while `post-merge` runs.** A guard that skipped
+  "mid-operation" therefore disabled the hook on every merge — the safety check
+  reintroduced the exact failure it guarded. Test whether HEAD is a branch
+  instead; a rebase detaches it, which is the case that actually matters.
+
+Each produced a clean, quiet, successful merge carrying a stale index. **Verify
+this class of thing by the artifact — does the merged index name the artifact
+that was just merged in — never by the exit code** ([[Rule 20]]).
+
+A custom merge driver that regenerates cannot replace this scheme: git runs
+merge drivers *before* the other side's files reach the working tree, so it
+rebuilds from a tree missing exactly what is being merged.
+
+`./resolve_generated.sh` survives for what the hooks cannot reach — a checkout
+where nobody ran the installer, and `GOALS.md`, which carries real prose and so
+must never be given a merge driver.
+
+### Rule 26a — What `resolve_generated.sh` Still Refuses
+
+The fallback keeps one behaviour that the hooks do not have, and it is the
+important one: **it refuses when anything outside the derived set is
+conflicted.** On 2026-08-20 one branch moved goal 1.2 to Part II while another
 added evidence to it in Part I; regenerating would have silently discarded one
-side. A real conflict still needs reading.
-
-Two things it must keep doing, both learned by getting them wrong:
+side. A real conflict still needs reading. Two things it must keep doing, both
+learned by getting them wrong:
 
 - Operate on the repository you are **standing in** (`git rev-parse
   --show-toplevel`), not the one the script lives in. Taking it from `$0` made

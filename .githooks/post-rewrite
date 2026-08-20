@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Same job as post-merge, for the other path that reaches a merged tree.
+#
+# `git rebase` uses the merge machinery, so .gitattributes applies and the
+# derived file is kept from our side and goes stale - but post-merge does not
+# fire for a rebase. Without this hook, rebasing a branch onto a main that
+# added artifacts produces exactly the stale index CI has rejected five times.
+exec "$(git rev-parse --show-toplevel)/tools/regen_derived_commit.sh" "post-rewrite"

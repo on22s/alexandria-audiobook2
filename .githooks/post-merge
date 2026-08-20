@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+bash -x "$(pwd)/tools/regen_derived_commit.sh" post-merge 2>>/tmp/trace2
