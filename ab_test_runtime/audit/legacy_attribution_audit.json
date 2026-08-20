@@ -1,11 +1,11 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "88c000f107117ceb3e3bc94a30a5d3310874d23b0207b2a5abbf4b74e3f6ed01",
+  "source_structural_sha256": "a174533a934a2d95875fa3f020556ea573f624c35445dd976bb5e3658735a9ac",
   "summary": {
     "exploratory": 9,
     "historical_only": 40,
     "provisional": 21,
-    "supported_measurement": 51
+    "supported_measurement": 52
   },
   "artifacts": [
     {
@@ -1784,6 +1784,26 @@
     },
     {
       "artifact": "pdnc_sequence__pilot__local-llamacpp.json",
+      "family": "pdnc_sequence",
+      "rows": 1200,
+      "arms": [
+        "baseline",
+        "sequence"
+      ],
+      "classification": "supported_measurement",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": false,
+        "hash_changed": null,
+        "missing_rows": null,
+        "expected_changed_rows": null,
+        "correctness_changed_rows": null
+      },
+      "semantic_limit": "A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result."
+    },
+    {
+      "artifact": "pdnc_sequence__pilot__repeat2.json",
       "family": "pdnc_sequence",
       "rows": 1200,
       "arms": [

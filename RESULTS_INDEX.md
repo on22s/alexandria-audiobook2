@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-19 17:29 from `ab_test_runtime/experiments/` — 516 artifacts, 584 arms.
+Generated 2026-08-19 22:32 from `ab_test_runtime/experiments/` — 519 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -491,15 +491,25 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 64.2% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 60.0% | supported_measurement | ok | False | 823.6s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 61.7% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 55.0% | supported_measurement | ok | False | 823.6s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 823.6s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 63.3% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 
 ## pdnc_targeted_sequence
 
@@ -1061,6 +1071,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_earcheck.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_measure.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_measure_rescored.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_none_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_none_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

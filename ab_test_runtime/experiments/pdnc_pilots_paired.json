@@ -1,17 +1,6 @@
 {
  "pilots": [
   {
-   "artifact": "pdnc_evidence__pilot__local-llamacpp.json",
-   "completeness": "unknown",
-   "arm": "evidence",
-   "shared_rows": 600,
-   "baseline_accuracy": 0.585,
-   "arm_accuracy": 0.595,
-   "arm_only_wins": 31,
-   "baseline_only_wins": 25,
-   "p_value": 0.5044037600228366
-  },
-  {
    "artifact": "pdnc_sequence__pilot__local-llamacpp.json",
    "completeness": "unknown",
    "arm": "sequence",
@@ -21,70 +10,27 @@
    "arm_only_wins": 30,
    "baseline_only_wins": 16,
    "p_value": 0.05407603185886988
-  },
-  {
-   "artifact": "pdnc_context_evidence__pilot__local-llamacpp.json",
-   "completeness": "unknown",
-   "arm": "evidence",
-   "shared_rows": 600,
-   "baseline_accuracy": 0.5766666666666667,
-   "arm_accuracy": 0.585,
-   "arm_only_wins": 30,
-   "baseline_only_wins": 25,
-   "p_value": 0.5900533317766392
   }
  ],
- "baseline_noise_floor": [
-  {
-   "runs": [
-    "pdnc_context_evidence__pilot__local-llamacpp.json",
-    "pdnc_evidence__pilot__local-llamacpp.json"
-   ],
-   "shared_rows": 600,
-   "rows_disagreeing": 33,
-   "fraction": 0.055
-  },
-  {
-   "runs": [
-    "pdnc_context_evidence__pilot__local-llamacpp.json",
-    "pdnc_sequence__pilot__local-llamacpp.json"
-   ],
-   "shared_rows": 600,
-   "rows_disagreeing": 0,
-   "fraction": 0.0
-  },
-  {
-   "runs": [
-    "pdnc_evidence__pilot__local-llamacpp.json",
-    "pdnc_sequence__pilot__local-llamacpp.json"
-   ],
-   "shared_rows": 600,
-   "rows_disagreeing": 33,
-   "fraction": 0.055
-  }
- ],
+ "baseline_noise_floor": [],
  "read_inputs": {
-  "ab_test_runtime/experiments/pdnc_evidence__pilot__local-llamacpp.json": "a0e5526340724bd87509a5f1c482ebb40dcba3e69bcb181ad85d8db3e2b407aa",
-  "ab_test_runtime/experiments/pdnc_sequence__pilot__local-llamacpp.json": "a66e7150d1ff0dbf6a9770450e70077e79dad39ba06da378b1a1c94118aeed4c",
-  "ab_test_runtime/experiments/pdnc_context_evidence__pilot__local-llamacpp.json": "cd788b210b8676d939b0b70684c02a63cb98f62215b6b955fa606d157767a630"
+  "ab_test_runtime/experiments/pdnc_sequence__pilot__local-llamacpp.json": "a66e7150d1ff0dbf6a9770450e70077e79dad39ba06da378b1a1c94118aeed4c"
  },
  "provenance": {
   "script": "pair_pdnc_pilots.py",
-  "written": "2026-08-19T12:18:18",
+  "written": "2026-08-20T01:16:51",
   "host": "mitch-linux",
   "git": {
-   "commit": "c509cd2e40eaefac7ee0c9b74638e04e7c7a0950",
+   "commit": "47d59950f50cd698411b63489833fbaeb156fc92",
    "branch": "agent/pause-status-isolation-20260817",
    "dirty": false,
    "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "e880e5a5d67cff894c4acd3677a2c430cbe4db29a61d69a66fd346a4b7dd154f"
+   "harness_sha256": "cbdd71f0e542830792c44436fe9798a5fdb7b2da88c4d2860d70f6bd528a08c2"
   },
   "args": {
    "pilots": [
-    "pdnc_evidence",
-    "pdnc_sequence",
-    "pdnc_context_evidence"
+    "pdnc_sequence"
    ],
    "out": "ab_test_runtime/experiments/pdnc_pilots_paired.json"
   }

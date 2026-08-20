@@ -1,9 +1,9 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 204,
+    "supported_structure": 206,
     "exploratory": 191,
-    "provisional": 121
+    "provisional": 122
   },
   "artifacts": [
     {
@@ -5653,6 +5653,22 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "pdnc_sequence__pilot__repeat2.json",
+      "bytes": 1972932,
+      "sha256": "4804d48df96ff78f87efe5d250010c3bbf7afd6be2be73399d5f7d0685a3a4ef",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1200,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "d25c23245c2c53211cc54f22a975001f7f0558f3",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "pdnc_targeted_sequence__pilot__local-llamacpp.json",
       "bytes": 2794570,
       "sha256": "02b517ded7d17bb0a3a091cecf15caaf4c3a5918063dd60bdb153ee2abbc39be",
@@ -6450,6 +6466,38 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "respelling_none_allrows.json",
+      "bytes": 463490,
+      "sha256": "17d8dccd123a759ebabcc1a3b591e8ace1456723a495bebd5236250b7337b3f2",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 800,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-19T16:54:26",
+      "commit": "f7de4714c4d0d94bcaa162bea53b8a70ccfb188c",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "respelling_none_allrows_n1600.json",
+      "bytes": 920771,
+      "sha256": "ee06f9944f580d1a1ea6829cb1359a20bee9946a733ca1230c1647a68df4f69d",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 1600,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-19T20:30:08",
+      "commit": "ba96cf0ef8680258d4535defe39ff01b70218391",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "respelling_pauses.json",
