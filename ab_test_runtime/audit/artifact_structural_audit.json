@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 219,
+    "supported_structure": 220,
     "exploratory": 192,
     "provisional": 122
   },
@@ -7261,6 +7261,22 @@
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "script_text_fidelity.json",
+      "bytes": 3080,
+      "sha256": "db07e2fb2188d88f3d45929408cde83c51c2a71ed48ad9b1d852e1b0aaccaf71",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T15:04:48",
+      "commit": "b5404965adf450d27d60446039a9096f70b6a93f",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "seed_instruction_controls.json",

@@ -1794,6 +1794,19 @@
     "tests.test_script_preflight.ScriptPreflightTests.test_speaker_review_only_suggests_strong_third_person_case",
     "tests.test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
   ],
+  "test_script_text_fidelity": [
+    "tests.test_script_text_fidelity.FidelityProbeTest.test_a_book_with_only_one_arm_reports_no_delta",
+    "tests.test_script_text_fidelity.FidelityProbeTest.test_dash_class_covers_the_unicode_dashes",
+    "tests.test_script_text_fidelity.FidelityProbeTest.test_it_counts_every_quote_style_the_books_use",
+    "tests.test_script_text_fidelity.FidelityProbeTest.test_it_does_not_call_an_apostrophe_a_quote",
+    "tests.test_script_text_fidelity.NormTextBlindnessTest.test_a_quoted_line_and_its_stripped_form_are_the_same_key",
+    "tests.test_script_text_fidelity.NormTextBlindnessTest.test_it_still_separates_genuinely_different_lines",
+    "tests.test_script_text_fidelity.NormTextBlindnessTest.test_smart_and_straight_quotes_are_the_same_key",
+    "tests.test_script_text_fidelity.NormTextBlindnessTest.test_underscores_and_dashes_are_invisible_to_it",
+    "tests.test_script_text_fidelity.SpeechBoundaryTest.test_a_hyphen_is_left_alone",
+    "tests.test_script_text_fidelity.SpeechBoundaryTest.test_an_underscore_becomes_a_sentence_break_not_a_deletion",
+    "tests.test_script_text_fidelity.SpeechBoundaryTest.test_quotes_reach_the_engine"
+  ],
   "test_seed_instruction_controls": [
     "tests.test_seed_instruction_controls.TestSeedInstructionControls.test_provenance_import_resolves_from_documented_app_working_directory",
     "tests.test_seed_instruction_controls.TestSeedInstructionControls.test_wav_info_hashes_bytes_and_reports_duration"

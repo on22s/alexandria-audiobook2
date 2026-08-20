@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1714** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1768** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1192,6 +1192,60 @@ spans become UNKNOWN) it completed all 3929 entries in 63 minutes.
 
 **Scope:** two Japanese light novels in translation. Goal 1.3 established that
 this is the project's narrowest evidence base, and nothing here escapes it.
+
+#### REOPENED 2026-08-20: the comparison could not see what the arms do to the text
+
+The accuracy figures above are sound. What they are computed on is narrower
+than the verdict drawn from them. `three_pass_vs_single.norm_text` is
+
+```python
+re.sub(r"[^0-9a-z]+", "", text.lower())
+```
+
+— every quote, underscore, dash and apostrophe deleted before the two arms are
+paired. That is the *right* way to match two different segmentations of one
+book, and it is why the comparison works at all. But it makes the metric
+**structurally blind** to any change in those characters, and three-pass makes
+exactly such a change on purpose: on a fully-quoted line it takes `text[1:-1]`
+and logs `stripped_dialogue_delimiters`.
+
+Measured over the very artifacts this verdict was computed from
+(`script_text_fidelity.json`), it does not strip *some* quotes. It strips all:
+
+| book | single: entries with a quote | three-pass |
+|---|---|---|
+| index18 | 460 of 3832 | **0 of 2479** |
+| mushoku16 | 657 of 4044 | **0 of 2056** |
+| owarimonogatari3 | 1033 of 4701 | **0 of 3929** |
+
+**2,150 entries differ between the arms in a way the comparison could not
+report.**
+
+**Whether that matters was also assumed, so it was measured at the speech
+boundary** — `normalize_for_speech` is what the engine actually receives:
+
+- **`"` survives to the engine.** It is not in `SPEECH_BREAKS`. So single-pass
+  sends quote characters to TTS and three-pass sends none: a difference in what
+  gets synthesised, not only in what is readable on the page.
+- **`_` is removed and replaced by a sentence break.** `He said _hello_
+  softly.` reaches the engine as `He said. hello. softly.` — three sentences
+  where the author wrote one. This happens for **both** arms, so it is not a
+  difference between them; it is a separate finding about emphasis markup
+  becoming prosody. It is also rare in this corpus: one entry in three books.
+- **`-` survives unchanged**, and is neither a differentiator nor altered.
+
+**What this changes about the target.** "Wire it in or delete it" was to be
+decided on accuracy alone. Accuracy still favours single-pass by 5.2 and 17.5
+points and nothing here softens that. But the deletion case is now *stronger
+and better founded* than the goal recorded — three-pass also destroys the
+dialogue delimiters that reach the voice engine — while the comparison that
+produced the verdict remains unable to say so on its own. The blindness is
+pinned by `test_script_text_fidelity.py` rather than fixed, because fixing it
+would break the pairing; the tests exist so the next reader of 5.3 finds a
+statement of what it does not measure.
+
+**Still not measured:** whether a listener can hear the difference between a
+quote reaching the engine and not. That is 7.1's question and needs ears.
 
 **Target — one clean comparison, then wire it in or delete it.**
 
