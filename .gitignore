@@ -218,3 +218,15 @@ ab_test_runtime/blinded_listening_concealed_key.json
 # word statistics and are committed; this is the working file.
 ab_test_runtime/lexicon_scan/
 ab_test_runtime/logs/dirty_patches/
+# THE QUEUE'S OWN RUNTIME STATE. `alexandria_gpu.lock` is the file gpu_job.sh
+# holds an flock on, and `gpu_jobq.log` is appended to by every job as it runs.
+# A `git add -A` from a worktree swept both into a commit on 2026-08-20, and
+# pulling that commit into the live checkout would have replaced the lock
+# file's INODE while a job held it - the running job keeps its flock on the old
+# inode, a new job takes a fresh one on the new file, and two jobs land on the
+# card at once. That is the VRAM-OOM the lock exists to prevent, arriving
+# through version control.
+ab_test_runtime/logs/*.log
+ab_test_runtime/logs/*.lock
+ab_test_runtime/logs/*/
+!ab_test_runtime/logs/dirty_patches/
