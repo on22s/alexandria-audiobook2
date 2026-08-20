@@ -772,6 +772,7 @@ respelling_pauses_separators.json,supported_structure,none,no,,58d548bd,,,,,,,,,
 respelling_pauses_separators_3arm.json,supported_structure,none,no,,f7de4714,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_rule_b.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 respelling_rule_b_rescored.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+respelling_selectivity.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_separator__dot.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_separator__none.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_separator__none_n400.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -905,6 +906,7 @@ two_stage_attribution_full.json,historical_only,git+naming,no,two_stage_attribut
 two_stage_attribution_full.json,historical_only,git+naming,no,two_stage_attribution.py,bbf61818,,,two_stage_attribution,attribution_gold_pdnc_thesignofthefour,qwen3-14b,local-lmstudio,mitch-linux,lmstudio,32768,1,f16?,single,640,324,50.6,ok,False,70670ef6,718.1,08-19 13:19,http://127.0.0.1:8090/v1,
 two_stage_diagnostic.json,supported_structure,none,no,,6a3f6698,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 two_stage_diagnostic2.json,supported_structure,none,no,,fba8b1ad,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+two_stage_selection_gap.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 validation_baseline.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 validation_manifest.json,exploratory,none,no,,6cccebc0,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
 validation_smoke.json,exploratory,none,no,,568f558f,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms

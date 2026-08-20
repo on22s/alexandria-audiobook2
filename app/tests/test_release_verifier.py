@@ -262,8 +262,14 @@ class ReleaseVerifierTests(unittest.TestCase):
 
         self.assertEqual("passed", report["status"])
         self.assertEqual("quick", report["mode"])
+        # The three evidence-index gates sit between unit_tests and
+        # api_contract, matching the order CI runs them in. They were added
+        # after "verifier green" was followed by a red CI three times in two
+        # days, every time on an index that had not been regenerated.
         self.assertEqual(
-            ["compile_python", "test_inventory", "unit_tests", "api_contract", "api_tests"],
+            ["compile_python", "test_inventory", "unit_tests",
+             "evidence_index", "legacy_audit", "results_index",
+             "api_contract", "api_tests"],
             [gate["name"] for gate in report["gates"]],
         )
         self.assertEqual(api_result, report["gates"][-1]["result"])
