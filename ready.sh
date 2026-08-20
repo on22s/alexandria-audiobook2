@@ -13,32 +13,26 @@
 #
 # It regenerates rather than only checking, deliberately: a check tells you the
 # index is stale, and the next thing anyone types is the regenerate command.
+#
+# It also INSTALLS the git hooks, which is what stopped this being a thing to
+# remember at all: merges and rebases now rebuild these files by themselves,
+# and this script became the safety net rather than the mechanism.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-# THE VENV LIVES IN THE MAIN CHECKOUT, and Rule 24 says development happens in
-# a worktree - which has no app/env, because it is not tracked. Falling back to
-# a bare python3 gets a ModuleNotFoundError for fastapi halfway through the
-# suite, which looks like a broken branch and is not. Ask git where the main
-# checkout is and borrow its interpreter.
-python="$REPO/app/env/bin/python"
-if [ ! -x "$python" ]; then
-    main_checkout=$(git -C "$REPO" worktree list --porcelain 2>/dev/null \
-                    | awk '/^worktree /{print $2; exit}')
-    [ -n "${main_checkout:-}" ] && python="$main_checkout/app/env/bin/python"
-fi
-[ -x "$python" ] || { echo "no interpreter: looked for app/env/bin/python here "\
-                           "and in the main checkout" >&2; exit 1; }
-echo "interpreter: $python"
+# HOOKS FIRST. The derived-file hooks and the merge driver they need are LOCAL
+# git config, so a fresh checkout or a new worktree does not have them and the
+# conflicts come straight back. Installing here is idempotent and means the
+# habit that already exists - run ./ready.sh - is the whole setup.
+"$REPO/tools/install_git_hooks.sh" >/dev/null 2>&1 || \
+    echo "   (could not enable git hooks; run tools/install_git_hooks.sh)" >&2
 
 echo "== regenerating what CI checks =="
-"$python" "$REPO/app/update_test_inventory.py" >/dev/null || exit 1
-echo "   unit test inventory"
-for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
-    ( cd "$REPO" && "$python" "$REPO/$script.py" >/dev/null 2>&1 ) || {
-        echo "   $script FAILED to regenerate" >&2; exit 1; }
-    echo "   $script"
-done
+# ONE COPY of the list and the commands, in tools/regen_derived.sh. This script,
+# resolve_generated.sh and both hooks all call it; four hand-maintained copies
+# of "which files are derived" is exactly the drift Rule 15 is about.
+"$REPO/tools/regen_derived.sh" || exit 1
+python="$("$REPO/tools/regen_derived.sh" --python)"
 
 echo
 echo "== is what CI checks actually current? =="

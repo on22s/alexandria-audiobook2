@@ -6,6 +6,11 @@ app/env/
 preparer_env/
 .env
 .*
+# `.*` above hides EVERY dotfile, .gitattributes included. That is not a
+# theoretical hazard: it silently swallowed .gitattributes on 2026-08-20,
+# `git add -A` reported nothing wrong, and the merge driver it configures
+# was simply absent - merges kept conflicting with no visible reason why.
+!.gitattributes
 !.github/
 !.gitignore
 !.dockerignore

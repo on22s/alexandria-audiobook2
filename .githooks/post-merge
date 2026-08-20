@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Rebuild derived files after a merge, and commit them if they moved.
+#
+# THIS IS THE OTHER HALF OF .gitattributes. `merge=ours` stops the meaningless
+# conflict by keeping our side, which is by definition the stale side - the
+# merged tree now holds artifacts our index has never seen. Without this hook
+# the merge would complete quietly with an index that disagrees with the
+# artifacts beside it, which is worse than the conflict it replaced.
+#
+# A separate commit rather than an amend: amending a merge commit from inside a
+# hook is fragile, and a commit that says what it did is easier to read in a
+# pull request than a merge that silently grew extra content.
+exec "$(git rev-parse --show-toplevel)/tools/regen_derived_commit.sh" "post-merge"

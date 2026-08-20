@@ -13,6 +13,12 @@
 # them, it is to make resolving them a single command instead of a five-command
 # dance done from memory at the end of a long session.
 #
+# MOSTLY OBSOLETE SINCE 2026-08-20. .gitattributes now marks these files
+# merge=ours and the post-merge/post-rewrite hooks rebuild them, so an ordinary
+# merge no longer conflicts on them at all. This stays for the cases the hooks
+# cannot reach: a checkout where tools/install_git_hooks.sh was never run, and
+# GOALS.md, which carries real prose and so cannot be given a merge driver.
+#
 # It REFUSES if anything outside the generated set is conflicted, because those
 # are real disagreements and resolving them by regeneration would silently
 # discard one side. That happened for real on 2026-08-20: one branch moved goal
@@ -53,7 +59,7 @@ fi
 
 if [ "$goals_only_pointer" = 1 ]; then
     echo "resolving GOALS.md's line pointer (recomputed below)"
-    "$python" - "$REPO/GOALS.md" <<'PYEOF'
+    "$("$REPO/tools/regen_derived.sh" --python)" - "$REPO/GOALS.md" <<'PYEOF'
 import re, sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
@@ -63,34 +69,14 @@ open(path, "w", encoding="utf-8").write(text)
 PYEOF
 fi
 
-# Only needed now. The refusal above must work in any checkout,
-# including one with no venv - otherwise a real conflict exits
-# with 'no interpreter found', which is the wrong reason.
-python="$REPO/app/env/bin/python"
-if [ ! -x "$python" ]; then
-    main_checkout=$(git -C "$REPO" worktree list --porcelain 2>/dev/null \
-                    | awk '/^worktree /{print $2; exit}')
-    [ -n "${main_checkout:-}" ] && python="$main_checkout/app/env/bin/python"
-fi
-[ -x "$python" ] || { echo "no interpreter found" >&2; exit 1; }
-
+# Only needed now. The refusal above must work in any checkout, including one
+# with no venv - otherwise a real conflict exits with "no interpreter found",
+# which is the wrong reason.
 echo "regenerating"
-for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
-    ( cd "$REPO" && "$python" "$REPO/$script.py" >/dev/null 2>&1 ) \
-        || { echo "   $script failed" >&2; exit 1; }
-    echo "   $script"
-done
-( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null 2>&1 ) || true
-echo "   unit test inventory"
+"$REPO/tools/regen_derived.sh" || exit 1
 
-if [ -f "$REPO/GOALS.md" ]; then
-    line=$(grep -n '^# Part II' "$REPO/GOALS.md" | cut -d: -f1)
-    [ -n "${line:-}" ] && sed -i "30s/met goals begin at line [0-9]*/met goals begin at line $line/" "$REPO/GOALS.md"
-fi
-
-git -C "$REPO" add RESULTS_INDEX.md results_index.csv \
-    LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md ab_test_runtime/audit \
-    app/tests/unit_test_inventory.json GOALS.md 2>/dev/null || true
+# shellcheck disable=SC2046
+git -C "$REPO" add -- $("$REPO/tools/regen_derived.sh" --paths) 2>/dev/null || true
 
 still=$(git -C "$REPO" diff --name-only --diff-filter=U)
 if [ -n "$still" ]; then

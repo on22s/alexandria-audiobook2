@@ -1,0 +1,24 @@
+# DERIVED FILES ARE NEVER MERGED TEXTUALLY.
+#
+# Each of these is rebuilt from other committed content by
+# tools/regen_derived.sh. Two branches that each regenerate one rewrite the
+# same aggregate lines - "531 artifacts, 594 arms", a summary block, a
+# source_structural_sha256 - so ANY pair of such branches conflicts, every
+# time, on lines that carry no information. That cost five CI failures and
+# repeated manual resolution in two days.
+#
+# `merge=ours` takes this side without conflicting; the post-merge and
+# post-rewrite hooks then rebuild the file from the merged tree, which is the
+# only correct content. BOTH HALVES ARE REQUIRED. Without the driver git stops
+# on a meaningless conflict; without the hooks the merge silently keeps a stale
+# file, which is worse. Install both with tools/install_git_hooks.sh.
+#
+# A custom merge driver that regenerates cannot replace this. Measured
+# 2026-08-20: git runs merge drivers BEFORE the other side's files reach the
+# working tree, so the driver rebuilt from a tree missing the very artifacts
+# being merged and produced an index silently short one entry.
+RESULTS_INDEX.md                                merge=ours
+results_index.csv                               merge=ours
+LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md          merge=ours
+ab_test_runtime/audit/*.json                    merge=ours
+app/tests/unit_test_inventory.json              merge=ours
