@@ -427,6 +427,25 @@
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
   ],
+  "test_derived_file_hooks": [
+    "tests.test_derived_file_hooks.GitAttributesTest.test_every_derived_file_is_marked_merge_ours",
+    "tests.test_derived_file_hooks.GitAttributesTest.test_gitattributes_is_actually_tracked",
+    "tests.test_derived_file_hooks.GitAttributesTest.test_gitattributes_is_not_swallowed_by_the_dotfile_ignore_rule",
+    "tests.test_derived_file_hooks.HookHelperTest.test_it_commits_with_plumbing_not_git_commit",
+    "tests.test_derived_file_hooks.HookHelperTest.test_it_does_not_bail_out_on_merge_head",
+    "tests.test_derived_file_hooks.HookHelperTest.test_it_drops_the_inherited_git_environment",
+    "tests.test_derived_file_hooks.HookHelperTest.test_it_is_guarded_against_re_entry",
+    "tests.test_derived_file_hooks.HookHelperTest.test_it_refuses_when_unrelated_changes_are_staged",
+    "tests.test_derived_file_hooks.InheritedGitEnvironmentTest.test_regen_derived_unsets_it_before_running_git",
+    "tests.test_derived_file_hooks.InheritedGitEnvironmentTest.test_the_merge_helper_unsets_it_too",
+    "tests.test_derived_file_hooks.InheritedGitEnvironmentTest.test_the_pre_commit_hook_unsets_it_too",
+    "tests.test_derived_file_hooks.InstallerTest.test_ready_installs_the_hooks",
+    "tests.test_derived_file_hooks.InstallerTest.test_the_installer_sets_both_halves",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_every_path_it_claims_is_derived_exists",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_paths_works_without_an_interpreter",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_python_either_answers_or_fails_loudly",
+    "tests.test_derived_file_hooks.SingleSourceTest.test_the_derived_list_lives_in_exactly_one_script"
+  ],
   "test_deterministic_classification": [
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_config_can_still_override",
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_instruct_still_samples",

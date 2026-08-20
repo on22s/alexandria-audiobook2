@@ -1,13 +1,42 @@
 #!/usr/bin/env bash
-# Opt-in snapshot guard. Enable with:  git config core.hooksPath .githooks
+# Enable with: tools/install_git_hooks.sh  (or just run ./ready.sh once)
 #
-# Regenerate-checks the API-contract and unit-test-inventory snapshots so drift
-# is caught at commit time instead of surfacing later as a release-verifier
-# failure. Best-effort: if the app venv isn't present it skips rather than
-# blocking the commit.
+# Two jobs. The snapshot CHECKS below refuse a commit whose API contract or
+# unit-test inventory has drifted - those are tripwires and a human should see
+# them. The derived-file REGENERATION above them is not a tripwire: those files
+# are rebuilt from committed content and there is never a reason to commit a
+# stale one, so the hook rebuilds and stages them rather than complaining.
+#
+# Best-effort by design: if the app venv is not reachable the hook skips rather
+# than blocking a commit. CI still checks all of it.
 set -e
+# See tools/regen_derived.sh for why: the git environment a hook inherits makes
+# `git ls-files` return nothing, and the inventory check below then passes over
+# a file it should have rejected.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(git rev-parse --show-toplevel)"
+
+# The regeneration takes ~9s, which is too much to spend on every commit. Only
+# these inputs can move a derived file, so only they trigger it. The gate is
+# deliberately generous - ready.sh and CI both still check, so a miss here
+# costs a moment, while regenerating on every one-line fix costs it always.
+staged=$(git diff --cached --name-only)
+if printf '%s\n' "$staged" | grep -qE '^(ab_test_runtime/(experiments|audit)/|app/tests/test.*\.py$|GOALS\.md$|(audit_experiment_artifacts|audit_legacy_attribution|collect_results)\.py$|app/update_test_inventory\.py$|app/tests/test_inventory\.py$)'; then
+  if "$ROOT/tools/regen_derived.sh" --quiet; then
+    # shellcheck disable=SC2046
+    git add -- $("$ROOT/tools/regen_derived.sh" --paths) 2>/dev/null || true
+    echo "pre-commit: rebuilt and staged derived files"
+  else
+    echo "pre-commit: could not regenerate derived files; CI will check them" >&2
+  fi
+fi
+
 PY="$ROOT/app/env/bin/python"
+if [ ! -x "$PY" ]; then
+  main_checkout=$(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
+                  | awk '/^worktree /{print $2; exit}')
+  [ -n "${main_checkout:-}" ] && PY="$main_checkout/app/env/bin/python"
+fi
 if [ ! -x "$PY" ]; then
   echo "pre-commit: app/env interpreter not found; skipping snapshot checks." >&2
   exit 0
