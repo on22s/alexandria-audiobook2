@@ -1,0 +1,857 @@
+{
+ "status": "complete",
+ "candidates_considered": 29,
+ "spoken_line_threshold": 0.85,
+ "results": [
+  {
+   "book": "Arc 1 - Volume 1_2",
+   "entries": 2386,
+   "measurable": true,
+   "spoken_lines": 859,
+   "left_with_narrator": 13,
+   "rate": 0.0151,
+   "straight_quoted_only": {
+    "spoken_lines": 837,
+    "left_with_narrator": 8,
+    "rate": 0.0096,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“If it’s Felt you’re looking for, whatever she stole is probably sitting in the loot cellar. She usually takes things th",
+    "“The reason he’s the master is because people trust him not to do that. But, well, even if you go up and tell him it’s s",
+    "All right, I’ve had it with you idiots!",
+    "“…I’m not sure how I feel about you saying that so plain and clear, but no matter what you say or do, I don’t have anyth",
+    "When that happens I’ll be sure to open up a window for you, so I want you to use that opportunity to run out of here as ",
+    "This conversation we just had, it didn’t happen! I just remembered the reason I’m here. Just leave it to me, damn it! I’",
+    "“I’m going to blow you away and we’re going to have ourselves a happy ending. You don’t belong here, so scram!”",
+    "“That’s enough.”",
+    "Reinhard! She’s got another blade!",
+    "What is with you, all of a sudden? The way you’re flailing about like that is really lame.",
+    "Enough already…!",
+    "This doesn’t look good. Even I can see what’s coming next."
+   ]
+  },
+  {
+   "book": "Arc 1 - Volume 1_3",
+   "entries": 3388,
+   "measurable": true,
+   "spoken_lines": 1266,
+   "left_with_narrator": 22,
+   "rate": 0.0174,
+   "straight_quoted_only": {
+    "spoken_lines": 1257,
+    "left_with_narrator": 20,
+    "rate": 0.0159,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Don’t get any ideas about this.",
+    "Still, even though you act like a jerk sometimes, it was because of you that we were able to keep that little girl from ",
+    "All right, I’ve had it with you idiots!",
+    "“I understand that old man being here, but who is this?”",
+    "A metia…",
+    "Then should I head to the loot cellar? If Satella and Felt are alive, then Rom must be…",
+    "No. Now’s not the time. I can’t waste time thinking. Right now I’ve got to…",
+    "As someone who did kendo in middle school, even if I take a wrong turn off the road when it comes to life, I can’t let m",
+    "That’s enough.",
+    "Loot cellar?",
+    "Are you going?",
+    "I think so. If you just give my name, they’ll know where to find me. I’d love to see you again, so stop by for any reaso"
+   ]
+  },
+  {
+   "book": "Arc 1 - Volume 1_4",
+   "entries": 3356,
+   "measurable": true,
+   "spoken_lines": 1258,
+   "left_with_narrator": 15,
+   "rate": 0.0119,
+   "straight_quoted_only": {
+    "spoken_lines": 1253,
+    "left_with_narrator": 11,
+    "rate": 0.0088,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“…”",
+    "…”",
+    "The way you disappear kind of looks like you’re dying.”",
+    "“If it’s Felt you’re looking for, whatever she stole is probably sitting in the loot cellar. She usually takes things th",
+    "“The reason he’s the master is because people trust him not to do that. But, well, even if you go up and tell him it’s s",
+    "“You two look closer than I thought you would be. I’m getting lonely over here all by myself.”",
+    "“Take that!”",
+    "Oh come on! It’s not that bad. Just who do you think you are, kid, belittling my place?”",
+    "…!",
+    "he said to Felt. \"I was desperate there, so if I accidentally touched somewhere I shouldn’t have, please forgive me, oka",
+    "Someone! Anyone!",
+    "Understood. I’ll help you."
+   ]
+  },
+  {
+   "book": "Arc 1 - Volume 1",
+   "entries": 3385,
+   "measurable": true,
+   "spoken_lines": 1259,
+   "left_with_narrator": 25,
+   "rate": 0.0199,
+   "straight_quoted_only": {
+    "spoken_lines": 1237,
+    "left_with_narrator": 21,
+    "rate": 0.017,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "I’m a high school dropout now.",
+    "“…”",
+    "…”",
+    "The way you disappear kind of looks like you’re dying.",
+    "That’s terrible! But leave it to me! I won’t let any dangerous guys near her after you disappear!",
+    "“It’s small, but there is a jewel embedded in its center. I don’t know how much money that someone might buy it for, but",
+    "All right, I’ve had it with you idiots!",
+    "“Plus, ‘around her age’?… Although I suppose from your perspective everyone else looks like they’re in the same age grou",
+    "There’s no greater embarrassment for a swordsman than getting stabbed in the back.",
+    "…!",
+    "That girl over there was running frantically down the street, where she asked me for help. The only reason I was able to",
+    "This doesn’t look good. Even I can see what’s coming next.”"
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 2_2",
+   "entries": 2563,
+   "measurable": true,
+   "spoken_lines": 1149,
+   "left_with_narrator": 6,
+   "rate": 0.0052,
+   "straight_quoted_only": {
+    "spoken_lines": 1144,
+    "left_with_narrator": 6,
+    "rate": 0.0052,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "That’s right. Most are classified as lesser or greater spirits…though a lot are outside of those categories.",
+    "So then, how was Subaru after all that?",
+    "But if I died, how did I die? Everything was normal before I slept during the fourth night. At any rate, it didn’t feel ",
+    "Damn, that was all over the map. Damn that Roswaal, working me up and down like that like I’m on Buddha’s palm!",
+    "The theory that she killed me is getting more and more convincing…",
+    "…The way you put that makes this feel really naughty somehow…"
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 2_3",
+   "entries": 3912,
+   "measurable": true,
+   "spoken_lines": 1628,
+   "left_with_narrator": 19,
+   "rate": 0.0117,
+   "straight_quoted_only": {
+    "spoken_lines": 1585,
+    "left_with_narrator": 10,
+    "rate": 0.0063,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "So, she dumped us.",
+    "That’s right. Most are classified as lesser or greater spirits…though a lot are outside of those categories.",
+    "A ceremonial pact with a spirit—forging a covenant.",
+    "—Don’t. Seriously. I’m begging you.",
+    "“Your concern is the dictionary definition of none of your business. And it’s still my turn to ask questions.”",
+    "Ram addressed Subaru: “You have now toured nearly all the manor. All that remains are the gardens outside the buildings ",
+    "“I feel sorry for the farmer who grew those vegetables.”",
+    "So then, how was Subaru after all that?",
+    "But if I died, how did I die? Everything was normal before I slept during the fourth night.",
+    "You seeee, there is a fire-attuned magic crystal under the bathtub that heats it.",
+    "Now then, Butler Subaru. Work hard come tomorrow. Rewards come only to children who work hard for them.",
+    "Guess that’s another world’s culture for you. Maybe I should bring in fairy tales from my own homeland, too, like ‘The C"
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 2",
+   "entries": 3910,
+   "measurable": true,
+   "spoken_lines": 1617,
+   "left_with_narrator": 24,
+   "rate": 0.0148,
+   "straight_quoted_only": {
+    "spoken_lines": 1572,
+    "left_with_narrator": 16,
+    "rate": 0.0102,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "—Don’t. Seriously. I’m begging you.",
+    "Now wait a…",
+    "That is wonderful!",
+    "You have now toured nearly all the manor. All that remains are the gardens outside the buildings and the front yard betw",
+    "“Well, the expensive stuff is really stifling, so this is A-OK…”",
+    "“Man, they worked me to the bone. Work’s hard work. I seriously get why Dad and they are so awesome in the working world",
+    "So then, how was Subaru after all that?",
+    "“You do have a point.”",
+    "You really are exceptional in only one area.",
+    "“But if I died, how did I die? Everything was normal before I slept during the fourth night. At any rate, it didn’t feel",
+    "“My goodness.”",
+    "And there, another splendid moment completely wasted… Are you finished studying?"
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 3_2",
+   "entries": 2726,
+   "measurable": true,
+   "spoken_lines": 869,
+   "left_with_narrator": 13,
+   "rate": 0.015,
+   "straight_quoted_only": {
+    "spoken_lines": 843,
+    "left_with_narrator": 5,
+    "rate": 0.0059,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "There, all done.",
+    "“Sister, Sister. The lout known as Subaru has come.”",
+    "“I’m back to a route with all the girls looking down on me again… I’ve got some deep karma here.”",
+    "“Anyway, I’m sorry about being pathetic yesterday and annoying the day before… Well, a lot happened, but I’ve had a comp",
+    "“The children are safe and are returning to the village. I see your efforts to buy time have gone well.”",
+    "“—Hah!”",
+    "—!",
+    "—Subaru!",
+    "—!!",
+    "Roswaal also calmed the agitated villagers in person. Things have mostly returned to peace and quiet.",
+    "“I am powerless, talentless, and a reject of the demon race. That is why I could never live up to Sister. I was so slow-",
+    "“Sister did everything better. Sister never blundered. Sister never wavered. Sister was right about everything. Sister… "
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 3_3",
+   "entries": 4111,
+   "measurable": true,
+   "spoken_lines": 1385,
+   "left_with_narrator": 22,
+   "rate": 0.0159,
+   "straight_quoted_only": {
+    "spoken_lines": 1278,
+    "left_with_narrator": 8,
+    "rate": 0.0063,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“Sister, Sister. The lout known as Subaru has come.”",
+    "“I’m back to a route with all the girls looking down on me again… I’ve got some deep karma here.”",
+    "“It was the lap pillow.”",
+    "Well, this is all for my happiness. You’ll cooperate a little longer, won’t you?",
+    "“Damn it all!”",
+    "“The children are safe and are returning to the village. I see your efforts to buy time have gone well.”",
+    "“Rem, look o—!”",
+    "“—Hah!”",
+    "“Are those appropriate words to speak to a girl, Subaru?”",
+    "“There are too many of them. Alone, they can overcome me with numbers.”",
+    "—!",
+    "I wonder about that."
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 3_4",
+   "entries": 4121,
+   "measurable": true,
+   "spoken_lines": 1356,
+   "left_with_narrator": 15,
+   "rate": 0.0111,
+   "straight_quoted_only": {
+    "spoken_lines": 1327,
+    "left_with_narrator": 11,
+    "rate": 0.0083,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "…Is that what a person says when entering someone’s room late at night, I wonder?",
+    "Sister, Sister. The lout known as Subaru has come.",
+    "Rem, Rem. The wage thief named Barusu has appeared.",
+    "Sister, Sister. It seems Subaru is quite the pervert.",
+    "Rem, Rem. Subaru is a masochist who likes being degraded.",
+    "“It was the lap pillow.”",
+    "“Don’t tell me everyone knows?! That’s so embarrassing!”",
+    "“The children are safe and are returning to the village. I see your efforts to buy time have gone well.”",
+    "“—Hah!”",
+    "If you were in her shoes, what would you do, I wonder?",
+    "All I did was present possibilities. Puckie and I do not have sufficient reason to act. Our choices are limited, I wonde",
+    "—!"
+   ]
+  },
+  {
+   "book": "Arc 2 - Volume 3",
+   "entries": 4066,
+   "measurable": true,
+   "spoken_lines": 1381,
+   "left_with_narrator": 33,
+   "rate": 0.0239,
+   "straight_quoted_only": {
+    "spoken_lines": 1359,
+    "left_with_narrator": 12,
+    "rate": 0.0088,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "…Is that what a person says when entering someone’s room late at night, I wonder?",
+    "“I don’t understand your meaning, but I do sense that you are mocking me.”",
+    "“…If you know that much, you do not need to hear it from my lips, do you?”",
+    "Rem, Rem. The wage thief named Barusu has appeared.",
+    "I figured this was coming…",
+    "“—,”",
+    "“—,”",
+    "“…It’s a golden opportunity… What to do…?”",
+    "“…I’m so glad.”",
+    "“—,”",
+    "“…This is, uh…not what I had in mind here.”",
+    "“…You used this girl as a decoy and waited for her to lure me out…?”"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 4_2",
+   "entries": 2470,
+   "measurable": true,
+   "spoken_lines": 1149,
+   "left_with_narrator": 52,
+   "rate": 0.0453,
+   "straight_quoted_only": {
+    "spoken_lines": 1095,
+    "left_with_narrator": 34,
+    "rate": 0.0311,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "……",
+    "“Meow, meow?”",
+    "“Hey, Grandpa Wil. Sorry to make you wait outside like that. It was boring, meow?”",
+    "“Fumyu?”",
+    "“Don’t move. It’s time for a little inspection.”",
+    "“Nom!”",
+    "………",
+    "You, of course, protected Lady Emilia from a wicked blade, but you also made virtuous choices in other areas as well.",
+    "Mmmm… Very well, please do.",
+    "Any kingdom lacking a king is in crisis, but it is an especially grave matter for the Dragonfriend Kingdom of Lugunica, ",
+    "The kingdom’s relationship with the Dragon began several centuries prior.",
+    "The king of that time, His Highness, Falseil Lugunica, and Holy Dragon Volcanica formed a covenant between them."
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 4_3",
+   "entries": 3824,
+   "measurable": true,
+   "spoken_lines": 1742,
+   "left_with_narrator": 45,
+   "rate": 0.0258,
+   "straight_quoted_only": {
+    "spoken_lines": 1679,
+    "left_with_narrator": 27,
+    "rate": 0.0161,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "……",
+    "There are numerous kinds so there is no universal rule for them, but some species always receive one particular blessing",
+    "The ‘wind repel’ blessing land dragons receive is one example.",
+    "The blessing extends to the carriage connected to it, so it isn’t affected by the wind, either.",
+    "Shall we stop for an early meal?",
+    "That’s overstating it. It was almost a month ago, and we only spoke a few words, right? I mean, I vaguely recall it, but",
+    "………",
+    "“Seems like it, but is it all right for me to line up over there?”",
+    "“Mmmm… Very well, please do.”",
+    "Very well, Reinhard. Report!",
+    "“This young lady who seeks the crown is called…Lady Felt.”",
+    "This nation has relied upon the writings of the Dragon Tablet for too long, becoming so soft and weak that it cannot sta"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 4",
+   "entries": 3813,
+   "measurable": true,
+   "spoken_lines": 1746,
+   "left_with_narrator": 55,
+   "rate": 0.0315,
+   "straight_quoted_only": {
+    "spoken_lines": 1663,
+    "left_with_narrator": 28,
+    "rate": 0.0168,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "……",
+    "“Don’t move. It’s time for a little inspection.”",
+    "“Nom!”",
+    "There are numerous kinds so there is no universal rule for them, but some species always receive one particular blessing",
+    "The ‘wind repel’ blessing land dragons receive is one example.",
+    "Now, then.",
+    "“…I sympathize with you more than a bit… No, a lot.”",
+    "—Subaru.",
+    "—Ehh?! You’re leaving me behind?!",
+    "One might argue that even a fool would have answered thusly after being provided with so many hints. Regardless, you may",
+    "Mmmm… Very well, please do.",
+    "Half a year ago…beginning with the late king, the members of the royal family passed away in rapid succession."
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 5_2",
+   "entries": 2232,
+   "measurable": true,
+   "spoken_lines": 691,
+   "left_with_narrator": 7,
+   "rate": 0.0101,
+   "straight_quoted_only": {
+    "spoken_lines": 680,
+    "left_with_narrator": 5,
+    "rate": 0.0074,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "It lists some basics about each royal candidate, but this Emilia… Apparently they made a half-demon a candidate.",
+    "Famed heroes and dragons succumbed one after another before that.",
+    "That, and the fact she can’t be reasoned with, can’t understand how others think, and she seems to rampage around out of",
+    "That made Master Felix’s words much easier for you to accept, you see.",
+    "“Besides that, it’s good to exchange drinks with someone of a different rank and position once in a while.”",
+    "However, you lie ruined and unfulfilled, having lost the object of your love, unable to fulfill your desire with emptine",
+    "“Rem.”"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 5_3",
+   "entries": 3873,
+   "measurable": true,
+   "spoken_lines": 1100,
+   "left_with_narrator": 19,
+   "rate": 0.0173,
+   "straight_quoted_only": {
+    "spoken_lines": 1071,
+    "left_with_narrator": 10,
+    "rate": 0.0093,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Crusch added, \"Besides, I do not want to be so haughty as to stifle the earnest efforts of others. Employees need time o",
+    "Welcome back. The final customer was just departing.",
+    "That made Master Felix’s words much easier for you to accept, you see.",
+    "It is true that you are incorrigibly laid-back and slow to catch on, but I am keeping guard, so there is nothing for you",
+    "Pfft!",
+    "…!",
+    "“Hu-hee… Hi-hi, ha-ha… He-hi, hi-ha-ha-ha…!”",
+    "—Subaru is…!",
+    "“My left ring finger, destroyed! Ahh, what a sweet ordeal this is! For our diligence to have been so richly rewarded… To",
+    "“Ahh, that is just fine. The remaining bones of the left ring finger have fused with the middle and index.",
+    "There are still, still, still, still nine fingers left, many, many more opportunities to prove my devotion.”",
+    "Aa! Aaaa!"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 5",
+   "entries": 3840,
+   "measurable": true,
+   "spoken_lines": 1083,
+   "left_with_narrator": 15,
+   "rate": 0.0139,
+   "straight_quoted_only": {
+    "spoken_lines": 1056,
+    "left_with_narrator": 11,
+    "rate": 0.0104,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "I only heard your voices, but you seem to be quite worked up about this.",
+    "She added, “Besides, I do not want to be so haughty as to stifle the earnest efforts of others. Employees need time off.",
+    "“”,",
+    "“”,",
+    "I should have ensured you had it… Things could have been resolved peacefully with no ill feelings instead of with a duel",
+    "“But I won’t accept what you said. I can’t accept what you said… This conversation’s over.”",
+    "Having another person’s mana in you like that is the same as taking that person inside you. That made Master Felix’s wor",
+    "…Incidentally, how long would I have to work at it?",
+    "“I don’t mind. There is benefit to us as well. However, I would like to speak to you concerning the last leg of the jour",
+    "—Ah?",
+    "He continued, “Ferri can only do something about physical wounds, you see. Issues with the body are workable, whether wi",
+    "Subaru’s current situation is unrelated to the royal selection."
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 6_2",
+   "entries": 2343,
+   "measurable": true,
+   "spoken_lines": 760,
+   "left_with_narrator": 22,
+   "rate": 0.0289,
+   "straight_quoted_only": {
+    "spoken_lines": 724,
+    "left_with_narrator": 15,
+    "rate": 0.0207,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“I see. The Witch Cult, is it?”",
+    "“Mimi, you don’t have to tell him that… Well, see you ’round, Natsuki.”",
+    "“Ahh, I get it now. This is seriously like back when they had real witch trials… It ain’t much of a joke if that’s how t",
+    "The Great Flugel Tree is a huge tree found along the Liphas Highway that seems to pierce the very clouds.",
+    "The tree really is huge like you wouldn’t believe.",
+    "According to legend, a sage named Flugel planted it.",
+    "They seem to have scattered and run for it.",
+    "Left, left, left, left, left!",
+    "Mr. Natsuki?! You’re awake?!",
+    "“Mr. Natsuki…”",
+    "—I must ask you what you have to say. Yes,",
+    "“…But at the very least, can we go back now? If you settle down and think about it more calmly, you might be able to fin"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 6_3",
+   "entries": 3752,
+   "measurable": true,
+   "spoken_lines": 1310,
+   "left_with_narrator": 38,
+   "rate": 0.029,
+   "straight_quoted_only": {
+    "spoken_lines": 1283,
+    "left_with_narrator": 35,
+    "rate": 0.0273,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Subaru’s sense of caution is rather lacking, so I would be too worried about what might happen were I to take my eyes an",
+    "Of course, she invited some of them herself.",
+    "“The young master returned to the main household with his liege, Lady Felt, and her family some two days ago.",
+    "We can offer contact with him from our side, but…”",
+    "“Take good care of our guest, now.”",
+    "It’s still a bit early for lunch, but it ain’t good to sit down without orderin’.",
+    "Earlier, you said that runt is second-in-command?",
+    "The tree really is huge like you wouldn’t believe. According to legend, a sage named Flugel planted it.",
+    "Aside from the story of how he planted the tree, next to nothing is known about Flugel, not even why he is treated as a ",
+    "They seem to have scattered and run for it.",
+    "If you split up and flee the instant the mist arrives, you might be able to escape without the White Whale pursuing—if y",
+    "Eh?"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 6",
+   "entries": 3883,
+   "measurable": true,
+   "spoken_lines": 1328,
+   "left_with_narrator": 53,
+   "rate": 0.0399,
+   "straight_quoted_only": {
+    "spoken_lines": 1202,
+    "left_with_narrator": 40,
+    "rate": 0.0333,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“The young master returned to the main household with his liege, Lady Felt, and her family some two days ago.",
+    "We can offer contact with him from our side, but…”",
+    "—Subaru?!",
+    "Cuttin’ right to the chase, hmm?",
+    "You didn’t even blink when you said that… What do you wanna talk about?",
+    "Mimi, you don’t have to tell him that… Well, see you ’round, Natsuki.",
+    "“Like I said, we need a bunch of dragon carriages. We have a lot to haul, so it’s best to have them as empty as possible",
+    "The Great Flugel Tree is a huge tree found along the Liphas Highway that seems to pierce the very clouds.",
+    "The tree really is huge like you wouldn’t believe.",
+    "According to legend, a sage named Flugel planted it.",
+    "Er, well, this was hundreds of years ago, you see.",
+    "They seem to have scattered and run for it."
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 7_2",
+   "entries": 2260,
+   "measurable": true,
+   "spoken_lines": 835,
+   "left_with_narrator": 53,
+   "rate": 0.0635,
+   "straight_quoted_only": {
+    "spoken_lines": 816,
+    "left_with_narrator": 34,
+    "rate": 0.0417,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Everyone can remember one time or another when they needed to rally themselves after faltering before a great challenge.",
+    "—His Highness Fourier Lugunica. This nation’s late fourth prince.",
+    "To take his revenge, Old Man Wil chased after the White Whale like he had a death wish.",
+    "Without anything concrete to go on, it was a lot like trying to grab mist with your hand.",
+    "He recorded the places the White Whale appeared, the time of day, the weather… For that, we went all over the place, tes",
+    "But when he finally figured it out, no one would believe a word he said.",
+    "The kingdom’s wounds from the Great Expedition still run deep.",
+    "With the throne vacant, there wasn’t anyone who could help Old Man Wil.",
+    "No one had the will to fight the White Whale, or the resources to spare… I think Old Man Wil was probably on the verge o",
+    "It seems like he thought about leaving behind everything and everyone he knew to fight the White Whale completely alone.",
+    "I think his shame from not fighting it was outweighing the fact that he couldn’t win—men really are idiots.",
+    "His wife wouldn’t have wanted him to do that, I’m sure of it."
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 7",
+   "entries": 3566,
+   "measurable": true,
+   "spoken_lines": 1253,
+   "left_with_narrator": 57,
+   "rate": 0.0455,
+   "straight_quoted_only": {
+    "spoken_lines": 1207,
+    "left_with_narrator": 33,
+    "rate": 0.0273,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“—Sir Subaru.”",
+    "His Highness Fourier Lugunica. This nation’s late fourth prince.",
+    "Without anything concrete to go on, it was a lot like trying to grab mist with your hand.",
+    "“Now then, it’s Lady Crusch’s orders, so go ahead, pick whichever one you like.”",
+    "Though there were many who had already retired from fighting on the front lines, these are the warriors who answered Wil",
+    "Their morale and level of training are in no way inferior to any currently serving as a royal knight.",
+    "“Those that arrived here are the principal members. The remainder should have already set out for the Great Flugel Tree ",
+    "—Four hundred years.",
+    "—!",
+    "—Yes!!",
+    "You seem very happy, Subaru.",
+    "“A formless sword that ignores range—Lady Crusch’s famous swordsmanship is able to fell a hundred men in a single blow.”"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 8_2",
+   "entries": 2791,
+   "measurable": true,
+   "spoken_lines": 1066,
+   "left_with_narrator": 36,
+   "rate": 0.0338,
+   "straight_quoted_only": {
+    "spoken_lines": 1045,
+    "left_with_narrator": 20,
+    "rate": 0.0191,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "That iiis to be expected! For many, the beginning comes as a surprise. Anyone can realize one particular day, ‘I am love",
+    "“This cannot b—”",
+    "“Sir Subaru, they are not soldiers who would freelance in violation of your instructions. Even if unavoidable combat doe",
+    "Seen from the outside, a man’s pride might often be seen as trivial. Does this ring any bells with you, Ferris?",
+    "—!",
+    "“What they were digging up is the Archbishop of the Seven Deadly Sins’ grave. Well, I call it a grave, but Mimi just bur",
+    "—!",
+    "“Gya—!”",
+    "“I don’t know! Blood spurted from their throats all of a sudden…”",
+    "“Ahh—my brain—is—shaking.”",
+    "—A finger, you SEE.",
+    "“I am a finger! One rewarded with Her favor! A diligent diiisciple carrying out the trial, faithfully obeying the guidan"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 8_3",
+   "entries": 3926,
+   "measurable": true,
+   "spoken_lines": 1459,
+   "left_with_narrator": 38,
+   "rate": 0.026,
+   "straight_quoted_only": {
+    "spoken_lines": 1447,
+    "left_with_narrator": 32,
+    "rate": 0.0221,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "‘Soldiers must always be strong’—the common people consider this way of thinking to be ‘the Imperial Way.’",
+    "The Empire is a nation that lives and breathes that ideal, and even its basic infantry are fierce fighters.",
+    "The Fortress City was manned by such soldiers, but it fell to a single Archbishop of the Seven Deadly Sins who called hi",
+    "It is said that even ‘Eight Arms’ Kulgan, hero of Volakia, was slain in that battle.",
+    "“This cannot b—”",
+    "“Inelegant to the extreme—fall, like a man.”",
+    "“Sir Subaru, they are not soldiers who would freelance in violation of your instructions. Even if unavoidable combat doe",
+    "“That’s probably the book Petelgeuse called his Gospel.”",
+    "Ohhh—",
+    "—!",
+    "Somehow, I don’t feel like laughing at that one… Well, that’s fine, though.",
+    "What they were digging up is the Archbishop of the Seven Deadly Sins’ grave. Well, I call it a grave, but Mimi just buri"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 8",
+   "entries": 3923,
+   "measurable": true,
+   "spoken_lines": 1474,
+   "left_with_narrator": 54,
+   "rate": 0.0366,
+   "straight_quoted_only": {
+    "spoken_lines": 1437,
+    "left_with_narrator": 32,
+    "rate": 0.0223,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "That iiis to be expected! For many, the beginning comes as a surprise. Anyone can realize one particular day, ‘I am love",
+    "“Carefully?”",
+    "“This cannot b—”",
+    "“Inelegant to the extreme—fall, like a man.”",
+    "“Sir Subaru, they are not soldiers who would freelance in violation of your instructions. Even if unavoidable combat doe",
+    "“Well, Ferri didn’t mind at all, meow. Julius might have hated it…but I think he’s shrewd enough to accept it.”",
+    "“Field rations, lagmite ore… Ahh, he has a money pouch, too.”",
+    "“That’s probably the book Petelgeuse called his Gospel.”",
+    "Ohhh—",
+    "They probably all have magic crystals embedded in their bodies, the sort that kill you by sending poison through your sy",
+    "Hmm? What? Mister, something happen?",
+    "“It is as if they were digging in the earth, searching for something…”"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 9_2",
+   "entries": 2493,
+   "measurable": true,
+   "spoken_lines": 862,
+   "left_with_narrator": 57,
+   "rate": 0.0661,
+   "straight_quoted_only": {
+    "spoken_lines": 802,
+    "left_with_narrator": 23,
+    "rate": 0.0287,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "“Your sin is grave, y’know—getting in the way of my sentimental reunion with Emilia and all that.”",
+    "One.",
+    "That girl’s name is Emilia. Really, you all know her already, don’t you? She’s the girl who’s been spending months along",
+    "That girl is someone who smiled with everyone. That girl is someone who wants to laugh with everyone. I know. She’s said",
+    "“I do not require an explanation.”",
+    "Does she have any intention of debating it, I wonder?”",
+    "One.",
+    "“—People don’t want to have their beliefs twisted out of shape, you see. Subawu, you must not hesitate or go astray. So ",
+    "When Petelgeuse’s command fell from the sky, Witch Cultists hidden in the cave under the cliff appeared in the forest wi",
+    "Petelgeuse was above the treetops, and at their backs, the Witch Cultists were ferociously chasing them—",
+    "“I have never before seen such a creepy method of flight.”",
+    "Impossible, impossibleimpossibleimpossibleimpossible…!"
+   ]
+  },
+  {
+   "book": "Arc 3 - Volume 9",
+   "entries": 4243,
+   "measurable": true,
+   "spoken_lines": 1567,
+   "left_with_narrator": 71,
+   "rate": 0.0453,
+   "straight_quoted_only": {
+    "spoken_lines": 1370,
+    "left_with_narrator": 23,
+    "rate": 0.0168,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "What did Ferris mean that it wasn’t from him?",
+    "“A famous detective once said, ‘Once you eliminate the impossible, whatever remains, no matter how improbable, must be t",
+    "Mm-hmm, is that so… They seem to be moving quicker than we expected.",
+    "With this many people entering the village, it was only a matter of time until they noticed, I suppose…",
+    "“And now we have to upgrade that to ‘reliable reinforcements brought by someone we know’…”",
+    "That girl’s name is Emilia. Really, you all know her already, don’t you? She’s the girl who’s been spending months along",
+    "That girl is someone who smiled with everyone. That girl is someone who wants to laugh with everyone. I know. She’s said",
+    "“That’s…”",
+    "“A chance…?”",
+    "…I broke my promise to Emilia. On top of that, I came back against her orders.",
+    "“I do not require an explanation. Betty will stay here. Does she have any intention of debating it, I wonder?”",
+    "“Hey, bro. You don’t look very happy.”"
+   ]
+  },
+  {
+   "book": "Arc 4 - Volume 10_2",
+   "entries": 2839,
+   "measurable": true,
+   "spoken_lines": 1337,
+   "left_with_narrator": 26,
+   "rate": 0.0194,
+   "straight_quoted_only": {
+    "spoken_lines": 1331,
+    "left_with_narrator": 23,
+    "rate": 0.0173,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Lady Beatrice. That is the Great Spirit serving as the librarian of this mansion’s archive of forbidden books.",
+    "“It would seem you have put your differences in order.”",
+    "From what I read in a history book, they had this civil war called the Demi-human War in just the last century, too.",
+    "Come to think of it, I heard a song related to that from Liliana, too, didn’t I…?",
+    "—aa…",
+    "Patrasche is simply too incredible!",
+    "\"She kept saying she couldn’t tell us the details. Within what she could say, she kept saying to watch out, but…because ",
+    "…Imprisoned? That doesn’t, well, have a very nice ring to it.",
+    "When she came in contact with the barrier, Emilia fainted. According to Garfiel, that’s not an effect limited to Emilia—",
+    "In other words, Subaru…you think that it’s the barrier’s effect that’s keeping Roswaal and the others in here and preven",
+    "However, we cannot liberate the Sanctuary.",
+    "The light of the tomb should not cease so long as the trial continues…"
+   ]
+  },
+  {
+   "book": "Arc 4 - Volume 10",
+   "entries": 4164,
+   "measurable": true,
+   "spoken_lines": 1916,
+   "left_with_narrator": 46,
+   "rate": 0.024,
+   "straight_quoted_only": {
+    "spoken_lines": 1843,
+    "left_with_narrator": 25,
+    "rate": 0.0136,
+    "why": "curly-quoted lines may be the first-person narrator's own thought, which BELONGS to the narrator; this excludes them"
+   },
+   "examples_left_with_narrator": [
+    "Eh?",
+    "Err…",
+    "…",
+    "Lady Beatrice. That is the Great Spirit serving as the librarian of this mansion’s archive of forbidden books.",
+    "“A lot of people worried about you, Emilia and Ram in particular. You can do it later, but you should give them a proper",
+    "“It would seem you have put your differences in order.”",
+    "“Lovey-dovey…?”",
+    "“She kept saying she couldn’t tell us the details. Within what she could say, she kept saying to watch out, but…because ",
+    "As you can see, today Ram is as robust and adorable as ever. No harm has come to pass for the villagers evacuating to th",
+    "“It is not fine at all. Know your place, stupid Garf.”",
+    "“…Is that so?”",
+    "“You’re being pretty vague there, and you kick up a ruckus even without Otto…”"
+   ]
+  }
+ ],
+ "provenance": {
+  "script": "measure_dialogue_attribution.py",
+  "written": "2026-08-20T17:25:15",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "17bf2927f6544d1a83b241bded3ededc70d59326",
+   "branch": "agent/script-text-fidelity-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/measure_dialogue_attribution.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "110670b4f2647cb2a32b16caab99efb645246cb3baa607927421e1338624f483"
+  },
+  "args": {
+   "scripts": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 1 - Volume 1_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 1 - Volume 1_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 1 - Volume 1_4.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 1 - Volume 1.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 2_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 2_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 3_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 3_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 3_4.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 2 - Volume 3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 4_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 4_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 4.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 5_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 5_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 5.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 6_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 6_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 6.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 7_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 7.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 8_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 8_3.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 8.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 9_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 3 - Volume 9.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 4 - Volume 10_2.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrofit_library/Arc 4 - Volume 10.json"
+   ],
+   "out": "dlg_lib.json"
+  }
+ }
+}

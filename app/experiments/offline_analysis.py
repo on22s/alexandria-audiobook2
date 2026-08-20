@@ -192,7 +192,17 @@ def routing_features():
                                 for k in range(max(0, j - 1), min(len(seg), j + 2)))
             feats[lab]["len"].append(len(line))
             feats[lab]["tag"].append(1 if re.search(SPEECH_VERB, near.lower()) else 0)
-            feats[lab]["quoted"].append(1 if line.strip().startswith(('"', '“')) else 0)
+            # PREFER THE RECORDED FACT over the leading quote. Generation
+            # removes the outermost quotes, and how completely depends on the
+            # arm - three-pass strips every one, single-pass keeps 37-61% - so
+            # this feature measured which arm wrote the script rather than
+            # whether the line is speech. `spoken` is mapped from the source
+            # before any model runs; the quote stays as the fallback for
+            # segments that predate the map.
+            mapped = seg[j] if j is not None and j < len(seg) else {}
+            feats[lab]["quoted"].append(
+                (1 if mapped.get("spoken") else 0) if "spoken" in mapped
+                else (1 if line.strip().startswith(('"', '“')) else 0))
         n = sum(labels.values())
         print(f"\n  {book}: {n} paired rows  "
               f"RESCUE {labels['RESCUE']}  HARM {labels['HARM']}  "

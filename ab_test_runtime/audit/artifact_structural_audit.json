@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 219,
+    "supported_structure": 223,
     "exploratory": 192,
     "provisional": 122
   },
@@ -2813,6 +2813,38 @@
       "written": "2026-08-19T08:19:29",
       "commit": "bbf61818c80f4d5660ed42c068b07a47d64b6cdc",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "dialogue_attribution_library.json",
+      "bytes": 42339,
+      "sha256": "4c5975127bb5a7eb96d92532a94155c482c851e5af54889db40a9b09192e60fd",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 29,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T17:25:15",
+      "commit": "17bf2927f6544d1a83b241bded3ededc70d59326",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "dialogue_map_compare.json",
+      "bytes": 2969,
+      "sha256": "036e397cb46f8ee6f5280d8bd6c016fffa8704e3d7dbd2521809124633bd7761",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T17:06:52",
+      "commit": "8889d3bb4c3aaa8cd3526c5cb9e3a81a1ad3a88b",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
@@ -6891,6 +6923,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "retrofit_dialogue_map.json",
+      "bytes": 8302,
+      "sha256": "4e0baf71077675e62ecc36bef46abd62550bcd2368e3f1cae231a1b4c9474c61",
+      "completeness": "complete",
+      "seed": 1234,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T17:22:23",
+      "commit": "17bf2927f6544d1a83b241bded3ededc70d59326",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "robotic_proxy_clips.json",
       "bytes": 3476,
       "sha256": "c9e239aa0b13ce68ca08343a7ba737c819a45102679ca26668ec36d93ab32dba",
@@ -7261,6 +7309,22 @@
       "dirty": true,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "script_text_fidelity.json",
+      "bytes": 3712,
+      "sha256": "3570911adcf44d9774fe6dc3ac4ebbab79c5971ebae1e642a32b9e8c3554938f",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T15:18:46",
+      "commit": "38ce596a95ab35b98ae6181861ec8c230d95214a",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "seed_instruction_controls.json",

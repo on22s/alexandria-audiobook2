@@ -1,0 +1,357 @@
+{
+ "scope": "source-derived dialogue map applied to scripts generated before it existed; originals are not modified",
+ "min_containment": 0.5,
+ "min_margin": 2.0,
+ "seed": 1234,
+ "out_dir": "ab_test_runtime/retrofit_library",
+ "retrofitted": [
+  {
+   "script": "Arc 1 - Volume 1.json",
+   "source": "Arc 1 - Volume 1.txt",
+   "containment": 0.9,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3385,
+   "located": 3053,
+   "spoken": 1255,
+   "located_rate": 0.9019
+  },
+  {
+   "script": "Arc 1 - Volume 1_2.json",
+   "source": "Arc 1 - Volume 1.txt",
+   "containment": 0.925,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2386,
+   "located": 2175,
+   "spoken": 859,
+   "located_rate": 0.9116
+  },
+  {
+   "script": "Arc 1 - Volume 1_3.json",
+   "source": "Arc 1 - Volume 1.txt",
+   "containment": 0.95,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3388,
+   "located": 3066,
+   "spoken": 1266,
+   "located_rate": 0.905
+  },
+  {
+   "script": "Arc 1 - Volume 1_4.json",
+   "source": "Arc 1 - Volume 1.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3356,
+   "located": 3000,
+   "spoken": 1257,
+   "located_rate": 0.8939
+  },
+  {
+   "script": "Arc 2 - Volume 2.json",
+   "source": "Arc 2 - Volume 2.txt",
+   "containment": 0.95,
+   "margin": 38.0,
+   "convention": "paired_quotes",
+   "entries": 3910,
+   "located": 3635,
+   "spoken": 1616,
+   "located_rate": 0.9297
+  },
+  {
+   "script": "Arc 2 - Volume 2_2.json",
+   "source": "Arc 2 - Volume 2.txt",
+   "containment": 1.0,
+   "margin": 40.0,
+   "convention": "paired_quotes",
+   "entries": 2563,
+   "located": 2401,
+   "spoken": 1147,
+   "located_rate": 0.9368
+  },
+  {
+   "script": "Arc 2 - Volume 2_3.json",
+   "source": "Arc 2 - Volume 2.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3912,
+   "located": 3661,
+   "spoken": 1625,
+   "located_rate": 0.9358
+  },
+  {
+   "script": "Arc 2 - Volume 3.json",
+   "source": "Arc 2 - Volume 3.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 4066,
+   "located": 3898,
+   "spoken": 1378,
+   "located_rate": 0.9587
+  },
+  {
+   "script": "Arc 2 - Volume 3_2.json",
+   "source": "Arc 2 - Volume 3.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2726,
+   "located": 2605,
+   "spoken": 869,
+   "located_rate": 0.9556
+  },
+  {
+   "script": "Arc 2 - Volume 3_3.json",
+   "source": "Arc 2 - Volume 3.txt",
+   "containment": 0.9231,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 4111,
+   "located": 3908,
+   "spoken": 1382,
+   "located_rate": 0.9506
+  },
+  {
+   "script": "Arc 2 - Volume 3_4.json",
+   "source": "Arc 2 - Volume 3.txt",
+   "containment": 0.925,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 4121,
+   "located": 3928,
+   "spoken": 1355,
+   "located_rate": 0.9532
+  },
+  {
+   "script": "Arc 3 - Volume 4.json",
+   "source": "Arc 3 - Volume 4.txt",
+   "containment": 0.975,
+   "margin": 39.0,
+   "convention": "paired_quotes",
+   "entries": 3813,
+   "located": 3631,
+   "spoken": 1737,
+   "located_rate": 0.9523
+  },
+  {
+   "script": "Arc 3 - Volume 4_2.json",
+   "source": "Arc 3 - Volume 4.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2470,
+   "located": 2355,
+   "spoken": 1146,
+   "located_rate": 0.9534
+  },
+  {
+   "script": "Arc 3 - Volume 4_3.json",
+   "source": "Arc 3 - Volume 4.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3824,
+   "located": 3636,
+   "spoken": 1739,
+   "located_rate": 0.9508
+  },
+  {
+   "script": "Arc 3 - Volume 5.json",
+   "source": "Arc 3 - Volume 5.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3840,
+   "located": 3650,
+   "spoken": 1081,
+   "located_rate": 0.9505
+  },
+  {
+   "script": "Arc 3 - Volume 5_2.json",
+   "source": "Arc 3 - Volume 5.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2232,
+   "located": 2110,
+   "spoken": 691,
+   "located_rate": 0.9453
+  },
+  {
+   "script": "Arc 3 - Volume 5_3.json",
+   "source": "Arc 3 - Volume 5.txt",
+   "containment": 1.0,
+   "margin": 40.0,
+   "convention": "paired_quotes",
+   "entries": 3873,
+   "located": 3713,
+   "spoken": 1099,
+   "located_rate": 0.9587
+  },
+  {
+   "script": "Arc 3 - Volume 6.json",
+   "source": "Arc 3 - Volume 6.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3883,
+   "located": 3744,
+   "spoken": 1328,
+   "located_rate": 0.9642
+  },
+  {
+   "script": "Arc 3 - Volume 6_2.json",
+   "source": "Arc 3 - Volume 6.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2343,
+   "located": 2261,
+   "spoken": 759,
+   "located_rate": 0.965
+  },
+  {
+   "script": "Arc 3 - Volume 6_3.json",
+   "source": "Arc 3 - Volume 6.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3752,
+   "located": 3589,
+   "spoken": 1309,
+   "located_rate": 0.9566
+  },
+  {
+   "script": "Arc 3 - Volume 7.json",
+   "source": "Arc 3 - Volume 7.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3566,
+   "located": 3429,
+   "spoken": 1252,
+   "located_rate": 0.9616
+  },
+  {
+   "script": "Arc 3 - Volume 7_2.json",
+   "source": "Arc 3 - Volume 7.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2260,
+   "located": 2129,
+   "spoken": 835,
+   "located_rate": 0.942
+  },
+  {
+   "script": "Arc 3 - Volume 8.json",
+   "source": "Arc 3 - Volume 8.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 3923,
+   "located": 3783,
+   "spoken": 1474,
+   "located_rate": 0.9643
+  },
+  {
+   "script": "Arc 3 - Volume 8_2.json",
+   "source": "Arc 3 - Volume 8.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2791,
+   "located": 2669,
+   "spoken": 1066,
+   "located_rate": 0.9563
+  },
+  {
+   "script": "Arc 3 - Volume 8_3.json",
+   "source": "Arc 3 - Volume 8.txt",
+   "containment": 0.925,
+   "margin": 37.0,
+   "convention": "paired_quotes",
+   "entries": 3926,
+   "located": 3749,
+   "spoken": 1458,
+   "located_rate": 0.9549
+  },
+  {
+   "script": "Arc 3 - Volume 9.json",
+   "source": "Arc 3 - Volume 9.txt",
+   "containment": 1.0,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 4243,
+   "located": 4029,
+   "spoken": 1560,
+   "located_rate": 0.9496
+  },
+  {
+   "script": "Arc 3 - Volume 9_2.json",
+   "source": "Arc 3 - Volume 9.txt",
+   "containment": 0.9744,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2493,
+   "located": 2358,
+   "spoken": 849,
+   "located_rate": 0.9458
+  },
+  {
+   "script": "Arc 4 - Volume 10.json",
+   "source": "Arc 4 - Volume 10.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 4164,
+   "located": 3960,
+   "spoken": 1914,
+   "located_rate": 0.951
+  },
+  {
+   "script": "Arc 4 - Volume 10_2.json",
+   "source": "Arc 4 - Volume 10.txt",
+   "containment": 0.975,
+   "margin": null,
+   "convention": "paired_quotes",
+   "entries": 2839,
+   "located": 2694,
+   "spoken": 1336,
+   "located_rate": 0.9489
+  }
+ ],
+ "refused": [],
+ "status": "complete",
+ "provenance": {
+  "script": "retrofit_dialogue_map.py",
+  "written": "2026-08-20T17:22:23",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "17bf2927f6544d1a83b241bded3ededc70d59326",
+   "branch": "agent/script-text-fidelity-20260820",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "eaeae9fced9e1f17a75962c8f2bf2cd340bff8d3bfb092151a1d7fa1d7763a45"
+  },
+  "args": {
+   "scripts": "scripts",
+   "sources": [
+    "/home/fakemitch/Desktop/test",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/results/collect_all_20260722-155801/inputs"
+   ],
+   "out_dir": "ab_test_runtime/retrofit_library",
+   "audio_root": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
+   ],
+   "seed": 1234,
+   "out": "retrofit_library.json"
+  },
+  "seed": 1234
+ }
+}

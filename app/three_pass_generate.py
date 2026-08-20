@@ -18,6 +18,8 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
                              fix_mojibake, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss)
+from dialogue_spans import (apply_source_speakers, detect_convention,
+                            mark_entries)
 from source_normalization import (neutralize_lossy_residue,
                                   normalize_extreme_phrase_repetitions,
                                   normalize_known_source_corruptions,
@@ -1742,6 +1744,41 @@ def main():
         print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
               f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
         sys.exit(1)
+    # THE DIALOGUE MAP TRAVELS WITH THIS SCRIPT TOO. Single-pass has carried it
+    # since 1f6be7a; three-pass did not, and that asymmetry made the arms
+    # incomparable on anything except attribution accuracy - a comparison of
+    # which arm received a patch rather than of which design is better.
+    #
+    # It matters MORE here, not less. Three-pass deliberately removes the
+    # outermost quotes from every fully-quoted line
+    # (`stripped_dialogue_delimiters`), so on its output punctuation carries no
+    # information about speech at all: over the 5.3 artifacts, 0 of 2056, 0 of
+    # 2479 and 0 of 3929 entries retain a quote. Marking from the SOURCE is the
+    # only way its lines can be asked "who said this" rather than "was this
+    # even speech".
+    #
+    # Failure is recorded, never swallowed: an unlocatable line simply has no
+    # `spoken` key, which is a different claim from `spoken: false`.
+    try:
+        convention = detect_convention(book)
+        if convention:
+            entries = mark_entries(entries, book, convention)
+            located = sum(1 for e in entries if "spoken" in e)
+            spoken = sum(1 for e in entries if e.get("spoken"))
+            print(f"Dialogue map: {convention}, {spoken} spoken lines, "
+                  f"{located}/{len(entries)} entries located in the source")
+            entries, label_changes = apply_source_speakers(entries)
+            if label_changes:
+                print(f"Source speaker labels applied to {label_changes} entries")
+        else:
+            print("Dialogue map: convention could not be determined; entries "
+                  "carry no `spoken` key rather than a guessed one")
+    except Exception as exc:                                   # noqa: BLE001
+        # A mapping failure must not destroy a finished generation, and must
+        # not be invisible either: a script silently missing `spoken` reads
+        # downstream as a book with no dialogue at all.
+        print(f"Dialogue map FAILED ({exc}); entries carry no `spoken` key")
+
     atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if chunks_path is not None and os.path.exists(chunks_path):
