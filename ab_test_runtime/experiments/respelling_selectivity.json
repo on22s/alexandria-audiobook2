@@ -1,6 +1,36 @@
 {
  "comparisons": [
   {
+   "artifact": "respelling_hyphen_allrows_n1600.json",
+   "completeness": "complete",
+   "paired_terms": 1583,
+   "applied_to_everything": {
+    "wins": 199,
+    "losses": 193,
+    "p_value": 0.800664137680828,
+    "net_words": 6
+   },
+   "where_plain_fails": {
+    "n": 1306,
+    "rescued": 199,
+    "rescue_pct": 15.2,
+    "ci95": [
+     13.3,
+     17.3
+    ]
+   },
+   "where_plain_already_works": {
+    "n": 277,
+    "broken": 193,
+    "break_pct": 69.7,
+    "ci95": [
+     63.9,
+     75.0
+    ]
+   },
+   "net_if_applied_selectively": 199
+  },
+  {
    "artifact": "respelling_none_allrows_n1600.json",
    "completeness": "complete",
    "paired_terms": 1582,
@@ -33,21 +63,20 @@
  ],
  "provenance": {
   "script": "respelling_selectivity.py",
-  "written": "2026-08-20T03:10:39",
+  "written": "2026-08-20T06:44:10",
   "host": "mitch-linux",
   "git": {
-   "commit": "da310f086952d35b33f084c8a7af80595bab6794",
-   "branch": "agent/two-stage-selection-gap-20260820",
-   "dirty": true,
+   "commit": "40dcc83e736d2581f9e718e88ae945bf477ad0a8",
+   "branch": "main",
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/respelling_selectivity.py"
-   ],
+   "untracked_harness_files": null,
    "harness_sha256": "f3742e8489c53f5811afa199d10cca15fd10bb441c869179ba055f1f779a7b7c"
   },
   "args": {
    "artifacts": [
-    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/respelling_none_allrows_n1600.json"
+    "ab_test_runtime/experiments/respelling_hyphen_allrows_n1600.json",
+    "ab_test_runtime/experiments/respelling_none_allrows_n1600.json"
    ],
    "out": "ab_test_runtime/experiments/respelling_selectivity.json"
   }
