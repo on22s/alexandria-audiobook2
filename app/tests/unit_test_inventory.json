@@ -1557,6 +1557,11 @@
     "tests.test_replay_artifact.ScriptFromNameTests.test_an_unrelated_name_resolves_to_nothing",
     "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
   ],
+  "test_resolve_generated": [
+    "tests.test_resolve_generated.ResolveGeneratedTest.test_it_refuses_a_conflict_in_real_code",
+    "tests.test_resolve_generated.ResolveGeneratedTest.test_it_refuses_when_a_real_file_conflicts_alongside_generated_ones",
+    "tests.test_resolve_generated.ResolveGeneratedTest.test_it_reports_when_nothing_is_conflicted"
+  ],
   "test_respelling_scoring": [
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_a_finished_run_is_marked_complete",
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_an_interrupted_run_is_marked_partial",
