@@ -138,6 +138,44 @@ class InheritedGitEnvironmentTest(unittest.TestCase):
         self.assertIn("unset GIT_DIR", src)
 
 
+class LiveCheckoutTest(unittest.TestCase):
+    """The hook must never put a commit on the live tree's main.
+
+    That checkout sits on main at origin/main and runs the GPU queue (Rule 24).
+    Its derived files are whatever main has, which CI already validated, so a
+    regeneration there can only differ because of artifacts a RUNNING job has
+    written and not committed. Committing those would bake in-flight state into
+    main and leave an unpushed commit behind.
+
+    Not hypothetical: two such commits accumulated by 2026-08-20 and turned the
+    next `git pull --ff-only` into "Not possible to fail-forward", with one of
+    them holding the only copy of a chain script. A hook that recreated that on
+    every pull would be a worse bug than the conflicts it removes.
+    """
+
+    def setUp(self):
+        self.src = (REPO / "tools" / "regen_derived_commit.sh").read_text(encoding="utf-8")
+        self.code = re.sub(r"#[^\n]*", "", self.src)
+
+    def test_it_stops_when_head_is_exactly_at_upstream(self):
+        self.assertIn("@{upstream}", self.code,
+                      "without this the hook commits on the live tree's main "
+                      "every time a pull moves an artifact")
+
+    def test_the_upstream_check_comes_before_the_regeneration(self):
+        """Ordering is the whole point on the live tree: a pull there should
+        cost nothing, not nine seconds of regeneration thrown away."""
+        upstream_at = self.code.index("@{upstream}")
+        regen_at = self.code.index("regen_derived.sh")
+        self.assertLess(upstream_at, regen_at,
+                        "the guard runs after the work it exists to skip")
+
+    def test_a_branch_ahead_of_upstream_is_not_skipped(self):
+        """The guard must test equality, not merely 'has an upstream' - a
+        feature branch always has one and always needs the rebuild."""
+        self.assertRegex(self.code, r'\[ "\$upstream" = "\$\(git[^)]*rev-parse HEAD\)" \]')
+
+
 class SingleSourceTest(unittest.TestCase):
     """Rule 15: one answer to "which files are derived and how".
 
