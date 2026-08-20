@@ -239,7 +239,7 @@ def main():
     ap.add_argument("--quote-type", default=None,
                     help="measure only one PDNC quote type (Explicit, "
                          "Implicit, Anaphoric). Explicit quotes NAME the "
-                         "speaker in the text and are wrong 47.1% of the time "
+                         "speaker in the text and are wrong 47.1%% of the time "
                          "with the right name in the supplied cast, which is "
                          "the standout anomaly of the full run.")
     ap.add_argument("--keep-prompts", action="store_true",
