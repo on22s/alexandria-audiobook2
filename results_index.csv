@@ -39,6 +39,7 @@ asr_silero_whisper_ja_offset20.json,supported_structure,provenance,yes,,,5.4,,,,
 asr_zh_ggml-base.bin.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr_zh_ggml-large-v3.bin.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 audible_errors.json,exploratory,git+naming,no,audible_errors.py,05e4c8d2,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+audio_views.json,supported_structure,provenance,yes,,,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 baseline_heldout__husky_baritone_40s_m_2.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 baseline_heldout__husky_baritone_40s_m_scifi.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 baseline_heldout__husky_tenor_30s_m_literary.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
