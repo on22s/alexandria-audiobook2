@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1778** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -204,6 +204,38 @@ roster, the percent where the model picks it.
 
 **Target — selection ≥ 50% with roster recall held at ≥ 85%. MET: 62.9% at
 91.6% recall, and every individual book clears 50% as well.**
+
+#### The English measurement, where recall is not a factor at all
+
+Measured 2026-08-19 on three PDNC books — Pride and Prejudice, The Awakening,
+The Sign of the Four — 2,494 quotes, qwen3-14b, one request per quote with the
+cast supplied (`two_stage_attribution_full.json`, rescored by
+`two_stage_selection_gap.py` into `two_stage_selection_gap.json`).
+
+**Roster recall was 100%: the correct speaker was in the supplied cast on
+2,494 of 2,494 rows.** So every one of the **1,134** wrong answers was a wrong
+choice, and this goal's metric is the whole of the error here.
+
+| quote type | n | wrong | |
+|---|---|---|---|
+| Anaphoric | 723 | 277 | 38.3% |
+| **Explicit** | 543 | 256 | **47.1%** |
+| Implicit | 1,228 | 601 | 48.9% |
+
+**Explicit quotes are the ones where the text names the speaker**, and they are
+the second-worst bucket — worse than Anaphoric, where the speaker is only
+referred to by a pronoun. A method that misses nearly half the cases the text
+answers outright is not making a hard judgement badly; something more basic is
+wrong, and that contrast is the thing to chase rather than the 54.5% headline.
+
+**Read the artifact's `in_candidates` field with care.** It records `false` on
+2,250 of those 2,494 rows, which inverts the finding above. That is a harness
+bug, fixed 2026-08-20: the run passed the roster display lines
+(`MRS. BENNET [also: BENNET]`) where an exact membership test was applied, so
+every character with an alias read as absent. `manifest` now refuses a
+decorated candidate list rather than computing the field wrongly, and the
+recomputation above expands each line into the names it stands for. The 84
+other artifacts in this directory pass plain candidate lists and are unaffected.
 
 **The gap was the model, not the method.** 29.9% was measured on qwen3.5-9b,
 which a later six-model comparison put ~17 points behind the shipped model on
@@ -439,6 +471,24 @@ on 0 rows, so those two baselines are one measurement reused, not two.)
 Sequence-aware at p=0.054 is the only one worth another look, and the right
 next step is a repeat rather than a confirmatory run: one arm at p≈0.05 with a
 5.5% run-to-run floor is exactly the shape a lucky draw takes.
+
+**IT WAS A LUCKY DRAW. Repeated 2026-08-20** on the same five pilot books
+(`pdnc_sequence__pilot__repeat2.json`), the sequence-aware arm **reversed**:
+
+| run | baseline | arm | discordant | p |
+|---|---|---|---|---|
+| first | 57.7% | 60.0% | 30 / 16 | 0.054 |
+| **repeat** | 59.8% | **58.7%** | 28 / 35 | **0.45** |
+
+The two runs of the identical BASELINE condition disagreed on **61 of 600 rows
+(10.2%)** — a noise floor even larger than the 5.5% measured the day before,
+and larger than the effect either run claimed to see. Sequence-aware
+resolution is not supported, the sealed twenty-book set stays sealed, and the
+cost of finding this out was one repeat instead of a confirmatory run.
+
+That is three interventions piloted against this gap and three that did not
+earn their confirmatory run. The gap is still −12.6 points and nothing tested
+so far has moved it.
 
 **The three books this project quotes are not typical books.** Ranked against
 all 28: The Sign of the Four **#2**, The Awakening **#8**, Pride and Prejudice
@@ -1165,6 +1215,51 @@ counted variant `speaker` values and found 0 of 777, because those are
 upper-cased and canonicalised upstream and cannot vary. That was a protected
 surface, the same mistake as auditing TTS input rather than output (5.1).
 
+#### WHEN a respelling is applied matters more than which one
+
+The lexicon still ships empty, so nothing below changes the current number. It
+changes the rule the lexicon has to follow when it is filled, and that rule was
+not obvious. Measured 2026-08-19/20 over 1,582 terms with at least five book
+appearances, paired, on the shipped hyphen form and on the same form with the
+separator removed (`respelling_hyphen_allrows_n1600.json`,
+`respelling_none_allrows_n1600.json`, scored by `respelling_selectivity.py`):
+
+| | rescues where the plain reading FAILS | breaks where it already WORKS |
+|---|---|---|
+| hyphen (shipped) | 199 / 1306 = **15.2%** (CI 13.3–17.3) | 193 / 277 = **69.7%** (CI 63.9–75.0) |
+| no separator | 131 / 1281 = **10.2%** (CI 8.6–12.0) | 219 / 301 = **72.8%** (CI 67.4–77.7) |
+
+**Both forms break roughly seven of every ten words the engine was already
+saying correctly.** Applied to every term the shipped form nets **+6 words**
+(199 wins, 193 losses, p=0.80 — indistinguishable from doing nothing) and the
+separator-free form nets **−88** (p=2.96e-06, actively harmful). Applied only
+where the plain reading fails, the shipped form nets **+199** and can cost
+nothing, because those words were not being said anyway.
+
+So a respelling should be a **conditional**, not a substitution: apply it to a
+term only when the plain rendering has been shown to fail on that term. That is
+a property of the *policy*, not of the derivation table, and it is the same
+finding either separator gives.
+
+#### The recogniser and the ear disagree about the separator, and both are right
+
+Removing the separator removes the pauses. Measured over 119 terms in all three
+forms (`respelling_pauses_separators_3arm.json`), internal pause time against
+the un-respelled control: `none` 43/74 discordant, **p=0.20 — indistinguishable
+from ordinary speech**; `space` 87/107, p=3.8e-11; `dot` 115/118, p=1.65e-30.
+
+A blinded listener rating nine terms (`earcheck_separator_results.json`) chose
+the two pause-free forms in **8 of 9** words and the most-chopped form in
+**none** — dot 0/9, p=0.075; plain-or-none 8/9, p=0.020.
+
+But the separator is doing real work. Paired on the same 1,582 terms, the
+hyphen rescues **167** of the words the plain reading fails against the
+separator-free form's **98** (p=1.46e-06) — the pauses are part of what makes
+the syllables individually recoverable. **The recogniser prefers the hyphen and
+the ear rejects it.** That is a product trade-off between intelligibility and
+naturalness, not a measurement to be resolved, and it should be decided
+deliberately rather than by whichever instrument was run last.
+
 **Target — a populated lexicon for the shipped demo book, and 0 substitutions
 that alter a non-name word.**
 
@@ -1663,6 +1758,16 @@ it."`
 **No target yet, deliberately.** A preference threshold invented before any
 human has heard a set would be the "invented number" this document's own rules
 forbid. The first task is the listening, not the fix.
+
+**A listener HAS now rated a different package, and it worked.** On 2026-08-19
+the same person rated nine terms of the respelling separator comparison
+(`earcheck_separator_results.json`) — four takes each, shuffled per term, key
+held in a file the page never contained. It produced a usable result at
+p=0.020 and agreed with the pause measurement, and the free-text notes are what
+identified the mechanism in the first place. So the method is not the obstacle;
+this goal's own 20-clip package simply has not been put in front of anyone.
+It measures a different thing — paired renders of a passage, not respelling
+forms — and is still unrated.
 
 **This is the cheapest open goal in the document** and the only one that
 cannot be run on the GPU: no card, no code, no experiment design. One person,
