@@ -1919,6 +1919,18 @@
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_empty_audio_fails_loudly",
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_missing_speechbrain_fails_instead_of_falling_back"
   ],
+  "test_speech_fact_preferred": [
+    "tests.test_speech_fact_preferred.ClassifierFeatureTest.test_has_quote_prefers_the_record",
+    "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_repeated_line_is_still_excluded",
+    "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_source_confirmed_line_is_eligible_though_the_model_said_narrator",
+    "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_a_source_confirmed_narration_line_is_not_eligible",
+    "tests.test_speech_fact_preferred.GoldSetSamplingTest.test_an_unmapped_entry_still_uses_the_model_type",
+    "tests.test_speech_fact_preferred.InventoryTest.test_every_speech_decider_consults_the_fact_or_is_listed",
+    "tests.test_speech_fact_preferred.MeasurabilityGateTest.test_mapped_book_without_quotes_is_measurable",
+    "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_narration_line_labels_narration",
+    "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_spoken_line_labels_speech_without_quotes",
+    "tests.test_speech_fact_preferred.WeakSupervisionTest.test_an_unmapped_line_still_uses_the_punctuation"
+  ],
   "test_speech_verbalization": [
     "tests.test_speech_verbalization.VerbalizationTest.test_box_drawing_still_becomes_a_sentence_break",
     "tests.test_speech_verbalization.VerbalizationTest.test_cjk_and_accented_letters_are_left_alone",

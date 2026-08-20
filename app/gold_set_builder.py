@@ -69,8 +69,23 @@ def eligible_indexes(segmented, min_chars=4):
     cannot be attached to one entry.
     """
     counts = collections.Counter(normalize(e.get("text")) for e in segmented)
+
+    # PREFER THE SOURCE OVER THE MODEL'S OWN LABEL. `type == "SPOKEN"` is what
+    # the model decided this line was. Sampling gold from it means a line the
+    # model misfiled as NARRATOR can never enter the gold set - so any accuracy
+    # measured against that gold is blind to exactly the failures the model
+    # makes, which is a selection effect rather than a sample.
+    #
+    # `spoken` comes from the source before any model runs. Where the script
+    # carries it, it decides; `type` remains the rule for scripts that predate
+    # the map.
+    def is_speech(entry):
+        if "spoken" in entry:
+            return bool(entry.get("spoken"))
+        return entry.get("type") == "SPOKEN"
+
     return [i for i, entry in enumerate(segmented)
-            if entry.get("type") == "SPOKEN"
+            if is_speech(entry)
             and len((entry.get("text") or "").strip()) >= min_chars
             and counts[normalize(entry.get("text"))] == 1]
 

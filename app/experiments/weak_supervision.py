@@ -80,7 +80,21 @@ def lf_island(seg, i, t):
 
 
 def lf_quoted(seg, i, t):
-    """Explicit quotation marks are strong evidence of real speech."""
+    """Explicit quotation marks are strong evidence of real speech.
+
+    PREFER THE RECORDED FACT. Generation removes the outermost quotes, and how
+    completely depends on the arm - three-pass strips every one, single-pass
+    keeps 37-61%. So on a generated script this function does not weakly
+    signal, it goes SILENT: `ABSTAIN` on every line, and an abstaining
+    labelling function costs coverage without ever looking wrong.
+
+    `spoken` is mapped from the source before any model runs, so it survives
+    whatever the arm did to the punctuation. Quotes remain the fallback for
+    scripts written before the map existed.
+    """
+    entry = seg[i] if i < len(seg) else {}
+    if "spoken" in entry:
+        return SPEECH if entry.get("spoken") else NARR
     return SPEECH if re.search(r'[“"”]', t) else ABSTAIN
 
 
