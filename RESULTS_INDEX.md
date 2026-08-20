@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 538 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 540 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1073,6 +1073,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `reference_rank2_failed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `repair_candidate_reference_text.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `residual_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_dot_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n1200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1098,6 +1099,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_separator__none.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_separator__none_n400.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_separator__space.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_space_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_bad_refs.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_honest.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
