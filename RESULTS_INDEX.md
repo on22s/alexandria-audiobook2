@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 08:21 from `ab_test_runtime/experiments/` — 523 artifacts, 594 arms.
+Generated 2026-08-20 08:45 from `ab_test_runtime/experiments/` — 524 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -822,6 +822,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `asr_zh_ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_zh_ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `audible_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `audio_views.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `baseline_heldout__husky_baritone_40s_m_2.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `baseline_heldout__husky_baritone_40s_m_scifi.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `baseline_heldout__husky_tenor_30s_m_literary.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

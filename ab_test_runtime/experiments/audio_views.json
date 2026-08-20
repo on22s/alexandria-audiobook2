@@ -1,0 +1,148 @@
+{
+ "note": "A record that these views exist and what each was rendered to explain. The HTML is deliberately not committed - 70 gates at ~10 MB each is not a repository - so this is the part that survives a clone. `looked_at` is false until a human records what they saw in `observation`.",
+ "views": [
+  {
+   "arm": "breathy_alto_50s_f_fantasy",
+   "view": "ab_test_runtime/reports/gate_view__breathy_alto_50s_f_fantasy.html",
+   "tracked_in_git": false,
+   "bytes": 9263829,
+   "sha256": "6eb4e85accc59d8ff371d51cdc25078cc6f0572b236854e412cd1989a057e06b",
+   "explains": {
+    "artifact": "gate_promote__breathy_alto_50s_f_fantasy.json",
+    "median_ecapa": 0.3934,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "husky_baritone_20s_m_anime",
+   "view": "ab_test_runtime/reports/gate_view__husky_baritone_20s_m_anime.html",
+   "tracked_in_git": false,
+   "bytes": 18954318,
+   "sha256": "8ae20e4d8ec1ab9e7f4128ac4028df336581f47a8f1195ac6b765373fa0bfce2",
+   "explains": {
+    "artifact": "gate_promote__husky_baritone_20s_m_anime.json",
+    "median_ecapa": 0.7524,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_alto_50s_f_gothic",
+   "view": "ab_test_runtime/reports/gate_view__warm_alto_50s_f_gothic.html",
+   "tracked_in_git": false,
+   "bytes": 10197741,
+   "sha256": "9a7697bb8aa42249fe8a3306f3144f05060415ae6be7a1e09bec04b465b0970b",
+   "explains": {
+    "artifact": "gate_promote__warm_alto_50s_f_gothic.json",
+    "median_ecapa": 0.0342,
+    "passed": false
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "warm_baritone_50s_m",
+   "view": "ab_test_runtime/reports/gate_view__warm_baritone_50s_m.html",
+   "tracked_in_git": false,
+   "bytes": 8903071,
+   "sha256": "63b302ddfe81d31b97dd8a0bd50b2a92316083dfeb50fc6523fd06eef946c771",
+   "explains": {
+    "artifact": "gate_promote__warm_baritone_50s_m.json",
+    "median_ecapa": 0.7807,
+    "passed": true
+   },
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "aishell3",
+   "view": "ab_test_runtime/voice_compare/aishell3.html",
+   "tracked_in_git": false,
+   "bytes": 6432121,
+   "sha256": "2379a16f89e36baaa5d53805db50fa2c94674899d654e40fbcafe28172db8ecc",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "aishell3_SSB0748",
+   "view": "ab_test_runtime/voice_compare/aishell3_SSB0748.html",
+   "tracked_in_git": false,
+   "bytes": 5377561,
+   "sha256": "5d5fde201f071bce2ba68a84fe0d864d5ac4435f30f63f070c8d9aa4f36cc9ef",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "kokoro",
+   "view": "ab_test_runtime/voice_compare/kokoro.html",
+   "tracked_in_git": false,
+   "bytes": 7745069,
+   "sha256": "680146b7e207fdee60f8d7ca6c15ab8960d085c648351adb72cceb6dab469846",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "kokoro_same_speaker",
+   "view": "ab_test_runtime/voice_compare/kokoro_same_speaker.html",
+   "tracked_in_git": false,
+   "bytes": 3517572,
+   "sha256": "51424ec8ddf45505cbdf47712e289c3683a4497dd1142a00e7a9437c08b1c90e",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "ljspeech",
+   "view": "ab_test_runtime/voice_compare/ljspeech.html",
+   "tracked_in_git": false,
+   "bytes": 10263279,
+   "sha256": "cf99e8c1c9d9a6a1f8e567c848194d2a2ac443d557825521221f8222bdda98dc",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  },
+  {
+   "arm": "japanese_worst",
+   "view": "ab_test_runtime/asr_clip_view/japanese_worst.html",
+   "tracked_in_git": false,
+   "bytes": 4927738,
+   "sha256": "a61b37ced29f02621142f2192b2781c17750d095ae42f85785b9b043f423c5a7",
+   "explains": null,
+   "looked_at": false,
+   "observation": null
+  }
+ ],
+ "provenance": {
+  "script": "record_views.py",
+  "written": "2026-08-20T07:21:29",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "024216305aa445e7a4bc5b7a004ff986b5fe185f",
+   "branch": "agent/promote-met-goals-20260820",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M GOALS.md"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/gate_view.py",
+    "app/experiments/record_views.py"
+   ],
+   "harness_sha256": "9eb61131d2cae6b8dfdb89a9c958fe58632f2bb2eb7d09b713cf7eaf6056a741"
+  },
+  "args": {
+   "repo": "alexandria-audiobook2.git",
+   "views": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reports/gate_view__*.html",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/voice_compare/*.html",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/asr_clip_view/*.html"
+   ],
+   "out": "ab_test_runtime/experiments/audio_views.json"
+  }
+ }
+}

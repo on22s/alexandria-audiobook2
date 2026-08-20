@@ -354,7 +354,11 @@ case "$dirty_state" in
         # `git diff HEAD` cannot see it. --no-index exits 1 on difference,
         # which is its normal result here, so its status is deliberately
         # ignored rather than treated as failure.
-        patch_dir="$(dirname "$0")/ab_test_runtime/logs/dirty_patches"
+        # FIFTH KNOB THAT POINTED AT REAL SHARED STATE. The suite runs
+        # this path on every dirty-tree test and left 202 patch files in
+        # the working tree, untracked and unwanted. isolated_env pins it
+        # like GPU_LOCK, GPU_QLOG, GPU_PAUSE_FLAG and GPU_PENDING_DIR.
+        patch_dir="${GPU_PATCH_DIR:-$(dirname "$0")/ab_test_runtime/logs/dirty_patches}"
         patch_file="$patch_dir/${NAME}-$(date -u +%Y%m%dT%H%M%SZ).patch"
         if mkdir -p "$patch_dir" 2>/dev/null; then
             {
