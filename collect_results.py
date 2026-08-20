@@ -350,7 +350,14 @@ with csv_buffer as fh:
     csv_text = fh.getvalue()
 
 md = [f"# Results index\n",
-      f"Generated {time.strftime('%Y-%m-%d %H:%M')} from "
+      # DATE, NOT MINUTE. --check normalises this line away (see `normalize`
+      # below), so the time buys nothing - and it cost a merge conflict on
+      # EVERY branch, because every branch regenerates the index and no two do
+      # it in the same minute. All four open PRs conflicted here on 2026-08-20
+      # and none of them disagreed about any data. Git records when the file
+      # was committed; this line only needs to say which day's artifacts it
+      # describes.
+      f"Generated {time.strftime('%Y-%m-%d')} from "
       f"`ab_test_runtime/experiments/` — {len(files)} artifacts, "
       f"{len([r for r in rows if r.get('arm')])} arms.\n",
       "Regenerate with `python3 collect_results.py`. Machine-readable copy in "

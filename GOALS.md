@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1701** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1013,6 +1013,34 @@ language-independent; it was established on ECAPA, which cannot see either.
 And English agrees with its reference far worse than either CJK language,
 which is either a real weakness of that arm or an artifact of that eval set,
 and n=40 cannot yet separate the two.
+
+**Re-run at n=150 on 2026-08-20** — every line the three sources have, nearly
+four times the sample, CPU only since the probe scores clips already on disk
+(`prosody_fidelity_{en,ja,zh}_n150.json`):
+
+| | f0 correlation n=40 → n=150 | GPE n=40 → n=150 |
+|---|---|---|
+| English LoRA | 0.2815 → **0.2889** | 0.4749 → 0.4729 |
+| English clone | 0.4032 → **0.3428** | 0.4711 → 0.4721 |
+| Japanese LoRA | 0.7211 → 0.7173 | 0.1769 → 0.1882 |
+| Japanese clone | 0.7284 → 0.7418 | 0.1459 → 0.1456 |
+| Chinese LoRA | 0.7472 → 0.7293 | 0.1898 → 0.1975 |
+| Chinese clone | 0.7296 → 0.7277 | 0.1648 → 0.1776 |
+
+**Two things it does settle.** The English deficit is not a small-sample fluke:
+0.29-0.34 correlation against 0.72-0.74 for both CJK languages, and roughly
+three times the gross pitch error, stable across a fourfold change in n. And
+the arm difference is much smaller than n=40 suggested - English clone-over-
+LoRA halved from 0.12 to 0.054, Chinese went from 0.018 apart to 0.002, and
+Japanese stayed inside 0.025. **The arms are close; the languages are not.**
+
+**What it does NOT settle, and cannot.** The question above is whether English
+is weak because of the ARM or because of the EVAL SET, and more draws from the
+same LJSpeech recordings cannot tell those apart - both predict the same score
+at any n. Only a second English reference set can, and there is not one on
+disk: `ljspeech` is the only English source among the five generate artifacts.
+Generating one is the experiment that would close this, and it is a GPU job
+nobody has queued.
 
 ---
 
