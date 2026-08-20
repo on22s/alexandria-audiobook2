@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1963** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2020** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1515,6 +1515,63 @@ Against CER ≤ 20% and alignment median ≤ 150 ms, the pooled result fails bot
 and **every reader fails on CER**. This is not one bad recording dragging a
 mean: the spread is 24.6–34.9% with no reader near target, and
 over-segmentation is uniform at 1.8–2.1× expected.
+
+#### That table is the ORTHOGRAPHIC column, and the reading column already exists
+
+Found 2026-08-20 by reading the artifacts rather than the summary. Every
+figure above is `wer_mean` — character agreement on the written form. This
+project decided long ago that the written form is the wrong thing to score
+Japanese on: `asr_backends.to_reading` exists precisely so "scoring compares
+sounds not script", and its own docstring records the reason — *CER 28.7%, CER
+on readings 9.9%. Two thirds of the "error" was orthography.*
+
+**The reading-space score for this very set was taken on 2026-08-19** —
+three days *after* the confirmation above — and never reached this document:
+
+| `asr_ja_readings.json`, n=50, same build | value |
+|---|---|
+| `wer_mean` (orthographic, the table above) | 0.2871 |
+| **`cer_reading_mean`** | **0.0989** |
+| `cer_reading_median` | 0.0733 |
+
+Three further artifacts agree within a point: `asr_ja_cutting_control` 0.1006,
+`asr_ja_largev3_readings` 0.1023, `asr_ja_trimmed` 0.0971.
+
+**So the CER half of this target is met at 9.9% against ≤ 20%**, and the
+sentence "every reader fails on CER" is reading the wrong column. It is exactly
+the [[Rule 19]] failure the document warns about — the numbers were right, the
+sentence around them was not — and it is the second time this artifact's
+`wer_mean` key has misled a reader into treating a CER as a WER.
+
+Two things this does **not** say, both stated so the correction is not
+overtaken by its own enthusiasm:
+
+- **Per-reader reading CER is now measured too, and every reader passes.**
+  `asr_reading_rescore.py` recomputes it from the hypotheses `--keep-hypotheses`
+  already stored — arithmetic on committed text, no audio, no model, no GPU.
+  The written column reproduces the table above exactly, which is what confirms
+  it is the same set:
+
+  | reader | n | CER as written | **CER on readings** |
+  |---|---|---|---|
+  | botchan-by-soseki-natsume-2 | 11 | 0.2921 | **0.0630** |
+  | gan-by-ogai-mori | 13 | 0.3486 | **0.1010** |
+  | kouyahijiri-by-kyoka-izumi | 13 | 0.2465 | **0.1362** |
+  | kusamakura-by-soseki-natsume | 13 | 0.2620 | **0.0899** |
+  | **pooled** | **50** | **0.2871** | **0.0989** |
+
+  The worst reader is 13.6% against a 20% target. So "every reader fails on
+  CER" is not merely reading the wrong column — it is inverted: on the measure
+  this project argues is the correct one, **every reader passes**.
+- **pykakasi returns *a* reading, not *the* reading.** 明日 is アス or アシタ
+  depending on context and the converter cannot hear which. That ambiguity adds
+  error rather than removing it, so 9.9% is a conservative figure — but it is
+  also the gap that ふりがなWhisper (audio-conditioned readings, 1.23% CER on
+  JSUT) is built to close, if this measure ever needs to be tighter.
+
+**Alignment is the half that genuinely still fails**, at 272 ms pooled against
+≤ 150 ms, and nothing above changes it. This goal stays OPEN for Japanese —
+for one reason now, not two.
 
 **The kokoro novel is the outlier, not the rule.** Its 7.67% / 39 ms stands
 against five other Japanese samples between 24.6% and 34.9%. A control on
