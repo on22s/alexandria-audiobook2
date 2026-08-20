@@ -150,13 +150,22 @@ def is_decline(answer):
     return normalize(answer).startswith(DECLINE)
 
 
-def ask(client, model, entry, roster, decoding):
-    """-> (answer, raw, failure_reason). failure_reason set means no answer."""
-    prompt = SINGLE_PROMPT.format(
+def build_prompt(entry, roster):
+    """-> the exact text sent to the model.
+
+    Extracted so `--keep-prompts` records what was actually asked rather than a
+    second copy of this formatting that could drift from it (Rule 15).
+    """
+    return SINGLE_PROMPT.format(
         roster="\n".join(f"- {name}" for name in roster),
         prev=str(entry.get("prev_context") or ""),
         line=str(entry.get("line") or ""),
         next=str(entry.get("next_context") or ""))
+
+
+def ask(client, model, entry, roster, decoding):
+    """-> (answer, raw, failure_reason). failure_reason set means no answer."""
+    prompt = build_prompt(entry, roster)
     try:
         response = client.chat.completions.create(
             model=model, temperature=decoding["temperature"],
@@ -227,6 +236,17 @@ def main():
     ap.add_argument("--tag", default="current",
                     help="artifact suffix; two runs with different --limit "
                          "must not share one path")
+    ap.add_argument("--quote-type", default=None,
+                    help="measure only one PDNC quote type (Explicit, "
+                         "Implicit, Anaphoric). Explicit quotes NAME the "
+                         "speaker in the text and are wrong 47.1% of the time "
+                         "with the right name in the supplied cast, which is "
+                         "the standout anomaly of the full run.")
+    ap.add_argument("--keep-prompts", action="store_true",
+                    help="record the prompt text, not only its hash. The full "
+                         "run stores prompt_sha256 alone, which is enough to "
+                         "prove two rows saw the same prompt and useless for "
+                         "asking WHY a row failed.")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -261,6 +281,14 @@ def main():
         with open(path, encoding="utf-8") as handle:
             fixture = json.load(handle)
         entries = fixture["entries"]
+        if args.quote_type:
+            entries = [e for e in entries
+                       if e.get("quote_type") == args.quote_type]
+            if not entries:
+                raise SystemExit(
+                    "no %r entries in %s; the gold uses %s"
+                    % (args.quote_type, book,
+                       sorted({e.get("quote_type") for e in fixture["entries"]})))
         if args.limit and args.limit < len(entries):
             entries = random.Random(args.seed).sample(entries, args.limit)
         groups = alias_groups(fixture)
@@ -285,7 +313,9 @@ def main():
                        entry.get("expected_speaker"), predicted, correct,
                        candidates=roster_names(roster),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
-                       raw=(raw if raw is not None else failure))
+                       raw=(raw if raw is not None else failure),
+                       prompt=(build_prompt(entry, roster)
+                               if args.keep_prompts else None))
             if index % 25 == 0:
                 print(f"  {book}: {index}/{len(entries)}", flush=True)
         rows = [r for r in record.rows if r["id"].startswith(book + ":")]
