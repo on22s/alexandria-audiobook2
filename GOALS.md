@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 1646** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 1673** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -682,7 +682,34 @@ arithmetic on two medians, not a measurement.
 **SSB0748**, the speaker closest to the corpus median (12.025 dB, +0.005 off),
 with every other setting matched to the original: same trainer, lr 1e-6, 6
 epochs, lora_r 64, seed 1234. New adapter, 150 lines, 300 clips, 0 dropped.
-Artifacts and the chain script are on the `agent/asr-hybrid-cjk` branch.
+Artifacts are on main: `pitch_quality_SSB0748.json`, `aishell3_SSB0748_generate.json` and `corpus_hnr_baseline.json`. (This line used to cite an `agent/asr-hybrid-cjk` branch, which no longer exists on the remote - a closed goal pointing at evidence nobody can fetch. The artifacts themselves were merged and are named here instead.)
+
+| | SSB1585 (9.39 dB, 8th percentile) | SSB0748 (12.02 dB, median) |
+|---|---|---|
+| human HNR | 9.39 dB | **12.02 dB** |
+| LoRA HNR ratio | **1.1669x** (out of band) | **1.0571x** (in band) |
+| clone HNR ratio | 1.0839x | 1.1219x |
+| jitter | 0.9041x | 0.9457x |
+| shimmer | 0.8793x | 0.8885x |
+
+**Every Chinese cell of 2.6 is now inside 0.85–1.15x.** The "too clean" Chinese
+LoRA was an artefact of picking an unusually noisy narrator to compare against.
+
+**Where the prediction was wrong, and it matters.** The chain script committed
+beforehand predicted ~0.93x, on the arithmetic that the generated side would
+stay at 11.17 dB while the denominator rose to 12.02. The generated side did
+not stay: the new adapter produces **12.71 dB**. The conclusion held — in band,
+speaker selection was the cause — but the specific number was not predicted
+correctly, because an adapter trained on a different speaker synthesises
+different phonation.
+
+**The unavoidable confound, stated.** Changing the eval speaker necessarily
+changes the adapter too; there is no adapter for a speaker without training one.
+So this run does not isolate speaker identity from adapter instance on its own.
+What makes speaker selection the better explanation is the corpus baseline: 40
+speakers the adapter never saw median 12.02 dB, and SSB1585 sat at the 8th
+percentile of them. The rerun is consistent with that, not independent proof of
+it.
 
 | | SSB1585 (9.39 dB, 8th percentile) | SSB0748 (12.02 dB, median) |
 |---|---|---|
