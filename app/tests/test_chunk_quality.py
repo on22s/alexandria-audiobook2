@@ -654,3 +654,92 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NearMissAcrossSplitTests(unittest.TestCase):
+    """A part that nearly succeeded must not be thrown away by its sibling.
+
+    grimgar06 failed five times over two days on chunk 27. The full chunk never
+    produced a trigram-only near-miss - its token recall was below 0.90 too, so
+    two codes fired and nothing was captured. The adaptive split then produced
+    one part at ordered_trigram_recall 0.8868, a clean trigram-only near-miss
+    well over the 0.82 floor, and the sibling part failed outright. The
+    any_part_failed path fell back to the TOP-level near-miss list, which was
+    empty, and the whole book was forfeited.
+
+    The 0.90 gate stays authoritative: the rebuilt chunk is accepted only if it
+    is itself a trigram-only near-miss.
+    """
+
+    def test_a_failed_sibling_no_longer_discards_a_near_miss_part(self):
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        first, second = generate_script.split_failed_chunk(source)
+        # Part 1 fails outright; part 2 succeeds. Part 1 reports a near-miss,
+        # which is what the old code dropped.
+        near_miss_entries = [_entry(first)]
+
+        def fake(client, model, chunk, num, total, params, previous_entries=None,
+                 attempt_observer=None, near_miss_out=None):
+            if chunk == source:
+                return [], False
+            if chunk == first:
+                if near_miss_out is not None:
+                    near_miss_out[:] = near_miss_entries
+                return [], False
+            return [_entry(second)], False
+
+        with patch.object(generate_script, "process_chunk", return_value=[]), \
+             patch.object(generate_script, "process_chunk_adaptively",
+                          side_effect=fake) as recursed:
+            entries, split = _call_real_adaptive(source)
+        self.assertTrue(split)
+        self.assertEqual(near_miss_entries + [_entry(second)], entries)
+        self.assertTrue(recursed.called)
+
+    def test_a_rebuild_that_is_not_a_near_miss_is_still_refused(self):
+        """The gate is not weakened: junk from a part must not get in."""
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+        first, second = generate_script.split_failed_chunk(source)
+
+        def fake(client, model, chunk, num, total, params, previous_entries=None,
+                 attempt_observer=None, near_miss_out=None):
+            if chunk == source:
+                return [], False
+            if chunk == first:
+                if near_miss_out is not None:
+                    near_miss_out[:] = [_entry("nothing like the source")]
+                return [], False
+            return [_entry(second)], False
+
+        with patch.object(generate_script, "process_chunk", return_value=[]), \
+             patch.object(generate_script, "process_chunk_adaptively",
+                          side_effect=fake):
+            entries, _ = _call_real_adaptive(source)
+        self.assertEqual([], entries)
+
+    def test_both_parts_failing_with_no_near_miss_still_fails(self):
+        source = ("First section " + "word " * 200 + ".\n\n" +
+                  "Second section " + "word " * 200 + ".")
+
+        def fake(client, model, chunk, num, total, params, previous_entries=None,
+                 attempt_observer=None, near_miss_out=None):
+            return [], False
+
+        with patch.object(generate_script, "process_chunk", return_value=[]), \
+             patch.object(generate_script, "process_chunk_adaptively",
+                          side_effect=fake):
+            entries, _ = _call_real_adaptive(source)
+        self.assertEqual([], entries)
+
+
+def _call_real_adaptive(source):
+    """Call the real function while its recursive self-call is patched."""
+    real = generate_script.process_chunk_adaptively.__wrapped__ \
+        if hasattr(generate_script.process_chunk_adaptively, "__wrapped__") \
+        else _ORIGINAL_ADAPTIVE
+    return real(object(), "model", source, 1, 1, generate_script.LLMGenParams())
+
+
+_ORIGINAL_ADAPTIVE = generate_script.process_chunk_adaptively
