@@ -36,6 +36,28 @@ REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -n "${REPO:-}" ] || exit 0
 git -C "$REPO" symbolic-ref -q HEAD >/dev/null || exit 0   # detached: not ours to commit on
 
+# EXACTLY AT UPSTREAM MEANS THERE IS NOTHING TO DO, and this test comes before
+# the regeneration so a pull on the live checkout costs nothing at all.
+#
+# That checkout sits on main at origin/main and runs the GPU queue
+# ([[Rule 24]]). Its derived files are whatever main has, which CI already
+# validated, so regenerating there can only differ because of artifacts a
+# RUNNING job has written and not yet committed - and committing those would
+# bake in-flight state into main and leave an unpushed commit behind.
+#
+# Not hypothetical. Two such commits accumulated there by 2026-08-20 and turned
+# the next `git pull --ff-only` into "Not possible to fast-forward", with one of
+# them holding the only copy of a chain script that a naive reset would have
+# deleted. A hook that recreated that on every pull would be a worse bug than
+# the conflicts it was written to remove.
+#
+# It tests EQUALITY, not merely "has an upstream": a feature branch always has
+# one and always needs the rebuild.
+upstream=$(git -C "$REPO" rev-parse --quiet --verify '@{upstream}' 2>/dev/null || true)
+if [ -n "${upstream:-}" ] && [ "$upstream" = "$(git -C "$REPO" rev-parse HEAD)" ]; then
+    exit 0
+fi
+
 "$REPO/tools/regen_derived.sh" --quiet || {
     echo "$caller: could not regenerate derived files; run ./ready.sh before pushing" >&2
     exit 0; }
