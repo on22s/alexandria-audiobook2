@@ -1,0 +1,52 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "chinese_attribution_frame.py",
+  "written": "2026-08-21T11:47:47",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "20fe54c35836910ac336f1effac4e05969546962",
+   "branch": "agent/chinese-attribution-frame-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/chinese_attribution_frame.py"
+   ],
+   "harness_sha256": "2438d8903b3c5329bfcbd5793df569097ced219dc03d8cb9df4109a56fc196eb"
+  },
+  "args": {
+   "corpus": "JY-QuotePlus.json",
+   "out": "chinese_attribution_frame.json"
+  }
+ },
+ "scope": "Elson's syntactic-frame method rewritten for Chinese word order, measured on a locally fetched corpus. Derived counts only; no corpus text is recorded",
+ "corpus": "JY-QuotePlus (NLPCC 2024), 射雕英雄传",
+ "quotations": 8144,
+ "naive": {
+  "fired": 3597,
+  "fire_rate": 0.4417,
+  "accuracy_where_fired": 0.9249,
+  "share_of_all_answered_correctly": 0.4085,
+  "declines": 4547,
+  "correct": 3327,
+  "wrong": 270,
+  "surface_forms": 145,
+  "entities": 100
+ },
+ "addressee_aware": {
+  "fired": 3406,
+  "fire_rate": 0.4182,
+  "accuracy_where_fired": 0.9753,
+  "share_of_all_answered_correctly": 0.4079,
+  "declines": 4738,
+  "correct": 3322,
+  "wrong": 84,
+  "surface_forms": 145,
+  "entities": 100
+ },
+ "english_comparison": {
+  "source": "PR #372, our Elson trigram on PDNC",
+  "fire_rate": 0.04,
+  "accuracy_where_fired": 0.9899
+ }
+}
