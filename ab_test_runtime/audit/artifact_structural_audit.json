@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 242,
+    "supported_structure": 245,
     "exploratory": 193,
     "provisional": 123
   },
@@ -5292,6 +5292,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "longref__zh_score.json",
+      "bytes": 66102,
+      "sha256": "35889b1f50735c1b9fec574ca38edeefaa6f03bcde60f647ba2c7d2d8e35fd5a",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:34:12",
+      "commit": "aa0a026abb3a7a781ba0a1e042a0c19b32badb26",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -7564,6 +7580,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "second_english__husky_baritone_50s_m_military_generate.json",
+      "bytes": 12087,
+      "sha256": "82ba4ab2ed556d52691bfae2758d882a47590b43f5333e75b67932d6c0a2bb39",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:38:25",
+      "commit": "aa0a026abb3a7a781ba0a1e042a0c19b32badb26",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "second_english__husky_soprano_20s_f_generate.json",
       "bytes": 11852,
       "sha256": "037d9e11256cc8e1cfb432619db86eece69d8a6f797b30511552b0b344f778f7",
@@ -7607,6 +7639,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-20T22:37:39",
       "commit": "e301c313acc23859a1881f2246d47e187c1c8574",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "second_english__warm_baritone_30s_m_scifi_generate.json",
+      "bytes": 12517,
+      "sha256": "6e73cc09d71cd1fee6a116655f7d0617a2947fdf058271618779c74b8ca42c5a",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:31:19",
+      "commit": "aa0a026abb3a7a781ba0a1e042a0c19b32badb26",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
