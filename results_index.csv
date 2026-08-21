@@ -360,6 +360,7 @@ decontaminate_batch3.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,
 decontaminate_batch4.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch5.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 decontaminate_batch6.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+descriptor_candidates.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dialogue_attribution.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dialogue_attribution_library.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 dialogue_map_compare.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
