@@ -376,7 +376,6 @@ def main():
               "(GOALS.md goal 1.3). Not comparable to 61.7%, which is a "
               "different experiment on different books.",
         environment=environment)
-    record.meta["narrators"] = {k: v for k, v in narrators.items()} if narrators else {}
     # The artifact must say which prompt produced it. Two arms whose only
     # difference is one sentence are indistinguishable afterwards otherwise.
     record.meta["prompt_variant"] = args.prompt_variant
@@ -399,6 +398,12 @@ def main():
         raise SystemExit(
             f"--narrator names no fixture in this run: {unmatched}\n"
             f"  fixtures: {[os.path.basename(p) for p in args.fixtures]}")
+
+    # Recorded AFTER the map is built. This line used to sit ~11 lines above,
+    # before `narrators` existed, so every run of this script raised
+    # UnboundLocalError before making a single request - see the commit
+    # message. Keep it below the loop that fills the dict.
+    record.meta["narrators"] = dict(narrators)
 
     for path in args.fixtures:
         book = os.path.basename(path).replace(".json", "")
