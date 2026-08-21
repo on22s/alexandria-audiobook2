@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 224,
+    "supported_structure": 225,
     "exploratory": 193,
     "provisional": 122
   },
@@ -2357,6 +2357,22 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "constraint_refine.json",
+      "bytes": 2926,
+      "sha256": "5c292718cff3a8c2cbc368e34efcd6e9c7c9d4e04122d6c80709abee3203e219",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T03:40:01",
+      "commit": "d24a59283080562c8d6d2fbddbfa0dcb9999715c",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "context_width__grimgar03__qwen__qwen3-14b__local-llamacpp.json",

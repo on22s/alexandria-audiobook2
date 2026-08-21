@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2058** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2108** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -86,6 +86,56 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 | index18 | 81.5% | 82.6% | 1.1 |
 | mushoku16 | 72.9% | 74.8% | 1.9 |
 | owarimonogatari3 | 69.1% | 69.8% | 0.7 |
+
+#### The wide context arrived, and it is worth 12.7 points — 2026-08-21
+
+`two_stage_attribution_w3200.json`, 2,494 PDNC rows, the window widened from
+400 to 3,200 characters as [[Rule 1.3]]'s context audit indicated:
+
+| quote type | n | accuracy |
+|---|---|---|
+| Anaphoric | 723 | **71.2%** |
+| Explicit | 543 | 64.5% |
+| Implicit | 1228 | 62.9% |
+| **overall** | **2494** | **65.6%** |
+
+Against the 52.9% this document records for Explicit at the old window, that is
+**+11.6 points on Explicit** and 65.6% overall. It is also still far from the
+99.3% the field reports on Explicit, and the ordering is strange in a way worth
+following: **Anaphoric now outscores Explicit**, though Explicit names the
+speaker beside the line and should be the easy case.
+
+**The remaining error is entirely selection.** The gold speaker is in the
+candidate roster for **100%** of rows, and the model answers something else on
+857 of them. Nothing is missing from the prompt; the pick is wrong.
+
+#### A refinement layer was tried on that gap, and it loses
+
+DiLA (KDD '26) proposes LLM-proposes-then-constraint-repairs, and the shape
+fits: every error above is a pick the roster already contained.
+`constraint_refine.py` tests it with one constraint — alternation, since a
+speaker rarely answers themselves — paired against the model's own output on
+identical rows:
+
+| | |
+|---|---|
+| baseline | 1637/2494 = **65.6%** |
+| after repair | 1355/2494 = **54.3%** |
+| fixed / broke | **190 / 472** |
+| McNemar | **p = 1.3e-28** |
+
+**It is not close, and the reason is measurable rather than mysterious.** The
+model assigns the same speaker to consecutive quotes 1,010 times and is right
+to on **53.9%** of them — these novels have long single-speaker runs, so
+alternation overwrites a majority-correct decision. One constraint was tested
+deliberately: a repair pass with several interacting rules that improved the
+total would not say which rule earned it.
+
+**What this does not close.** Alternation is the wrong constraint, not proof
+that no constraint helps — the roster-membership and narration-adjacency
+constraints are untested, and unlike this one they do not contradict the
+corpus. What it does establish is that the 34.4% selection gap will not fall to
+a turn-taking prior.
 
 **Target — every book ≥ 75% on the local model.** Two of four already clear it;
 owarimonogatari3 needs +5.9 and mushoku16 +2.1.

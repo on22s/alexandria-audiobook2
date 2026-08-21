@@ -1,0 +1,62 @@
+{
+ "scope": "alternation-only repair of the model's speaker assignment, paired against its own output on identical rows",
+ "artifact": "two_stage_attribution_w3200.json",
+ "rows_scored": 2494,
+ "predictions_changed": 815,
+ "baseline_correct": 1637,
+ "baseline_accuracy": 0.6564,
+ "refined_correct": 1355,
+ "refined_accuracy": 0.5433,
+ "fixed": 190,
+ "broke": 472,
+ "mcnemar_p": 1.3176372128093296e-28,
+ "fixed_examples": [
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00005",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00006",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00007",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00020",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00026",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00041",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00111",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00131",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00146",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00153"
+ ],
+ "broke_examples": [
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00028",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00029",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00032",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00034",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00038",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00043",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00044",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00045",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00046",
+  "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00047"
+ ],
+ "status": "complete",
+ "provenance": {
+  "script": "constraint_refine.py",
+  "written": "2026-08-21T03:40:01",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "d24a59283080562c8d6d2fbddbfa0dcb9999715c",
+   "branch": "agent/constraint-refine-attribution-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/constraint_refine.py"
+   ],
+   "harness_sha256": "9905bcb0632e3d085031351306772420a48cd6bb3e256b7c9d910f304ecd7577"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/fixtures/attribution_gold_pdnc_prideandprejudice_w3200.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/fixtures/attribution_gold_pdnc_theawakening_w3200.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/app/fixtures/attribution_gold_pdnc_thesignofthefour_w3200.json"
+   ],
+   "out": "cr3.json"
+  }
+ }
+}
