@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "silky_baritone_40s_m_scifi",
+ "rows": [
+  {
+   "id": "sample_6009",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "While Bautista busied himself with an overhead locker, Ortega delved in her pocket and produced a hypospray ... tipped with an *unpleasant* looking needle.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6009.wav",
+   "human_seconds": 8.92,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6009__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6009__clone.wav"
+  },
+  {
+   "id": "sample_6011",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "I shook my head with what felt like machined precision. .... '*Uh* *uh*. You're not sticking that *fucking* thing in me.'",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6011.wav",
+   "human_seconds": 7.88,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6011__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6011__clone.wav"
+  },
+  {
+   "id": "sample_6028",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "snugged across my lower ribs opposite the *stunner*. I *dialled* the muzzle aperture to *wide*. At five *metres*, it would take down a *roomful* of opponents with a *single* shot, ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6028.wav",
+   "human_seconds": 10.46,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6028__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6028__clone.wav"
+  },
+  {
+   "id": "sample_6031",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "Iphigenia Deme. The *Tebbit* knife on my forearm in its neural spring sheath beneath the stealth suit like a *final* word.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6031.wav",
+   "human_seconds": 9.78,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6031__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6031__clone.wav"
+  },
+  {
+   "id": "sample_6050",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "and then lifted abruptly over our *heads* as the pilot dipped us below the bulk of its hull and banked about. ... I saw lights gathered like icy fruit on gantries",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6050.wav",
+   "human_seconds": 9.96,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6050__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6050__clone.wav"
+  },
+  {
+   "id": "sample_6054",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "More silence. .... We circled the airship five *kilometres* out. .... I started to pull on the gloves of the stealth suit.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6054.wav",
+   "human_seconds": 8.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6054__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6054__clone.wav"
+  },
+  {
+   "id": "sample_6057",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "'This is a little unexpected. .... Do you have some kind of *warrant*? I believe our licences are in *order*.'",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6057.wav",
+   "human_seconds": 8.58,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6057__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6057__clone.wav"
+  },
+  {
+   "id": "sample_6060",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "I might have to assume you've got a *guilty* conscience.' 'Don't *threaten* me, lieutenant,' said Kawahara coldly.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6060.wav",
+   "human_seconds": 8.16,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6060__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6060__clone.wav"
+  },
+  {
+   "id": "sample_6080",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "the tube blew open and spat me backwards into the night sky. .... The sensation was a *dimly* remembered joy,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6080.wav",
+   "human_seconds": 7.06,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6080__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6080__clone.wav"
+  },
+  {
+   "id": "sample_6090",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "they'd need to be looking for me, and looking quite hard. .... All these things I knew with an absolute confidence that had no room for *doubts*,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6090.wav",
+   "human_seconds": 8.52,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6090__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6090__clone.wav"
+  },
+  {
+   "id": "sample_6091",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "fears or other emotional tangling. .... I was riding the Reaper. .... I set the impellers in *cautious* forward drive",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6091.wav",
+   "human_seconds": 8.68,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6091__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6091__clone.wav"
+  },
+  {
+   "id": "sample_6092",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "and drifted towards the massive, curving wall of the hull. .... Inside the helmet, simulation *graphics* awoke on the surface of the *visor* ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6092.wav",
+   "human_seconds": 8.26,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6092__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6092__clone.wav"
+  },
+  {
+   "id": "sample_6122",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "The carpet beneath my feet was deep, and woven with highly detailed images of *sexual* abandon. .... Male,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6122.wav",
+   "human_seconds": 7.72,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6122__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6122__clone.wav"
+  },
+  {
+   "id": "sample_6126",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "none of it had any more impact than a wall full of Martian techno glyphs. ... There were plushly appointed double doors set into each side of the corridor at about ten metre intervals.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6126.wav",
+   "human_seconds": 11.0,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6126__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6126__clone.wav"
+  },
+  {
+   "id": "sample_6145",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "drawing the *shard* gun on my way and swung through, holding the weapon in both hands before me. .... The room beyond was spacious and pastel *coloured* with quaint two dimensional framed pictures on the walls.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6145.wav",
+   "human_seconds": 13.84,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6145__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6145__clone.wav"
+  },
+  {
+   "id": "sample_6147",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "naked from the waist down. .... Above the waist, he appeared to be wearing formal evening *dress* which clashed badly with the heavy duty canvas work *gloves* he had pulled up to both *elbows*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6147.wav",
+   "human_seconds": 11.16,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6147__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6147__clone.wav"
+  },
+  {
+   "id": "sample_6157",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "all with the unhurried calm of the *Reaper*. .... Then I moved *silently* to the connecting corridor.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6157.wav",
+   "human_seconds": 7.14,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6157__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6157__clone.wav"
+  },
+  {
+   "id": "sample_6172",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "With the *betathanatine* to protect me from the *hatred*, my reaction to that voice was a *muted* horizon event,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6172.wav",
+   "human_seconds": 7.08,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6172__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6172__clone.wav"
+  },
+  {
+   "id": "sample_6173",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "like the flare and crash of gunfire at a great distance. ' .... *that* I cannot be of more assistance, lieutenant.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6173.wav",
+   "human_seconds": 7.4,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6173__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6173__clone.wav"
+  },
+  {
+   "id": "sample_6185",
+   "book": "silky_baritone_40s_m_scifi",
+   "text": "There was no panic. .... Instead, a cool *analogue* of the *adrenalin* reaction rinsed through my mind,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/data/val/sample_6185.wav",
+   "human_seconds": 7.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6185__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi/sample_6185__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-20T22:37:39",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "e301c313acc23859a1881f2246d47e187c1c8574",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch3/silky_baritone_40s_m_scifi/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/silky_baritone_40s_m_scifi",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__silky_baritone_40s_m_scifi_generate.json"
+  },
+  "seed": 1234
+ }
+}

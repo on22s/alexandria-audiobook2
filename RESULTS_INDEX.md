@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 546 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 548 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1023,6 +1023,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `ljspeech_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `longref__en_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `longref__ja_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `longref__zh_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_counterexample.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_library_retrain.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `name_consistency.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1115,6 +1116,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `script_text_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__silky_alto_40s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `second_english__silky_baritone_40s_m_scifi_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_50s_m_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `seed_instruction_controls.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `segmentation_classifier.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

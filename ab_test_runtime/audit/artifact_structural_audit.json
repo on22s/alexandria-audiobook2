@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 231,
+    "supported_structure": 233,
     "exploratory": 192,
     "provisional": 123
   },
@@ -5228,6 +5228,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "longref__zh_generate.json",
+      "bytes": 51893,
+      "sha256": "fd435167877f577a06ef324644700f91161791c8e07ddd5712952f01a9a114d9",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:04:38",
+      "commit": "e301c313acc23859a1881f2246d47e187c1c8574",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -7418,6 +7434,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-20T22:21:44",
       "commit": "336662d5121770a703b28033ad2206411c68621d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "second_english__silky_baritone_40s_m_scifi_generate.json",
+      "bytes": 12382,
+      "sha256": "4f00f6557d2fe42bb4bfe89b1607ca35b09d34138e11e1d1fbf87a0775ede0a0",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T22:37:39",
+      "commit": "e301c313acc23859a1881f2246d47e187c1c8574",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
