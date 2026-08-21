@@ -1,0 +1,77 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "name_variant_triage.py",
+  "written": "2026-08-21T12:50:53",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "c7ef7ab2c5f856b6227ba474f8a4616c8046a236",
+   "branch": "agent/name-variant-triage-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/name_variant_triage.py"
+   ],
+   "harness_sha256": "339b478c2fd6cf40ed4e5aaf16425c2132bd043dce7b3399255d9138efa4e5d6"
+  },
+  "args": {
+   "consistency": "name_consistency.json",
+   "roster": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/voice_config.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/character_aliases.json"
+   ],
+   "out": "name_variant_triage.json"
+  }
+ },
+ "scope": "triage of the variant groups behind goal 5.2's baseline; no audio was measured and no lexicon entry is proposed",
+ "groups": [
+  {
+   "key": "subaru",
+   "forms": {
+    "Subaru": 2793,
+    "Su-ba-ru": 3
+   },
+   "verdict": "deliberate_stretch",
+   "why": "'Su-ba-ru' spells the name out, 3 times against 2793; the engine voicing separate syllables may be correct",
+   "minority_occurrences": 3
+  },
+  {
+   "key": "ferris",
+   "forms": {
+    "Ferris": 1224,
+    "Ferri’s": 57
+   },
+   "verdict": "not_in_cast_list",
+   "why": "'Ferris' is not in the supplied cast list",
+   "minority_occurrences": 57
+  },
+  {
+   "key": "rem",
+   "forms": {
+    "Rem": 890,
+    "R-e-m": 3
+   },
+   "verdict": "deliberate_stretch",
+   "why": "'R-e-m' spells the name out, 3 times against 890; the engine voicing separate syllables may be correct",
+   "minority_occurrences": 3
+  },
+  {
+   "key": "knights",
+   "forms": {
+    "Knights": 35,
+    "knights": 86,
+    "knight’s": 5,
+    "KNIGHTS": 1
+   },
+   "verdict": "not_in_cast_list",
+   "why": "'knights' is not in the supplied cast list",
+   "minority_occurrences": 41
+  }
+ ],
+ "by_verdict": {
+  "deliberate_stretch": 2,
+  "not_in_cast_list": 2
+ },
+ "occurrences_needing_a_decision": 6,
+ "verdict": "the baseline counts things the lexicon cannot help: 2 of 4 groups are unknown to the cast list or are an apostrophe form. The rest are deliberate stretches, 6 occurrences, and whether an engine should smooth them is a listening question rather than a measurement"
+}
