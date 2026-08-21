@@ -14,6 +14,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
+from tests.test_support import app_python_files
 
 REPO = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO / "app"))
@@ -225,7 +226,7 @@ class InventoryTest(unittest.TestCase):
 
     def test_every_speech_decider_consults_the_fact_or_is_listed(self):
         offenders = {}
-        for path in sorted((REPO / "app").rglob("*.py")):
+        for path in app_python_files(REPO / "app"):
             if "/tests/" in str(path) or path.name in self.ALLOWED_WITHOUT_THE_FACT:
                 continue
             src = path.read_text(encoding="utf-8", errors="replace")

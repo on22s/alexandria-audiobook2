@@ -1,4 +1,16 @@
 {
+  "test_adapter_provenance": [
+    "tests.test_adapter_provenance.BackfillTest.test_a_correct_digest_is_left_alone",
+    "tests.test_adapter_provenance.BackfillTest.test_a_meta_with_no_adapter_beside_it_is_not_invented",
+    "tests.test_adapter_provenance.BackfillTest.test_a_missing_digest_is_backfillable_and_marked",
+    "tests.test_adapter_provenance.BackfillTest.test_a_wrong_digest_is_reported_not_repaired",
+    "tests.test_adapter_provenance.BackfillTest.test_the_walk_skips_virtualenvs_and_the_hub_cache",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_production_digest_is_still_recorded_under_its_own_name",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_the_candidate_record_overrides_the_digest",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_the_override_uses_the_candidates_own_hash",
+    "tests.test_adapter_provenance.CodeLineageTest.test_lineage_never_raises_when_git_is_absent",
+    "tests.test_adapter_provenance.CodeLineageTest.test_training_meta_records_the_commit"
+  ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
@@ -582,6 +594,26 @@
   "test_duration_outlier_analysis": [
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_ranks_average_ties",
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_spearman_detects_monotonic_directions"
+  ],
+  "test_elson_trigram": [
+    "tests.test_elson_trigram.AcceptTest.test_a_bare_surname_resolves_when_it_is_unambiguous",
+    "tests.test_elson_trigram.AcceptTest.test_a_newline_between_quote_and_attribution",
+    "tests.test_elson_trigram.AcceptTest.test_an_alias_resolves_to_the_roster_name",
+    "tests.test_elson_trigram.AcceptTest.test_person_said_quote",
+    "tests.test_elson_trigram.AcceptTest.test_quote_person_said",
+    "tests.test_elson_trigram.AcceptTest.test_quote_said_person",
+    "tests.test_elson_trigram.AppliedSetTest.test_it_is_still_classified_so_the_number_stays_visible",
+    "tests.test_elson_trigram.AppliedSetTest.test_subsets_reports_every_cumulative_choice",
+    "tests.test_elson_trigram.AppliedSetTest.test_the_harmful_order_is_not_applied_by_default",
+    "tests.test_elson_trigram.DeclineTest.test_a_name_with_no_verb_is_not_an_attribution",
+    "tests.test_elson_trigram.DeclineTest.test_a_nominal_is_not_resolved",
+    "tests.test_elson_trigram.DeclineTest.test_a_non_speech_verb_does_not_attribute",
+    "tests.test_elson_trigram.DeclineTest.test_a_place_name_is_not_a_speaker",
+    "tests.test_elson_trigram.DeclineTest.test_a_pronoun_is_the_anaphora_category_not_this_one",
+    "tests.test_elson_trigram.DeclineTest.test_an_ambiguous_surname_is_declined",
+    "tests.test_elson_trigram.DeclineTest.test_plain_narration_after_the_quote",
+    "tests.test_elson_trigram.ResolveTest.test_an_empty_surface_resolves_to_nothing",
+    "tests.test_elson_trigram.ResolveTest.test_pronouns_never_resolve"
   ],
   "test_ensure_llama_server_default": [
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
@@ -1977,6 +2009,12 @@
     "tests.test_source_span_coverage.SourceSpanCoverageTests.test_experiment_uses_production_preprocessing",
     "tests.test_source_span_coverage.SourceSpanCoverageTests.test_missing_unknown_and_malformed_declarations_fail_loudly",
     "tests.test_source_span_coverage.SourceSpanCoverageTests.test_spans_keep_order_and_stable_ids"
+  ],
+  "test_source_sweep_scope": [
+    "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_bare_rglob_would_have_returned_the_venv",
+    "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_tree_with_no_venv_is_unaffected",
+    "tests.test_source_sweep_scope.AppPythonFilesTest.test_the_venv_is_excluded_and_our_modules_are_not",
+    "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_test_rglobs_python_files_by_hand"
   ],
   "test_speaker_identity": [
     "tests.test_speaker_identity.FinishedScriptRepairTest.test_a_split_name_is_rejoined_when_the_prose_confirms_it",

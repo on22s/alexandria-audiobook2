@@ -25,6 +25,7 @@ import json
 import os
 import random
 import shutil
+import subprocess
 import sys
 import time
 import traceback
@@ -55,6 +56,34 @@ def get_checkpoint_sha256(checkpoint_dir):
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def get_code_lineage():
+    """-> {"code_commit": sha, "code_dirty": bool} for the tree that trained this.
+
+    Every adapter recorded its data lineage (`ref_sample_audio`) and its
+    hyperparameters, and none of the 254 on disk recorded which code produced
+    them. That is the one claim you cannot reconstruct later: the reference
+    audio is still there to look at, the commit is not.
+
+    Best-effort by design - a checkout without git, or an adapter trained from
+    an exported copy, records None rather than failing a training run that has
+    already spent the GPU.
+    """
+    try:
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        commit = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"],
+                                capture_output=True, text=True, timeout=10)
+        if commit.returncode != 0:
+            return {"code_commit": None, "code_dirty": None}
+        dirty = subprocess.run(
+            ["git", "-C", repo, "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True, text=True, timeout=10)
+        return {"code_commit": commit.stdout.strip() or None,
+                "code_dirty": bool(dirty.stdout.strip())
+                if dirty.returncode == 0 else None}
+    except (OSError, subprocess.SubprocessError):
+        return {"code_commit": None, "code_dirty": None}
 
 
 def save_evaluation_candidate(model, output_dir, existing_records, max_candidates,
@@ -847,6 +876,7 @@ def train(args):
         "ref_sample_audio": ref_audio_path,
         "ref_sample_text": ref_sample_text,
         "checkpoint_sha256": production_hash,
+        **get_code_lineage(),
         "evaluation_candidates": [
             {"id": record["id"], "epoch": record["epoch"], "loss": record["loss"],
              "sha256": record["sha256"]}
@@ -860,9 +890,18 @@ def train(args):
     for record in candidate_records:
         shutil.copy2(ref_dest, os.path.join(record["path"], "ref_sample.wav"))
         with open(os.path.join(record["path"], "training_meta.json"), "w", encoding="utf-8") as f:
+            # The digest must describe THIS directory's bytes. Copying the
+            # production meta wholesale gave every candidate the production
+            # adapter's hash - and deduplicate_evaluation_candidates deletes
+            # any candidate whose bytes equal production, so a retained
+            # candidate's recorded digest was guaranteed to name a different
+            # file. lora_training_benchmark verifies a checkpoint against this
+            # field and would have rejected every candidate it was pointed at.
             json.dump({**meta, "candidate_id": record["id"],
                        "candidate_epoch": record["epoch"],
-                       "candidate_loss": record["loss"]},
+                       "candidate_loss": record["loss"],
+                       "checkpoint_sha256": record["sha256"],
+                       "production_checkpoint_sha256": production_hash},
                       f, indent=2, ensure_ascii=False)
 
     print(f"[DONE] Adapter saved to {args.output_dir} "
