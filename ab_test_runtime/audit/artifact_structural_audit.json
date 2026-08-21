@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 242,
+    "supported_structure": 244,
     "exploratory": 193,
     "provisional": 123
   },
@@ -1127,6 +1127,22 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "candidate_scoring_feasibility.json",
+      "bytes": 3777,
+      "sha256": "4ca41b448033b2e4f843b11f7bd8bf6e151b890aeb345a4f0d3e051ba72bdebf",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T11:21:06",
+      "commit": "87b60278f125e109645a366842097403d2200b00",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "cascade__grimgar03__llama-3.3-70b__a6000-batchtrig.json",
@@ -3313,6 +3329,22 @@
       "written": "2026-08-19T01:30:16",
       "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "external_comparability.json",
+      "bytes": 3846,
+      "sha256": "8b2b31876e1d3abcd7bc0b2674dbd85634113763b866a0820704848686454eba",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T11:38:02",
+      "commit": "20fe54c35836910ac336f1effac4e05969546962",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
