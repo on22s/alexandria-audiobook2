@@ -51,21 +51,50 @@
    "single_says_spoken_only": 0,
    "three_pass_says_spoken_only": 1,
    "mcnemar_p": 1.0
+  },
+  "pdnc_themysteriousaffairatstyles": {
+   "single": {
+    "entries": 2652,
+    "located": 952,
+    "spoken": 314,
+    "located_rate": 0.359,
+    "spoken_rate": 0.3298
+   },
+   "three_pass": {
+    "entries": 3332,
+    "located": 1950,
+    "spoken": 745,
+    "located_rate": 0.5852,
+    "spoken_rate": 0.3821
+   },
+   "paired_entries": 815,
+   "agree": 815,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 304,
+    "single_attributed": 0.7368,
+    "three_pass_attributed": 0.7895,
+    "single_only": 48,
+    "three_pass_only": 64,
+    "mcnemar_p": 0.15606630199377325
+   }
   }
  },
  "skipped_no_dialogue_map": [],
  "status": "complete",
  "provenance": {
   "script": "dialogue_map_compare.py",
-  "written": "2026-08-21T08:46:03",
+  "written": "2026-08-21T13:53:17",
   "host": "mitch-linux",
   "git": {
-   "commit": "8f947862280cc9b1704c1122bd51781e511caf95",
+   "commit": "20dda6d49b478e333dd532365812881209fdc108",
    "branch": "main",
    "dirty": false,
    "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "f2a6cce8fed8459035e1853f714b63c730f95d8c498c113a6ef62d52050d932b"
+   "harness_sha256": "b3cc8986c66f08cd3bb69555fe6165f794df2881a13494cc6bf321a8f5f08c0a"
   },
   "args": {
    "work": "ab_test_runtime/dialogue_map_5_3",

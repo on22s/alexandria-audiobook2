@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 271,
+    "supported_structure": 274,
     "exploratory": 193,
     "provisional": 123
   },
@@ -51,6 +51,22 @@
       "written": "2026-08-19T00:52:40",
       "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "addressee_confusion.json",
+      "bytes": 3256,
+      "sha256": "03f5c882ae678c2e6a293934854d39f602a77bd1c4385ab7db46186409063691",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T13:25:42",
+      "commit": "030f77c436710b36aee00fdd2103c9ce97d3101d",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
@@ -2929,6 +2945,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "descriptor_candidates.json",
+      "bytes": 1427,
+      "sha256": "2b09ff30a53455d3d3443582a223b37f45e884e9bfd3e3e628b1a4afdf4f52cd",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T13:02:41",
+      "commit": "b73b21a687c86a69340445cb32912fe46031b50e",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "dialogue_attribution.json",
       "bytes": 2018,
       "sha256": "067762462a9f3ac9353792733e4282cecaebd6856dec1bb30598bf9b5ed8d26c",
@@ -2978,16 +3010,16 @@
     },
     {
       "artifact": "dialogue_map_compare_fresh.json",
-      "bytes": 1876,
-      "sha256": "175ce2bc6db28a304a2d521eb7170704ac139bb8725421f995013c0626bfcc5a",
+      "bytes": 2577,
+      "sha256": "1e5abceb26e1a5ca776f453d99c3c662861943d30c7a153ede305356e765a238",
       "completeness": "complete",
       "seed": null,
       "status": "complete",
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-21T08:46:03",
-      "commit": "8f947862280cc9b1704c1122bd51781e511caf95",
+      "written": "2026-08-21T13:53:17",
+      "commit": "20dda6d49b478e333dd532365812881209fdc108",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -5703,6 +5735,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "name_variant_triage.json",
+      "bytes": 2285,
+      "sha256": "3890bbaaedd3b4fe0d7b7711a47ee4bf5fdfb47a902bf6e428f207634bb8d3fd",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T12:50:53",
+      "commit": "c7ef7ab2c5f856b6227ba474f8a4616c8046a236",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json",
