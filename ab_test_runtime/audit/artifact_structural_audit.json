@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 250,
+    "supported_structure": 251,
     "exploratory": 194,
     "provisional": 123
   },
@@ -201,6 +201,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-21T09:40:33",
       "commit": "1c5c1b7037f8e8fe673705968ff9e60b0018a696",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "aozora_quote_coverage.json",
+      "bytes": 2587,
+      "sha256": "02d248dfa16090db90a2f390bf76462c3991a3dd1164d534792d9d9614f62442",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T14:43:13",
+      "commit": "f135c63656c5b9a553e2dc8a5035acb4135247c0",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
