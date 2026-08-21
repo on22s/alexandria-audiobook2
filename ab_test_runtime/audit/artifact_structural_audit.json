@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 245,
+    "supported_structure": 246,
     "exploratory": 193,
     "provisional": 123
   },
@@ -7639,6 +7639,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-20T22:37:39",
       "commit": "e301c313acc23859a1881f2246d47e187c1c8574",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "second_english__warm_baritone_30s_m_1_generate.json",
+      "bytes": 11810,
+      "sha256": "6c015255e54feacc83bae256bb9ffa6011bcfa60c3a60742ff348023ea977431",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:47:33",
+      "commit": "954b46e8a19e2e2247398173496975e6e0e99130",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
