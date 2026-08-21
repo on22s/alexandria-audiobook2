@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 247,
+    "supported_structure": 249,
     "exploratory": 193,
     "provisional": 123
   },
@@ -6298,6 +6298,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "prosody_second_english__husky_baritone_50s_m_military.json",
+      "bytes": 14757,
+      "sha256": "e702a5a765666e190c44e07117c0c443363c4ad7aff5c1555eaaeb4e729c9709",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T02:32:42",
+      "commit": "db122ab1a536a197ce9a38d9ea6783166b2c6ef7",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "prosody_second_english__husky_soprano_20s_f.json",
       "bytes": 14776,
       "sha256": "26d11a2120cc14f68a864d59f9a615ff1d113f9ff599bc3e01e0e73cdd5e039c",
@@ -6342,6 +6358,22 @@
       "written": "2026-08-21T00:18:21",
       "commit": "31c420d80fc492dc95eaaf0aeafb367c6d2eb79b",
       "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_second_english__warm_baritone_30s_m_1.json",
+      "bytes": 14733,
+      "sha256": "f7d556e9242f68ee15a9c5ff38ab478288457e8dd40bc6c5679257eb98546789",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T02:33:04",
+      "commit": "db122ab1a536a197ce9a38d9ea6783166b2c6ef7",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
