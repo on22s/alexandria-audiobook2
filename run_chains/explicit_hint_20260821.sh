@@ -36,12 +36,22 @@ STAGE_LOG_DIR="$runtime/logs/explicit_hint_20260821"
 mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
 
+# ARMS is the single source of what this chain runs: the guard below, the run
+# loop and the summary all read it. It used to assert only `explicit_hint`
+# while the loop ran five arms, so a checkout missing a NEWER variant - the
+# only realistic case, since explicit_hint has shipped for days - would sail
+# past the guard and run the control under the new arm's name. That is the
+# exact failure the guard was written to prevent, reintroduced by adding arms
+# to the loop and not to the check.
+ARMS="control explicit_hint shuffled_roster inner_narration speaker_not_addressee"
+
 "$python" -c "
 import sys; sys.path.insert(0, '$REPO/app')
 from experiments.two_stage_attribution import PROMPT_VARIANTS
-assert 'explicit_hint' in PROMPT_VARIANTS, PROMPT_VARIANTS" || {
-    echo "REFUSING: this checkout has no explicit_hint variant; the treatment"
-    echo "  arm would run the control twice under two names."
+missing = [a for a in '$ARMS'.split() if a not in PROMPT_VARIANTS]
+assert not missing, 'missing %s; have %s' % (missing, list(PROMPT_VARIANTS))" || {
+    echo "REFUSING: this checkout is missing an arm this chain runs; those"
+    echo "  arms would run the control under another name. Update the checkout."
     exit 1; }
 
 start_server() {
@@ -55,7 +65,7 @@ start_server
 # answer sits earlier in the alphabetical cast list than the correct one 67.2%
 # of the time (p = 1.3e-23). It is the better-motivated of the two treatments,
 # since #382 showed the model is not short of information.
-for variant in control explicit_hint shuffled_roster inner_narration; do
+for variant in $ARMS; do
     run_stage "explicit_$variant" 3h -- \
         env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
         "$REPO/gpu_job.sh" "explicit_$variant" \
@@ -70,11 +80,10 @@ done
 # runtime is passed in: REPO is a shell variable, not an exported one, and
 # os.environ.get("REPO", ".") would have summarised the wrong directory in
 # silence.
-"$python" - "$runtime" <<'PYEOF'
+"$python" - "$runtime" "$ARMS" <<'PYEOF'
 import json, os, sys
 runtime = sys.argv[1]
-for variant in ("control", "explicit_hint", "shuffled_roster",
-                "inner_narration"):
+for variant in sys.argv[2].split():
     path = os.path.join(runtime, "experiments",
                         "two_stage_attribution__explicit_%s.json" % variant)
     try:

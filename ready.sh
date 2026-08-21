@@ -52,6 +52,32 @@ for script in audit_experiment_artifacts audit_legacy_attribution collect_result
 done
 [ "$stale" = 0 ] || exit 2
 
+# A BRAND-NEW ARTIFACT WILL GO STALE THE MOMENT YOU COMMIT IT, ONCE.
+# collect_results records the commit each artifact was generated at, and that
+# commit cannot exist until the artifact is committed. So the first commit of
+# any new artifact writes an empty SHA, the index is immediately stale by that
+# one field, and CI fails on it. Twice on 2026-08-21 (#396, #397), each a
+# four-minute round trip to learn something knowable here.
+#
+# Nothing can be regenerated to fix this before the commit exists, so this
+# WARNS rather than refusing, and says what to run afterwards.
+#
+# IT MUST SIT ABOVE THE UNSTAGED GATE. That gate exits 2, and adding an
+# artifact ALWAYS changes an index, so the gate always fires on the same run -
+# a first version of this sat below it and never printed when it mattered.
+new_artifacts=$(git -C "$REPO" diff --cached --name-only --diff-filter=A \
+    -- 'ab_test_runtime/experiments/*.json')
+if [ -n "$new_artifacts" ]; then
+    echo
+    echo "== newly added artifacts: one follow-up commit will be needed =="
+    printf '%s\n' "$new_artifacts" | sed 's/^/   /'
+    echo
+    echo "   These carry no generating commit yet, so the index goes stale as"
+    echo "   soon as you commit. Immediately AFTER committing, run:"
+    echo "       $python collect_results.py && git add RESULTS_INDEX.md results_index.csv"
+    echo "       git commit -m 'Record the commit that produced <artifact>'"
+fi
+
 echo
 echo "== anything regenerated must be staged =="
 # --check VALIDATES THE WORKING TREE, NOT THE COMMIT. This script regenerates

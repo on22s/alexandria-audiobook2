@@ -11,6 +11,28 @@
     "tests.test_adapter_provenance.CodeLineageTest.test_lineage_never_raises_when_git_is_absent",
     "tests.test_adapter_provenance.CodeLineageTest.test_training_meta_records_the_commit"
   ],
+  "test_addressee_confusion": [
+    "tests.test_addressee_confusion.AddresseeParsingTest.test_an_unusable_column_is_empty_not_a_guess",
+    "tests.test_addressee_confusion.AddresseeParsingTest.test_blank_entries_are_dropped",
+    "tests.test_addressee_confusion.AddresseeParsingTest.test_several_addressees_are_kept",
+    "tests.test_addressee_confusion.AddresseeParsingTest.test_the_annotated_list_is_read",
+    "tests.test_addressee_confusion.ArmTest.test_an_unknown_variant_is_still_refused",
+    "tests.test_addressee_confusion.ArmTest.test_it_is_a_pure_suffix_so_control_is_untouched",
+    "tests.test_addressee_confusion.ArmTest.test_it_names_the_error_it_is_correcting",
+    "tests.test_addressee_confusion.ArmTest.test_the_arm_is_offered",
+    "tests.test_addressee_confusion.ClassifyTest.test_an_alias_of_the_addressee_still_counts_as_the_addressee",
+    "tests.test_addressee_confusion.ClassifyTest.test_naming_a_different_present_person_is_separated",
+    "tests.test_addressee_confusion.ClassifyTest.test_naming_somebody_not_present_is_its_own_cell",
+    "tests.test_addressee_confusion.ClassifyTest.test_naming_the_addressee_is_recognised",
+    "tests.test_addressee_confusion.ClassifyTest.test_the_gold_speaker_is_never_counted_as_another_present_person",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_addressee_who_did_not_speak_last_supports_addressee",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_aliases_resolve_through_the_group_map",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_ends_of_a_scene_have_one_neighbour",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_last_speaker_who_is_not_addressed_supports_persistence",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_missing_previous_speaker_is_not_a_match",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_naming_a_third_party_supports_neither",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_two_party_exchange_cannot_separate_the_hypotheses"
+  ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
@@ -51,6 +73,22 @@
     "tests.test_annotator_evidence.MatchBookTest.test_an_unknown_stem_is_none_rather_than_a_wrong_book",
     "tests.test_annotator_evidence.NormaliseTest.test_case_and_punctuation_fold_away",
     "tests.test_annotator_evidence.NormaliseTest.test_nothing_is_empty"
+  ],
+  "test_aozora_quotes": [
+    "tests.test_aozora_quotes.ExtractTests.test_nested_brackets_do_not_produce_a_runaway_span",
+    "tests.test_aozora_quotes.ExtractTests.test_no_entry_carries_a_speaker_field",
+    "tests.test_aozora_quotes.ExtractTests.test_quotes_are_found_in_order_with_context",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_a_named_speaker_after_the_quote_is_not_called_a_pronoun",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_an_after_only_reader_would_miss_the_pre_quote_case",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_attribution_in_the_following_sentence_is_not_adjacent",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_consecutive_dialogue_has_no_local_evidence",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_first_person_is_labelled_not_discarded",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_subject_after_the_quote_is_found",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_subject_before_the_quote_is_found",
+    "tests.test_aozora_quotes.StripTests.test_input_notes_are_removed",
+    "tests.test_aozora_quotes.StripTests.test_ruby_is_removed_from_inside_quotations",
+    "tests.test_aozora_quotes.StripTests.test_text_without_a_header_rule_survives",
+    "tests.test_aozora_quotes.StripTests.test_the_ruby_anchor_is_removed"
   ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
@@ -558,6 +596,19 @@
     "tests.test_derived_file_hooks.SingleSourceTest.test_paths_works_without_an_interpreter",
     "tests.test_derived_file_hooks.SingleSourceTest.test_python_either_answers_or_fails_loudly",
     "tests.test_derived_file_hooks.SingleSourceTest.test_the_derived_list_lives_in_exactly_one_script"
+  ],
+  "test_descriptor_candidates": [
+    "tests.test_descriptor_candidates.AnalyseTest.test_a_row_whose_gold_is_off_roster_is_skipped",
+    "tests.test_descriptor_candidates.AnalyseTest.test_correct_rows_never_enter_the_wrong_row_counts",
+    "tests.test_descriptor_candidates.AnalyseTest.test_gold_kind_splits_the_rows",
+    "tests.test_descriptor_candidates.AnalyseTest.test_reaching_for_a_descriptor_is_counted_separately",
+    "tests.test_descriptor_candidates.AnalyseTest.test_the_roster_share_is_reported_separately_from_the_gold_share",
+    "tests.test_descriptor_candidates.DetectorTest.test_a_name_beginning_with_a_is_not_an_article",
+    "tests.test_descriptor_candidates.DetectorTest.test_an_embedded_description_is_caught_by_its_comma",
+    "tests.test_descriptor_candidates.DetectorTest.test_articles_mark_a_description",
+    "tests.test_descriptor_candidates.DetectorTest.test_bare_occupational_nouns_count",
+    "tests.test_descriptor_candidates.DetectorTest.test_blank_input_is_not_a_descriptor",
+    "tests.test_descriptor_candidates.DetectorTest.test_real_names_do_not"
   ],
   "test_deterministic_classification": [
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_config_can_still_override",
@@ -1397,6 +1448,19 @@
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],
+  "test_name_variant_triage": [
+    "tests.test_name_variant_triage.ClassifyTest.test_a_drawn_out_name_is_a_deliberate_stretch",
+    "tests.test_name_variant_triage.ClassifyTest.test_a_name_the_cast_list_does_not_know_is_flagged_honestly",
+    "tests.test_name_variant_triage.ClassifyTest.test_an_apostrophe_form_is_reported_as_such",
+    "tests.test_name_variant_triage.ClassifyTest.test_an_unexplained_difference_stays_genuine",
+    "tests.test_name_variant_triage.ClassifyTest.test_the_stretch_must_be_the_minority_spelling",
+    "tests.test_name_variant_triage.RosterTest.test_a_missing_file_contributes_nothing_rather_than_raising",
+    "tests.test_name_variant_triage.RosterTest.test_an_empty_roster_makes_everything_look_uncast",
+    "tests.test_name_variant_triage.RosterTest.test_keys_and_alias_values_both_count",
+    "tests.test_name_variant_triage.StretchPatternTest.test_a_plain_name_does_not_match",
+    "tests.test_name_variant_triage.StretchPatternTest.test_an_apostrophe_form_is_not_a_stretch",
+    "tests.test_name_variant_triage.StretchPatternTest.test_both_real_stretches_match"
+  ],
   "test_narration_context": [
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_a_mislabelled_narration_line_costs_a_retry_and_still_ends_NARRATOR",
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_narration_never_reaches_the_roster",
@@ -1932,6 +1996,23 @@
     "tests.test_review_surfacing.ReviewIsLoggedTest.test_building_chunks_warns_about_unmapped_glyphs",
     "tests.test_review_surfacing.ReviewIsLoggedTest.test_nothing_is_logged_when_there_is_nothing_to_review"
   ],
+  "test_riqua_fixture": [
+    "tests.test_riqua_fixture.BuildTests.test_a_fully_named_row_is_kept_with_both_roles",
+    "tests.test_riqua_fixture.BuildTests.test_a_quote_with_no_addressee_is_dropped",
+    "tests.test_riqua_fixture.BuildTests.test_context_windows_come_from_the_text_around_the_span",
+    "tests.test_riqua_fixture.BuildTests.test_every_quotation_is_either_kept_or_counted_as_dropped",
+    "tests.test_riqua_fixture.BuildTests.test_pronoun_addressee_is_dropped_separately",
+    "tests.test_riqua_fixture.BuildTests.test_pronoun_speaker_is_dropped_not_kept_as_a_name",
+    "tests.test_riqua_fixture.BuildTests.test_uncued_quotes_are_labelled_not_discarded",
+    "tests.test_riqua_fixture.IsNameTests.test_bare_pronouns_are_not",
+    "tests.test_riqua_fixture.IsNameTests.test_empty_and_none_are_not_names",
+    "tests.test_riqua_fixture.IsNameTests.test_lowercase_descriptions_are_not_names",
+    "tests.test_riqua_fixture.IsNameTests.test_proper_names_are_names",
+    "tests.test_riqua_fixture.ParseTests.test_correct_argument_order_links",
+    "tests.test_riqua_fixture.ParseTests.test_discontinuous_spans_take_the_envelope",
+    "tests.test_riqua_fixture.ParseTests.test_inverted_relation_arguments_raise",
+    "tests.test_riqua_fixture.ParseTests.test_spans_and_relations_round_trip"
+  ],
   "test_roster_admission": [
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_a_name_repeated_within_one_batch_is_returned_once",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_a_speaker_below_the_roster_threshold_is_refused",
@@ -2276,7 +2357,7 @@
     "tests.test_split_quote_repair.PromptVariantTest.test_control_is_untouched_by_any_of_this",
     "tests.test_split_quote_repair.PromptVariantTest.test_the_narration_is_appended_and_labelled",
     "tests.test_split_quote_repair.PromptVariantTest.test_the_variant_is_offered",
-    "tests.test_split_quote_repair.PromptVariantTest.test_the_variant_list_is_pinned_exactly",
+    "tests.test_split_quote_repair.PromptVariantTest.test_this_arm_is_offered",
     "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
     "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
   ],
@@ -2727,5 +2808,23 @@
     "tests.test_voices_regressions.VoicesTests.test_voice_config_rejects_empty_ensemble_before_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_library_mutations_hold_lock_across_load_and_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_suggestion_honors_max_lines"
+  ],
+  "test_wp2021_fixture": [
+    "tests.test_wp2021_fixture.BuildTests.test_an_entry_carries_the_canonical_speaker_and_gender",
+    "tests.test_wp2021_fixture.BuildTests.test_an_out_of_range_gold_is_skipped_not_guessed",
+    "tests.test_wp2021_fixture.BuildTests.test_context_is_split_either_side_of_the_centre",
+    "tests.test_wp2021_fixture.CharacterListTests.test_a_malformed_line_raises",
+    "tests.test_wp2021_fixture.CharacterListTests.test_an_empty_character_file_raises",
+    "tests.test_wp2021_fixture.CharacterListTests.test_file_order_is_the_contract",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_centre_line_that_is_not_a_quote_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_index_past_the_character_list_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_never_named_in_the_window_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_outside_the_candidate_list_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_good_instance_satisfies_every_property",
+    "tests.test_wp2021_fixture.ParseTests.test_a_file_with_no_instances_raises",
+    "tests.test_wp2021_fixture.ParseTests.test_a_non_numeric_gold_raises",
+    "tests.test_wp2021_fixture.ParseTests.test_a_truncated_window_raises_rather_than_shifting",
+    "tests.test_wp2021_fixture.ParseTests.test_one_well_formed_instance_round_trips",
+    "tests.test_wp2021_fixture.ParseTests.test_two_instances_are_found_independently"
   ]
 }

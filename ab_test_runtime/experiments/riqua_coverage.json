@@ -1,0 +1,60 @@
+{
+ "status": "complete",
+ "what": "how much of RiQuA can be scored as a character-attribution task",
+ "provenance": {
+  "script": "riqua_fixture.py",
+  "written": "2026-08-21T14:04:40",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "6a646694844bfb2d7e87bf90cfed03cb5199b99a",
+   "branch": "agent/riqua-addressee-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M .gitignore"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/riqua_fixture.py"
+   ],
+   "harness_sha256": "33b8805dc208a7647c4e4ca9031d0b7757f407bd8d39ac6b5e71469551b31fc9"
+  }
+ },
+ "corpus": {
+  "name": "RiQuA",
+  "cite": "Papay & Pado, LREC 2020",
+  "url": "https://www.ims.uni-stuttgart.de/documents/ressourcen/korpora/riqua/riqua.tar.gz",
+  "licence": "none stated; fetched and converted locally, never committed",
+  "quotations": 5963,
+  "speaker_relations": 5950,
+  "addressee_relations": 5750
+ },
+ "why_it_matters": "addressee_confusion.py's 77.8% and its 205-v-4 separation rest entirely on PDNC - one annotation group, one scheme. RiQuA is an independent scheme with an addressee field, so it can test whether that finding is a property of attribution or of PDNC.",
+ "kept": 1537,
+ "total": 5963,
+ "kept_share": 0.2578,
+ "kept_per_text": {
+  "dickens_xmas": 320,
+  "twain_sawyer_2": 278,
+  "chekhov_steppe": 252,
+  "austen_emma_3": 189,
+  "austen_emma_2": 103,
+  "flaubert_bovary_1": 95,
+  "flaubert_bovary_2": 68,
+  "twain_sawyer_1": 57,
+  "doyle_boscombe": 55,
+  "doyle_league": 46,
+  "austen_emma_1": 23,
+  "chekhov_monk": 20,
+  "doyle_scandal": 18,
+  "doyle_identity": 7,
+  "chekhov_lady": 6
+ },
+ "dropped": {
+  "both pronoun": 1672,
+  "speaker pronoun only": 1280,
+  "addressee pronoun only": 1187,
+  "missing one side": 287
+ },
+ "why_so_much_is_dropped": "RiQuA's Speaker/Addressee relations point at MENTION SPANS and the corpus ships no coreference layer. 39.4% of speaker mentions and 35.6% of addressee mentions are bare pronouns, which cannot be scored against a roster of names. This is NOT a drop-in second copy of the PDNC task and must not be reported as one.",
+ "known_limitation": "even within the kept rows, aliases are unresolved: 'Bob' and 'Bob Cratchit' are separate roster entries. A scorer must supply its own grouping or treat them as distinct.",
+ "next": "run the arm and re-score with addressee_confusion.py; needs GPU"
+}
