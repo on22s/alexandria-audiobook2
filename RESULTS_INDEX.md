@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 541 artifacts, 597 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 542 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1136,6 +1136,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `two_stage_diagnostic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_diagnostic2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_selection_gap.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `two_stage_selection_gap_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `validation_baseline.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `validation_manifest.json` | SKIPPED: not a result object (list) |
 | `validation_smoke.json` | SKIPPED: 'rows' is not a list of scored arms |
