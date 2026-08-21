@@ -805,6 +805,16 @@
     "tests.test_experiment_run_status.ExperimentRunStatusTests.test_existing_or_malformed_status_fails_loudly",
     "tests.test_experiment_run_status.ExperimentRunStatusTests.test_status_records_checkpoint_identity_and_resume_decision"
   ],
+  "test_external_comparability": [
+    "tests.test_external_comparability.ContentTest.test_elsons_number_is_the_one_that_transfers",
+    "tests.test_external_comparability.ContentTest.test_most_external_numbers_do_not_transfer",
+    "tests.test_external_comparability.ContentTest.test_our_own_number_is_marked_comparable_to_itself",
+    "tests.test_external_comparability.ContentTest.test_the_gold_mention_results_are_marked_incomparable",
+    "tests.test_external_comparability.ContentTest.test_the_sixty_point_spread_is_recorded_as_one_paper",
+    "tests.test_external_comparability.RecordShapeTest.test_a_complete_entry_reports_nothing_missing",
+    "tests.test_external_comparability.RecordShapeTest.test_a_number_without_a_protocol_is_rejected",
+    "tests.test_external_comparability.RecordShapeTest.test_every_entry_carries_every_required_field"
+  ],
   "test_failure_provenance": [
     "tests.test_failure_provenance.FailureProvenanceTest.test_a_none_model_is_not_silently_acceptable",
     "tests.test_failure_provenance.FailureProvenanceTest.test_failed_manifest_keeps_the_model_name",

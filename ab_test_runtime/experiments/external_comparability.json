@@ -1,0 +1,90 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "external_comparability.py",
+  "written": "2026-08-21T11:38:02",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "20fe54c35836910ac336f1effac4e05969546962",
+   "branch": "agent/external-comparability-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/external_comparability.py"
+   ],
+   "harness_sha256": "484f4bdb8a957ab71798118f9bffda8a2017bd2c91f5b8da106812da6c20929b"
+  },
+  "args": {
+   "out": "external_comparability.json"
+  }
+ },
+ "scope": "a record of external attribution numbers this project cites, with the protocol each was produced under. It settles whether they can be placed beside ours; it does not re-measure them",
+ "entries": [
+  {
+   "claim": "Explicit-quote accuracy, current state of the art",
+   "value": 0.993,
+   "source": "Fast and Accurate Quotation Attribution (arXiv 2608.02359)",
+   "dataset": "PDNC",
+   "protocol": "ModernBERT joint scoring with GOLD character mentions and the GOLD character list, at training and evaluation; 5-fold cross-validation at book level. The authors call the setting unrealistic and give a separate LitBank number with predicted coreference",
+   "comparable_to_ours": false,
+   "why": "we supply a roster but no gold mention spans, so their setting resolves for free what ours must infer"
+  },
+  {
+   "claim": "Overall PDNC accuracy, same system",
+   "value": 0.945,
+   "source": "Fast and Accurate Quotation Attribution (arXiv 2608.02359)",
+   "dataset": "PDNC",
+   "protocol": "as above, gold mentions",
+   "comparable_to_ours": false,
+   "why": "same oracle"
+  },
+  {
+   "claim": "Explicit-quote accuracy, hand-written rules",
+   "value": 0.99,
+   "source": "Elson & McKeown, AAAI 2010",
+   "dataset": "their own 6-author corpus",
+   "protocol": "category prediction on Quote-Said-Person, no oracle, reported on 22% of their corpus",
+   "comparable_to_ours": true,
+   "why": "we reproduced it directly - PR #372 measured .9899 on the same pattern in our own data, so this one transfers and did"
+  },
+  {
+   "claim": "Zero-shot GPT-3.5, described as a strong baseline",
+   "value": null,
+   "source": "SIG (arXiv 2312.14590)",
+   "dataset": "PDNC",
+   "protocol": "generation, beaten by SIG by 9% overall",
+   "comparable_to_ours": false,
+   "why": "no absolute figure is quoted in a form that can be placed beside ours; only the margin over it"
+  },
+  {
+   "claim": "Zero-shot GPT-3.5",
+   "value": 0.109,
+   "source": "Identifying Speakers and Addressees (arXiv 2408.09452, NLPCC 2024)",
+   "dataset": "RiQua",
+   "protocol": "scored as extractive reading comprehension against annotated spans; a generative model is penalised for answering with a name rather than a span",
+   "comparable_to_ours": false,
+   "why": "the number measures format agreement more than attribution, and is the clearest evidence that these figures cannot be ranked"
+  },
+  {
+   "claim": "Zero-shot GPT-3.5",
+   "value": 0.7007,
+   "source": "arXiv 2408.09452",
+   "dataset": "JY-QuotePlus (Chinese)",
+   "protocol": "same paper, same model, same protocol, different corpus",
+   "comparable_to_ours": false,
+   "why": "60 points from the same model in the same paper; the corpus and its annotation decide the number as much as the method does"
+  },
+  {
+   "claim": "Our own arm",
+   "value": 0.656,
+   "source": "two_stage_attribution_w3200.json",
+   "dataset": "PDNC, 2494 rows",
+   "protocol": "generation, roster supplied, no gold mentions, alias-aware exact-name scoring",
+   "comparable_to_ours": true,
+   "why": "it is ours"
+  }
+ ],
+ "comparable": 2,
+ "not_comparable": 5,
+ "verdict": "one external number transfers - Elson's .99, which we reproduced ourselves at .9899. The rest were produced under oracles or scoring formats we do not share and must not be quoted as targets"
+}
