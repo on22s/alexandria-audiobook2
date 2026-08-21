@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 558 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 559 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -860,6 +860,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `chapter_manifest.json` | SKIPPED: not a result object (list) |
 | `chapter_validation.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `character_distinctiveness.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `chinese_attribution_frame.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `chinese_attribution_jy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `chinese_attribution_jy_fixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `chinese_attribution_wp.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
