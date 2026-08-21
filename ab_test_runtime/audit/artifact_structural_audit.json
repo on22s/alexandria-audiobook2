@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 245,
-    "exploratory": 193,
+    "exploratory": 194,
     "provisional": 123
   },
   "artifacts": [
@@ -5381,6 +5381,19 @@
       "completeness": "unknown",
       "seed": null,
       "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "listening_verdicts.json",
+      "bytes": 2776,
+      "sha256": "7da402359f088fb571f31513d04bfc6528d870a4168a1415d0f060c0aa2b5e7f",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
       "row_count": null,
       "has_rows": false,
       "identity_contract": "none",

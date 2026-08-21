@@ -1,0 +1,56 @@
+{
+ "what": "listening verdicts for character voice pairs",
+ "source": "ab_test_runtime/chapter_audio, 150 clips, one rendered chapter",
+ "measurements_from": "ab_test_runtime/experiments/character_distinctiveness.json",
+ "rated_at": "2026-08-21T18:34:52.770Z",
+ "verdicts": [
+  {
+   "pair": "girl_satella",
+   "a": "LITTLE GIRL",
+   "b": "SATELLA",
+   "semitones_apart": 0.9,
+   "f0_overlap": 0.389,
+   "mean_overlap": 0.35,
+   "verdict": "probably_different",
+   "notes": "Sometimes the little gurl sounds like a little girl but not always"
+  },
+  {
+   "pair": "subaru_subaru",
+   "a": "NATSUKI SUBARU",
+   "b": "Subaru",
+   "semitones_apart": 6.55,
+   "f0_overlap": 0.3,
+   "mean_overlap": 0.406,
+   "verdict": "clearly_different",
+   "notes": "thought that I hadn’t seen you … like the highs of it were breaking like the character’s voice was cracking it was very bad"
+  },
+  {
+   "pair": "narrator_subaru",
+   "a": "NARRATOR",
+   "b": "Subaru",
+   "semitones_apart": 12.2,
+   "f0_overlap": 0.083,
+   "mean_overlap": 0.201,
+   "verdict": "clearly_different",
+   "notes": "thought that I hadn’t seen you in a ….. same as the last one with the cracking voice very unpleasant"
+  }
+ ],
+ "status": "complete",
+ "rater": "project owner, unblinded",
+ "n_pairs_rated": 3,
+ "n_pairs_available": 10,
+ "caveat": "3 of 10 pairs, one rater, not blinded. Two of the three sit far above the ~1.95 semitone JND and are the easy cases; the informative one is girl_satella at 0.9 semitones.",
+ "what_the_notes_found_that_the_metric_does_not_measure": "Two of three notes report audible artifacts - a voice 'cracking'/'breaking on the highs', 'very bad', 'very unpleasant'. Both concern the same single clip, ab_test_runtime/chapter_audio/2702aec220b0.wav (speaker Subaru, category lora), which appeared in both rated pairs. Distinctiveness is orthogonal to this: both pairs were scored clearly_different and the human agreed. A separation goal can be MET while the audio is unpleasant.",
+ "followup_probe": {
+  "question": "does the cracking follow high pitch, or was it one bad render?",
+  "fact": "2702aec220b0 has the highest median f0 of Subaru's 15 clips, 386.5 Hz against the character's own 264.8 Hz median, about 7 semitones above centre",
+  "discriminating_clips": [
+   "75e3563bf4c9 (316.8 Hz)",
+   "f02c6883a8d7 (307.4 Hz)",
+   "5b63f7884ce7 (299.8 Hz)",
+   "4c614c09344c (227.0 Hz, control)"
+  ],
+  "status": "sent to the rater 2026-08-21, unanswered"
+ },
+ "discarded_instrument": "A frame-to-frame f0 jump rate (>6 semitones) was computed as a cracking proxy and DISCARDED before use: the NARRATOR, whose audio drew no complaint, scores 10.4-17.8% against the flagged clip's 15.9%. It measures YIN octave errors, not audible cracking. Recorded so it is not rebuilt."
+}
