@@ -36,15 +36,42 @@ BOOKS = {
 
 
 def spans(pdnc, book):
-    """-> {quoteID: (start, end)} from PDNC's byte spans."""
+    """-> {quoteID: [(start, end), ...]}, every part, in order.
+
+    This used to collapse a quotation to (min start, max end) and that outer
+    envelope is still what the context window is measured from - see `rebuild`.
+    But `"Bah!" said Scrooge, "Humbug!"` is ONE quotation with TWO parts, and
+    `said Scrooge` lives in the gap between them, INSIDE the envelope. Contexts
+    built outside it therefore contained neither the narration nor any trace of
+    it, and `line` is the joined quote text with the narration already removed.
+
+    Measured on the 2,494 scored rows before this changed: 31.3% of quotations
+    are multi-part, and among EXPLICIT ones the annotator's own referring
+    expression was absent from everything the model saw 69.1% of the time -
+    246 of 356 - against 1.6% for single-part quotes. It cost 11.0 points.
+    """
     out = {}
     with open(os.path.join(pdnc, book, "quotation_info.csv"),
               encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             pairs = ast.literal_eval(row["quoteByteSpans"])
-            out[row["quoteID"]] = (min(p[0] for p in pairs),
-                                   max(p[1] for p in pairs))
+            out[row["quoteID"]] = sorted((int(a), int(b)) for a, b in pairs)
     return out
+
+
+def envelope(parts):
+    """-> (first start, last end), which is what the window is measured from."""
+    return parts[0][0], parts[-1][1]
+
+
+def inner_narration(text, parts):
+    """-> the narration BETWEEN a quotation's parts, in order, or ''.
+
+    Empty for a single-part quotation, which is the common case and must stay
+    indistinguishable from a quotation whose parts happen to abut.
+    """
+    return "".join(text[parts[i][1]:parts[i + 1][0]]
+                   for i in range(len(parts) - 1))
 
 
 def rebuild(fixture_path, pdnc, book, window):
@@ -71,10 +98,17 @@ def rebuild(fixture_path, pdnc, book, window):
         if key not in located:
             unlocated.append(entry["id"])
             continue
-        start, end = located[key]
+        parts = located[key]
+        start, end = envelope(parts)
+        # THESE THREE FIELDS MUST NOT MOVE. Every number in the ledger was
+        # measured against them, so `inner_narration` is ADDITIVE: a new field
+        # that a new prompt variant can read, leaving the control arm and every
+        # prior comparison byte-identical. test_split_quote_repair.py asserts
+        # a regeneration does not disturb them.
         entry["prev_context"] = text[max(0, start - window):start]
         entry["next_context"] = text[end:end + window]
         entry["pdnc_quote_id"] = key
+        entry["inner_narration"] = inner_narration(text, parts)
         widened += 1
     if unlocated:
         raise SystemExit(
