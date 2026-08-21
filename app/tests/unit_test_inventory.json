@@ -1269,6 +1269,15 @@
     "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_forbids_using_narrator_for_that_case",
     "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_the_prompt_offers_unknown_for_unidentifiable_speech"
   ],
+  "test_narrator_prior_wiring": [
+    "tests.test_narrator_prior_wiring.PromptTest.test_a_narrator_of_NARRATOR_is_rejected",
+    "tests.test_narrator_prior_wiring.PromptTest.test_it_uses_the_shared_helper_not_a_second_wording",
+    "tests.test_narrator_prior_wiring.PromptTest.test_the_prior_is_appended_and_names_the_narrator",
+    "tests.test_narrator_prior_wiring.PromptTest.test_without_a_narrator_the_prompt_is_unchanged",
+    "tests.test_narrator_prior_wiring.WiringTest.test_an_unmatched_narrator_argument_is_fatal",
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_artifact_records_which_books_got_a_prior",
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior"
+  ],
   "test_narrator_prompt": [
     "tests.test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
     "tests.test_narrator_prompt.NarratorPromptTests.test_placeholder_labels_are_not_character_names",
