@@ -2775,5 +2775,23 @@
     "tests.test_voices_regressions.VoicesTests.test_voice_config_rejects_empty_ensemble_before_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_library_mutations_hold_lock_across_load_and_save",
     "tests.test_voices_regressions.VoicesTests.test_voice_suggestion_honors_max_lines"
+  ],
+  "test_wp2021_fixture": [
+    "tests.test_wp2021_fixture.BuildTests.test_an_entry_carries_the_canonical_speaker_and_gender",
+    "tests.test_wp2021_fixture.BuildTests.test_an_out_of_range_gold_is_skipped_not_guessed",
+    "tests.test_wp2021_fixture.BuildTests.test_context_is_split_either_side_of_the_centre",
+    "tests.test_wp2021_fixture.CharacterListTests.test_a_malformed_line_raises",
+    "tests.test_wp2021_fixture.CharacterListTests.test_an_empty_character_file_raises",
+    "tests.test_wp2021_fixture.CharacterListTests.test_file_order_is_the_contract",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_centre_line_that_is_not_a_quote_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_index_past_the_character_list_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_never_named_in_the_window_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_gold_outside_the_candidate_list_is_caught",
+    "tests.test_wp2021_fixture.ConsistencyTests.test_a_good_instance_satisfies_every_property",
+    "tests.test_wp2021_fixture.ParseTests.test_a_file_with_no_instances_raises",
+    "tests.test_wp2021_fixture.ParseTests.test_a_non_numeric_gold_raises",
+    "tests.test_wp2021_fixture.ParseTests.test_a_truncated_window_raises_rather_than_shifting",
+    "tests.test_wp2021_fixture.ParseTests.test_one_well_formed_instance_round_trips",
+    "tests.test_wp2021_fixture.ParseTests.test_two_instances_are_found_independently"
   ]
 }

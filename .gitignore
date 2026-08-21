@@ -230,3 +230,8 @@ ab_test_runtime/logs/*.log
 ab_test_runtime/logs/*.lock
 ab_test_runtime/logs/*/
 !ab_test_runtime/logs/dirty_patches/
+
+# WP2021/JY/CSI fetched, not vendored: no stated licence. See wp2021_fixture.py
+attribution_gold_wp2021_*.json
+wp_repo/
+csi_repo/
