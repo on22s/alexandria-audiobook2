@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2144** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2195** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -403,6 +403,30 @@ development books' figure.**
 
 ## 2. Voice — does it sound like the target speaker
 
+#### First evidence outside English and Japanese-in-translation
+
+Everything else on this page is four Japanese light novels in translation and
+three English classics. On 2026-08-21 the syntactic-frame method behind #372
+was rewritten for Chinese word order — English attributes after the quote,
+Chinese before it — and measured on JY-QuotePlus, 8,144 quotations from a Jin
+Yong novel (`chinese_attribution_frame.py`):
+
+| | fires | accuracy where it fires |
+|---|---|---|
+| Chinese, addressee-aware | **41.8%** | **.9753** |
+| English trigram on PDNC | 4.0% | .9899 |
+
+The frame sits adjacent to the quotation on **92.9%** of Chinese quotations
+against 4.0% in English, so the METHOD generalises and reaches ten times as far
+while the PATTERN does not transfer at all.
+
+This says something about the corpora as well as the method: a task whose
+attribution frame is adjacent 92.9% of the time is not the same task as one at
+4.0%, which is part of why published scores on different corpora cannot be
+ranked against each other (`external_comparability.json`).
+
+The corpus is fetched locally and not vendored — it carries no licence and
+annotates a novel still in copyright.
 
 ### 2.1 Speaker similarity against a human ceiling
 
@@ -1570,6 +1594,33 @@ quote reaching the engine and not. That is 7.1's question and needs ears.
 
 ---
 
+#### Being re-answered on fresh scripts, and the interim disagrees
+
+The 2026-08-09 answer was taken on scripts generated 2026-08-09, before a
+fortnight of changes to both generators. A fresh run is in flight
+(`dialogue_map_5_3_20260826.sh`). Two of three light novels have both arms:
+
+| book | single | three-pass | delta | comparable |
+|---|---|---|---|---|
+| index18 | **70.9%** | 50.6% | −20.3 | 79 |
+| mushoku16 | **46.3%** | 41.8% | −4.5 | 134 |
+
+Single-pass leads on both, and **mushoku16 reverses** the recorded result,
+which had three-pass much better there. Neither three-pass run failed: both
+report `status: complete` with zero diagnostic failures and no exhaustion
+fallbacks, so this is not a degraded arm. Three-pass was also the FASTER arm —
+54 min against 113 on index18, 38 against 68 on mushoku16.
+
+owarimonogatari3 is missing: the stage was killed by its own 6h cap at chunk 86
+of 110 and produced neither arm, so the scoring step never ran and the run
+wrote no combined artifact at all — which is why the table above is assembled
+from the per-book files rather than cited. Re-queued after #381 made the
+finished three-pass arms reusable. **The four PDNC books are the half that
+makes this checkable by someone else, and they are running now.**
+
+Treat the table above as interim: two books, 213 comparable lines, and
+[[ab_underpowered_single_pass]] applies.
+
 ### 5.4 Transcription and clip boundaries in the preparer
 
 > **What this is.** Before any voice can be trained, an audiobook has to be
@@ -2685,6 +2736,24 @@ attached.
 
 ## 3. Reliability — does a run finish and produce the right thing
 
+#### What "the same voice" does not yet include
+
+The criterion above is drift in a speaker measure across a long run, and it is
+met. It is narrower than the goal's title. Natural long-form read speech has
+properties nobody has checked in our output — ParaTTS (TASLP 2022) names three
+from the phonetics literature: **pitch reset** at the start of a paragraph,
+**declination** across it, and **lengthening** at initial and final positions.
+It also describes our exact architecture as its baseline: "synthesize each
+sentence in a paragraph and then combine them… the prosody in the combined
+paragraph speech may become inconsistent."
+
+Attempted on 2026-08-21 and **not decidable**: across the 14 narration runs in
+the one rendered chapter, the aggregate looked like declination (−7.8 Hz from
+first third to last) but the paired test says otherwise — 8 runs down, 6 up,
+sign test p = 0.79. Fourteen runs cannot answer it; more rendered audio can.
+
+Recorded because the aggregate is tempting and wrong, not because the question
+is settled.
 
 ### 3.2 Every generated file is real audio
 
@@ -2731,6 +2800,24 @@ bug.
 **Current** — fixed. **MET.**
 
 **Target — 0, with the couple case and the case-variant case both tested.**
+
+#### The inverse case is real, and this metric does not cover it
+
+Measuring the rendered chapter on 2026-08-21 (`character_distinctiveness.py`,
+150 clips, 5 characters) found **one character rendered as two voices**:
+`NATSUKI SUBARU` at **181.4 Hz** and `Subaru` at **264.8 Hz**,
+**6.55 semitones apart**, on a listener threshold of about 1.95. The script
+split one person across two labels and the pipeline gave each its own voice.
+
+That is not what the metric above counts. This goal asks whether two DIFFERENT
+characters wrongly share ONE voice; this is one character wrongly holding TWO.
+The mechanism differs too — no name-matching bug is involved, the labels simply
+never merged. **Open, and uncounted by the current probe.**
+
+The same run flagged `LITTLE GIRL` and `SATELLA` — genuinely different
+characters — at **0.90 semitones**, below the threshold. Whether they are
+distinguishable by timbre is not something pitch can answer, and is one of the
+questions in the listening package under 6.5.
 
 ---
 

@@ -408,6 +408,23 @@
     "tests.test_chinese_attribution.TestTruthMapping.test_truth_matches_a_correct_model_answer",
     "tests.test_chinese_attribution.TestTruthMapping.test_truth_resolves_through_the_mapping"
   ],
+  "test_chinese_attribution_frame": [
+    "tests.test_chinese_attribution_frame.AddresseeTest.test_a_directional_preposition_marks_who_was_spoken_to",
+    "tests.test_chinese_attribution_frame.AddresseeTest.test_declining_is_not_the_same_as_finding_nobody",
+    "tests.test_chinese_attribution_frame.AddresseeTest.test_the_naive_rule_takes_the_addressee_which_is_the_bug",
+    "tests.test_chinese_attribution_frame.DeclineTest.test_a_cue_with_no_known_mention_declines",
+    "tests.test_chinese_attribution_frame.DeclineTest.test_an_empty_sentence_declines",
+    "tests.test_chinese_attribution_frame.DeclineTest.test_no_cue_at_the_boundary_declines",
+    "tests.test_chinese_attribution_frame.FrameTest.test_a_colon_at_the_boundary_is_already_stripped_by_the_caller",
+    "tests.test_chinese_attribution_frame.FrameTest.test_an_alias_resolves_to_its_entity",
+    "tests.test_chinese_attribution_frame.FrameTest.test_the_longest_cue_wins",
+    "tests.test_chinese_attribution_frame.FrameTest.test_the_longest_mention_wins",
+    "tests.test_chinese_attribution_frame.FrameTest.test_the_plain_frame_resolves",
+    "tests.test_chinese_attribution_frame.PlumbingTest.test_a_row_with_no_pre_context_yields_empty",
+    "tests.test_chinese_attribution_frame.PlumbingTest.test_declining_raises_accuracy_without_losing_correct_answers",
+    "tests.test_chinese_attribution_frame.PlumbingTest.test_the_alias_map_is_built_from_the_corpus_itself",
+    "tests.test_chinese_attribution_frame.PlumbingTest.test_the_last_non_blank_pre_sentence_is_used"
+  ],
   "test_chunk_quality": [
     "tests.test_chunk_quality.ChunkQualityTests.test_adaptive_split_fails_cleanly_when_both_halves_fail",
     "tests.test_chunk_quality.ChunkQualityTests.test_adaptive_split_handles_grimgar_sized_failure",
@@ -836,6 +853,19 @@
     "tests.test_find_nicknames.ParseAliasResponseTests.test_near_miss_variant_is_dropped_but_reported",
     "tests.test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent",
     "tests.test_find_nicknames.ParseAliasResponseTests.test_punctuation_variant_resolves_via_shared_normalization"
+  ],
+  "test_frontend_exposure": [
+    "tests.test_frontend_exposure.CategoryTest.test_cjk_and_accented_latin_are_separated",
+    "tests.test_frontend_exposure.CategoryTest.test_grouped_numbers_need_a_separator",
+    "tests.test_frontend_exposure.CategoryTest.test_ordinals_decimals_ranges_and_times",
+    "tests.test_frontend_exposure.CategoryTest.test_the_emoji_pattern_would_catch_one_if_it_were_there",
+    "tests.test_frontend_exposure.CategoryTest.test_the_roman_numeral_pattern_has_known_false_positives",
+    "tests.test_frontend_exposure.CategoryTest.test_years_match_and_bare_counts_do_not",
+    "tests.test_frontend_exposure.ReadScriptsTest.test_an_unreadable_file_is_skipped_not_fatal",
+    "tests.test_frontend_exposure.ReadScriptsTest.test_both_script_shapes_are_read",
+    "tests.test_frontend_exposure.ScanTest.test_a_line_can_fall_in_several_categories",
+    "tests.test_frontend_exposure.ScanTest.test_a_line_counts_once_per_category",
+    "tests.test_frontend_exposure.ScanTest.test_blank_and_missing_lines_are_skipped"
   ],
   "test_frontend_regressions": [
     "tests.test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
