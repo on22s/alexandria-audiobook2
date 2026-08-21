@@ -24,16 +24,23 @@
   {
    "goal": "1.1",
    "title": "Accuracy on the four annotated books",
-   "cited": 1,
+   "cited": 2,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "provisional",
    "classifications": {
+    "supported_structure": 1,
     "provisional": 1
    },
-   "dirty_artifacts": 0,
+   "dirty_artifacts": 1,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "external_comparability.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "20fe54c3"
+    },
     {
      "name": "two_stage_attribution_w3200.json",
      "classification": "provisional",
@@ -45,18 +52,25 @@
   {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 8,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json"
    ],
    "weakest_evidence": "provisional",
    "classifications": {
+    "supported_structure": 1,
     "provisional": 7
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "external_comparability.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "20fe54c3"
+    },
     {
      "name": "pdnc_context_evidence__pilot__local-llamacpp.json",
      "classification": "provisional",
@@ -377,21 +391,34 @@
   {
    "goal": "6.5",
    "title": "Someone has looked at the audio",
-   "cited": 1,
+   "cited": 3,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
-   "weakest_evidence": "supported_structure",
+   "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 1
+    "supported_structure": 2,
+    "exploratory": 1
    },
-   "dirty_artifacts": 1,
-   "no_commit": 0,
+   "dirty_artifacts": 2,
+   "no_commit": 1,
    "artifacts": [
     {
      "name": "audio_views.json",
      "classification": "supported_structure",
      "dirty": true,
      "commit": "02421630"
+    },
+    {
+     "name": "character_distinctiveness.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "9b4f1ad7"
+    },
+    {
+     "name": "listening_verdicts.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },

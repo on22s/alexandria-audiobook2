@@ -3633,17 +3633,15 @@
  "source": "ab_test_runtime/experiments/aishell3_SSB0748_generate.json",
  "provenance": {
   "script": "ljspeech_score.py",
-  "written": "2026-08-21T00:19:07",
+  "written": "2026-08-21T16:07:08",
   "host": "mitch-linux",
   "git": {
-   "commit": "31c420d80fc492dc95eaaf0aeafb367c6d2eb79b",
+   "commit": "02be41878cd5b70806c85aa499126bfb5511550f",
    "branch": "main",
-   "dirty": true,
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/_pqp_patched.py"
-   ],
-   "harness_sha256": "618402fcdc705d156801207f04b7b123cce682ba053f8113a5095b19771df576"
+   "untracked_harness_files": null,
+   "harness_sha256": "54e386bd2fce135b23ef9b019c18ce083b7f168e02d2e2b7c2bd2e14a6d74c3a"
   },
   "args": {
    "generated": "ab_test_runtime/experiments/aishell3_SSB0748_generate.json",

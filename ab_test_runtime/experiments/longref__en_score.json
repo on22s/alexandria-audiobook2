@@ -2725,15 +2725,15 @@
  "source": "ab_test_runtime/experiments/longref__en_generate.json",
  "provenance": {
   "script": "ljspeech_score.py",
-  "written": "2026-08-21T00:24:57",
+  "written": "2026-08-21T16:13:02",
   "host": "mitch-linux",
   "git": {
-   "commit": "2077bb62a4c8516e902a86b78e6749961dd2a25a",
+   "commit": "02be41878cd5b70806c85aa499126bfb5511550f",
    "branch": "main",
    "dirty": false,
    "modified_tracked_files": null,
    "untracked_harness_files": null,
-   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+   "harness_sha256": "54e386bd2fce135b23ef9b019c18ce083b7f168e02d2e2b7c2bd2e14a6d74c3a"
   },
   "args": {
    "generated": "ab_test_runtime/experiments/longref__en_generate.json",

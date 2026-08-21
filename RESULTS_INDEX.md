@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 590 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 594 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -799,6 +799,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `anchor_length_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `anchor_length_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `annotator_evidence.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `aozora_quote_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_hybrid__kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1037,6 +1038,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `listener_impact.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `listening_verdicts.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ljspeech_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `ljspeech_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `longref__en_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1143,6 +1145,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `retrain_honest.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrofit_dialogue_map.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `riqua_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `robotic_proxy_clips.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `roster_order_bias.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `run_lengths.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1199,3 +1202,4 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `voice_drift__husky_tenor_30s_m_literary.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `voice_drift__warm_mezzo_30s_f_fantasy_2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `weak_supervision.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `wp2021_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
