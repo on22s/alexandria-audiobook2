@@ -1,0 +1,146 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "ecapa_duration_confound.py",
+  "written": "2026-08-21T08:27:06",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "23d92582ca003ce332c4a5282513016a8531aa09",
+   "branch": "agent/ecapa-duration-confound-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/ecapa_duration_confound.py"
+   ],
+   "harness_sha256": "575a98b22727b3e17e5dded104743a16421b0dbcb4409953dfdfc64c60d34f3e"
+  },
+  "args": {
+   "scores": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__en_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__ja_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__zh_score.json"
+   ],
+   "flat": 0.1,
+   "out": "ecapa_duration_confound.json"
+  }
+ },
+ "scope": "ECAPA against clip duration, from stored score artifacts; nothing was re-synthesised or re-scored",
+ "flat_threshold": 0.1,
+ "languages": {
+  "en": {
+   "clone": {
+    "n": 150,
+    "spearman": 0.2401,
+    "by_duration_quartile": [
+     0.7211,
+     0.7049,
+     0.7326,
+     0.7504
+    ]
+   },
+   "human_vs_human": {
+    "n": 150,
+    "spearman": 0.483,
+    "by_duration_quartile": [
+     0.808,
+     0.8188,
+     0.8486,
+     0.8525
+    ]
+   },
+   "ratio": {
+    "n": 150,
+    "spearman": -0.0377,
+    "by_duration_quartile": [
+     0.8953,
+     0.8625,
+     0.865,
+     0.8827
+    ]
+   },
+   "median_seconds": 7.34,
+   "seconds_range": [
+    3.47,
+    10.1
+   ],
+   "artifact": "longref__en_score.json"
+  },
+  "ja": {
+   "clone": {
+    "n": 150,
+    "spearman": 0.3488,
+    "by_duration_quartile": [
+     0.775,
+     0.7966,
+     0.8089,
+     0.8126
+    ]
+   },
+   "human_vs_human": {
+    "n": 150,
+    "spearman": 0.371,
+    "by_duration_quartile": [
+     0.8108,
+     0.8281,
+     0.8428,
+     0.8573
+    ]
+   },
+   "ratio": {
+    "n": 150,
+    "spearman": -0.0412,
+    "by_duration_quartile": [
+     0.9601,
+     0.9623,
+     0.963,
+     0.9494
+    ]
+   },
+   "median_seconds": 4.71,
+   "seconds_range": [
+    3.02,
+    8.25
+   ],
+   "artifact": "longref__ja_score.json"
+  },
+  "zh": {
+   "clone": {
+    "n": 150,
+    "spearman": 0.1649,
+    "by_duration_quartile": [
+     0.6093,
+     0.6544,
+     0.6555,
+     0.6384
+    ]
+   },
+   "human_vs_human": {
+    "n": 150,
+    "spearman": 0.4135,
+    "by_duration_quartile": [
+     0.7397,
+     0.7458,
+     0.7794,
+     0.7953
+    ]
+   },
+   "ratio": {
+    "n": 150,
+    "spearman": -0.0326,
+    "by_duration_quartile": [
+     0.8281,
+     0.8833,
+     0.8406,
+     0.8047
+    ]
+   },
+   "median_seconds": 3.17,
+   "seconds_range": [
+    2.21,
+    6.32
+   ],
+   "artifact": "longref__zh_score.json"
+  }
+ },
+ "verdict": "the ratio is flat while the raw series climb: the goal's number is not a duration artifact, and RAW ecapa must not be compared across arms whose clips differ in length"
+}
