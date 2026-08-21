@@ -110,6 +110,7 @@ blinded_listening.json,supported_structure,git+naming,no,blinded_listening.py,6c
 booknlp_baseline__pdnc_prideandprejudice.json,exploratory,git+naming,no,booknlp_baseline.py,83f9cb33,,,booknlp_baseline,?,booknlp-big,local-lmstudio,,lmstudio,,,f16?,booknlp,1226,665,54.2,None,,,,,,
 candidate_id__qwen__qwen3-14b.json,historical_only,git+naming,no,candidate_id.py,b79bb096,,,candidate_id,mushoku16,qwen/qwen3-14b,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,id,147,52,35.4,ok,False,53299de7,68.3,07-26 20:39,http://localhost:1234/v1,
 candidate_id__qwen__qwen3-14b.json,historical_only,git+naming,no,candidate_id.py,b79bb096,,,candidate_id,mushoku16,qwen/qwen3-14b,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,name,147,72,49.0,ok,False,53299de7,68.3,07-26 20:39,http://localhost:1234/v1,
+candidate_scoring_feasibility.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 cascade__grimgar03__llama-3.3-70b__a6000-batchtrig.json,exploratory,git+naming,no,cascade.py,44704c7c,,,cascade,grimgar03,qwen/qwen3-14b + llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,cascade,396,292,73.7,ok,False,,0.1,07-30 07:58,http://127.0.0.1:8090/v1,
 cascade__grimgar03__llama-3.3-70b__a6000-batchtrig.json,exploratory,git+naming,no,cascade.py,44704c7c,,,cascade,grimgar03,qwen/qwen3-14b + llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,cheap-w1,396,227,57.3,ok,False,,0.1,07-30 07:58,http://127.0.0.1:8090/v1,
 cascade__grimgar03__llama-3.3-70b__a6000-contig.json,exploratory,git+naming,no,cascade.py,6c003aaf,,,cascade,grimgar03,qwen/qwen3-14b + llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,cascade,400,311,77.8,ok,False,,0.1,07-28 19:42,http://127.0.0.1:8090/v1,
@@ -411,6 +412,7 @@ expected_prosody_ja.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,
 expected_prosody_ja_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_zh.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_zh_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+external_comparability.json,supported_structure,provenance,yes,,,1.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 fallback_policy.json,exploratory,git+naming,no,fallback_policy.py,2010cf29,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 final_release_after_remaining_gpu_research.json,exploratory,none,no,,67b9a854,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 fix_verification.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)

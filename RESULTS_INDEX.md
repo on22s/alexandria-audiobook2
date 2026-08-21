@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 583 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 585 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -837,6 +837,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `baseline_heldout__warm_baritone_30s_m_2.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `baseline_heldout__warm_baritone_30s_m_scifi.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `blinded_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `candidate_scoring_feasibility.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cascade_state__grimgar03__a6000-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__grimgar03__a6000-contig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__grimgar03__local-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -909,6 +910,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `expected_prosody_ja_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `external_comparability.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `fallback_policy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `final_release_after_remaining_gpu_research.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `fix_verification.json` | SKIPPED: not a result object (list) |
