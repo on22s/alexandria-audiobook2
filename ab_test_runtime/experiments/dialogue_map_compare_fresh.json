@@ -5,10 +5,10 @@
  "status": "complete",
  "provenance": {
   "script": "dialogue_map_compare.py",
-  "written": "2026-08-21T00:47:51",
+  "written": "2026-08-21T02:33:41",
   "host": "mitch-linux",
   "git": {
-   "commit": "5a90c23d905c591bd39226875ac4983f8b334617",
+   "commit": "bf8280714560f69b8240452f31516146f24ab4a0",
    "branch": "main",
    "dirty": false,
    "modified_tracked_files": null,

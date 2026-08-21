@@ -2883,15 +2883,15 @@
     {
       "artifact": "dialogue_map_compare_fresh.json",
       "bytes": 738,
-      "sha256": "dbb19266b6d74cab517c0f99d130ec41115396b29c662b0a8ace73aed4d2f437",
+      "sha256": "0d93e0d7ef62092c77c7fe9692a4fe122a4b838c67915929b8ccee349d42d9cc",
       "completeness": "complete",
       "seed": null,
       "status": "complete",
       "row_count": null,
       "has_rows": false,
       "identity_contract": "tts_provenance",
-      "written": "2026-08-21T00:47:51",
-      "commit": "5a90c23d905c591bd39226875ac4983f8b334617",
+      "written": "2026-08-21T02:33:41",
+      "commit": "bf8280714560f69b8240452f31516146f24ab4a0",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
