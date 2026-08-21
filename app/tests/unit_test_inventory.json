@@ -24,7 +24,14 @@
     "tests.test_addressee_confusion.ClassifyTest.test_naming_a_different_present_person_is_separated",
     "tests.test_addressee_confusion.ClassifyTest.test_naming_somebody_not_present_is_its_own_cell",
     "tests.test_addressee_confusion.ClassifyTest.test_naming_the_addressee_is_recognised",
-    "tests.test_addressee_confusion.ClassifyTest.test_the_gold_speaker_is_never_counted_as_another_present_person"
+    "tests.test_addressee_confusion.ClassifyTest.test_the_gold_speaker_is_never_counted_as_another_present_person",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_addressee_who_did_not_speak_last_supports_addressee",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_aliases_resolve_through_the_group_map",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_ends_of_a_scene_have_one_neighbour",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_last_speaker_who_is_not_addressed_supports_persistence",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_missing_previous_speaker_is_not_a_match",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_naming_a_third_party_supports_neither",
+    "tests.test_addressee_confusion.TurnNeighbourTests.test_two_party_exchange_cannot_separate_the_hypotheses"
   ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",

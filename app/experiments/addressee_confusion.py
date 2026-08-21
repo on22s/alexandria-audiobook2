@@ -33,10 +33,25 @@ That last one matters most. Two languages, two entirely different methods - a
 14B model prompted in English, a regular-expression frame in Chinese - failing
 the same way. This is a property of the task, not of either system.
 
-WHAT IT DOES NOT SAY. It does not say the model is reasoning about direction
-and inverting it; a model that simply named the most recently mentioned person
-would land here too whenever that person is the addressee. Separating those
-needs an arm, not an artifact.
+AND IT IS THE ADDRESSEE, NOT MERELY THE LAST PERSON TO SPEAK. That was the
+open question here until the quote ORDER was brought in. In a two-party
+exchange the addressee is also the previous speaker, so both explanations
+predict the same answer on 643 of the 852 wrong rows: 54.9% of those rows name
+the previous speaker and 55.3% the next one, against 78.5% naming an addressee. The cells that separate
+them do not:
+
+    named the addressee and NOT the previous speaker   205
+    named the previous speaker and NOT the addressee     4
+
+Fifty-one to one. The model is not copying whoever spoke last; it is
+tracking who is being SPOKEN TO and naming them. That is a stronger claim and
+a more useful one, because it means the direction information is present and
+being assigned backwards rather than absent.
+
+WHAT IT STILL DOES NOT SAY: why. Whether the prompt invites it, whether the
+turn structure dominates a weak local cue, or whether the model has no notion
+of direction at all and this is a coincidence of proximity, is not settled by
+counts. `--prompt-variant speaker_not_addressee` is the arm.
 """
 import argparse
 import ast
@@ -88,6 +103,31 @@ def classify(predicted, expected, addressed, present, groups):
     return "absent"
 
 
+def turn_neighbours(order, index, raw_book):
+    """-> (previous speaker, next speaker) around a quotation, or (None, None)."""
+    prev = raw_book[order[index - 1]]["speaker"] if index > 0 else None
+    nxt = raw_book[order[index + 1]]["speaker"] if index + 1 < len(order) else None
+    return prev, nxt
+
+
+def separate_addressee_from_persistence(predicted, addressed, prev_speaker,
+                                        groups):
+    """-> which hypothesis this row supports, or None when both agree.
+
+    In a two-party exchange the addressee IS the previous speaker, so most rows
+    cannot tell "tracks who is spoken to" from "copies whoever spoke last".
+    Only the disagreements carry information, and they are counted apart.
+    """
+    is_addressee = any(same_speaker(predicted, a, groups) for a in addressed)
+    is_previous = bool(prev_speaker) and same_speaker(predicted, prev_speaker,
+                                                      groups)
+    if is_addressee and not is_previous:
+        return "addressee_not_previous_speaker"
+    if is_previous and not is_addressee:
+        return "previous_speaker_not_addressee"
+    return None
+
+
 def analyse(rows, fixtures, raw):
     gold, cast = {}, {}
     for stem, fixture in fixtures.items():
@@ -101,9 +141,14 @@ def analyse(rows, fixtures, raw):
         for entry in fixture.get("entries") or []:
             gold[(stem, entry["id"])] = (book, entry)
 
+    order = {book: sorted(rows_by_id, key=lambda q: int(q[1:]) if q[1:].isdigit()
+                          else 0)
+             for book, rows_by_id in raw.items()}
     naive = collections.Counter()
     strict = collections.Counter()
     options = collections.Counter()
+    separation = collections.Counter()
+    neighbours = collections.Counter()
     examples = []
     for row in rows:
         if row.get("correct"):
@@ -124,6 +169,22 @@ def analyse(rows, fixtures, raw):
             same_speaker(row.get("predicted"), a, groups) for a in addressed)
             else "other"] += 1
 
+        # Does the row distinguish "tracks the addressee" from "copies the
+        # last speaker"? Most do not, and those are counted as agreeing.
+        sequence = order.get(book) or []
+        quote_id = entry.get("pdnc_quote_id")
+        if quote_id in sequence:
+            index = sequence.index(quote_id)
+            previous, following = turn_neighbours(sequence, index, raw[book])
+            for label, who in (("previous_speaker", previous),
+                               ("next_speaker", following)):
+                if who and same_speaker(row.get("predicted"), who, groups):
+                    neighbours[label] += 1
+            neighbours["rows_with_an_order"] += 1
+            verdict = separate_addressee_from_persistence(
+                row.get("predicted"), addressed, previous, groups)
+            separation[verdict or "both_agree"] += 1
+
         present = recent_mentions(entry.get("prev_context"), names, groups)[:WINDOW]
         others = [n for n in present
                   if not same_speaker(row.get("expected"), n, groups)
@@ -139,7 +200,7 @@ def analyse(rows, fixtures, raw):
             examples.append({"id": row.get("id"), "gold": row.get("expected"),
                              "model_said": row.get("predicted"),
                              "annotated_addressees": addressed})
-    return naive, strict, options, examples
+    return naive, strict, options, separation, neighbours, examples
 
 
 def main():
@@ -160,7 +221,7 @@ def main():
     with open(args.artifact, encoding="utf-8") as handle:
         artifact = json.load(handle)
 
-    naive, strict, options, examples = analyse(
+    naive, strict, options, separation, neighbours, examples = analyse(
         artifact.get("rows") or [], fixtures, raw)
     n_strict = sum(strict.values())
     n_naive = sum(naive.values())
@@ -187,6 +248,11 @@ def main():
             if n_strict else None,
             "share_expected_if_choosing_at_random": round(chance, 4)
             if chance else None},
+        "also_named_the_neighbouring_speaker": dict(neighbours),
+        "addressee_or_persistence": {
+            **{k: v for k, v in separation.items()},
+            "note": "in a two-party exchange the addressee IS the previous "
+                    "speaker, so only the disagreeing rows carry information"},
         "examples": examples,
         "verdict": ("when it is wrong the model names the person being spoken "
                     "TO, %.1f%% of the time against %.1f%% expected from "
@@ -206,6 +272,13 @@ def main():
             print("  %-22s %5d  %.1f%%" % (kind, strict[kind],
                                            100 * strict[kind] / n_strict))
     print("  random would give %.1f%%" % (100 * chance))
+    a = separation.get("addressee_not_previous_speaker", 0)
+    b = separation.get("previous_speaker_not_addressee", 0)
+    print("\naddressee, or just whoever spoke last?")
+    print("  named the addressee and NOT the previous speaker   %5d" % a)
+    print("  named the previous speaker and NOT the addressee   %5d" % b)
+    print("  rows where both explanations agree                 %5d"
+          % separation.get("both_agree", 0))
     print("\n%s" % doc["verdict"])
     return 0
 

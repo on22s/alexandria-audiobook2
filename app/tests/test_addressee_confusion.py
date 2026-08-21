@@ -15,7 +15,9 @@ The exclusion is the load-bearing part, so it is tested first.
 """
 import unittest
 
-from experiments.addressee_confusion import addressees, classify
+from experiments.addressee_confusion import (addressees, classify,
+                                             separate_addressee_from_persistence,
+                                             turn_neighbours)
 from experiments.two_stage_attribution import (PROMPT_VARIANTS,
                                                SPEAKER_NOT_ADDRESSEE,
                                                build_prompt)
@@ -93,3 +95,55 @@ class ArmTest(unittest.TestCase):
     def test_an_unknown_variant_is_still_refused(self):
         with self.assertRaises(ValueError):
             build_prompt(self.ENTRY, ["A"], variant="speaker_not_adressee")
+
+
+class TurnNeighbourTests(unittest.TestCase):
+    """The ordering helpers, on the cases that decide the verdict."""
+
+    GROUPS = {}
+
+    def test_ends_of_a_scene_have_one_neighbour(self):
+        order = ["Q0", "Q1", "Q2"]
+        raw = {"Q0": {"speaker": "Ann"}, "Q1": {"speaker": "Bob"},
+               "Q2": {"speaker": "Ann"}}
+        self.assertEqual(turn_neighbours(order, 0, raw), (None, "Bob"))
+        self.assertEqual(turn_neighbours(order, 2, raw), ("Bob", None))
+        self.assertEqual(turn_neighbours(order, 1, raw), ("Ann", "Ann"))
+
+    def test_two_party_exchange_cannot_separate_the_hypotheses(self):
+        # Ann and Bob alternate, so the addressee IS the previous speaker.
+        # This is the majority case and it must count as uninformative, not
+        # as support for either explanation.
+        self.assertIsNone(separate_addressee_from_persistence(
+            "Ann", ["Ann"], "Ann", self.GROUPS))
+
+    def test_addressee_who_did_not_speak_last_supports_addressee(self):
+        # Three in the room: Cid spoke last, but the line is aimed at Ann,
+        # and the model said Ann.
+        self.assertEqual(
+            separate_addressee_from_persistence("Ann", ["Ann"], "Cid",
+                                                   self.GROUPS),
+            "addressee_not_previous_speaker")
+
+    def test_last_speaker_who_is_not_addressed_supports_persistence(self):
+        self.assertEqual(
+            separate_addressee_from_persistence("Cid", ["Ann"], "Cid",
+                                                   self.GROUPS),
+            "previous_speaker_not_addressee")
+
+    def test_naming_a_third_party_supports_neither(self):
+        self.assertIsNone(separate_addressee_from_persistence(
+            "Dot", ["Ann"], "Cid", self.GROUPS))
+
+    def test_missing_previous_speaker_is_not_a_match(self):
+        # First quote of a book has no predecessor; it must not be scored as
+        # persistence-agreeing just because prev is falsy.
+        self.assertEqual(
+            separate_addressee_from_persistence("Ann", ["Ann"], None,
+                                                   self.GROUPS),
+            "addressee_not_previous_speaker")
+
+    def test_aliases_resolve_through_the_group_map(self):
+        groups = {"subaru": "Subaru", "subaru natsuki": "Subaru"}
+        self.assertIsNone(separate_addressee_from_persistence(
+            "Subaru Natsuki", ["Subaru"], "Subaru", groups))
