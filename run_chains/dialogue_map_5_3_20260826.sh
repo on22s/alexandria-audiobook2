@@ -64,9 +64,19 @@ fi
 # serves both, and so the harness needs no new notion of where a book lives.
 inputs="$runtime/dialogue_map_5_3_inputs"
 mkdir -p "$inputs"
+# Staged under the name the GOLD FIXTURE uses, not the PDNC directory name.
+# three_pass_vs_single derives the fixture path from the book name, so
+# --books TheGambler looked for attribution_gold_TheGambler.json, which has
+# never existed: the fixtures are attribution_gold_pdnc_thegambler.json. That
+# spelling killed the 10h stage in 0s on 2026-08-21.
 for b in TheGambler TheSignOfTheFour TheMysteriousAffairAtStyles AHandfulOfDust; do
     src="$runtime/pdnc/data/$b/novel_text.txt"
-    [ -f "$src" ] && cp -f "$src" "$inputs/$b.txt"
+    dst="pdnc_$(printf '%s' "$b" | tr 'A-Z' 'a-z')"
+    [ -f "$src" ] && cp -f "$src" "$inputs/$dst.txt"
+    [ -f "$REPO/app/fixtures/attribution_gold_$dst.json" ] || {
+        echo "REFUSING to start: no gold fixture for $dst; the arm would die"
+        echo "  at load_gold after the stage slot was already claimed."
+        exit 1; }
 done
 for b in index18 mushoku16 owarimonogatari3; do
     for d in "$runtime/results/collect_all_20260722-155801/inputs" "$runtime/tpvs_inputs"; do
@@ -81,7 +91,8 @@ echo "staged $(ls "$inputs"/*.txt 2>/dev/null | wc -l) books"
 run_stage generate_pdnc 10h -- \
     env REQUIRE_LLM=1 "$REPO/gpu_job.sh" map_5_3_pdnc \
     "$python" -u "$REPO/app/experiments/three_pass_vs_single.py" \
-    --books TheGambler TheSignOfTheFour TheMysteriousAffairAtStyles AHandfulOfDust \
+    --books pdnc_thegambler pdnc_thesignofthefour \
+            pdnc_themysteriousaffairatstyles pdnc_ahandfulofdust \
     --inputs "$inputs" --work "$work" --reuse-complete \
     --pass2-on-exhaustion fallback \
     --out "$runtime/experiments/three_pass_vs_single_pdnc.json"
@@ -109,8 +120,8 @@ run_stage text_fidelity 30m -- \
     --source mushoku16="$inputs/mushoku16.txt" \
     --source owarimonogatari3="$inputs/owarimonogatari3.txt" \
     --source index18="$inputs/index18.txt" \
-    --source TheGambler="$inputs/TheGambler.txt" \
-    --source AHandfulOfDust="$inputs/AHandfulOfDust.txt" \
+    --source pdnc_thegambler="$inputs/pdnc_thegambler.txt" \
+    --source pdnc_ahandfulofdust="$inputs/pdnc_ahandfulofdust.txt" \
     --out "$runtime/experiments/script_text_fidelity_fresh.json"
 stage_commit_artifacts text_fidelity "$REPO"
 

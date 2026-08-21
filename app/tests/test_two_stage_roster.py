@@ -27,12 +27,30 @@ class RosterTest(unittest.TestCase):
     def _names(lines):
         return {line.split(" [also")[0] for line in lines}
 
+    @staticmethod
+    def _nameable(lines):
+        """Every string the roster offers, canonical AND bracketed alias.
+
+        What the measurement needs is that the model can produce a string that
+        `same_speaker` scores as this character - and that is alias-aware. The
+        gold for TheMysteriousAffairAtStyles speaks 27 lines as MR. INGLETHORP
+        while the roster's spelling is ALFRED INGLETHORP; the two are one alias
+        group, so the character IS nameable and canonical-only was the wrong
+        question to ask.
+        """
+        out = set()
+        for line in lines:
+            head, _, rest = line.partition(" [also: ")
+            out.add(head)
+            out.update(n.strip() for n in rest.rstrip("]").split(",") if n.strip())
+        return out
+
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
     def test_every_expected_speaker_can_be_named(self):
         for path in FIXTURES:
             with self.subTest(book=os.path.basename(path)):
                 fixture = _load(path)
-                shown = self._names(roster_lines(fixture))
+                shown = self._nameable(roster_lines(fixture))
                 expected = {e["expected_speaker"] for e in fixture["entries"]}
                 self.assertEqual(set(), expected - shown)
 
@@ -52,6 +70,26 @@ class RosterTest(unittest.TestCase):
             self.assertIn("also:", lines[busiest])
 
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
+    @staticmethod
+    def _shadowed(fixture, lines):
+        """-> alias groups that got more than one line of their own.
+
+        This replaces a `len(lines) <= len(roster) + 1` bound. The bound was a
+        proxy for "no character is listed twice", and it is the wrong proxy on
+        AHandfulOfDust, where six characters (BEAVER, JOCK, MRS BEAVER, ...)
+        speak in the gold and are simply absent from the fixture's roster - 110
+        legitimate lines for a 104-name roster. Asking the question directly is
+        also STRICTER than the bound: ELIZA and ELIZABETH are two strings that
+        both sit inside the roster's own vocabulary, so a count bound would
+        have let the original shadow-duplicate bug back in.
+        """
+        names = {line.split(" [also")[0] for line in lines}
+        out = []
+        for group in (fixture.get("aliases") or []):
+            if len([n for n in group if n in names]) > 1:
+                out.append(sorted(n for n in group if n in names))
+        return out
+
     def test_the_cast_is_not_inflated_with_duplicates(self):
         """84 lines for a 74-name book meant ten characters listed twice."""
         for path in FIXTURES:
@@ -59,9 +97,7 @@ class RosterTest(unittest.TestCase):
                 fixture = _load(path)
                 lines = roster_lines(fixture)
                 self.assertEqual(len(lines), len(self._names(lines)))
-                roster = fixture.get("roster")
-                if roster:
-                    self.assertLessEqual(len(lines), len(roster) + 1)
+                self.assertEqual([], self._shadowed(fixture, lines))
 
     @unittest.skipUnless(FIXTURES, "no PDNC fixtures present")
     def test_no_decorated_name_is_a_character_who_never_speaks(self):
@@ -70,6 +106,16 @@ class RosterTest(unittest.TestCase):
         phantom = [l for l in roster_lines(fixture)
                    if "also:" in l and l.split(" [also")[0] not in speakers]
         self.assertEqual([], phantom)
+
+
+    def test_the_shadow_duplicate_check_still_catches_the_original_bug(self):
+        """One alias group, two lines - the shape that inflated 74 names to 84."""
+        fixture = {"aliases": [["ELIZA", "ELIZABETH"]]}
+        self.assertEqual(
+            [["ELIZA", "ELIZABETH"]],
+            self._shadowed(fixture, ["ELIZA", "ELIZABETH [also: ELIZA]"]))
+        self.assertEqual(
+            [], self._shadowed(fixture, ["ELIZABETH [also: ELIZA]"]))
 
 
 class AnswerShapeTest(unittest.TestCase):
