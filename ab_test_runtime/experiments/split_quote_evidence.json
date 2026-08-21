@@ -1,0 +1,93 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "split_quote_evidence.py",
+  "written": "2026-08-21T10:13:24",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "385bd48efaf14b6f6185897272c8714868ba47eb",
+   "branch": "agent/split-quote-attribution-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/split_quote_evidence.py"
+   ],
+   "harness_sha256": "907105201a33e016be744c6957d4e3ba3e779e622ba589de0d1f6cbc545fc5ce"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": "fixtures",
+   "pdnc": "data",
+   "out": "split_quote_evidence.json"
+  }
+ },
+ "scope": "what a quotation split by narration costs, measured against PDNC's own referringExpression. Nothing was re-run",
+ "source_artifact": "two_stage_attribution_w3200.json",
+ "quotations_single_part": 1714,
+ "quotations_multi_part": 780,
+ "multi_part_share": 0.3128,
+ "accuracy_by_quote_type_and_form": {
+  "Anaphoric": {
+   "multi-part": {
+    "n": 424,
+    "accuracy": 0.7099
+   },
+   "single": {
+    "n": 299,
+    "accuracy": 0.7157
+   },
+   "points_lost_when_split": 0.58
+  },
+  "Implicit": {
+   "single": {
+    "n": 1228,
+    "accuracy": 0.6287
+   },
+   "points_lost_when_split": null
+  },
+  "Explicit": {
+   "multi-part": {
+    "n": 356,
+    "accuracy": 0.6067
+   },
+   "single": {
+    "n": 187,
+    "accuracy": 0.7166
+   },
+   "points_lost_when_split": 10.99
+  }
+ },
+ "explicit_evidence_survival": {
+  "single": {
+   "n": 187,
+   "line": {
+    "n": 0,
+    "share": 0.0
+   },
+   "context": {
+    "n": 184,
+    "share": 0.984
+   },
+   "absent": {
+    "n": 3,
+    "share": 0.016
+   }
+  },
+  "multi-part": {
+   "n": 356,
+   "line": {
+    "n": 0,
+    "share": 0.0
+   },
+   "context": {
+    "n": 110,
+    "share": 0.309
+   },
+   "absent": {
+    "n": 246,
+    "share": 0.691
+   }
+  }
+ },
+ "cause": "pdnc_gold_rebuild.spans collapses a quotation to min(start), max(end); the narration between parts falls inside that envelope and so into neither context, while `line` holds the joined quote without it"
+}
