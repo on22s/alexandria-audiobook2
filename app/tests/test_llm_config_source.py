@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 from lmstudio_settings import get_active_llm_config
+from tests.test_support import app_python_files
 
 APP = Path(__file__).resolve().parent.parent
 
@@ -116,12 +117,10 @@ class SingleImplementationTests(unittest.TestCase):
 
     def test_the_active_profile_rule_lives_in_one_place(self):
         offenders = []
-        for path in sorted(APP.rglob("*.py")):
+        for path in app_python_files(APP):
             if path.name.startswith("test_") or path.name == "lmstudio_settings.py":
                 continue
             if path.name in self.EXEMPT:
-                continue
-            if "env" in path.parts or "site-packages" in path.parts:
                 continue
             for number, line in enumerate(
                     path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
