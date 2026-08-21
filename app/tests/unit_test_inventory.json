@@ -31,6 +31,15 @@
     "tests.test_analyze_generation_attempts.RecoveryByBandTests.test_no_later_accepted_attempt_is_not_recovery",
     "tests.test_analyze_generation_attempts.SplitOutcomesTests.test_counts_only_adaptively_split_chunks"
   ],
+  "test_anchor_length_audit": [
+    "tests.test_anchor_length_audit.AuditTest.test_a_ceiling_below_an_arm_is_flagged",
+    "tests.test_anchor_length_audit.AuditTest.test_a_list_shaped_file_is_skipped_rather_than_crashing",
+    "tests.test_anchor_length_audit.AuditTest.test_an_artifact_with_no_anchor_seconds_is_skipped",
+    "tests.test_anchor_length_audit.AuditTest.test_both_sides_are_reported_separately",
+    "tests.test_anchor_length_audit.AuditTest.test_the_gap_is_reported_not_just_the_boolean",
+    "tests.test_anchor_length_audit.AuditTest.test_the_shortest_anchor_is_kept_not_only_the_median",
+    "tests.test_anchor_length_audit.MedianTest.test_an_empty_list_is_none"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
