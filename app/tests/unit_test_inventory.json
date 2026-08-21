@@ -40,6 +40,18 @@
     "tests.test_anchor_length_audit.AuditTest.test_the_shortest_anchor_is_kept_not_only_the_median",
     "tests.test_anchor_length_audit.MedianTest.test_an_empty_list_is_none"
   ],
+  "test_annotator_evidence": [
+    "tests.test_annotator_evidence.ClassifyTest.test_a_different_surface_form_counts_as_absent",
+    "tests.test_annotator_evidence.ClassifyTest.test_an_expression_nowhere_in_the_window_is_outside",
+    "tests.test_annotator_evidence.ClassifyTest.test_no_referring_expression_is_none_not_false",
+    "tests.test_annotator_evidence.ClassifyTest.test_punctuation_between_the_two_does_not_defeat_the_match",
+    "tests.test_annotator_evidence.ClassifyTest.test_the_expression_is_found_across_the_whole_window",
+    "tests.test_annotator_evidence.ClassifyTest.test_the_line_itself_is_part_of_the_window",
+    "tests.test_annotator_evidence.MatchBookTest.test_a_fixture_stem_finds_its_pdnc_folder",
+    "tests.test_annotator_evidence.MatchBookTest.test_an_unknown_stem_is_none_rather_than_a_wrong_book",
+    "tests.test_annotator_evidence.NormaliseTest.test_case_and_punctuation_fold_away",
+    "tests.test_annotator_evidence.NormaliseTest.test_nothing_is_empty"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
@@ -1876,6 +1888,25 @@
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_the_caller_is_not_mutated",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_the_roster_threshold_is_stricter_than_the_entry_gate",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_without_source_text_every_new_speaker_is_admitted"
+  ],
+  "test_roster_order_bias": [
+    "tests.test_roster_order_bias.AnalyseTest.test_a_row_whose_answer_is_off_roster_is_skipped",
+    "tests.test_roster_order_bias.AnalyseTest.test_a_wrong_answer_later_than_gold_counts_the_other_way",
+    "tests.test_roster_order_bias.AnalyseTest.test_only_wrong_rows_enter_the_paired_count",
+    "tests.test_roster_order_bias.AnalyseTest.test_the_unpaired_figures_carry_their_caveat",
+    "tests.test_roster_order_bias.PositionTest.test_a_name_not_in_the_roster_is_none",
+    "tests.test_roster_order_bias.PositionTest.test_a_single_name_roster_does_not_divide_by_zero",
+    "tests.test_roster_order_bias.PositionTest.test_an_alias_finds_its_roster_entry",
+    "tests.test_roster_order_bias.PositionTest.test_first_and_last_are_zero_and_one",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_an_unknown_variant_is_still_refused",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_different_rows_get_different_orders",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_it_reorders_without_adding_or_dropping_a_name",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_caller_s_roster_is_not_mutated",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_same_row_always_gets_the_same_order",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_variant_is_offered",
+    "tests.test_roster_order_bias.SignTest.test_a_lopsided_split_is_significant",
+    "tests.test_roster_order_bias.SignTest.test_an_even_split_is_not",
+    "tests.test_roster_order_bias.SignTest.test_no_observations_is_one"
   ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",

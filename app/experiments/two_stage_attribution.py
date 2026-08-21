@@ -175,7 +175,16 @@ EXPLICIT_HINT = (
     "somebody else."
 )
 
-PROMPT_VARIANTS = ("control", "explicit_hint")
+# Measured on the 2,494 stored rows: when the model is wrong, its answer sits
+# EARLIER in the alphabetical cast list than the correct one 67.2% of the time
+# (563 against 275, sign test p = 1.3e-23). The comparison is paired against
+# each row's own gold, so cast composition cancels and a coin would say 50%.
+#
+# The list is alphabetical because `roster_lines` ends in sorted(); nothing
+# about the task wants that order. `shuffled_roster` gives each row its own
+# deterministic order, seeded by the quote id, so the systematic component is
+# removed rather than replaced by a different fixed one.
+PROMPT_VARIANTS = ("control", "explicit_hint", "shuffled_roster")
 
 
 def build_prompt(entry, roster, narrator=None, variant="control"):
@@ -189,6 +198,12 @@ def build_prompt(entry, roster, narrator=None, variant="control"):
     on PDNC (61.7% -> 79.4%), and a second wording here would be a different
     intervention wearing the same name.
     """
+    if variant == "shuffled_roster":
+        # Seeded by the row, not by the run: two runs of this arm see the same
+        # order for the same quote, and no two quotes share one.
+        order = random.Random(str(entry.get("id") or entry.get("line") or ""))
+        roster = list(roster)
+        order.shuffle(roster)
     text = SINGLE_PROMPT.format(
         roster="\n".join(f"- {name}" for name in roster),
         prev=str(entry.get("prev_context") or ""),
@@ -198,7 +213,7 @@ def build_prompt(entry, roster, narrator=None, variant="control"):
         text = add_narrator_prior(text, narrator)
     if variant == "explicit_hint":
         text += EXPLICIT_HINT
-    elif variant != "control":
+    elif variant not in ("control", "shuffled_roster"):
         raise ValueError("unknown prompt variant %r; expected one of %s"
                          % (variant, ", ".join(PROMPT_VARIANTS)))
     return text
