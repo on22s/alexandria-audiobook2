@@ -1,0 +1,24 @@
+{
+ "scope": "generation arms compared on the source-derived dialogue map (`spoken`/`source_span`), not on punctuation",
+ "books": {},
+ "skipped_no_dialogue_map": [],
+ "status": "complete",
+ "provenance": {
+  "script": "dialogue_map_compare.py",
+  "written": "2026-08-21T00:47:51",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "5a90c23d905c591bd39226875ac4983f8b334617",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "audio_root": [],
+   "out": "ab_test_runtime/experiments/dialogue_map_compare_fresh.json"
+  }
+ }
+}
