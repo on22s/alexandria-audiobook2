@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 555 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 556 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1102,6 +1102,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_none_allrows_n3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_allrows.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_pauses_allrows_4arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_pauses_separators_3arm.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_rule_b.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
