@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 565 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 566 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1126,6 +1126,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `retrain_honest.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrofit_dialogue_map.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `riqua_coverage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `robotic_proxy_clips.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `roster_order_bias.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `run_lengths.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

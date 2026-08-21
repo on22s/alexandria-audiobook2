@@ -577,7 +577,7 @@ library_voice_fidelity.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,
 library_voice_fidelity_n10.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_voice_fidelity_postfix.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 listener_impact.json,exploratory,git+naming,no,listener_impact.py,dac2023a,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
-listening_verdicts.json,exploratory,none,no,,755fbed6,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+listening_verdicts.json,exploratory,none,no,,b28ac69d,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 ljspeech_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 ljspeech_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lora_serving_eval__cloud-alldata.json,exploratory,git+naming,no,lora_serving_eval.py,661c8854,,,lora_serving_eval,grimgar03,qwen/qwen3-14b,cloud-a6000-llamacpp-cuda,instance-kwami7f2-main,llama.cpp-cuda,32768,1,f16?,base,385,248,64.4,ok,False,,6206.6,08-03 06:14,http://127.0.0.1:8090/v1,
@@ -817,6 +817,7 @@ retrain_bad_refs.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,
 retrain_honest.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 retrain_rebuild_group.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 retrofit_dialogue_map.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+riqua_coverage.json,supported_structure,none,no,,7f8b3569,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 robotic_proxy_clips.json,exploratory,git+naming,no,robotic_proxy.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 roster_order_bias.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 roster_quality__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,roster_quality.py,44704c7c,,,roster_quality,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,augmented,385,330,85.7,ok,False,,8051.1,07-30 03:34,http://127.0.0.1:8090/v1,
