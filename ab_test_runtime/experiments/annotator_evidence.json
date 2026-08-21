@@ -1,0 +1,65 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "annotator_evidence.py",
+  "written": "2026-08-21T09:40:33",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "1c5c1b7037f8e8fe673705968ff9e60b0018a696",
+   "branch": "agent/annotator-evidence-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/annotator_evidence.py"
+   ],
+   "harness_sha256": "37cd3d4526ab22460cbed13e3c1a17686808bf902123a19bcc9a80aca4f39067"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": "fixtures",
+   "pdnc": "data",
+   "out": "annotator_evidence.json"
+  }
+ },
+ "scope": "PDNC's own referringExpression per quotation, joined to our scored rows by pdnc_quote_id. Exact substring match after folding to lowercase alphanumerics, so a different surface form counts as absent and the benefit of presence is, if anything, understated",
+ "source_artifact": "two_stage_attribution_w3200.json",
+ "rows_scored": 2494,
+ "rows_not_joinable_to_pdnc": 7459,
+ "rows_with_no_referring_expression": 0,
+ "share_with_evidence_in_window": 0.4178,
+ "by_quote_type": {
+  "Anaphoric": {
+   "outside": {
+    "n": 281,
+    "accuracy": 0.7224
+   },
+   "inside": {
+    "n": 442,
+    "accuracy": 0.7059
+   },
+   "points_from_having_the_evidence": -1.65
+  },
+  "Implicit": {
+   "outside": {
+    "n": 922,
+    "accuracy": 0.6226
+   },
+   "inside": {
+    "n": 306,
+    "accuracy": 0.6471
+   },
+   "points_from_having_the_evidence": 2.45
+  },
+  "Explicit": {
+   "outside": {
+    "n": 249,
+    "accuracy": 0.5984
+   },
+   "inside": {
+    "n": 294,
+    "accuracy": 0.6837
+   },
+   "points_from_having_the_evidence": 8.53
+  }
+ }
+}
