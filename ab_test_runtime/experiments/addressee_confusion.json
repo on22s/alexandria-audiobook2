@@ -1,0 +1,123 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "addressee_confusion.py",
+  "written": "2026-08-21T13:25:42",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "030f77c436710b36aee00fdd2103c9ce97d3101d",
+   "branch": "agent/addressee-confusion-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/addressee_confusion.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "ee9b9e417a3eea1875f259e41065b478b26b844b49c9bf88a6a582f08b907ddd"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": "fixtures",
+   "pdnc": "data",
+   "out": "addressee_confusion.json"
+  }
+ },
+ "scope": "which KIND of person the model names when it is wrong, using PDNC's addressee annotation. No model was re-run",
+ "all_wrong_rows_with_an_addressee": {
+  "n": 852,
+  "named_an_addressee": 669,
+  "share": 0.7852,
+  "caveat": "in a two-person scene the addressee is the only alternative, so this number alone proves nothing"
+ },
+ "rows_where_another_present_person_was_available": {
+  "n": 798,
+  "addressee": {
+   "n": 621,
+   "share": 0.7782
+  },
+  "absent": {
+   "n": 67,
+   "share": 0.084
+  },
+  "other_present": {
+   "n": 110,
+   "share": 0.1378
+  },
+  "mean_addressee_options": 2.28,
+  "mean_other_present_options": 3.26,
+  "share_expected_if_choosing_at_random": 0.4119
+ },
+ "also_named_the_neighbouring_speaker": {
+  "previous_speaker": 468,
+  "next_speaker": 471,
+  "rows_with_an_order": 852
+ },
+ "addressee_or_persistence": {
+  "both_agree": 643,
+  "addressee_not_previous_speaker": 205,
+  "previous_speaker_not_addressee": 4,
+  "note": "in a two-party exchange the addressee IS the previous speaker, so only the disagreeing rows carry information"
+ },
+ "examples": [
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00007",
+   "gold": "MR. BENNET",
+   "model_said": "MRS. BENNET",
+   "annotated_addressees": [
+    "Mrs. Bennet"
+   ]
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00020",
+   "gold": "MRS. BENNET",
+   "model_said": "MR. BENNET",
+   "annotated_addressees": [
+    "Mr. Bennet"
+   ]
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00026",
+   "gold": "MRS. BENNET",
+   "model_said": "MR. BENNET",
+   "annotated_addressees": [
+    "Mr. Bennet"
+   ]
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00031",
+   "gold": "MRS. BENNET",
+   "model_said": "MR. BENNET",
+   "annotated_addressees": [
+    "Mary",
+    "Elizabeth",
+    "Lydia",
+    "Kitty",
+    "Mr. Bennet"
+   ]
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00033",
+   "gold": "MRS. BENNET",
+   "model_said": "MR. BENNET",
+   "annotated_addressees": [
+    "Mary",
+    "Elizabeth",
+    "Lydia",
+    "Kitty",
+    "Mr. Bennet"
+   ]
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00037",
+   "gold": "MRS. BENNET",
+   "model_said": "MR. BENNET",
+   "annotated_addressees": [
+    "Mary",
+    "Elizabeth",
+    "Lydia",
+    "Kitty",
+    "Mr. Bennet"
+   ]
+  }
+ ],
+ "verdict": "when it is wrong the model names the person being spoken TO, 77.8% of the time against 41.2% expected from choosing among present people at random"
+}
