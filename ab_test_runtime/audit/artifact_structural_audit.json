@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 249,
+    "supported_structure": 250,
     "exploratory": 193,
     "provisional": 123
   },
@@ -6372,6 +6372,22 @@
       "has_rows": false,
       "identity_contract": "tts_provenance",
       "written": "2026-08-21T02:33:04",
+      "commit": "db122ab1a536a197ce9a38d9ea6783166b2c6ef7",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "prosody_second_english__warm_baritone_30s_m_scifi.json",
+      "bytes": 14738,
+      "sha256": "0fcaa3e93fdf2ec1a3bd6d7abc8dfa3a2e951a547fb99862b9aea7cf3fffbc3d",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T02:33:24",
       "commit": "db122ab1a536a197ce9a38d9ea6783166b2c6ef7",
       "dirty": false,
       "classification": "supported_structure",
