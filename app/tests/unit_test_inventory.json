@@ -40,6 +40,18 @@
     "tests.test_anchor_length_audit.AuditTest.test_the_shortest_anchor_is_kept_not_only_the_median",
     "tests.test_anchor_length_audit.MedianTest.test_an_empty_list_is_none"
   ],
+  "test_annotator_evidence": [
+    "tests.test_annotator_evidence.ClassifyTest.test_a_different_surface_form_counts_as_absent",
+    "tests.test_annotator_evidence.ClassifyTest.test_an_expression_nowhere_in_the_window_is_outside",
+    "tests.test_annotator_evidence.ClassifyTest.test_no_referring_expression_is_none_not_false",
+    "tests.test_annotator_evidence.ClassifyTest.test_punctuation_between_the_two_does_not_defeat_the_match",
+    "tests.test_annotator_evidence.ClassifyTest.test_the_expression_is_found_across_the_whole_window",
+    "tests.test_annotator_evidence.ClassifyTest.test_the_line_itself_is_part_of_the_window",
+    "tests.test_annotator_evidence.MatchBookTest.test_a_fixture_stem_finds_its_pdnc_folder",
+    "tests.test_annotator_evidence.MatchBookTest.test_an_unknown_stem_is_none_rather_than_a_wrong_book",
+    "tests.test_annotator_evidence.NormaliseTest.test_case_and_punctuation_fold_away",
+    "tests.test_annotator_evidence.NormaliseTest.test_nothing_is_empty"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",

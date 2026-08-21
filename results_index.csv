@@ -10,6 +10,7 @@ alignment_diagnosis_trimmed.json,exploratory,git+naming,no,alignment_diagnosis.p
 alignment_diagnosis_zh.json,exploratory,git+naming,no,alignment_diagnosis.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 anchor_length_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 anchor_length_probe.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+annotator_evidence.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr2_hybrid__kokoro.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr2_whisper_cpp__ggml-base.bin.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr2_whisper_cpp__ggml-large-v3.bin.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
