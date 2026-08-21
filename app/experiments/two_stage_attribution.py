@@ -191,8 +191,27 @@ EXPLICIT_HINT = (
 # annotator's own referring expression was absent from everything the model saw
 # 69.1% of the time for multi-part quotations against 1.6% for single-part
 # ones, costing 11.0 points. `inner_narration` shows it.
+# The largest single error mode this project has measured. Using PDNC's
+# addressee annotation on the 2,494 stored rows: of the wrong rows where the
+# model had a real choice - an addressee AND some other present character both
+# available - it named the person being spoken TO 77.8% of the time, against
+# 41.2% expected from choosing among present people at random.
+#
+# It is also cross-lingual. Every error of the Chinese frame rule in #390 was
+# `向X道`, "said TO X". A 14B model prompted in English and a regular
+# expression in Chinese fail the same way, which makes it a property of the
+# task rather than of either system.
+SPEAKER_NOT_ADDRESSEE = (
+    "\n\nName the character who SPEAKS the line, not the character being "
+    "spoken to. A line addressed to someone - "
+    "\"he said to Elizabeth\", \"she turned to her father\" - names the "
+    "LISTENER, and the listener is not the answer. In a back-and-forth "
+    "exchange the speaker of this line is usually whoever was being addressed "
+    "in the line before it."
+)
+
 PROMPT_VARIANTS = ("control", "explicit_hint", "shuffled_roster",
-                   "inner_narration")
+                   "inner_narration", "speaker_not_addressee")
 
 
 def build_prompt(entry, roster, narrator=None, variant="control"):
@@ -219,7 +238,9 @@ def build_prompt(entry, roster, narrator=None, variant="control"):
         next=str(entry.get("next_context") or ""))
     if narrator:
         text = add_narrator_prior(text, narrator)
-    if variant == "inner_narration":
+    if variant == "speaker_not_addressee":
+        text += SPEAKER_NOT_ADDRESSEE
+    elif variant == "inner_narration":
         inner = str(entry.get("inner_narration") or "").strip()
         if inner:
             # Labelled for what it is. It is neither before nor after the line;
