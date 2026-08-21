@@ -61,7 +61,14 @@ logged_job() {
         /START    / {name=$3}
         # INTERRUPTED and STOPPED are terminal too. A marker set that lags the
         # writer is how a finished job goes on looking busy.
-        /OK       |FAILED   |REFUSED  |NO_VRAM  |KILLED   |LOCK_FAILED|INTERRUPTED |STOPPED  / {name=""}
+        #
+        # NO_LLM was added to gpu_job.sh and not here, so a preflight refusal
+        # (exit 6) left the job looking busy: on 2026-08-21 allrows_dot_tail
+        # was refused for a missing llama-server and `status` went on naming it
+        # as the running job. Terminal means THE JOB WILL NOT RUN - so NO_LLM
+        # belongs here, while DIRTY_RUN, LLM_UNCHECKED, VRAM_UNKNOWN and HELD
+        # deliberately do not: every one of those PROCEEDS to run the job.
+        /OK       |FAILED   |REFUSED  |NO_VRAM  |NO_LLM   |KILLED   |LOCK_FAILED|INTERRUPTED |STOPPED  / {name=""}
         END {print name}'
 }
 
