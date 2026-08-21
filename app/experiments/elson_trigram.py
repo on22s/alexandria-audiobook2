@@ -37,6 +37,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(REPO, "app"))
 
 from experiments.provenance import provenance  # noqa: E402
+from experiments.source_context import build_index, locate  # noqa: E402
 from experiments.scoring import alias_groups, normalize, same_speaker  # noqa: E402
 
 # Elson compiled ~6,000 surface forms from WordNet subtrees. This is the head
@@ -135,10 +136,54 @@ def classify(line, prev_context, next_context, roster, groups):
     return "no_pattern", None
 
 
+def load_sources(pairs):
+    """--source BOOK=FILE ... -> {book: (source, normalised, offsets)}."""
+    out = {}
+    for pair in pairs or ():
+        book, _, path = pair.partition("=")
+        if not path:
+            raise SystemExit("--source needs BOOK=FILE, got %r" % pair)
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            source = handle.read()
+        normalised, offsets = build_index(source)
+        out[book] = (source, normalised, offsets)
+    return out
+
+
+def contexts_for(entry, book, sources):
+    """-> (prev, next, status).
+
+    The fixture's own contexts win when it has them - they are the annotation,
+    not a reconstruction. Only the books that lack them are aligned.
+    """
+    if entry.get("prev_context") or entry.get("next_context"):
+        return entry.get("prev_context"), entry.get("next_context"), "fixture"
+    if book not in sources:
+        return None, None, "no_source"
+    source, normalised, offsets = sources[book]
+    return locate(entry.get("line"), normalised, offsets, source)
+
+
+def split_id(row_id):
+    """-> (book, quote id) for both artifact id conventions.
+
+    PDNC arms write "<fixture>:<quote id>"; the light-novel arms write a bare
+    "index18-00017". Reading the second as the first made the book name
+    "index18-00017", every gold lookup missed, and the run reported zero rows
+    with no error - the shape of failure this file exists to avoid.
+    """
+    book, sep, quote = (row_id or "").partition(":")
+    if sep:
+        return book, quote
+    return re.sub(r"-\d+$", "", book), book
+
+
 def load_gold(fixtures_dir):
     gold, rosters, groups = {}, {}, {}
     for path in sorted(glob.glob(os.path.join(
-            fixtures_dir, "attribution_gold_pdnc_*.json"))):
+            fixtures_dir, "attribution_gold_*.json"))):
+        if "provisional" in os.path.basename(path):
+            continue
         book = os.path.basename(path)[:-len(".json")]
         with open(path, encoding="utf-8") as handle:
             fixture = json.load(handle)
@@ -146,6 +191,11 @@ def load_gold(fixtures_dir):
         groups[book] = alias_groups(fixture)
         for entry in fixture.get("entries") or []:
             gold[(book, entry["id"])] = entry
+            # Also by bare quote id, for artifacts that do not prefix the book.
+            gold.setdefault(entry["id"], entry)
+            short = book[len("attribution_gold_"):]
+            rosters.setdefault(short, rosters[book])
+            groups.setdefault(short, groups[book])
     return gold, rosters, groups
 
 
@@ -187,6 +237,17 @@ def main():
                         help="a two_stage_attribution artifact with per-row answers")
     parser.add_argument("--fixtures", default=os.path.join(REPO, "app", "fixtures"))
     parser.add_argument("--out", required=True)
+    parser.add_argument("--source", nargs="*", default=[],
+                        metavar="BOOK=FILE",
+                        help="recover contexts by locating each line in this "
+                             "book's source; for fixtures with no context")
+    parser.add_argument("--roster-from-artifact", action="store_true",
+                        help="take the cast from the candidates the model was "
+                             "shown, not from the fixture")
+    parser.add_argument("--arm",
+                        help="artifacts that hold several arms repeat every "
+                             "gold row once per arm; scoring them together "
+                             "quadruples n and makes the rows dependent")
     parser.add_argument("--apply", nargs="*", default=list(APPLY_BY_DEFAULT),
                         help="categories whose implied speaker overrides the "
                              "model; the rest are classified and reported only")
@@ -196,23 +257,51 @@ def main():
     with open(args.artifact, encoding="utf-8") as handle:
         artifact = json.load(handle)
     gold, rosters, groups = load_gold(args.fixtures)
+    sources = load_sources(args.source)
+    if args.roster_from_artifact:
+        seen = {}
+        for row in artifact.get("rows") or []:
+            book = split_id(row.get("id"))[0]
+            seen.setdefault(book, set()).update(row.get("candidates") or ())
+        for book, names in seen.items():
+            if names:
+                rosters[book] = sorted(names)
+
+    artifact_rows = list(artifact.get("rows") or [])
+    arms = {r.get("arm") for r in artifact_rows if r.get("arm")}
+    if args.arm:
+        artifact_rows = [r for r in artifact_rows if r.get("arm") == args.arm]
+        if not artifact_rows:
+            raise SystemExit("no rows for --arm %s; artifact has %s"
+                             % (args.arm, sorted(arms)))
+    elif len(arms) > 1:
+        raise SystemExit(
+            "this artifact holds %d arms (%s) and repeats every gold row once "
+            "per arm. Pass --arm to pick one; scoring them together would "
+            "report %d rows for %d quotes."
+            % (len(arms), ", ".join(sorted(arms)), len(artifact_rows),
+               len(artifact_rows) // len(arms)))
 
     rows, missing = [], 0
-    for row in artifact.get("rows") or []:
-        book, _, quote_id = (row.get("id") or "").partition(":")
-        entry = gold.get((book, quote_id))
+    context_status = {}
+    for row in artifact_rows:
+        book, quote_id = split_id(row.get("id"))
+        entry = gold.get((book, quote_id)) or gold.get(quote_id)
         if entry is None:
             missing += 1
             continue
+        prev, nxt, status = contexts_for(entry, book, sources)
+        context_status[status] = context_status.get(status, 0) + 1
         category, implied = classify(
-            entry.get("line"), entry.get("prev_context"),
-            entry.get("next_context"), rosters.get(book, ()), groups.get(book, ()))
+            entry.get("line"), prev, nxt,
+            rosters.get(book, ()), groups.get(book, ()))
         expected = row.get("expected")
         model = row.get("predicted")
         g = groups.get(book, ())
         rows.append({
             "id": row.get("id"),
             "quote_type": entry.get("quote_type"),
+            "context": status,
             "category": category,
             "expected": expected,
             "model": model,
@@ -262,6 +351,7 @@ def main():
             "mcnemar_p": mcnemar_exact(fixed, broke),
         },
         "applied_categories": sorted(applied),
+        "context_source": context_status,
         "subsets": subsets(rows),
         "by_quote_type": by_type,
         "by_category": {},
@@ -277,6 +367,11 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(doc, handle, indent=1, ensure_ascii=False)
+    if not rows:
+        raise SystemExit(
+            "no rows matched the gold; %d artifact rows were unmatched. Check "
+            "that --fixtures holds the book's fixture." % missing)
+    print("context:", doc["context_source"])
     print("rows %d | model %.4f -> combined %.4f (%+.2f pts)" % (
         len(rows), doc["model_accuracy"], doc["combined_accuracy"], doc["delta_points"]))
     print("rule fired %d (%.1f%%), correct %.4f there, model %.4f there; "
