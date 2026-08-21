@@ -256,6 +256,11 @@
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_start_of_book_has_no_leading_context",
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_window_is_respected"
   ],
+  "test_chain_book_fixtures": [
+    "tests.test_chain_book_fixtures.ChainBookFixtureTest.test_every_books_name_has_a_gold_fixture",
+    "tests.test_chain_book_fixtures.ChainBookFixtureTest.test_the_old_spelling_would_have_been_caught",
+    "tests.test_chain_book_fixtures.ChainBookFixtureTest.test_the_parser_reads_a_continued_books_list"
+  ],
   "test_chain_failure_guards": [
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_new_chains_that_capture_an_exit_code_also_act_on_it",
     "tests.test_chain_failure_guards.ChainFailureGuardTest.test_the_legacy_list_does_not_exempt_a_chain_that_is_already_fixed",
@@ -427,6 +432,16 @@
     "tests.test_config_regressions.ConfigTests.test_llm_normalization_returns_copy_without_mutating_profile",
     "tests.test_config_regressions.ConfigTests.test_project_config_cache_can_be_invalidated_when_mtime_is_unchanged",
     "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
+  ],
+  "test_constraint_refine": [
+    "tests.test_constraint_refine.RecordedResultTest.test_the_best_proximity_baseline_is_recorded",
+    "tests.test_constraint_refine.RecordedResultTest.test_the_recorded_run_shows_the_repair_losing",
+    "tests.test_constraint_refine.RefinementTest.test_a_repeated_speaker_is_reassigned_to_the_previous_distinct_one",
+    "tests.test_constraint_refine.RefinementTest.test_alternation_leaves_a_non_repeating_run_alone",
+    "tests.test_constraint_refine.RefinementTest.test_books_are_refined_independently",
+    "tests.test_constraint_refine.RefinementTest.test_it_never_invents_a_speaker_outside_the_roster",
+    "tests.test_constraint_refine.ScorerAgreementTest.test_aliases_are_loaded_from_the_fixture_not_the_artifact",
+    "tests.test_constraint_refine.ScorerAgreementTest.test_it_uses_the_harness_scorer_not_its_own"
   ],
   "test_crossbook_normalization": [
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_dates_have_explicit_ordinal_and_year",
@@ -1059,6 +1074,11 @@
     "tests.test_library_eval_build.BuildShapeTest.test_every_key_the_consumer_reads_is_present",
     "tests.test_library_eval_build.BuildShapeTest.test_the_book_is_the_voice_it_came_from"
   ],
+  "test_limit_zero_means_all": [
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_no_script_slices_rows_by_a_bare_limit",
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_slicing_semantics_directly",
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_the_help_text_says_what_zero_does"
+  ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
     "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
@@ -1253,6 +1273,15 @@
     "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_distinguishes_the_two_meanings",
     "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_forbids_using_narrator_for_that_case",
     "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_the_prompt_offers_unknown_for_unidentifiable_speech"
+  ],
+  "test_narrator_prior_wiring": [
+    "tests.test_narrator_prior_wiring.PromptTest.test_a_narrator_of_NARRATOR_is_rejected",
+    "tests.test_narrator_prior_wiring.PromptTest.test_it_uses_the_shared_helper_not_a_second_wording",
+    "tests.test_narrator_prior_wiring.PromptTest.test_the_prior_is_appended_and_names_the_narrator",
+    "tests.test_narrator_prior_wiring.PromptTest.test_without_a_narrator_the_prompt_is_unchanged",
+    "tests.test_narrator_prior_wiring.WiringTest.test_an_unmatched_narrator_argument_is_fatal",
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_artifact_records_which_books_got_a_prior",
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior"
   ],
   "test_narrator_prompt": [
     "tests.test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
@@ -2263,6 +2292,7 @@
     "tests.test_two_stage_roster.RosterTest.test_every_expected_speaker_can_be_named",
     "tests.test_two_stage_roster.RosterTest.test_no_decorated_name_is_a_character_who_never_speaks",
     "tests.test_two_stage_roster.RosterTest.test_the_cast_is_not_inflated_with_duplicates",
+    "tests.test_two_stage_roster.RosterTest.test_the_shadow_duplicate_check_still_catches_the_original_bug",
     "tests.test_two_stage_roster.SummaryTest.test_a_decline_is_not_a_wrong_answer",
     "tests.test_two_stage_roster.SummaryTest.test_accuracy_is_over_what_was_answered",
     "tests.test_two_stage_roster.SummaryTest.test_every_quote_type_bucket_carries_every_category",

@@ -44,6 +44,7 @@ from core import llm_timeout_seconds  # noqa: E402
 from experiments.gpu_guard import require_free_gpu  # noqa: E402
 from experiments.manifest import ExperimentRecord  # noqa: E402
 from experiments.scoring import alias_groups, normalize, same_speaker  # noqa: E402
+from narrator_prompt import add_narrator_prior, get_valid_narrator_name  # noqa: E402
 
 FIXTURES = os.path.join(APP, "fixtures")
 DECLINE = "UNKNOWN"
@@ -123,6 +124,14 @@ def roster_lines(fixture):
     for name in aliases:
         if name not in cast:
             cast.append(name)
+    # A name already listed inside someone's brackets must not ALSO get a bare
+    # line of its own. BEAVER speaks in the gold and JOHN BEAVER is the
+    # roster's spelling; they are one alias group, and appending the canonical
+    # without dropping the roster's spelling printed both - the same shadow
+    # duplicate this function was written to remove, surviving on the far side
+    # of the fix. One group, one line.
+    decorated = {n for rest in aliases.values() for n in rest}
+    cast = [n for n in cast if n not in decorated]
     lines = []
     for name in sorted(set(cast)):
         rest = aliases.get(name)
@@ -150,22 +159,30 @@ def is_decline(answer):
     return normalize(answer).startswith(DECLINE)
 
 
-def build_prompt(entry, roster):
+def build_prompt(entry, roster, narrator=None):
     """-> the exact text sent to the model.
 
     Extracted so `--keep-prompts` records what was actually asked rather than a
     second copy of this formatting that could drift from it (Rule 15).
+
+    `narrator` appends the book-level first-person prior, using the SAME helper
+    pdnc_narrator_prior uses - that experiment measured it worth +17.8 points
+    on PDNC (61.7% -> 79.4%), and a second wording here would be a different
+    intervention wearing the same name.
     """
-    return SINGLE_PROMPT.format(
+    text = SINGLE_PROMPT.format(
         roster="\n".join(f"- {name}" for name in roster),
         prev=str(entry.get("prev_context") or ""),
         line=str(entry.get("line") or ""),
         next=str(entry.get("next_context") or ""))
+    if narrator:
+        text = add_narrator_prior(text, narrator)
+    return text
 
 
-def ask(client, model, entry, roster, decoding):
+def ask(client, model, entry, roster, decoding, narrator=None):
     """-> (answer, raw, failure_reason). failure_reason set means no answer."""
-    prompt = build_prompt(entry, roster)
+    prompt = build_prompt(entry, roster, narrator)
     try:
         response = client.chat.completions.create(
             model=model, temperature=decoding["temperature"],
@@ -242,6 +259,13 @@ def main():
                          "speaker in the text and are wrong 47.1%% of the time "
                          "with the right name in the supplied cast, which is "
                          "the standout anomaly of the full run.")
+    ap.add_argument("--narrator", action="append", default=[],
+                    metavar="BOOK=NAME",
+                    help="book-level first-person narrator, e.g. "
+                         "thesignofthefour=DR. WATSON. The prior measured at "
+                         "+17.8 points on PDNC was never combined with the "
+                         "wide context window; this is what lets them be. "
+                         "Books without an entry are unchanged.")
     ap.add_argument("--keep-prompts", action="store_true",
                     help="record the prompt text, not only its hash. The full "
                          "run stores prompt_sha256 alone, which is enough to "
@@ -274,10 +298,33 @@ def main():
               "(GOALS.md goal 1.3). Not comparable to 61.7%, which is a "
               "different experiment on different books.",
         environment=environment)
+    record.meta["narrators"] = {k: v for k, v in narrators.items()} if narrators else {}
     record.enable_checkpoint(out + ".ckpt")
+
+    # BOOK -> NARRATOR, matched on a substring of the fixture stem so the
+    # caller writes `thesignofthefour=DR. WATSON` rather than the full
+    # `attribution_gold_pdnc_thesignofthefour_w3200`. An entry that matches
+    # nothing is fatal: a prior silently applied to no book would report the
+    # baseline under the treatment's name.
+    narrators = {}
+    for spec in args.narrator:
+        key, _, name = spec.partition("=")
+        if not key or not name:
+            raise SystemExit(f"--narrator wants BOOK=NAME, got {spec!r}")
+        narrators[key.strip().lower()] = get_valid_narrator_name(name)
+    unmatched = [k for k in narrators
+                 if not any(k in os.path.basename(p).lower() for p in args.fixtures)]
+    if unmatched:
+        raise SystemExit(
+            f"--narrator names no fixture in this run: {unmatched}\n"
+            f"  fixtures: {[os.path.basename(p) for p in args.fixtures]}")
 
     for path in args.fixtures:
         book = os.path.basename(path).replace(".json", "")
+        narrator = next((v for k, v in narrators.items()
+                         if k in book.lower()), None)
+        if narrator:
+            print(f"{book}: first-person narrator = {narrator}", flush=True)
         with open(path, encoding="utf-8") as handle:
             fixture = json.load(handle)
         entries = fixture["entries"]
@@ -297,7 +344,8 @@ def main():
             gold_id = f"{book}:{entry['id']}"
             if record.done("single", gold_id):
                 continue
-            answer, raw, failure = ask(client, args.model, entry, roster, decoding)
+            answer, raw, failure = ask(client, args.model, entry, roster,
+                                       decoding, narrator)
             predicted = None if failure else answer
             correct = bool(predicted and predicted != DECLINE
                            and same_speaker(entry.get("expected_speaker"),
@@ -314,7 +362,7 @@ def main():
                        candidates=roster_names(roster),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
                        raw=(raw if raw is not None else failure),
-                       prompt=(build_prompt(entry, roster)
+                       prompt=(build_prompt(entry, roster, narrator)
                                if args.keep_prompts else None))
             if index % 25 == 0:
                 print(f"  {book}: {index}/{len(entries)}", flush=True)
