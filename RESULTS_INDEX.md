@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 580 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 582 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -797,6 +797,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `alignment_diagnosis_zh.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `anchor_length_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `anchor_length_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `annotator_evidence.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_hybrid__kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr2_whisper_cpp__ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1136,6 +1137,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrofit_dialogue_map.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `robotic_proxy_clips.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `roster_order_bias.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `run_lengths.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scale_vs_register.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
