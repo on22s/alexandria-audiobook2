@@ -605,6 +605,8 @@
     "tests.test_elson_trigram.AppliedSetTest.test_it_is_still_classified_so_the_number_stays_visible",
     "tests.test_elson_trigram.AppliedSetTest.test_subsets_reports_every_cumulative_choice",
     "tests.test_elson_trigram.AppliedSetTest.test_the_harmful_order_is_not_applied_by_default",
+    "tests.test_elson_trigram.ArtifactShapeTest.test_a_book_name_containing_digits_survives",
+    "tests.test_elson_trigram.ArtifactShapeTest.test_both_id_conventions_split_the_same_way",
     "tests.test_elson_trigram.DeclineTest.test_a_name_with_no_verb_is_not_an_attribution",
     "tests.test_elson_trigram.DeclineTest.test_a_nominal_is_not_resolved",
     "tests.test_elson_trigram.DeclineTest.test_a_non_speech_verb_does_not_attribute",
@@ -1903,6 +1905,19 @@
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_rejects_stale_preflight_before_gpu_claim",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
+  "test_scene_narrowing": [
+    "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",
+    "tests.test_scene_narrowing.BucketTest.test_absent_is_wrong_with_the_gold_nowhere_near",
+    "tests.test_scene_narrowing.BucketTest.test_gained_is_wrong_now_with_the_answer_inside_the_window",
+    "tests.test_scene_narrowing.BucketTest.test_local_is_wrong_with_both_inside_the_window",
+    "tests.test_scene_narrowing.BucketTest.test_lost_is_correct_now_with_the_gold_outside_the_window",
+    "tests.test_scene_narrowing.RecentMentionTest.test_a_name_inside_a_longer_name_is_not_a_mention",
+    "tests.test_scene_narrowing.RecentMentionTest.test_an_alias_counts_as_its_roster_name",
+    "tests.test_scene_narrowing.RecentMentionTest.test_empty_text_mentions_nobody",
+    "tests.test_scene_narrowing.RecentMentionTest.test_nearest_the_end_comes_first",
+    "tests.test_scene_narrowing.RecentMentionTest.test_surface_forms_pull_in_the_whole_alias_group",
+    "tests.test_scene_narrowing.RecentMentionTest.test_the_last_mention_wins_not_the_first"
+  ],
   "test_score_anchor": [
     "tests.test_score_anchor.AnchorValidationTest.test_a_missing_anchor_is_not_reported_as_invalid",
     "tests.test_score_anchor.AnchorValidationTest.test_an_arm_without_a_score_is_skipped",
@@ -1969,6 +1984,15 @@
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_requires_disabled_baseline_and_equivalent_outputs"
+  ],
+  "test_source_context": [
+    "tests.test_source_context.LocateTest.test_a_line_that_is_not_in_the_book_is_not_found",
+    "tests.test_source_context.LocateTest.test_a_repeated_line_is_ambiguous_not_the_first_hit",
+    "tests.test_source_context.LocateTest.test_a_short_line_is_refused_rather_than_matched_everywhere",
+    "tests.test_source_context.LocateTest.test_a_unique_line_yields_its_neighbours",
+    "tests.test_source_context.LocateTest.test_matching_ignores_quote_convention_and_wrapping",
+    "tests.test_source_context.LocateTest.test_normalize_keeps_only_alphanumerics",
+    "tests.test_source_context.LocateTest.test_the_same_line_appearing_once_does_locate"
   ],
   "test_source_encoding_audit": [
     "tests.test_source_encoding_audit.InvisibleCharacterTest.test_a_line_stays_findable_after_normalisation",
