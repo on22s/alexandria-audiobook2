@@ -1,4 +1,16 @@
 {
+  "test_adapter_provenance": [
+    "tests.test_adapter_provenance.BackfillTest.test_a_correct_digest_is_left_alone",
+    "tests.test_adapter_provenance.BackfillTest.test_a_meta_with_no_adapter_beside_it_is_not_invented",
+    "tests.test_adapter_provenance.BackfillTest.test_a_missing_digest_is_backfillable_and_marked",
+    "tests.test_adapter_provenance.BackfillTest.test_a_wrong_digest_is_reported_not_repaired",
+    "tests.test_adapter_provenance.BackfillTest.test_the_walk_skips_virtualenvs_and_the_hub_cache",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_production_digest_is_still_recorded_under_its_own_name",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_the_candidate_record_overrides_the_digest",
+    "tests.test_adapter_provenance.CandidateDigestTest.test_the_override_uses_the_candidates_own_hash",
+    "tests.test_adapter_provenance.CodeLineageTest.test_lineage_never_raises_when_git_is_absent",
+    "tests.test_adapter_provenance.CodeLineageTest.test_training_meta_records_the_commit"
+  ],
   "test_alignment_regressions": [
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate",
     "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_missing_epub_dependency_exits_with_install_instructions"
