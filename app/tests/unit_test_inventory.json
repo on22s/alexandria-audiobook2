@@ -295,6 +295,22 @@
     "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
     "tests.test_chain_stage_lib.StageRunnerTest.test_running_the_same_chain_twice_is_idempotent"
   ],
+  "test_character_distinctiveness": [
+    "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
+    "tests.test_character_distinctiveness.ManifestTest.test_clips_are_grouped_by_the_chunk_speaker",
+    "tests.test_character_distinctiveness.MedianTest.test_all_missing_is_none",
+    "tests.test_character_distinctiveness.MedianTest.test_an_even_count_averages_the_middle_pair",
+    "tests.test_character_distinctiveness.MedianTest.test_it_ignores_missing_values",
+    "tests.test_character_distinctiveness.OverlapTest.test_a_sample_too_small_to_bin_is_none_not_zero",
+    "tests.test_character_distinctiveness.OverlapTest.test_disjoint_samples_do_not_overlap",
+    "tests.test_character_distinctiveness.OverlapTest.test_identical_samples_overlap_completely",
+    "tests.test_character_distinctiveness.OverlapTest.test_it_is_symmetric",
+    "tests.test_character_distinctiveness.OverlapTest.test_none_values_do_not_sink_the_estimate",
+    "tests.test_character_distinctiveness.SemitoneTest.test_a_missing_or_impossible_pitch_is_none",
+    "tests.test_character_distinctiveness.SemitoneTest.test_an_octave_is_twelve_semitones",
+    "tests.test_character_distinctiveness.SemitoneTest.test_it_is_unsigned_and_symmetric",
+    "tests.test_character_distinctiveness.SemitoneTest.test_the_two_real_pairs_that_motivated_this_file"
+  ],
   "test_character_evidence": [
     "tests.test_character_evidence.TestAbstention.test_confidence_scales_with_evidence",
     "tests.test_character_evidence.TestAbstention.test_empty_inputs_are_safe",
@@ -594,6 +610,17 @@
   "test_duration_outlier_analysis": [
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_ranks_average_ties",
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_spearman_detects_monotonic_directions"
+  ],
+  "test_ecapa_duration_confound": [
+    "tests.test_ecapa_duration_confound.QuartileTest.test_quartiles_run_shortest_clips_first",
+    "tests.test_ecapa_duration_confound.QuartileTest.test_too_few_rows_to_quarter_is_none",
+    "tests.test_ecapa_duration_confound.RowExtractionTest.test_a_zero_ceiling_does_not_divide",
+    "tests.test_ecapa_duration_confound.RowExtractionTest.test_rows_missing_either_half_are_skipped",
+    "tests.test_ecapa_duration_confound.SpearmanTest.test_a_constant_series_is_undefined_not_zero",
+    "tests.test_ecapa_duration_confound.SpearmanTest.test_monotone_series_reach_plus_or_minus_one",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_a_flat_ratio_over_climbing_raw_series",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_a_ratio_that_does_track_duration_is_visible",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_median_and_range_describe_the_clips_that_were_scored"
   ],
   "test_elson_trigram": [
     "tests.test_elson_trigram.AcceptTest.test_a_bare_surname_resolves_when_it_is_unambiguous",
