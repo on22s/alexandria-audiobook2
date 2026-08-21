@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "warm_baritone_50s_m",
+ "rows": [
+  {
+   "id": "sample_1408",
+   "book": "warm_baritone_50s_m",
+   "text": "Harm closes the way behind them. .... The door pushes her back into the chamber,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1408.wav",
+   "human_seconds": 9.26,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1408__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1408__clone.wav"
+  },
+  {
+   "id": "sample_1418",
+   "book": "warm_baritone_50s_m",
+   "text": "peering into the *pistol* scope. ... \u2018Not yet.\u2019 A droplet of sweat rolls down the back of Max\u2019s *skull*. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1418.wav",
+   "human_seconds": 9.6,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1418__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1418__clone.wav"
+  },
+  {
+   "id": "sample_1423",
+   "book": "warm_baritone_50s_m",
+   "text": "an alien laughter. .... Max forgets to whisper. \u2018Was *that* Patchwork?\u2019",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1423.wav",
+   "human_seconds": 8.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1423__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1423__clone.wav"
+  },
+  {
+   "id": "sample_1441",
+   "book": "warm_baritone_50s_m",
+   "text": "faint, hooking her *nostrils*, compelling her forward into the tunnel. .... Like *shadows*,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1441.wav",
+   "human_seconds": 7.9,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1441__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1441__clone.wav"
+  },
+  {
+   "id": "sample_1445",
+   "book": "warm_baritone_50s_m",
+   "text": "but stay lit. .... The Vagrant does not slow, staying close to their *reluctant* guide.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1445.wav",
+   "human_seconds": 7.82,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1445__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1445__clone.wav"
+  },
+  {
+   "id": "sample_1457",
+   "book": "warm_baritone_50s_m",
+   "text": "We were coming back this way to get somewhere *defensible* but now I\u2019m *told* we\u2019ve got trouble in the *southern* passages too?\u2019 ... \u2018The Usurper\u2019s knights are right *behind* us,\u2019",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1457.wav",
+   "human_seconds": 10.1,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1457__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1457__clone.wav"
+  },
+  {
+   "id": "sample_1462",
+   "book": "warm_baritone_50s_m",
+   "text": "\u2018Everybody, crack open those boxes, looks like we\u2019ll be testing these weapons sooner than we thought.\u2019 .... She gives her attention to the Vagrant.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1462.wav",
+   "human_seconds": 9.02,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1462__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1462__clone.wav"
+  },
+  {
+   "id": "sample_1469",
+   "book": "warm_baritone_50s_m",
+   "text": "If you could draw some of them off, it\u2019d give my people a better chance of survival.\u2019 .... Shrugging sharply,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1469.wav",
+   "human_seconds": 7.2,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1469__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1469__clone.wav"
+  },
+  {
+   "id": "sample_1471",
+   "book": "warm_baritone_50s_m",
+   "text": "crumbling. .... Away from the rebels and the fighting, silence presses in. .... Only *footsteps* and *ragged* *breaths* challenge its dominion. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1471.wav",
+   "human_seconds": 10.38,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1471__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1471__clone.wav"
+  },
+  {
+   "id": "sample_1474",
+   "book": "warm_baritone_50s_m",
+   "text": "questing. ... At full extension they find a *nose* and grip *hard*, scissoring,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1474.wav",
+   "human_seconds": 7.26,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1474__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1474__clone.wav"
+  },
+  {
+   "id": "sample_1484",
+   "book": "warm_baritone_50s_m",
+   "text": "\u2018*I* *know* we didn\u2019t do *right* by you but that\u2019s on *me* and Joe, nobody else.\u2019 .... Their footsteps echo,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1484.wav",
+   "human_seconds": 8.28,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1484__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1484__clone.wav"
+  },
+  {
+   "id": "sample_1492",
+   "book": "warm_baritone_50s_m",
+   "text": "soft. \u2018*Thank* you.\u2019 .... At speed, they depart.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1492.wav",
+   "human_seconds": 7.46,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1492__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1492__clone.wav"
+  },
+  {
+   "id": "sample_1499",
+   "book": "warm_baritone_50s_m",
+   "text": "He stumbles, the torchlight jerking, catching glimpses of *skittering*, shy things. .... In places the roof has fallen,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1499.wav",
+   "human_seconds": 9.64,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1499__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1499__clone.wav"
+  },
+  {
+   "id": "sample_1504",
+   "book": "warm_baritone_50s_m",
+   "text": "The Vagrant stops, shoulders drooping. .... Harm collapses against the wall, letting ancient stone take his *weight*, lungs working like *bellows*. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1504.wav",
+   "human_seconds": 11.66,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1504__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1504__clone.wav"
+  },
+  {
+   "id": "sample_1520",
+   "book": "warm_baritone_50s_m",
+   "text": "still in use.\u2019 .... *Using* the back of the torch he begins to batter at the hole, making it crack and widen.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1520.wav",
+   "human_seconds": 8.34,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1520__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1520__clone.wav"
+  },
+  {
+   "id": "sample_1523",
+   "book": "warm_baritone_50s_m",
+   "text": "Harm says, voice fearful. ... He *redoubles* his efforts to break through. .... The Vagrant looks back down the passage,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1523.wav",
+   "human_seconds": 9.66,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1523__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1523__clone.wav"
+  },
+  {
+   "id": "sample_1560",
+   "book": "warm_baritone_50s_m",
+   "text": "spilling either side, grabbing for *arms* and *legs*. The commander begins to lean, a knee ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1560.wav",
+   "human_seconds": 7.9,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1560__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1560__clone.wav"
+  },
+  {
+   "id": "sample_1586",
+   "book": "warm_baritone_50s_m",
+   "text": "The lance is *damaged*, coughing tears of fire. .... More half lifers threaten but the commander attends only to the scene above,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1586.wav",
+   "human_seconds": 11.02,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1586__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1586__clone.wav"
+  },
+  {
+   "id": "sample_1591",
+   "book": "warm_baritone_50s_m",
+   "text": "Exposed bones flap impotently, laughing no longer. .... The commander looks at the hand that *held* the lance. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1591.wav",
+   "human_seconds": 10.4,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1591__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1591__clone.wav"
+  },
+  {
+   "id": "sample_1593",
+   "book": "warm_baritone_50s_m",
+   "text": "New assailants approach the commander, half ... lifers climbing over their dead brethren,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/data/val/sample_1593.wav",
+   "human_seconds": 7.28,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1593__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_50s_m/sample_1593__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-20T22:01:40",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "80582cbd04432b2a5c384d7285030aa1c4e0ca68",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_50s_m_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch5/warm_baritone_50s_m/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/warm_baritone_50s_m",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__warm_baritone_50s_m_generate.json"
+  },
+  "seed": 1234
+ }
+}

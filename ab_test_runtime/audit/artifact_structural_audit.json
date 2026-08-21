@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 227,
+    "supported_structure": 229,
     "exploratory": 192,
     "provisional": 123
   },
@@ -5196,6 +5196,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "longref__en_generate.json",
+      "bytes": 54049,
+      "sha256": "1eaa30042b855837f67a8204602d5e8dda56375cd53b760c4f82f2a6076be8ef",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T22:16:07",
+      "commit": "80582cbd04432b2a5c384d7285030aa1c4e0ca68",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "lora_serving_eval__cloud-alldata.json",
       "bytes": 660973,
       "sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
@@ -7371,6 +7387,22 @@
       "written": "2026-08-20T15:18:46",
       "commit": "38ce596a95ab35b98ae6181861ec8c230d95214a",
       "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "second_english__warm_baritone_50s_m_generate.json",
+      "bytes": 11355,
+      "sha256": "a51a58af14c8739262ce4c96164baa4c6a1cead3a7b0f0c0ea957bcc95bf49ed",
+      "completeness": "unknown",
+      "seed": 1234,
+      "status": null,
+      "row_count": 20,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T22:01:40",
+      "commit": "80582cbd04432b2a5c384d7285030aa1c4e0ca68",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
