@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 247,
+    "supported_structure": 248,
     "exploratory": 194,
     "provisional": 123
   },
@@ -51,6 +51,22 @@
       "written": "2026-08-19T00:52:40",
       "commit": "6a3f669839e1aa6293b023ab3535b5c22499dd2e",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "addressee_confusion.json",
+      "bytes": 2872,
+      "sha256": "4e4d83c04b6b191d08c271b46c643323adaad8d75f20637d5a476330ae3b0984",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T13:11:10",
+      "commit": "b73b21a687c86a69340445cb32912fe46031b50e",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
