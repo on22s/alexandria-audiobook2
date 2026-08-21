@@ -565,7 +565,9 @@ listener_impact.json,exploratory,git+naming,no,listener_impact.py,dac2023a,,,,,,
 ljspeech_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 ljspeech_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 longref__en_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+longref__en_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 longref__ja_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+longref__ja_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 longref__zh_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lora_serving_eval__cloud-alldata.json,exploratory,git+naming,no,lora_serving_eval.py,661c8854,,,lora_serving_eval,grimgar03,qwen/qwen3-14b,cloud-a6000-llamacpp-cuda,instance-kwami7f2-main,llama.cpp-cuda,32768,1,f16?,base,385,248,64.4,ok,False,,6206.6,08-03 06:14,http://127.0.0.1:8090/v1,
 lora_serving_eval__cloud-alldata.json,exploratory,git+naming,no,lora_serving_eval.py,661c8854,,,lora_serving_eval,grimgar03,qwen/qwen3-14b,cloud-a6000-llamacpp-cuda,instance-kwami7f2-main,llama.cpp-cuda,32768,1,f16?,lora,385,292,75.8,ok,False,,6206.6,08-03 06:14,http://127.0.0.1:8090/v1,
@@ -793,7 +795,7 @@ respelling_none_allrows_n1600.json,supported_structure,provenance,yes,,,5.2,,,,,
 respelling_none_allrows_n3200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses.json,supported_structure,none,no,,209b38bf,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses_allrows.json,supported_structure,none,no,,40dcc83e,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-respelling_pauses_allrows_4arm.json,supported_structure,none,no,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+respelling_pauses_allrows_4arm.json,supported_structure,none,no,,2077bb62,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses_separators.json,supported_structure,none,no,,58d548bd,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_pauses_separators_3arm.json,supported_structure,none,no,,f7de4714,5.2,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 respelling_rule_b.json,exploratory,none,no,,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results

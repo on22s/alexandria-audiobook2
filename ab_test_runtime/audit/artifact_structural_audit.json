@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 240,
+    "supported_structure": 242,
     "exploratory": 193,
     "provisional": 123
   },
@@ -5228,6 +5228,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "longref__en_score.json",
+      "bytes": 65827,
+      "sha256": "6f9bf751275e93db356a7d8c6488ec59cd79b75cb77dcf3072d6bf05ac9af2ad",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:24:57",
+      "commit": "2077bb62a4c8516e902a86b78e6749961dd2a25a",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "longref__ja_generate.json",
       "bytes": 74812,
       "sha256": "5fde659358d641179c8589318123dd60e6477d07692d0ea73098893783b37834",
@@ -5239,6 +5255,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-20T22:31:07",
       "commit": "336662d5121770a703b28033ad2206411c68621d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "longref__ja_score.json",
+      "bytes": 72320,
+      "sha256": "ad6305e6ae3a21b156465e0563a3c5facd1b7c21df2e2261606c84e63c5538ff",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 150,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T00:28:17",
+      "commit": "2077bb62a4c8516e902a86b78e6749961dd2a25a",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
