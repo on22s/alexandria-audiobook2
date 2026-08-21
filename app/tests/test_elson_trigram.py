@@ -129,3 +129,25 @@ class AppliedSetTest(unittest.TestCase):
                          "the widest subset must show the row it breaks")
         self.assertLess(out[widest]["delta_points"],
                         out["quote_said_person"]["delta_points"])
+
+
+class ArtifactShapeTest(unittest.TestCase):
+    """Both id conventions, and the arm trap.
+
+    PDNC arms write "<fixture>:<quote id>"; the light-novel arms write a bare
+    "index18-00017". Reading the second as the first made every gold lookup
+    miss and the run reported zero rows with no error.
+    """
+
+    def test_both_id_conventions_split_the_same_way(self):
+        from experiments.elson_trigram import split_id
+        self.assertEqual(("attribution_gold_pdnc_theawakening", "TheAwakening-00005"),
+                         split_id("attribution_gold_pdnc_theawakening:TheAwakening-00005"))
+        self.assertEqual(("index18", "index18-00017"), split_id("index18-00017"))
+
+    def test_a_book_name_containing_digits_survives(self):
+        """`owarimonogatari3` must not become `owarimonogatari`."""
+        from experiments.elson_trigram import split_id
+        self.assertEqual(("owarimonogatari3", "owarimonogatari3-00042"),
+                         split_id("owarimonogatari3-00042"))
+        self.assertEqual(("grimgar03", "grimgar03-00001"), split_id("grimgar03-00001"))
