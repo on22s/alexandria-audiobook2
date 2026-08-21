@@ -2198,6 +2198,16 @@
     "tests.test_speech_verbalization.VerbalizationTest.test_unknown_symbols_are_dropped_not_read",
     "tests.test_speech_verbalization.VerbalizationTest.test_verbalized_symbols_are_not_also_swept_by_the_catch_all"
   ],
+  "test_split_quote_evidence": [
+    "tests.test_split_quote_evidence.EvidenceLocationTest.test_a_quotation_with_no_referring_expression_is_none",
+    "tests.test_split_quote_evidence.EvidenceLocationTest.test_evidence_in_the_surrounding_context_is_found",
+    "tests.test_split_quote_evidence.EvidenceLocationTest.test_evidence_inside_the_line_is_reported_separately",
+    "tests.test_split_quote_evidence.EvidenceLocationTest.test_punctuation_and_case_do_not_defeat_the_match",
+    "tests.test_split_quote_evidence.EvidenceLocationTest.test_the_split_quote_shape_reports_absent",
+    "tests.test_split_quote_evidence.PartCountTest.test_a_missing_or_unparsable_list_is_one_part",
+    "tests.test_split_quote_evidence.PartCountTest.test_a_split_quotation_reports_its_parts",
+    "tests.test_split_quote_evidence.PartCountTest.test_a_whole_quotation_is_one_part"
+  ],
   "test_stage3_harnesses": [
     "tests.test_stage3_harnesses.TestStage3HarnessesFailLoudly.test_clone_phase_is_required",
     "tests.test_stage3_harnesses.TestStage3HarnessesFailLoudly.test_clone_score_refuses_missing_manifest",
