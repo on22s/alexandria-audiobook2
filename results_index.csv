@@ -411,7 +411,7 @@ expected_prosody_ja.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,
 expected_prosody_ja_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_zh.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_zh_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-external_comparability.json,supported_structure,provenance,yes,,,1.1,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+external_comparability.json,supported_structure,provenance,yes,,,"1.1,1.3",,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 fallback_policy.json,exploratory,git+naming,no,fallback_policy.py,2010cf29,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 final_release_after_remaining_gpu_research.json,exploratory,none,no,,67b9a854,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 fix_verification.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
