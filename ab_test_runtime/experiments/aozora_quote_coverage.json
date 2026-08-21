@@ -1,0 +1,62 @@
+{
+ "status": "complete",
+ "what": "how much local speaker evidence Japanese prose puts beside a quote",
+ "provenance": {
+  "script": "aozora_quotes.py",
+  "written": "2026-08-21T14:43:13",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "f135c63656c5b9a553e2dc8a5035acb4135247c0",
+   "branch": "agent/aozora-japanese-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/aozora_quotes.py"
+   ],
+   "harness_sha256": "54e386bd2fce135b23ef9b019c18ce083b7f168e02d2e2b7c2bd2e14a6d74c3a"
+  }
+ },
+ "not_gold": "no speakers are assigned here. These are extraction skeletons for annotation, and nothing in them may be scored as if it were a gold label.",
+ "quotes_total": 1084,
+ "per_work": {
+  "kokoro": {
+   "quotes": 657,
+   "named_subject": 181,
+   "pronoun_subject": 30,
+   "cue_only": 54,
+   "none": 392
+  },
+  "ningen": {
+   "quotes": 408,
+   "named_subject": 41,
+   "none": 342,
+   "pronoun_subject": 7,
+   "cue_only": 18
+  },
+  "rashomon": {
+   "quotes": 19,
+   "named_subject": 4,
+   "none": 15
+  }
+ },
+ "local_evidence": {
+  "named_subject": 226,
+  "pronoun_subject": 37,
+  "cue_only": 72,
+  "none": 749
+ },
+ "local_evidence_share": {
+  "named_subject": 0.2085,
+  "pronoun_subject": 0.0341,
+  "cue_only": 0.0664,
+  "none": 0.691
+ },
+ "reading": "named_subject is the closest analogue of PDNC's Explicit category. pronoun_subject is counted apart because in Japanese a first-person pronoun is often the CORRECT answer, not a failure to name anyone.",
+ "caveats": {
+  "none_does_not_mean_unrecoverable": "`none` means no attribution frame ADJACENT to the quote. The speaker is often named in the next sentence - 「もう大丈夫」 is followed by 父は... - or recoverable from turn-taking. Do not read 69.1% as 69.1% unattributable.",
+  "mention_spans_are_imprecise": "the pre-quote branch returns the whole subject phrase including its relative clause: 姿勢を改めた先生 rather than 先生. The KIND is reliable, the mention string is not, and sharpening it is the annotation pass's job.",
+  "first_bug_found_by_hand_reading": "the reader originally looked only AFTER the quote and scored the very common pre-quote subject frame as `none`, reporting 70.7% no-evidence. Reading eight `none` rows exposed it; the corrected figure is 69.1%, so the bug barely moved the headline and would not have been caught by watching the number.",
+  "three_works_only": "kokoro, ningen shikkaku and rashomon. Not a corpus yet."
+ },
+ "next": "LLM annotation + two-judge adjudication, as used for the English gold. Needs GPU."
+}

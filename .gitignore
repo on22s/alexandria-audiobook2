@@ -240,3 +240,6 @@ riqua.tar.gz
 attribution_gold_wp2021_*.json
 wp_repo/
 csi_repo/
+
+# Aozora extraction skeletons are regenerated from public-domain text
+aozora_quotes_*.json

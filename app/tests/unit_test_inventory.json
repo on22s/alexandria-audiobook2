@@ -74,6 +74,22 @@
     "tests.test_annotator_evidence.NormaliseTest.test_case_and_punctuation_fold_away",
     "tests.test_annotator_evidence.NormaliseTest.test_nothing_is_empty"
   ],
+  "test_aozora_quotes": [
+    "tests.test_aozora_quotes.ExtractTests.test_nested_brackets_do_not_produce_a_runaway_span",
+    "tests.test_aozora_quotes.ExtractTests.test_no_entry_carries_a_speaker_field",
+    "tests.test_aozora_quotes.ExtractTests.test_quotes_are_found_in_order_with_context",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_a_named_speaker_after_the_quote_is_not_called_a_pronoun",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_an_after_only_reader_would_miss_the_pre_quote_case",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_attribution_in_the_following_sentence_is_not_adjacent",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_consecutive_dialogue_has_no_local_evidence",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_first_person_is_labelled_not_discarded",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_subject_after_the_quote_is_found",
+    "tests.test_aozora_quotes.LocalEvidenceTests.test_subject_before_the_quote_is_found",
+    "tests.test_aozora_quotes.StripTests.test_input_notes_are_removed",
+    "tests.test_aozora_quotes.StripTests.test_ruby_is_removed_from_inside_quotations",
+    "tests.test_aozora_quotes.StripTests.test_text_without_a_header_rule_survives",
+    "tests.test_aozora_quotes.StripTests.test_the_ruby_anchor_is_removed"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
