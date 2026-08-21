@@ -1515,6 +1515,18 @@
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_missing_empty_and_zero_frame_outputs_fail_loudly",
     "tests.test_production_audio_validation.SharedAudioValidationTests.test_valid_audio_passes_after_full_decode"
   ],
+  "test_production_trigram_audit": [
+    "tests.test_production_trigram_audit.AuditTest.test_a_disagreement_is_reported_with_the_text_that_caused_it",
+    "tests.test_production_trigram_audit.AuditTest.test_a_line_that_is_not_spoken_is_never_audited",
+    "tests.test_production_trigram_audit.AuditTest.test_a_spoken_line_with_no_span_counts_as_spoken_but_not_audited",
+    "tests.test_production_trigram_audit.AuditTest.test_agreement_is_counted_and_not_listed",
+    "tests.test_production_trigram_audit.AuditTest.test_an_alias_of_the_assigned_name_is_agreement_not_a_change",
+    "tests.test_production_trigram_audit.AuditTest.test_an_unattributed_line_the_rule_can_name_is_a_disagreement",
+    "tests.test_production_trigram_audit.ParsingTest.test_a_missing_or_malformed_span_yields_none_not_a_crash",
+    "tests.test_production_trigram_audit.ParsingTest.test_aliases_become_scoring_groups",
+    "tests.test_production_trigram_audit.ParsingTest.test_spoken_is_read_from_the_string_form_too",
+    "tests.test_production_trigram_audit.ParsingTest.test_the_span_is_read_from_the_string_form_too"
+  ],
   "test_project_chunks": [
     "tests.test_project_chunks.BracketBoundaryTest.test_bracket_split_carries_no_pause",
     "tests.test_project_chunks.BracketBoundaryTest.test_bracketed_part_gains_the_set_apart_hint",
@@ -1556,6 +1568,13 @@
     "tests.test_promote_adapters.GateVerdictTests.test_reference_rank_campaign_selects_its_own_gate_prefix",
     "tests.test_promote_adapters.RollbackRevertsManifestTests.test_a_missing_receipt_drops_the_score_rather_than_keeping_it",
     "tests.test_promote_adapters.RollbackRevertsManifestTests.test_rollback_restores_the_pre_promotion_score"
+  ],
+  "test_prompt_variant": [
+    "tests.test_prompt_variant.PromptVariantTest.test_an_unknown_variant_is_refused_not_silently_treated_as_control",
+    "tests.test_prompt_variant.PromptVariantTest.test_control_is_the_default_and_adds_nothing",
+    "tests.test_prompt_variant.PromptVariantTest.test_the_hint_is_a_pure_suffix_of_the_control",
+    "tests.test_prompt_variant.PromptVariantTest.test_the_hint_survives_alongside_the_narrator_prior",
+    "tests.test_prompt_variant.PromptVariantTest.test_the_variant_list_is_what_the_cli_offers"
   ],
   "test_pronunciation": [
     "tests.test_pronunciation.LexiconTest.test_a_malformed_lexicon_degrades_to_no_substitution",
@@ -1654,6 +1673,19 @@
     "tests.test_reference_rebuild.DistanceTest.test_being_high_is_penalised_exactly_as_much_as_being_low",
     "tests.test_reference_rebuild.DistanceTest.test_it_uses_both_measures_not_just_pitch",
     "tests.test_reference_rebuild.DistanceTest.test_missing_measures_do_not_crash_the_ranking"
+  ],
+  "test_reference_spread": [
+    "tests.test_reference_spread.MeanMetricTest.test_a_missing_metric_is_none_not_zero",
+    "tests.test_reference_spread.MeanMetricTest.test_it_falls_back_to_averaging_the_rows",
+    "tests.test_reference_spread.MeanMetricTest.test_the_summary_is_used_when_present",
+    "tests.test_reference_spread.PickSpreadTest.test_a_single_arm_is_the_nearest",
+    "tests.test_reference_spread.PickSpreadTest.test_fewer_candidates_than_arms_yields_fewer_arms_not_repeats",
+    "tests.test_reference_spread.PickSpreadTest.test_the_arms_are_evenly_spaced_over_the_ranking",
+    "tests.test_reference_spread.PickSpreadTest.test_the_nearest_and_the_farthest_are_always_included",
+    "tests.test_reference_spread.SpearmanTest.test_a_flat_series_is_undefined_not_zero",
+    "tests.test_reference_spread.SpearmanTest.test_a_perfect_order_is_plus_or_minus_one",
+    "tests.test_reference_spread.SpearmanTest.test_it_ranks_rather_than_fits",
+    "tests.test_reference_spread.SpearmanTest.test_too_few_arms_is_undefined"
   ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",

@@ -159,7 +159,26 @@ def is_decline(answer):
     return normalize(answer).startswith(DECLINE)
 
 
-def build_prompt(entry, roster, narrator=None):
+# The measured failure this addresses. On the 2,494 stored PDNC rows, Explicit
+# quotes - the category where a 2010 regex, a 2026 encoder and our own trigram
+# all score ~.99 - score .645 here, WORSE than Anaphoric. And 186 of the 193
+# wrong Explicit rows have the gold speaker's name literally inside this
+# prompt: the model is reading "said Mr. Darcy" and answering ELIZABETH.
+#
+# One sentence, one variable. The control is byte-identical to what shipped, so
+# a difference is the sentence and nothing else.
+EXPLICIT_HINT = (
+    "\n\nIf the text immediately before or after THE LINE names a character "
+    "together with a speech verb - for example \"said Elizabeth\", "
+    "\"Elizabeth replied\" - then that character is the speaker, and you must "
+    "answer with that name even if the surrounding conversation suggests "
+    "somebody else."
+)
+
+PROMPT_VARIANTS = ("control", "explicit_hint")
+
+
+def build_prompt(entry, roster, narrator=None, variant="control"):
     """-> the exact text sent to the model.
 
     Extracted so `--keep-prompts` records what was actually asked rather than a
@@ -177,12 +196,18 @@ def build_prompt(entry, roster, narrator=None):
         next=str(entry.get("next_context") or ""))
     if narrator:
         text = add_narrator_prior(text, narrator)
+    if variant == "explicit_hint":
+        text += EXPLICIT_HINT
+    elif variant != "control":
+        raise ValueError("unknown prompt variant %r; expected one of %s"
+                         % (variant, ", ".join(PROMPT_VARIANTS)))
     return text
 
 
-def ask(client, model, entry, roster, decoding, narrator=None):
+def ask(client, model, entry, roster, decoding, narrator=None,
+        variant="control"):
     """-> (answer, raw, failure_reason). failure_reason set means no answer."""
-    prompt = build_prompt(entry, roster, narrator)
+    prompt = build_prompt(entry, roster, narrator, variant)
     try:
         response = client.chat.completions.create(
             model=model, temperature=decoding["temperature"],
@@ -266,6 +291,9 @@ def main():
                          "+17.8 points on PDNC was never combined with the "
                          "wide context window; this is what lets them be. "
                          "Books without an entry are unchanged.")
+    ap.add_argument("--prompt-variant", default="control",
+                    choices=list(PROMPT_VARIANTS),
+                    help="control is byte-identical to the shipped prompt")
     ap.add_argument("--keep-prompts", action="store_true",
                     help="record the prompt text, not only its hash. The full "
                          "run stores prompt_sha256 alone, which is enough to "
@@ -299,6 +327,9 @@ def main():
               "different experiment on different books.",
         environment=environment)
     record.meta["narrators"] = {k: v for k, v in narrators.items()} if narrators else {}
+    # The artifact must say which prompt produced it. Two arms whose only
+    # difference is one sentence are indistinguishable afterwards otherwise.
+    record.meta["prompt_variant"] = args.prompt_variant
     record.enable_checkpoint(out + ".ckpt")
 
     # BOOK -> NARRATOR, matched on a substring of the fixture stem so the
@@ -345,7 +376,7 @@ def main():
             if record.done("single", gold_id):
                 continue
             answer, raw, failure = ask(client, args.model, entry, roster,
-                                       decoding, narrator)
+                                       decoding, narrator, args.prompt_variant)
             predicted = None if failure else answer
             correct = bool(predicted and predicted != DECLINE
                            and same_speaker(entry.get("expected_speaker"),
