@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2020** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2058** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -658,6 +658,44 @@ already outside the 1.05 target.** It was recorded as met against its own
 failing number. That is a bookkeeping error, not a measurement one, and it is
 the reason this row is now stated per-arm rather than as a range: a range hides
 which arm failed.
+
+#### THE REFERENCE WAS THE MECHANISM — measured 2026-08-21
+
+`reference_rebuild.py` gave each eval set a reference that is both long enough
+and typical of its speaker (3.45/5.17/6.15s → 11.8/10.8/10.5s, each sitting
+almost exactly on its speaker's corpus median). The clone arm was regenerated
+against it, 150 lines per language, and scored with the same
+`pitch_quality_probe` the committed numbers come from:
+
+| cell | old reference | long reference | band | |
+|---|---|---|---|---|
+| **zh clone tract length** | 1.0607 | **1.0132** | 0.95–1.05 | OUTSIDE → **inside** |
+| **en clone f0 median** | 0.8508 | **0.9551** | 0.95–1.05 | OUTSIDE → **inside** |
+| ja clone f0 median | 0.9973 | 0.9910 | 0.95–1.05 | inside → inside |
+| zh clone f0 spread | 1.0912 | 1.1571 | 0.90–1.15 | inside → **outside** |
+
+**Both failing cells came inside**, and by margins the human-vs-human null puts
+beyond its own spread: that null gives `zh vtl_cm` a full range of 0.9588–1.0337,
+so 1.0132 is ordinary and 1.0607 was not.
+
+**Three things this does not say.**
+
+- **Length and typicality changed together**, deliberately, so a difference
+  cannot be attributed to either alone. The first question was whether the
+  input matters at all; separating the two costs another two arms and is only
+  worth it now that the answer is yes.
+- **The Chinese spread cell got worse**, and it is the one measure the null
+  test flagged: `zh f0_spread` falls outside its own band on 13.65% of
+  same-speaker splits with nothing synthesised. A move within a measure that
+  unstable is not evidence of anything, in either direction.
+- **One run, one reference per language.** The rebuilt reference is the
+  candidate closest to its speaker's centre out of 30 considered; whether a
+  different draw would do as well is untested.
+
+**So 2.6's Chinese cell should not be closed as "cloning misses this and that
+is a product decision" until this is replicated.** The product decision was
+the honest reading of the evidence that existed; this is new evidence, and it
+points at an input we choose rather than at the method.
 
 **Target — jitter, shimmer and HNR within 0.85–1.15x; tract length within
 0.95–1.05x.**
