@@ -854,6 +854,19 @@
     "tests.test_find_nicknames.ParseAliasResponseTests.test_novel_canonical_without_near_miss_is_silent",
     "tests.test_find_nicknames.ParseAliasResponseTests.test_punctuation_variant_resolves_via_shared_normalization"
   ],
+  "test_frontend_exposure": [
+    "tests.test_frontend_exposure.CategoryTest.test_cjk_and_accented_latin_are_separated",
+    "tests.test_frontend_exposure.CategoryTest.test_grouped_numbers_need_a_separator",
+    "tests.test_frontend_exposure.CategoryTest.test_ordinals_decimals_ranges_and_times",
+    "tests.test_frontend_exposure.CategoryTest.test_the_emoji_pattern_would_catch_one_if_it_were_there",
+    "tests.test_frontend_exposure.CategoryTest.test_the_roman_numeral_pattern_has_known_false_positives",
+    "tests.test_frontend_exposure.CategoryTest.test_years_match_and_bare_counts_do_not",
+    "tests.test_frontend_exposure.ReadScriptsTest.test_an_unreadable_file_is_skipped_not_fatal",
+    "tests.test_frontend_exposure.ReadScriptsTest.test_both_script_shapes_are_read",
+    "tests.test_frontend_exposure.ScanTest.test_a_line_can_fall_in_several_categories",
+    "tests.test_frontend_exposure.ScanTest.test_a_line_counts_once_per_category",
+    "tests.test_frontend_exposure.ScanTest.test_blank_and_missing_lines_are_skipped"
+  ],
   "test_frontend_regressions": [
     "tests.test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
     "tests.test_frontend_regressions.FrontendJsSplitTests.test_split_js_files_exist_are_referenced_in_order_and_non_empty",

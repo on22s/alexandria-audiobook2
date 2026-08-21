@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 244,
+    "supported_structure": 245,
     "exploratory": 193,
     "provisional": 123
   },
@@ -3397,6 +3397,22 @@
       "classification": "exploratory",
       "completeness": "unknown",
       "reason": "top-level list, no embedded identity"
+    },
+    {
+      "artifact": "frontend_exposure.json",
+      "bytes": 2539,
+      "sha256": "5522c8dc919ba75b07e150fbcc5e6b866cc657231dc6db2ea025d7234bcc473d",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T11:29:04",
+      "commit": "87b60278f125e109645a366842097403d2200b00",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "full_api_gpu_20260816.json",
