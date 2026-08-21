@@ -1,0 +1,530 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "production_trigram_audit.py",
+  "written": "2026-08-21T07:00:58",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cf0ff07ab1642b11ce4b41651b3c77954fcf7f19",
+   "branch": "agent/trigram-production-audit-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/two_stage_attribution.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/production_trigram_audit.py",
+    "run_chains/explicit_hint_20260821.sh"
+   ],
+   "harness_sha256": "f9a808dfcb798c54364f1aeb5b35b640eac4e9b4c6e1509aa98ffd21df245d2c"
+  },
+  "args": {
+   "scripts": "retrofit_library",
+   "sources": [
+    "/home/fakemitch/Desktop/test"
+   ],
+   "aliases": "character_aliases.json",
+   "out": "production_trigram_audit.json"
+  }
+ },
+ "scope": "the #372 trigram run over shipped scripts; no gold, so this reports DISAGREEMENT with the pipeline, not accuracy",
+ "books": 29,
+ "sources_missing_for": [],
+ "totals": {
+  "entries": 98159,
+  "spoken": 36642,
+  "with_span": 36642,
+  "fired": 273,
+  "agree": 257,
+  "disagree": 16,
+  "fired_on_unattributed": 0
+ },
+ "fire_rate_on_spoken": 0.0075,
+ "disagreement_rate_where_fired": 0.0586,
+ "per_book": [
+  {
+   "entries": 3385,
+   "spoken": 1255,
+   "with_span": 1255,
+   "fired": 69,
+   "agree": 66,
+   "disagree": 3,
+   "fired_on_unattributed": 0,
+   "book": "Arc 1 - Volume 1",
+   "roster": 24,
+   "disagreements": [
+    {
+     "text": "The opposite?",
+     "assigned": "SATELLA",
+     "rule": "SUBARU",
+     "category": "quote_said_person",
+     "after": "” said Subaru, confused.  “Yes, the opposite,” Puck said with a nod.  But before",
+     "book": "Arc 1 - Volume 1"
+    },
+    {
+     "text": "I guess I do stand out, don’t I…? ",
+     "assigned": "SUBARU",
+     "rule": "SATELLA",
+     "category": "quote_said_person",
+     "after": "” replied Satella, looking at Subaru nervously, as she rolled down the sleeves o",
+     "book": "Arc 1 - Volume 1"
+    },
+    {
+     "text": "Be careful,",
+     "assigned": "SUBARU",
+     "rule": "REINHARD",
+     "category": "quote_said_person",
+     "after": "” said Reinhard, as cool and gallant as ever.  Pushed on by those words, Subaru ",
+     "book": "Arc 1 - Volume 1"
+    }
+   ]
+  },
+  {
+   "entries": 2386,
+   "spoken": 859,
+   "with_span": 859,
+   "fired": 52,
+   "agree": 48,
+   "disagree": 4,
+   "fired_on_unattributed": 0,
+   "book": "Arc 1 - Volume 1_2",
+   "roster": 28,
+   "disagreements": [
+    {
+     "text": "The opposite?",
+     "assigned": "PUCK",
+     "rule": "SUBARU",
+     "category": "quote_said_person",
+     "after": "” said Subaru, confused.  “Yes, the opposite,” Puck said with a nod.  But before",
+     "book": "Arc 1 - Volume 1_2"
+    },
+    {
+     "text": "…You’re right. Sorry about that, I went too far,”",
+     "assigned": "GIRL",
+     "rule": "FELT",
+     "category": "quote_said_person",
+     "after": "” replied Felt.  “Here’s where I’d want to say that, to make it up to me, I’d li",
+     "book": "Arc 1 - Volume 1_2"
+    },
+    {
+     "text": "Felt…",
+     "assigned": "OLD MAN ROM",
+     "rule": "ROM",
+     "category": "quote_said_person",
+     "after": "” said Rom in a caring tone with a painful expression, probably knowing what was",
+     "book": "Arc 1 - Volume 1_2"
+    },
+    {
+     "text": "You’d better not forget about me!",
+     "assigned": "SUBARU",
+     "rule": "NOT-SATELLA",
+     "category": "quote_said_person",
+     "after": "” said Not-Satella, along with a chunk of ice lobbed from behind.  But without e",
+     "book": "Arc 1 - Volume 1_2"
+    }
+   ]
+  },
+  {
+   "entries": 3388,
+   "spoken": 1266,
+   "with_span": 1266,
+   "fired": 63,
+   "agree": 60,
+   "disagree": 3,
+   "fired_on_unattributed": 0,
+   "book": "Arc 1 - Volume 1_3",
+   "roster": 30,
+   "disagreements": [
+    {
+     "text": "The opposite?",
+     "assigned": "SATELLA",
+     "rule": "SUBARU",
+     "category": "quote_said_person",
+     "after": "” said Subaru, confused.  “Yes, the opposite,” Puck said with a nod.  But before",
+     "book": "Arc 1 - Volume 1_3"
+    },
+    {
+     "text": "Be careful,",
+     "assigned": "MAN (REINHARD)",
+     "rule": "REINHARD",
+     "category": "quote_said_person",
+     "after": "” said Reinhard, as cool and gallant as ever.  Pushed on by those words, Subaru ",
+     "book": "Arc 1 - Volume 1_3"
+    },
+    {
+     "text": "You’d better not forget about me!",
+     "assigned": "SUBARU",
+     "rule": "NOT-SATELLA",
+     "category": "quote_said_person",
+     "after": "” said Not-Satella, along with a chunk of ice lobbed from behind.  But without e",
+     "book": "Arc 1 - Volume 1_3"
+    }
+   ]
+  },
+  {
+   "entries": 3356,
+   "spoken": 1257,
+   "with_span": 1257,
+   "fired": 69,
+   "agree": 68,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 1 - Volume 1_4",
+   "roster": 24,
+   "disagreements": [
+    {
+     "text": "I guess I do stand out, don’t I…? ",
+     "assigned": "SUBARU",
+     "rule": "SATELLA",
+     "category": "quote_said_person",
+     "after": "” replied Satella, looking at Subaru nervously, as she rolled down the sleeves o",
+     "book": "Arc 1 - Volume 1_4"
+    }
+   ]
+  },
+  {
+   "entries": 3910,
+   "spoken": 1616,
+   "with_span": 1616,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 2",
+   "roster": 19,
+   "disagreements": []
+  },
+  {
+   "entries": 2563,
+   "spoken": 1147,
+   "with_span": 1147,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 2_2",
+   "roster": 15,
+   "disagreements": []
+  },
+  {
+   "entries": 3912,
+   "spoken": 1625,
+   "with_span": 1625,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 2_3",
+   "roster": 22,
+   "disagreements": []
+  },
+  {
+   "entries": 4066,
+   "spoken": 1378,
+   "with_span": 1378,
+   "fired": 1,
+   "agree": 0,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 3",
+   "roster": 19,
+   "disagreements": [
+    {
+     "text": "Rem, just because she’s your older sister, you build her up and put yourself down to where it almost kills you… I don’t ",
+     "assigned": "SUBARU",
+     "rule": "RAM",
+     "category": "quote_said_person",
+     "after": "think Ram’s always in a stronger position than you, okay? Her stamina’s worse th",
+     "book": "Arc 2 - Volume 3"
+    }
+   ]
+  },
+  {
+   "entries": 2726,
+   "spoken": 869,
+   "with_span": 869,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 3_2",
+   "roster": 18,
+   "disagreements": []
+  },
+  {
+   "entries": 4111,
+   "spoken": 1382,
+   "with_span": 1382,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 3_3",
+   "roster": 19,
+   "disagreements": []
+  },
+  {
+   "entries": 4121,
+   "spoken": 1355,
+   "with_span": 1355,
+   "fired": 1,
+   "agree": 0,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 2 - Volume 3_4",
+   "roster": 19,
+   "disagreements": [
+    {
+     "text": "Rem, just because she’s your older sister, you build her up and put yourself down to where it almost kills you… I don’t ",
+     "assigned": "SUBARU",
+     "rule": "RAM",
+     "category": "quote_said_person",
+     "after": "think Ram’s always in a stronger position than you, okay? Her stamina’s worse th",
+     "book": "Arc 2 - Volume 3_4"
+    }
+   ]
+  },
+  {
+   "entries": 3813,
+   "spoken": 1737,
+   "with_span": 1737,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 4",
+   "roster": 49,
+   "disagreements": []
+  },
+  {
+   "entries": 2470,
+   "spoken": 1146,
+   "with_span": 1146,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 4_2",
+   "roster": 40,
+   "disagreements": []
+  },
+  {
+   "entries": 3824,
+   "spoken": 1739,
+   "with_span": 1739,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 4_3",
+   "roster": 44,
+   "disagreements": []
+  },
+  {
+   "entries": 3840,
+   "spoken": 1081,
+   "with_span": 1081,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 5",
+   "roster": 20,
+   "disagreements": []
+  },
+  {
+   "entries": 2232,
+   "spoken": 691,
+   "with_span": 691,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 5_2",
+   "roster": 16,
+   "disagreements": []
+  },
+  {
+   "entries": 3873,
+   "spoken": 1099,
+   "with_span": 1099,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 5_3",
+   "roster": 20,
+   "disagreements": []
+  },
+  {
+   "entries": 3883,
+   "spoken": 1328,
+   "with_span": 1328,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 6",
+   "roster": 19,
+   "disagreements": []
+  },
+  {
+   "entries": 2343,
+   "spoken": 759,
+   "with_span": 759,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 6_2",
+   "roster": 16,
+   "disagreements": []
+  },
+  {
+   "entries": 3752,
+   "spoken": 1309,
+   "with_span": 1309,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 6_3",
+   "roster": 22,
+   "disagreements": []
+  },
+  {
+   "entries": 3566,
+   "spoken": 1252,
+   "with_span": 1252,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 7",
+   "roster": 24,
+   "disagreements": []
+  },
+  {
+   "entries": 2260,
+   "spoken": 835,
+   "with_span": 835,
+   "fired": 0,
+   "agree": 0,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 7_2",
+   "roster": 22,
+   "disagreements": []
+  },
+  {
+   "entries": 3923,
+   "spoken": 1474,
+   "with_span": 1474,
+   "fired": 2,
+   "agree": 2,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 8",
+   "roster": 25,
+   "disagreements": []
+  },
+  {
+   "entries": 2791,
+   "spoken": 1066,
+   "with_span": 1066,
+   "fired": 2,
+   "agree": 2,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 8_2",
+   "roster": 23,
+   "disagreements": []
+  },
+  {
+   "entries": 3926,
+   "spoken": 1458,
+   "with_span": 1458,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 8_3",
+   "roster": 31,
+   "disagreements": []
+  },
+  {
+   "entries": 4243,
+   "spoken": 1560,
+   "with_span": 1560,
+   "fired": 4,
+   "agree": 3,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 9",
+   "roster": 38,
+   "disagreements": [
+    {
+     "text": "“Very good,”",
+     "assigned": "REM",
+     "rule": "CRUSCH",
+     "category": "quote_said_person",
+     "after": "” said Crusch, drawing her chin in upon seeing that smile. “Natsuki Subaru said ",
+     "book": "Arc 3 - Volume 9"
+    }
+   ]
+  },
+  {
+   "entries": 2493,
+   "spoken": 849,
+   "with_span": 849,
+   "fired": 1,
+   "agree": 1,
+   "disagree": 0,
+   "fired_on_unattributed": 0,
+   "book": "Arc 3 - Volume 9_2",
+   "roster": 36,
+   "disagreements": []
+  },
+  {
+   "entries": 4164,
+   "spoken": 1914,
+   "with_span": 1914,
+   "fired": 1,
+   "agree": 0,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 4 - Volume 10",
+   "roster": 32,
+   "disagreements": [
+    {
+     "text": "Goodness,",
+     "assigned": "SUBARU",
+     "rule": "RAM",
+     "category": "quote_said_person",
+     "after": "” said Ram, and pressed a damp cloth to Subaru’s cheek as she said, “Please keep",
+     "book": "Arc 4 - Volume 10"
+    }
+   ]
+  },
+  {
+   "entries": 2839,
+   "spoken": 1336,
+   "with_span": 1336,
+   "fired": 1,
+   "agree": 0,
+   "disagree": 1,
+   "fired_on_unattributed": 0,
+   "book": "Arc 4 - Volume 10_2",
+   "roster": 30,
+   "disagreements": [
+    {
+     "text": "Goodness,",
+     "assigned": "SUBARU",
+     "rule": "RAM",
+     "category": "quote_said_person",
+     "after": "” said Ram, and pressed a damp cloth to Subaru’s cheek as she said, “Please keep",
+     "book": "Arc 4 - Volume 10_2"
+    }
+   ]
+  }
+ ]
+}

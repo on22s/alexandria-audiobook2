@@ -159,6 +159,7 @@ cascade_state__owarimonogatari3__local-batchtrig.json,exploratory,git+naming,no,
 cascade_state__owarimonogatari3__tuned-cheap-arm.json,exploratory,git+naming,no,cascade.py,b4bf74b6,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 chapter_manifest.json,exploratory,none,no,,701371d1,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
 chapter_validation.json,exploratory,none,no,,701371d1,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+character_distinctiveness.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 chinese_attribution_jy.json,exploratory,git+naming,no,chinese_attribution.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 chinese_attribution_jy_fixed.json,exploratory,git+naming,no,chinese_attribution.py,a081167c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 chinese_attribution_wp.json,exploratory,git+naming,no,chinese_attribution.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -394,6 +395,12 @@ duration_probe_same_speaker_20260815.json,exploratory,git+naming,no,duration_pro
 earcheck_separator_key.json,supported_structure,provenance,yes,,,,20260819,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 earcheck_separator_package.json,supported_structure,provenance,yes,,,,20260819,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 earcheck_separator_results.json,supported_structure,none,no,,91b133a6,"5.2,7.1",,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+ecapa_duration_confound.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+elson_trigram__grimgar03.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+elson_trigram__index18.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+elson_trigram__mushoku16.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+elson_trigram__owarimonogatari3.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+elson_trigram_w3200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 epub_extraction_fidelity.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 epub_extractor_comparison.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 expected_prosody_ja.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -695,6 +702,7 @@ pitch_quality_probe_n200.json,exploratory,git+naming,no,pitch_quality_probe.py,d
 pitch_separation.json,exploratory,git+naming,no,pitch_separation.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pitch_stability.json,exploratory,git+naming,no,pitch_stability.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 pr308_narration_context__mushoku16_index18__current.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+production_trigram_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 proper_noun_pronunciation.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 prose_vs_nonprose.json,exploratory,git+naming,no,prose_vs_nonprose.py,71f0a432,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 prose_vs_nonprose_v2.json,exploratory,git+naming,no,prose_vs_nonprose.py,5bb25104,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
@@ -767,6 +775,7 @@ reference_intervention_sharp.json,supported_structure,provenance,yes,,,,1234,,,,
 reference_rank1_all21.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 reference_rank1_pilot.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 reference_rank2_failed.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+reference_spread__en.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 repair_candidate_reference_text.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 residual_errors.json,exploratory,git+naming,no,residual_errors.py,30a896eb,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 respelling_e_row__ay.json,supported_structure,provenance,yes,,,5.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -869,6 +878,7 @@ scene_cast__owarimonogatari3__llama-3.3-70b__thunder-a6000-70b.json,exploratory,
 scene_cast__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,provisional,git+naming,no,scene_cast.py,44704c7c,,,scene_cast,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,32768,1,q8_0,full,162,73,45.1,ok,True,fe025a5f,3728.1,07-30 02:00,http://127.0.0.1:8090/v1,
 scene_cast__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,provisional,git+naming,no,scene_cast.py,44704c7c,,,scene_cast,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,32768,1,q8_0,scene,162,63,38.9,ok,True,fe025a5f,3728.1,07-30 02:00,http://127.0.0.1:8090/v1,
 scene_cast__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json,provisional,git+naming,no,scene_cast.py,44704c7c,,,scene_cast,owarimonogatari3,qwen/qwen3-14b,local-llamacpp-hip,mitch-linux,llama.cpp-hip,32768,1,q8_0,scene+2,162,66,40.7,ok,True,fe025a5f,3728.1,07-30 02:00,http://127.0.0.1:8090/v1,
+scene_narrowing_w3200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 script_text_fidelity.json,supported_structure,provenance,yes,,,5.3,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 seed_instruction_controls.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 segmentation_classifier.json,exploratory,git+naming,no,segmentation_classifier.py,3ddd0df4,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -879,6 +889,7 @@ source_encoding_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,
 stack_overlap.json,exploratory,git+naming,no,stack_overlap.py,85877735,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 stage6_instruction_source.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 stage6_scene_aware_casting.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+statistic_discriminability.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 symbolization.json,exploratory,git+naming,no,symbolization.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 symbolization_owari.json,exploratory,git+naming,no,symbolization.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 tag_priority__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,tag_priority.py,44704c7c,,,tag_priority,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,baseline,396,327,82.6,ok,False,,4007.5,07-30 00:40,http://127.0.0.1:8090/v1,

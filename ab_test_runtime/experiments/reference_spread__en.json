@@ -1,0 +1,89 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "reference_spread.py",
+  "written": "2026-08-21T07:23:12",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "cf0ff07ab1642b11ce4b41651b3c77954fcf7f19",
+   "branch": "agent/reference-formant-spread-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/reference_spread.py",
+    "app/experiments/reference_spread_compare.py",
+    "run_chains/reference_spread_20260821.sh"
+   ],
+   "harness_sha256": "baccb69b3a1f27ead073b4670bfc0616bb3c230dbf5d801b67f6daae756d8e49"
+  },
+  "args": {
+   "build": "build.json",
+   "out_dir": "spread_test",
+   "arms": 4,
+   "target_seconds": 13.0,
+   "corpus_clips": 60,
+   "candidates": 30,
+   "audio_root": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
+   ],
+   "out": "manifest.json"
+  }
+ },
+ "scope": "references for one speaker spanning distance from that speaker's own f0/vocal-tract centre; duration held",
+ "corpus_centre": {
+  "f0_median": 212.6,
+  "vtl_cm": 14.53
+ },
+ "candidates_measured": 30,
+ "requested_arms": 4,
+ "arms": [
+  {
+   "arm": 0,
+   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread0.json",
+   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread0.wav",
+   "distance": 0.00516,
+   "seconds": 10.516,
+   "measures": {
+    "f0_median": 212.6,
+    "f0_spread": 128.9,
+    "vtl_cm": 14.68
+   }
+  },
+  {
+   "arm": 1,
+   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread1.json",
+   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread1.wav",
+   "distance": 0.03657,
+   "seconds": 14.254,
+   "measures": {
+    "f0_median": 218.2,
+    "f0_spread": 137.3,
+    "vtl_cm": 15.21
+   }
+  },
+  {
+   "arm": 2,
+   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread2.json",
+   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread2.wav",
+   "distance": 0.07343,
+   "seconds": 11.108,
+   "measures": {
+    "f0_median": 242.8,
+    "f0_spread": 172.0,
+    "vtl_cm": 14.46
+   }
+  },
+  {
+   "arm": 3,
+   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread3.json",
+   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread3.wav",
+   "distance": 0.10617,
+   "seconds": 11.584,
+   "measures": {
+    "f0_median": 245.6,
+    "f0_spread": 140.6,
+    "vtl_cm": 15.36
+   }
+  }
+ ]
+}
