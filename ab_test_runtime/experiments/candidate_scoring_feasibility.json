@@ -1,0 +1,148 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "candidate_scoring.py",
+  "written": "2026-08-21T11:21:06",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "87b60278f125e109645a366842097403d2200b00",
+   "branch": "agent/candidate-scoring-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/candidate_scoring.py"
+   ],
+   "harness_sha256": "2b78ada135ee9c427c40c8c8953a150420708a81ccabfaf95f723274ff25c0e5"
+  },
+  "args": {
+   "fixtures": "fixtures",
+   "base_url": "http://127.0.0.1:8090/v1",
+   "model": "qwen3-14b",
+   "check_endpoint": false,
+   "out": "candidate_scoring_feasibility.json"
+  }
+ },
+ "scope": "can SIG's candidate-scoring readout be used here, and at what granularity. Offline: no model was called unless --check-endpoint was passed",
+ "idea": "SIG (arXiv 2312.14590) reads the answer out as the highest generation probability over enumerated candidates rather than by direct generation, which removes the list-order mechanism #383 measured instead of randomising it",
+ "books": [
+  {
+   "book": "attribution_gold_pdnc_prideandprejudice_w3200.json",
+   "candidates": 74,
+   "indistinguishable_on_first_token": 51,
+   "share": 0.6892,
+   "worst_prefix": "MR",
+   "worst_prefix_count": 16,
+   "groups": {
+    "MR": [
+     "MR. BENNET",
+     "MR. BINGLEY",
+     "MR. COLLINS",
+     "MR. COLLINS' FATHER",
+     "MR. DARCY",
+     "MR. DARCY OF PEMBERLEY",
+     "MR. DENNEY",
+     "MR. GARDINER",
+     "MR. HURST",
+     "MR. JONES",
+     "MR. MORRIS",
+     "MR. PHILIPS",
+     "MR. PHILLIPS",
+     "MR. ROBINSON",
+     "MR. STONE",
+     "MR. WICKHAM'S FATHER"
+    ],
+    "MRS": [
+     "MRS. ANNESLEY",
+     "MRS. BENNET",
+     "MRS. FORESTER",
+     "MRS. FORSTER",
+     "MRS. GARDINER",
+     "MRS. GOULDING",
+     "MRS. HILL",
+     "MRS. HURST",
+     "MRS. JENKINSON",
+     "MRS. LONG",
+     "MRS. NICHOLLS",
+     "MRS. PHILIPS",
+     "MRS. REYNOLDS"
+    ],
+    "MISS": [
+     "MISS BINGLEY",
+     "MISS DARCY",
+     "MISS GRANTLEY",
+     "MISS KING",
+     "MISS POPE",
+     "MISS WATSON"
+    ],
+    "LADY": [
+     "LADY ANNE DARCY",
+     "LADY CATHERINE DE BOURGH",
+     "LADY DARCY",
+     "LADY METCALFE"
+    ],
+    "COLONEL": [
+     "COLONEL FITZWILLIAM",
+     "COLONEL FORSTER",
+     "COLONEL MILLAR"
+    ]
+   }
+  },
+  {
+   "book": "attribution_gold_pdnc_theawakening_w3200.json",
+   "candidates": 22,
+   "indistinguishable_on_first_token": 4,
+   "share": 0.1818,
+   "worst_prefix": "MADAME",
+   "worst_prefix_count": 2,
+   "groups": {
+    "MADAME": [
+     "MADAME LEBRUN",
+     "MADAME RATIGNOLLE"
+    ],
+    "MRS": [
+     "MRS. HIGHCAMP",
+     "MRS. MERRIMAN"
+    ]
+   }
+  },
+  {
+   "book": "attribution_gold_pdnc_thesignofthefour_w3200.json",
+   "candidates": 35,
+   "indistinguishable_on_first_token": 15,
+   "share": 0.4286,
+   "worst_prefix": "A",
+   "worst_prefix_count": 5,
+   "groups": {
+    "A": [
+     "A BLUFF, GENIAL INSPECTOR",
+     "A HIGH PIPING VOICE",
+     "A HINDOO SERVANT",
+     "A SMALL, DARK, BRISK MAN",
+     "A WEARY-LOOKING POLICE SERGEANT"
+    ],
+    "MRS": [
+     "MRS. BERNSTONE",
+     "MRS. CECIL FORRESTER",
+     "MRS. FORRESTER",
+     "MRS. HUDSON",
+     "MRS. SMITH"
+    ],
+    "MR": [
+     "MR. ATHELNEY JONES",
+     "MR. SHERLOCK HOLMES",
+     "MR. SHERMAN"
+    ],
+    "MAJOR": [
+     "MAJOR JOHN SHOLTO",
+     "MAJOR SHOLTO"
+    ]
+   }
+  }
+ ],
+ "candidates_total": 131,
+ "indistinguishable_on_first_token": 70,
+ "share_indistinguishable": 0.5344,
+ "endpoint_logprobs": null,
+ "endpoint_reason": "not checked",
+ "verdict": "one-step scoring is NOT usable: 53% of candidates share a first token, so the score would be a comparison between honorifics. Correct implementation is full-sequence scoring, which costs one forward pass per candidate per quote"
+}

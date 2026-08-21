@@ -289,6 +289,20 @@
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_start_of_book_has_no_leading_context",
     "tests.test_build_scoring_sheet.NeighbourContextTest.test_window_is_respected"
   ],
+  "test_candidate_scoring": [
+    "tests.test_candidate_scoring.CollisionTest.test_a_single_candidate_is_not_a_collision",
+    "tests.test_candidate_scoring.CollisionTest.test_distinct_leading_words_do_not_collide",
+    "tests.test_candidate_scoring.CollisionTest.test_honorifics_collide_which_is_the_whole_finding",
+    "tests.test_candidate_scoring.FirstTokenTest.test_blank_input_yields_blank",
+    "tests.test_candidate_scoring.FirstTokenTest.test_the_leading_word_is_taken",
+    "tests.test_candidate_scoring.ReadLogprobsTest.test_every_other_shape_is_none_rather_than_a_guess",
+    "tests.test_candidate_scoring.ReadLogprobsTest.test_the_expected_shape_is_read",
+    "tests.test_candidate_scoring.ScoreTest.test_a_candidate_outside_the_returned_alternatives_is_absent",
+    "tests.test_candidate_scoring.ScoreTest.test_an_exact_tie_declines_rather_than_taking_the_first",
+    "tests.test_candidate_scoring.ScoreTest.test_colliding_candidates_score_identically_which_is_the_problem",
+    "tests.test_candidate_scoring.ScoreTest.test_no_visible_candidate_declines_rather_than_picking",
+    "tests.test_candidate_scoring.ScoreTest.test_the_best_scoring_candidate_wins"
+  ],
   "test_chain_book_fixtures": [
     "tests.test_chain_book_fixtures.ChainBookFixtureTest.test_every_books_name_has_a_gold_fixture",
     "tests.test_chain_book_fixtures.ChainBookFixtureTest.test_the_old_spelling_would_have_been_caught",
