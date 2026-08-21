@@ -2,17 +2,17 @@
  "status": "complete",
  "provenance": {
   "script": "roster_order_bias.py",
-  "written": "2026-08-21T09:50:31",
+  "written": "2026-08-21T11:01:22",
   "host": "mitch-linux",
   "git": {
-   "commit": "1c5c1b7037f8e8fe673705968ff9e60b0018a696",
-   "branch": "agent/roster-order-bias-20260821",
+   "commit": "27ba5543e0c134c85826ad326e4cd5a3539d525a",
+   "branch": "agent/order-bias-stratified-20260821",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/roster_order_bias.py"
+   "modified_tracked_files": [
+    "M app/experiments/roster_order_bias.py"
    ],
-   "harness_sha256": "e6da197c6599cada7de25dc80a82f8c8bd18d7151184fe97c33c5adf9b203890"
+   "untracked_harness_files": null,
+   "harness_sha256": "91733672e134d68ea1e47d77e9c1693e45b0db6edc48ab7bbce2d30885ce4a6c"
   },
   "args": {
    "artifact": "two_stage_attribution_w3200.json",
@@ -29,6 +29,18 @@
   "mean_gold_position": 0.4049,
   "mean_predicted_position": 0.3591,
   "note": "context only; alphabetical order is not random with respect to who speaks"
+ },
+ "stratified_by_local_signal": {
+  "close_call": {
+   "n": 498,
+   "share_earlier": 0.6205,
+   "sign_test_p": 8.437246437700039e-08
+  },
+  "no_local_signal": {
+   "n": 340,
+   "share_earlier": 0.7471,
+   "sign_test_p": 2.1504024261150574e-20
+  }
  },
  "paired_on_wrong_rows": {
   "wrong_answer_earlier_than_gold": 563,

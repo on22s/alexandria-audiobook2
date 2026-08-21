@@ -5,9 +5,9 @@ All 123 legacy-metadata artifacts are listed exactly once. Classification descri
 ## Counts
 
 - `exploratory`: 9
-- `historical_only`: 40
+- `historical_only`: 41
 - `provisional`: 21
-- `supported_measurement`: 53
+- `supported_measurement`: 52
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -133,7 +133,7 @@ All 123 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified |
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
-| `two_stage_attribution_w3200.json` | two_stage_attribution | supported_measurement | 2494 | None | None | False |  |
+| `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
 | `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |
 | `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 417 | 0 | 0 | False |  |
