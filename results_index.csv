@@ -412,6 +412,7 @@ expected_prosody_zh_n200.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,
 fallback_policy.json,exploratory,git+naming,no,fallback_policy.py,2010cf29,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 final_release_after_remaining_gpu_research.json,exploratory,none,no,,67b9a854,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 fix_verification.json,exploratory,none,no,,5c7c415a,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
+frontend_exposure.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 full_api_gpu_20260816.json,exploratory,none,no,,67b9a854,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_known_bad.json,exploratory,none,no,,9e6c5be3,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 gate_known_good.json,exploratory,none,no,,9e6c5be3,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results

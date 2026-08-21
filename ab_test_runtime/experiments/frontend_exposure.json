@@ -1,0 +1,95 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "frontend_exposure.py",
+  "written": "2026-08-21T11:29:04",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "87b60278f125e109645a366842097403d2200b00",
+   "branch": "agent/frontend-exposure-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/frontend_exposure.py"
+   ],
+   "harness_sha256": "3681b9863b8b92b5b69bfae124634417e7b2eb77a801b61591fa6b5be853d907"
+  },
+  "args": {
+   "scripts": "retrofit_library",
+   "out": "frontend_exposure.json"
+  }
+ },
+ "scope": "EXPOSURE only - how many lines contain each category. Whether the engine renders them correctly needs synthesis and an ASR read-back, and is not measured here",
+ "scripts": 29,
+ "lines": 98134,
+ "categories": [
+  {
+   "category": "year",
+   "lines": 231,
+   "share": 0.00235,
+   "why_it_can_go_wrong": "a four-digit year is read as a year or as a cardinal, never both"
+  },
+  {
+   "category": "roman_numeral",
+   "lines": 188,
+   "share": 0.00192,
+   "why_it_can_go_wrong": "chapter numbering; also matches real words like MIX and DID"
+  },
+  {
+   "category": "grouped_number",
+   "lines": 4,
+   "share": 4e-05,
+   "why_it_can_go_wrong": "thousands separators"
+  },
+  {
+   "category": "ordinal",
+   "lines": 14,
+   "share": 0.00014,
+   "why_it_can_go_wrong": "3rd, 21st"
+  },
+  {
+   "category": "decimal",
+   "lines": 2,
+   "share": 2e-05,
+   "why_it_can_go_wrong": "0.75"
+  },
+  {
+   "category": "digit_range",
+   "lines": 39,
+   "share": 0.0004,
+   "why_it_can_go_wrong": "12-15, read as 'to' or 'minus'"
+  },
+  {
+   "category": "time_of_day",
+   "lines": 0,
+   "share": 0.0,
+   "why_it_can_go_wrong": "7:30"
+  },
+  {
+   "category": "bare_digits",
+   "lines": 982,
+   "share": 0.01001,
+   "why_it_can_go_wrong": "any digit run; the superset"
+  },
+  {
+   "category": "cjk",
+   "lines": 0,
+   "share": 0.0,
+   "why_it_can_go_wrong": "Japanese or Chinese inside otherwise English narration"
+  },
+  {
+   "category": "non_ascii_latin",
+   "lines": 96,
+   "share": 0.00098,
+   "why_it_can_go_wrong": "accented Latin"
+  },
+  {
+   "category": "emoji_or_symbol",
+   "lines": 0,
+   "share": 0.0,
+   "why_it_can_go_wrong": "should be zero: verbalize_symbols handles these"
+  }
+ ],
+ "lines_with_any_numeric_form": 1460,
+ "note_cjk": "zero CJK lines reach the engine, although five of eight source books contain CJK between 23 and 779 times (GOALS 5.1). Something upstream removes it; whether that is normalisation working or content being lost is not settled here"
+}
