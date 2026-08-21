@@ -1168,6 +1168,12 @@
     "tests.test_gpu_job.VramGateTest.test_the_same_job_runs_when_the_card_is_free",
     "tests.test_gpu_job.VramGateTest.test_zero_disables_the_check_for_small_jobs"
   ],
+  "test_gpu_pause_markers": [
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_a_bare_start_reads_as_running",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_every_terminal_marker_clears_the_job",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_markers_that_still_run_the_job_do_not_clear_it",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_no_llm_clears_the_job"
+  ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_returns_none_on_unparseable_output",
@@ -2632,6 +2638,10 @@
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_utilization_sampling_returns_none_when_backend_unavailable",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_results_create_nested_output_directory",
     "tests.test_tts_benchmark.TTSBenchmarkTests.test_vram_sweep_uses_peak_across_all_sub_batches"
+  ],
+  "test_two_stage_narrators_order": [
+    "tests.test_two_stage_narrators_order.NarratorOrderingTests.test_narrators_is_assigned_before_every_read",
+    "tests.test_two_stage_narrators_order.NarratorOrderingTests.test_no_local_in_main_is_read_before_assignment"
   ],
   "test_two_stage_roster": [
     "tests.test_two_stage_roster.AnswerShapeTest.test_a_decline_is_recognised_however_it_is_decorated",
