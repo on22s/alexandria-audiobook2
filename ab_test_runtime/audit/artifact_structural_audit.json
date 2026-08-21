@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 238,
+    "supported_structure": 239,
     "exploratory": 193,
     "provisional": 123
   },
@@ -7155,6 +7155,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "roster_order_bias.json",
+      "bytes": 1405,
+      "sha256": "65c978652ad30a070612cc404be58b24a8b0bb967bc0e085c45cdef2d0438424",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T09:50:31",
+      "commit": "1c5c1b7037f8e8fe673705968ff9e60b0018a696",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "roster_quality__grimgar03__llama-3.3-70b__thunder-a6000-70b.json",

@@ -37,4 +37,11 @@ class PromptVariantTest(unittest.TestCase):
         self.assertTrue(both.endswith(EXPLICIT_HINT))
 
     def test_the_variant_list_is_what_the_cli_offers(self):
-        self.assertEqual(("control", "explicit_hint"), PROMPT_VARIANTS)
+        """Pinned exactly, so adding an arm is a decision and not a slip.
+
+        It caught `shuffled_roster` being added on 2026-08-21, which is what it
+        is for: an arm that appears without anyone noticing is an arm nobody
+        wrote a hypothesis for.
+        """
+        self.assertEqual(("control", "explicit_hint", "shuffled_roster"),
+                         PROMPT_VARIANTS)

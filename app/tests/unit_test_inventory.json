@@ -1877,6 +1877,25 @@
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_the_roster_threshold_is_stricter_than_the_entry_gate",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_without_source_text_every_new_speaker_is_admitted"
   ],
+  "test_roster_order_bias": [
+    "tests.test_roster_order_bias.AnalyseTest.test_a_row_whose_answer_is_off_roster_is_skipped",
+    "tests.test_roster_order_bias.AnalyseTest.test_a_wrong_answer_later_than_gold_counts_the_other_way",
+    "tests.test_roster_order_bias.AnalyseTest.test_only_wrong_rows_enter_the_paired_count",
+    "tests.test_roster_order_bias.AnalyseTest.test_the_unpaired_figures_carry_their_caveat",
+    "tests.test_roster_order_bias.PositionTest.test_a_name_not_in_the_roster_is_none",
+    "tests.test_roster_order_bias.PositionTest.test_a_single_name_roster_does_not_divide_by_zero",
+    "tests.test_roster_order_bias.PositionTest.test_an_alias_finds_its_roster_entry",
+    "tests.test_roster_order_bias.PositionTest.test_first_and_last_are_zero_and_one",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_an_unknown_variant_is_still_refused",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_different_rows_get_different_orders",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_it_reorders_without_adding_or_dropping_a_name",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_caller_s_roster_is_not_mutated",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_same_row_always_gets_the_same_order",
+    "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_variant_is_offered",
+    "tests.test_roster_order_bias.SignTest.test_a_lopsided_split_is_significant",
+    "tests.test_roster_order_bias.SignTest.test_an_even_split_is_not",
+    "tests.test_roster_order_bias.SignTest.test_no_observations_is_one"
+  ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",
     "tests.test_run_history.RunHistoryTests.test_failed_summary_write_preserves_previous_record",
