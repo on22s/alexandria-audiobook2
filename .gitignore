@@ -231,7 +231,12 @@ ab_test_runtime/logs/*.lock
 ab_test_runtime/logs/*/
 !ab_test_runtime/logs/dirty_patches/
 
-# WP2021/JY/CSI fetched, not vendored: no stated licence. See wp2021_fixture.py
+# Corpora fetched, not vendored: none of these state a licence, so each is
+# downloaded and converted locally and only the readers and derived counts
+# are committed. See riqua_fixture.py and wp2021_fixture.py.
+attribution_gold_riqua_*.json
+riqua/
+riqua.tar.gz
 attribution_gold_wp2021_*.json
 wp_repo/
 csi_repo/

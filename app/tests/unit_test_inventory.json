@@ -1980,6 +1980,23 @@
     "tests.test_review_surfacing.ReviewIsLoggedTest.test_building_chunks_warns_about_unmapped_glyphs",
     "tests.test_review_surfacing.ReviewIsLoggedTest.test_nothing_is_logged_when_there_is_nothing_to_review"
   ],
+  "test_riqua_fixture": [
+    "tests.test_riqua_fixture.BuildTests.test_a_fully_named_row_is_kept_with_both_roles",
+    "tests.test_riqua_fixture.BuildTests.test_a_quote_with_no_addressee_is_dropped",
+    "tests.test_riqua_fixture.BuildTests.test_context_windows_come_from_the_text_around_the_span",
+    "tests.test_riqua_fixture.BuildTests.test_every_quotation_is_either_kept_or_counted_as_dropped",
+    "tests.test_riqua_fixture.BuildTests.test_pronoun_addressee_is_dropped_separately",
+    "tests.test_riqua_fixture.BuildTests.test_pronoun_speaker_is_dropped_not_kept_as_a_name",
+    "tests.test_riqua_fixture.BuildTests.test_uncued_quotes_are_labelled_not_discarded",
+    "tests.test_riqua_fixture.IsNameTests.test_bare_pronouns_are_not",
+    "tests.test_riqua_fixture.IsNameTests.test_empty_and_none_are_not_names",
+    "tests.test_riqua_fixture.IsNameTests.test_lowercase_descriptions_are_not_names",
+    "tests.test_riqua_fixture.IsNameTests.test_proper_names_are_names",
+    "tests.test_riqua_fixture.ParseTests.test_correct_argument_order_links",
+    "tests.test_riqua_fixture.ParseTests.test_discontinuous_spans_take_the_envelope",
+    "tests.test_riqua_fixture.ParseTests.test_inverted_relation_arguments_raise",
+    "tests.test_riqua_fixture.ParseTests.test_spans_and_relations_round_trip"
+  ],
   "test_roster_admission": [
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_a_name_repeated_within_one_batch_is_returned_once",
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_a_speaker_below_the_roster_threshold_is_refused",

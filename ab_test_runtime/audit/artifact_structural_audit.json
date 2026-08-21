@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 249,
+    "supported_structure": 250,
     "exploratory": 194,
     "provisional": 123
   },
@@ -7281,6 +7281,22 @@
       "written": "2026-08-20T17:22:23",
       "commit": "17bf2927f6544d1a83b241bded3ededc70d59326",
       "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "riqua_coverage.json",
+      "bytes": 2348,
+      "sha256": "05f9cd070e67a5217b308d5e822a44dddaf9faddde9669397c0694ce01e6c88c",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T14:04:40",
+      "commit": "6a646694844bfb2d7e87bf90cfed03cb5199b99a",
+      "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },
