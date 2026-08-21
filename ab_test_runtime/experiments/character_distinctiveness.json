@@ -1,0 +1,167 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "character_distinctiveness.py",
+  "written": "2026-08-21T08:43:16",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "9b4f1ad76f0191531301f6e8f381622cbd21a634",
+   "branch": "agent/statistic-discriminability-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/character_distinctiveness.py",
+    " M app/tests/test_character_distinctiveness.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/statistic_discriminability.py"
+   ],
+   "harness_sha256": "1d12df7e3ddafab8b2820f8a9b41ec764e97cec9070ccbe9292cbf8025f255b4"
+  },
+  "args": {
+   "chunks": "chunks.json",
+   "audio_dir": "chapter_audio",
+   "min_clips": 5,
+   "out": "character_distinctiveness.json"
+  }
+ },
+ "mean_overlap_features": [
+  "f0_overlap",
+  "rms_overlap"
+ ],
+ "scope": "per-character F0, energy and clip-length distributions in one rendered book, and how far each pair overlaps. Overlap means not separated ON THESE FEATURES; it is not a claim about what a listener can hear. f0_semitones_apart is reported beside every overlap because the two are different questions",
+ "audio_dir": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/chapter_audio",
+ "clips_unmatched_to_a_chunk": 0,
+ "characters": {
+  "LITTLE GIRL": {
+   "clips": 19,
+   "f0_median": 212.6,
+   "f0_spread": 130.2,
+   "rms": 0.08733068116564478,
+   "seconds": 6.8
+  },
+  "NARRATOR": {
+   "clips": 85,
+   "f0_median": 130.9,
+   "f0_spread": 95.25,
+   "rms": 0.13436909404184863,
+   "seconds": 6.4
+  },
+  "NATSUKI SUBARU": {
+   "clips": 18,
+   "f0_median": 181.35000000000002,
+   "f0_spread": 115.65,
+   "rms": 0.09051414210081184,
+   "seconds": 5.6
+  },
+  "SATELLA": {
+   "clips": 10,
+   "f0_median": 224.0,
+   "f0_spread": 122.9,
+   "rms": 0.0843860309370657,
+   "seconds": 2.6799999999999997
+  },
+  "Subaru": {
+   "clips": 15,
+   "f0_median": 264.8,
+   "f0_spread": 103.4,
+   "rms": 0.09116514678355854,
+   "seconds": 4.88
+  }
+ },
+ "characters_below_min_clips": {
+  "LITTLE GIRL'S MOTHER": 1,
+  "VOICE (CAT)": 2
+ },
+ "pairs": [
+  {
+   "a": "LITTLE GIRL",
+   "b": "NATSUKI SUBARU",
+   "f0_overlap": 0.5,
+   "rms_overlap": 0.48538011695906436,
+   "seconds_overlap": 0.42105263157894735,
+   "f0_semitones_apart": 2.75,
+   "mean_overlap": 0.4927
+  },
+  {
+   "a": "LITTLE GIRL",
+   "b": "Subaru",
+   "f0_overlap": 0.48888888888888893,
+   "rms_overlap": 0.3964912280701754,
+   "seconds_overlap": 0.4491228070175438,
+   "f0_semitones_apart": 3.8,
+   "mean_overlap": 0.4427
+  },
+  {
+   "a": "NARRATOR",
+   "b": "NATSUKI SUBARU",
+   "f0_overlap": 0.47619047619047616,
+   "rms_overlap": 0.3967320261437909,
+   "seconds_overlap": 0.6019607843137255,
+   "f0_semitones_apart": 5.64,
+   "mean_overlap": 0.4365
+  },
+  {
+   "a": "NATSUKI SUBARU",
+   "b": "SATELLA",
+   "f0_overlap": 0.26666666666666666,
+   "rms_overlap": 0.5777777777777778,
+   "seconds_overlap": 0.4111111111111111,
+   "f0_semitones_apart": 3.66,
+   "mean_overlap": 0.4222
+  },
+  {
+   "a": "NATSUKI SUBARU",
+   "b": "Subaru",
+   "f0_overlap": 0.3,
+   "rms_overlap": 0.5111111111111111,
+   "seconds_overlap": 0.37777777777777777,
+   "f0_semitones_apart": 6.55,
+   "mean_overlap": 0.4056
+  },
+  {
+   "a": "LITTLE GIRL",
+   "b": "SATELLA",
+   "f0_overlap": 0.38888888888888895,
+   "rms_overlap": 0.3105263157894737,
+   "seconds_overlap": 0.4105263157894737,
+   "f0_semitones_apart": 0.9,
+   "mean_overlap": 0.3497
+  },
+  {
+   "a": "SATELLA",
+   "b": "Subaru",
+   "f0_overlap": 0.43333333333333335,
+   "rms_overlap": 0.23333333333333334,
+   "seconds_overlap": 0.36666666666666664,
+   "f0_semitones_apart": 2.9,
+   "mean_overlap": 0.3333
+  },
+  {
+   "a": "NARRATOR",
+   "b": "SATELLA",
+   "f0_overlap": 0.13095238095238093,
+   "rms_overlap": 0.28823529411764703,
+   "seconds_overlap": 0.35882352941176465,
+   "f0_semitones_apart": 9.3,
+   "mean_overlap": 0.2096
+  },
+  {
+   "a": "NARRATOR",
+   "b": "Subaru",
+   "f0_overlap": 0.08333333333333333,
+   "rms_overlap": 0.3176470588235294,
+   "seconds_overlap": 0.6627450980392156,
+   "f0_semitones_apart": 12.2,
+   "mean_overlap": 0.2005
+  },
+  {
+   "a": "LITTLE GIRL",
+   "b": "NARRATOR",
+   "f0_overlap": 0.09126984126984126,
+   "rms_overlap": 0.2173374613003096,
+   "seconds_overlap": 0.5219814241486067,
+   "f0_semitones_apart": 8.4,
+   "mean_overlap": 0.1543
+  }
+ ]
+}

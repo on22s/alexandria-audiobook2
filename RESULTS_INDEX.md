@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 567 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 578 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -857,6 +857,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `cascade_state__owarimonogatari3__tuned-cheap-arm.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `chapter_manifest.json` | SKIPPED: not a result object (list) |
 | `chapter_validation.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `character_distinctiveness.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `chinese_attribution_jy.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `chinese_attribution_jy_fixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `chinese_attribution_wp.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -894,6 +895,12 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `earcheck_separator_key.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `earcheck_separator_package.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `earcheck_separator_results.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `ecapa_duration_confound.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `elson_trigram__grimgar03.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `elson_trigram__index18.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `elson_trigram__mushoku16.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `elson_trigram__owarimonogatari3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `elson_trigram_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1060,6 +1067,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pitch_separation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_stability.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pr308_narration_context__mushoku16_index18__current.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `production_trigram_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `proper_noun_pronunciation.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prose_vs_nonprose.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `prose_vs_nonprose_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
@@ -1091,6 +1099,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `reference_rank1_all21.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_rank1_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_rank2_failed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `repair_candidate_reference_text.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `residual_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_dot_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1129,6 +1138,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `run_lengths.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scale_vs_register.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `scene_narrowing_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `script_text_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__husky_baritone_50s_m_military_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__husky_soprano_20s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1146,6 +1156,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `stack_overlap.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `stage6_instruction_source.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `stage6_scene_aware_casting.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `statistic_discriminability.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `symbolization.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `symbolization_owari.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `three_pass_vs_single.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
