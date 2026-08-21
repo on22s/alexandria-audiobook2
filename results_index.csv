@@ -9,6 +9,7 @@ aishell3_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NO
 alignment_diagnosis.json,exploratory,git+naming,no,alignment_diagnosis.py,ea539d2b,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 alignment_diagnosis_trimmed.json,exploratory,git+naming,no,alignment_diagnosis.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
 alignment_diagnosis_zh.json,exploratory,git+naming,no,alignment_diagnosis.py,0cbbe0d5,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
+anchor_length_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 anchor_length_probe.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr2_hybrid__kokoro.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 asr2_whisper_cpp__ggml-base.bin.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
@@ -915,7 +916,7 @@ source_encoding_audit.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,
 stack_overlap.json,exploratory,git+naming,no,stack_overlap.py,85877735,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 stage6_instruction_source.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 stage6_scene_aware_casting.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-statistic_discriminability.json,supported_structure,none,no,,8f947862,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+statistic_discriminability.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 symbolization.json,exploratory,git+naming,no,symbolization.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 symbolization_owari.json,exploratory,git+naming,no,symbolization.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 tag_priority__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,tag_priority.py,44704c7c,,,tag_priority,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,baseline,396,327,82.6,ok,False,,4007.5,07-30 00:40,http://127.0.0.1:8090/v1,
