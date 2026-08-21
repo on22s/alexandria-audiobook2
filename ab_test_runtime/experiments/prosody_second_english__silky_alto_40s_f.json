@@ -1,0 +1,486 @@
+{
+  "source": "ab_test_runtime/experiments/second_english__silky_alto_40s_f_generate.json",
+  "language": null,
+  "gpe_tolerance": 0.2,
+  "results": {
+    "lora": {
+      "n": 20,
+      "f0_correlation_mean": 0.3851,
+      "f0_rmse_semitones_mean": 2.8349,
+      "gross_pitch_error_mean": 0.2198,
+      "tempo_irregularity_mean": 0.3917,
+      "rows": [
+        {
+          "id": "sample_0812",
+          "voiced_frames": 378,
+          "human_seconds": 8.46,
+          "generated_seconds": 7.84,
+          "f0_correlation": 0.5118,
+          "f0_rmse_semitones": 3.5867,
+          "gross_pitch_error": 0.2116,
+          "tempo_irregularity": 0.4556,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0824",
+          "voiced_frames": 396,
+          "human_seconds": 8.56,
+          "generated_seconds": 8.56,
+          "f0_correlation": 0.4573,
+          "f0_rmse_semitones": 2.9059,
+          "gross_pitch_error": 0.2702,
+          "tempo_irregularity": 0.428,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0826",
+          "voiced_frames": 383,
+          "human_seconds": 7.42,
+          "generated_seconds": 8.08,
+          "f0_correlation": 0.5141,
+          "f0_rmse_semitones": 2.0056,
+          "gross_pitch_error": 0.0966,
+          "tempo_irregularity": 0.3413,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0832",
+          "voiced_frames": 388,
+          "human_seconds": 7.86,
+          "generated_seconds": 8.4,
+          "f0_correlation": 0.5658,
+          "f0_rmse_semitones": 4.0168,
+          "gross_pitch_error": 0.4253,
+          "tempo_irregularity": 0.4456,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0853",
+          "voiced_frames": 198,
+          "human_seconds": 7.06,
+          "generated_seconds": 8.56,
+          "f0_correlation": 0.0606,
+          "f0_rmse_semitones": 3.4118,
+          "gross_pitch_error": 0.399,
+          "tempo_irregularity": 0.2797,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0867",
+          "voiced_frames": 441,
+          "human_seconds": 8.54,
+          "generated_seconds": 12.96,
+          "f0_correlation": 0.1789,
+          "f0_rmse_semitones": 4.0994,
+          "gross_pitch_error": 0.3605,
+          "tempo_irregularity": 0.2447,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0871",
+          "voiced_frames": 197,
+          "human_seconds": 8.28,
+          "generated_seconds": 5.84,
+          "f0_correlation": 0.7321,
+          "f0_rmse_semitones": 1.4661,
+          "gross_pitch_error": 0.0914,
+          "tempo_irregularity": 0.4854,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0889",
+          "voiced_frames": 644,
+          "human_seconds": 12.56,
+          "generated_seconds": 12.4,
+          "f0_correlation": 0.381,
+          "f0_rmse_semitones": 2.5012,
+          "gross_pitch_error": 0.1661,
+          "tempo_irregularity": 0.3971,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0905",
+          "voiced_frames": 390,
+          "human_seconds": 7.44,
+          "generated_seconds": 8.4,
+          "f0_correlation": 0.3699,
+          "f0_rmse_semitones": 1.9177,
+          "gross_pitch_error": 0.1821,
+          "tempo_irregularity": 0.4303,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0906",
+          "voiced_frames": 435,
+          "human_seconds": 8.26,
+          "generated_seconds": 8.8,
+          "f0_correlation": 0.3345,
+          "f0_rmse_semitones": 2.8183,
+          "gross_pitch_error": 0.2115,
+          "tempo_irregularity": 0.4356,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0907",
+          "voiced_frames": 412,
+          "human_seconds": 9.12,
+          "generated_seconds": 10.24,
+          "f0_correlation": 0.3328,
+          "f0_rmse_semitones": 2.4333,
+          "gross_pitch_error": 0.182,
+          "tempo_irregularity": 0.4065,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0908",
+          "voiced_frames": 238,
+          "human_seconds": 7.1,
+          "generated_seconds": 7.76,
+          "f0_correlation": 0.4624,
+          "f0_rmse_semitones": 4.1152,
+          "gross_pitch_error": 0.2941,
+          "tempo_irregularity": 0.33,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0912",
+          "voiced_frames": 340,
+          "human_seconds": 7.36,
+          "generated_seconds": 6.8,
+          "f0_correlation": 0.711,
+          "f0_rmse_semitones": 1.5875,
+          "gross_pitch_error": 0.0412,
+          "tempo_irregularity": 0.4569,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0921",
+          "voiced_frames": 310,
+          "human_seconds": 7.88,
+          "generated_seconds": 10.0,
+          "f0_correlation": 0.4464,
+          "f0_rmse_semitones": 2.3137,
+          "gross_pitch_error": 0.1516,
+          "tempo_irregularity": 0.3328,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0959",
+          "voiced_frames": 413,
+          "human_seconds": 8.04,
+          "generated_seconds": 10.16,
+          "f0_correlation": 0.4208,
+          "f0_rmse_semitones": 2.401,
+          "gross_pitch_error": 0.1162,
+          "tempo_irregularity": 0.4403,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0963",
+          "voiced_frames": 359,
+          "human_seconds": 7.56,
+          "generated_seconds": 8.48,
+          "f0_correlation": -0.0208,
+          "f0_rmse_semitones": 3.8538,
+          "gross_pitch_error": 0.2089,
+          "tempo_irregularity": 0.3468,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0965",
+          "voiced_frames": 333,
+          "human_seconds": 7.92,
+          "generated_seconds": 7.84,
+          "f0_correlation": 0.1397,
+          "f0_rmse_semitones": 3.48,
+          "gross_pitch_error": 0.1051,
+          "tempo_irregularity": 0.4546,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0980",
+          "voiced_frames": 232,
+          "human_seconds": 7.84,
+          "generated_seconds": 10.32,
+          "f0_correlation": 0.37,
+          "f0_rmse_semitones": 3.3734,
+          "gross_pitch_error": 0.3103,
+          "tempo_irregularity": 0.3301,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0988",
+          "voiced_frames": 279,
+          "human_seconds": 7.7,
+          "generated_seconds": 7.52,
+          "f0_correlation": 0.3333,
+          "f0_rmse_semitones": 1.831,
+          "gross_pitch_error": 0.0717,
+          "tempo_irregularity": 0.4288,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0994",
+          "voiced_frames": 317,
+          "human_seconds": 7.82,
+          "generated_seconds": 7.36,
+          "f0_correlation": 0.4006,
+          "f0_rmse_semitones": 2.58,
+          "gross_pitch_error": 0.5016,
+          "tempo_irregularity": 0.3643,
+          "tempo_ratio": 1.0
+        }
+      ]
+    },
+    "clone": {
+      "n": 20,
+      "f0_correlation_mean": 0.4717,
+      "f0_rmse_semitones_mean": 2.516,
+      "gross_pitch_error_mean": 0.1953,
+      "tempo_irregularity_mean": 0.4597,
+      "rows": [
+        {
+          "id": "sample_0812",
+          "voiced_frames": 354,
+          "human_seconds": 8.46,
+          "generated_seconds": 6.88,
+          "f0_correlation": 0.6798,
+          "f0_rmse_semitones": 2.9231,
+          "gross_pitch_error": 0.1525,
+          "tempo_irregularity": 0.4675,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0824",
+          "voiced_frames": 378,
+          "human_seconds": 8.56,
+          "generated_seconds": 7.6,
+          "f0_correlation": 0.3992,
+          "f0_rmse_semitones": 2.8835,
+          "gross_pitch_error": 0.2302,
+          "tempo_irregularity": 0.4552,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0826",
+          "voiced_frames": 334,
+          "human_seconds": 7.42,
+          "generated_seconds": 7.12,
+          "f0_correlation": 0.4129,
+          "f0_rmse_semitones": 2.6847,
+          "gross_pitch_error": 0.2216,
+          "tempo_irregularity": 0.4332,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0832",
+          "voiced_frames": 338,
+          "human_seconds": 7.86,
+          "generated_seconds": 6.8,
+          "f0_correlation": 0.7258,
+          "f0_rmse_semitones": 2.8753,
+          "gross_pitch_error": 0.2101,
+          "tempo_irregularity": 0.45,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0853",
+          "voiced_frames": 163,
+          "human_seconds": 7.06,
+          "generated_seconds": 5.84,
+          "f0_correlation": 0.6148,
+          "f0_rmse_semitones": 2.4303,
+          "gross_pitch_error": 0.2515,
+          "tempo_irregularity": 0.4716,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0867",
+          "voiced_frames": 439,
+          "human_seconds": 8.54,
+          "generated_seconds": 9.12,
+          "f0_correlation": 0.4713,
+          "f0_rmse_semitones": 3.0817,
+          "gross_pitch_error": 0.2779,
+          "tempo_irregularity": 0.405,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0871",
+          "voiced_frames": 213,
+          "human_seconds": 8.28,
+          "generated_seconds": 4.72,
+          "f0_correlation": 0.8935,
+          "f0_rmse_semitones": 0.8901,
+          "gross_pitch_error": 0.0235,
+          "tempo_irregularity": 0.4966,
+          "tempo_ratio": 0.0
+        },
+        {
+          "id": "sample_0889",
+          "voiced_frames": 593,
+          "human_seconds": 12.56,
+          "generated_seconds": 11.68,
+          "f0_correlation": 0.5849,
+          "f0_rmse_semitones": 1.9913,
+          "gross_pitch_error": 0.1872,
+          "tempo_irregularity": 0.4211,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0905",
+          "voiced_frames": 358,
+          "human_seconds": 7.44,
+          "generated_seconds": 6.56,
+          "f0_correlation": 0.4451,
+          "f0_rmse_semitones": 1.8298,
+          "gross_pitch_error": 0.1313,
+          "tempo_irregularity": 0.4541,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0906",
+          "voiced_frames": 459,
+          "human_seconds": 8.26,
+          "generated_seconds": 7.44,
+          "f0_correlation": 0.3124,
+          "f0_rmse_semitones": 2.9148,
+          "gross_pitch_error": 0.2004,
+          "tempo_irregularity": 0.4523,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0907",
+          "voiced_frames": 409,
+          "human_seconds": 9.12,
+          "generated_seconds": 7.52,
+          "f0_correlation": 0.306,
+          "f0_rmse_semitones": 2.4122,
+          "gross_pitch_error": 0.1174,
+          "tempo_irregularity": 0.4357,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0908",
+          "voiced_frames": 234,
+          "human_seconds": 7.1,
+          "generated_seconds": 6.0,
+          "f0_correlation": 0.3058,
+          "f0_rmse_semitones": 4.4087,
+          "gross_pitch_error": 0.3803,
+          "tempo_irregularity": 0.4609,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0912",
+          "voiced_frames": 337,
+          "human_seconds": 7.36,
+          "generated_seconds": 5.6,
+          "f0_correlation": 0.8566,
+          "f0_rmse_semitones": 0.9986,
+          "gross_pitch_error": 0.0475,
+          "tempo_irregularity": 0.4796,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0921",
+          "voiced_frames": 312,
+          "human_seconds": 7.88,
+          "generated_seconds": 7.44,
+          "f0_correlation": 0.2724,
+          "f0_rmse_semitones": 2.9618,
+          "gross_pitch_error": 0.3109,
+          "tempo_irregularity": 0.4676,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0959",
+          "voiced_frames": 378,
+          "human_seconds": 8.04,
+          "generated_seconds": 6.88,
+          "f0_correlation": 0.524,
+          "f0_rmse_semitones": 1.6172,
+          "gross_pitch_error": 0.2328,
+          "tempo_irregularity": 0.4651,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0963",
+          "voiced_frames": 279,
+          "human_seconds": 7.56,
+          "generated_seconds": 5.2,
+          "f0_correlation": 0.0968,
+          "f0_rmse_semitones": 2.6609,
+          "gross_pitch_error": 0.2581,
+          "tempo_irregularity": 0.4919,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0965",
+          "voiced_frames": 297,
+          "human_seconds": 7.92,
+          "generated_seconds": 6.16,
+          "f0_correlation": 0.0876,
+          "f0_rmse_semitones": 4.5062,
+          "gross_pitch_error": 0.2492,
+          "tempo_irregularity": 0.486,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0980",
+          "voiced_frames": 293,
+          "human_seconds": 7.84,
+          "generated_seconds": 6.64,
+          "f0_correlation": 0.5663,
+          "f0_rmse_semitones": 2.4652,
+          "gross_pitch_error": 0.2457,
+          "tempo_irregularity": 0.4659,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0988",
+          "voiced_frames": 269,
+          "human_seconds": 7.7,
+          "generated_seconds": 5.28,
+          "f0_correlation": 0.5206,
+          "f0_rmse_semitones": 1.4298,
+          "gross_pitch_error": 0.0483,
+          "tempo_irregularity": 0.4929,
+          "tempo_ratio": 1.0
+        },
+        {
+          "id": "sample_0994",
+          "voiced_frames": 317,
+          "human_seconds": 7.82,
+          "generated_seconds": 6.56,
+          "f0_correlation": 0.3577,
+          "f0_rmse_semitones": 2.355,
+          "gross_pitch_error": 0.1293,
+          "tempo_irregularity": 0.4411,
+          "tempo_ratio": 1.0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "script": "prosody_fidelity.py",
+    "written": "2026-08-21T00:17:51",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "31c420d80fc492dc95eaaf0aeafb367c6d2eb79b",
+      "branch": "main",
+      "dirty": true,
+      "modified_tracked_files": null,
+      "untracked_harness_files": [
+        "app/experiments/_pqp_patched.py"
+      ],
+      "harness_sha256": "618402fcdc705d156801207f04b7b123cce682ba053f8113a5095b19771df576"
+    },
+    "args": {
+      "generated": "ab_test_runtime/experiments/second_english__silky_alto_40s_f_generate.json",
+      "arm": null,
+      "limit": 20,
+      "out": "ab_test_runtime/experiments/prosody_second_english__silky_alto_40s_f.json"
+    }
+  }
+}

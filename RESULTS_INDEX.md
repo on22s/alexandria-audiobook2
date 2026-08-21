@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 548 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 555 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -789,6 +789,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `adapter_stop_check_kokoro.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `adapter_stop_check_ljspeech.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_SSB0748_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `aishell3_SSB0748_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `aishell3_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `alignment_diagnosis.json` | SKIPPED: 'rows' is not a list of scored arms |
@@ -1048,6 +1049,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_quality_SSB0748.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pitch_quality_longref.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_quality_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_quality_probe_n200.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_separation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1069,6 +1071,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_fidelity_zh_n100.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_fidelity_zh_n40.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_second_english__husky_soprano_20s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_second_english__silky_alto_40s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_second_english__silky_baritone_40s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_second_english__warm_baritone_50s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `realizable_router.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ref_clip_match.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1115,6 +1121,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `scale_vs_register.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `script_text_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `second_english__husky_soprano_20s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__silky_alto_40s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__silky_baritone_40s_m_scifi_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_50s_m_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

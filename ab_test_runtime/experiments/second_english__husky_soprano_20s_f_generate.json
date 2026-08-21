@@ -1,0 +1,222 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "husky_soprano_20s_f",
+ "rows": [
+  {
+   "id": "sample_2609",
+   "book": "husky_soprano_20s_f",
+   "text": "NOW IT MADE SENSE ... PERHAPS I SHOULD HAVE KNOWN *HE* IS A *LEGEND* AMONG THE LINES OF THE ORK LORD!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2609.wav",
+   "human_seconds": 7.9,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2609__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2609__clone.wav"
+  },
+  {
+   "id": "sample_2619",
+   "book": "husky_soprano_20s_f",
+   "text": "AS CALM AND COMPOSED AS EVER I MIGHT AS WELL TAKE CARE OF THEM TOO WHILE I'M *AT* IT ... GIVE ME ONE MOMENT PLEASE",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2619.wav",
+   "human_seconds": 7.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2619__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2619__clone.wav"
+  },
+  {
+   "id": "sample_2621",
+   "book": "husky_soprano_20s_f",
+   "text": "RIGHT DOWN TO HIS CLOTHING AND EQUIPMENT THEY WERE COPIES ... MADE WITH HIS MAGICAL REPLICATION SKILLS AND EACH ONE SILENTLY BEGAN TAKING ACTION",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2621.wav",
+   "human_seconds": 9.78,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2621__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2621__clone.wav"
+  },
+  {
+   "id": "sample_2629",
+   "book": "husky_soprano_20s_f",
+   "text": "THE ORKISH SOLDIERS FOUND THEMSELVES INSTANTLY SLICED AND DICED ... IT WAS PERHAPS LUCKY FOR THEM THAT THEY WERE INCAPABLE OF *FEAR*!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2629.wav",
+   "human_seconds": 8.12,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2629__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2629__clone.wav"
+  },
+  {
+   "id": "sample_2646",
+   "book": "husky_soprano_20s_f",
+   "text": "OH ... ANOTHER HOBGOB COMMENTED ... WELL SIR REMERO'S *PRETTY* SMART ... YE ... SO WE HAD ROG TOD DIVERT THE ENEMY'S DEAD JIM WHILE HE AD GOB TO SHOW UP THE LIZARDMEN'S POSITION.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2646.wav",
+   "human_seconds": 12.8,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2646__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2646__clone.wav"
+  },
+  {
+   "id": "sample_2668",
+   "book": "husky_soprano_20s_f",
+   "text": "ALL RIGHT YOU *PIG* STANDING IN FRONT OF ME YOU HAD BETTER RUN FOR YOUR LIVES ... DO AND I WILL SPARE YOU!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2668.wav",
+   "human_seconds": 8.06,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2668__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2668__clone.wav"
+  },
+  {
+   "id": "sample_2680",
+   "book": "husky_soprano_20s_f",
+   "text": "AN ORIGINAL SKILL EXCLUSIVE TO *HIMSELF* ... IN A FEW SECONDS THE DOME DISAPPEARED LEAVING NOTHING BUT SCORCHED EARTH BEHIND!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2680.wav",
+   "human_seconds": 8.58,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2680__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2680__clone.wav"
+  },
+  {
+   "id": "sample_2695",
+   "book": "husky_soprano_20s_f",
+   "text": "HE WAS PERFECTLY CASUAL AS IF TAKING A STROLL IN THE PARK AND THE TWO OGRES WITH HIM WERE THE SAME THERE WAS NOBODY *LEFT* TO CHALLENGE THEM ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2695.wav",
+   "human_seconds": 8.74,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2695__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2695__clone.wav"
+  },
+  {
+   "id": "sample_2711",
+   "book": "husky_soprano_20s_f",
+   "text": "BUT HE COULDN'T SIMPLY LEAVE THE WOLVES UNCHALLENGED ... I AM *WRONGA* CAME THE LOW, HALF-GROWLED REPLY",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2711.wav",
+   "human_seconds": 7.98,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2711__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2711__clone.wav"
+  },
+  {
+   "id": "sample_2713",
+   "book": "husky_soprano_20s_f",
+   "text": "I HAVE NEVER HEARD THE NAME ... BUT IF THIS *RIMU* SEEKS TO DEFY US WE WILL DESTROY HIM!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2713.wav",
+   "human_seconds": 7.8,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2713__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2713__clone.wav"
+  },
+  {
+   "id": "sample_2714",
+   "book": "husky_soprano_20s_f",
+   "text": "NOW THE ORK GENERAL HAD NO INTEREST IN RONGA IF HE WASN'T A *LINED* WITH THE DEMON LORD OR *HIGH* LEVEL MAGIC BORN WHOSE NAME HE WAS *FAMILIAR* WITH ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2714.wav",
+   "human_seconds": 9.02,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2714__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2714__clone.wav"
+  },
+  {
+   "id": "sample_2716",
+   "book": "husky_soprano_20s_f",
+   "text": "HE *distractedly* THRUST his spear FORWARD attempting to *secure* Ronga and END this *fast* Ronga effortlessly REARED BACK dodging the strike ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2716.wav",
+   "human_seconds": 9.48,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2716__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2716__clone.wav"
+  },
+  {
+   "id": "sample_2724",
+   "book": "husky_soprano_20s_f",
+   "text": "HE UNLEASHED HIS *OURA* AFTER SPENDING SO LONG IN THE SHADOW OF *REMERU* HE HAD BEEN HEAVILY EXPOSED TO HIS BELOVED MASTER *ZORA* AND USED IT TO PICTURE HIMSELF AS THE MAGICAL BEAST HE WAS, ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2724.wav",
+   "human_seconds": 11.84,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2724__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2724__clone.wav"
+  },
+  {
+   "id": "sample_2734",
+   "book": "husky_soprano_20s_f",
+   "text": "THEN THE SOUND CAME THE CRACK OF THUNDER AS PILLARS OF ELECTRICITY SHOT UP FROM THE GROUND TO THE HEAVENS ACCOMPANIED BY A SMALL ARMY OF TORNADOES ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2734.wav",
+   "human_seconds": 9.18,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2734__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2734__clone.wav"
+  },
+  {
+   "id": "sample_2735",
+   "book": "husky_soprano_20s_f",
+   "text": "Ronga had obtained the *Dark* *Lightning* skill and while he couldn't directly control lightning the way Reemoo could his two horns allowed him to define its range and power ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2735.wav",
+   "human_seconds": 10.12,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2735__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2735__clone.wav"
+  },
+  {
+   "id": "sample_2742",
+   "book": "husky_soprano_20s_f",
+   "text": "EXUTING ELECTRICITY AS THEY RAN ROUGH SHOT ACROSS THE BATTLEFIELD LIKE A GREAT DEATH ... BEALING STORM THE ORK GENERAL WAS INSTANTLY RENDERED INTO A PILE OF CARBON!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2742.wav",
+   "human_seconds": 10.08,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2742__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2742__clone.wav"
+  },
+  {
+   "id": "sample_2762",
+   "book": "husky_soprano_20s_f",
+   "text": "GELMUWDE HIMSELF HAD SEVERAL DIFFERENT OPERATIONS UNDER WAY BELOW THE SURFACE ... WHAT HE WAS DOING WAS *PLANTING* THE SEEDS OF CONFLICT ACROSS THE FOREST,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2762.wav",
+   "human_seconds": 9.46,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2762__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2762__clone.wav"
+  },
+  {
+   "id": "sample_2770",
+   "book": "husky_soprano_20s_f",
+   "text": "WHETHER SEALED AWAY OR NOT ... TRIGGERING A WAR WHILE VELDORA WAS STILL ALIVE WAS PLAYING WITH FIRE ... IT COULD BREAK THE SEAL ITSELF *IN* FACT!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2770.wav",
+   "human_seconds": 9.1,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2770__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2770__clone.wav"
+  },
+  {
+   "id": "sample_2771",
+   "book": "husky_soprano_20s_f",
+   "text": "SO HE HAD TAKEN HIS TIME GATHERING MORE *PAWNS* UNDER HIS CONTROL AND ADJUSTING THE POWER BALANCE AMONG THE RACES ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2771.wav",
+   "human_seconds": 7.34,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2771__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2771__clone.wav"
+  },
+  {
+   "id": "sample_2797",
+   "book": "husky_soprano_20s_f",
+   "text": "AN UNEXPECTED PRESENCE HAD THROWN A WRENCH INTO THE GEARS ... ALL OF A SUDDEN ... ONE OF THE CRYSTAL ORBS WENT *BLACK*!",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/data/val/sample_2797.wav",
+   "human_seconds": 7.18,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2797__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_soprano_20s_f/sample_2797__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-21T00:16:34",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "31c420d80fc492dc95eaaf0aeafb367c6d2eb79b",
+   "branch": "main",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/_pqp_patched.py"
+   ],
+   "harness_sha256": "618402fcdc705d156801207f04b7b123cce682ba053f8113a5095b19771df576"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/husky_soprano_20s_f_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch2/husky_soprano_20s_f/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/husky_soprano_20s_f",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__husky_soprano_20s_f_generate.json"
+  },
+  "seed": 1234
+ }
+}
