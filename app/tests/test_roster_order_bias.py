@@ -123,3 +123,53 @@ class ShuffledRosterVariantTest(unittest.TestCase):
     def test_an_unknown_variant_is_still_refused(self):
         with self.assertRaises(ValueError):
             build_prompt(self.ENTRY, NAMES, variant="shuffled_rostr")
+
+
+class StratificationTest(unittest.TestCase):
+    """The published claim does not hold here, and the split is what says so.
+
+    Pezeshkpour & Hruschka (NAACL Findings 2024) report option-order
+    sensitivity arising where a model is UNCERTAIN between its top choices.
+    Measured on our wrong rows, with contextual proximity standing in for
+    confidence, it runs the other way:
+
+        close call (gold and answer both recently mentioned)  498 rows  62.1%
+        no local signal                                       340 rows  74.7%
+
+    Both significant; the bias is STRONGER where the context offered nothing.
+    The reading - that the list is what the model falls back on when the text
+    gives it no one - is an inference. The two percentages are the measurement,
+    and the proxy is proximity, not confidence: the artifact stores no
+    logprobs, and the two can disagree.
+    """
+
+    def _rows(self, prev, expected, predicted):
+        return ([row("q1", expected, predicted, False)],
+                {"bk": fixture([entry("q1", expected)])})
+
+    def test_a_wrong_row_lands_in_exactly_one_stratum(self):
+        rows, fixtures = self._rows("", "EVE", "ALICE")
+        fixtures["bk"]["entries"][0]["prev_context"] = ""
+        out = analyse(rows, fixtures)
+        counts = out["stratified_by_local_signal"]
+        self.assertEqual(1, sum(c["n"] for c in counts.values()))
+
+    def test_both_names_recently_mentioned_is_a_close_call(self):
+        rows, fixtures = self._rows("", "EVE", "ALICE")
+        fixtures["bk"]["entries"][0]["prev_context"] = "Alice spoke. Eve replied."
+        out = analyse(rows, fixtures)
+        self.assertEqual(1, out["stratified_by_local_signal"]["close_call"]["n"])
+
+    def test_neither_name_mentioned_is_no_local_signal(self):
+        rows, fixtures = self._rows("", "EVE", "ALICE")
+        fixtures["bk"]["entries"][0]["prev_context"] = "The room was empty."
+        out = analyse(rows, fixtures)
+        self.assertEqual(1, out["stratified_by_local_signal"]["no_local_signal"]["n"])
+
+    def test_correct_rows_never_enter_either_stratum(self):
+        rows = [row("q1", "EVE", "EVE", True)]
+        fixtures = {"bk": fixture([entry("q1", "EVE")])}
+        fixtures["bk"]["entries"][0]["prev_context"] = "Eve spoke."
+        out = analyse(rows, fixtures)
+        self.assertEqual(0, sum(c["n"] for c in
+                                out["stratified_by_local_signal"].values()))

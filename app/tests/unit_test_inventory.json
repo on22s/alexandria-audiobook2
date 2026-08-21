@@ -1906,7 +1906,11 @@
     "tests.test_roster_order_bias.ShuffledRosterVariantTest.test_the_variant_is_offered",
     "tests.test_roster_order_bias.SignTest.test_a_lopsided_split_is_significant",
     "tests.test_roster_order_bias.SignTest.test_an_even_split_is_not",
-    "tests.test_roster_order_bias.SignTest.test_no_observations_is_one"
+    "tests.test_roster_order_bias.SignTest.test_no_observations_is_one",
+    "tests.test_roster_order_bias.StratificationTest.test_a_wrong_row_lands_in_exactly_one_stratum",
+    "tests.test_roster_order_bias.StratificationTest.test_both_names_recently_mentioned_is_a_close_call",
+    "tests.test_roster_order_bias.StratificationTest.test_correct_rows_never_enter_either_stratum",
+    "tests.test_roster_order_bias.StratificationTest.test_neither_name_mentioned_is_no_local_signal"
   ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",

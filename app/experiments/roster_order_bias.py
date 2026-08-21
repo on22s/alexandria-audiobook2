@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 
 from experiments.provenance import provenance  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
+from experiments.scene_narrowing import recent_mentions  # noqa: E402
 from experiments.two_stage_attribution import roster_lines  # noqa: E402
 
 
@@ -63,6 +64,14 @@ def analyse(rows, fixtures):
     all_pred, all_gold = [], []
     earlier = later = tied = 0
     shifts = []
+    # Pezeshkpour & Hruschka (NAACL Findings 2024) report that option-order
+    # sensitivity arises when a model is UNCERTAIN between its top choices. We
+    # cannot read confidence - the artifact stores no logprobs - so the proxy
+    # is contextual: a wrong row is a CLOSE CALL when both the gold speaker and
+    # the model's answer are among the ten most recently mentioned characters,
+    # the bucket #374 measured at 498 rows. It is a proxy for proximity, not
+    # for confidence, and the two can disagree.
+    strata = {"close_call": [0, 0], "no_local_signal": [0, 0]}
     for row in rows:
         stem, _, quote = (row.get("id") or "").partition(":")
         if (stem, quote) not in gold or stem not in cast:
@@ -77,10 +86,17 @@ def analyse(rows, fixtures):
         if row.get("correct"):
             continue
         shifts.append(p - g)
+        near = recent_mentions(gold[(stem, quote)].get("prev_context"),
+                               names, groups)[:10]
+        close = (any(same_speaker(row.get("expected"), n, groups) for n in near)
+                 and any(same_speaker(row.get("predicted"), n, groups) for n in near))
+        bucket = strata["close_call" if close else "no_local_signal"]
         if p < g:
             earlier += 1
+            bucket[0] += 1
         elif p > g:
             later += 1
+            bucket[1] += 1
         else:
             tied += 1
 
@@ -94,6 +110,10 @@ def analyse(rows, fixtures):
             "note": "context only; alphabetical order is not random with "
                     "respect to who speaks",
         },
+        "stratified_by_local_signal": {
+            name: {"n": a + b, "share_earlier": round(a / (a + b), 4) if a + b else None,
+                   "sign_test_p": sign_test(a, b)}
+            for name, (a, b) in strata.items()},
         "paired_on_wrong_rows": {
             "wrong_answer_earlier_than_gold": earlier,
             "wrong_answer_later_than_gold": later,
@@ -153,6 +173,11 @@ def main():
              100 * paired["share_earlier"], paired["wrong_answer_later_than_gold"]))
     print("  mean signed shift %+.4f | sign test p = %.3g"
           % (paired["mean_signed_shift"], paired["sign_test_p"]))
+    print("stratified by whether the context offered a local signal:")
+    for name, cell in doc["stratified_by_local_signal"].items():
+        print("  %-18s n=%-4d earlier %5.1f%%  p=%.2g"
+              % (name, cell["n"], 100 * (cell["share_earlier"] or 0),
+                 cell["sign_test_p"]))
     print("\n%s" % doc["verdict"])
     return 0
 
