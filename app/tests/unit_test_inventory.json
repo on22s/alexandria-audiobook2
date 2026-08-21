@@ -1397,6 +1397,19 @@
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
   ],
+  "test_name_variant_triage": [
+    "tests.test_name_variant_triage.ClassifyTest.test_a_drawn_out_name_is_a_deliberate_stretch",
+    "tests.test_name_variant_triage.ClassifyTest.test_a_name_the_cast_list_does_not_know_is_flagged_honestly",
+    "tests.test_name_variant_triage.ClassifyTest.test_an_apostrophe_form_is_reported_as_such",
+    "tests.test_name_variant_triage.ClassifyTest.test_an_unexplained_difference_stays_genuine",
+    "tests.test_name_variant_triage.ClassifyTest.test_the_stretch_must_be_the_minority_spelling",
+    "tests.test_name_variant_triage.RosterTest.test_a_missing_file_contributes_nothing_rather_than_raising",
+    "tests.test_name_variant_triage.RosterTest.test_an_empty_roster_makes_everything_look_uncast",
+    "tests.test_name_variant_triage.RosterTest.test_keys_and_alias_values_both_count",
+    "tests.test_name_variant_triage.StretchPatternTest.test_a_plain_name_does_not_match",
+    "tests.test_name_variant_triage.StretchPatternTest.test_an_apostrophe_form_is_not_a_stretch",
+    "tests.test_name_variant_triage.StretchPatternTest.test_both_real_stretches_match"
+  ],
   "test_narration_context": [
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_a_mislabelled_narration_line_costs_a_retry_and_still_ends_NARRATOR",
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_narration_never_reaches_the_roster",
