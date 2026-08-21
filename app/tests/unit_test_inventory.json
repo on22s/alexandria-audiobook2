@@ -2208,6 +2208,20 @@
     "tests.test_split_quote_evidence.PartCountTest.test_a_split_quotation_reports_its_parts",
     "tests.test_split_quote_evidence.PartCountTest.test_a_whole_quotation_is_one_part"
   ],
+  "test_split_quote_repair": [
+    "tests.test_split_quote_repair.InnerNarrationTest.test_a_single_part_quotation_has_none",
+    "tests.test_split_quote_repair.InnerNarrationTest.test_abutting_parts_are_indistinguishable_from_a_whole_quote",
+    "tests.test_split_quote_repair.InnerNarrationTest.test_the_gap_between_parts_is_recovered",
+    "tests.test_split_quote_repair.InnerNarrationTest.test_three_parts_yield_both_gaps_in_order",
+    "tests.test_split_quote_repair.PromptVariantTest.test_a_fixture_without_the_field_does_not_crash_the_arm",
+    "tests.test_split_quote_repair.PromptVariantTest.test_a_single_part_quote_gets_no_extra_block",
+    "tests.test_split_quote_repair.PromptVariantTest.test_control_is_untouched_by_any_of_this",
+    "tests.test_split_quote_repair.PromptVariantTest.test_the_narration_is_appended_and_labelled",
+    "tests.test_split_quote_repair.PromptVariantTest.test_the_variant_is_offered",
+    "tests.test_split_quote_repair.PromptVariantTest.test_the_variant_list_is_pinned_exactly",
+    "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
+    "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
+  ],
   "test_stage3_harnesses": [
     "tests.test_stage3_harnesses.TestStage3HarnessesFailLoudly.test_clone_phase_is_required",
     "tests.test_stage3_harnesses.TestStage3HarnessesFailLoudly.test_clone_score_refuses_missing_manifest",

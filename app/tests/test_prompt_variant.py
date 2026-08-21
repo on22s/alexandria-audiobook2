@@ -43,5 +43,5 @@ class PromptVariantTest(unittest.TestCase):
         is for: an arm that appears without anyone noticing is an arm nobody
         wrote a hypothesis for.
         """
-        self.assertEqual(("control", "explicit_hint", "shuffled_roster"),
-                         PROMPT_VARIANTS)
+        self.assertEqual(("control", "explicit_hint", "shuffled_roster",
+                          "inner_narration"), PROMPT_VARIANTS)
