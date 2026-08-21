@@ -1,9 +1,9 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 224,
+    "supported_structure": 226,
     "exploratory": 193,
-    "provisional": 122
+    "provisional": 123
   },
   "artifacts": [
     {
@@ -2357,6 +2357,22 @@
       "dirty": false,
       "classification": "exploratory",
       "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "constraint_refine.json",
+      "bytes": 7973,
+      "sha256": "58b1e97d8b38925b1b2fb073a703a5c08a14ef601c3901f42a0e459d88b425c8",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T03:52:32",
+      "commit": "0669cfd19442683c8f7061c24cbba675837fb9af",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "context_width__grimgar03__qwen__qwen3-14b__local-llamacpp.json",
@@ -7886,6 +7902,22 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "two_stage_attribution_w3200.json",
+      "bytes": 5664128,
+      "sha256": "1eb7c68ac52c9d8e3b6754530e6b19e1bc61cf913f59526de7b827ad977f9845",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 2494,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "9c7a7032f391072afc2356d457effa2f8beea00c",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "two_stage_diagnostic.json",
       "bytes": 6582,
       "sha256": "f93e251f06670b932d779f2a33e215a82ebb70f7c76f28317797a51ef60cf52b",
@@ -7930,6 +7962,22 @@
       "written": "2026-08-20T02:59:49",
       "commit": "d666f3a71e76bf7a71d516e2efb6fa14acef6a82",
       "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "two_stage_selection_gap_w3200.json",
+      "bytes": 1067,
+      "sha256": "0cc18ad4fddc03f90b146e581454e2267b67f1482fb7a06e61cc6e050e91bf25",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T21:53:46",
+      "commit": "0d6c15f255dab267a3bb721a62bacd9879198489",
+      "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
     },

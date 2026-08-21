@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 539 artifacts, 594 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 542 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -756,10 +756,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 50.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 53.8% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 68.2% | supported_measurement | ok | False | 2662.3s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 70.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 60.4% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 70.5% | supported_measurement | ok | False | 2662.3s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 60.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 50.6% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | supported_measurement | ok | False | 2662.3s |
 
 ## voting
 
@@ -863,6 +866,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `chunk_completion_qwen3.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `clone_vs_lora_seeded.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cluster_vs_name.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `constraint_refine.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `corpus_hnr_baseline.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cpu_chain_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `crossbook_normalization.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1132,6 +1136,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `two_stage_diagnostic.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_diagnostic2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `two_stage_selection_gap.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `two_stage_selection_gap_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `validation_baseline.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `validation_manifest.json` | SKIPPED: not a result object (list) |
 | `validation_smoke.json` | SKIPPED: 'rows' is not a list of scored arms |

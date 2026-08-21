@@ -1,0 +1,44 @@
+{
+ "artifact": "two_stage_attribution_w3200.json",
+ "rows": 2494,
+ "field_said_absent": 0,
+ "actually_available": 2494,
+ "selection_failures": 857,
+ "by_quote_type": {
+  "Anaphoric": {
+   "n": 723,
+   "wrong": 208,
+   "answer_available": 723,
+   "wrong_but_available": 208
+  },
+  "Explicit": {
+   "n": 543,
+   "wrong": 193,
+   "answer_available": 543,
+   "wrong_but_available": 193
+  },
+  "Implicit": {
+   "n": 1228,
+   "wrong": 456,
+   "answer_available": 1228,
+   "wrong_but_available": 456
+  }
+ },
+ "provenance": {
+  "script": "two_stage_selection_gap.py",
+  "written": "2026-08-20T21:53:46",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0d6c15f255dab267a3bb721a62bacd9879198489",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "artifact": "ab_test_runtime/experiments/two_stage_attribution_w3200.json",
+   "out": "ab_test_runtime/experiments/two_stage_selection_gap_w3200.json"
+  }
+ }
+}
