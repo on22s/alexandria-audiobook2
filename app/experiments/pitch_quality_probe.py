@@ -158,7 +158,29 @@ def main():
             print(f"SKIP {lang}: no manifest at {path}", flush=True)
             continue
         result["languages"][lang] = {}
+        # AN ARM THAT WAS NEVER GENERATED IS NOT A BROKEN PATH. The refusal in
+        # run_language - "every one of N pairs was dropped, check the paths" -
+        # is right when an arm exists and its files cannot be resolved, and it
+        # has caught real path bugs. It cannot tell that from an arm the
+        # artifact simply does not contain: the long-reference run generates
+        # CLONE ONLY, because the LoRA arm never reads the reference clip, and
+        # scoring it would spend the card reproducing a number already held.
+        # That killed the whole stage after every clip had been generated.
+        #
+        # So the two conditions are separated here, before run_language is
+        # asked. Absent is reported and skipped; present-but-unresolvable still
+        # raises, because that one is a bug.
+        with open(path, encoding="utf-8") as handle:
+            rows = (json.load(handle).get("results")
+                    or json.load(open(path, encoding="utf-8")).get("rows") or [])
         for arm in ("lora_wav", "clone_wav"):
+            if not any(isinstance(r, dict) and r.get(arm) for r in rows):
+                print(f"=== {lang} {arm} === not in this artifact; skipping",
+                      flush=True)
+                result["languages"][lang][arm] = {
+                    "skipped": "arm not present in the artifact",
+                    "n_pairs": 0, "dropped": 0, "summary": {}, "pairs": []}
+                continue
             print(f"=== {lang} {arm} ===", flush=True)
             result["languages"][lang][arm] = run_language(path, args.lines, arm)
 

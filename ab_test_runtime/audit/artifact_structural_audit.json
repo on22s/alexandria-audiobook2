@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 224,
-    "exploratory": 192,
+    "exploratory": 193,
     "provisional": 122
   },
   "artifacts": [
@@ -5832,6 +5832,19 @@
       "artifact": "pitch_quality_SSB0748.json",
       "bytes": 302735,
       "sha256": "f0ad25d1b4b06b3c2f1f76d4cbcdd0049a61cf9ddd63715a444bd39dcdd25ea0",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pitch_quality_longref.json",
+      "bytes": 254589,
+      "sha256": "72cfb033e8ed5b3fa51c5e13f03dc9d82e9443fa4d82dc2dec0a5efb9dcbb3ae",
       "completeness": "unknown",
       "seed": null,
       "status": null,

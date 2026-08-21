@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 538 artifacts, 594 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 539 artifacts, 594 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1042,6 +1042,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_quality_SSB0748.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pitch_quality_longref.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_quality_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_quality_probe_n200.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pitch_separation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
