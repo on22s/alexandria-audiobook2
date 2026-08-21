@@ -31,6 +31,15 @@
     "tests.test_analyze_generation_attempts.RecoveryByBandTests.test_no_later_accepted_attempt_is_not_recovery",
     "tests.test_analyze_generation_attempts.SplitOutcomesTests.test_counts_only_adaptively_split_chunks"
   ],
+  "test_anchor_length_audit": [
+    "tests.test_anchor_length_audit.AuditTest.test_a_ceiling_below_an_arm_is_flagged",
+    "tests.test_anchor_length_audit.AuditTest.test_a_list_shaped_file_is_skipped_rather_than_crashing",
+    "tests.test_anchor_length_audit.AuditTest.test_an_artifact_with_no_anchor_seconds_is_skipped",
+    "tests.test_anchor_length_audit.AuditTest.test_both_sides_are_reported_separately",
+    "tests.test_anchor_length_audit.AuditTest.test_the_gap_is_reported_not_just_the_boolean",
+    "tests.test_anchor_length_audit.AuditTest.test_the_shortest_anchor_is_kept_not_only_the_median",
+    "tests.test_anchor_length_audit.MedianTest.test_an_empty_list_is_none"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",
@@ -298,6 +307,8 @@
   "test_character_distinctiveness": [
     "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
     "tests.test_character_distinctiveness.ManifestTest.test_clips_are_grouped_by_the_chunk_speaker",
+    "tests.test_character_distinctiveness.MeanOverlapFeaturesTest.test_clip_length_is_still_reported_per_pair",
+    "tests.test_character_distinctiveness.MeanOverlapFeaturesTest.test_the_summary_averages_only_the_discriminating_features",
     "tests.test_character_distinctiveness.MedianTest.test_all_missing_is_none",
     "tests.test_character_distinctiveness.MedianTest.test_an_even_count_averages_the_middle_pair",
     "tests.test_character_distinctiveness.MedianTest.test_it_ignores_missing_values",
@@ -2177,6 +2188,18 @@
   "test_stage7_pitch_runner": [
     "tests.test_stage7_pitch_runner.Stage7PitchRunnerTests.test_full_job_is_all_adapters_seeds_and_passages",
     "tests.test_stage7_pitch_runner.Stage7PitchRunnerTests.test_pilot_gate_requires_three_real_measurements"
+  ],
+  "test_statistic_discriminability": [
+    "tests.test_statistic_discriminability.FRatioTest.test_a_group_too_small_to_have_scatter_is_excluded",
+    "tests.test_statistic_discriminability.FRatioTest.test_fewer_than_two_usable_groups_is_none",
+    "tests.test_statistic_discriminability.FRatioTest.test_groups_that_overlap_completely_score_low",
+    "tests.test_statistic_discriminability.FRatioTest.test_identical_groups_have_no_within_variance_and_return_none",
+    "tests.test_statistic_discriminability.FRatioTest.test_none_values_are_dropped_not_treated_as_zero",
+    "tests.test_statistic_discriminability.FRatioTest.test_well_separated_groups_score_high",
+    "tests.test_statistic_discriminability.FRatioTest.test_within_group_scatter_sinks_the_ratio",
+    "tests.test_statistic_discriminability.MeanTest.test_an_empty_group_is_none_not_zero",
+    "tests.test_statistic_discriminability.VerdictShapeTest.test_a_variance_statistic_can_win_and_must_be_visible",
+    "tests.test_statistic_discriminability.VerdictShapeTest.test_the_real_ordering_that_motivated_the_seconds_exclusion"
   ],
   "test_support": [],
   "test_system_version": [

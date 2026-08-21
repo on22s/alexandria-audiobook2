@@ -1,0 +1,132 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "anchor_length_audit.py",
+  "written": "2026-08-21T08:55:04",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "9b4f1ad76f0191531301f6e8f381622cbd21a634",
+   "branch": "agent/anchor-length-audit-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/anchor_length_audit.py"
+   ],
+   "harness_sha256": "4a3cc7170bc58d1a0d2adc9489d94d206c3d48ee4a37369d9e5682ae698e6cf6"
+  },
+  "args": {
+   "scores": [
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/aishell3_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/aishell3_SSB0748_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/kokoro_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/ljspeech_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__en_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__ja_score.json",
+    "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/experiments/longref__zh_score.json"
+   ],
+   "min_seconds": 7.0,
+   "out": "anchor_length_audit.json"
+  }
+ },
+ "scope": "anchor length, test length and ceiling as they stand in the score artifacts; nothing was re-scored",
+ "anchor_min_seconds": 7.0,
+ "artifacts": [
+  {
+   "artifact": "aishell3_SSB0748_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 9.35,
+   "anchor_seconds_min": 7.02,
+   "test_seconds_median": 4.48,
+   "ceiling": 0.7401,
+   "arms": {
+    "clone": 0.739,
+    "lora": 0.6763
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.001
+  },
+  {
+   "artifact": "aishell3_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 8.79,
+   "anchor_seconds_min": 7.02,
+   "test_seconds_median": 3.17,
+   "ceiling": 0.7655,
+   "arms": {
+    "clone": 0.7651,
+    "lora": 0.7197
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.0004
+  },
+  {
+   "artifact": "kokoro_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 9.52,
+   "anchor_seconds_min": 7.05,
+   "test_seconds_median": 4.71,
+   "ceiling": 0.8355,
+   "arms": {
+    "clone": 0.7789,
+    "lora": 0.7551
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.0565
+  },
+  {
+   "artifact": "ljspeech_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 9.43,
+   "anchor_seconds_min": 7.15,
+   "test_seconds_median": 7.33,
+   "ceiling": 0.8328,
+   "arms": {
+    "clone": 0.7567,
+    "lora": 0.6899
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.0761
+  },
+  {
+   "artifact": "longref__en_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 9.43,
+   "anchor_seconds_min": 7.15,
+   "test_seconds_median": 7.33,
+   "ceiling": 0.8328,
+   "arms": {
+    "clone": 0.728
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.1048
+  },
+  {
+   "artifact": "longref__ja_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 9.52,
+   "anchor_seconds_min": 7.05,
+   "test_seconds_median": 4.71,
+   "ceiling": 0.8355,
+   "arms": {
+    "clone": 0.7993
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.0362
+  },
+  {
+   "artifact": "longref__zh_score.json",
+   "rows": 150,
+   "anchor_seconds_median": 8.79,
+   "anchor_seconds_min": 7.02,
+   "test_seconds_median": 3.17,
+   "ceiling": 0.7655,
+   "arms": {
+    "clone": 0.6415
+   },
+   "ceiling_clears_every_arm": true,
+   "closest_arm_gap": 0.124
+  }
+ ],
+ "artifacts_with_an_anchor_below_the_minimum": [],
+ "verdict": "anchor length is already controlled: every anchor meets the minimum, so lengthening them is not an available lever"
+}
