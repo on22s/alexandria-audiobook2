@@ -1,0 +1,45 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "descriptor_candidates.py",
+  "written": "2026-08-21T13:02:41",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b73b21a687c86a69340445cb32912fe46031b50e",
+   "branch": "agent/descriptor-candidates-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/descriptor_candidates.py"
+   ],
+   "harness_sha256": "5fd09d9a32f036b81541b21eb14ec378e975d27f52adc2c6443e6181871ed7b4"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": "fixtures",
+   "out": "descriptor_candidates.json"
+  }
+ },
+ "scope": "whether role-label candidates behave differently from named ones, and whether they confound the ordering result in #383",
+ "rows": 2494,
+ "by_gold_kind": {
+  "named": {
+   "n": 2459,
+   "share": 0.986,
+   "accuracy": 0.6556
+  },
+  "descriptor": {
+   "n": 35,
+   "share": 0.014,
+   "accuracy": 0.7143
+  }
+ },
+ "wrong_rows_by_kind": {
+  "named -> named": 813,
+  "descriptor -> named": 7,
+  "named -> descriptor": 18
+ },
+ "mean_roster_share_descriptors": 0.1055,
+ "confounds_383": false,
+ "verdict": "descriptors are too rare here to explain #383: they are 1.4% of gold answers and 18 of 838 wrong rows reach for one. The ordering finding stands as positional. PDNC is not the corpus to settle this on - our own cast lists are roughly a third role labels and PDNC is under two percent"
+}

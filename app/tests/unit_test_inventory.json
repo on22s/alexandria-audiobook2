@@ -559,6 +559,19 @@
     "tests.test_derived_file_hooks.SingleSourceTest.test_python_either_answers_or_fails_loudly",
     "tests.test_derived_file_hooks.SingleSourceTest.test_the_derived_list_lives_in_exactly_one_script"
   ],
+  "test_descriptor_candidates": [
+    "tests.test_descriptor_candidates.AnalyseTest.test_a_row_whose_gold_is_off_roster_is_skipped",
+    "tests.test_descriptor_candidates.AnalyseTest.test_correct_rows_never_enter_the_wrong_row_counts",
+    "tests.test_descriptor_candidates.AnalyseTest.test_gold_kind_splits_the_rows",
+    "tests.test_descriptor_candidates.AnalyseTest.test_reaching_for_a_descriptor_is_counted_separately",
+    "tests.test_descriptor_candidates.AnalyseTest.test_the_roster_share_is_reported_separately_from_the_gold_share",
+    "tests.test_descriptor_candidates.DetectorTest.test_a_name_beginning_with_a_is_not_an_article",
+    "tests.test_descriptor_candidates.DetectorTest.test_an_embedded_description_is_caught_by_its_comma",
+    "tests.test_descriptor_candidates.DetectorTest.test_articles_mark_a_description",
+    "tests.test_descriptor_candidates.DetectorTest.test_bare_occupational_nouns_count",
+    "tests.test_descriptor_candidates.DetectorTest.test_blank_input_is_not_a_descriptor",
+    "tests.test_descriptor_candidates.DetectorTest.test_real_names_do_not"
+  ],
   "test_deterministic_classification": [
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_config_can_still_override",
     "tests.test_deterministic_classification.ClassificationTemperatureTest.test_instruct_still_samples",
