@@ -611,6 +611,17 @@
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_ranks_average_ties",
     "tests.test_duration_outlier_analysis.DurationOutlierAnalysisTests.test_spearman_detects_monotonic_directions"
   ],
+  "test_ecapa_duration_confound": [
+    "tests.test_ecapa_duration_confound.QuartileTest.test_quartiles_run_shortest_clips_first",
+    "tests.test_ecapa_duration_confound.QuartileTest.test_too_few_rows_to_quarter_is_none",
+    "tests.test_ecapa_duration_confound.RowExtractionTest.test_a_zero_ceiling_does_not_divide",
+    "tests.test_ecapa_duration_confound.RowExtractionTest.test_rows_missing_either_half_are_skipped",
+    "tests.test_ecapa_duration_confound.SpearmanTest.test_a_constant_series_is_undefined_not_zero",
+    "tests.test_ecapa_duration_confound.SpearmanTest.test_monotone_series_reach_plus_or_minus_one",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_a_flat_ratio_over_climbing_raw_series",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_a_ratio_that_does_track_duration_is_visible",
+    "tests.test_ecapa_duration_confound.VerdictTest.test_median_and_range_describe_the_clips_that_were_scored"
+  ],
   "test_elson_trigram": [
     "tests.test_elson_trigram.AcceptTest.test_a_bare_surname_resolves_when_it_is_unambiguous",
     "tests.test_elson_trigram.AcceptTest.test_a_newline_between_quote_and_attribution",
