@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2124** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2144** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -100,14 +100,34 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 | **overall** | **2494** | **65.6%** |
 
 Against the 52.9% this document records for Explicit at the old window, that is
-**+11.6 points on Explicit** and 65.6% overall. It is also still far from the
-99.3% the field reports on Explicit, and the ordering is strange in a way worth
-following: **Anaphoric now outscores Explicit**, though Explicit names the
+**+11.6 points on Explicit** and 65.6% overall. The ordering is strange in a way
+worth following: **Anaphoric now outscores Explicit**, though Explicit names the
 speaker beside the line and should be the easy case.
 
-**The remaining error is entirely selection.** The gold speaker is in the
+> This paragraph used to add "still far from the 99.3% the field reports on
+> Explicit". That comparison is withdrawn. The 99.3% is measured with GOLD
+> character mentions and the gold character list, which resolves for free what
+> our arm must infer, and the authors call the setting unrealistic themselves.
+> `external_comparability.json` records every external number this project
+> cites with the protocol behind it; of seven, one transfers — Elson's .99,
+> which we reproduced ourselves at **.9899** on the same pattern in our own
+> data. The clearest warning is a single paper reporting zero-shot GPT-3.5 at
+> **10.9%** on one corpus and **70.1%** on another, sixty points apart from
+> protocol alone.
+
+**The remaining error is mostly selection.** The gold speaker is in the
 candidate roster for **100%** of rows, and the model answers something else on
-857 of them. Nothing is missing from the prompt; the pick is wrong.
+857 of them.
+
+> "Nothing is missing from the prompt" was too strong, and is corrected here.
+> For quotations split by narration — `"Bah!" said Scrooge, "Humbug!"`, 31.3%
+> of PDNC — the attribution sat between the parts and reached neither context,
+> so among Explicit rows the annotator's own referring expression was absent
+> from everything the model saw **69.1%** of the time against 1.6% for
+> single-part quotes, costing 11.0 points. Fixed in #385; the fixtures now
+> carry `inner_narration` and the prompt can show it. What remains after that
+> is selection: single-part Explicit rows have the evidence 98.4% of the time
+> and still score .717.
 
 #### A refinement layer was tried on that gap. All three constraints lose.
 
