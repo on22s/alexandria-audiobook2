@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 246,
+    "supported_structure": 247,
     "exploratory": 193,
     "provisional": 123
   },
@@ -5591,6 +5591,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "name_variant_triage.json",
+      "bytes": 2285,
+      "sha256": "3890bbaaedd3b4fe0d7b7711a47ee4bf5fdfb47a902bf6e428f207634bb8d3fd",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T12:50:53",
+      "commit": "c7ef7ab2c5f856b6227ba474f8a4616c8046a236",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json",
