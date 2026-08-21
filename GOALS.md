@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2108** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2124** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -109,33 +109,49 @@ speaker beside the line and should be the easy case.
 candidate roster for **100%** of rows, and the model answers something else on
 857 of them. Nothing is missing from the prompt; the pick is wrong.
 
-#### A refinement layer was tried on that gap, and it loses
+#### A refinement layer was tried on that gap. All three constraints lose.
 
 DiLA (KDD '26) proposes LLM-proposes-then-constraint-repairs, and the shape
 fits: every error above is a pick the roster already contained.
-`constraint_refine.py` tests it with one constraint — alternation, since a
-speaker rarely answers themselves — paired against the model's own output on
-identical rows:
+`constraint_refine.py` tests three constraints, each applied **alone** and
+paired against the model's own output on identical rows — a pass with
+interacting rules that improved the total would not say which rule earned it.
 
-| | |
-|---|---|
-| baseline | 1637/2494 = **65.6%** |
-| after repair | 1355/2494 = **54.3%** |
-| fixed / broke | **190 / 472** |
-| McNemar | **p = 1.3e-28** |
+| constraint | changed | accuracy | fixed / broke | McNemar |
+|---|---|---|---|---|
+| baseline (the model) | — | **65.6%** | — | — |
+| roster repair | 9 | 65.8% | 4 / 0 | 0.125 |
+| alternation | 815 | 54.3% | 190 / 472 | 1.3e-28 |
+| adjacency, last 120 chars | 863 | 49.9% | 85 / 478 | 2.2e-67 |
+| adjacency, last 400 chars | 1734 | 34.1% | 167 / 953 | 4.1e-134 |
+| adjacency, full 3200 | 2258 | **17.8%** | 135 / 1327 | 2.0e-246 |
 
-**It is not close, and the reason is measurable rather than mysterious.** The
-model assigns the same speaker to consecutive quotes 1,010 times and is right
-to on **53.9%** of them — these novels have long single-speaker runs, so
-alternation overwrites a majority-correct decision. One constraint was tested
-deliberately: a repair pass with several interacting rules that improved the
-total would not say which rule earned it.
+**The most useful number here is 49.9%.** That is the best hand-rolled
+proximity baseline — take the roster character named nearest before the quote —
+and the model beats it by **15.7 points**. Whatever the model is doing, it is
+not nearest-mention matching, and the 34.4% selection gap will not be closed by
+positional rules. This is evidence *for* the arm, arrived at while trying to
+improve it.
 
-**What this does not close.** Alternation is the wrong constraint, not proof
-that no constraint helps — the roster-membership and narration-adjacency
-constraints are untested, and unlike this one they do not contradict the
-corpus. What it does establish is that the 34.4% selection gap will not fall to
-a turn-taking prior.
+**Alternation fails for a measurable reason**: the model gives consecutive
+quotes the same speaker 1,010 times and is right on **53.9%** of them. These
+novels have long single-speaker runs, so the rule overwrites a majority-correct
+decision.
+
+**Roster repair is free but unproven.** Only 19 predictions fall outside the
+roster at all — all misspellings, `MR. DARYY` for `MR. DARCY` — and repairing
+them to the nearest roster member fixed 4 and broke 0. Never harmful, worth
+0.2 points, and at n=9 changes not significant. Worth wiring in as hygiene, not
+as a result.
+
+**What this does not close.** Hand-specified constraints lose; it says nothing
+about learned or soft ones, which is what DiLA actually builds. The finding is
+narrower and firmer: the selection gap is not positional.
+
+**The first version of the adjacency rule fired 15 times in 2,494 rows** — it
+required exactly one roster name in `prev_context`, which is 3,200 characters
+and typically holds four or five. Reporting "no separation" on 15 rows would
+have been a statement about the rule's rarity dressed as a result.
 
 **Target — every book ≥ 75% on the local model.** Two of four already clear it;
 owarimonogatari3 needs +5.9 and mushoku16 +2.1.

@@ -95,8 +95,26 @@ class RecordedResultTest(unittest.TestCase):
         d = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(0.656, round(d["baseline_accuracy"], 3),
                          "baseline must match the artifact's own 65.6%")
-        self.assertGreater(d["broke"], d["fixed"])
-        self.assertLess(d["mcnemar_p"], 0.001)
+        c = d["constraints"]
+        self.assertGreater(c["alternation"]["broke"], c["alternation"]["fixed"])
+        for name in ("adjacency", "adjacency_120", "adjacency_400"):
+            with self.subTest(constraint=name):
+                self.assertGreater(c[name]["broke"], c[name]["fixed"],
+                                   "every proximity variant loses to the model")
+        self.assertEqual(0, c["roster"]["broke"],
+                         "roster repair may be small but must never harm")
+
+    def test_the_best_proximity_baseline_is_recorded(self):
+        """The model beating nearest-mention by 15.7 points is the finding
+        worth keeping; it is evidence FOR the arm, found while trying to
+        improve it."""
+        path = REPO / "ab_test_runtime" / "experiments" / "constraint_refine.json"
+        if not path.exists():
+            self.skipTest("artifact not present")
+        d = json.loads(path.read_text(encoding="utf-8"))
+        best = max(d["constraints"][k]["refined_accuracy"]
+                   for k in ("adjacency", "adjacency_120", "adjacency_400"))
+        self.assertLess(best, d["baseline_accuracy"])
 
 
 if __name__ == "__main__":

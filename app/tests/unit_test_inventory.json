@@ -429,6 +429,7 @@
     "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
   ],
   "test_constraint_refine": [
+    "tests.test_constraint_refine.RecordedResultTest.test_the_best_proximity_baseline_is_recorded",
     "tests.test_constraint_refine.RecordedResultTest.test_the_recorded_run_shows_the_repair_losing",
     "tests.test_constraint_refine.RefinementTest.test_a_repeated_speaker_is_reassigned_to_the_previous_distinct_one",
     "tests.test_constraint_refine.RefinementTest.test_alternation_leaves_a_non_repeating_run_alone",
