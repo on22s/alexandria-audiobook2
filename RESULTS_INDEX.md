@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-20 from `ab_test_runtime/experiments/` — 538 artifacts, 594 arms.
+Generated 2026-08-20 from `ab_test_runtime/experiments/` — 541 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -756,10 +756,13 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 50.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 53.8% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 68.2% | supported_measurement | ok | False | 2662.3s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 70.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 60.4% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 70.5% | supported_measurement | ok | False | 2662.3s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 60.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 50.6% | historical_only | ok | False | 718.1s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | supported_measurement | ok | False | 2662.3s |
 
 ## voting
 
@@ -1073,6 +1076,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `reference_rank2_failed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `repair_candidate_reference_text.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `residual_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `respelling_dot_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n1200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_e_row__ay_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1098,6 +1102,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `respelling_separator__none.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_separator__none_n400.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `respelling_separator__space.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `respelling_space_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_bad_refs.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_honest.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `retrain_rebuild_group.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

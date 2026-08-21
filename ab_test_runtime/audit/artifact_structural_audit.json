@@ -1,9 +1,9 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 224,
+    "supported_structure": 226,
     "exploratory": 192,
-    "provisional": 122
+    "provisional": 123
   },
   "artifacts": [
     {
@@ -6503,6 +6503,22 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "respelling_dot_allrows_n1600.json",
+      "bytes": 291768,
+      "sha256": "d20e48e740f0cdf71c8dd392935c4ff177c98e34d3a69b7cced4d77971675af2",
+      "completeness": "partial",
+      "seed": null,
+      "status": "partial",
+      "row_count": 487,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T13:29:35",
+      "commit": "c59da6ef85a1fb22e14c8f06af68f6643be4eb36",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "respelling_e_row__ay.json",
       "bytes": 232164,
       "sha256": "dee9d647cf74e462237c2e257874c5e35b19e90489a351b628679d173c576911",
@@ -6886,6 +6902,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-19T13:34:03",
       "commit": "91648a179fc1807066e58868427eef993aa63c89",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "respelling_space_allrows_n1600.json",
+      "bytes": 928486,
+      "sha256": "cd2081f086b75e1804032a66b3baa45542d9bd90af17abfc07004b2c3b06d37e",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": 1600,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-20T12:48:11",
+      "commit": "80136b3736b187ac3ca5d8a7afd04d79fbebf3a5",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
@@ -7867,6 +7899,22 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "70670ef62b07017c9ec8767897dc7169b1ed86b0",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution_w3200.json",
+      "bytes": 5664128,
+      "sha256": "1eb7c68ac52c9d8e3b6754530e6b19e1bc61cf913f59526de7b827ad977f9845",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 2494,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "9c7a7032f391072afc2356d457effa2f8beea00c",
       "written": null,
       "dirty": false,
       "classification": "provisional",
