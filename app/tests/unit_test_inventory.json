@@ -1059,6 +1059,11 @@
     "tests.test_library_eval_build.BuildShapeTest.test_every_key_the_consumer_reads_is_present",
     "tests.test_library_eval_build.BuildShapeTest.test_the_book_is_the_voice_it_came_from"
   ],
+  "test_limit_zero_means_all": [
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_no_script_slices_rows_by_a_bare_limit",
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_slicing_semantics_directly",
+    "tests.test_limit_zero_means_all.LimitConventionTest.test_the_help_text_says_what_zero_does"
+  ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
     "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",

@@ -108,7 +108,9 @@ def main():
     ap.add_argument("--generated", required=True,
                     help="an *_generate.json artifact: rows of human/arm pairs")
     ap.add_argument("--arm", default=None, help="which arm (default: all)")
-    ap.add_argument("--limit", type=int, default=20)
+    ap.add_argument("--limit", type=int, default=20,
+                    help="rows to score; 0 means all, matching "
+                         "ljspeech_generate which writes these artifacts")
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "prosody_fidelity.json"))
     args = ap.parse_args()
@@ -123,7 +125,13 @@ def main():
     results = {}
     for arm in arms:
         scored = []
-        for row in rows[:args.limit]:
+        # `--limit 0` MEANS ALL, as it does in ljspeech_generate, which is what
+        # produces the artifacts this reads. Here `rows[:0]` was the empty
+        # list, so a chain passing --limit 0 scored nothing and exited "no
+        # human/generated pair could be resolved" - on an artifact whose 20
+        # rows all had their human and generated wavs present on disk. Loud,
+        # correct, and pointing at the wrong thing.
+        for row in (rows[:args.limit] if args.limit else rows):
             human = row.get("human_wav")
             generated = (row.get(arm) or {}).get("wav") if isinstance(
                 row.get(arm), dict) else row.get(f"{arm}_wav")
