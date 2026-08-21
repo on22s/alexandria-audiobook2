@@ -1,0 +1,60 @@
+{
+ "status": "complete",
+ "what": "WP2021 converted to attribution fixtures: a Chinese corpus whose gold is a CHARACTER",
+ "provenance": {
+  "script": "wp2021_fixture.py",
+  "written": "2026-08-21T14:22:53",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b28ac69d6218322740ce70eacac3b3cfc606c08c",
+   "branch": "agent/wp2021-chinese-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M .gitignore"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/wp2021_fixture.py"
+   ],
+   "harness_sha256": "9e4b188d0e9d56c251b6401e7c43c71330313a72776a7e26010d492f7ba46b2f"
+  }
+ },
+ "corpus": {
+  "name": "WP2021 / World of Plainness",
+  "cite": "Chen, Ling & Dai, Interspeech 2019",
+  "url": "https://github.com/chenjiaxiang/Chinese-dataset-for-speaker-identification",
+  "licence": "none stated; fetched and converted locally, never committed",
+  "language": "zh",
+  "characters": 125
+ },
+ "why_it_matters": "every method result in GOALS.md comes from four Japanese light novels IN TRANSLATION; nothing has been validated on non-English prose. Goal 1.3 is the document's largest known overstatement. This is a corpus where the gold is a canonical character with alias groups and gender, unlike RiQuA whose golds are unresolved mention spans (39.4% bare pronouns).",
+ "not_an_addressee_corpus": "WP2021 has NO addressee field and cannot test addressee_confusion.py. That needs PDNC, RiQuA, or the Japanese BCCWJ annotation.",
+ "quotes_total": 1835,
+ "per_split": {
+  "wp2021_dev": {
+   "quotes": 180,
+   "speakers": 41
+  },
+  "wp2021_test": {
+   "quotes": 215,
+   "speakers": 36
+  },
+  "wp2021_train": {
+   "quotes": 1440,
+   "speakers": 91
+  }
+ },
+ "format_consistency": {
+  "instances": 1835,
+  "window_is_21_sentences": 1835,
+  "centre_line_is_a_quote": 1835,
+  "gold_is_among_candidates": 1835,
+  "gold_index_in_range": 1835,
+  "gold_named_in_window": 1835
+ },
+ "format_consistency_note": "all five properties hold on every instance. They are asserted on every build, not assumed: an earlier reader of the SQuAD-shaped re-release GUESSED the field meanings, ran clean, passed 14 tests and reported 99.8% resolved, but agreed with the quote's own named speaker only 11.6% of the time. A passing test does not ask whether the format assumption holds.",
+ "released_splits_are_smaller_than_the_paper": "the paper reports 2,548 quotes in the final dataset; the released train/dev/test files contain 1,835 instances. Verified not to be a parser bug: strict, loose and any-bracket counts of block markers all agree at 1,835. Recorded as an observation, unexplained.",
+ "siblings_same_repo_family": {
+  "JY": "5,719 dev quotes, 296 speakers, 0.0% pronoun, NO alias file",
+  "CSI": "52,509 dev quotes, 2,712 speakers, 1.5% pronoun, NO alias file"
+ }
+}
