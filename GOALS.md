@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2195** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2225** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2100,7 +2100,37 @@ are believed.
 and f0 against the human, per line) and `app/experiments/asr_clip_view.py`
 (waveform, spectrogram, reference and hypothesis, for the clips an ASR arm
 scored worst).
-**Current** — **6 views, still OPEN.** Three from 2026-08-06 (`ljspeech`,
+#### A person listened, and heard something no metric here measures — 2026-08-21
+
+`listening_verdicts.json`. The first human ratings this project has ever
+carried: 3 of the 10 character pairs in `character_distinctiveness.json`, one
+rater, unblinded. The distinctiveness numbers held up — the pair at 0.9
+semitones drew "probably_different… sometimes sounds like a little girl but
+not always", and both pairs above 6 semitones drew "clearly_different", so the
+ordering the metric gives matches what was heard on all three.
+
+**The verdicts agreed. The notes did not.** Two of the three say the audio is
+*bad* — "the highs of it were breaking, like the character's voice was
+cracking, it was very bad", "very unpleasant". Both point at one clip,
+`chapter_audio/2702aec220b0.wav` (Subaru, `lora`), which appeared in both
+rated pairs. Nothing in this document measures that. Distinctiveness, f0
+spread, speaker similarity and duration ratio can all be MET on a clip a
+listener calls unpleasant, and on this evidence at least one of them is.
+
+That clip carries **the highest median f0 of Subaru's 15 clips, 386.5 Hz
+against the character's own 264.8 Hz** — about 7 semitones above centre. It is
+one clip heard twice, so "this render is bad" and "the voice breaks when
+pushed high" both fit; three higher-pitched Subaru clips and a control were
+sent to the rater on 2026-08-21 to separate them, and are unanswered.
+
+**A cracking metric was built and discarded before it was used** ([[Rule 21]]).
+Frame-to-frame f0 jumps above 6 semitones looked diagnostic on Subaru
+(12–28% of frames) until the NARRATOR — whose audio drew no complaint — scored
+10.4–17.8%, overlapping Subaru entirely and exceeding the flagged clip's
+15.9%. It measures YIN octave errors, not audible cracking. Recorded in the
+artifact so it is not rebuilt.
+
+**Current** — **6 views and 3 rated pairs, still OPEN.** Three views from 2026-08-06 (`ljspeech`,
 `kokoro`, `aishell3`) and three added 2026-08-16: `kokoro_same_speaker.html`,
 `aishell3_SSB0748.html`, and `asr_clip_view/japanese_worst.html` — the ten
 worst-scoring Japanese clips with their waveform, spectrogram, reference,
