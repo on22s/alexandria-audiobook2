@@ -230,3 +230,8 @@ ab_test_runtime/logs/*.log
 ab_test_runtime/logs/*.lock
 ab_test_runtime/logs/*/
 !ab_test_runtime/logs/dirty_patches/
+
+# RiQuA is fetched, not vendored: no stated licence. See riqua_fixture.py
+attribution_gold_riqua_*.json
+riqua/
+riqua.tar.gz
