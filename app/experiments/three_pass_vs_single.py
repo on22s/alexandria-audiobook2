@@ -107,25 +107,19 @@ def index_entries(path):
 
 
 
-def _is_reusable(out_path, expected_model=None):
-    """True only when a previous run of this arm demonstrably finished.
-
-    A leftover file proves nothing - the failed runs in this project all left
-    output behind, which is the whole reason `accepted_chunk_count` exists. So
-    reuse requires the sibling generation_quality record to say `complete`
-    with every chunk accepted, and, when a model is named, to say it was that
-    model. Anything else re-runs.
-    """
-    if not os.path.exists(out_path):
-        return False
-    quality = out_path + ".generation_quality.json"
-    if not os.path.exists(quality):
-        return False
+def _load_json(path):
+    """-> parsed JSON, or None. A record that cannot be read proves nothing."""
+    if not os.path.exists(path):
+        return None
     try:
-        with open(quality, encoding="utf-8") as handle:
-            record = json.load(handle)
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
     except (OSError, ValueError):
-        return False
+        return None
+
+
+def _single_pass_finished(record, expected_model):
+    """The generation_quality record, written by generate_script.py."""
     total = record.get("total_chunks")
     if record.get("status") != "complete" or not total:
         return False
@@ -134,6 +128,60 @@ def _is_reusable(out_path, expected_model=None):
     if expected_model and record.get("model_name") != expected_model:
         return False
     return True
+
+
+def _three_pass_finished(record, expected_model):
+    """The threepass_manifest record, written by three_pass_generate.py.
+
+    The three-pass arm never wrote a generation_quality file, so this function
+    did not exist and `_is_reusable` returned False for every three-pass arm
+    that had ever run. The cost was invisible until a stage ran long: on
+    2026-08-21 the light-novel stage was killed by its 6h cap at chunk 86 of
+    110 of its third book, and a resume would have re-run all four COMPLETED
+    three-pass arms - about 92 minutes of card time to reproduce files already
+    on disk - because nothing could say they were finished.
+
+    The manifest carries stronger evidence than the single-pass record does, so
+    this check is stricter rather than looser: chunks_completed must equal
+    chunks_total, the diagnostic failure list must be empty, and the model name
+    lives in the fingerprint.
+    """
+    progress = record.get("progress") or {}
+    total = progress.get("chunks_total")
+    if record.get("status") != "complete" or not total:
+        return False
+    if progress.get("chunks_completed") != total:
+        return False
+    if record.get("diagnostic_failures"):
+        return False
+    if expected_model:
+        fingerprint = record.get("fingerprint") or {}
+        if fingerprint.get("model_name") != expected_model:
+            return False
+    return True
+
+
+def _is_reusable(out_path, expected_model=None):
+    """True only when a previous run of this arm demonstrably finished.
+
+    A leftover file proves nothing - the failed runs in this project all left
+    output behind, which is the whole reason `accepted_chunk_count` exists. So
+    reuse requires a sibling record that says the run finished, and, when a
+    model is named, that it was that model. Anything else re-runs.
+
+    The two arms write different records. Neither present means no evidence,
+    which is not the same as evidence of failure, and both are treated the same
+    way here: re-run.
+    """
+    if not os.path.exists(out_path):
+        return False
+    quality = _load_json(out_path + ".generation_quality.json")
+    if quality is not None:
+        return _single_pass_finished(quality, expected_model)
+    manifest = _load_json(out_path + ".threepass_manifest.json")
+    if manifest is not None:
+        return _three_pass_finished(manifest, expected_model)
+    return False
 
 
 def main():

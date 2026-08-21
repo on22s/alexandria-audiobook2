@@ -2378,6 +2378,22 @@
     "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_resolution_happens_before_the_paths_are_used",
     "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_the_harness_resolves_its_three_path_arguments"
   ],
+  "test_threepass_reuse": [
+    "tests.test_threepass_reuse.ReuseTest.test_a_complete_manifest_is_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_a_complete_quality_record_is_still_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_a_manifest_from_another_model_is_not",
+    "tests.test_threepass_reuse.ReuseTest.test_a_manifest_not_marked_complete_is_not",
+    "tests.test_threepass_reuse.ReuseTest.test_a_manifest_short_of_its_chunk_count_is_not",
+    "tests.test_threepass_reuse.ReuseTest.test_a_manifest_with_diagnostic_failures_is_not",
+    "tests.test_threepass_reuse.ReuseTest.test_a_manifest_with_no_chunk_total_is_not_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_a_missing_output_is_not_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_a_quality_record_from_another_model_is_still_rejected",
+    "tests.test_threepass_reuse.ReuseTest.test_a_quality_record_wins_when_both_are_present",
+    "tests.test_threepass_reuse.ReuseTest.test_an_incomplete_quality_record_is_still_rejected",
+    "tests.test_threepass_reuse.ReuseTest.test_an_unreadable_sibling_is_not_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_output_with_no_sibling_record_is_not_reusable",
+    "tests.test_threepass_reuse.ReuseTest.test_the_model_check_is_skipped_when_no_model_is_named"
+  ],
   "test_thunder_benchmark_documentation": [
     "tests.test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_dataset_builder_is_not_silently_equated_to_voice_design",
     "tests.test_thunder_benchmark_documentation.ThunderBenchmarkDocumentationTests.test_guide_links_canonical_summary_and_preserves_scope_limits",
