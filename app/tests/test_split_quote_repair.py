@@ -60,10 +60,16 @@ class PromptVariantTest(unittest.TestCase):
     def test_the_variant_is_offered(self):
         self.assertIn("inner_narration", PROMPT_VARIANTS)
 
-    def test_the_variant_list_is_pinned_exactly(self):
-        """Adding an arm must be a decision. This failed when each was added."""
-        self.assertEqual(("control", "explicit_hint", "shuffled_roster",
-                          "inner_narration"), PROMPT_VARIANTS)
+    def test_this_arm_is_offered(self):
+        """The exact tuple is pinned once, in test_prompt_variant.
+
+        It was pinned HERE too, and both copies had to be edited every time an
+        arm was added - two independently-maintained statements of one
+        decision, which is the drift Rule 15 is about, occurring inside the
+        tests written to prevent it. This file now asserts only what it is
+        about: that `inner_narration` exists.
+        """
+        self.assertIn("inner_narration", PROMPT_VARIANTS)
 
     def test_control_is_untouched_by_any_of_this(self):
         """The whole ledger depends on this staying byte-identical."""
