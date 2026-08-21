@@ -44,4 +44,5 @@ class PromptVariantTest(unittest.TestCase):
         wrote a hypothesis for.
         """
         self.assertEqual(("control", "explicit_hint", "shuffled_roster",
-                          "inner_narration"), PROMPT_VARIANTS)
+                          "inner_narration", "speaker_not_addressee"),
+                         PROMPT_VARIANTS)
