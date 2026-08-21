@@ -1168,6 +1168,12 @@
     "tests.test_gpu_job.VramGateTest.test_the_same_job_runs_when_the_card_is_free",
     "tests.test_gpu_job.VramGateTest.test_zero_disables_the_check_for_small_jobs"
   ],
+  "test_gpu_pause_markers": [
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_a_bare_start_reads_as_running",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_every_terminal_marker_clears_the_job",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_markers_that_still_run_the_job_do_not_clear_it",
+    "tests.test_gpu_pause_markers.TerminalMarkerTests.test_no_llm_clears_the_job"
+  ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_returns_none_on_unparseable_output",
