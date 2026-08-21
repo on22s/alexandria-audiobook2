@@ -102,3 +102,44 @@ class ManifestTest(unittest.TestCase):
             json.dump([{"uid": "aaa", "speaker": ""}], handle)
         by_speaker, _ = load_manifest(chunks, audio)
         self.assertEqual(["?"], list(by_speaker))
+
+
+class MeanOverlapFeaturesTest(unittest.TestCase):
+    """Clip length is reported but must not dilute the summary.
+
+    statistic_discriminability puts `seconds` at an F-ratio of 2.24 between
+    these characters, against 43.63 for f0 median and 22.43 for energy. With
+    it averaged in, NARRATOR vs Subaru - twelve semitones apart - read 0.355
+    and ranked mid-table; without it, 0.201 and last. Averaging a near-noise
+    feature into the summary changed which pair looked most alike.
+    """
+
+    def test_the_summary_averages_only_the_discriminating_features(self):
+        import experiments.character_distinctiveness as mod
+        source = open(mod.__file__, encoding="utf-8").read()
+        start = source.index('values = [row[k] for k in (')
+        window = source[start:start + 200]
+        self.assertIn('"f0_overlap"', window)
+        self.assertIn('"rms_overlap"', window)
+        self.assertNotIn('"seconds_overlap"', window,
+                         "clip length is back in the mean; it has an F-ratio "
+                         "of 2.24 and inverted the pair ranking last time")
+
+    def test_clip_length_is_still_reported_per_pair(self):
+        """Excluded from the mean is not the same as thrown away.
+
+        Checked against the ARTIFACT, not the source: the key is built as
+        "%s_overlap" % key, so grepping the file for the literal string finds
+        nothing and a source-level test would fail for the wrong reason. It
+        did, once.
+        """
+        import pathlib
+        repo = pathlib.Path(__file__).parent.parent.parent
+        path = repo / "ab_test_runtime/experiments/character_distinctiveness.json"
+        if not path.exists():
+            self.skipTest("no artifact in this checkout")
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(["f0_overlap", "rms_overlap"],
+                         doc.get("mean_overlap_features"))
+        self.assertIn("seconds_overlap", doc["pairs"][0],
+                      "clip length must still be reported, just not averaged")

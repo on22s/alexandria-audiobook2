@@ -175,8 +175,16 @@ def main():
             row["f0_semitones_apart"] = None if semitones(
                 measured[a]["f0_median"], measured[b]["f0_median"]) is None else round(
                 semitones(measured[a]["f0_median"], measured[b]["f0_median"]), 2)
-            values = [row[k] for k in ("f0_overlap", "rms_overlap",
-                                       "seconds_overlap") if row[k] is not None]
+            # SECONDS IS EXCLUDED FROM THE MEAN, and measured rather than
+            # judged: statistic_discriminability.py puts clip length at an
+            # F-ratio of 2.24 between these characters against 43.63 for f0
+            # median and 22.43 for energy - it barely separates them, and
+            # averaging it in changed which pair ranked most-overlapping.
+            # NARRATOR vs Subaru read 0.355 with it and 0.200 without, on a
+            # pair 12.2 semitones apart. It is still reported per feature; it
+            # is just not allowed to dilute the summary.
+            values = [row[k] for k in ("f0_overlap", "rms_overlap")
+                      if row[k] is not None]
             row["mean_overlap"] = round(sum(values) / len(values), 4) if values else None
             pairs.append(row)
     pairs.sort(key=lambda r: -(r["mean_overlap"] or 0))
@@ -188,6 +196,7 @@ def main():
     doc = {
         "status": "complete",
         "provenance": provenance(__file__, args),
+        "mean_overlap_features": ["f0_overlap", "rms_overlap"],
         "scope": "per-character F0, energy and clip-length distributions in one "
                  "rendered book, and how far each pair overlaps. Overlap means "
                  "not separated ON THESE FEATURES; it is not a claim about what "

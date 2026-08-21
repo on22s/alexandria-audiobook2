@@ -1,0 +1,89 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "scene_narrowing.py",
+  "written": "2026-08-21T06:31:56",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "0705912631bb5956c620e174305f0fbe3abf8b0b",
+   "branch": "agent/scene-narrowing-20260821",
+   "dirty": true,
+   "modified_tracked_files": null,
+   "untracked_harness_files": [
+    "app/experiments/scene_narrowing.py"
+   ],
+   "harness_sha256": "6f350d1e6e53999b60e0751cc67de7d46046a86302056e1f162a7036395efa45"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_w3200.json",
+   "fixtures": "fixtures",
+   "window": 10,
+   "out": "scene_narrowing_w3200.json"
+  }
+ },
+ "scope": "ceiling of restricting candidates to the K most recently mentioned cast members; no model was re-run",
+ "source_artifact": "two_stage_attribution_w3200.json",
+ "rows_scored": 2494,
+ "window": 10,
+ "mean_roster_size": 47.0,
+ "gold_in_full_roster": 1.0,
+ "coverage_by_k": {
+  "1": 0.2727,
+  "2": 0.5076,
+  "3": 0.6391,
+  "5": 0.7598,
+  "10": 0.8075,
+  "20": 0.8075
+ },
+ "buckets": {
+  "gained": 147,
+  "lost": 268,
+  "local": 498,
+  "absent": 212,
+  "safe": 1369
+ },
+ "best_case_rows": -121,
+ "best_case_points": -4.85,
+ "gained_examples": [
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00006",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00020",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00026",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00031",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00033",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00037",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00041",
+   "expected": "MRS. BENNET",
+   "predicted": "MR. BENNET"
+  },
+  {
+   "id": "attribution_gold_pdnc_prideandprejudice_w3200:PrideAndPrejudice-00048",
+   "expected": "MRS. BENNET",
+   "predicted": "LADY CATHERINE DE BOURGH"
+  }
+ ]
+}

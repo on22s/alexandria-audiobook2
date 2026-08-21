@@ -1,0 +1,94 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "statistic_discriminability.py",
+  "written": "2026-08-21T08:44:02",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "9b4f1ad76f0191531301f6e8f381622cbd21a634",
+   "branch": "agent/statistic-discriminability-20260821",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/character_distinctiveness.py",
+    " M app/tests/test_character_distinctiveness.py"
+   ],
+   "untracked_harness_files": [
+    "app/experiments/statistic_discriminability.py"
+   ],
+   "harness_sha256": "1d12df7e3ddafab8b2820f8a9b41ec764e97cec9070ccbe9292cbf8025f255b4"
+  },
+  "args": {
+   "chunks": "chunks.json",
+   "audio_dir": "chapter_audio",
+   "min_clips": 5,
+   "out": "statistic_discriminability.json"
+  }
+ },
+ "scope": "between-speaker over within-speaker variance for each acoustic statistic, on one rendered book. Separation of these speakers in this rendering, not evidence about what a listener uses",
+ "characters": 5,
+ "clips_unmatched_to_a_chunk": 0,
+ "claim_under_test": "U-Style (TASLP 2024): the mean of a speech statistic carries speaker identity, the variance carries linguistic content",
+ "statistics": [
+  {
+   "statistic": "f0_median",
+   "kind": "mean-like",
+   "f_ratio": 43.631,
+   "clips_measured": {
+    "LITTLE GIRL": 18,
+    "NARRATOR": 84,
+    "NATSUKI SUBARU": 18,
+    "SATELLA": 10,
+    "Subaru": 15
+   }
+  },
+  {
+   "statistic": "rms",
+   "kind": "mean-like",
+   "f_ratio": 22.432,
+   "clips_measured": {
+    "LITTLE GIRL": 19,
+    "NARRATOR": 85,
+    "NATSUKI SUBARU": 18,
+    "SATELLA": 10,
+    "Subaru": 15
+   }
+  },
+  {
+   "statistic": "vtl_cm",
+   "kind": "mean-like",
+   "f_ratio": 4.443,
+   "clips_measured": {
+    "LITTLE GIRL": 19,
+    "NARRATOR": 85,
+    "NATSUKI SUBARU": 18,
+    "SATELLA": 10,
+    "Subaru": 15
+   }
+  },
+  {
+   "statistic": "seconds",
+   "kind": "mean-like",
+   "f_ratio": 2.241,
+   "clips_measured": {
+    "LITTLE GIRL": 19,
+    "NARRATOR": 85,
+    "NATSUKI SUBARU": 18,
+    "SATELLA": 10,
+    "Subaru": 15
+   }
+  },
+  {
+   "statistic": "f0_spread",
+   "kind": "variance-like",
+   "f_ratio": 2.098,
+   "clips_measured": {
+    "LITTLE GIRL": 18,
+    "NARRATOR": 84,
+    "NATSUKI SUBARU": 18,
+    "SATELLA": 10,
+    "Subaru": 15
+   }
+  }
+ ],
+ "verdict": "consistent with U-Style: every variance-like statistic ranks below the best mean-like one"
+}
