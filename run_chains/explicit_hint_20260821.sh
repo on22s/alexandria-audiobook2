@@ -51,7 +51,11 @@ start_server() {
 }
 start_server
 
-for variant in control explicit_hint; do
+# shuffled_roster joins the chain from #383: when the model is wrong its
+# answer sits earlier in the alphabetical cast list than the correct one 67.2%
+# of the time (p = 1.3e-23). It is the better-motivated of the two treatments,
+# since #382 showed the model is not short of information.
+for variant in control explicit_hint shuffled_roster; do
     run_stage "explicit_$variant" 3h -- \
         env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 \
         "$REPO/gpu_job.sh" "explicit_$variant" \
@@ -69,7 +73,7 @@ done
 "$python" - "$runtime" <<'PYEOF'
 import json, os, sys
 runtime = sys.argv[1]
-for variant in ("control", "explicit_hint"):
+for variant in ("control", "explicit_hint", "shuffled_roster"):
     path = os.path.join(runtime, "experiments",
                         "two_stage_attribution__explicit_%s.json" % variant)
     try:
