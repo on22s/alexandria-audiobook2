@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 226,
+    "supported_structure": 227,
     "exploratory": 193,
     "provisional": 123
   },
@@ -140,6 +140,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "anchor_length_audit.json",
+      "bytes": 3807,
+      "sha256": "3aed2d2ce1aaa5575fc11908ad783dca87f3854955fd95b257c4d1532a839612",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-21T08:55:04",
+      "commit": "9b4f1ad76f0191531301f6e8f381622cbd21a634",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "anchor_length_probe.json",
