@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "silky_alto_40s_f",
+ "rows": [
+  {
+   "id": "sample_0812",
+   "book": "silky_alto_40s_f",
+   "text": "\u201cWhat\u2019s wrong, Maori? ... Why are you looking at me like that?\u201d \u201cHuh? Oh, nothing. .... I was just thinking how cool you are.\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0812.wav",
+   "human_seconds": 8.46,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0812__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0812__clone.wav"
+  },
+  {
+   "id": "sample_0824",
+   "book": "silky_alto_40s_f",
+   "text": "but one thing in particular caught my attention. \u201c*She* told me the same thing when I asked her out as when she cut things off. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0824.wav",
+   "human_seconds": 8.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0824__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0824__clone.wav"
+  },
+  {
+   "id": "sample_0826",
+   "book": "silky_alto_40s_f",
+   "text": "Doesn\u2019t ... get along with people who are good at housework. .... No to anyone good at cooking. .... Doesn\u2019t like *considerate* people.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0826.wav",
+   "human_seconds": 7.42,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0826__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0826__clone.wav"
+  },
+  {
+   "id": "sample_0832",
+   "book": "silky_alto_40s_f",
+   "text": "The problem was, ... who in the world would fall for someone like that? ... \u201cIf *Izumi* did have a boyfriend in high school",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0832.wav",
+   "human_seconds": 7.86,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0832__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0832__clone.wav"
+  },
+  {
+   "id": "sample_0853",
+   "book": "silky_alto_40s_f",
+   "text": "but basically kept to ... herself. He said everyone thought she was *cool* because of it. That sounded like her,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0853.wav",
+   "human_seconds": 7.06,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0853__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0853__clone.wav"
+  },
+  {
+   "id": "sample_0867",
+   "book": "silky_alto_40s_f",
+   "text": "\u201cSeems like it. .... As far as I could tell from Nishikawa\u2019s *photo*, Wataya even looks kind of like her. .... The *cool* type or something.\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0867.wav",
+   "human_seconds": 8.54,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0867__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0867__clone.wav"
+  },
+  {
+   "id": "sample_0871",
+   "book": "silky_alto_40s_f",
+   "text": "I sensed his calm, *gentle* character in that smile. 4",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0871.wav",
+   "human_seconds": 8.28,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0871__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0871__clone.wav"
+  },
+  {
+   "id": "sample_0889",
+   "book": "silky_alto_40s_f",
+   "text": "There were lots of photos of the place on social media, too. .... On this day, it was full of high school girls having *animated* conversations about fall semester tests and school and sports *festivals*. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0889.wav",
+   "human_seconds": 12.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0889__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0889__clone.wav"
+  },
+  {
+   "id": "sample_0905",
+   "book": "silky_alto_40s_f",
+   "text": "That\u2019s why I was so *taken* aback when she looked up at me with a smile and said that. .... She was gazing at me *earnestly*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0905.wav",
+   "human_seconds": 7.44,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0905__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0905__clone.wav"
+  },
+  {
+   "id": "sample_0906",
+   "book": "silky_alto_40s_f",
+   "text": "thought that by asking her about it, I would learn of her *true* feelings. .... I\u2019d thought I would hear high school stories I didn\u2019t *know*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0906.wav",
+   "human_seconds": 8.26,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0906__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0906__clone.wav"
+  },
+  {
+   "id": "sample_0907",
+   "book": "silky_alto_40s_f",
+   "text": "But her gaze was completely calm and clear. It held no sense of *deception* or *falsehood*. But perhaps it was too calm. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0907.wav",
+   "human_seconds": 9.12,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0907__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0907__clone.wav"
+  },
+  {
+   "id": "sample_0908",
+   "book": "silky_alto_40s_f",
+   "text": "Too *clear*, like an empty blue sky. \u201cThanks for always being so *considerate*,\u201d she said. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0908.wav",
+   "human_seconds": 7.1,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0908__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0908__clone.wav"
+  },
+  {
+   "id": "sample_0912",
+   "book": "silky_alto_40s_f",
+   "text": "me. She would never mention this, but I know I must have been a *real* pain in the butt when I had amnesia. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0912.wav",
+   "human_seconds": 7.36,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0912__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0912__clone.wav"
+  },
+  {
+   "id": "sample_0921",
+   "book": "silky_alto_40s_f",
+   "text": "Where had she found it? ... When had she changed? ... As I sat there, quietly *struck* by this realization,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0921.wav",
+   "human_seconds": 7.88,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0921__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0921__clone.wav"
+  },
+  {
+   "id": "sample_0959",
+   "book": "silky_alto_40s_f",
+   "text": "I could tell what a *good* person he was, and you\u2019re very *important* to me, too. .... So if you liked him",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0959.wav",
+   "human_seconds": 8.04,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0959__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0959__clone.wav"
+  },
+  {
+   "id": "sample_0963",
+   "book": "silky_alto_40s_f",
+   "text": "If I was *honest* with myself, I was already starting to fall for him. .... Because",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0963.wav",
+   "human_seconds": 7.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0963__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0963__clone.wav"
+  },
+  {
+   "id": "sample_0965",
+   "book": "silky_alto_40s_f",
+   "text": "That was part of it. .... But that wasn\u2019t the *main* reason. .... Because I realized how *kind* he is?",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0965.wav",
+   "human_seconds": 7.92,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0965__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0965__clone.wav"
+  },
+  {
+   "id": "sample_0980",
+   "book": "silky_alto_40s_f",
+   "text": "then I feel *happy* to do it.\u201d I stared at him silently. .... I couldn\u2019t grasp what he meant,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0980.wav",
+   "human_seconds": 7.84,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0980__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0980__clone.wav"
+  },
+  {
+   "id": "sample_0988",
+   "book": "silky_alto_40s_f",
+   "text": "Once I looked with my heart, *their* similarities were obvious. .... No matter the *situation*,",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0988.wav",
+   "human_seconds": 7.7,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0988__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0988__clone.wav"
+  },
+  {
+   "id": "sample_0994",
+   "book": "silky_alto_40s_f",
+   "text": "and the head third year teacher arranged for her to join Tooru\u2019s class. .... As long as he was *there*, I wasn\u2019t needed. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/data/val/sample_0994.wav",
+   "human_seconds": 7.82,
+   "lora_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0994__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/silky_alto_40s_f/sample_0994__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-20T22:21:44",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "336662d5121770a703b28033ad2206411c68621d",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/silky_alto_40s_f_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch3/silky_alto_40s_f/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/silky_alto_40s_f",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__silky_alto_40s_f_generate.json"
+  },
+  "seed": 1234
+ }
+}
