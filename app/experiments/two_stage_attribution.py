@@ -184,7 +184,15 @@ EXPLICIT_HINT = (
 # about the task wants that order. `shuffled_roster` gives each row its own
 # deterministic order, seeded by the quote id, so the systematic component is
 # removed rather than replaced by a different fixed one.
-PROMPT_VARIANTS = ("control", "explicit_hint", "shuffled_roster")
+# `"Bah!" said Scrooge, "Humbug!"` is ONE quotation whose narration sits between
+# its parts, inside the span the context window is measured from - so `said
+# Scrooge` appears in neither context and `line` is the joined quote without
+# it. Measured before the fixture carried it: among EXPLICIT quotes the
+# annotator's own referring expression was absent from everything the model saw
+# 69.1% of the time for multi-part quotations against 1.6% for single-part
+# ones, costing 11.0 points. `inner_narration` shows it.
+PROMPT_VARIANTS = ("control", "explicit_hint", "shuffled_roster",
+                   "inner_narration")
 
 
 def build_prompt(entry, roster, narrator=None, variant="control"):
@@ -211,7 +219,13 @@ def build_prompt(entry, roster, narrator=None, variant="control"):
         next=str(entry.get("next_context") or ""))
     if narrator:
         text = add_narrator_prior(text, narrator)
-    if variant == "explicit_hint":
+    if variant == "inner_narration":
+        inner = str(entry.get("inner_narration") or "").strip()
+        if inner:
+            # Labelled for what it is. It is neither before nor after the line;
+            # calling it either would be a third wrong answer.
+            text += ("\n\nNarration interrupting THE LINE:\n%s" % inner)
+    elif variant == "explicit_hint":
         text += EXPLICIT_HINT
     elif variant not in ("control", "shuffled_roster"):
         raise ValueError("unknown prompt variant %r; expected one of %s"
