@@ -1,0 +1,99 @@
+{
+ "scope": "what each generation arm does to punctuation, and how much of it reaches the TTS engine; no model is run",
+ "speech_breaks": "•·▪◦‣∙■□◆●▲─━―*_~",
+ "note_norm_text_is_blind": "three_pass_vs_single.norm_text deletes every non-alphanumeric character before pairing lines, so goal 5.3's accuracy figures cannot reflect anything measured here",
+ "books": {
+  "index18": {
+   "single": {
+    "entries": 3882,
+    "quote": 307,
+    "underscore": 5,
+    "hyphen_or_dash": 782,
+    "asterisk": 0,
+    "quote_survives_tts": 307,
+    "underscore_survives_tts": 0,
+    "hyphen_or_dash_survives_tts": 782,
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.2249
+   },
+   "three_pass": {
+    "entries": 2468,
+    "quote": 0,
+    "underscore": 5,
+    "hyphen_or_dash": 639,
+    "asterisk": 0,
+    "quote_survives_tts": 0,
+    "underscore_survives_tts": 0,
+    "hyphen_or_dash_survives_tts": 639,
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.0
+   },
+   "delta_vs_single": {
+    "quote": -307,
+    "underscore": 0,
+    "hyphen_or_dash": -143,
+    "asterisk": 0
+   },
+   "source_quoted_spans": 1365
+  },
+  "mushoku16": {
+   "single": {
+    "entries": 4023,
+    "quote": 575,
+    "underscore": 1,
+    "hyphen_or_dash": 156,
+    "asterisk": 0,
+    "quote_survives_tts": 575,
+    "underscore_survives_tts": 0,
+    "hyphen_or_dash_survives_tts": 154,
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.5354
+   },
+   "three_pass": {
+    "entries": 2056,
+    "quote": 0,
+    "underscore": 1,
+    "hyphen_or_dash": 155,
+    "asterisk": 0,
+    "quote_survives_tts": 0,
+    "underscore_survives_tts": 0,
+    "hyphen_or_dash_survives_tts": 154,
+    "asterisk_survives_tts": 0,
+    "quote_retention_vs_source": 0.0
+   },
+   "delta_vs_single": {
+    "quote": -575,
+    "underscore": 0,
+    "hyphen_or_dash": -1,
+    "asterisk": 0
+   },
+   "source_quoted_spans": 1074
+  }
+ },
+ "status": "complete",
+ "provenance": {
+  "script": "script_text_fidelity.py",
+  "written": "2026-08-21T08:46:21",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "7d670fad132de51139d26dc48870c0de20d3fc29",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "f2a6cce8fed8459035e1853f714b63c730f95d8c498c113a6ef62d52050d932b"
+  },
+  "args": {
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "audio_root": [],
+   "source": [
+    "mushoku16=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3_inputs/mushoku16.txt",
+    "owarimonogatari3=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3_inputs/owarimonogatari3.txt",
+    "index18=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3_inputs/index18.txt",
+    "TheGambler=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3_inputs/TheGambler.txt",
+    "AHandfulOfDust=/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/dialogue_map_5_3_inputs/AHandfulOfDust.txt"
+   ],
+   "out": "ab_test_runtime/experiments/script_text_fidelity_fresh.json"
+  }
+ }
+}
