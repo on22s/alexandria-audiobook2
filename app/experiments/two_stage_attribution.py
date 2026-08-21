@@ -124,6 +124,14 @@ def roster_lines(fixture):
     for name in aliases:
         if name not in cast:
             cast.append(name)
+    # A name already listed inside someone's brackets must not ALSO get a bare
+    # line of its own. BEAVER speaks in the gold and JOHN BEAVER is the
+    # roster's spelling; they are one alias group, and appending the canonical
+    # without dropping the roster's spelling printed both - the same shadow
+    # duplicate this function was written to remove, surviving on the far side
+    # of the fix. One group, one line.
+    decorated = {n for rest in aliases.values() for n in rest}
+    cast = [n for n in cast if n not in decorated]
     lines = []
     for name in sorted(set(cast)):
         rest = aliases.get(name)
