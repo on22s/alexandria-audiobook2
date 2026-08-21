@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 565 artifacts, 597 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 566 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1035,6 +1035,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `listener_impact.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `listening_verdicts.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ljspeech_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `ljspeech_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_counterexample.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

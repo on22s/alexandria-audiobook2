@@ -163,7 +163,7 @@ cascade_state__owarimonogatari3__local-batchtrig.json,exploratory,git+naming,no,
 cascade_state__owarimonogatari3__tuned-cheap-arm.json,exploratory,git+naming,no,cascade.py,b4bf74b6,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 chapter_manifest.json,exploratory,none,no,,701371d1,,,,,,,,,,,,,,,,,,,,,,SKIPPED: not a result object (list)
 chapter_validation.json,exploratory,none,no,,701371d1,,,,,,,,,,,,,,,,,,,,,,SKIPPED: 'rows' is not a list of scored arms
-character_distinctiveness.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+character_distinctiveness.json,supported_structure,provenance,yes,,,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 chinese_attribution_frame.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 chinese_attribution_jy.json,exploratory,git+naming,no,chinese_attribution.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 chinese_attribution_jy_fixed.json,exploratory,git+naming,no,chinese_attribution.py,a081167c,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
@@ -577,6 +577,7 @@ library_voice_fidelity.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,
 library_voice_fidelity_n10.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 library_voice_fidelity_postfix.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 listener_impact.json,exploratory,git+naming,no,listener_impact.py,dac2023a,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+listening_verdicts.json,exploratory,none,no,,b28ac69d,6.5,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 ljspeech_generate.json,supported_structure,provenance,yes,,,,1234,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 ljspeech_score.json,supported_structure,provenance,yes,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 lora_serving_eval__cloud-alldata.json,exploratory,git+naming,no,lora_serving_eval.py,661c8854,,,lora_serving_eval,grimgar03,qwen/qwen3-14b,cloud-a6000-llamacpp-cuda,instance-kwami7f2-main,llama.cpp-cuda,32768,1,f16?,base,385,248,64.4,ok,False,,6206.6,08-03 06:14,http://127.0.0.1:8090/v1,
