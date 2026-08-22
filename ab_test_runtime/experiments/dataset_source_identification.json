@@ -1,7 +1,7 @@
 {
  "what": "source audiobook for each LoRA dataset, matched by seeking to the clip offsets recorded in metadata.jsonl",
  "why": "goal 2.7 needs clips neither the contaminated nor the clean adapter ever saw; naming the source makes the unsampled remainder of the book available as exactly that",
- "candidates": 191,
+ "candidates": 259,
  "excluded": null,
  "probes_per_dataset": 3,
  "seed": 20260822,
@@ -11,10 +11,10 @@
   "silky_baritone_30s_m_fantasy": {
    "verdict": "PROBES_DISAGREE",
    "source_book": null,
-   "top_score": 0.3477,
-   "runner_up": "Derek PerkinsThe Society of the Sword Trilogy: Society of the Sword, Book 1, 2, 3 [B0756SN5NF].m4b",
-   "runner_up_score": 0.285,
-   "margin": 0.0628,
+   "top_score": 0.3504,
+   "runner_up": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
+   "runner_up_score": 0.3477,
+   "margin": 0.0027,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -23,72 +23,72 @@
     {
      "clip": "sample_1239.wav",
      "start": 11769.66,
-     "best": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
-     "score": 0.4152
+     "best": "Bahni TurpinMoon Witch, Spider King [0525526870].mp3",
+     "score": 0.4175
     },
     {
      "clip": "sample_1312.wav",
      "start": 12465.36,
-     "best": "Scott MerrimanThe Gray House [B06XWHSHFN].m4b",
-     "score": 0.3528
+     "best": "Reba Buhr Ascendance of a Bookworm - 1.mp3",
+     "score": 0.3705
     },
     {
      "clip": "sample_1353.wav",
      "start": 12846.58,
-     "best": "Derek PerkinsThe Society of the Sword Trilogy: Society of the Sword, Book 1, 2, 3 [B0756SN5NF].m4b",
-     "score": 0.3581
+     "best": "Peter Kenny Sword of Destiny.mp3",
+     "score": 0.3739
     }
    ],
    "sampled_span_hours": [
     3.269,
     3.571
    ],
-   "candidates_scored": 21
+   "candidates_scored": 75
   },
   "warm_baritone_30s_m_2": {
-   "verdict": "PROBES_DISAGREE",
-   "source_book": null,
-   "top_score": 0.2959,
-   "runner_up": "Daniel PhilpottForge of Darkness: Kharkanas Trilogy, Book 1 [B00A27BOFQ].m4b",
-   "runner_up_score": 0.293,
-   "margin": 0.0028,
+   "verdict": "IDENTIFIED",
+   "source_book": "Christian J. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT].flac",
+   "top_score": 0.9987,
+   "runner_up": "Michael Page House of Chains.mp3",
+   "runner_up_score": 0.3475,
+   "margin": 0.6512,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
-   "probes_agreed": false,
+   "probes_agreed": true,
    "per_probe": [
     {
      "clip": "sample_0239.wav",
      "start": 2140.82,
-     "best": "Anne FlosnikShip of Magic: The Liveship Traders, Book 1 [B003894ZK6].m4b",
-     "score": 0.2961
+     "best": "Christian J. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT].flac",
+     "score": 0.9977
     },
     {
      "clip": "sample_0312.wav",
      "start": 2778.44,
-     "best": "Jim BondStone of Tears: Sword of Truth, Book 2 [B002V8DH5Y].m4b",
-     "score": 0.3398
+     "best": "Christian J. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT].flac",
+     "score": 0.9995
     },
     {
      "clip": "sample_0353.wav",
      "start": 3150.14,
-     "best": "Toby LongworthGreat North Road [B00ATTA71O].m4b",
-     "score": 0.4249
+     "best": "Christian J. Gilliland, Hazel Cohen Elemental Summoner 1 [B09BXYJXYT].flac",
+     "score": 0.999
     }
    ],
    "sampled_span_hours": [
     0.595,
     0.877
    ],
-   "candidates_scored": 21
+   "candidates_scored": 87
   },
   "husky_tenor_30s_m_literary": {
    "verdict": "PROBES_DISAGREE",
    "source_book": null,
    "top_score": 0.351,
-   "runner_up": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
-   "runner_up_score": 0.2985,
-   "margin": 0.0524,
+   "runner_up": "Davina PorterThe Mists of Avalon [B008BWDMHM].m4b",
+   "runner_up_score": 0.351,
+   "margin": 0.0,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -97,35 +97,35 @@
     {
      "clip": "sample_2439.wav",
      "start": 21457.84,
-     "best": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
-     "score": 0.3722
+     "best": "Tara Sands Shorefall: A Novel [0593148053].flac",
+     "score": 0.423
     },
     {
      "clip": "sample_2512.wav",
      "start": 22095.48,
-     "best": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
-     "score": 0.4283
+     "best": "Peter Kenny Sword of Destiny.mp3",
+     "score": 0.5163
     },
     {
      "clip": "sample_2553.wav",
      "start": 22470.86,
-     "best": "Davina PorterThe Mists of Avalon [B008BWDMHM].m4b",
-     "score": 0.4163
+     "best": "Reba Buhr Ascendance of a Bookworm - 1.mp3",
+     "score": 0.4186
     }
    ],
    "sampled_span_hours": [
     5.961,
     6.245
    ],
-   "candidates_scored": 21
+   "candidates_scored": 62
   },
   "warm_alto_50s_f_gothic": {
    "verdict": "IDENTIFIED",
    "source_book": "Alan Cumming, Tim Curry, Simon Vance, Katherine Kellgren, Susan Duerden, John Lee, Graeme Malcolm, Steven CrossleyDracula [Audible Edition] [B0078PA1OA].m4b",
    "top_score": 0.9981,
-   "runner_up": "Pavi ProczkoAsgard's Fall: Digital Rebirth Chronicles, Book 1 [1039401406].m4b",
-   "runner_up_score": 0.3169,
-   "margin": 0.6812,
+   "runner_up": "Suzy Jackson Skyward.mp3",
+   "runner_up_score": 0.3242,
+   "margin": 0.674,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -154,15 +154,15 @@
     10.419,
     10.737
    ],
-   "candidates_scored": 21
+   "candidates_scored": 47
   },
   "silky_baritone_45s_m": {
    "verdict": "IDENTIFIED",
    "source_book": "Alan Cumming, Tim Curry, Simon Vance, Katherine Kellgren, Susan Duerden, John Lee, Graeme Malcolm, Steven CrossleyDracula [Audible Edition] [B0078PA1OA].m4b",
    "top_score": 0.9967,
-   "runner_up": "John BanksReturn of the Crimson Guard: Novels of the Malazan Empire, Book 2 [B01G16JFG6].m4b",
-   "runner_up_score": 0.3198,
-   "margin": 0.6769,
+   "runner_up": "Scott Brick Foundation's Edge [B005WL4R7E].flac",
+   "runner_up_score": 0.4013,
+   "margin": 0.5954,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -191,15 +191,15 @@
     2.172,
     2.443
    ],
-   "candidates_scored": 21
+   "candidates_scored": 80
   },
   "velvety_mezzo_30s_f_gothic": {
    "verdict": "IDENTIFIED",
    "source_book": "Alan Cumming, Tim Curry, Simon Vance, Katherine Kellgren, Susan Duerden, John Lee, Graeme Malcolm, Steven CrossleyDracula [Audible Edition] [B0078PA1OA].m4b",
    "top_score": 0.9985,
-   "runner_up": "Bahni TurpinMoon Witch, Spider King [0525526870].m4b",
-   "runner_up_score": 0.3137,
-   "margin": 0.6848,
+   "runner_up": "Bahni TurpinMoon Witch, Spider King [0525526870].mp3",
+   "runner_up_score": 0.3165,
+   "margin": 0.682,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -228,15 +228,15 @@
     5.82,
     6.1
    ],
-   "candidates_scored": 20
+   "candidates_scored": 63
   },
   "husky_baritone_40s_m_scifi": {
    "verdict": "PROBES_DISAGREE",
    "source_book": null,
-   "top_score": 0.3398,
-   "runner_up": "Derek PerkinsThe Society of the Sword Trilogy: Society of the Sword, Book 1, 2, 3 [B0756SN5NF].m4b",
-   "runner_up_score": 0.2985,
-   "margin": 0.0413,
+   "top_score": 0.4243,
+   "runner_up": "Cherami Leigh Cyberpunk 2077.mp3",
+   "runner_up_score": 0.3634,
+   "margin": 0.0609,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -245,146 +245,146 @@
     {
      "clip": "sample_3039.wav",
      "start": 27450.48,
-     "best": "Elliot HillAssassin's Fate: Book III of the Fitz and the Fool trilogy [B06XDWTBVZ].m4b",
-     "score": 0.4051
+     "best": "Michael Page House of Chains.mp3",
+     "score": 0.4779
     },
     {
      "clip": "sample_3112.wav",
      "start": 28106.08,
-     "best": "Scott MerrimanThe Gray House [B06XWHSHFN].m4b",
-     "score": 0.4804
+     "best": "Scott MerrimanThe Gray House [B06XWHSHFN].mp3",
+     "score": 0.4827
     },
     {
      "clip": "sample_3153.wav",
      "start": 28500.12,
-     "best": "Toby LongworthGreat North Road [B00ATTA71O].m4b",
-     "score": 0.4796
+     "best": "Toby LongworthGreat North Road [B00ATTA71O].mp3",
+     "score": 0.48
     }
    ],
    "sampled_span_hours": [
     7.625,
     7.919
    ],
-   "candidates_scored": 21
+   "candidates_scored": 54
   },
   "breathy_alto_50s_f_fantasy": {
-   "verdict": "PROBES_DISAGREE",
-   "source_book": null,
-   "top_score": 0.3791,
-   "runner_up": "Kyle McCarleySuper Powereds: Year 4: Super Powereds, Book 4 [B07D84P11M].m4b",
-   "runner_up_score": 0.3418,
-   "margin": 0.0373,
+   "verdict": "IDENTIFIED",
+   "source_book": "Mare Trevathan The Godking's Legacy.mp3",
+   "top_score": 0.9979,
+   "runner_up": "Pavi ProczkoAsgard's Fall: Digital Rebirth Chronicles, Book 1 [1039401406].m4b",
+   "runner_up_score": 0.3791,
+   "margin": 0.6188,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
-   "probes_agreed": false,
+   "probes_agreed": true,
    "per_probe": [
     {
      "clip": "sample_3039.wav",
      "start": 25895.02,
-     "best": "Daniel PhilpottForge of Darkness: Kharkanas Trilogy, Book 1 [B00A27BOFQ].m4b",
-     "score": 0.4774
+     "best": "Mare Trevathan The Godking's Legacy.mp3",
+     "score": 0.9982
     },
     {
      "clip": "sample_3112.wav",
      "start": 26505.94,
-     "best": "Malcolm HillgartnerReamde [B005PMU12U].m4b",
-     "score": 0.4743
+     "best": "Mare Trevathan The Godking's Legacy.mp3",
+     "score": 0.9976
     },
     {
      "clip": "sample_3153.wav",
      "start": 26868.72,
-     "best": "Pavi ProczkoAsgard's Fall: Digital Rebirth Chronicles, Book 1 [1039401406].m4b",
-     "score": 0.4693
+     "best": "Mare Trevathan The Godking's Legacy.mp3",
+     "score": 0.9979
     }
    ],
    "sampled_span_hours": [
     7.193,
     7.466
    ],
-   "candidates_scored": 21
+   "candidates_scored": 56
   },
   "silky_alto_40s_f_literary_1": {
-   "verdict": "PROBES_DISAGREE",
-   "source_book": null,
-   "top_score": 0.3266,
-   "runner_up": "Scott MerrimanThe Gray House [B06XWHSHFN].m4b",
-   "runner_up_score": 0.3076,
-   "margin": 0.0191,
+   "verdict": "IDENTIFIED",
+   "source_book": "Suzie Yeung Even If These Tears Disappear Tonight.mp3",
+   "top_score": 0.9978,
+   "runner_up": "Cristina Vee Nekomonogatari.mp3",
+   "runner_up_score": 0.4356,
+   "margin": 0.5622,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
-   "probes_agreed": false,
+   "probes_agreed": true,
    "per_probe": [
     {
      "clip": "sample_0639.wav",
      "start": 5500.54,
-     "best": "Neville JasonThe Once and Future King [B00546D584].m4b",
-     "score": 0.3545
+     "best": "Suzie Yeung Even If These Tears Disappear Tonight.mp3",
+     "score": 0.9988
     },
     {
      "clip": "sample_0712.wav",
      "start": 6100.82,
-     "best": "Jim BondStone of Tears: Sword of Truth, Book 2 [B002V8DH5Y].m4b",
-     "score": 0.4025
+     "best": "Suzie Yeung Even If These Tears Disappear Tonight.mp3",
+     "score": 0.9954
     },
     {
      "clip": "sample_0753.wav",
      "start": 6449.2,
-     "best": "Sam TsoutsouvasWizard's First Rule: Sword of Truth, Book 1 [B002V0QK4C].m4b",
-     "score": 0.428
+     "best": "Suzie Yeung Even If These Tears Disappear Tonight.mp3",
+     "score": 0.9993
     }
    ],
    "sampled_span_hours": [
     1.528,
     1.794
    ],
-   "candidates_scored": 21
+   "candidates_scored": 84
   },
   "husky_baritone_20s_m_supernatural": {
-   "verdict": "PROBES_DISAGREE",
-   "source_book": null,
-   "top_score": 0.3006,
-   "runner_up": "Bill HomewoodThe Count of Monte Cristo [B005GFQ5WQ].m4b",
-   "runner_up_score": 0.2658,
-   "margin": 0.0348,
+   "verdict": "IDENTIFIED",
+   "source_book": "Keith Silverstein KIZUMONOGATARI.mp3",
+   "top_score": 0.9831,
+   "runner_up": "Davina PorterThe Mists of Avalon [B008BWDMHM].mp3",
+   "runner_up_score": 0.3012,
+   "margin": 0.682,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
-   "probes_agreed": false,
+   "probes_agreed": true,
    "per_probe": [
     {
      "clip": "sample_3239.wav",
      "start": 31867.84,
-     "best": "Davina PorterThe Mists of Avalon [B008BWDMHM].m4b",
-     "score": 0.3323
+     "best": "Keith Silverstein KIZUMONOGATARI.mp3",
+     "score": 0.9792
     },
     {
      "clip": "sample_3312.wav",
      "start": 32468.8,
-     "best": "Bill HomewoodThe Count of Monte Cristo [B005GFQ5WQ].m4b",
-     "score": 0.4211
+     "best": "Keith Silverstein KIZUMONOGATARI.mp3",
+     "score": 0.986
     },
     {
      "clip": "sample_3353.wav",
      "start": 32828.56,
-     "best": "Davina PorterThe Mists of Avalon [B008BWDMHM].m4b",
-     "score": 0.4043
+     "best": "Keith Silverstein KIZUMONOGATARI.mp3",
+     "score": 0.9842
     }
    ],
    "sampled_span_hours": [
     8.852,
     9.121
    ],
-   "candidates_scored": 21
+   "candidates_scored": 52
   },
   "husky_baritone_40s_m_2": {
    "verdict": "PROBES_DISAGREE",
    "source_book": null,
-   "top_score": 0.3072,
-   "runner_up": "Alan Cumming, Tim Curry, Simon Vance, Katherine Kellgren, Susan Duerden, John Lee, Graeme Malcolm, Steven CrossleyDracula [Audible Edition] [B0078PA1OA].m4b",
-   "runner_up_score": 0.2849,
-   "margin": 0.0223,
+   "top_score": 0.3074,
+   "runner_up": "Sam TsoutsouvasWizard's First Rule: Sword of Truth, Book 1 [B002V0QK4C].m4b",
+   "runner_up_score": 0.3072,
+   "margin": 0.0002,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
@@ -393,8 +393,8 @@
     {
      "clip": "sample_4839.wav",
      "start": 44386.66,
-     "best": "Neville JasonThe Once and Future King [B00546D584].m4b",
-     "score": 0.4209
+     "best": "Neville JasonThe Once and Future King [B00546D584].mp3",
+     "score": 0.4225
     },
     {
      "clip": "sample_4912.wav",
@@ -413,44 +413,44 @@
     12.33,
     12.62
    ],
-   "candidates_scored": 21
+   "candidates_scored": 47
   },
   "warm_baritone_30s_m_scifi": {
-   "verdict": "PROBES_DISAGREE",
-   "source_book": null,
-   "top_score": 0.3853,
-   "runner_up": "Daniel PhilpottForge of Darkness: Kharkanas Trilogy, Book 1 [B00A27BOFQ].m4b",
-   "runner_up_score": 0.3185,
-   "margin": 0.0668,
+   "verdict": "IDENTIFIED",
+   "source_book": "Jay Snyder Ex-Heroes.mp3",
+   "top_score": 0.9973,
+   "runner_up": "Anne FlosnikShip of Magic: The Liveship Traders, Book 1 [B003894ZK6].m4b",
+   "runner_up_score": 0.3853,
+   "margin": 0.612,
    "margin_required": 0.15,
    "floor_required": 0.55,
    "probes": 3,
-   "probes_agreed": false,
+   "probes_agreed": true,
    "per_probe": [
     {
      "clip": "sample_2839.wav",
      "start": 24997.82,
-     "best": "Elliot HillAssassin's Fate: Book III of the Fitz and the Fool trilogy [B06XDWTBVZ].m4b",
-     "score": 0.4933
+     "best": "Jay Snyder Ex-Heroes.mp3",
+     "score": 0.9975
     },
     {
      "clip": "sample_2912.wav",
      "start": 25662.82,
-     "best": "Kyle McCarleySuper Powereds: Year 4: Super Powereds, Book 4 [B07D84P11M].m4b",
-     "score": 0.4487
+     "best": "Jay Snyder Ex-Heroes.mp3",
+     "score": 0.9959
     },
     {
      "clip": "sample_2953.wav",
      "start": 26033.56,
-     "best": "Malcolm HillgartnerReamde [B005PMU12U].m4b",
-     "score": 0.5277
+     "best": "Jay Snyder Ex-Heroes.mp3",
+     "score": 0.9987
     }
    ],
    "sampled_span_hours": [
     6.944,
     7.234
    ],
-   "candidates_scored": 20
+   "candidates_scored": 56
   }
  }
 }
