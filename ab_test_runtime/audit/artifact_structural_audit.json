@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 279,
     "exploratory": 194,
-    "provisional": 123
+    "provisional": 124
   },
   "artifacts": [
     {
@@ -8713,6 +8713,22 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "two_stage_attribution__explicit_control.json",
+      "bytes": 4568636,
+      "sha256": "6513a95c79a6327a468d2905f2d4fd6225b9d066e1bec20317fb4e4bb0981f15",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1823,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "148cd8656b5771571d49e2a1d4cc977799600edc",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
     },
     {
       "artifact": "two_stage_attribution__smoke.json",

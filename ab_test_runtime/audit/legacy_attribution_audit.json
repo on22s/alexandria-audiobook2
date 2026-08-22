@@ -1,9 +1,9 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "3fe9a686b5e666c915c00aa9dcb637d5b32d83ac9c69fbbd094d89028c2babf0",
+  "source_structural_sha256": "8ee88448a162e50044b92c8390ac83703af54155b9691c3e68f71bb8c675f8b2",
   "summary": {
     "exploratory": 9,
-    "historical_only": 41,
+    "historical_only": 42,
     "provisional": 21,
     "supported_measurement": 52
   },
@@ -2580,6 +2580,26 @@
         "line_count_changed": false
       },
       "semantic_limit": "The two factors are not independent; this prices context, not batching."
+    },
+    {
+      "artifact": "two_stage_attribution__explicit_control.json",
+      "family": "two_stage_attribution",
+      "rows": 1823,
+      "arms": [
+        "single"
+      ],
+      "classification": "historical_only",
+      "dirty": false,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 1414,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Three English PDNC books (Pride and Prejudice, The Awakening, The Sign of the Four), 2,494 quotes, one request per quote with the cast supplied, qwen3-14b, 2026-08-19: 54.5% against the one-pass baseline of 83.6% on these SAME books. The arm is 29 points WORSE, so this is evidence against this design, not for it - and it is one form (cast-supplied, single request) of one model, not two-stage attribution in general. The internal split is the interesting part and is also the reason not to read the headline alone: Explicit quotes, where the text names the speaker, score 52.9% - LOWER than Anaphoric at 61.7%. A method that misses half the cases the text answers outright is not a weaker method, it is a broken one, and the number to quote is that contrast rather than the 54.5%."
     },
     {
       "artifact": "two_stage_attribution__smoke.json",
