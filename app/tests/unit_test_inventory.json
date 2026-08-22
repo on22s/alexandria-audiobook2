@@ -2239,6 +2239,11 @@
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_rejects_stale_preflight_before_gpu_claim",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
+  "test_satella_quality_probe": [
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_arms_change_one_variable_at_a_time",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_page_defines_quality_scale_and_requires_complete_sets",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_page_does_not_name_concealed_arms"
+  ],
   "test_scene_narrowing": [
     "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",
     "tests.test_scene_narrowing.BucketTest.test_absent_is_wrong_with_the_gold_nowhere_near",
