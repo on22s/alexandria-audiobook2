@@ -1571,7 +1571,7 @@
     "tests.test_narrator_prior_wiring.PromptTest.test_without_a_narrator_the_prompt_is_unchanged",
     "tests.test_narrator_prior_wiring.WiringTest.test_an_unmatched_narrator_argument_is_fatal",
     "tests.test_narrator_prior_wiring.WiringTest.test_the_artifact_records_which_books_got_a_prior",
-    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior"
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior_and_variant"
   ],
   "test_narrator_prompt": [
     "tests.test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
