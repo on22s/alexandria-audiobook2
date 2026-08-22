@@ -1,7 +1,10 @@
 """The Satella quality probe must isolate seed and adapter effects."""
+import json
+import os
+import tempfile
 import unittest
 
-from experiments.satella_quality_probe import build_arms, make_html
+from experiments.satella_quality_probe import build_arms, build_public, make_html
 
 
 class SatellaQualityProbeTests(unittest.TestCase):
@@ -19,6 +22,18 @@ class SatellaQualityProbeTests(unittest.TestCase):
         page = make_html({"sets": [], "source_sha256": "x"})
         for label in ("shipped_adapter", "control_adapter", "alternate_seed"):
             self.assertNotIn(label, page)
+
+    def test_public_manifest_does_not_expose_arm_arguments(self):
+        with tempfile.TemporaryDirectory() as folder:
+            key = os.path.join(folder, "key.json")
+            with open(key, "w", encoding="utf-8") as handle:
+                json.dump({"arm_configuration": {"secret_adapter": "secret"}},
+                          handle)
+            public = build_public([], key, 7)
+        encoded = json.dumps(public)
+        self.assertNotIn("secret_adapter", encoded)
+        self.assertNotIn("arm_configuration", encoded)
+        self.assertEqual(64, len(public["concealed_key_sha256"]))
 
     def test_page_defines_quality_scale_and_requires_complete_sets(self):
         page = make_html({"sets": [], "source_sha256": "x"})

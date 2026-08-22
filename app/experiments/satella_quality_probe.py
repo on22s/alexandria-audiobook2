@@ -47,6 +47,16 @@ data.sets.forEach((set,si)=>{const f=document.createElement('fieldset');f.innerH
 document.querySelector('#save').onclick=()=>{const missing=[...document.querySelectorAll('fieldset')].some(f=>f.querySelectorAll('input:checked').length!==4);if(missing){alert('Please rate all three clips and choose one best clip in every set.');return}const answers={};data.sets.forEach(set=>{const quality={};set.samples.forEach(s=>quality[s.label]=+document.querySelector(`[name="q_${set.id}_${s.label}"]:checked`).value);answers[set.id]={quality,best:document.querySelector(`[name="best_${set.id}"]:checked`).value,notes:document.querySelector(`[data-note="${set.id}"]`).value}});const out={what:'Satella blinded seed-versus-adapter quality ratings',rated_at:new Date().toISOString(),source_sha256:data.source_sha256,answers};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));a.download='satella-quality-ratings.json';a.click()};</script>"""
 
 
+def build_public(public_sets, key_path, shuffle_seed):
+    """Build the listener document without exposing experimental arm args."""
+    key_hash = file_sha256(key_path)
+    return {"status": "complete", "sets": public_sets,
+            "concealed_key_sha256": key_hash,
+            "provenance": provenance(
+                __file__, None, randomization_seed=shuffle_seed),
+            "source_sha256": key_hash}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--shipped-adapter", default="lora_models/husky_alto_40s_f")
@@ -99,10 +109,7 @@ def main():
     key = {"status": "complete", "sets": key_sets,
            "arm_configuration": arms}
     atomic_json_write(key, args.key)
-    public = {"status": "complete", "sets": public_sets,
-              "concealed_key_sha256": file_sha256(args.key),
-              "provenance": provenance(__file__, args)}
-    public["source_sha256"] = file_sha256(args.key)
+    public = build_public(public_sets, args.key, args.shuffle_seed)
     atomic_json_write(public, args.out)
     with open(args.html, "w", encoding="utf-8") as handle:
         handle.write(make_html(public))
