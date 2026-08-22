@@ -1,0 +1,114 @@
+{
+ "status": "complete",
+ "provenance": {
+  "script": "addressee_confusion.py",
+  "written": "2026-08-22T06:47:56",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "b9667e70ecc8c17a07395849890af86b75ea64f6",
+   "branch": "agent/addressee-any-corpus-20260822",
+   "dirty": true,
+   "modified_tracked_files": [
+    "MM app/experiments/addressee_confusion.py",
+    "M  app/tests/test_addressee_confusion.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "3d82603336a0f861065a37a7e5403d9d18cb8be3dd5688be4d1aeba4f5008015"
+  },
+  "args": {
+   "artifact": "two_stage_attribution_riqua.json",
+   "fixtures": "fixtures",
+   "pdnc": "data",
+   "fixture_glob": "attribution_gold_riqua_*.json",
+   "out": "addressee_confusion_riqua.json"
+  }
+ },
+ "scope": "which KIND of person the model names when it is wrong, using PDNC's addressee annotation. No model was re-run",
+ "all_wrong_rows_with_an_addressee": {
+  "n": 446,
+  "named_an_addressee": 204,
+  "share": 0.4574,
+  "caveat": "in a two-person scene the addressee is the only alternative, so this number alone proves nothing"
+ },
+ "rows_where_another_present_person_was_available": {
+  "n": 372,
+  "addressee": {
+   "n": 169,
+   "share": 0.4543
+  },
+  "other_present": {
+   "n": 137,
+   "share": 0.3683
+  },
+  "absent": {
+   "n": 66,
+   "share": 0.1774
+  },
+  "mean_addressee_options": 1.01,
+  "mean_other_present_options": 3.44,
+  "share_expected_if_choosing_at_random": 0.2261
+ },
+ "also_named_the_neighbouring_speaker": {
+  "previous_speaker": 135,
+  "rows_with_an_order": 446,
+  "next_speaker": 130
+ },
+ "addressee_or_persistence": {
+  "both_agree": 357,
+  "addressee_not_previous_speaker": 79,
+  "previous_speaker_not_addressee": 10,
+  "note": "in a two-party exchange the addressee IS the previous speaker, so only the disagreeing rows carry information"
+ },
+ "examples": [
+  {
+   "id": "attribution_gold_riqua_austen_emma_1:austen_emma_1-00043",
+   "gold": "Mr. Knightley",
+   "model_said": "MR. WOODHOUSE",
+   "annotated_addressees": [
+    "Mr. Woodhouse"
+   ]
+  },
+  {
+   "id": "attribution_gold_riqua_austen_emma_2:austen_emma_2-00037",
+   "gold": "Harriet",
+   "model_said": "EMMA",
+   "annotated_addressees": [
+    "Emma"
+   ]
+  },
+  {
+   "id": "attribution_gold_riqua_austen_emma_2:austen_emma_2-00049",
+   "gold": "Mrs. Weston",
+   "model_said": "MR. KNIGHTLEY",
+   "annotated_addressees": [
+    "Mr. Knightley"
+   ]
+  },
+  {
+   "id": "attribution_gold_riqua_austen_emma_2:austen_emma_2-00050",
+   "gold": "Mrs. Weston",
+   "model_said": "MR. KNIGHTLEY",
+   "annotated_addressees": [
+    "Mr. Knightley"
+   ]
+  },
+  {
+   "id": "attribution_gold_riqua_austen_emma_2:austen_emma_2-00100",
+   "gold": "Mr. Elton",
+   "model_said": "EMMA",
+   "annotated_addressees": [
+    "Emma"
+   ]
+  },
+  {
+   "id": "attribution_gold_riqua_austen_emma_2:austen_emma_2-00105",
+   "gold": "Mr. Elton",
+   "model_said": "EMMA",
+   "annotated_addressees": [
+    "Emma"
+   ]
+  }
+ ],
+ "verdict": "when it is wrong the model names the person being spoken TO, 45.4% of the time against 22.6% expected from choosing among present people at random"
+}
