@@ -2435,6 +2435,13 @@
   "test_system_version": [
     "tests.test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],
+  "test_tag_priority_field": [
+    "tests.test_tag_priority_field.AdjacentTagFieldTests.test_a_neighbour_without_a_speech_verb_is_not_a_tag",
+    "tests.test_tag_priority_field.AdjacentTagFieldTests.test_gating_on_speaker_finds_the_tags",
+    "tests.test_tag_priority_field.AdjacentTagFieldTests.test_gating_on_type_finds_nothing",
+    "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_experiment_gates_on_speaker",
+    "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_schema_has_no_type_key"
+  ],
   "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways",
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_even_split_once",
