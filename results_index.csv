@@ -882,6 +882,7 @@ roster_warmup__ministral-3-14b-instruct-2512.json,supported_measurement,git+nami
 roster_warmup__ministral-3-14b-instruct-2512.json,supported_measurement,git+naming,no,roster_warmup.py,a8323ce5,,,roster_warmup,mushoku16,ministral-3-14b-instruct-2512,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,warm,139,62,44.6,ok,False,beb2400a,8408.8,07-26 23:01,http://localhost:1234/v1,
 run_lengths.json,exploratory,git+naming,no,run_lengths.py,c583e7c0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 satella_quality_probe.json,supported_structure,git+naming,no,satella_quality_probe.py,5d63fdd5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
+satella_quality_probe_n10.json,supported_structure,git+naming,no,satella_quality_probe.py,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
 satella_quality_ratings.json,exploratory,none,no,,81ec09ee,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 scale_vs_register.json,exploratory,git+naming,no,scale_vs_register.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 scene_aware_casting.json,exploratory,git+naming,no,scene_aware_casting.py,f61c8414,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results

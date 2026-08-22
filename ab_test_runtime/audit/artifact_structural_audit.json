@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 285,
+    "supported_structure": 286,
     "exploratory": 198,
     "provisional": 142
   },
@@ -7905,6 +7905,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-22T12:38:03",
       "commit": "a0851798c347379dcc9f5bb8b75181d30f68b126",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "satella_quality_probe_n10.json",
+      "bytes": 7032,
+      "sha256": "1fd1a2174bccc7032fb29f137f14b0ab87b27657e6b7632eb23b1a1a8773bd83",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T13:02:55",
+      "commit": "616d04ead1c47c1335b9e679d79f47b57195963b",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
