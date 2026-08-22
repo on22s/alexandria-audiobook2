@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 568 artifacts, 597 arms.
+Generated 2026-08-22 from `ab_test_runtime/experiments/` — 570 artifacts, 597 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1151,6 +1151,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `three_pass_vs_single.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_fallback.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_index18.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `three_pass_vs_single_mapped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `three_pass_vs_single_pdnc.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_qwen3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

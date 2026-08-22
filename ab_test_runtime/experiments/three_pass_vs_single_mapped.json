@@ -1,0 +1,88 @@
+{
+ "books": [
+  "index18",
+  "mushoku16",
+  "owarimonogatari3"
+ ],
+ "results": [
+  {
+   "book": "index18",
+   "gold_lines": 99,
+   "comparable": 79,
+   "single_entries": 3655,
+   "three_entries": 2305,
+   "single_minutes": 0.0,
+   "three_minutes": 0.0,
+   "single": {
+    "correct": 56,
+    "accuracy": 0.7088607594936709
+   },
+   "three_pass": {
+    "correct": 40,
+    "accuracy": 0.5063291139240507
+   }
+  },
+  {
+   "book": "mushoku16",
+   "gold_lines": 136,
+   "comparable": 134,
+   "single_entries": 3814,
+   "three_entries": 1896,
+   "single_minutes": 0.0,
+   "three_minutes": 0.0,
+   "single": {
+    "correct": 62,
+    "accuracy": 0.4626865671641791
+   },
+   "three_pass": {
+    "correct": 56,
+    "accuracy": 0.417910447761194
+   }
+  },
+  {
+   "book": "owarimonogatari3",
+   "gold_lines": 162,
+   "comparable": 150,
+   "single_entries": 4468,
+   "three_entries": 3655,
+   "single_minutes": 0.0,
+   "three_minutes": 0.0,
+   "single": {
+    "correct": 88,
+    "accuracy": 0.5866666666666667
+   },
+   "three_pass": {
+    "correct": 69,
+    "accuracy": 0.46
+   }
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "three_pass_vs_single.py",
+  "written": "2026-08-22T02:34:22",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "a7e0a9963e434a1b7b61cdbced92b515fc8a5646",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "609d60f25dead98c62464bc05e5a65d897f4530c855371ba226c7e4ef9d82713"
+  },
+  "args": {
+   "books": [
+    "index18",
+    "mushoku16",
+    "owarimonogatari3"
+   ],
+   "inputs": "ab_test_runtime/dialogue_map_5_3_inputs",
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "timeout": 14400,
+   "reuse_complete": true,
+   "model": null,
+   "pass2_on_exhaustion": "fallback",
+   "out": "ab_test_runtime/experiments/three_pass_vs_single_mapped.json"
+  }
+ }
+}
