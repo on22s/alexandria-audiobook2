@@ -1235,6 +1235,16 @@
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_prefers_nvidia_when_available",
     "tests.test_gpu_stats.GpuStatsTests.test_sample_gpu_utilization_returns_none_when_both_backends_fail"
   ],
+  "test_homograph_probe": [
+    "tests.test_homograph_probe.HomographItemTests.test_a_pair_is_never_adjacent",
+    "tests.test_homograph_probe.HomographItemTests.test_the_offered_alternative_is_the_other_reading",
+    "tests.test_homograph_probe.HomographItemTests.test_the_shuffle_is_seeded",
+    "tests.test_homograph_probe.HomographItemTests.test_two_items_per_word",
+    "tests.test_homograph_probe.HomographSetTests.test_each_side_carries_a_plain_english_gloss",
+    "tests.test_homograph_probe.HomographSetTests.test_every_sentence_actually_contains_its_word",
+    "tests.test_homograph_probe.HomographSetTests.test_every_word_forces_two_different_pronunciations",
+    "tests.test_homograph_probe.HomographSetTests.test_the_two_sentences_of_a_pair_are_different"
+  ],
   "test_ideal_settings_endpoint": [
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone",
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured",
