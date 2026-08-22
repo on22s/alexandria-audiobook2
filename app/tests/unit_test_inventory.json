@@ -109,6 +109,12 @@
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_recognises_the_shapes_it_must_allow"
   ],
+  "test_artifact_provenance_integrity": [
+    "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_a_named_generating_script_still_exists",
+    "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_every_artifact_parses",
+    "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_no_artifact_claims_complete_while_holding_a_partial_marker",
+    "tests.test_artifact_provenance_integrity.ArtifactIntegrityTests.test_there_are_artifacts_to_check"
+  ],
   "test_artifact_shrinkage": [
     "tests.test_artifact_shrinkage.ExplainedTest.test_a_recorded_failure_counts_as_an_explanation",
     "tests.test_artifact_shrinkage.ExplainedTest.test_an_empty_failures_list_explains_nothing",
@@ -806,6 +812,14 @@
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_case_only_differences_are_not_a_disagreement",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
   ],
+  "test_experiment_conventions": [
+    "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
+    "tests.test_experiment_conventions.FixtureIntegrityTests.test_attribution_fixtures_have_entries_with_the_expected_keys",
+    "tests.test_experiment_conventions.FixtureIntegrityTests.test_every_fixture_parses",
+    "tests.test_experiment_conventions.FixtureIntegrityTests.test_no_fixture_entry_id_is_duplicated",
+    "tests.test_experiment_conventions.ProvenanceArityTests.test_every_provenance_call_passes_an_argument",
+    "tests.test_experiment_conventions.ProvenanceArityTests.test_the_check_catches_a_planted_call"
+  ],
   "test_experiment_infra": [
     "tests.test_experiment_infra.AnalysisScriptTest.test_every_experiment_module_parses",
     "tests.test_experiment_infra.AnalysisScriptTest.test_offline_analyses_declare_their_caveats",
@@ -872,6 +886,16 @@
   "test_experiment_run_status": [
     "tests.test_experiment_run_status.ExperimentRunStatusTests.test_existing_or_malformed_status_fails_loudly",
     "tests.test_experiment_run_status.ExperimentRunStatusTests.test_status_records_checkpoint_identity_and_resume_decision"
+  ],
+  "test_experiment_static_soundness": [
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_a_comprehension_variable_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_a_global_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_a_lambda_parameter_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_a_nested_function_parameter_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_a_parameter_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_an_exception_binding_is_not_a_fault",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_no_experiment_function_reads_a_local_before_assigning_it",
+    "tests.test_experiment_static_soundness.ReadBeforeAssignmentTests.test_the_check_catches_a_planted_fault"
   ],
   "test_external_comparability": [
     "tests.test_external_comparability.ContentTest.test_elsons_number_is_the_one_that_transfers",
@@ -1794,6 +1818,12 @@
     "tests.test_queue_chain_lib.LibraryTest.test_it_excludes_itself_from_its_own_process_match",
     "tests.test_queue_chain_lib.LibraryTest.test_the_dirty_tree_refusal_excludes_generated_artifacts",
     "tests.test_queue_chain_lib.LibraryTest.test_the_interpreter_resolver_lives_here_only"
+  ],
+  "test_queue_marker_drift": [
+    "tests.test_queue_marker_drift.MarkerDriftTests.test_every_marker_is_classified",
+    "tests.test_queue_marker_drift.MarkerDriftTests.test_every_terminal_marker_is_cleared_by_gpu_pause",
+    "tests.test_queue_marker_drift.MarkerDriftTests.test_no_marker_that_still_runs_the_job_is_cleared",
+    "tests.test_queue_marker_drift.MarkerDriftTests.test_the_comparison_is_not_vacuous"
   ],
   "test_quote_gate_telemetry": [
     "tests.test_quote_gate_telemetry.QuoteGateTelemetryTest.test_a_quoted_source_reports_the_gate_ran",
