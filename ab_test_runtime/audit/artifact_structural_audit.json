@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 284,
+    "supported_structure": 285,
     "exploratory": 197,
     "provisional": 142
   },
@@ -7892,6 +7892,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "satella_quality_probe.json",
+      "bytes": 3237,
+      "sha256": "6a9dd9dd3033fc406cf45caa89a3c0e4f7774006420fdaa37711825224957dbb",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T12:38:03",
+      "commit": "a0851798c347379dcc9f5bb8b75181d30f68b126",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "scale_vs_register.json",
