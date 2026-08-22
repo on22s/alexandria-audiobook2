@@ -1,13 +1,10 @@
 {
  "note": "structural only; inherits the audit's scope - classifications do not validate scientific conclusions. Measures whether a goal's evidence could be checked by someone else.",
- "goals_scored": 10,
+ "goals_scored": 13,
  "goals_citing_no_artifact": [
-  "1.1",
-  "2.1",
   "2.5",
   "2.9",
   "3.1",
-  "5.3",
   "7.2",
   "2.2",
   "2.3",
@@ -25,20 +22,55 @@
  ],
  "rows": [
   {
+   "goal": "1.1",
+   "title": "Accuracy on the four annotated books",
+   "cited": 2,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "provisional",
+   "classifications": {
+    "supported_structure": 1,
+    "provisional": 1
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 0,
+   "artifacts": [
+    {
+     "name": "external_comparability.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "20fe54c3"
+    },
+    {
+     "name": "two_stage_attribution_w3200.json",
+     "classification": "provisional",
+     "dirty": false,
+     "commit": "9c7a7032"
+    }
+   ]
+  },
+  {
    "goal": "1.3",
    "title": "Generalisation beyond the four books",
-   "cited": 8,
+   "cited": 9,
    "not_in_audit": [],
    "not_experiment_artifacts": [
     "attribution_gold_random.json"
    ],
    "weakest_evidence": "provisional",
    "classifications": {
+    "supported_structure": 1,
     "provisional": 7
    },
-   "dirty_artifacts": 1,
+   "dirty_artifacts": 2,
    "no_commit": 0,
    "artifacts": [
+    {
+     "name": "external_comparability.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "20fe54c3"
+    },
     {
      "name": "pdnc_context_evidence__pilot__local-llamacpp.json",
      "classification": "provisional",
@@ -84,18 +116,39 @@
    ]
   },
   {
+   "goal": "2.1",
+   "title": "Speaker similarity against a human ceiling",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "supported_structure",
+   "classifications": {
+    "supported_structure": 1
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 0,
+   "artifacts": [
+    {
+     "name": "reference_audit.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "c59da6ef"
+    }
+   ]
+  },
+  {
    "goal": "2.6",
    "title": "Voice quality, the measures the field says matter most",
-   "cited": 3,
+   "cited": 4,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
     "supported_structure": 1,
-    "exploratory": 2
+    "exploratory": 3
    },
    "dirty_artifacts": 1,
-   "no_commit": 2,
+   "no_commit": 3,
    "artifacts": [
     {
      "name": "aishell3_SSB0748_generate.json",
@@ -111,6 +164,12 @@
     },
     {
      "name": "pitch_quality_SSB0748.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "pitch_quality_probe_n200.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
@@ -182,6 +241,27 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "49d80ba0"
+    }
+   ]
+  },
+  {
+   "goal": "5.3",
+   "title": "Three-pass vs single-pass generation",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "supported_structure",
+   "classifications": {
+    "supported_structure": 1
+   },
+   "dirty_artifacts": 1,
+   "no_commit": 0,
+   "artifacts": [
+    {
+     "name": "script_text_fidelity.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "38ce596a"
     }
    ]
   },
@@ -311,21 +391,34 @@
   {
    "goal": "6.5",
    "title": "Someone has looked at the audio",
-   "cited": 1,
+   "cited": 3,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
-   "weakest_evidence": "supported_structure",
+   "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 1
+    "supported_structure": 2,
+    "exploratory": 1
    },
-   "dirty_artifacts": 1,
-   "no_commit": 0,
+   "dirty_artifacts": 2,
+   "no_commit": 1,
    "artifacts": [
     {
      "name": "audio_views.json",
      "classification": "supported_structure",
      "dirty": true,
      "commit": "02421630"
+    },
+    {
+     "name": "character_distinctiveness.json",
+     "classification": "supported_structure",
+     "dirty": true,
+     "commit": "9b4f1ad7"
+    },
+    {
+     "name": "listening_verdicts.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },

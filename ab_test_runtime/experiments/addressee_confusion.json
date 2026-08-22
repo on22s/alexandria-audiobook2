@@ -2,23 +2,42 @@
  "status": "complete",
  "provenance": {
   "script": "addressee_confusion.py",
-  "written": "2026-08-21T13:11:10",
+  "written": "2026-08-21T15:13:06",
   "host": "mitch-linux",
   "git": {
-   "commit": "b73b21a687c86a69340445cb32912fe46031b50e",
-   "branch": "agent/addressee-confusion-20260821",
+   "commit": "15739c57bf42a8494691639f797dd1e025a30d79",
+   "branch": "main",
    "dirty": true,
-   "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/addressee_confusion.py"
+   "modified_tracked_files": [
+    "M  .gitignore",
+    "M  GOALS.md",
+    "A  app/experiments/addressee_confusion.py",
+    "A  app/experiments/aozora_quotes.py",
+    "A  app/experiments/descriptor_candidates.py",
+    "A  app/experiments/name_variant_triage.py",
+    "A  app/experiments/riqua_fixture.py",
+    "M  app/experiments/two_stage_attribution.py",
+    "A  app/experiments/wp2021_fixture.py",
+    "A  app/tests/test_addressee_confusion.py",
+    "A  app/tests/test_aozora_quotes.py",
+    "A  app/tests/test_descriptor_candidates.py",
+    "A  app/tests/test_name_variant_triage.py",
+    "M  app/tests/test_prompt_variant.py",
+    "A  app/tests/test_riqua_fixture.py",
+    "M  app/tests/test_split_quote_repair.py",
+    "A  app/tests/test_wp2021_fixture.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  ready.sh",
+    "M  run_chains/explicit_hint_20260821.sh"
    ],
-   "harness_sha256": "5330a7c9572885b5f44b2875c800b1efc782295b828174fc4a06485912c8bd6a"
+   "untracked_harness_files": null,
+   "harness_sha256": "54e386bd2fce135b23ef9b019c18ce083b7f168e02d2e2b7c2bd2e14a6d74c3a"
   },
   "args": {
-   "artifact": "two_stage_attribution_w3200.json",
-   "fixtures": "fixtures",
-   "pdnc": "data",
-   "out": "addressee_confusion.json"
+   "artifact": "ab_test_runtime/experiments/two_stage_attribution_w3200.json",
+   "fixtures": "app/fixtures",
+   "pdnc": "ab_test_runtime/pdnc/data",
+   "out": "ab_test_runtime/experiments/addressee_confusion.json"
   }
  },
  "scope": "which KIND of person the model names when it is wrong, using PDNC's addressee annotation. No model was re-run",
@@ -45,6 +64,17 @@
   "mean_addressee_options": 2.28,
   "mean_other_present_options": 3.26,
   "share_expected_if_choosing_at_random": 0.4119
+ },
+ "also_named_the_neighbouring_speaker": {
+  "previous_speaker": 468,
+  "next_speaker": 471,
+  "rows_with_an_order": 852
+ },
+ "addressee_or_persistence": {
+  "both_agree": 643,
+  "addressee_not_previous_speaker": 205,
+  "previous_speaker_not_addressee": 4,
+  "note": "in a two-party exchange the addressee IS the previous speaker, so only the disagreeing rows carry information"
  },
  "examples": [
   {

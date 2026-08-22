@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "husky_baritone_50s_m_military",
+ "rows": [
+  {
+   "id": "sample_4221",
+   "book": "husky_baritone_50s_m_military",
+   "text": "CHAPTER TWENTY ... The Battle of Grandford",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4221.wav",
+   "human_seconds": 9.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4221__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4221__clone.wav"
+  },
+  {
+   "id": "sample_4224",
+   "book": "husky_baritone_50s_m_military",
+   "text": "the Battle of Grandford got its name and reputation months after the fighting ended, .... bestowed by people who were not there.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4224.wav",
+   "human_seconds": 9.36,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4224__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4224__clone.wav"
+  },
+  {
+   "id": "sample_4234",
+   "book": "husky_baritone_50s_m_military",
+   "text": "\u201cBut\u2026\u201d Suri *looked* up. .... She could *sense* the power draw, feel it like a breeze rushing past her *face*. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4234.wav",
+   "human_seconds": 9.5,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4234__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4234__clone.wav"
+  },
+  {
+   "id": "sample_4242",
+   "book": "husky_baritone_50s_m_military",
+   "text": "we couldn\u2019t do our job, now could we?\u201d \u201c*And* we just have to hide the archers?\u201d \u201c*Actually*, I\u2019m going to do that,\u201d ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4242.wav",
+   "human_seconds": 8.58,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4242__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4242__clone.wav"
+  },
+  {
+   "id": "sample_4248",
+   "book": "husky_baritone_50s_m_military",
+   "text": "and feeling the beating *heart* within. .... Touch *physical* contact was more important than it *seemed*,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4248.wav",
+   "human_seconds": 8.66,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4248__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4248__clone.wav"
+  },
+  {
+   "id": "sample_4272",
+   "book": "husky_baritone_50s_m_military",
+   "text": "all screamed for his attention: the way the light was *so* bright and golden, how dew glistened on everything in *fine* droplets, ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4272.wav",
+   "human_seconds": 9.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4272__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4272__clone.wav"
+  },
+  {
+   "id": "sample_4276",
+   "book": "husky_baritone_50s_m_military",
+   "text": "or the feasts, he only had a clan of one, maybe two ... he still didn\u2019t know where *Malcolm* fit",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4276.wav",
+   "human_seconds": 7.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4276__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4276__clone.wav"
+  },
+  {
+   "id": "sample_4295",
+   "book": "husky_baritone_50s_m_military",
+   "text": "\u201c*Too* wide for us to form three deep. .... They\u2019ll fold around. .... They\u2019ll flank us *easy*.\u201d Raithe was impressed by the old farmer\u2019s transformation into a thinking soldier.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4295.wav",
+   "human_seconds": 11.54,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4295__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4295__clone.wav"
+  },
+  {
+   "id": "sample_4315",
+   "book": "husky_baritone_50s_m_military",
+   "text": "the Fhrey line was ... much *wider*. Last came Moya and her archers, who fell in behind Raithe.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4315.wav",
+   "human_seconds": 7.82,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4315__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4315__clone.wav"
+  },
+  {
+   "id": "sample_4330",
+   "book": "husky_baritone_50s_m_military",
+   "text": "the war officially began. .... *A* moment later, Raithe was hit by *lightning*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4330.wav",
+   "human_seconds": 8.7,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4330__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4330__clone.wav"
+  },
+  {
+   "id": "sample_4350",
+   "book": "husky_baritone_50s_m_military",
+   "text": "Then Moya heard a new sound: the scream of *metal* on metal as men and *elves* clashed. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4350.wav",
+   "human_seconds": 8.5,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4350__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4350__clone.wav"
+  },
+  {
+   "id": "sample_4355",
+   "book": "husky_baritone_50s_m_military",
+   "text": "men were *superior* to Fhrey. He could see it those *beautiful* sky eyes ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4355.wav",
+   "human_seconds": 7.54,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4355__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4355__clone.wav"
+  },
+  {
+   "id": "sample_4361",
+   "book": "husky_baritone_50s_m_military",
+   "text": "stronger legs. For all the training, for all the *technique*, there was little *finesse* in warfare. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4361.wav",
+   "human_seconds": 8.86,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4361__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4361__clone.wav"
+  },
+  {
+   "id": "sample_4365",
+   "book": "husky_baritone_50s_m_military",
+   "text": "an off balance Fhrey was a *dead* one. .... Blood sprayed. ... Men grunted and screamed",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4365.wav",
+   "human_seconds": 8.6,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4365__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4365__clone.wav"
+  },
+  {
+   "id": "sample_4366",
+   "book": "husky_baritone_50s_m_military",
+   "text": "so ... did the Fhrey. .... Some *think* the Fhrey, Dherg, and Rhunes are all related.",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4366.wav",
+   "human_seconds": 9.52,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4366__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4366__clone.wav"
+  },
+  {
+   "id": "sample_4379",
+   "book": "husky_baritone_50s_m_military",
+   "text": "Killian\u2019s *eldest*. Old Killian had a *worried* look as he searched up and down the ranks. .... Behind them,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4379.wav",
+   "human_seconds": 9.04,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4379__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4379__clone.wav"
+  },
+  {
+   "id": "sample_4380",
+   "book": "husky_baritone_50s_m_military",
+   "text": "Moya and her archers walked at a slight distance. .... Just as Wedon had *predicted*, the flanks swung in,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4380.wav",
+   "human_seconds": 8.64,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4380__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4380__clone.wav"
+  },
+  {
+   "id": "sample_4385",
+   "book": "husky_baritone_50s_m_military",
+   "text": "Vast tremors ... caught everyone\u2019s *attention*. They came from the *rear* of the Fhrey lines, the same",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4385.wav",
+   "human_seconds": 7.8,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4385__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4385__clone.wav"
+  },
+  {
+   "id": "sample_4392",
+   "book": "husky_baritone_50s_m_military",
+   "text": "performing some *rehearsed* ritual. .... The lightning had ended, and the fires were gone. .... Moya couldn\u2019t imagine what they might be *doing*,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4392.wav",
+   "human_seconds": 9.78,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4392__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4392__clone.wav"
+  },
+  {
+   "id": "sample_4395",
+   "book": "husky_baritone_50s_m_military",
+   "text": "This might be as far as we can get. ... Tell me it\u2019s good enough. .... It wasn\u2019t,",
+   "human_wav": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/data/val/sample_4395.wav",
+   "human_seconds": 8.48,
+   "lora_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4395__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military/sample_4395__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-21T00:38:25",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "aa0a026abb3a7a781ba0a1e042a0c19b32badb26",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch2/husky_baritone_50s_m_military/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/husky_baritone_50s_m_military",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__husky_baritone_50s_m_military_generate.json"
+  },
+  "seed": 1234
+ }
+}

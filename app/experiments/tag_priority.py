@@ -106,7 +106,16 @@ def has_adjacent_tag(index):
     rows the rule should help, on untagged rows it can only mislead.
     """
     for j in (index - 1, index + 1):
-        if 0 <= j < len(seg) and seg[j].get("type") == "NARRATOR":
+        # THE FIELD IS `speaker`, NOT `type`. Script entries carry exactly
+        # {speaker, text, instruct} - there is no `type` key anywhere in the
+        # schema, so `get("type")` returned None on every row and this
+        # function returned False every time it was ever called. The A/B
+        # itself was unaffected (both arms ran), but the stratification that
+        # exists to LOCATE a gain reported `available: 0` on 396 rows and its
+        # conditional accuracy was 0.0 by construction. Measured after the
+        # fix on Arc 1 - Volume 1: 278 of 1,408 spoken lines (19.7%) have an
+        # adjacent tag, against 0 before.
+        if 0 <= j < len(seg) and seg[j].get("speaker") == "NARRATOR":
             if re.search(SPEECH_VERB, (seg[j].get("text") or "").lower()):
                 return True
     return False

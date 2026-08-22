@@ -1,0 +1,2744 @@
+{
+ "arms": [
+  "clone"
+ ],
+ "summary": {
+  "clone": {
+   "ecapa": 0.7992840754985809,
+   "f0_corr": 0.8772058640820767,
+   "mcd": 294.4707243293781,
+   "dur_ratio": 0.9066681599934227,
+   "n": 150
+  },
+  "human_vs_human": {
+   "ecapa": 0.8354735215504964,
+   "f0_corr": 0.8193484871797528,
+   "mcd": 430.61294560105415,
+   "dur_ratio": 1.0551247100832448,
+   "n": 150
+  }
+ },
+ "rows": [
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00001",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.5380416666666665,
+   "clone": {
+    "f0_corr": 0.9413549603897868,
+    "mcd": 349.05438633402196,
+    "dur_ratio": 0.866732373808431,
+    "ecapa": 0.8196984529495239
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7974660216866286,
+    "mcd": 440.12477037160363,
+    "dur_ratio": 0.5995801765064366,
+    "anchor_seconds": 8.49,
+    "ecapa": 0.8279415369033813
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00002",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.3205,
+   "clone": {
+    "f0_corr": 0.8683297706455829,
+    "mcd": 274.02850681154837,
+    "dur_ratio": 0.7950609847914472,
+    "ecapa": 0.8088889122009277
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8526494000663981,
+    "mcd": 466.2259521825002,
+    "dur_ratio": 1.555915273804146,
+    "anchor_seconds": 9.28,
+    "ecapa": 0.8206918239593506
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00003",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.166416666666667,
+   "clone": {
+    "f0_corr": 0.7817954586725512,
+    "mcd": 227.05549355118453,
+    "dur_ratio": 0.9290772134135522,
+    "ecapa": 0.8928154706954956
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7390916475447659,
+    "mcd": 446.42964293244154,
+    "dur_ratio": 0.7955062341726213,
+    "anchor_seconds": 10.73,
+    "ecapa": 0.8375434875488281
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00004",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.109916666666667,
+   "clone": {
+    "f0_corr": 0.9146109728265555,
+    "mcd": 289.0661604172264,
+    "dur_ratio": 0.8564650540359698,
+    "ecapa": 0.7798063158988953
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7965404805686439,
+    "mcd": 406.11568302124937,
+    "dur_ratio": 1.6101806605973357,
+    "anchor_seconds": 11.33,
+    "ecapa": 0.8475898504257202
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00005",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.617708333333334,
+   "clone": {
+    "f0_corr": 0.9251291949567841,
+    "mcd": 321.2761349439146,
+    "dur_ratio": 0.8703919408153628,
+    "ecapa": 0.8364251852035522
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8687549744964107,
+    "mcd": 359.4348097522683,
+    "dur_ratio": 0.7122871084526994,
+    "anchor_seconds": 8.21,
+    "ecapa": 0.8379130959510803
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00006",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.713708333333333,
+   "clone": {
+    "f0_corr": 0.9213764899084432,
+    "mcd": 271.0986723482862,
+    "dur_ratio": 0.9504194326830434,
+    "ecapa": 0.7273874282836914
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8607485925214489,
+    "mcd": 350.94871584908105,
+    "dur_ratio": 0.7413748906116028,
+    "anchor_seconds": 8.07,
+    "ecapa": 0.7492220997810364
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00058",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.494625,
+   "clone": {
+    "f0_corr": 0.907300438213039,
+    "mcd": 351.583790562885,
+    "dur_ratio": 0.8241227599527846,
+    "ecapa": 0.7409889698028564
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8201218177185737,
+    "mcd": 469.98181018704,
+    "dur_ratio": 1.308950650403596,
+    "anchor_seconds": 8.28,
+    "ecapa": 0.7943462133407593
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00060",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.574291666666666,
+   "clone": {
+    "f0_corr": 0.7948651298931739,
+    "mcd": 333.6076570807745,
+    "dur_ratio": 1.0493427944217228,
+    "ecapa": 0.7558315992355347
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7963951003597731,
+    "mcd": 409.312470974111,
+    "dur_ratio": 0.8096517675778582,
+    "anchor_seconds": 9.3,
+    "ecapa": 0.8805362582206726
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00061",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7035833333333334,
+   "clone": {
+    "f0_corr": 0.9280734109303904,
+    "mcd": 242.1797184350853,
+    "dur_ratio": 1.080035101140787,
+    "ecapa": 0.7770417928695679
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7317015111767706,
+    "mcd": 417.11953678921935,
+    "dur_ratio": 1.5109803568615978,
+    "anchor_seconds": 9.86,
+    "ecapa": 0.8464560508728027
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00062",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.596041666666666,
+   "clone": {
+    "f0_corr": 0.9607223010570582,
+    "mcd": 317.5854806923636,
+    "dur_ratio": 0.8577491530471688,
+    "ecapa": 0.8444854021072388
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8379239067821918,
+    "mcd": 391.1422725670968,
+    "dur_ratio": 0.761416179591229,
+    "anchor_seconds": 8.44,
+    "ecapa": 0.8562888503074646
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00063",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.260916666666667,
+   "clone": {
+    "f0_corr": 0.8288865812517148,
+    "mcd": 222.49273031741836,
+    "dur_ratio": 0.7697874088126576,
+    "ecapa": 0.7923999428749084
+   },
+   "human_vs_human": {
+    "f0_corr": 0.816634185991449,
+    "mcd": 390.23476190656106,
+    "dur_ratio": 0.9809215544385989,
+    "anchor_seconds": 8.59,
+    "ecapa": 0.8262997269630432
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00064",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.179625,
+   "clone": {
+    "f0_corr": 0.9419475733630513,
+    "mcd": 255.22618578303232,
+    "dur_ratio": 0.9378831832999373,
+    "ecapa": 0.807945191860199
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8468382472074593,
+    "mcd": 458.6481186775762,
+    "dur_ratio": 1.055547248058538,
+    "anchor_seconds": 9.81,
+    "ecapa": 0.7840406894683838
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00124",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.411791666666667,
+   "clone": {
+    "f0_corr": 0.7241781653976694,
+    "mcd": 274.1505500560037,
+    "dur_ratio": 1.0517363505000803,
+    "ecapa": 0.8154086470603943
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8066989198853792,
+    "mcd": 451.66717012096143,
+    "dur_ratio": 1.2236808552836622,
+    "anchor_seconds": 13.04,
+    "ecapa": 0.8488234281539917
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00126",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.398625,
+   "clone": {
+    "f0_corr": 0.6828870046747186,
+    "mcd": 291.1267677026635,
+    "dur_ratio": 0.815022343652319,
+    "ecapa": 0.8237143754959106
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7764440903271979,
+    "mcd": 452.6479207857528,
+    "dur_ratio": 1.4150671081371027,
+    "anchor_seconds": 7.64,
+    "ecapa": 0.8531437516212463
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00127",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.6394166666666665,
+   "clone": {
+    "f0_corr": 0.8898492665545302,
+    "mcd": 314.4745142799972,
+    "dur_ratio": 1.015784363989397,
+    "ecapa": 0.8615072965621948
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8732121775984618,
+    "mcd": 442.40364505296037,
+    "dur_ratio": 0.5516727935160843,
+    "anchor_seconds": 7.23,
+    "ecapa": 0.8760154843330383
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00128",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.214458333333333,
+   "clone": {
+    "f0_corr": 0.8748485409858076,
+    "mcd": 295.4297233845455,
+    "dur_ratio": 1.0440250328729475,
+    "ecapa": 0.8345488905906677
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8418270151140776,
+    "mcd": 447.59492279541485,
+    "dur_ratio": 0.7162545601945683,
+    "anchor_seconds": 7.52,
+    "ecapa": 0.8551061153411865
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00130",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.018625,
+   "clone": {
+    "f0_corr": 0.8071358761657363,
+    "mcd": 284.8166001191251,
+    "dur_ratio": 1.0335831711458032,
+    "ecapa": 0.7001152634620667
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6947313843440182,
+    "mcd": 496.21316521087454,
+    "dur_ratio": 1.4923185225061077,
+    "anchor_seconds": 11.16,
+    "ecapa": 0.6585714817047119
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00131",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.50475,
+   "clone": {
+    "f0_corr": 0.8953739202869924,
+    "mcd": 272.5903692743716,
+    "dur_ratio": 0.9589877351684335,
+    "ecapa": 0.8204352855682373
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8586801726204454,
+    "mcd": 452.0013657129964,
+    "dur_ratio": 1.4767837652847922,
+    "anchor_seconds": 10.65,
+    "ecapa": 0.7679572701454163
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00179",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.652541666666667,
+   "clone": {
+    "f0_corr": 0.8740953909245175,
+    "mcd": 270.8390990894419,
+    "dur_ratio": 0.8057133551712691,
+    "ecapa": 0.7604583501815796
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9168183540126845,
+    "mcd": 416.9770866209936,
+    "dur_ratio": 0.6003407219045352,
+    "anchor_seconds": 9.94,
+    "ecapa": 0.830742597579956
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00180",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.9937916666666666,
+   "clone": {
+    "f0_corr": 0.9607784933981508,
+    "mcd": 272.99731285527844,
+    "dur_ratio": 0.7812125069117694,
+    "ecapa": 0.6689908504486084
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7758534443039817,
+    "mcd": 430.9780169546613,
+    "dur_ratio": 1.4883934439911948,
+    "anchor_seconds": 10.34,
+    "ecapa": 0.8433833122253418
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00181",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.944333333333334,
+   "clone": {
+    "f0_corr": 0.8427676512862142,
+    "mcd": 297.69175239633745,
+    "dur_ratio": 0.9420736836202545,
+    "ecapa": 0.7688256502151489
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9355143331960541,
+    "mcd": 395.5408666678436,
+    "dur_ratio": 0.7402357987999776,
+    "anchor_seconds": 7.93,
+    "ecapa": 0.8660547137260437
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00182",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.4002083333333335,
+   "clone": {
+    "f0_corr": 0.9340318620015233,
+    "mcd": 353.2142592564706,
+    "dur_ratio": 0.8181430803465745,
+    "ecapa": 0.7163464426994324
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8529404903956498,
+    "mcd": 441.81767816030793,
+    "dur_ratio": 0.8021021731925572,
+    "anchor_seconds": 10.5,
+    "ecapa": 0.8618665933609009
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00183",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.5294166666666666,
+   "clone": {
+    "f0_corr": 0.9218307859013227,
+    "mcd": 275.8502289135595,
+    "dur_ratio": 1.0426652185205298,
+    "ecapa": 0.7559877038002014
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7493505412908973,
+    "mcd": 483.15995022337995,
+    "dur_ratio": 1.9736972587538073,
+    "anchor_seconds": 13.25,
+    "ecapa": 0.8264997005462646
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00184",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.966,
+   "clone": {
+    "f0_corr": 0.9249305512988565,
+    "mcd": 260.8840815436422,
+    "dur_ratio": 0.8728107952914155,
+    "ecapa": 0.7677867412567139
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9254281977600427,
+    "mcd": 359.6089831980891,
+    "dur_ratio": 0.9016652311225954,
+    "anchor_seconds": 9.79,
+    "ecapa": 0.7485800981521606
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00232",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.281,
+   "clone": {
+    "f0_corr": 0.8323680121784117,
+    "mcd": 282.0934589756142,
+    "dur_ratio": 0.7005253940455343,
+    "ecapa": 0.7966797351837158
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8292706090133609,
+    "mcd": 387.3992303918365,
+    "dur_ratio": 0.558231173380035,
+    "anchor_seconds": 8.43,
+    "ecapa": 0.8796766996383667
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00233",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.50625,
+   "clone": {
+    "f0_corr": 0.8905250692180788,
+    "mcd": 294.6608439156861,
+    "dur_ratio": 1.0267379679144386,
+    "ecapa": 0.7762406468391418
+   },
+   "human_vs_human": {
+    "f0_corr": 0.67435797228862,
+    "mcd": 477.2110625072826,
+    "dur_ratio": 1.4039572192513368,
+    "anchor_seconds": 10.14,
+    "ecapa": 0.8711676597595215
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00234",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.922625,
+   "clone": {
+    "f0_corr": 0.7568097037465293,
+    "mcd": 353.3037591976914,
+    "dur_ratio": 0.6825626571189152,
+    "ecapa": 0.82329261302948
+   },
+   "human_vs_human": {
+    "f0_corr": 0.807921062322071,
+    "mcd": 434.4687020967046,
+    "dur_ratio": 1.0589709081367495,
+    "anchor_seconds": 10.98,
+    "ecapa": 0.8437640070915222
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00235",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.212916666666667,
+   "clone": {
+    "f0_corr": 0.9430821261949919,
+    "mcd": 292.704520462284,
+    "dur_ratio": 0.9207897050595476,
+    "ecapa": 0.8523929119110107
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8685690699147831,
+    "mcd": 414.4126555826737,
+    "dur_ratio": 1.1069059227879467,
+    "anchor_seconds": 12.12,
+    "ecapa": 0.8951050043106079
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00236",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.770208333333334,
+   "clone": {
+    "f0_corr": 0.7748865943788045,
+    "mcd": 272.50602378002736,
+    "dur_ratio": 0.8179947286709751,
+    "ecapa": 0.8395341634750366
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8907054394848426,
+    "mcd": 391.50137350926735,
+    "dur_ratio": 1.1006029533884536,
+    "anchor_seconds": 12.23,
+    "ecapa": 0.8488388657569885
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00237",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.350708333333333,
+   "clone": {
+    "f0_corr": 0.821392790929741,
+    "mcd": 314.8934770938481,
+    "dur_ratio": 0.8062092811169358,
+    "ecapa": 0.7932074069976807
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9036948656760115,
+    "mcd": 408.7338608829097,
+    "dur_ratio": 0.9250346090003083,
+    "anchor_seconds": 11.51,
+    "ecapa": 0.8306941390037537
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00287",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.874625,
+   "clone": {
+    "f0_corr": 0.9072634203077602,
+    "mcd": 245.7841997065813,
+    "dur_ratio": 0.9396344447517926,
+    "ecapa": 0.8498941659927368
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8948552620739281,
+    "mcd": 381.19779820809015,
+    "dur_ratio": 0.95850089722039,
+    "anchor_seconds": 9.44,
+    "ecapa": 0.8772551417350769
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00288",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.630833333333333,
+   "clone": {
+    "f0_corr": 0.907408920275837,
+    "mcd": 351.0040324357885,
+    "dur_ratio": 0.8240417344975581,
+    "ecapa": 0.7905506491661072
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8388368314336475,
+    "mcd": 435.20775606159174,
+    "dur_ratio": 0.676298653248483,
+    "anchor_seconds": 8.78,
+    "ecapa": 0.7780055999755859
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00289",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.808125,
+   "clone": {
+    "f0_corr": 0.7738414950227507,
+    "mcd": 312.63615737215713,
+    "dur_ratio": 0.8193008370260956,
+    "ecapa": 0.7798689603805542
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7519862117359951,
+    "mcd": 447.80592710709925,
+    "dur_ratio": 1.304874446085672,
+    "anchor_seconds": 8.72,
+    "ecapa": 0.8117715716362
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00290",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.969125,
+   "clone": {
+    "f0_corr": 0.8483186759192931,
+    "mcd": 317.42318590366295,
+    "dur_ratio": 1.1108595577692248,
+    "ecapa": 0.8466342091560364
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9003006733120088,
+    "mcd": 454.81419423216,
+    "dur_ratio": 0.754668410769837,
+    "anchor_seconds": 8.9,
+    "ecapa": 0.8619239926338196
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00291",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7500416666666667,
+   "clone": {
+    "f0_corr": 0.7981868963252927,
+    "mcd": 318.7271672462245,
+    "dur_ratio": 1.0026555260497105,
+    "ecapa": 0.8107085824012756
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8461004178916736,
+    "mcd": 455.00340929113884,
+    "dur_ratio": 1.3745958378240242,
+    "anchor_seconds": 10.86,
+    "ecapa": 0.8545704483985901
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00293",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.154791666666667,
+   "clone": {
+    "f0_corr": 0.7141924073206976,
+    "mcd": 319.42348616064396,
+    "dur_ratio": 0.9622115345754354,
+    "ecapa": 0.8381301164627075
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9212162019610913,
+    "mcd": 435.18690398104553,
+    "dur_ratio": 1.1058642848482398,
+    "anchor_seconds": 9.78,
+    "ecapa": 0.8248279094696045
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00340",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.7005,
+   "clone": {
+    "f0_corr": 0.9470539969473573,
+    "mcd": 275.981058147009,
+    "dur_ratio": 0.7157266906411719,
+    "ecapa": 0.7926458716392517
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8082381667468496,
+    "mcd": 366.82291275352577,
+    "dur_ratio": 0.7148715024997807,
+    "anchor_seconds": 9.43,
+    "ecapa": 0.8388731479644775
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00341",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.075125,
+   "clone": {
+    "f0_corr": 0.8745099350851927,
+    "mcd": 295.22326435783407,
+    "dur_ratio": 1.0011962823226281,
+    "ecapa": 0.7801600694656372
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6284583905242803,
+    "mcd": 477.19297508460653,
+    "dur_ratio": 1.3133850699876282,
+    "anchor_seconds": 10.15,
+    "ecapa": 0.8598911762237549
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00343",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.3522083333333335,
+   "clone": {
+    "f0_corr": 0.8173521069620621,
+    "mcd": 286.0181485446664,
+    "dur_ratio": 0.926720279012557,
+    "ecapa": 0.8605079054832458
+   },
+   "human_vs_human": {
+    "f0_corr": 0.850521979417871,
+    "mcd": 378.0887061400425,
+    "dur_ratio": 0.8958840976855348,
+    "anchor_seconds": 8.79,
+    "ecapa": 0.8665601015090942
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00344",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.794958333333334,
+   "clone": {
+    "f0_corr": 0.8438451546829011,
+    "mcd": 282.3057050404098,
+    "dur_ratio": 0.7841569704290096,
+    "ecapa": 0.7985539436340332
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9029211264126699,
+    "mcd": 416.3952901444504,
+    "dur_ratio": 0.8329147802813719,
+    "anchor_seconds": 8.01,
+    "ecapa": 0.8907346725463867
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00345",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.9937916666666666,
+   "clone": {
+    "f0_corr": 0.8641523740538396,
+    "mcd": 232.05282351525528,
+    "dur_ratio": 0.9815234061199153,
+    "ecapa": 0.7746907472610474
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7039228749362232,
+    "mcd": 432.98792322627594,
+    "dur_ratio": 1.0058424012269043,
+    "anchor_seconds": 10.01,
+    "ecapa": 0.8109015226364136
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00346",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.017125,
+   "clone": {
+    "f0_corr": 0.8989532996875982,
+    "mcd": 315.9881644639161,
+    "dur_ratio": 0.935992780906743,
+    "ecapa": 0.8254258632659912
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8554664313824019,
+    "mcd": 440.4240563007017,
+    "dur_ratio": 1.4912924873717728,
+    "anchor_seconds": 10.89,
+    "ecapa": 0.8038431406021118
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00392",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.990708333333333,
+   "clone": {
+    "f0_corr": 0.6960179469974191,
+    "mcd": 324.38054115116535,
+    "dur_ratio": 1.0015510130271184,
+    "ecapa": 0.8051270246505737
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6854345484146083,
+    "mcd": 438.39507857564365,
+    "dur_ratio": 0.8178359542903246,
+    "anchor_seconds": 9.61,
+    "ecapa": 0.8284356594085693
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00393",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.899416666666666,
+   "clone": {
+    "f0_corr": 0.8967460941604932,
+    "mcd": 273.4023820918665,
+    "dur_ratio": 0.832752198390965,
+    "ecapa": 0.8105124235153198
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8382561849129344,
+    "mcd": 506.03576033055384,
+    "dur_ratio": 0.9620958277345942,
+    "anchor_seconds": 8.86,
+    "ecapa": 0.8124858736991882
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00395",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.713708333333333,
+   "clone": {
+    "f0_corr": 0.9293746347099298,
+    "mcd": 328.2018372017339,
+    "dur_ratio": 0.7637299012631599,
+    "ecapa": 0.7762274742126465
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9173065167774587,
+    "mcd": 441.84368468773073,
+    "dur_ratio": 0.8793147645608113,
+    "anchor_seconds": 7.86,
+    "ecapa": 0.8774828314781189
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00396",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.144833333333334,
+   "clone": {
+    "f0_corr": 0.8692793243087765,
+    "mcd": 354.24395373728555,
+    "dur_ratio": 1.0422614499979894,
+    "ecapa": 0.776192307472229
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8587855176513415,
+    "mcd": 466.5268313042692,
+    "dur_ratio": 0.8963468575334754,
+    "anchor_seconds": 10.37,
+    "ecapa": 0.8602555990219116
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00397",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7152083333333334,
+   "clone": {
+    "f0_corr": 0.9063711525948002,
+    "mcd": 355.8794363019238,
+    "dur_ratio": 0.8613245107385185,
+    "ecapa": 0.740314245223999
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7481150176446266,
+    "mcd": 461.8473901366602,
+    "dur_ratio": 1.7906241238153984,
+    "anchor_seconds": 13.75,
+    "ecapa": 0.8311083316802979
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00398",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.652541666666667,
+   "clone": {
+    "f0_corr": 0.9315040571359009,
+    "mcd": 302.06258277186254,
+    "dur_ratio": 0.998114755638509,
+    "ecapa": 0.8373162746429443
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8507044361501385,
+    "mcd": 434.4849151750619,
+    "dur_ratio": 1.0663155059782916,
+    "anchor_seconds": 7.09,
+    "ecapa": 0.7746413946151733
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00445",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.093708333333334,
+   "clone": {
+    "f0_corr": 0.9196224313896098,
+    "mcd": 278.99451179619183,
+    "dur_ratio": 0.879658617671763,
+    "ecapa": 0.8155339956283569
+   },
+   "human_vs_human": {
+    "f0_corr": 0.917527486693766,
+    "mcd": 468.21289773621004,
+    "dur_ratio": 0.8625307637636637,
+    "anchor_seconds": 11.22,
+    "ecapa": 0.9068714380264282
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00446",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.118541666666666,
+   "clone": {
+    "f0_corr": 0.937188976863833,
+    "mcd": 306.54392917428254,
+    "dur_ratio": 1.0067758520889374,
+    "ecapa": 0.8227542638778687
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8804701071387951,
+    "mcd": 396.0446435621184,
+    "dur_ratio": 0.8330075930402806,
+    "anchor_seconds": 8.81,
+    "ecapa": 0.9003159999847412
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00447",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.096791666666666,
+   "clone": {
+    "f0_corr": 0.9445761825294798,
+    "mcd": 313.3838801795186,
+    "dur_ratio": 0.9260727745395387,
+    "ecapa": 0.8294696807861328
+   },
+   "human_vs_human": {
+    "f0_corr": 0.853886346319017,
+    "mcd": 407.12928157022696,
+    "dur_ratio": 0.7289307816191559,
+    "anchor_seconds": 8.27,
+    "ecapa": 0.8544756174087524
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00448",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7152083333333334,
+   "clone": {
+    "f0_corr": 0.8736255858282869,
+    "mcd": 356.858874925692,
+    "dur_ratio": 0.7751920596646665,
+    "ecapa": 0.8069003820419312
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8080332828459497,
+    "mcd": 421.5856307147455,
+    "dur_ratio": 1.2249985981046374,
+    "anchor_seconds": 8.66,
+    "ecapa": 0.8756545782089233
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00449",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.551125,
+   "clone": {
+    "f0_corr": 0.8053023574691122,
+    "mcd": 363.59037168278377,
+    "dur_ratio": 0.8437565803327016,
+    "ecapa": 0.8014544248580933
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8331544323630439,
+    "mcd": 406.1427204380475,
+    "dur_ratio": 0.903055105422652,
+    "anchor_seconds": 8.68,
+    "ecapa": 0.8814502954483032
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00450",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.109916666666667,
+   "clone": {
+    "f0_corr": 0.8929282902668528,
+    "mcd": 280.7085528170902,
+    "dur_ratio": 0.973255743222693,
+    "ecapa": 0.8004977703094482
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8938748406251155,
+    "mcd": 427.84551901193316,
+    "dur_ratio": 1.1129889089397593,
+    "anchor_seconds": 9.2,
+    "ecapa": 0.8329693078994751
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00497",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.574291666666666,
+   "clone": {
+    "f0_corr": 0.865183486513077,
+    "mcd": 311.13218349078386,
+    "dur_ratio": 0.9269194684058553,
+    "ecapa": 0.785851001739502
+   },
+   "human_vs_human": {
+    "f0_corr": 0.869305728409003,
+    "mcd": 442.23870275290943,
+    "dur_ratio": 1.0101746171993844,
+    "anchor_seconds": 8.93,
+    "ecapa": 0.8975791931152344
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00498",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.620833333333334,
+   "clone": {
+    "f0_corr": 0.9250523195588791,
+    "mcd": 305.8552013543541,
+    "dur_ratio": 1.0733994589720468,
+    "ecapa": 0.7977768182754517
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7935160002145788,
+    "mcd": 471.97920521032694,
+    "dur_ratio": 0.9321550946798918,
+    "anchor_seconds": 7.96,
+    "ecapa": 0.8281756639480591
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00500",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.307333333333333,
+   "clone": {
+    "f0_corr": 0.9193294682025949,
+    "mcd": 339.56774400417646,
+    "dur_ratio": 1.151524531806222,
+    "ecapa": 0.8015176057815552
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8929952529783535,
+    "mcd": 453.13412570203917,
+    "dur_ratio": 0.8490462002785947,
+    "anchor_seconds": 8.82,
+    "ecapa": 0.8293442130088806
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00501",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.657125,
+   "clone": {
+    "f0_corr": 0.9374766165292011,
+    "mcd": 289.484092341702,
+    "dur_ratio": 0.9843798065420241,
+    "ecapa": 0.8095791339874268
+   },
+   "human_vs_human": {
+    "f0_corr": 0.736670592198934,
+    "mcd": 505.81529058005964,
+    "dur_ratio": 1.412698955235784,
+    "anchor_seconds": 9.49,
+    "ecapa": 0.7883233428001404
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00502",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.166416666666667,
+   "clone": {
+    "f0_corr": 0.861267740363856,
+    "mcd": 287.8516555865817,
+    "dur_ratio": 1.0219849347549075,
+    "ecapa": 0.7650617957115173
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8974588929655322,
+    "mcd": 415.74086282555527,
+    "dur_ratio": 0.8359598045066696,
+    "anchor_seconds": 9.53,
+    "ecapa": 0.8253458142280579
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00503",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.3189166666666665,
+   "clone": {
+    "f0_corr": 0.8875979399493673,
+    "mcd": 304.2719427082973,
+    "dur_ratio": 1.074353136396087,
+    "ecapa": 0.773266077041626
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8701269464180897,
+    "mcd": 420.55441332917155,
+    "dur_ratio": 1.206996353252166,
+    "anchor_seconds": 9.67,
+    "ecapa": 0.7963294982910156
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00546",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.212916666666667,
+   "clone": {
+    "f0_corr": 0.8757897305815259,
+    "mcd": 290.3906892593824,
+    "dur_ratio": 0.7519782591319638,
+    "ecapa": 0.8053847551345825
+   },
+   "human_vs_human": {
+    "f0_corr": 0.844327096338456,
+    "mcd": 397.9610200522269,
+    "dur_ratio": 0.8552234034050036,
+    "anchor_seconds": 9.46,
+    "ecapa": 0.8985934257507324
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00547",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.458208333333333,
+   "clone": {
+    "f0_corr": 0.7638745169269155,
+    "mcd": 374.0397944012645,
+    "dur_ratio": 0.7177771339383348,
+    "ecapa": 0.8380218148231506
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8149769208063287,
+    "mcd": 375.1024773420896,
+    "dur_ratio": 1.122405301083208,
+    "anchor_seconds": 8.6,
+    "ecapa": 0.8935365676879883
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00548",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.003916666666667,
+   "clone": {
+    "f0_corr": 0.9225464428348358,
+    "mcd": 297.9062476743156,
+    "dur_ratio": 0.7514113944077139,
+    "ecapa": 0.822553277015686
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7970750045092234,
+    "mcd": 328.8380833807371,
+    "dur_ratio": 0.7192615784302295,
+    "anchor_seconds": 8.8,
+    "ecapa": 0.8810415267944336
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00549",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.599125,
+   "clone": {
+    "f0_corr": 0.9030637729766079,
+    "mcd": 314.1881847560026,
+    "dur_ratio": 1.1336088632653771,
+    "ecapa": 0.8558345437049866
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8303563490269323,
+    "mcd": 463.54128195613185,
+    "dur_ratio": 1.4451660704569398,
+    "anchor_seconds": 9.56,
+    "ecapa": 0.8441332578659058
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00550",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.201333333333333,
+   "clone": {
+    "f0_corr": 0.7465165458438849,
+    "mcd": 277.7089927451701,
+    "dur_ratio": 0.8920869648807999,
+    "ecapa": 0.7795379161834717
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8119760218886288,
+    "mcd": 434.81147281399785,
+    "dur_ratio": 0.8370369776980262,
+    "anchor_seconds": 11.55,
+    "ecapa": 0.8190258145332336
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00551",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.3537083333333335,
+   "clone": {
+    "f0_corr": 0.8553554408300084,
+    "mcd": 307.48948902448916,
+    "dur_ratio": 0.9922575582118692,
+    "ecapa": 0.7991899251937866
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8894007453360839,
+    "mcd": 453.0384404245665,
+    "dur_ratio": 1.6533510704476069,
+    "anchor_seconds": 7.2,
+    "ecapa": 0.8052011728286743
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00601",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.1982083333333335,
+   "clone": {
+    "f0_corr": 0.86335121770567,
+    "mcd": 298.21865401364494,
+    "dur_ratio": 0.7890852469075058,
+    "ecapa": 0.8304247856140137
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8794536076723557,
+    "mcd": 400.07767023279496,
+    "dur_ratio": 0.7951631482371192,
+    "anchor_seconds": 8.88,
+    "ecapa": 0.8658668994903564
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00602",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.72375,
+   "clone": {
+    "f0_corr": 0.874276074025859,
+    "mcd": 303.38184002062195,
+    "dur_ratio": 1.04826381305962,
+    "ecapa": 0.7939401865005493
+   },
+   "human_vs_human": {
+    "f0_corr": 0.908885849534966,
+    "mcd": 421.8990210848422,
+    "dur_ratio": 0.5517216277207542,
+    "anchor_seconds": 8.8,
+    "ecapa": 0.8366267085075378
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00603",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.1579166666666665,
+   "clone": {
+    "f0_corr": 0.8781675181732546,
+    "mcd": 236.9321166458521,
+    "dur_ratio": 0.8613273518933897,
+    "ecapa": 0.7608280181884766
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7004273625344543,
+    "mcd": 440.3416320092842,
+    "dur_ratio": 1.7867528697717379,
+    "anchor_seconds": 10.46,
+    "ecapa": 0.8004885911941528
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00605",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.642416666666667,
+   "clone": {
+    "f0_corr": 0.8548584081092495,
+    "mcd": 324.9167442021547,
+    "dur_ratio": 0.8932416665435909,
+    "ecapa": 0.8304440975189209
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8292406887998658,
+    "mcd": 419.7038358773181,
+    "dur_ratio": 0.8539115922550917,
+    "anchor_seconds": 8.42,
+    "ecapa": 0.8532105684280396
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00606",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.818125,
+   "clone": {
+    "f0_corr": 0.8307218821795677,
+    "mcd": 331.1890968890621,
+    "dur_ratio": 0.7637825917758464,
+    "ecapa": 0.7868101596832275
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9248644257476556,
+    "mcd": 398.7366237313299,
+    "dur_ratio": 0.7469970164742509,
+    "anchor_seconds": 7.66,
+    "ecapa": 0.8411093950271606
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00607",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.599125,
+   "clone": {
+    "f0_corr": 0.8869902310689851,
+    "mcd": 313.07009151125413,
+    "dur_ratio": 0.7557392421769181,
+    "ecapa": 0.8404593467712402
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7306668930653535,
+    "mcd": 439.68162851604075,
+    "dur_ratio": 1.1290244156565834,
+    "anchor_seconds": 9.59,
+    "ecapa": 0.7842968702316284
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00648",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.0635,
+   "clone": {
+    "f0_corr": 0.8986280061538962,
+    "mcd": 279.53219089333226,
+    "dur_ratio": 0.8859357696566998,
+    "ecapa": 0.7235500812530518
+   },
+   "human_vs_human": {
+    "f0_corr": 0.773491023685417,
+    "mcd": 471.34197500055643,
+    "dur_ratio": 1.3599934375128173,
+    "anchor_seconds": 13.53,
+    "ecapa": 0.7655181884765625
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00650",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.5263333333333335,
+   "clone": {
+    "f0_corr": 0.9535964381363659,
+    "mcd": 327.6837215734206,
+    "dur_ratio": 0.8106640931298631,
+    "ecapa": 0.8116998672485352
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8852166085716567,
+    "mcd": 425.2613136410504,
+    "dur_ratio": 1.4474938174799445,
+    "anchor_seconds": 8.0,
+    "ecapa": 0.8489483594894409
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00651",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.999333333333333,
+   "clone": {
+    "f0_corr": 0.8708180548476592,
+    "mcd": 323.8028213735154,
+    "dur_ratio": 0.880078548212351,
+    "ecapa": 0.8544411659240723
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8648923917757952,
+    "mcd": 413.20337548681755,
+    "dur_ratio": 0.7300400033336111,
+    "anchor_seconds": 10.04,
+    "ecapa": 0.8809502124786377
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00652",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.839833333333333,
+   "clone": {
+    "f0_corr": 0.9268868329633272,
+    "mcd": 274.32448920878466,
+    "dur_ratio": 0.863045463626245,
+    "ecapa": 0.8039284944534302
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8583117723028099,
+    "mcd": 403.52308995954013,
+    "dur_ratio": 0.7196837809298211,
+    "anchor_seconds": 9.87,
+    "ecapa": 0.8765729665756226
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00653",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.202833333333333,
+   "clone": {
+    "f0_corr": 0.9090028858638686,
+    "mcd": 269.8930237945476,
+    "dur_ratio": 1.008843240670976,
+    "ecapa": 0.7597047686576843
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8295209604114271,
+    "mcd": 434.9862085631143,
+    "dur_ratio": 1.3480786770829203,
+    "anchor_seconds": 10.97,
+    "ecapa": 0.8770012259483337
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00654",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.66575,
+   "clone": {
+    "f0_corr": 0.8868311359473368,
+    "mcd": 294.09643198269936,
+    "dur_ratio": 0.9319154569121476,
+    "ecapa": 0.7949004173278809
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7855013600255227,
+    "mcd": 432.25688208335146,
+    "dur_ratio": 0.9364750180176205,
+    "anchor_seconds": 9.07,
+    "ecapa": 0.8112229108810425
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00700",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.305833333333333,
+   "clone": {
+    "f0_corr": 0.8502187412621286,
+    "mcd": 280.86285821313214,
+    "dur_ratio": 0.7991204648971258,
+    "ecapa": 0.7776691913604736
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8480559989511615,
+    "mcd": 439.9993767366786,
+    "dur_ratio": 0.7089602638605309,
+    "anchor_seconds": 7.15,
+    "ecapa": 0.8165943622589111
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00701",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.761625,
+   "clone": {
+    "f0_corr": 0.954825125340238,
+    "mcd": 249.7855030996628,
+    "dur_ratio": 0.8294287708104875,
+    "ecapa": 0.8050720691680908
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6825499658487711,
+    "mcd": 470.1655427888865,
+    "dur_ratio": 0.9012394909115076,
+    "anchor_seconds": 7.16,
+    "ecapa": 0.8323285579681396
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00702",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.390125,
+   "clone": {
+    "f0_corr": 0.6826757894224802,
+    "mcd": 323.8177692694576,
+    "dur_ratio": 0.8495261974115998,
+    "ecapa": 0.724351167678833
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6683524091669558,
+    "mcd": 472.5432891330579,
+    "dur_ratio": 1.1129997664786206,
+    "anchor_seconds": 12.03,
+    "ecapa": 0.8688027262687683
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00703",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7732083333333333,
+   "clone": {
+    "f0_corr": 0.8374088818570998,
+    "mcd": 237.29128787593453,
+    "dur_ratio": 1.0177126009032984,
+    "ecapa": 0.7565300464630127
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8817081829705442,
+    "mcd": 422.70976871992195,
+    "dur_ratio": 2.1877160241615776,
+    "anchor_seconds": 8.25,
+    "ecapa": 0.8533711433410645
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00704",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 8.254708333333333,
+   "clone": {
+    "f0_corr": 0.921588156105678,
+    "mcd": 298.44362219050413,
+    "dur_ratio": 0.9594574813364091,
+    "ecapa": 0.8951669931411743
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8932357614405843,
+    "mcd": 403.8343248336703,
+    "dur_ratio": 0.7032350224366901,
+    "anchor_seconds": 11.04,
+    "ecapa": 0.8976754546165466
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00705",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.805,
+   "clone": {
+    "f0_corr": 0.9156359025593644,
+    "mcd": 261.617582763485,
+    "dur_ratio": 0.7993181165661787,
+    "ecapa": 0.8111240863800049
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8397802614735068,
+    "mcd": 404.4874401115423,
+    "dur_ratio": 0.9020025839793283,
+    "anchor_seconds": 9.35,
+    "ecapa": 0.825514018535614
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00753",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.236125,
+   "clone": {
+    "f0_corr": 0.9334323960807211,
+    "mcd": 260.7324939468624,
+    "dur_ratio": 0.9931008140561961,
+    "ecapa": 0.8447227478027344
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8285691764319509,
+    "mcd": 432.1667261216191,
+    "dur_ratio": 0.7849156898788067,
+    "anchor_seconds": 11.08,
+    "ecapa": 0.9164108633995056
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00754",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.109916666666667,
+   "clone": {
+    "f0_corr": 0.8233487750518049,
+    "mcd": 328.980322685227,
+    "dur_ratio": 0.973255743222693,
+    "ecapa": 0.8590913414955139
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7779019544872259,
+    "mcd": 470.5945333448428,
+    "dur_ratio": 1.69492487682232,
+    "anchor_seconds": 12.72,
+    "ecapa": 0.8925647735595703
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00755",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.966,
+   "clone": {
+    "f0_corr": 0.9445959643440461,
+    "mcd": 308.1138096877642,
+    "dur_ratio": 0.9761699684180304,
+    "ecapa": 0.8481031656265259
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8994775082287346,
+    "mcd": 441.5272016495081,
+    "dur_ratio": 0.8266640348358695,
+    "anchor_seconds": 9.73,
+    "ecapa": 0.8793584108352661
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00756",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.758541666666667,
+   "clone": {
+    "f0_corr": 0.9523971437505117,
+    "mcd": 276.44784017029224,
+    "dur_ratio": 0.8335443724901413,
+    "ecapa": 0.8215129375457764
+   },
+   "human_vs_human": {
+    "f0_corr": 0.923143784973873,
+    "mcd": 427.1061370367902,
+    "dur_ratio": 0.6895191925038892,
+    "anchor_seconds": 7.83,
+    "ecapa": 0.880298376083374
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00757",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.970625,
+   "clone": {
+    "f0_corr": 0.9264873878053791,
+    "mcd": 277.16114533010045,
+    "dur_ratio": 0.7656225405320322,
+    "ecapa": 0.80498868227005
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8323621350338811,
+    "mcd": 440.8180903351131,
+    "dur_ratio": 0.9707644682302324,
+    "anchor_seconds": 9.94,
+    "ecapa": 0.7963796854019165
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00758",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.8545416666666665,
+   "clone": {
+    "f0_corr": 0.9341682397651111,
+    "mcd": 406.1273039560257,
+    "dur_ratio": 0.7886800203223471,
+    "ecapa": 0.7971197366714478
+   },
+   "human_vs_human": {
+    "f0_corr": 0.825179428238912,
+    "mcd": 416.1234165010142,
+    "dur_ratio": 1.5782896799230346,
+    "anchor_seconds": 9.21,
+    "ecapa": 0.8057888746261597
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00794",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.083583333333333,
+   "clone": {
+    "f0_corr": 0.9291725691938421,
+    "mcd": 253.93757406388463,
+    "dur_ratio": 0.9468104050518471,
+    "ecapa": 0.7953464984893799
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7611831430431508,
+    "mcd": 404.7219674444272,
+    "dur_ratio": 0.5133693135898525,
+    "anchor_seconds": 10.31,
+    "ecapa": 0.7929227352142334
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00795",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.123125,
+   "clone": {
+    "f0_corr": 0.8880167254305696,
+    "mcd": 290.6235531116844,
+    "dur_ratio": 0.947768661196718,
+    "ecapa": 0.7883355021476746
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8308624118313969,
+    "mcd": 431.9788231036634,
+    "dur_ratio": 1.2156227069575078,
+    "anchor_seconds": 7.19,
+    "ecapa": 0.7882522940635681
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00796",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7965416666666667,
+   "clone": {
+    "f0_corr": 0.8438072860830529,
+    "mcd": 267.28009409697984,
+    "dur_ratio": 0.885015968480086,
+    "ecapa": 0.7106999754905701
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8031351876996293,
+    "mcd": 471.57978243599916,
+    "dur_ratio": 0.8929508214712951,
+    "anchor_seconds": 8.3,
+    "ecapa": 0.8107738494873047
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00797",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.390125,
+   "clone": {
+    "f0_corr": 0.8864671741144572,
+    "mcd": 247.0797699290124,
+    "dur_ratio": 1.0147118469082999,
+    "ecapa": 0.8480154275894165
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7354143477728937,
+    "mcd": 481.576972728971,
+    "dur_ratio": 1.4486314418101596,
+    "anchor_seconds": 10.58,
+    "ecapa": 0.8747513294219971
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00798",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.911041666666667,
+   "clone": {
+    "f0_corr": 0.8487094219034259,
+    "mcd": 269.46328350086384,
+    "dur_ratio": 1.0588385016756459,
+    "ecapa": 0.8724281787872314
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8571914404457147,
+    "mcd": 439.8955849200272,
+    "dur_ratio": 1.1536758155516904,
+    "anchor_seconds": 8.99,
+    "ecapa": 0.8725557327270508
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00799",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.66575,
+   "clone": {
+    "f0_corr": 0.8758067797460227,
+    "mcd": 331.3872150835551,
+    "dur_ratio": 0.9742752504081542,
+    "ecapa": 0.8474088907241821
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8607406509582541,
+    "mcd": 441.4408412350212,
+    "dur_ratio": 0.5860653929312094,
+    "anchor_seconds": 7.36,
+    "ecapa": 0.8707555532455444
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00839",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.3205,
+   "clone": {
+    "f0_corr": 0.926247262772009,
+    "mcd": 307.14257132039063,
+    "dur_ratio": 1.0841740701701552,
+    "ecapa": 0.7765368819236755
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8466680143794446,
+    "mcd": 463.81774774314897,
+    "dur_ratio": 1.2167846207900417,
+    "anchor_seconds": 7.33,
+    "ecapa": 0.8294614553451538
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00840",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.040333333333334,
+   "clone": {
+    "f0_corr": 0.9423888871737461,
+    "mcd": 270.1038641011042,
+    "dur_ratio": 1.0098176718092566,
+    "ecapa": 0.8572341203689575
+   },
+   "human_vs_human": {
+    "f0_corr": 0.893231452910318,
+    "mcd": 434.71817732553154,
+    "dur_ratio": 0.8131961059318538,
+    "anchor_seconds": 8.34,
+    "ecapa": 0.7884097695350647
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00841",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.2855833333333333,
+   "clone": {
+    "f0_corr": 0.6910812238765975,
+    "mcd": 321.9168092613709,
+    "dur_ratio": 0.87655667436021,
+    "ecapa": 0.7519237399101257
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7658299956579766,
+    "mcd": 490.88201452363256,
+    "dur_ratio": 1.53711923301291,
+    "anchor_seconds": 9.52,
+    "ecapa": 0.8385825157165527
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00842",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.050333333333334,
+   "clone": {
+    "f0_corr": 0.9090709296656563,
+    "mcd": 279.4392234151217,
+    "dur_ratio": 0.8553890832288298,
+    "ecapa": 0.8129207491874695
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8550559796426825,
+    "mcd": 459.6831784690036,
+    "dur_ratio": 0.885057091941126,
+    "anchor_seconds": 7.57,
+    "ecapa": 0.8594619631767273
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00843",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.469833333333334,
+   "clone": {
+    "f0_corr": 0.8777839316244658,
+    "mcd": 290.6718643365004,
+    "dur_ratio": 0.9127857116223572,
+    "ecapa": 0.8916611671447754
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8522442974219875,
+    "mcd": 442.06242066973005,
+    "dur_ratio": 0.6935195197434654,
+    "anchor_seconds": 8.67,
+    "ecapa": 0.7532249689102173
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00844",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.0999166666666667,
+   "clone": {
+    "f0_corr": 0.9143543470782691,
+    "mcd": 319.86011466969916,
+    "dur_ratio": 0.9290572327213097,
+    "ecapa": 0.7644088268280029
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7064785432718351,
+    "mcd": 437.2226293456511,
+    "dur_ratio": 1.7977230570714267,
+    "anchor_seconds": 8.87,
+    "ecapa": 0.7444720268249512
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00887",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.572791666666666,
+   "clone": {
+    "f0_corr": 0.9208402274442204,
+    "mcd": 200.9826611981092,
+    "dur_ratio": 0.746484033286728,
+    "ecapa": 0.7774413824081421
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7192963923855358,
+    "mcd": 419.9624016760911,
+    "dur_ratio": 0.5916618690512685,
+    "anchor_seconds": 9.52,
+    "ecapa": 0.7370498180389404
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00888",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.2972083333333333,
+   "clone": {
+    "f0_corr": 0.8998182349924723,
+    "mcd": 279.8670659351827,
+    "dur_ratio": 1.0433068378552564,
+    "ecapa": 0.813470184803009
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6598381159150805,
+    "mcd": 471.8564356574482,
+    "dur_ratio": 1.8873289272490616,
+    "anchor_seconds": 10.24,
+    "ecapa": 0.8519619703292847
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00889",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.222916666666666,
+   "clone": {
+    "f0_corr": 0.8797916744132858,
+    "mcd": 305.8352161580553,
+    "dur_ratio": 0.9256109809173083,
+    "ecapa": 0.7988216876983643
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8731842941032112,
+    "mcd": 408.75255746748934,
+    "dur_ratio": 0.6455373284231671,
+    "anchor_seconds": 8.73,
+    "ecapa": 0.8548389673233032
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00890",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.017125,
+   "clone": {
+    "f0_corr": 0.8676307381444134,
+    "mcd": 317.18469901840473,
+    "dur_ratio": 0.8762485608488658,
+    "ecapa": 0.8307713270187378
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6593855494401301,
+    "mcd": 419.0304776808035,
+    "dur_ratio": 1.1734034498138177,
+    "anchor_seconds": 11.08,
+    "ecapa": 0.8511742949485779
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00891",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.713708333333333,
+   "clone": {
+    "f0_corr": 0.8151973973238967,
+    "mcd": 272.2565016925924,
+    "dur_ratio": 0.746758125679534,
+    "ecapa": 0.8083932995796204
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8177191271216522,
+    "mcd": 426.8353411413373,
+    "dur_ratio": 1.349751169019438,
+    "anchor_seconds": 12.26,
+    "ecapa": 0.8742735385894775
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00892",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.362333333333333,
+   "clone": {
+    "f0_corr": 0.7191795930700376,
+    "mcd": 326.9490723176825,
+    "dur_ratio": 0.8424647665950648,
+    "ecapa": 0.8589825630187988
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7497200900932994,
+    "mcd": 413.55190981289104,
+    "dur_ratio": 0.9270052915597004,
+    "anchor_seconds": 11.22,
+    "ecapa": 0.9259676933288574
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00940",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.897916666666666,
+   "clone": {
+    "f0_corr": 0.8362920730313582,
+    "mcd": 358.30155774784185,
+    "dur_ratio": 1.3292829388908514,
+    "ecapa": 0.8788361549377441
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8259577453609791,
+    "mcd": 470.3299227856418,
+    "dur_ratio": 0.9015754150476863,
+    "anchor_seconds": 9.9,
+    "ecapa": 0.8998669385910034
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00941",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.3174166666666665,
+   "clone": {
+    "f0_corr": 0.8920728103309505,
+    "mcd": 342.1174614395941,
+    "dur_ratio": 0.7823347803601374,
+    "ecapa": 0.8429075479507446
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8582697494147308,
+    "mcd": 435.2775285288576,
+    "dur_ratio": 0.8624331990785,
+    "anchor_seconds": 8.7,
+    "ecapa": 0.8832255601882935
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00942",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.585916666666667,
+   "clone": {
+    "f0_corr": 0.7849311976972243,
+    "mcd": 293.0449013905709,
+    "dur_ratio": 0.8024567970780105,
+    "ecapa": 0.8410214781761169
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9316571018823576,
+    "mcd": 442.2971822956548,
+    "dur_ratio": 0.8962039577692573,
+    "anchor_seconds": 7.21,
+    "ecapa": 0.8378130197525024
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00943",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.109916666666667,
+   "clone": {
+    "f0_corr": 0.8924329737574742,
+    "mcd": 280.25615638645337,
+    "dur_ratio": 0.7396743648492468,
+    "ecapa": 0.8031080961227417
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8560851422855085,
+    "mcd": 421.26633616004466,
+    "dur_ratio": 0.7542529248362699,
+    "anchor_seconds": 12.23,
+    "ecapa": 0.8132140636444092
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00944",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.0999166666666667,
+   "clone": {
+    "f0_corr": 0.6725214106977725,
+    "mcd": 297.9123392933515,
+    "dur_ratio": 1.3161644130218555,
+    "ecapa": 0.801278829574585
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8088792148423954,
+    "mcd": 463.10516889176427,
+    "dur_ratio": 1.0449340036022474,
+    "anchor_seconds": 9.13,
+    "ecapa": 0.8007152080535889
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00946",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.2392083333333335,
+   "clone": {
+    "f0_corr": 0.9187496083691598,
+    "mcd": 313.558639357939,
+    "dur_ratio": 1.0866852754659704,
+    "ecapa": 0.822579026222229
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7794918263704693,
+    "mcd": 427.788304651603,
+    "dur_ratio": 1.8172135681300727,
+    "anchor_seconds": 9.76,
+    "ecapa": 0.6881378293037415
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00992",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.886333333333333,
+   "clone": {
+    "f0_corr": 0.9362580046041729,
+    "mcd": 255.91421072384125,
+    "dur_ratio": 1.0329010702757802,
+    "ecapa": 0.7430387735366821
+   },
+   "human_vs_human": {
+    "f0_corr": 0.9438066918643582,
+    "mcd": 361.8096040041376,
+    "dur_ratio": 0.6587646525850842,
+    "anchor_seconds": 8.37,
+    "ecapa": 0.835310161113739
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00993",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.8777083333333335,
+   "clone": {
+    "f0_corr": 0.9412701829770592,
+    "mcd": 241.1651124260364,
+    "dur_ratio": 0.804598936227368,
+    "ecapa": 0.6951633095741272
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8431927644694848,
+    "mcd": 422.00993540990487,
+    "dur_ratio": 1.1587062805566002,
+    "anchor_seconds": 10.1,
+    "ecapa": 0.819980263710022
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00995",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.493125,
+   "clone": {
+    "f0_corr": 0.9414298006986282,
+    "mcd": 372.4895945031298,
+    "dur_ratio": 0.747809152872444,
+    "ecapa": 0.6893203258514404
+   },
+   "human_vs_human": {
+    "f0_corr": 0.714816279955646,
+    "mcd": 489.2580357472507,
+    "dur_ratio": 1.248045625260815,
+    "anchor_seconds": 9.61,
+    "ecapa": 0.8621578812599182
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00996",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.607625,
+   "clone": {
+    "f0_corr": 0.9103146869772295,
+    "mcd": 285.79311007989526,
+    "dur_ratio": 0.8274522042159858,
+    "ecapa": 0.64338219165802
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7704122229307853,
+    "mcd": 444.60670250662326,
+    "dur_ratio": 0.7142804068864568,
+    "anchor_seconds": 7.05,
+    "ecapa": 0.7633084654808044
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00997",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.005416666666667,
+   "clone": {
+    "f0_corr": 0.9533786963364071,
+    "mcd": 238.86552623995735,
+    "dur_ratio": 1.0585665244980755,
+    "ecapa": 0.7786800861358643
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8480894914243473,
+    "mcd": 469.6818682374304,
+    "dur_ratio": 0.7594299386247789,
+    "anchor_seconds": 9.43,
+    "ecapa": 0.7798271179199219
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-00998",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.0418333333333334,
+   "clone": {
+    "f0_corr": 0.7884254342242308,
+    "mcd": 288.1009902395848,
+    "dur_ratio": 1.1045970083831023,
+    "ecapa": 0.7922066450119019
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6732756726831891,
+    "mcd": 453.51138435479766,
+    "dur_ratio": 2.0992274395923514,
+    "anchor_seconds": 13.12,
+    "ecapa": 0.7717937231063843
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01038",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.3855,
+   "clone": {
+    "f0_corr": 0.9377385607230163,
+    "mcd": 286.7075792437144,
+    "dur_ratio": 0.7015895387988411,
+    "ecapa": 0.6941417455673218
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8263398316145464,
+    "mcd": 356.59187457748465,
+    "dur_ratio": 1.0545441495053898,
+    "anchor_seconds": 12.11,
+    "ecapa": 0.896113932132721
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01039",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.733791666666667,
+   "clone": {
+    "f0_corr": 0.9230212159894772,
+    "mcd": 255.52444082275505,
+    "dur_ratio": 0.8316265600732623,
+    "ecapa": 0.7919600009918213
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8865741314997295,
+    "mcd": 335.68452430317683,
+    "dur_ratio": 0.7982810576012771,
+    "anchor_seconds": 9.66,
+    "ecapa": 0.8290727138519287
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01040",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.3754583333333334,
+   "clone": {
+    "f0_corr": 0.9258578975395365,
+    "mcd": 241.80543530393285,
+    "dur_ratio": 0.8185348536171335,
+    "ecapa": 0.8544183969497681
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8068171053035191,
+    "mcd": 387.15633879742916,
+    "dur_ratio": 0.7969708009394547,
+    "anchor_seconds": 9.82,
+    "ecapa": 0.9035431146621704
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01041",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.284083333333333,
+   "clone": {
+    "f0_corr": 0.9367038319253802,
+    "mcd": 262.21388197919464,
+    "dur_ratio": 0.746950922990138,
+    "ecapa": 0.7850894331932068
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8260021040917861,
+    "mcd": 437.7897590779,
+    "dur_ratio": 1.2927016670232838,
+    "anchor_seconds": 8.6,
+    "ecapa": 0.7575618028640747
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01042",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.5380416666666665,
+   "clone": {
+    "f0_corr": 0.8633227925385533,
+    "mcd": 296.8071555950985,
+    "dur_ratio": 0.866732373808431,
+    "ecapa": 0.8742133975028992
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8439105469454737,
+    "mcd": 429.61888303052024,
+    "dur_ratio": 0.553444734525592,
+    "anchor_seconds": 7.05,
+    "ecapa": 0.7865955829620361
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01090",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.065,
+   "clone": {
+    "f0_corr": 0.9103369967548858,
+    "mcd": 315.40887492289926,
+    "dur_ratio": 0.9135399673735726,
+    "ecapa": 0.7832874059677124
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7126221675815889,
+    "mcd": 451.3855030284597,
+    "dur_ratio": 1.2992659053833606,
+    "anchor_seconds": 10.0,
+    "ecapa": 0.8588001728057861
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01091",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.98225,
+   "clone": {
+    "f0_corr": 0.9235255986971243,
+    "mcd": 291.74070918427344,
+    "dur_ratio": 0.8839224056751837,
+    "ecapa": 0.7579195499420166
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6378413016349993,
+    "mcd": 467.94022749643835,
+    "dur_ratio": 1.5102119823382927,
+    "anchor_seconds": 13.92,
+    "ecapa": 0.8603510856628418
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01092",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.0140416666666665,
+   "clone": {
+    "f0_corr": 0.9013839469214181,
+    "mcd": 243.28991600439102,
+    "dur_ratio": 0.9843629838502949,
+    "ecapa": 0.7762779593467712
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8908602651468701,
+    "mcd": 353.97709396490205,
+    "dur_ratio": 1.3146594428317064,
+    "anchor_seconds": 7.91,
+    "ecapa": 0.8215309381484985
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01093",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.906416666666667,
+   "clone": {
+    "f0_corr": 0.8267338621981929,
+    "mcd": 271.4400841659484,
+    "dur_ratio": 0.8499425572056452,
+    "ecapa": 0.8072710037231445
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7515975524553914,
+    "mcd": 347.58075340130864,
+    "dur_ratio": 0.7356840962509354,
+    "anchor_seconds": 10.96,
+    "ecapa": 0.8922120332717896
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01094",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.816625,
+   "clone": {
+    "f0_corr": 0.7332995792591911,
+    "mcd": 289.5958501217081,
+    "dur_ratio": 0.8252208110373283,
+    "ecapa": 0.8222776651382446
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7398212950962623,
+    "mcd": 367.58359196599065,
+    "dur_ratio": 0.8842326950766123,
+    "anchor_seconds": 9.57,
+    "ecapa": 0.7937816381454468
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01133",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.14325,
+   "clone": {
+    "f0_corr": 0.9399067905396856,
+    "mcd": 254.80808985342887,
+    "dur_ratio": 0.8088271034851504,
+    "ecapa": 0.7109713554382324
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8367793495178749,
+    "mcd": 422.7962228516248,
+    "dur_ratio": 0.8600430985596007,
+    "anchor_seconds": 10.67,
+    "ecapa": 0.8251144886016846
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01134",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.423416666666666,
+   "clone": {
+    "f0_corr": 0.928407145554991,
+    "mcd": 315.53248793072146,
+    "dur_ratio": 0.9404495017049416,
+    "ecapa": 0.817065954208374
+   },
+   "human_vs_human": {
+    "f0_corr": 0.6712027929615344,
+    "mcd": 452.2903427483413,
+    "dur_ratio": 1.4120871875058874,
+    "anchor_seconds": 11.4,
+    "ecapa": 0.8908082246780396
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01135",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.24625,
+   "clone": {
+    "f0_corr": 0.9237689396836412,
+    "mcd": 321.313340678642,
+    "dur_ratio": 0.7300446934827564,
+    "ecapa": 0.8371376991271973
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8831521834503374,
+    "mcd": 383.62514438879674,
+    "dur_ratio": 0.8252618237609233,
+    "anchor_seconds": 8.82,
+    "ecapa": 0.8641641139984131
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01136",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.154791666666667,
+   "clone": {
+    "f0_corr": 0.9107877609803153,
+    "mcd": 282.4156353347051,
+    "dur_ratio": 0.7138988804914521,
+    "ecapa": 0.6769336462020874
+   },
+   "human_vs_human": {
+    "f0_corr": 0.858851154345711,
+    "mcd": 427.57505112673607,
+    "dur_ratio": 0.711732611243584,
+    "anchor_seconds": 10.17,
+    "ecapa": 0.8093363046646118
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01137",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.668833333333333,
+   "clone": {
+    "f0_corr": 0.94448895848362,
+    "mcd": 248.73273075442313,
+    "dur_ratio": 0.8940171716712851,
+    "ecapa": 0.7563616633415222
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7495981676280435,
+    "mcd": 447.8787922424911,
+    "dur_ratio": 1.7721232907827194,
+    "anchor_seconds": 11.33,
+    "ecapa": 0.7582408785820007
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01187",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.501625,
+   "clone": {
+    "f0_corr": 0.8791306254411656,
+    "mcd": 309.6462501734787,
+    "dur_ratio": 0.8490185146021186,
+    "ecapa": 0.7817821502685547
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8139974127874541,
+    "mcd": 399.705612885521,
+    "dur_ratio": 0.742865565659867,
+    "anchor_seconds": 8.45,
+    "ecapa": 0.9192327260971069
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01188",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.829833333333333,
+   "clone": {
+    "f0_corr": 0.7101890244029073,
+    "mcd": 297.60000324193413,
+    "dur_ratio": 0.8447496462955933,
+    "ecapa": 0.7652658224105835
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7213714850351771,
+    "mcd": 416.6713342039958,
+    "dur_ratio": 0.7499913730632527,
+    "anchor_seconds": 7.74,
+    "ecapa": 0.8634069561958313
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01189",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.622333333333333,
+   "clone": {
+    "f0_corr": 0.9398898427714747,
+    "mcd": 261.06694726124124,
+    "dur_ratio": 0.861323272292261,
+    "ecapa": 0.7663681507110596
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8809670445837858,
+    "mcd": 463.97402120072564,
+    "dur_ratio": 1.1378025213950493,
+    "anchor_seconds": 8.31,
+    "ecapa": 0.8333143591880798
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01191",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.1215,
+   "clone": {
+    "f0_corr": 0.9338016758721462,
+    "mcd": 227.89639470049235,
+    "dur_ratio": 0.9122892150915928,
+    "ecapa": 0.792566180229187
+   },
+   "human_vs_human": {
+    "f0_corr": 0.783732557038011,
+    "mcd": 466.20833334590384,
+    "dur_ratio": 1.0169133406122366,
+    "anchor_seconds": 11.64,
+    "ecapa": 0.8117514252662659
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01192",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.191208333333333,
+   "clone": {
+    "f0_corr": 0.9386170815161927,
+    "mcd": 329.23607696752185,
+    "dur_ratio": 0.8589408384614621,
+    "ecapa": 0.7874809503555298
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7393741928726034,
+    "mcd": 434.44653797513524,
+    "dur_ratio": 1.7783952519659207,
+    "anchor_seconds": 7.45,
+    "ecapa": 0.8104298710823059
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01241",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 7.453625,
+   "clone": {
+    "f0_corr": 0.8984268765267973,
+    "mcd": 319.36191394977266,
+    "dur_ratio": 0.9230463924153237,
+    "ecapa": 0.8667454719543457
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8338451832196554,
+    "mcd": 425.68941388345525,
+    "dur_ratio": 0.9034250672212067,
+    "anchor_seconds": 11.44,
+    "ecapa": 0.922173261642456
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01242",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 6.733791666666667,
+   "clone": {
+    "f0_corr": 0.9151830063464772,
+    "mcd": 286.30232257269444,
+    "dur_ratio": 0.9623169214966802,
+    "ecapa": 0.8579005599021912
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7831155157871998,
+    "mcd": 419.72562513002373,
+    "dur_ratio": 0.6982693009757999,
+    "anchor_seconds": 9.67,
+    "ecapa": 0.9009374380111694
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01244",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.702,
+   "clone": {
+    "f0_corr": 0.8015259428036879,
+    "mcd": 331.8403143933114,
+    "dur_ratio": 1.0548702679710762,
+    "ecapa": 0.8219680786132812
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8813530618406268,
+    "mcd": 463.9073414015857,
+    "dur_ratio": 1.0568109315185028,
+    "anchor_seconds": 9.61,
+    "ecapa": 0.8516502380371094
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01245",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.969125,
+   "clone": {
+    "f0_corr": 0.8012568817084845,
+    "mcd": 308.4062308307948,
+    "dur_ratio": 0.9659648328428043,
+    "ecapa": 0.8936512470245361
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8028140577496814,
+    "mcd": 468.80706488525703,
+    "dur_ratio": 0.9345709757754131,
+    "anchor_seconds": 9.59,
+    "ecapa": 0.8458404541015625
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01246",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.644,
+   "clone": {
+    "f0_corr": 0.8576778183441266,
+    "mcd": 262.6223953234684,
+    "dur_ratio": 1.1714039621016366,
+    "ecapa": 0.841815710067749
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8439395806972244,
+    "mcd": 372.391074279875,
+    "dur_ratio": 1.0650122021246051,
+    "anchor_seconds": 8.73,
+    "ecapa": 0.7791150808334351
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01292",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.945916666666666,
+   "clone": {
+    "f0_corr": 0.9383868081624747,
+    "mcd": 237.1335149429029,
+    "dur_ratio": 0.7440481205034457,
+    "ecapa": 0.7680360674858093
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8856394142725587,
+    "mcd": 428.9123020809556,
+    "dur_ratio": 0.7652609054607337,
+    "anchor_seconds": 9.64,
+    "ecapa": 0.7657954692840576
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01293",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 3.7849166666666667,
+   "clone": {
+    "f0_corr": 0.8978441275379894,
+    "mcd": 306.0406911539994,
+    "dur_ratio": 0.8877342081507739,
+    "ecapa": 0.7520527243614197
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7316608566693281,
+    "mcd": 490.7415324169415,
+    "dur_ratio": 1.5459829586736826,
+    "anchor_seconds": 11.02,
+    "ecapa": 0.6498249769210815
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01294",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.851416666666666,
+   "clone": {
+    "f0_corr": 0.8970906804273574,
+    "mcd": 325.4304551213189,
+    "dur_ratio": 0.9433612942734665,
+    "ecapa": 0.8549028635025024
+   },
+   "human_vs_human": {
+    "f0_corr": 0.7489648547995473,
+    "mcd": 463.74375800116593,
+    "dur_ratio": 0.8829343321417891,
+    "anchor_seconds": 9.76,
+    "ecapa": 0.8805254697799683
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01295",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 5.166416666666667,
+   "clone": {
+    "f0_corr": 0.9393773819592158,
+    "mcd": 303.92952343056373,
+    "dur_ratio": 0.8826314176492411,
+    "ecapa": 0.7961098551750183
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8752813562271,
+    "mcd": 426.0681720116687,
+    "dur_ratio": 0.8899059631917673,
+    "anchor_seconds": 10.14,
+    "ecapa": 0.8127328157424927
+   }
+  },
+  {
+   "id": "kouyahijiri-by-kyoka-izumi-01296",
+   "book": "kouyahijiri-by-kyoka-izumi",
+   "human_seconds": 4.597625,
+   "clone": {
+    "f0_corr": 0.9620116628437013,
+    "mcd": 261.64916546525615,
+    "dur_ratio": 0.939615562382752,
+    "ecapa": 0.7648985385894775
+   },
+   "human_vs_human": {
+    "f0_corr": 0.8989012430328015,
+    "mcd": 427.8414891716478,
+    "dur_ratio": 1.2045440127602114,
+    "anchor_seconds": 8.86,
+    "ecapa": 0.8091343641281128
+   }
+  }
+ ],
+ "anchor_invalid": [],
+ "ecapa_error": null,
+ "source": "ab_test_runtime/experiments/longref__ja_generate.json",
+ "provenance": {
+  "script": "ljspeech_score.py",
+  "written": "2026-08-21T16:18:42",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "02be41878cd5b70806c85aa499126bfb5511550f",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "54e386bd2fce135b23ef9b019c18ce083b7f168e02d2e2b7c2bd2e14a6d74c3a"
+  },
+  "args": {
+   "generated": "ab_test_runtime/experiments/longref__ja_generate.json",
+   "limit": 0,
+   "out": "ab_test_runtime/experiments/longref__ja_score.json"
+  }
+ }
+}

@@ -1,0 +1,105 @@
+{
+ "scope": "generation arms compared on the source-derived dialogue map (`spoken`/`source_span`), not on punctuation",
+ "books": {
+  "index18": {
+   "single": {
+    "entries": 3882,
+    "located": 3675,
+    "spoken": 1135,
+    "located_rate": 0.9467,
+    "spoken_rate": 0.3088
+   },
+   "three_pass": {
+    "entries": 2468,
+    "located": 2057,
+    "spoken": 1371,
+    "located_rate": 0.8335,
+    "spoken_rate": 0.6665
+   },
+   "paired_entries": 1486,
+   "agree": 1486,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 1072,
+    "single_attributed": 0.9067,
+    "three_pass_attributed": 0.7864,
+    "single_only": 191,
+    "three_pass_only": 62,
+    "mcnemar_p": 1.806079501187429e-16
+   }
+  },
+  "mushoku16": {
+   "single": {
+    "entries": 4023,
+    "located": 3866,
+    "spoken": 938,
+    "located_rate": 0.961,
+    "spoken_rate": 0.2426
+   },
+   "three_pass": {
+    "entries": 2056,
+    "located": 1655,
+    "spoken": 1031,
+    "located_rate": 0.805,
+    "spoken_rate": 0.623
+   },
+   "paired_entries": 2,
+   "agree": 1,
+   "agreement_rate": 0.5,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 1,
+   "mcnemar_p": 1.0
+  },
+  "pdnc_themysteriousaffairatstyles": {
+   "single": {
+    "entries": 2652,
+    "located": 952,
+    "spoken": 314,
+    "located_rate": 0.359,
+    "spoken_rate": 0.3298
+   },
+   "three_pass": {
+    "entries": 3332,
+    "located": 1950,
+    "spoken": 745,
+    "located_rate": 0.5852,
+    "spoken_rate": 0.3821
+   },
+   "paired_entries": 815,
+   "agree": 815,
+   "agreement_rate": 1.0,
+   "single_says_spoken_only": 0,
+   "three_pass_says_spoken_only": 0,
+   "attribution_on_source_confirmed_dialogue": {
+    "paired_spoken_lines": 304,
+    "single_attributed": 0.7368,
+    "three_pass_attributed": 0.7895,
+    "single_only": 48,
+    "three_pass_only": 64,
+    "mcnemar_p": 0.15606630199377325
+   }
+  }
+ },
+ "skipped_no_dialogue_map": [],
+ "status": "complete",
+ "provenance": {
+  "script": "dialogue_map_compare.py",
+  "written": "2026-08-21T13:53:17",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "20dda6d49b478e333dd532365812881209fdc108",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "b3cc8986c66f08cd3bb69555fe6165f794df2881a13494cc6bf321a8f5f08c0a"
+  },
+  "args": {
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "audio_root": [],
+   "out": "ab_test_runtime/experiments/dialogue_map_compare_fresh.json"
+  }
+ }
+}

@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "warm_baritone_30s_m_1",
+ "rows": [
+  {
+   "id": "sample_1600",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Kinuba was *pretty* popular, enough that Motorball fans might not take it too well when they found out Vector was behind his jacking. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1600.wav",
+   "human_seconds": 8.62,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1600__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1600__clone.wav"
+  },
+  {
+   "id": "sample_1605",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Vector replied. \u201c*He\u2019ll* be fine, they\u2019ll pick him up and take care of him. .... Now will you get the *hell* out of here *already*?\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1605.wav",
+   "human_seconds": 8.18,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1605__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1605__clone.wav"
+  },
+  {
+   "id": "sample_1613",
+   "book": "warm_baritone_30s_m_1",
+   "text": "\u201cNo,\u201d *Vector* said with a small laugh, \u201cwhat you should have known, my friend,",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1613.wav",
+   "human_seconds": 7.32,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1613__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1613__clone.wav"
+  },
+  {
+   "id": "sample_1626",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Iron City itself had come into existence not long after the arduous era of *bureaucracy* ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1626.wav",
+   "human_seconds": 7.56,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1626__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1626__clone.wav"
+  },
+  {
+   "id": "sample_1628",
+   "book": "warm_baritone_30s_m_1",
+   "text": "it had just worked out that way. .... Of course, while most of them weren\u2019t *idiots*, none of them understood the *nature* of their *existence* well enough to be as *appreciative* as they could have been.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1628.wav",
+   "human_seconds": 11.9,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1628__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1628__clone.wav"
+  },
+  {
+   "id": "sample_1635",
+   "book": "warm_baritone_30s_m_1",
+   "text": "which was supposed to elicit feelings of *pride* and contentment. .... Unfortunately, assumptions of *victory* had been slightly *premature*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1635.wav",
+   "human_seconds": 9.22,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1635__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1635__clone.wav"
+  },
+  {
+   "id": "sample_1636",
+   "book": "warm_baritone_30s_m_1",
+   "text": "The gate had been badly damaged in the final attack, during the War that no one knew very much about any more. ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1636.wav",
+   "human_seconds": 7.62,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1636__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1636__clone.wav"
+  },
+  {
+   "id": "sample_1642",
+   "book": "warm_baritone_30s_m_1",
+   "text": "In the backseat, Koyomi seemed to have dozed off ... while Tanji was wide awake and as *sour* faced as ever.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1642.wav",
+   "human_seconds": 7.86,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1642__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1642__clone.wav"
+  },
+  {
+   "id": "sample_1654",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Alita barely ... dared to breathe. .... It stuck its *brutal* machine head through Hugo\u2019s window and scanned them. .... A hundred years later,",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1654.wav",
+   "human_seconds": 9.58,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1654__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1654__clone.wav"
+  },
+  {
+   "id": "sample_1683",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Alita thought again of the Earth as she had seen it. \u201cI hope not.\u201d ... The fields began to alternate with wooded areas before finally giving way to them altogether.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1683.wav",
+   "human_seconds": 12.68,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1683__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1683__clone.wav"
+  },
+  {
+   "id": "sample_1689",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Biological warfare ruined the world.\u201d \u201c*The* *whole* *world*?\u201d Alita asked, appalled.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1689.wav",
+   "human_seconds": 7.54,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1689__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1689__clone.wav"
+  },
+  {
+   "id": "sample_1690",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Tanji and Koyomi nodded in unison. .... \u201c*You* think people would stay in Iron City if there was anywhere else to go?\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1690.wav",
+   "human_seconds": 7.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1690__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1690__clone.wav"
+  },
+  {
+   "id": "sample_1697",
+   "book": "warm_baritone_30s_m_1",
+   "text": "\u201c*This* is it,\u201d Hugo announced, bringing the truck to a stop and killing the motor. .... \u201cThis is as far as we can drive.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1697.wav",
+   "human_seconds": 7.44,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1697__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1697__clone.wav"
+  },
+  {
+   "id": "sample_1699",
+   "book": "warm_baritone_30s_m_1",
+   "text": "She heard a cry and looked up to see a hawk circling above the trees. .... \u201c*It\u2019s* free out here,\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1699.wav",
+   "human_seconds": 7.14,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1699__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1699__clone.wav"
+  },
+  {
+   "id": "sample_1716",
+   "book": "warm_baritone_30s_m_1",
+   "text": "was at least *half* a *mile* across, fed by a turbulent waterfall on the right hand edge. .... But it wasn\u2019t a naturally occurring lake",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1716.wav",
+   "human_seconds": 8.88,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1716__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1716__clone.wav"
+  },
+  {
+   "id": "sample_1719",
+   "book": "warm_baritone_30s_m_1",
+   "text": "But it was the *unbelievably* massive object itself that dominated the scene. .... The spacecraft sat partially submerged in the centre of the lake,",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1719.wav",
+   "human_seconds": 10.28,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1719__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1719__clone.wav"
+  },
+  {
+   "id": "sample_1735",
+   "book": "warm_baritone_30s_m_1",
+   "text": "There.\u201d .... \u201c*How* does she know?\u201d Koyomi asked just as Tanji said, \u201c*What* does she mean, we",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1735.wav",
+   "human_seconds": 7.34,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1735__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1735__clone.wav"
+  },
+  {
+   "id": "sample_1738",
+   "book": "warm_baritone_30s_m_1",
+   "text": "I vote no to swimming.\u201d .... Still smiling, Alita stepped off the hull, plunging feet first into the dark water.",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1738.wav",
+   "human_seconds": 7.4,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1738__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1738__clone.wav"
+  },
+  {
+   "id": "sample_1767",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Their uniforms had rotted away and their bones were covered with various kinds of *moulds* that flourished in the tropical humidity. ....",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1767.wav",
+   "human_seconds": 8.12,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1767__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1767__clone.wav"
+  },
+  {
+   "id": "sample_1774",
+   "book": "warm_baritone_30s_m_1",
+   "text": "Have we met? ... she asked it silently. .... Were you in the black sky above me",
+   "human_wav": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/data/val/sample_1774.wav",
+   "human_seconds": 7.04,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1774__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1/sample_1774__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-21T00:47:33",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "954b46e8a19e2e2247398173496975e6e0e99130",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch4/warm_baritone_30s_m_1/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_1",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__warm_baritone_30s_m_1_generate.json"
+  },
+  "seed": 1234
+ }
+}

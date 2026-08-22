@@ -1,0 +1,220 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": null,
+ "corpus": "warm_baritone_30s_m_scifi",
+ "rows": [
+  {
+   "id": "sample_2823",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "\u201cHeading for Lemon Grove.\u201d \u201cWhy didn\u2019t you ... \u201c*Radios* are out. We sent *runners*.\u201d The hero nodded and hurled himself back up over the rooftops.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2823.wav",
+   "human_seconds": 9.72,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2823__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2823__clone.wav"
+  },
+  {
+   "id": "sample_2828",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "one of the shack guards said. ... \u201cI didn\u2019t think anyone .... \u201c*Radios* are dead,\u201d St. George interrupted. \u201c*Stop* wasting ammunition!\u201d",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2828.wav",
+   "human_seconds": 7.86,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2828__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2828__clone.wav"
+  },
+  {
+   "id": "sample_2840",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "knocking over its brethren, ... but St. George was already in the air. .... He shot a cone of fire into Cairax\u2019s *face* and the demon *flinched*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2840.wav",
+   "human_seconds": 8.44,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2840__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2840__clone.wav"
+  },
+  {
+   "id": "sample_2843",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "He swung a fist and *caught* it under the jaw. A tooth flew loose and Cairax staggered back from the *impact*. The hero lunged up, dove in, and jerked back. ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2843.wav",
+   "human_seconds": 10.54,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2843__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2843__clone.wav"
+  },
+  {
+   "id": "sample_2856",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "It dragged him across the pavement, tripping countless *exes* as it tried to shake him off. .... He twisted the length of muscle and felt bones snap under the leathery skin.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2856.wav",
+   "human_seconds": 9.76,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2856__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2856__clone.wav"
+  },
+  {
+   "id": "sample_2860",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "He tried to *focus*, tried to make himself *light*, and slammed into the wall. .... He slumped to the ground and the exes swarmed over him.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2860.wav",
+   "human_seconds": 7.44,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2860__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2860__clone.wav"
+  },
+  {
+   "id": "sample_2864",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "a huge sphere of blackness swelled, so *dark* they could see its edges against the night sky. .... Stealth heard the cries over the gunfire,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2864.wav",
+   "human_seconds": 11.2,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2864__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2864__clone.wav"
+  },
+  {
+   "id": "sample_2867",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "four *six* eight rounds each before she landed in the space they\u2019d ... carved for her in the mob. A quick split kick broke jaws on two ... exes.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2867.wav",
+   "human_seconds": 8.36,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2867__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2867__clone.wav"
+  },
+  {
+   "id": "sample_2870",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "The batons whipped out again and beat out a drumroll of broken bones, ... making sure none of the dead things she\u2019d knocked down would ever get back up.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2870.wav",
+   "human_seconds": 8.6,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2870__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2870__clone.wav"
+  },
+  {
+   "id": "sample_2871",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "She spun and smashed *one* baton through a dead brunette\u2019s forehead. .... The other cracked open a teenage boy\u2019s *skull*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2871.wav",
+   "human_seconds": 7.2,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2871__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2871__clone.wav"
+  },
+  {
+   "id": "sample_2872",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "Her boot lashed out to break the neck of a *pink* haired woman. .... An old man. .... A small girl caked in *blood*. .... A businessman.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2872.wav",
+   "human_seconds": 7.84,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2872__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2872__clone.wav"
+  },
+  {
+   "id": "sample_2875",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "He looked at Stealth, blinked, and tried to *raise* his rifle. .... One baton struck the rifle barrel and jarred it from the Seventeen\u2019s hands,",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2875.wav",
+   "human_seconds": 8.46,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2875__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2875__clone.wav"
+  },
+  {
+   "id": "sample_2880",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "They were *children* playing a game, not an *army*. Near the center of the intersection, she saw Rodney Casares bring his massive fists around and Gorgon leap out of the way. ...",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2880.wav",
+   "human_seconds": 10.76,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2880__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2880__clone.wav"
+  },
+  {
+   "id": "sample_2902",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "It was a cold blur to his eyes. .... Nothing *alive*. Nothing *warm*. .... Just a shapeless, shifting mass.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2902.wav",
+   "human_seconds": 7.0,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2902__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2902__clone.wav"
+  },
+  {
+   "id": "sample_2904",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "But only for a moment. .... NOW *Twenty* *Six*",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2904.wav",
+   "human_seconds": 7.32,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2904__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2904__clone.wav"
+  },
+  {
+   "id": "sample_2928",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "\u201cIf you need to take a *breather*,\u201d he shouted, \u201cjust put your hand up or something.\u201d .... Cairax straightened up in the crowd of zombies, hefting a fallen phone pole.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2928.wav",
+   "human_seconds": 10.24,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2928__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2928__clone.wav"
+  },
+  {
+   "id": "sample_2930",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "He flipped up ... though the air and got his arm around the demon\u2019s *neck*, wrestling past the thick collar. .... The creature\u2019s long hands twisted back, grabbed him, and brought the hero hurtling into the pavement.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2930.wav",
+   "human_seconds": 11.4,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2930__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2930__clone.wav"
+  },
+  {
+   "id": "sample_2932",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "Cairax marched forward, reaching up over the fence at the shooters. .... Billie and Unibrow sprayed bullets at its *face*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2932.wav",
+   "human_seconds": 7.38,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2932__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2932__clone.wav"
+  },
+  {
+   "id": "sample_2944",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "They covered Gower like an open concert venue. .... The darkness rolled back and he resisted it again. *To* *the* *west*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2944.wav",
+   "human_seconds": 8.12,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2944__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2944__clone.wav"
+  },
+  {
+   "id": "sample_2993",
+   "book": "warm_baritone_30s_m_scifi",
+   "text": "He brought it whipping around and Gorgon caught the end. .... A quick *shove* and the steel bar cracked back into the giant\u2019s *face*.",
+   "human_wav": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/data/val/sample_2993.wav",
+   "human_seconds": 7.78,
+   "lora_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2993__lora.wav",
+   "clone_wav": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi/sample_2993__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-21T00:31:19",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "aa0a026abb3a7a781ba0a1e042a0c19b32badb26",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5661251d044f00eaa0fda7c9eddccf013f5c5179ebbaf78c77548647bbf32f19"
+  },
+  "args": {
+   "build": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi_build.json",
+   "adapter": "ab_test_runtime/decontaminate/batch5/warm_baritone_30s_m_scifi/adapter",
+   "config": "app/config.json",
+   "out_dir": "ab_test_runtime/second_english_eval/warm_baritone_30s_m_scifi",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "ab_test_runtime/experiments/second_english__warm_baritone_30s_m_scifi_generate.json"
+  },
+  "seed": 1234
+ }
+}
