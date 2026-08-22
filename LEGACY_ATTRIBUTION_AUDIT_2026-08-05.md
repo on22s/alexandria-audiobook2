@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 125 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 126 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
-- `historical_only`: 43
+- `historical_only`: 44
 - `provisional`: 21
 - `supported_measurement`: 52
 
@@ -133,6 +133,7 @@ All 125 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_by_two.json` | two_by_two | exploratory | 556 | 0 | 556 | True | artifact validation is not ok; environment is missing context_length; environment is missing parallel; no LM Studio load state recorded; no harness fingerprint: the code that ran is unidentified |
 | `two_stage_attribution__explicit_control.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
+| `two_stage_attribution__explicit_shuffled_roster.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
