@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 601 artifacts, 642 arms.
+Generated 2026-08-22 from `ab_test_runtime/experiments/` — 604 artifacts, 643 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -807,6 +807,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 76.5% | historical_only | ok | False | 876.1s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 54.3% | historical_only | ok | False | 1450.7s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 940.4s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | supported_measurement | ok | False | 212.6s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
 
 ## voting
@@ -1224,6 +1225,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `three_pass_vs_single.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_fallback.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_index18.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `three_pass_vs_single_mapped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `three_pass_vs_single_pdnc.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_qwen3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

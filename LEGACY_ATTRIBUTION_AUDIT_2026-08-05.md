@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 128 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 129 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
 - `historical_only`: 46
 - `provisional`: 21
-- `supported_measurement`: 52
+- `supported_measurement`: 53
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -138,6 +138,7 @@ All 128 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution__explicit_speaker_not_addressee.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
+| `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
 | `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |

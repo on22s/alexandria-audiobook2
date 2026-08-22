@@ -1,9 +1,9 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 279,
+    "supported_structure": 281,
     "exploratory": 194,
-    "provisional": 128
+    "provisional": 129
   },
   "artifacts": [
     {
@@ -8599,6 +8599,38 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "three_pass_vs_single_mapped.json",
+      "bytes": 1855,
+      "sha256": "7f41822ec15ab436311a5bf4d3a26401b66bc6e6a864163685178d3ed94e3e2f",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 3,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T02:34:22",
+      "commit": "a7e0a9963e434a1b7b61cdbced92b515fc8a5646",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "three_pass_vs_single_pdnc.json",
+      "bytes": 1853,
+      "sha256": "eedc96dc861dc869d0afa1ea5543425ec2a2b04ed1c7cef71a9bce85adfc98db",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 2,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T02:34:21",
+      "commit": "74d1f6b08c04b1a37116c51c1a9665be3a3cea9d",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "three_pass_vs_single_qwen3.json",
       "bytes": 1393,
       "sha256": "acb4f45de59917e652b831102de8d149ebbc8321558ad042d1f33822a65bfa6f",
@@ -8821,6 +8853,22 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "70670ef62b07017c9ec8767897dc7169b1ed86b0",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution_narrator_w3200.json",
+      "bytes": 421645,
+      "sha256": "b44eaeadecd5456dafa16aaf9a7f65f29588e5edb582b04926f3379a104e8603",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 200,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "1abf636e4177b9c038ca3207fe42a5466920fdcf",
       "written": null,
       "dirty": false,
       "classification": "provisional",
