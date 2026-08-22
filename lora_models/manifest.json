@@ -1394,9 +1394,9 @@
       "3": 4.3019,
       "4": 4.0951
     },
-    "final_loss": 4.095126193761826,
-    "best_loss": 4.301871410608292,
-    "sample_count": 200,
+    "final_loss": 4.2666294031673,
+    "best_loss": 4.2666294031673,
+    "sample_count": 180,
     "lora_r": 64,
     "lr": 1e-06,
     "target_loss": 4.15,
@@ -1412,7 +1412,9 @@
       "flatness": 0.2061,
       "mean_f0_caveat": "indicative only: profiled before the 2026-08-04 seed fix, so each value is a mean over independent draws of the voice. Measured error against seeded generation is 12.9 Hz mean / 29.7 Hz worst, against a within-voice spread of 32.4 Hz median (range 14.4-71.9). Usable to RANK voices; not precise enough to compute pairwise separation or to gate casting by number. Re-profile seeded before using numerically."
     },
-    "description": "Breathy rough alto, dramatic and world-weary \u2014 best for 50s\u201360s epic fantasy matriarchs or fallen royalty"
+    "description": "Breathy rough alto, dramatic and world-weary \u2014 best for 50s\u201360s epic fantasy matriarchs or fallen royalty",
+    "retrained_at": "20260822_130430",
+    "gate_ecapa": 0.5034
   },
   {
     "id": "warm_bass_50s_m_fantasy",
