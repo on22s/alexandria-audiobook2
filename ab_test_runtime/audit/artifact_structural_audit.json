@@ -748,8 +748,8 @@
     },
     {
       "artifact": "audio_views.json",
-      "bytes": 4741,
-      "sha256": "1cbd43dddf43ec07bd9a0070c181ce8d8b8cf1462affaf33b697e8b2306d541c",
+      "bytes": 8864,
+      "sha256": "a79bc9aa839e2f1a466b8c0070b3d03deebde21a3991b96c86527b34f04fee9f",
       "completeness": "unknown",
       "seed": null,
       "status": null,
