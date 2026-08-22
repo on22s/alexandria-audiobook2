@@ -1,13 +1,13 @@
 # Legacy attribution audit — 2026-08-05
 
-All 131 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 142 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
 - `historical_only`: 46
 - `provisional`: 21
-- `supported_measurement`: 55
+- `supported_measurement`: 66
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -142,10 +142,21 @@ All 131 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution_riqua.json` | two_stage_attribution | supported_measurement | 1287 | None | None | False |  |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_wp2021.json` | two_stage_attribution | supported_measurement | 380 | None | None | False |  |
+| `two_stage_attribution_wp2021_train.json` | two_stage_attribution | supported_measurement | 200 | None | None | False |  |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
 | `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |
 | `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 417 | 0 | 0 | False |  |
 | `voting__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 324 | 0 | 0 | False |  |
+| `xc_riqua__control.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
+| `xc_riqua__explicit_hint.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
+| `xc_riqua__inner_narration.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
+| `xc_riqua__shuffled_roster.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
+| `xc_riqua__speaker_not_addressee.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
+| `xc_wp2021__control.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
+| `xc_wp2021__explicit_hint.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
+| `xc_wp2021__inner_narration.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
+| `xc_wp2021__shuffled_roster.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
+| `xc_wp2021__speaker_not_addressee.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
 
 ## Family-level interpretation limits
 
