@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-22 from `ab_test_runtime/experiments/` — 605 artifacts, 643 arms.
+Generated 2026-08-22 from `ab_test_runtime/experiments/` — 607 artifacts, 660 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -809,6 +809,23 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 940.4s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | supported_measurement | ok | False | 212.6s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 78.3% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 76.7% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 77.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 85.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 70.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 63.5% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 38.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 50.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 5.6% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 65.3% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 66.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 54.4% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 62.5% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 0.0% | supported_measurement | ok | False | 116.7s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 0.0% | supported_measurement | ok | False | 116.7s |
 
 ## voting
 

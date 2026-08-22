@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 282,
     "exploratory": 194,
-    "provisional": 129
+    "provisional": 131
   },
   "artifacts": [
     {
@@ -8891,6 +8891,22 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "two_stage_attribution_riqua.json",
+      "bytes": 1348650,
+      "sha256": "f9321af5acae3e53cfba84960117c253cace9bdbc2fb97e624d31277d0403901",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1287,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "b9667e70ecc8c17a07395849890af86b75ea64f6",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
       "artifact": "two_stage_attribution_w3200.json",
       "bytes": 5664128,
       "sha256": "1eb7c68ac52c9d8e3b6754530e6b19e1bc61cf913f59526de7b827ad977f9845",
@@ -8901,6 +8917,22 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "9c7a7032f391072afc2356d457effa2f8beea00c",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution_wp2021.json",
+      "bytes": 638569,
+      "sha256": "06f629bd1e3927b886745851481aa806ae5d1546277999f841ce318c2c8c1e66",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 380,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "ffacfde73755c22971a27d06a89776410926c20a",
       "written": null,
       "dirty": false,
       "classification": "provisional",
