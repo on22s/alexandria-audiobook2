@@ -11,6 +11,13 @@
     "tests.test_adapter_provenance.CodeLineageTest.test_lineage_never_raises_when_git_is_absent",
     "tests.test_adapter_provenance.CodeLineageTest.test_training_meta_records_the_commit"
   ],
+  "test_added_commit_determinism": [
+    "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_a_file_never_added_resolves_to_nothing",
+    "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_full_history_sees_both_adds_and_the_simplified_walk_does_not",
+    "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_the_module_asks_git_for_full_history",
+    "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_the_old_resolution_disagreed",
+    "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_the_shipped_resolution_agrees_from_both_vantage_points"
+  ],
   "test_addressee_confusion": [
     "tests.test_addressee_confusion.AddresseeParsingTest.test_an_unusable_column_is_empty_not_a_guess",
     "tests.test_addressee_confusion.AddresseeParsingTest.test_blank_entries_are_dropped",

@@ -87,16 +87,32 @@ def added_commit(path):
     have sat unstaged for days. It bounds the code version rather than pinning
     it, and every caller here says so.
     """
+    # --full-history AND AN EXPLICIT SORT, because the obvious form is not
+    # deterministic. `git log --diff-filter=A -1 -- path` applies history
+    # SIMPLIFICATION: it follows one parent through each merge and reports
+    # whichever add that path reaches. A file that came to main through a
+    # squash-merge has two adding commits - the branch's original and main's
+    # squashed copy - and which one git reports depends on the topology it is
+    # asked from. Measured 2026-08-22 on pitch_quality_longref.json: the PR
+    # branch said d24a5928 and GitHub's merge ref said 6da598d1, for the same
+    # file with the same content. The index is regenerated and compared in CI,
+    # so a value that depends on the vantage point makes it unreproducible, and
+    # #404 failed twice on exactly this with nothing wrong in the PR.
+    #
+    # --full-history disables the simplification so every add is listed, and
+    # sorting by (author date, sha) picks the same one from any vantage point.
+    # The sha tiebreak matters: same-day squashes are the common case here.
     try:
         out = subprocess.run(
-            ["git", "log", "--diff-filter=A", "--format=%H %as", "-1", "--", path],
+            ["git", "log", "--full-history", "--diff-filter=A",
+             "--format=%as %H", "--", path],
             cwd=REPO, capture_output=True, text=True, timeout=30).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return None, None
     if not out:
         return None, None
-    sha, _, date = out.partition(" ")
-    return sha, date.strip() or None
+    date, _, sha = sorted(out.splitlines())[0].partition(" ")
+    return sha.strip() or None, date.strip() or None
 
 
 def script_from_name(path):
