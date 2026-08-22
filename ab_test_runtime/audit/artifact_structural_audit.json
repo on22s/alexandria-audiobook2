@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 281,
+    "supported_structure": 282,
     "exploratory": 194,
     "provisional": 129
   },
@@ -66,6 +66,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-21T15:13:06",
       "commit": "15739c57bf42a8494691639f797dd1e025a30d79",
+      "dirty": true,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "addressee_confusion_riqua.json",
+      "bytes": 3142,
+      "sha256": "f797f860361120f92fd596b6c4dd8a3d8966dc456eb4bbdce132d1bae5150d0f",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T06:47:56",
+      "commit": "b9667e70ecc8c17a07395849890af86b75ea64f6",
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
