@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-22 from `ab_test_runtime/experiments/` — 626 artifacts, 751 arms.
+Generated 2026-08-22 from `ab_test_runtime/experiments/` — 627 artifacts, 751 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1313,6 +1313,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `satella_quality_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `satella_quality_probe_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `satella_quality_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `satella_quality_ratings_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scale_vs_register.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_narrowing_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

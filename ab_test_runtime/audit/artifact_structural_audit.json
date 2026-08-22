@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 286,
-    "exploratory": 198,
+    "exploratory": 199,
     "provisional": 142
   },
   "artifacts": [
@@ -7929,6 +7929,19 @@
       "artifact": "satella_quality_ratings.json",
       "bytes": 1410,
       "sha256": "1d5fbca6a771833a4b63369e304d35b11b835a668ba34a1b6b75c39b7a63b02f",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "satella_quality_ratings_n10.json",
+      "bytes": 1555,
+      "sha256": "3f1ab8e93c046438fd15bce490d187cbb7824bfe7da0d274e9049e6f7369a254",
       "completeness": "unknown",
       "seed": null,
       "status": null,

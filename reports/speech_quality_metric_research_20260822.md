@@ -54,6 +54,16 @@ the new 30-clip Satella test is rated. Do not automate acceptance unless the
 relationship replicates on that independent set and obvious defects are not
 assigned high scores.
 
+## Independent replication result
+
+The preregistered 30-clip Satella test was rated later on 2026-08-22. The
+ratings matched the frozen source hash and had mean quality 4.633/5. NISQA
+noisiness correlated only `rho = 0.219` (`p = 0.245`) with those ratings.
+None of the other dimensions was significant either; their correlations
+ranged from 0.206 to 0.308. The earlier noisiness result therefore did not
+replicate. Reject NISQA, including its noisiness dimension, as a project gate
+or dependable triage ranker on the evidence currently available.
+
 ## Primary sources
 
 - https://github.com/microsoft/DNS-Challenge
