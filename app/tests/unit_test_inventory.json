@@ -986,6 +986,14 @@
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_the_gate_still_exits_nonzero_on_failure",
     "tests.test_gate_provenance.ProvenanceHelperTests.test_the_helper_exists_and_takes_file_and_args"
   ],
+  "test_gate_verdict_precision": [
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_a_clear_failure_is_not_dressed_up_as_a_near_miss",
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_a_near_miss_says_how_near",
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_a_pass_reports_four_places_too",
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_the_boundary_value_passes",
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_the_module_prints_four_places",
+    "tests.test_gate_verdict_precision.VerdictPrecisionTests.test_the_real_near_miss_no_longer_reads_as_false"
+  ],
   "test_generate_personas": [
     "tests.test_generate_personas.JaccardTest.test_empty_names_score_zero",
     "tests.test_generate_personas.JaccardTest.test_it_takes_the_same_honorific_decision_as_its_caller",
