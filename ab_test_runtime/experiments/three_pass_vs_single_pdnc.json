@@ -1,0 +1,84 @@
+{
+ "books": [
+  "pdnc_thegambler",
+  "pdnc_thesignofthefour",
+  "pdnc_themysteriousaffairatstyles",
+  "pdnc_ahandfulofdust"
+ ],
+ "results": [
+  {
+   "book": "pdnc_themysteriousaffairatstyles",
+   "gold_lines": 1861,
+   "comparable": 1068,
+   "single_entries": 2536,
+   "three_entries": 2979,
+   "single_minutes": 0.0,
+   "three_minutes": 0.0,
+   "single": {
+    "correct": 337,
+    "accuracy": 0.3155430711610487
+   },
+   "three_pass": {
+    "correct": 276,
+    "accuracy": 0.25842696629213485
+   }
+  },
+  {
+   "book": "pdnc_ahandfulofdust",
+   "gold_lines": 2337,
+   "comparable": 1583,
+   "single_entries": 3139,
+   "three_entries": 3472,
+   "single_minutes": 23.8,
+   "three_minutes": 74.2,
+   "single": {
+    "correct": 913,
+    "accuracy": 0.576753000631712
+   },
+   "three_pass": {
+    "correct": 456,
+    "accuracy": 0.2880606443461781
+   }
+  }
+ ],
+ "failures": [
+  {
+   "book": "pdnc_thegambler",
+   "arm": "three_pass",
+   "rc": 1
+  },
+  {
+   "book": "pdnc_thesignofthefour",
+   "arm": "three_pass",
+   "rc": 1
+  }
+ ],
+ "provenance": {
+  "script": "three_pass_vs_single.py",
+  "written": "2026-08-22T02:34:21",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "74d1f6b08c04b1a37116c51c1a9665be3a3cea9d",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "609d60f25dead98c62464bc05e5a65d897f4530c855371ba226c7e4ef9d82713"
+  },
+  "args": {
+   "books": [
+    "pdnc_thegambler",
+    "pdnc_thesignofthefour",
+    "pdnc_themysteriousaffairatstyles",
+    "pdnc_ahandfulofdust"
+   ],
+   "inputs": "ab_test_runtime/dialogue_map_5_3_inputs",
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "timeout": 14400,
+   "reuse_complete": true,
+   "model": null,
+   "pass2_on_exhaustion": "fallback",
+   "out": "ab_test_runtime/experiments/three_pass_vs_single_pdnc.json"
+  }
+ }
+}
