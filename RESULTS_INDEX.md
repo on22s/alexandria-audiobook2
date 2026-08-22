@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-21 from `ab_test_runtime/experiments/` — 599 artifacts, 624 arms.
+Generated 2026-08-21 from `ab_test_runtime/experiments/` — 600 artifacts, 633 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -756,38 +756,47 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
 | attribution_gold_pdnc_ahandfulofdust | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 409 | 56.0% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_ahandfulofdust | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 409 | 57.0% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_ahandfulofdust | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 409 | 56.0% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_ahandfulofdust | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 409 | 60.4% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 47.4% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 47.7% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 47.4% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 48.3% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 50.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_prideandprejudice | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 53.8% | historical_only | ok | False | 718.1s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 62.4% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 62.7% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 81.7% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 327 | 59.9% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_prideandprejudice_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1270 | 68.2% | historical_only | ok | False | 2662.3s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 59.3% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 62.2% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 59.3% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 62.2% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 70.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_theawakening | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 60.4% | historical_only | ok | False | 718.1s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 74.8% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 73.3% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 78.5% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 135 | 70.4% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_theawakening_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 584 | 70.5% | historical_only | ok | False | 2662.3s |
 | attribution_gold_pdnc_thegambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 89 | 42.7% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_thegambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 89 | 37.1% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_thegambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 89 | 42.7% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_thegambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 89 | 44.9% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_themysteriousaffairatstyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 239 | 57.7% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_themysteriousaffairatstyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 239 | 56.5% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_themysteriousaffairatstyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 239 | 57.7% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_themysteriousaffairatstyles | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 239 | 56.9% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 58.0% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 51.9% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 30 | 60.0% | historical_only | ok | False | 25.9s |
 | attribution_gold_pdnc_thesignofthefour | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 50.6% | historical_only | ok | False | 718.1s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 49.4% | historical_only | ok | False | 1077.3s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 58.0% | historical_only | ok | False | 965.2s |
+| attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 76.5% | historical_only | ok | False | 873.8s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 54.3% | historical_only | ok | False | 1476.4s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
 
