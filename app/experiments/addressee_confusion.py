@@ -73,7 +73,50 @@ from experiments.two_stage_attribution import roster_lines  # noqa: E402
 
 csv.field_size_limit(10 ** 7)
 PREFIX = "attribution_gold_pdnc_"
+# Every fixture family shares this stem; the corpus name follows it. Stripping
+# the shared part rather than a hardcoded corpus prefix is what lets the same
+# analysis read RiQuA, whose fixtures are `attribution_gold_riqua_<text>.json`.
+STEM = "attribution_gold_"
+DEFAULT_GLOB = PREFIX + "*_w3200.json"
 WINDOW = 10
+
+
+def row_id(entry):
+    """-> the id this corpus uses to place a quote in document order.
+
+    PDNC rows carry `pdnc_quote_id` (Q0, Q1 ...). RiQuA rows do not, and their
+    own `id` is already in document order. Reading only the PDNC field left
+    `quote_id` None on every RiQuA row, the neighbour block never executed,
+    and the separation printed 0/0/0 - which reads like "no evidence either
+    way" and actually meant "did not run".
+    """
+    return entry.get("pdnc_quote_id") or entry.get("id")
+
+
+def speaker_index(entries, raw_book):
+    """-> {quote id: speaker} for a book, from whichever source has it."""
+    if raw_book:
+        return {q: (row or {}).get("speaker") for q, row in raw_book.items()}
+    return {e.get("id"): e.get("expected_speaker")
+            for e in entries if e.get("id")}
+
+
+def corpus_key(stem):
+    """-> the book key inside a fixture stem, whatever corpus it belongs to.
+
+    `attribution_gold_pdnc_prideandprejudice_w3200` -> `prideandprejudice_w3200`
+    `attribution_gold_riqua_austen_emma_1`          -> `austen_emma_1`
+
+    Strips the shared stem AND the corpus name. Stripping only the shared part
+    left `pdnc_` on the key and match_book stopped resolving anything, which
+    took PDNC from 205 rows to zero - caught by re-running PDNC before
+    trusting the change.
+    """
+    key = stem[len(STEM):] if stem.startswith(STEM) else stem
+    for corpus in ("pdnc_", "riqua_", "wp2021_"):
+        if key.startswith(corpus):
+            return key[len(corpus):]
+    return key
 
 
 def addressees(row):
@@ -103,10 +146,16 @@ def classify(predicted, expected, addressed, present, groups):
     return "absent"
 
 
-def turn_neighbours(order, index, raw_book):
-    """-> (previous speaker, next speaker) around a quotation, or (None, None)."""
-    prev = raw_book[order[index - 1]]["speaker"] if index > 0 else None
-    nxt = raw_book[order[index + 1]]["speaker"] if index + 1 < len(order) else None
+def turn_neighbours(order, index, speakers):
+    """-> (previous speaker, next speaker) around a quotation.
+
+    `speakers` is a flat {quote id: speaker} map so this works for any corpus:
+    PDNC builds it from its raw rows, RiQuA from the fixture entries. It used
+    to index the raw row shape directly, which is why passing a map raised
+    `TypeError: string indices must be integers`.
+    """
+    prev = speakers.get(order[index - 1]) if index > 0 else None
+    nxt = speakers.get(order[index + 1]) if index + 1 < len(order) else None
     return prev, nxt
 
 
@@ -128,22 +177,65 @@ def separate_addressee_from_persistence(predicted, addressed, prev_speaker,
     return None
 
 
+def entry_addressees(entry, raw_book):
+    """-> the addressee names for one row, from whichever source carries them.
+
+    ONE dispatch point, not two analyses. PDNC fixtures do not carry
+    addressees; the names live in the raw corpus keyed by `pdnc_quote_id`.
+    RiQuA fixtures carry an `addressees` list inline, because its corpus marks
+    the relation directly and the reader kept it. Anything else with the same
+    field works without further change.
+
+    The inline field wins when present: a fixture that states its own
+    addressees is the more specific answer, and PDNC rows never have one.
+    """
+    inline = entry.get("addressees")
+    if inline:
+        return [str(a) for a in inline if a]
+    source = (raw_book or {}).get(entry.get("pdnc_quote_id"))
+    return addressees(source) if source else []
+
+
+def quote_order(book, entries, raw_book):
+    """-> the ids of this book's quotes in document order.
+
+    PDNC numbers its quotes Q0, Q1 ... and the raw corpus is the authority.
+    A fixture without that (RiQuA) is already built in document order by its
+    reader, so the entry sequence IS the order and its own ids identify rows.
+    Returning the right KIND of id for each corpus keeps the neighbour
+    analysis identical for both.
+    """
+    if raw_book:
+        return sorted(raw_book, key=lambda q: int(q[1:]) if q[1:].isdigit() else 0)
+    return [e.get("id") for e in entries if e.get("id")]
+
+
 def analyse(rows, fixtures, raw):
     gold, cast = {}, {}
     for stem, fixture in fixtures.items():
         cast[stem] = ([l.split(" [also")[0] for l in roster_lines(fixture)],
                       alias_groups(fixture))
-        key = stem[len(PREFIX):]
+        key = corpus_key(stem)
         for suffix in ("_w3200",):
             if key.endswith(suffix):
                 key = key[:-len(suffix)]
-        book = match_book(key, raw)
+        book = match_book(key, raw) or stem
         for entry in fixture.get("entries") or []:
             gold[(stem, entry["id"])] = (book, entry)
 
-    order = {book: sorted(rows_by_id, key=lambda q: int(q[1:]) if q[1:].isdigit()
-                          else 0)
-             for book, rows_by_id in raw.items()}
+    # Build the document order once per book, from whichever source has it.
+    order, seen_books = {}, {}
+    for stem, fixture in fixtures.items():
+        key = corpus_key(stem)
+        for suffix in ("_w3200",):
+            if key.endswith(suffix):
+                key = key[:-len(suffix)]
+        book = match_book(key, raw) or stem
+        seen_books.setdefault(book, fixture.get("entries") or [])
+    speakers = {}
+    for book, entries in seen_books.items():
+        order[book] = quote_order(book, entries, raw.get(book))
+        speakers[book] = speaker_index(entries, raw.get(book))
     naive = collections.Counter()
     strict = collections.Counter()
     options = collections.Counter()
@@ -158,10 +250,7 @@ def analyse(rows, fixtures, raw):
         if not joined or stem not in cast:
             continue
         book, entry = joined
-        source = (raw.get(book) or {}).get(entry.get("pdnc_quote_id"))
-        if source is None:
-            continue
-        addressed = addressees(source)
+        addressed = entry_addressees(entry, raw.get(book))
         if not addressed:
             continue
         names, groups = cast[stem]
@@ -172,10 +261,11 @@ def analyse(rows, fixtures, raw):
         # Does the row distinguish "tracks the addressee" from "copies the
         # last speaker"? Most do not, and those are counted as agreeing.
         sequence = order.get(book) or []
-        quote_id = entry.get("pdnc_quote_id")
+        quote_id = row_id(entry)
         if quote_id in sequence:
             index = sequence.index(quote_id)
-            previous, following = turn_neighbours(sequence, index, raw[book])
+            previous, following = turn_neighbours(
+                sequence, index, speakers.get(book) or {})
             for label, who in (("previous_speaker", previous),
                                ("next_speaker", following)):
                 if who and same_speaker(row.get("predicted"), who, groups):
@@ -208,12 +298,17 @@ def main():
     ap.add_argument("--artifact", required=True)
     ap.add_argument("--fixtures", default=os.path.join(REPO, "app", "fixtures"))
     ap.add_argument("--pdnc", default=os.path.join(REPO, "ab_test_runtime", "pdnc", "data"))
+    ap.add_argument("--fixture-glob", default=DEFAULT_GLOB,
+                    help="which fixture family to read. The default is PDNC's "
+                         "wide-context set; pass attribution_gold_riqua_*.json "
+                         "to run the same analysis on RiQuA, whose fixtures "
+                         "carry their addressees inline.")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
     raw = load_raw(args.pdnc)
     fixtures = {}
-    for path in sorted(glob.glob(os.path.join(args.fixtures, PREFIX + "*_w3200.json"))):
+    for path in sorted(glob.glob(os.path.join(args.fixtures, args.fixture_glob))):
         with open(path, encoding="utf-8") as handle:
             fixtures[os.path.basename(path)[:-len(".json")]] = json.load(handle)
     if not fixtures or not raw:
