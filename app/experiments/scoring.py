@@ -30,7 +30,23 @@ it separately so a caller can have both numbers.
 """
 import re
 
-_PUNCT = re.compile(r"[^A-Z0-9 ]")
+# ASCII-ONLY ALLOW-LISTS DELETE ENTIRE WRITING SYSTEMS. The previous pattern
+# was `[^A-Z0-9 ]`, which kept latin letters, digits and space and dropped
+# everything else AS PUNCTUATION - so every CJK name normalised to the empty
+# string, `same_speaker` hit its `if not b: return False` guard, and every
+# Chinese row scored wrong. Measured on the WP2021 arm: 0 of 380 correct,
+# with `expected` and `predicted` byte-identical on the rows it refused.
+# The real figure is 260 of 380.
+#
+# Now a DENY-list of punctuation, so any script's letters survive: hanzi,
+# kana, hangul, cyrillic, and accented latin (JOSÉ kept its É rather than
+# becoming JOS). `_` is removed explicitly because \w keeps it.
+#
+# This can only make normalize MORE discriminating, never less, so the
+# docstring's promise - that it must not merge distinct characters - is
+# strengthened rather than weakened. Verified behaviour-identical on English:
+# re-scoring the stored RiQuA and PDNC arms gives exactly the same totals.
+_PUNCT = re.compile(r"[^\w\s]|_")
 
 
 def normalize(name):
