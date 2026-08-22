@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2225** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2266** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1314,7 +1314,48 @@ that alter a non-name word.**
 **Metric** — accuracy of `three_pass_generate.py` against the shipped single
 pass, paired on line id.
 **Probe** — `app/experiments/three_pass_vs_single.py`.
-**Current** — **ANSWERED 2026-08-09.** Two books, both arms, qwen3-14b:
+#### DECIDED: DELETE — do not wire it in. 2026-08-22
+
+Five books, five losses, on both light novels in translation and English
+classics. Not one book where three-pass wins, and the spread runs to −28.9:
+
+| book | single | three-pass | delta | corpus |
+|---|---|---|---|---|
+| pdnc_ahandfulofdust | 57.7% | 28.8% | **−28.9** | PDNC |
+| index18 | 70.9% | 50.6% | −20.3 | light novel |
+| owarimonogatari3 | 58.7% | 46.0% | −12.7 | light novel |
+| pdnc_themysteriousaffairatstyles | 31.6% | 25.8% | −5.7 | PDNC |
+| mushoku16 | 46.3% | 41.8% | −4.5 | light novel |
+
+`three_pass_vs_single_pdnc.json` and `three_pass_vs_single_mapped.json`. Two
+further PDNC books, `thegambler` and `thesignofthefour`, are absent rather
+than losing: their three-pass arm failed segmentation and the harness drops a
+book missing an arm whole rather than scoring one side against gold.
+
+The goal asked to *stop not knowing*, and either answer was acceptable. The
+answer is that the alternative is worse, everywhere it has been measured.
+
+**THE MODULE STAYS, AND THAT IS NOT A HEDGE.** `three_pass_generate.py` is
+imported by **55 scripts**, and what they import is its building blocks —
+`attribute_batch`, `build_roster`, `get_deterministic_named_entry` — not the
+three-pass pipeline. `pdnc_eval.py` scores PDNC with it, `make_fixture.py`
+builds fixtures with it, `gold_set_builder.py` builds gold with it. It is the
+shared attribution library, which happens to carry the name of a losing
+method. Deleting the file would break the tooling that produces our evidence
+and make every past artifact unreproducible. What is deleted is the *plan to
+wire the three-pass path into generation*, which was the open question.
+
+**What IS orphaned**, and is the real cleanup: seven settings —
+`three_pass_segment_temperature`, `three_pass_attribute_temperature`,
+`three_pass_instruct_temperature`, `three_pass_segment_output_ratio`,
+`three_pass_chunk_size`, `three_pass_presegment_quotes`,
+`three_pass_model_profiles` — are declared in `config_settings.py` and exposed
+in `api_contract/openapi.json` for a path that will now never ship. They are a
+production API surface for nothing. Removing them is an API-contract change
+that could disturb saved `config.json` files, so it is named here rather than
+done quietly.
+
+**Superseded record — ANSWERED 2026-08-09.** Two books, both arms, qwen3-14b:
 
 | book | single | three-pass | delta | comparable lines |
 |---|---|---|---|---|

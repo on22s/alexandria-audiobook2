@@ -421,6 +421,36 @@ if skipped:
     for r in sorted(skipped, key=lambda x: x["artifact"]):
         md.append(f"| `{r['artifact']}` | {r['note']} |")
 
+
+def _only_added_commit_filled_in(old_csv, new_csv):
+    """-> True when the CSVs differ ONLY by an added_commit going empty->set.
+
+    Returns False for any other difference, including a changed or removed
+    sha, so this forgives the unavoidable lag and nothing else.
+    """
+    import csv as _csv
+    import io as _io
+    old_rows = list(_csv.reader(_io.StringIO(old_csv)))
+    new_rows = list(_csv.reader(_io.StringIO(new_csv)))
+    if len(old_rows) != len(new_rows) or not old_rows:
+        return False
+    header = old_rows[0]
+    if header != new_rows[0] or "added_commit" not in header:
+        return False
+    column = header.index("added_commit")
+    for old_row, new_row in zip(old_rows[1:], new_rows[1:]):
+        if old_row == new_row:
+            continue
+        if len(old_row) != len(new_row):
+            return False
+        for index, (was, now) in enumerate(zip(old_row, new_row)):
+            if was == now:
+                continue
+            if index != column or was != "" or not now:
+                return False
+    return True
+
+
 md_text = "\n".join(md) + "\n"
 md_path = os.path.join(REPO, "RESULTS_INDEX.md")
 if args.check:
@@ -432,7 +462,21 @@ if args.check:
     except OSError as exc:
         raise SystemExit(f"results index is unreadable: {exc}") from exc
     normalize = lambda text: re.sub(r"Generated .*? from ", "Generated TIME from ", text, count=1)
-    if old_csv != csv_text or normalize(old_md) != normalize(md_text):
+    csv_differs = old_csv != csv_text
+    if csv_differs and _only_added_commit_filled_in(old_csv, csv_text):
+        # THE ONE DIFFERENCE THAT CANNOT BE AVOIDED BY REGENERATING FIRST.
+        # `added_commit` is `git log --diff-filter=A` for the artifact, so it
+        # is empty until the commit that adds the file EXISTS. Every commit
+        # introducing an artifact therefore leaves the index stale by exactly
+        # that field, and CI fails on the commit that could not have been
+        # written any other way. It cost five round trips in two days.
+        #
+        # Only the empty -> value transition is forgiven, per row, in that one
+        # column: a WRONG sha, a changed sha, or a difference anywhere else is
+        # still stale. The field self-heals on the next regeneration, and is
+        # documented as bounding the code version rather than pinning it.
+        csv_differs = False
+    if csv_differs or normalize(old_md) != normalize(md_text):
         raise SystemExit("results index is stale; regenerate with python3 collect_results.py")
     print("results index is current")
     sys.exit(0)

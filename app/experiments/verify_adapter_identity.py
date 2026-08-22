@@ -116,12 +116,19 @@ def main():
 
     median = statistics.median(vals)
     ok = median >= args.min_ecapa
+    # DISPLAY PRECISION MUST EXCEED COMPARISON PRECISION. At 3 decimal places
+    # husky_baritone_40s_m_military read "FAIL - 0.450 is below 0.45", which
+    # is false on its face and sends a reader hunting a comparison bug that is
+    # not there: the median is 0.4499. The artifact already stores 4 places;
+    # the message now matches it, and a near-miss says how near.
+    margin = args.min_ecapa - median
     for i, c in enumerate(vals):
         print(f"  line {i}: {c:.3f}")
     print(f"\n  median {median:.3f}, threshold {args.min_ecapa:.2f}")
-    verdict = (f"PASS - the adapter sounds like its narrator ({median:.3f})"
+    near = (" - a near miss, short by %.4f" % margin) if 0 < margin <= 0.005 else ""
+    verdict = (f"PASS - the adapter sounds like its narrator ({median:.4f})"
                if ok else
-               f"FAIL - {median:.3f} is below {args.min_ecapa:.2f}. Working "
+               f"FAIL - {median:.4f} is below {args.min_ecapa:.2f}{near}. Working "
                f"adapters reach 0.65-0.74; the five known-broken ones scored "
                f"0.027-0.404. Retrain before shipping: on 2026-08-07 all five "
                f"failures recovered on a rerun, two of them to ~0.67.")

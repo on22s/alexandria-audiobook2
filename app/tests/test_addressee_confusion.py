@@ -15,9 +15,10 @@ The exclusion is the load-bearing part, so it is tested first.
 """
 import unittest
 
-from experiments.addressee_confusion import (addressees, classify,
-                                             separate_addressee_from_persistence,
-                                             turn_neighbours)
+from experiments.addressee_confusion import (addressees, classify, corpus_key,
+                                             entry_addressees, quote_order,
+                                             row_id, separate_addressee_from_persistence,
+                                             speaker_index, turn_neighbours)
 from experiments.two_stage_attribution import (PROMPT_VARIANTS,
                                                SPEAKER_NOT_ADDRESSEE,
                                                build_prompt)
@@ -103,12 +104,14 @@ class TurnNeighbourTests(unittest.TestCase):
     GROUPS = {}
 
     def test_ends_of_a_scene_have_one_neighbour(self):
+        # `speakers` is now a FLAT {quote id: speaker} map, not the raw row
+        # shape, so the same function serves PDNC (built from its corpus) and
+        # RiQuA (built from fixture entries).
         order = ["Q0", "Q1", "Q2"]
-        raw = {"Q0": {"speaker": "Ann"}, "Q1": {"speaker": "Bob"},
-               "Q2": {"speaker": "Ann"}}
-        self.assertEqual(turn_neighbours(order, 0, raw), (None, "Bob"))
-        self.assertEqual(turn_neighbours(order, 2, raw), ("Bob", None))
-        self.assertEqual(turn_neighbours(order, 1, raw), ("Ann", "Ann"))
+        speakers = {"Q0": "Ann", "Q1": "Bob", "Q2": "Ann"}
+        self.assertEqual(turn_neighbours(order, 0, speakers), (None, "Bob"))
+        self.assertEqual(turn_neighbours(order, 2, speakers), ("Bob", None))
+        self.assertEqual(turn_neighbours(order, 1, speakers), ("Ann", "Ann"))
 
     def test_two_party_exchange_cannot_separate_the_hypotheses(self):
         # Ann and Bob alternate, so the addressee IS the previous speaker.
@@ -147,3 +150,98 @@ class TurnNeighbourTests(unittest.TestCase):
         groups = {"subaru": "Subaru", "subaru natsuki": "Subaru"}
         self.assertIsNone(separate_addressee_from_persistence(
             "Subaru Natsuki", ["Subaru"], "Subaru", groups))
+
+
+class CorpusAgnosticSourceTests(unittest.TestCase):
+    """Addressees come from whichever corpus carries them, via ONE dispatch.
+
+    The analysis was written against PDNC, whose fixtures do NOT carry
+    addressees - the names live in the raw corpus, keyed by pdnc_quote_id.
+    RiQuA marks the relation directly and its reader keeps it inline. Rather
+    than a second copy of the analysis per corpus, both go through
+    `entry_addressees`, so the 205-v-4 separation is computed identically on
+    either and a third corpus needs no new code.
+    """
+
+    def test_an_inline_field_is_used(self):
+        entry = {"id": "x-1", "addressees": ["Mr. Knightley"]}
+        self.assertEqual(entry_addressees(entry, None), ["Mr. Knightley"])
+
+    def test_inline_wins_over_the_raw_corpus(self):
+        # A fixture stating its own addressees is the more specific answer.
+        entry = {"id": "x-1", "addressees": ["EMMA"], "pdnc_quote_id": "Q1"}
+        raw = {"Q1": {"addressees": "['HARRIET']"}}
+        self.assertEqual(entry_addressees(entry, raw), ["EMMA"])
+
+    def test_pdnc_rows_fall_back_to_the_raw_corpus(self):
+        # PDNC's column is a STRING holding a python literal, straight out of
+        # the corpus CSV - not a list of dicts. A first version of this test
+        # invented the wrong shape and failed against working code.
+        entry = {"id": "x-1", "pdnc_quote_id": "Q1"}
+        raw = {"Q1": {"addressees": "['HARRIET']"}}
+        self.assertEqual(entry_addressees(entry, raw), ["HARRIET"])
+
+    def test_a_row_with_neither_yields_nothing(self):
+        # Must be empty, not a crash and not a fabricated name: the caller
+        # skips such rows rather than counting them.
+        self.assertEqual(entry_addressees({"id": "x-1"}, None), [])
+        self.assertEqual(entry_addressees({"id": "x-1"}, {}), [])
+
+    def test_an_empty_inline_list_falls_through(self):
+        entry = {"id": "x-1", "addressees": [], "pdnc_quote_id": "Q1"}
+        raw = {"Q1": {"addressees": "['HARRIET']"}}
+        self.assertEqual(entry_addressees(entry, raw), ["HARRIET"])
+
+    def test_blank_names_are_dropped_from_an_inline_list(self):
+        entry = {"id": "x-1", "addressees": ["EMMA", "", None]}
+        self.assertEqual(entry_addressees(entry, None), ["EMMA"])
+
+    def test_pdnc_order_comes_from_the_raw_corpus(self):
+        raw = {"Q10": {}, "Q2": {}, "Q1": {}}
+        self.assertEqual(quote_order("bk", [], raw), ["Q1", "Q2", "Q10"])
+
+    def test_a_fixture_without_raw_data_orders_by_its_own_entries(self):
+        # RiQuA readers emit entries in document order, so the sequence IS
+        # the order and the entry ids identify rows.
+        entries = [{"id": "a-1"}, {"id": "a-2"}, {"id": "a-3"}]
+        self.assertEqual(quote_order("bk", entries, None), ["a-1", "a-2", "a-3"])
+
+    def test_entries_without_ids_are_skipped_not_padded(self):
+        entries = [{"id": "a-1"}, {}, {"id": "a-3"}]
+        self.assertEqual(quote_order("bk", entries, None), ["a-1", "a-3"])
+
+
+class BookIdentityTests(unittest.TestCase):
+    """Fixtures from a corpus with no raw data must stay separate books.
+
+    `match_book` resolves against PDNC's corpus, so it returned the same value
+    for all fifteen RiQuA fixtures. They collapsed into one book, only the
+    first text ever had a document order, and the separation ran on 5 rows of
+    1,537 - printing `2 / 1 / 2`, which reads like a weak real result and was
+    actually 79 / 10 with 99.7% of the data invisible.
+    """
+
+    def test_corpus_key_strips_the_corpus_name(self):
+        self.assertEqual(corpus_key("attribution_gold_pdnc_prideandprejudice_w3200"),
+                         "prideandprejudice_w3200")
+        self.assertEqual(corpus_key("attribution_gold_riqua_austen_emma_1"),
+                         "austen_emma_1")
+
+    def test_an_unknown_corpus_keeps_its_stem(self):
+        self.assertEqual(corpus_key("attribution_gold_newcorpus_book"),
+                         "newcorpus_book")
+
+    def test_row_id_prefers_the_pdnc_field_then_falls_back(self):
+        self.assertEqual(row_id({"pdnc_quote_id": "Q7", "id": "x-1"}), "Q7")
+        self.assertEqual(row_id({"id": "x-1"}), "x-1")
+        self.assertIsNone(row_id({}))
+
+    def test_speaker_index_reads_raw_when_present(self):
+        raw = {"Q0": {"speaker": "ANN"}, "Q1": {"speaker": "BOB"}}
+        self.assertEqual(speaker_index([], raw), {"Q0": "ANN", "Q1": "BOB"})
+
+    def test_speaker_index_falls_back_to_fixture_entries(self):
+        entries = [{"id": "a-1", "expected_speaker": "EMMA"},
+                   {"id": "a-2", "expected_speaker": "HARRIET"}]
+        self.assertEqual(speaker_index(entries, None),
+                         {"a-1": "EMMA", "a-2": "HARRIET"})
