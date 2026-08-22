@@ -1,27 +1,37 @@
 {
   "what": "human ratings for the blinded homograph listening package",
-  "rated_at": "2026-08-22T17:12:09.391Z",
+  "rated_at": "2026-08-22T17:49:29.466Z",
   "rater": "project owner",
   "source_sha256": "e8ca55efd4b642f2acf03ee75506b50ee56f75aa6656aa667dcac18acbbd64fe",
   "scoring": {
-    "correct_clips": 36,
+    "correct_clips": 35,
     "total_clips": 40,
-    "clip_accuracy": 0.9,
+    "clip_accuracy": 0.875,
     "words_with_both_contexts_correct": 16,
     "total_words": 20,
     "paired_word_accuracy": 0.8,
-    "quality_distribution": {"3": 40},
-    "quality_scale_caveat": "Every clip received quality=3, so these ratings provide no quality ordering."
+    "quality_distribution": {"1": 0, "2": 4, "3": 12, "4": 18, "5": 6},
+    "quality_mean": 3.65,
+    "quality_median": 4
   },
   "wrong_items": {
-    "h01_ebcaffe2": {"heard": "PRES-ent", "expected": "pre-SENT", "word": "present"},
-    "h02_d04236dc": {"heard": "pro-DUCE", "expected": "PRO-duce", "word": "produce"},
-    "h38_3a2920dc": {"heard": "BASS", "expected": "BASE", "word": "bass"},
-    "h40_21cbb1f7": {"heard": "re-CORD", "expected": "REC-ord", "word": "record"}
+    "h07_d3f555ff": {"heard": "REED", "expected": "RED", "word": "read"},
+    "h16_686d5eb1": {"heard": "KLOHSS", "expected": "KLOHZ", "word": "close"},
+    "h20_7aeb2552": {"heard": "pro-DUCE", "expected": "PRO-duce", "word": "produce"},
+    "h31_88f8d954": {"heard": "RED", "expected": "REED", "word": "read"},
+    "h38_3a2920dc": {"heard": "BASS", "expected": "BASE", "word": "bass"}
   },
-  "verdict": "The engine selected the contextually correct reading for 36/40 clips. Four of 20 words failed one of their two contexts, consistent with a fixed-pronunciation failure on present, produce, bass, and record rather than a general inability to render heteronyms.",
-  "notes": {
-    "h34_ad0bd915": "sounded scraticy"
+  "verdict": "The engine selected the contextually correct reading for 35/40 clips. Four of 20 words failed at least one context: produce once, read in both directions, close once, and bass once. The paired-word result remains 16/20, but the later completed pass supersedes the provisional all-quality-3 pass for this same source hash.",
+  "quality_findings": {
+    "whispering_or_whispery": 10,
+    "slow_or_kinda_slow": 12,
+    "other_defects": [
+      "h04 sounded robotic and slow",
+      "h21 sounded confused",
+      "h34 sounded scratchy and just bad",
+      "h39 sounded really low in volume"
+    ],
+    "positive_note": "h25 sounded natural, annoyed, and appropriate to the sentence"
   },
   "method": "Rated through the listening page with shuffled opaque item IDs. CAPITAL letters indicated stressed syllables; glosses identified the intended meaning."
 }
