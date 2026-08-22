@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-22 from `ab_test_runtime/experiments/` — 621 artifacts, 751 arms.
+Generated 2026-08-22 from `ab_test_runtime/experiments/` — 623 artifacts, 751 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1177,7 +1177,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__velvety_mezzo_30s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `homograph_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `instruct_listening_fixed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instruct_value_seeded.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instrument_null_test.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

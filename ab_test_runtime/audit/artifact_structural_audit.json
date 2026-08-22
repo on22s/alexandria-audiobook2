@@ -1,8 +1,8 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 283,
-    "exploratory": 196,
+    "supported_structure": 284,
+    "exploratory": 197,
     "provisional": 142
   },
   "artifacts": [
@@ -5124,6 +5124,19 @@
       "reason": "no embedded provenance or experiment metadata"
     },
     {
+      "artifact": "homograph_listening_ratings.json",
+      "bytes": 1422,
+      "sha256": "9f5087f7866ad9bba691e889b2758b144621e74ea3025a24f5328f01c6c7bdd0",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "instruct_listening.json",
       "bytes": 2159,
       "sha256": "fcadd8bb6c2936b6a7ad5a2f64379d9f3d8cf11eb72e46567d0e11452aa9535c",
@@ -5135,6 +5148,22 @@
       "identity_contract": "none",
       "classification": "exploratory",
       "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "instruct_listening_fixed.json",
+      "bytes": 4401,
+      "sha256": "80b4bf193367d128e2144907eadf188e249f980189ecfd8e8a3bf7336b7b432b",
+      "completeness": "complete",
+      "seed": 20260822,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-22T12:24:07",
+      "commit": "c93d35cfa11dec3f8fc714a2335b7b50277fc864",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
     },
     {
       "artifact": "instruct_value.json",
@@ -5511,8 +5540,8 @@
     },
     {
       "artifact": "listening_verdicts.json",
-      "bytes": 2776,
-      "sha256": "7da402359f088fb571f31513d04bfc6528d870a4168a1415d0f060c0aa2b5e7f",
+      "bytes": 3915,
+      "sha256": "341347d2d871390ac0b83b2a3053aac481e24a2f0a7bbe15dd56cc289c474ed5",
       "completeness": "complete",
       "seed": null,
       "status": "complete",

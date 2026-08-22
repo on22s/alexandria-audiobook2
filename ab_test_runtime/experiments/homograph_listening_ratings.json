@@ -1,0 +1,27 @@
+{
+  "what": "human ratings for the blinded homograph listening package",
+  "rated_at": "2026-08-22T17:12:09.391Z",
+  "rater": "project owner",
+  "source_sha256": "e8ca55efd4b642f2acf03ee75506b50ee56f75aa6656aa667dcac18acbbd64fe",
+  "scoring": {
+    "correct_clips": 36,
+    "total_clips": 40,
+    "clip_accuracy": 0.9,
+    "words_with_both_contexts_correct": 16,
+    "total_words": 20,
+    "paired_word_accuracy": 0.8,
+    "quality_distribution": {"3": 40},
+    "quality_scale_caveat": "Every clip received quality=3, so these ratings provide no quality ordering."
+  },
+  "wrong_items": {
+    "h01_ebcaffe2": {"heard": "PRES-ent", "expected": "pre-SENT", "word": "present"},
+    "h02_d04236dc": {"heard": "pro-DUCE", "expected": "PRO-duce", "word": "produce"},
+    "h38_3a2920dc": {"heard": "BASS", "expected": "BASE", "word": "bass"},
+    "h40_21cbb1f7": {"heard": "re-CORD", "expected": "REC-ord", "word": "record"}
+  },
+  "verdict": "The engine selected the contextually correct reading for 36/40 clips. Four of 20 words failed one of their two contexts, consistent with a fixed-pronunciation failure on present, produce, bass, and record rather than a general inability to render heteronyms.",
+  "notes": {
+    "h34_ad0bd915": "sounded scraticy"
+  },
+  "method": "Rated through the listening page with shuffled opaque item IDs. CAPITAL letters indicated stressed syllables; glosses identified the intended meaning."
+}
