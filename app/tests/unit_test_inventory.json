@@ -1212,6 +1212,20 @@
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_remote_endpoint_is_unaffected_by_the_local_probe",
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_the_message_does_not_warn_about_a_risk_that_cannot_occur"
   ],
+  "test_index_added_commit_lag": [
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_change_in_any_other_column_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_changed_header_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_changed_sha_is_NOT_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_file_without_the_column_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_new_row_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_removed_row_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_sha_being_REMOVED_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_empty_becoming_a_sha_is_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_empty_input_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_identical_files_are_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_one_good_fill_and_one_bad_change_is_not_forgiven",
+    "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
+  ],
   "test_instrument_null_test": [
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_goals_still_states_those_bands",
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_the_bands_are_the_ones_goals_states",
