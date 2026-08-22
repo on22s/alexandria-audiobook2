@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2266** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2308** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2238,28 +2238,70 @@ the gross failure a number hides, not for ranking arms.
 **Metric** — blinded preference between paired renders of the same passage.
 **Probe** — `app/experiments/blinded_listening.py`, which renders the sets and
 conceals the key in `ab_test_runtime/blinded_listening_concealed_key.json`.
-**Current** — **NO BASELINE.** The package exists and has never been rated:
-20 clips across 8 sets, key still concealed, and the artifact records its own status
-plainly — `"No human ratings are included; this artifact only prepares
-it."`
+#### The package has been rated — 2026-08-22
 
-**No target yet, deliberately.** A preference threshold invented before any
-human has heard a set would be the "invented number" this document's own rules
-forbid. The first task is the listening, not the fix.
+`blinded_listening_ratings.json`. The 20-clip package was rated in one
+sitting of about ten minutes and unblinded against the sealed key afterwards;
+`key_sha256_verified` is true, so the ratings were made before the key was
+opened.
 
-**A listener HAS now rated a different package, and it worked.** On 2026-08-19
-the same person rated nine terms of the respelling separator comparison
+**The positive controls passed 3 of 3.** Every control went the same way
+(`preferred_very_slow`), which is the check that says the rest carries signal
+at all: the rater hears a real difference and is consistent about its
+direction. Nothing below would be worth reading if this cell had failed.
+
+**Current** — **BASELINE RECORDED, goal still OPEN.** The measurement exists.
+What it establishes is mostly negative, and one cell of it is not a result
+about audio at all:
+
+| what was compared | outcome |
+|---|---|
+| positive controls | 3 / 3 preferred `very_slow` |
+| per-line instruction, 4 sets | **0 sets won** |
+| per-character instruction, 4 sets | **no-op — see below** |
+| `scene_aware` vs shipped casting | shipped casting preferred |
+
+**The per-character instruction arm never changed the audio.** Hashing the
+wavs — not reading the key — shows all 4 of its sets render EXACTLY the file
+that no instruction renders. Every "instruction" set was therefore partly a
+clip compared against itself, and the rater's "no difference" was correct for
+a reason invisible to them. This is [[Rule 21]] again from a new direction:
+the instrument was sound and the *arm* was hollow, so a real listening session
+was spent partly on a comparison that could not have had an outcome. **Do not
+quote the instruction comparison as four sets; it is at most two.**
+
+**`scene_aware` casting lost**, and took the worst delivery and emotional-fit
+scores in the run — 1 and 1. That is one rater on two sets and is not a
+decision on its own, but it points the same way as goal 1's narrowing result:
+scene-narrowed context has now lost twice, on different measures.
+
+**Two defects were found blind**, neither of which any metric here reports:
+the `very_fast` arm truncates words ("*A cut off mid word very bad*", set 8
+clip A), and set 5 drew "*some are natural and some are robots*" on **both**
+arms — a complaint about the shipped voice itself, not about the comparison.
+
+**Still no target, still deliberately.** A preference threshold invented after
+one rater and one session would be the same invented number the rules forbid.
+What has changed is that the goal is no longer unmeasured — it is measured
+once, thinly, by a non-naive rater.
+
+**What this goal now needs** is no longer "someone, headphones, ten minutes".
+It is: fix or delete the `per_char` no-op arm and re-run the instruction
+comparison so its four sets are real; then a second rater who is not the
+project owner, because every limitation below turns on that.
+
+**Limitations, as recorded in the artifact.** One rater, one session, eight
+sets. The instruction comparison is weaker than eight sets suggests. The
+`voice_distinction` question is hard to read on the two-clip sets and must not
+be pooled with the three-clip ones. The rater is the project owner, not a
+naive listener.
+
+**The method was already known to work.** On 2026-08-19 the same person rated
+nine terms of the respelling separator comparison
 (`earcheck_separator_results.json`) — four takes each, shuffled per term, key
 held in a file the page never contained. It produced a usable result at
-p=0.020 and agreed with the pause measurement, and the free-text notes are what
-identified the mechanism in the first place. So the method is not the obstacle;
-this goal's own 20-clip package simply has not been put in front of anyone.
-It measures a different thing — paired renders of a passage, not respelling
-forms — and is still unrated.
-
-**This is the cheapest open goal in the document** and the only one that
-cannot be run on the GPU: no card, no code, no experiment design. One person,
-headphones, and the concealed key afterwards.
+p=0.020, agreed with the pause measurement, and its free-text notes identified
+the mechanism. As there, the notes here found more than the ratings did.
 
 ---
 
@@ -3170,9 +3212,15 @@ context attempt spends pilot books from the 15 still sealed. The next
 experiment here should change how the answer is chosen, not how much the
 model is told.
 
-Then: **7.1, the blinded listening test** — the cheapest open goal in the
-document, already packaged and never rated, and the only measurement that
-requires a person rather than the GPU. The Japanese transcription gap (5.4)
+**7.1 was rated on 2026-08-22 and is no longer the cheap one.** Its controls
+passed 3/3, so the instrument works — but the per-character instruction arm
+turned out to render byte-identical audio, so a real listening session was
+spent partly on a comparison that could not have had an outcome. The next
+move there is to fix or delete that arm and re-run the instruction sets, then
+find a rater who is not the project owner. Both are cheaper than a GPU
+experiment and neither is a ten-minute job any more.
+
+The Japanese transcription gap (5.4)
 is now measured rather than pending, and may be a metric problem rather than a
 pipeline one. The three-pass baseline (5.3) is already answered and should not
 be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
