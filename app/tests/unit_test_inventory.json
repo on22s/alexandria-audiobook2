@@ -2285,6 +2285,23 @@
     "tests.test_source_context.LocateTest.test_normalize_keeps_only_alphanumerics",
     "tests.test_source_context.LocateTest.test_the_same_line_appearing_once_does_locate"
   ],
+  "test_source_coverage": [
+    "tests.test_source_coverage.CoverageTests.test_a_hand_computed_loss",
+    "tests.test_source_coverage.CoverageTests.test_empty_source_does_not_divide_by_zero",
+    "tests.test_source_coverage.CoverageTests.test_identical_text_is_exactly_one",
+    "tests.test_source_coverage.CoverageTests.test_invented_prose_is_reported_as_extra_not_hidden",
+    "tests.test_source_coverage.CoverageTests.test_order_is_deliberately_not_checked",
+    "tests.test_source_coverage.CoverageTests.test_punctuation_only_change_is_not_a_loss",
+    "tests.test_source_coverage.CoverageTests.test_repeats_are_counted_by_multiset_not_by_set",
+    "tests.test_source_coverage.CoverageTests.test_script_words_reads_the_text_field",
+    "tests.test_source_coverage.PairingTests.test_a_source_with_no_script_is_reported_not_scored_zero",
+    "tests.test_source_coverage.PairingTests.test_different_books_with_similar_names_do_not_collapse",
+    "tests.test_source_coverage.PairingTests.test_identical_sources_under_two_spellings_collapse",
+    "tests.test_source_coverage.WordSplitTests.test_case_is_folded",
+    "tests.test_source_coverage.WordSplitTests.test_cjk_and_kana_survive",
+    "tests.test_source_coverage.WordSplitTests.test_empty_and_none_are_empty",
+    "tests.test_source_coverage.WordSplitTests.test_punctuation_separates_rather_than_joins"
+  ],
   "test_source_encoding_audit": [
     "tests.test_source_encoding_audit.InvisibleCharacterTest.test_a_line_stays_findable_after_normalisation",
     "tests.test_source_encoding_audit.InvisibleCharacterTest.test_a_single_line_break_is_preserved",
