@@ -1265,6 +1265,11 @@
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_one_good_fill_and_one_bad_change_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
   ],
+  "test_instruct_listening": [
+    "tests.test_instruct_listening.CharacterInstructionTests.test_configured_character_style_wins",
+    "tests.test_instruct_listening.CharacterInstructionTests.test_missing_style_uses_the_shared_character_constant",
+    "tests.test_instruct_listening.CharacterInstructionTests.test_unknown_speaker_still_gets_a_nonempty_arm"
+  ],
   "test_instrument_null_test": [
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_goals_still_states_those_bands",
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_the_bands_are_the_ones_goals_states",
