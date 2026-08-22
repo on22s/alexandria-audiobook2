@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 283,
-    "exploratory": 194,
+    "exploratory": 195,
     "provisional": 129
   },
   "artifacts": [
@@ -1159,6 +1159,19 @@
       "dirty": true,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "blinded_listening_ratings.json",
+      "bytes": 8547,
+      "sha256": "36e93aff23c769acba89cdfc1364c4e3f2f1345c55ec0255676874664115b6ec",
+      "completeness": "complete",
+      "seed": null,
+      "status": "complete",
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "booknlp_baseline__pdnc_prideandprejudice.json",
