@@ -3,7 +3,7 @@
   "summary": {
     "supported_structure": 279,
     "exploratory": 194,
-    "provisional": 127
+    "provisional": 128
   },
   "artifacts": [
     {
@@ -8773,6 +8773,22 @@
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "0331ba1aaaf7943c59782e7865117764fa11c5ee",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "two_stage_attribution__explicit_speaker_not_addressee.json",
+      "bytes": 4569249,
+      "sha256": "f4452668267648b2dee1600a3fd91c3654110bbd4b96a004b5664e5af2d24b63",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 1823,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "2a2e09329d5177d028c58947e917850135d6620b",
       "written": null,
       "dirty": false,
       "classification": "provisional",

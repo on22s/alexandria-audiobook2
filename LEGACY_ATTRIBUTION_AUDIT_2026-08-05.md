@@ -1,11 +1,11 @@
 # Legacy attribution audit — 2026-08-05
 
-All 127 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 128 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
-- `historical_only`: 45
+- `historical_only`: 46
 - `provisional`: 21
 - `supported_measurement`: 52
 
@@ -135,6 +135,7 @@ All 127 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution__explicit_explicit_hint.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_inner_narration.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__explicit_shuffled_roster.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
+| `two_stage_attribution__explicit_speaker_not_addressee.json` | two_stage_attribution | historical_only | 1823 | 0 | 1414 | False |  |
 | `two_stage_attribution__smoke.json` | two_stage_attribution | historical_only | 90 | 0 | 60 | False |  |
 | `two_stage_attribution_full.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
