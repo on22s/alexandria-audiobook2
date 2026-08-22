@@ -12,8 +12,15 @@
     "median_ecapa": 0.3934,
     "passed": false
    },
-   "looked_at": false,
-   "observation": null
+   "looked_at": true,
+   "observation": {
+    "sounds_like_same_person": 2,
+    "freedom_from_defects": 5,
+    "note": "The first one cracked in the very beginning like the voice cracked but overall it sounded more like a child then the generator one did",
+    "rated_at": "2026-08-22",
+    "rater": "project owner",
+    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
+   }
   },
   {
    "arm": "husky_baritone_20s_m_anime",
@@ -26,8 +33,15 @@
     "median_ecapa": 0.7524,
     "passed": true
    },
-   "looked_at": false,
-   "observation": null
+   "looked_at": true,
+   "observation": {
+    "sounds_like_same_person": 4,
+    "freedom_from_defects": 1,
+    "note": "The generated one had an issue where it kept repeating the same word over and over where the first one did not. And then it had cracking and then was just saying random nonsense not even words.",
+    "rated_at": "2026-08-22",
+    "rater": "project owner",
+    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
+   }
   },
   {
    "arm": "warm_alto_50s_f_gothic",
@@ -40,8 +54,15 @@
     "median_ecapa": 0.0342,
     "passed": false
    },
-   "looked_at": false,
-   "observation": null
+   "looked_at": true,
+   "observation": {
+    "sounds_like_same_person": 3,
+    "freedom_from_defects": 5,
+    "note": null,
+    "rated_at": "2026-08-22",
+    "rater": "project owner",
+    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
+   }
   },
   {
    "arm": "warm_baritone_50s_m",
@@ -54,8 +75,15 @@
     "median_ecapa": 0.7807,
     "passed": true
    },
-   "looked_at": false,
-   "observation": null
+   "looked_at": true,
+   "observation": {
+    "sounds_like_same_person": 5,
+    "freedom_from_defects": 4,
+    "note": "Both of them sounded alike but the narrator one had additional audio where it said please in a very realistic way.",
+    "rated_at": "2026-08-22",
+    "rater": "project owner",
+    "heard_blind": "the ECAPA score and pass/fail were concealed until after rating"
+   }
   },
   {
    "arm": "aishell3",
@@ -143,6 +171,45 @@
     "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/asr_clip_view/*.html"
    ],
    "out": "ab_test_runtime/experiments/audio_views.json"
+  }
+ },
+ "listening_round_2026_08_22": {
+  "what": "first human ratings of the identity gate's own audio, scores concealed until rated",
+  "arms": 4,
+  "ecapa_vs_sounds_like_same_person_spearman": 0.8,
+  "ecapa_vs_freedom_from_defects_spearman": -0.6,
+  "reading": "ECAPA does the job it claims and no other. Ranked by the listener, the four arms fall in almost the gate's own order on IDENTITY (rho +0.80, one inversion between the two failures) - the first outside check this gate has had. On USABILITY the relationship inverts (rho -0.60): both arms the gate FAILED were rated 5, completely clean, and the worst clip in the set is one the gate PASSED. husky_baritone_20s_m_anime scored 0.7524, cleared the 0.45 threshold, and repeats a word, cracks, and degenerates into non-words. A degenerate generation keeps the target speaker's timbre, so speaker similarity cannot see it, and nothing else in the promotion path looks. n=4, so no rate is claimed - but the failure mode is demonstrated, not estimated.",
+  "open_question": "warm_alto_50s_f_gothic is the largest disagreement: ECAPA 0.0342, 'a different person entirely', against a listener's 3. That adapter is one of three traced the same day to the full-cast Dracula, so a dataset mixing two cast members would make BOTH readings correct. Testable, and untested.",
+  "reference_mismatch_hypothesis": {
+   "asked": "does a reference clip that is not the validation speaker explain the 0.0342 on warm_alto_50s_f_gothic?",
+   "median_f0_hz": {
+    "warm_alto_50s_f_gothic": {
+     "ref": 107.8,
+     "val": 142.7,
+     "semitones": 4.85,
+     "ecapa": 0.0342
+    },
+    "breathy_alto_50s_f_fantasy": {
+     "ref": 157.4,
+     "val": 202.4,
+     "semitones": 4.35,
+     "ecapa": 0.3934
+    },
+    "husky_baritone_20s_m_anime": {
+     "ref": 229.2,
+     "val": 223.9,
+     "semitones": 0.4,
+     "ecapa": 0.7524
+    },
+    "warm_baritone_50s_m": {
+     "ref": 82.0,
+     "val": 103.9,
+     "semitones": 4.1,
+     "ecapa": 0.7807
+    }
+   },
+   "verdict": "NOT SUPPORTED",
+   "reading": "Three of the four order correctly - the wider the ref/val gap the lower the score - and warm_baritone_50s_m breaks it outright: a 4.10 semitone gap with the HIGHEST score in the set, 0.7807, passed. One counterexample in four is not a pattern, and this is recorded so the idea is not proposed a second time as though untested. What survives is narrower and not about the gate at all: THREE OF FOUR datasets have a reference clip 4+ semitones from their own validation audio, and the generated clip tracks the reference (warm_alto: ref 107.8, generated 109.4, val 142.7). Median f0 is a crude proxy for speaker identity; settling this needs ECAPA between ref and val, which needs speechbrain and therefore the sibling interpreter."
   }
  }
 }
