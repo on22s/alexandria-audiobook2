@@ -4,10 +4,16 @@ import os
 import tempfile
 import unittest
 
-from experiments.satella_quality_probe import build_arms, build_public, make_html
+from experiments.satella_quality_probe import (TEXTS, build_arms, build_public,
+                                                make_html)
 
 
 class SatellaQualityProbeTests(unittest.TestCase):
+    def test_expanded_probe_has_short_and_long_lines(self):
+        self.assertGreaterEqual(len(TEXTS), 10)
+        self.assertLess(min(map(len, TEXTS)), 15)
+        self.assertGreater(max(map(len, TEXTS)), 140)
+
     def test_arms_change_one_variable_at_a_time(self):
         arms = build_arms("satella", "control", 11, 22)
         shipped = arms["shipped_adapter_shipped_seed"]

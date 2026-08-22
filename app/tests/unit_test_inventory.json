@@ -2241,6 +2241,7 @@
   ],
   "test_satella_quality_probe": [
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_arms_change_one_variable_at_a_time",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_expanded_probe_has_short_and_long_lines",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_page_defines_quality_scale_and_requires_complete_sets",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_manifest_does_not_expose_arm_arguments",
     "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_page_does_not_name_concealed_arms"

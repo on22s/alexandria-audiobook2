@@ -19,6 +19,12 @@ TEXTS = (
     "How did you do that?",
     "You really look like you’re used to this… Subaru, is your profession taming children?",
     "There’s also that my screw-ups are partially at fault, but the thief who stole from you is getting farther away from us.",
+    "Then…",
+    "Hey, Subaru…",
+    "Right. Don’t you worry. Just let your big sister handle this. We’ll definitely find your mom, okay?",
+    "...It’s simple.",
+    "Now we can be in a good mood as we continue to search.",
+    "Even if we got my badge back, I’m sure I would have regretted not helping that girl. Don’t you think it is better to both help the girl and get my badge back?",
 )
 
 
@@ -64,11 +70,15 @@ def main():
     ap.add_argument("--shipped-seed", type=int, default=1453101771)
     ap.add_argument("--alternate-seed", type=int, default=1425066263)
     ap.add_argument("--shuffle-seed", type=int, default=20260822)
+    ap.add_argument("--line-count", type=int, default=4,
+                    help="number of fixed Satella lines to render")
     ap.add_argument("--work", default="ab_test_runtime/satella_quality_probe")
     ap.add_argument("--out", default="ab_test_runtime/experiments/satella_quality_probe.json")
     ap.add_argument("--key", default="ab_test_runtime/satella_quality_probe_concealed_key.json")
     ap.add_argument("--html", default="ab_test_runtime/satella_quality_probe/Satella Quality Test.html")
     args = ap.parse_args()
+    if args.line_count < 1 or args.line_count > len(TEXTS):
+        raise SystemExit(f"--line-count must be between 1 and {len(TEXTS)}")
     for path in (args.shipped_adapter, args.control_adapter):
         if not os.path.isfile(os.path.join(path, "adapter_model.safetensors")):
             raise SystemExit(f"adapter is incomplete: {path}")
@@ -81,7 +91,8 @@ def main():
     os.makedirs(args.work, exist_ok=True)
     rng = random.Random(args.shuffle_seed)
     public_sets, key_sets = [], []
-    for line_index, text in enumerate(TEXTS):
+    texts = TEXTS[:args.line_count]
+    for line_index, text in enumerate(texts):
         order = list(arms)
         rng.shuffle(order)
         samples, mapping = [], {}
@@ -113,7 +124,7 @@ def main():
     atomic_json_write(public, args.out)
     with open(args.html, "w", encoding="utf-8") as handle:
         handle.write(make_html(public))
-    print(f"rendered {len(TEXTS) * len(arms)} clips")
+    print(f"rendered {len(texts) * len(arms)} clips")
     print(f"open: {os.path.abspath(args.html)}")
 
 

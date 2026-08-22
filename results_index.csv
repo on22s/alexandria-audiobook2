@@ -882,7 +882,7 @@ roster_warmup__ministral-3-14b-instruct-2512.json,supported_measurement,git+nami
 roster_warmup__ministral-3-14b-instruct-2512.json,supported_measurement,git+naming,no,roster_warmup.py,a8323ce5,,,roster_warmup,mushoku16,ministral-3-14b-instruct-2512,local-lmstudio,mitch-linux,lmstudio,16384,1,f16?,warm,139,62,44.6,ok,False,beb2400a,8408.8,07-26 23:01,http://localhost:1234/v1,
 run_lengths.json,exploratory,git+naming,no,run_lengths.py,c583e7c0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 satella_quality_probe.json,supported_structure,git+naming,no,satella_quality_probe.py,5d63fdd5,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly
-satella_quality_ratings.json,exploratory,none,no,,,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
+satella_quality_ratings.json,exploratory,none,no,,81ec09ee,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 scale_vs_register.json,exploratory,git+naming,no,scale_vs_register.py,6cccebc0,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 scene_aware_casting.json,exploratory,git+naming,no,scene_aware_casting.py,f61c8414,,,,,,,,,,,,,,,,,,,,,,NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results
 scene_cast__grimgar03__llama-3.3-70b__thunder-a6000-70b.json,exploratory,git+naming,no,scene_cast.py,44704c7c,,,scene_cast,grimgar03,llama-3.3-70b,cloud-a6000-llamacpp-cuda,instance-lho3lk5l-main,llama.cpp-cuda on-instance,16384,1,q8_0,full,385,330,85.7,ok,False,,6197.0,07-30 10:35,http://127.0.0.1:8090/v1,
