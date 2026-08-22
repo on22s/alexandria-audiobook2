@@ -2,45 +2,41 @@
  "status": "complete",
  "provenance": {
   "script": "reference_spread.py",
-  "written": "2026-08-21T07:23:12",
+  "written": "2026-08-21T18:40:10",
   "host": "mitch-linux",
   "git": {
-   "commit": "cf0ff07ab1642b11ce4b41651b3c77954fcf7f19",
-   "branch": "agent/reference-formant-spread-20260821",
-   "dirty": true,
+   "commit": "f118e4682a3510e72ade6efe33afee959d9dd994",
+   "branch": "main",
+   "dirty": false,
    "modified_tracked_files": null,
-   "untracked_harness_files": [
-    "app/experiments/reference_spread.py",
-    "app/experiments/reference_spread_compare.py",
-    "run_chains/reference_spread_20260821.sh"
-   ],
-   "harness_sha256": "baccb69b3a1f27ead073b4670bfc0616bb3c230dbf5d801b67f6daae756d8e49"
+   "untracked_harness_files": null,
+   "harness_sha256": "609d60f25dead98c62464bc05e5a65d897f4530c855371ba226c7e4ef9d82713"
   },
   "args": {
-   "build": "build.json",
-   "out_dir": "spread_test",
+   "build": "ab_test_runtime/ljspeech_eval/build.json",
+   "out_dir": "ab_test_runtime/reference_spread",
    "arms": 4,
    "target_seconds": 13.0,
    "corpus_clips": 60,
-   "candidates": 30,
+   "candidates": 40,
    "audio_root": [
     "/home/fakemitch/pinokio/api/alexandria-audiobook2.git"
    ],
-   "out": "manifest.json"
+   "out": "ab_test_runtime/experiments/reference_spread__en.json"
   }
  },
- "scope": "references for one speaker spanning distance from that speaker's own f0/vocal-tract centre; duration held",
+ "scope": "references for one speaker spanning distance from that speaker's own f0/vocal-tract centre; duration kept inside one band, not held equal",
  "corpus_centre": {
   "f0_median": 212.6,
   "vtl_cm": 14.53
  },
- "candidates_measured": 30,
+ "candidates_measured": 40,
  "requested_arms": 4,
  "arms": [
   {
    "arm": 0,
-   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread0.json",
-   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread0.wav",
+   "build": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/build_spread0.json",
+   "ref_sample": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/ref_spread0.wav",
    "distance": 0.00516,
    "seconds": 10.516,
    "measures": {
@@ -51,32 +47,32 @@
   },
   {
    "arm": 1,
-   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread1.json",
-   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread1.wav",
-   "distance": 0.03657,
-   "seconds": 14.254,
+   "build": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/build_spread1.json",
+   "ref_sample": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/ref_spread1.wav",
+   "distance": 0.02781,
+   "seconds": 14.626,
    "measures": {
-    "f0_median": 218.2,
-    "f0_spread": 137.3,
-    "vtl_cm": 15.21
+    "f0_median": 201.8,
+    "f0_spread": 135.0,
+    "vtl_cm": 14.6
    }
   },
   {
    "arm": 2,
-   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread2.json",
-   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread2.wav",
-   "distance": 0.07343,
-   "seconds": 11.108,
+   "build": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/build_spread2.json",
+   "ref_sample": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/ref_spread2.wav",
+   "distance": 0.06903,
+   "seconds": 12.977,
    "measures": {
-    "f0_median": 242.8,
-    "f0_spread": 172.0,
-    "vtl_cm": 14.46
+    "f0_median": 187.2,
+    "f0_spread": 109.7,
+    "vtl_cm": 14.26
    }
   },
   {
    "arm": 3,
-   "build": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/build_spread3.json",
-   "ref_sample": "/home/fakemitch/pinokio/cache/TMPDIR/claude-1000/-home-fakemitch-pinokio-api-alexandria-audiobook2-git/1645ba6c-7e06-491b-a5b4-e8f711ae3507/scratchpad/spread_test/ref_spread3.wav",
+   "build": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/build_spread3.json",
+   "ref_sample": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/reference_spread/ref_spread3.wav",
    "distance": 0.10617,
    "seconds": 11.584,
    "measures": {
