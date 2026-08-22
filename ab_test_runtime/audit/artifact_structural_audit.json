@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 285,
-    "exploratory": 197,
+    "exploratory": 198,
     "provisional": 142
   },
   "artifacts": [
@@ -5125,8 +5125,8 @@
     },
     {
       "artifact": "homograph_listening_ratings.json",
-      "bytes": 1422,
-      "sha256": "9f5087f7866ad9bba691e889b2758b144621e74ea3025a24f5328f01c6c7bdd0",
+      "bytes": 1824,
+      "sha256": "a7267cc99eda002a3625a5c0b570f5af0d02eb54ab7f5971f9c185e87c9a6734",
       "completeness": "unknown",
       "seed": null,
       "status": null,
@@ -7908,6 +7908,19 @@
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "satella_quality_ratings.json",
+      "bytes": 1410,
+      "sha256": "1d5fbca6a771833a4b63369e304d35b11b835a668ba34a1b6b75c39b7a63b02f",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "scale_vs_register.json",
