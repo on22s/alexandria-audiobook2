@@ -1,0 +1,292 @@
+{
+ "status": "complete",
+ "what": "first human ratings for goal 7.1, unblinded against the sealed key",
+ "rater": "project owner, one session, about ten minutes",
+ "rated_at": "2026-08-22T11:25:09Z",
+ "key_sha256_verified": true,
+ "positive_controls": {
+  "n": 3,
+  "preferred_very_slow": 3,
+  "reading": "the check that says these ratings carry signal at all. Every control went the same way, so the rater hears a real difference and is consistent about its direction. Nothing below is worth reading if this fails."
+ },
+ "per_char_is_a_no_op": {
+  "sets_byte_identical_to_none": 4,
+  "of": 4,
+  "reading": "verified by hashing the wavs rather than by reading the key: the per-character instruction arm renders EXACTLY the file that no instruction renders. The arm has never changed the audio, so every instruction set was partly a clip compared against itself, and the rater's 'no difference' was correct for a reason invisible to them."
+ },
+ "instruction_result": {
+  "sets": 4,
+  "per_line_wins": 0,
+  "reading": "per-line instruction did not win a single set."
+ },
+ "casting_result": {
+  "preferred": "current",
+  "reading": "scene_aware lost to the shipped casting and took the worst delivery and emotional-fit scores in the run, 1 and 1."
+ },
+ "defects_found_blind": [
+  "set 8 clip A (very_fast): 'A cut off mid word very bad' - the fast arm truncates words, found without knowing which arm it was",
+  "set 5, both arms: 'some are natural and some are robots'"
+ ],
+ "sets": [
+  {
+   "set": 1,
+   "kind": "instruction",
+   "clip_to_arm": {
+    "A": "per_char",
+    "B": "per_line",
+    "C": "none"
+   },
+   "identical_clips": [
+    [
+     "A",
+     "C"
+    ]
+   ],
+   "identical_arms": [
+    [
+     "none",
+     "per_char"
+    ]
+   ],
+   "preferred_clip": "no difference",
+   "preferred_arm": null,
+   "scores": {
+    "delivery": "4",
+    "emotional_fit": "4",
+    "voice_distinction": "2",
+    "intelligibility": "4",
+    "defects": "5 — none audible"
+   }
+  },
+  {
+   "set": 2,
+   "kind": "instruction",
+   "clip_to_arm": {
+    "A": "none",
+    "B": "per_char",
+    "C": "per_line"
+   },
+   "identical_clips": [
+    [
+     "A",
+     "B"
+    ]
+   ],
+   "identical_arms": [
+    [
+     "none",
+     "per_char"
+    ]
+   ],
+   "preferred_clip": "no difference",
+   "preferred_arm": null,
+   "scores": {
+    "delivery": "3 — passable",
+    "emotional_fit": "3 — neutral",
+    "voice_distinction": "1 — one voice throughout",
+    "intelligibility": "3 — some effort",
+    "defects": "3 — noticeable now and then"
+   }
+  },
+  {
+   "set": 3,
+   "kind": "instruction",
+   "clip_to_arm": {
+    "A": "per_char",
+    "B": "per_line",
+    "C": "none"
+   },
+   "identical_clips": [
+    [
+     "A",
+     "C"
+    ]
+   ],
+   "identical_arms": [
+    [
+     "none",
+     "per_char"
+    ]
+   ],
+   "preferred_clip": "no difference",
+   "preferred_arm": null,
+   "scores": {
+    "delivery": "1 — flat, machine-like",
+    "emotional_fit": "2",
+    "voice_distinction": "5 — clearly different people",
+    "intelligibility": "3 — some effort",
+    "defects": "2"
+   }
+  },
+  {
+   "set": 4,
+   "kind": "instruction",
+   "clip_to_arm": {
+    "A": "per_line",
+    "B": "per_char",
+    "C": "none"
+   },
+   "identical_clips": [
+    [
+     "B",
+     "C"
+    ]
+   ],
+   "identical_arms": [
+    [
+     "none",
+     "per_char"
+    ]
+   ],
+   "preferred_clip": "B",
+   "preferred_arm": "per_char",
+   "scores": {
+    "delivery": "5 — natural, human",
+    "emotional_fit": "5 — fits well",
+    "voice_distinction": "1 — one voice throughout",
+    "intelligibility": "5 — effortless",
+    "defects": "5 — none audible"
+   }
+  },
+  {
+   "set": 5,
+   "kind": "casting",
+   "clip_to_arm": {
+    "A": "scene_aware",
+    "B": "current"
+   },
+   "identical_clips": [],
+   "identical_arms": [],
+   "preferred_clip": "B",
+   "preferred_arm": "current",
+   "scores": {
+    "delivery": "1 — flat, machine-like",
+    "emotional_fit": "1 — wrong for the line",
+    "voice_distinction": "5 — clearly different people",
+    "intelligibility": "4",
+    "defects": "4",
+    "notes": "Not all in A sounded robotic but there were definitely some robots in there . Some in B are natural and some are robots"
+   }
+  },
+  {
+   "set": 6,
+   "kind": "control",
+   "clip_to_arm": {
+    "A": "very_fast",
+    "B": "very_slow"
+   },
+   "identical_clips": [],
+   "identical_arms": [],
+   "preferred_clip": "B",
+   "preferred_arm": "very_slow",
+   "scores": {
+    "delivery": "5 — natural, human",
+    "emotional_fit": "5 — fits well",
+    "voice_distinction": "1 — one voice throughout",
+    "intelligibility": "5 — effortless",
+    "defects": "5 — none audible",
+    "notes": "A and B are both sounded good to my ear not robotic"
+   }
+  },
+  {
+   "set": 7,
+   "kind": "control",
+   "clip_to_arm": {
+    "A": "very_fast",
+    "B": "very_slow"
+   },
+   "identical_clips": [],
+   "identical_arms": [],
+   "preferred_clip": "B",
+   "preferred_arm": "very_slow",
+   "scores": {
+    "delivery": "5 — natural, human",
+    "emotional_fit": "5 — fits well",
+    "voice_distinction": "1 — one voice throughout",
+    "intelligibility": "5 — effortless",
+    "defects": "5 — none audible",
+    "notes": "I prefer b as a narrator only because a is a little too high pitched for my taste but there are people that do sound like that so it's not bad just preference"
+   }
+  },
+  {
+   "set": 8,
+   "kind": "control",
+   "clip_to_arm": {
+    "A": "very_fast",
+    "B": "very_slow"
+   },
+   "identical_clips": [],
+   "identical_arms": [],
+   "preferred_clip": "B",
+   "preferred_arm": "very_slow",
+   "scores": {
+    "delivery": "3 — passable",
+    "emotional_fit": "4",
+    "voice_distinction": "1 — one voice throughout",
+    "intelligibility": "3 — some effort",
+    "defects": "4",
+    "notes": "A cut off mid word very bad B did not"
+   }
+  }
+ ],
+ "raw_ratings": {
+  "s1_delivery": "4",
+  "s1_emotional_fit": "4",
+  "s1_voice_distinction": "2",
+  "s1_intelligibility": "4",
+  "s1_defects": "5 — none audible",
+  "s1_preference": "no difference",
+  "s2_delivery": "3 — passable",
+  "s2_emotional_fit": "3 — neutral",
+  "s2_voice_distinction": "1 — one voice throughout",
+  "s2_intelligibility": "3 — some effort",
+  "s2_defects": "3 — noticeable now and then",
+  "s2_preference": "no difference",
+  "s3_delivery": "1 — flat, machine-like",
+  "s3_emotional_fit": "2",
+  "s3_voice_distinction": "5 — clearly different people",
+  "s3_intelligibility": "3 — some effort",
+  "s3_defects": "2",
+  "s3_preference": "no difference",
+  "s4_delivery": "5 — natural, human",
+  "s4_emotional_fit": "5 — fits well",
+  "s4_voice_distinction": "1 — one voice throughout",
+  "s4_intelligibility": "5 — effortless",
+  "s4_defects": "5 — none audible",
+  "s4_preference": "B",
+  "s5_delivery": "1 — flat, machine-like",
+  "s5_emotional_fit": "1 — wrong for the line",
+  "s5_voice_distinction": "5 — clearly different people",
+  "s5_intelligibility": "4",
+  "s5_defects": "4",
+  "s5_preference": "B",
+  "s6_delivery": "5 — natural, human",
+  "s6_emotional_fit": "5 — fits well",
+  "s6_voice_distinction": "1 — one voice throughout",
+  "s6_intelligibility": "5 — effortless",
+  "s6_defects": "5 — none audible",
+  "s6_preference": "B",
+  "s7_delivery": "5 — natural, human",
+  "s7_emotional_fit": "5 — fits well",
+  "s7_voice_distinction": "1 — one voice throughout",
+  "s7_intelligibility": "5 — effortless",
+  "s7_defects": "5 — none audible",
+  "s7_preference": "B",
+  "s8_delivery": "3 — passable",
+  "s8_emotional_fit": "4",
+  "s8_voice_distinction": "1 — one voice throughout",
+  "s8_intelligibility": "3 — some effort",
+  "s8_defects": "4",
+  "s8_preference": "B",
+  "s5_notes": "Not all in A sounded robotic but there were definitely some robots in there . Some in B are natural and some are robots",
+  "s6_notes": "A and B are both sounded good to my ear not robotic",
+  "s7_notes": "I prefer b as a narrator only because a is a little too high pitched for my taste but there are people that do sound like that so it's not bad just preference",
+  "s8_notes": "A cut off mid word very bad B did not"
+ },
+ "limitations": [
+  "One rater, one session, eight sets. No preference threshold is set, still deliberately.",
+  "The instruction comparison is weaker than eight sets suggests, because per_char is a no-op in every one of them.",
+  "voice_distinction is hard to read on the two-clip sets and should not be pooled with the three-clip ones.",
+  "The rater is the project owner, not a naive listener."
+ ]
+}
