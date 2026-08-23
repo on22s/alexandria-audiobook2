@@ -1531,6 +1531,7 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_verifies_produced_adapter_and_reports_metrics"
   ],
+  "test_luar_character_selector": [],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
