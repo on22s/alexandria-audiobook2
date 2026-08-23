@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-23
 
 ## How to read this
 
@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2266** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2304** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -889,6 +889,25 @@ The remaining 21 adapters' held-out scores are measured partly on clips they
 were trained on, and should be read as an upper bound rather than a held-out
 result.
 
+**Thirteen-seed fidelity replication, 2026-08-22–23.** The shipped-library
+probe was repeated on 13 independent validation draws (`lines=20`), producing
+234 seed-adapter measurements for the 18 adapters whose source data is still
+available. Three voices remained catastrophically low on every draw:
+
+| adapter | mean ECAPA | range | seeds |
+|---|---:|---:|---:|
+| `velvety_mezzo_30s_f_gothic` | 0.068 | 0.047–0.093 | 13 |
+| `silky_baritone_45s_m` | 0.092 | 0.070–0.119 | 13 |
+| `husky_baritone_20s_m_supernatural` | 0.119 | 0.075–0.160 | 13 |
+
+The overall seed-adapter median was 0.583. These three failures are therefore
+stable defects, not unlucky validation samples. The probe could not measure
+56 of 75 adapters because their source zips are absent, and one more adapter
+has no validation clips. That is a coverage limit on this replication, not a
+pass for those voices and not a new goal. Artifacts are the 13 files matching
+`library_voice_fidelity_seed_*_n20.json` and
+`library_fidelity_seed_*_n20.json` in `ab_test_runtime/experiments/`.
+
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
@@ -1052,6 +1071,16 @@ says it should have.
 The fused measure — produced f0 against the *expected* accent, which is the
 one that works on a real audiobook rather than an eval set — is **NO
 BASELINE**. The extraction is built and verified; the comparison is not.
+
+**Expectation extraction expanded to every available line, 2026-08-22.** The
+reference-free half now runs on all 150 Japanese and all 150 Chinese evaluation
+lines (`expected_prosody__ja_n150.json` and
+`expected_prosody__zh_n150.json`). Japanese output records accent phrases,
+mora counts and accent nuclei; Chinese output records syllable tone sequences
+and neutral tones. This establishes the expected labels at useful scale. It
+does **not** establish the fused baseline: generated-audio f0 has still not
+been aligned to those mora/syllable labels, so the status and no-target policy
+above remain unchanged.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
@@ -2238,28 +2267,37 @@ the gross failure a number hides, not for ranking arms.
 **Metric** — blinded preference between paired renders of the same passage.
 **Probe** — `app/experiments/blinded_listening.py`, which renders the sets and
 conceals the key in `ab_test_runtime/blinded_listening_concealed_key.json`.
-**Current** — **NO BASELINE.** The package exists and has never been rated:
-20 clips across 8 sets, key still concealed, and the artifact records its own status
-plainly — `"No human ratings are included; this artifact only prepares
-it."`
+**Current** — **BASELINE MEASURED 2026-08-22**, one project-owner session over
+all eight concealed sets. The saved key hash verified before unblinding and all
+three positive-control sets were answered consistently, so the session carried
+a usable listening signal (`blinded_listening_ratings.json`). Results:
+
+- The four `per_char` instruction renders were byte-identical to the no-
+  instruction renders. The listener reported no difference where the files
+  were identical.
+- Per-line instruction won **0 of 4** instruction sets. This is evidence
+  against shipping that arm, not merely an absence of preference.
+- The listener preferred the current shipped casting over scene-aware casting;
+  scene-aware received the run's worst delivery and emotional-fit scores
+  (1 and 1).
+- Blind notes found a fast render cutting off mid-word and identified robotic
+  delivery in another set—defects the component metrics did not expose.
+
+The baseline has one rater and one session, so it answers the tested arm
+comparisons but does not estimate population preference.
 
 **No target yet, deliberately.** A preference threshold invented before any
 human has heard a set would be the "invented number" this document's own rules
 forbid. The first task is the listening, not the fix.
 
-**A listener HAS now rated a different package, and it worked.** On 2026-08-19
+**A listener also rated a different package, and it worked.** On 2026-08-19
 the same person rated nine terms of the respelling separator comparison
 (`earcheck_separator_results.json`) — four takes each, shuffled per term, key
 held in a file the page never contained. It produced a usable result at
 p=0.020 and agreed with the pause measurement, and the free-text notes are what
-identified the mechanism in the first place. So the method is not the obstacle;
-this goal's own 20-clip package simply has not been put in front of anyone.
-It measures a different thing — paired renders of a passage, not respelling
-forms — and is still unrated.
-
-**This is the cheapest open goal in the document** and the only one that
-cannot be run on the GPU: no card, no code, no experiment design. One person,
-headphones, and the concealed key afterwards.
+identified the mechanism in the first place. It measures a different thing —
+respelling forms rather than paired renders of a passage — and is supporting
+evidence for the method rather than part of the eight sets scored above.
 
 ---
 
@@ -3170,13 +3208,14 @@ context attempt spends pilot books from the 15 still sealed. The next
 experiment here should change how the answer is chosen, not how much the
 model is told.
 
-Then: **7.1, the blinded listening test** — the cheapest open goal in the
-document, already packaged and never rated, and the only measurement that
-requires a person rather than the GPU. The Japanese transcription gap (5.4)
-is now measured rather than pending, and may be a metric problem rather than a
-pipeline one. The three-pass baseline (5.3) is already answered and should not
-be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
-four-book current-path rerun completed all 807 chunks.
+**7.1 now has its first blinded baseline.** The 2026-08-22 ratings rejected
+per-line instruction and scene-aware casting, while also proving `per_char`
+was a byte-identical no-op. A broader-rater preference target is still
+deliberately unset. The Japanese transcription gap (5.4) is measured rather
+than pending; its open axis is boundary alignment. The three-pass baseline
+(5.3) is already answered and should not be listed as pending. Reliability
+3.1 is MET after the 2026-08-16 unseen four-book current-path rerun completed
+all 807 chunks.
 
 ## Rules for changing this file
 
