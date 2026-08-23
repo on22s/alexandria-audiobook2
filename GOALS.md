@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2304** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2340** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -395,6 +395,16 @@ mentioned and 16/12 when absent, while the largest book effects went in opposite
 directions (*The Sun Also Rises* +13, *Persuasion* -12). The intervention mostly
 shifts dialogue-turn alignment rather than reliably following evidence. Keep the
 verified exact narrator metadata path; do not ship the generic prompt.
+
+**Character-style selection intervention rejected, 2026-08-23.** The first
+selection-side pilot reused the same 600 open-book qwen3-14b baseline rows and
+seeded character profiles only from its predictions on explicitly attributed
+quotes (`pdnc_character_style_selector__pilot.json`). A character 3–5-gram
+TF-IDF profile replaced only generic/unknown final answers with a fixed 0.05
+similarity-margin gate. It overrode 8 rows, gained 1 and lost 1: **346/600 to
+346/600, +0.0 points, p=1.0**. It misses the predeclared +3-point/p<0.05 gate,
+so no sealed book was opened. Persistent style alone does not repair the
+selection gap in this form.
 
 **Target — a clean held-out number on ≥ 3 books, within 5 points of the
 development books' figure.**
@@ -1069,8 +1079,8 @@ says it should have.
 | English | lora | 0.282 | 0.475 |
 
 The fused measure — produced f0 against the *expected* accent, which is the
-one that works on a real audiobook rather than an eval set — is **NO
-BASELINE**. The extraction is built and verified; the comparison is not.
+one that works on a real audiobook rather than an eval set — now has a first
+coarse baseline. A linguistically aligned comparison is not yet built.
 
 **Expectation extraction expanded to every available line, 2026-08-22.** The
 reference-free half now runs on all 150 Japanese and all 150 Chinese evaluation
@@ -1081,6 +1091,16 @@ and neutral tones. This establishes the expected labels at useful scale. It
 does **not** establish the fused baseline: generated-audio f0 has still not
 been aligned to those mora/syllable labels, so the status and no-target policy
 above remain unchanged.
+
+**First fused baseline, 2026-08-23.** `expected_prosody_fusion.py` compared
+the generated voiced contour with the text-derived accent/tone template on all
+150 lines per language. Japanese direction agreement was **53.2%** with mean
+correlation **0.085**; Mandarin was **51.6%** and **0.066**
+(`expected_prosody_fusion__{ja,zh}_n150.json`). This is effectively chance and
+falsifies equal-time placement as a useful evaluator. The artifact identifies
+that limitation explicitly: morae/syllables were distributed across voiced
+time rather than forced-aligned. The next baseline must align linguistic units;
+no quality threshold should be set around these coarse numbers.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
@@ -1320,6 +1340,13 @@ deliberately rather than by whichever instrument was run last.
 
 **Target — a populated lexicon for the shipped demo book, and 0 substitutions
 that alter a non-name word.**
+
+**Owner earcheck prepared, 2026-08-23.** Existing measured takes for `kansai`
+and `otsuka` are packaged as four shuffled forms with the mapping in a separate
+concealed key (`kansai_otsuka_listening_{package,key}.json`; rendered to
+Downloads as `Kansai Otsuka Pronunciation Test.html`). No entry is promoted
+until the owner rates it; preparing a test is not evidence that a form is
+correct.
 
 ---
 
@@ -1954,6 +1981,15 @@ not safe. On the frozen holdout, the four extra within-utterance splits have
 also merges real boundaries. Production integration needs a segmenter-to-ASR
 windowing design that tolerates internal splits, followed by downstream
 transcription validation; it must not guess from timestamp gaps alone.
+
+**Text-aware grouping also rejected, 2026-08-23.** On the unchanged frozen
+50-clip set, monotonic minimum-reading-CER assignment reduced 93 consecutive
+Silero windows to exactly 50 transcript lines
+(`japanese_text_boundary_n50.json`). It changed neither the boundary median
+nor the tail: **272 ms median, 419 ms p90, 58% within 300 ms**. Grouping internal
+splits was not the missing lever; the VAD start timestamps themselves remain
+offset on this four-reader set. Production stays unchanged and the goal stays
+OPEN.
 
 **A note on reproducing this.** The first run of the comparison omitted
 `--build`, silently scored a different clip set, and produced base 58.0% /
