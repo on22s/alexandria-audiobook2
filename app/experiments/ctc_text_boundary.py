@@ -22,9 +22,7 @@ def get_segments(texts, raw_segments):
 def align_lines(wav, texts, model_name, device):
     import librosa
     import torch
-    from ctc_segmentation import (CtcSegmentationParameters, ctc_segmentation,
-                                  determine_utterance_segments,
-                                  prepare_text)
+    import torchaudio
     from transformers import AutoModelForCTC, AutoProcessor
 
     processor = AutoProcessor.from_pretrained(model_name)
@@ -35,13 +33,24 @@ def align_lines(wav, texts, model_name, device):
     with torch.inference_mode():
         logits = model(inputs.input_values.to(device)).log_softmax(dim=-1)[0].cpu().numpy()
 
-    config = CtcSegmentationParameters(char_list=processor.tokenizer.convert_ids_to_tokens(
-        range(model.config.vocab_size)))
-    config.index_duration = len(speech) / processor.feature_extractor.sampling_rate / len(logits)
-    ground_truth, utt_begin = prepare_text(config, texts)
-    timings, char_probs, state_list = ctc_segmentation(config, logits, ground_truth)
-    segments = determine_utterance_segments(config, utt_begin, char_probs, timings, texts)
-    return get_segments(texts, segments)
+    token_lines = [processor.tokenizer(text, add_special_tokens=False).input_ids
+                   for text in texts]
+    targets = torch.tensor([sum(token_lines, [])], dtype=torch.int32)
+    path, scores = torchaudio.functional.forced_align(
+        torch.from_numpy(logits)[None], targets, blank=processor.tokenizer.pad_token_id)
+    spans = torchaudio.functional.merge_tokens(path[0], scores[0],
+                                                blank=processor.tokenizer.pad_token_id)
+    if len(spans) != targets.shape[1]:
+        raise RuntimeError(f"aligned {len(spans)} tokens for {targets.shape[1]} targets")
+    frame_seconds = len(speech) / processor.feature_extractor.sampling_rate / len(logits)
+    raw_segments, offset = [], 0
+    for ids in token_lines:
+        selected = spans[offset:offset + len(ids)]
+        raw_segments.append((selected[0].start * frame_seconds,
+                             selected[-1].end * frame_seconds,
+                             float(torch.stack([span.score for span in selected]).mean())))
+        offset += len(ids)
+    return get_segments(texts, raw_segments)
 
 
 def main():
@@ -55,6 +64,7 @@ def main():
     build = json.load(open(args.build, encoding="utf-8"))
     rows = build["test"][:args.limit]
     probe = os.path.join(REPO, "ab_test_runtime", "ctc_boundary", f"ja_n{len(rows)}.wav")
+    os.makedirs(os.path.dirname(probe), exist_ok=True)
     wav, truth = build_alignment_probe(rows, probe)
     predicted = align_lines(wav, [row["text"] for row in truth], args.model, args.device)
     result = score_alignment(truth, predicted)
