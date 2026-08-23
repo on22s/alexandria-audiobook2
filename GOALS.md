@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2364** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2374** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -405,6 +405,16 @@ similarity-margin gate. It overrode 8 rows, gained 1 and lost 1: **346/600 to
 346/600, +0.0 points, p=1.0**. It misses the predeclared +3-point/p<0.05 gate,
 so no sealed book was opened. Persistent style alone does not repair the
 selection gap in this form.
+
+**Published LUAR representation-only intervention also rejected, 2026-08-23.**
+The official EMNLP 2024 `gasmichel/UAR_scene` checkpoint was pinned at revision
+`89713b0`, its remote implementation inspected, and then substituted for TF-IDF
+on the same 600 rows (`pdnc_luar_character_selector__pilot.json`). It built
+profiles from up to eight explicit baseline quotes and changed only generic
+answers behind the same 0.05 margin. It overrode 78 rows, gained 8, and lost 20:
+**346/600 to 334/600, p=0.0357 in the wrong direction**. Production stays
+unchanged. This rejects cheap nearest-profile LUAR reranking; it does not test
+the paper's substantially larger jointly trained BookNLP integration.
 
 **Target — a clean held-out number on ≥ 3 books, within 5 points of the
 development books' figure.**

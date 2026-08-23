@@ -338,6 +338,7 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
+  "test_build_accent_calibration": [],
   "test_build_scoring_sheet": [
     "tests.test_build_scoring_sheet.BuildSheetTest.test_agreement_is_marked",
     "tests.test_build_scoring_sheet.BuildSheetTest.test_correct_speaker_starts_blank",
