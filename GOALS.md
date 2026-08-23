@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2351** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2364** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1101,6 +1101,19 @@ falsifies equal-time placement as a useful evaluator. The artifact identifies
 that limitation explicitly: morae/syllables were distributed across voiced
 time rather than forced-aligned. The next baseline must align linguistic units;
 no quality threshold should be set around these coarse numbers.
+
+**Context-conditioned Mandarin baseline advances, 2026-08-23.** A Chinese
+XLSR-53 CTC model aligned AISHELL-3 characters to 150 held human readings;
+five-bin, speaker-centred F0 contours were learned from the first 100 lines and
+evaluated on the untouched 50 (`contextual_mandarin_tone_generated_n150.json`).
+Conditioning each tone on its left and right tone raised held-human mean contour
+correlation from **0.2545 to 0.3939** across 622 scored units, so the online
+coarticulation hypothesis survives local data. Against the same human-trained
+expectation, clone scored **0.3947** over 655 units and LoRA **0.4188** over 676:
+both reach the held-human ceiling on this triage measure. This does not establish
+a listener-calibrated quality threshold or close 2.9, but it replaces the
+falsified equal-time Mandarin template with a viable contextual baseline and
+provides no evidence that either current Mandarin arm is deficient.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
