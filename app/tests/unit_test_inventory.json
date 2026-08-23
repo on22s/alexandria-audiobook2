@@ -833,6 +833,7 @@
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_case_only_differences_are_not_a_disagreement",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
   ],
+  "test_expected_prosody_fusion": [],
   "test_experiment_conventions": [
     "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
     "tests.test_experiment_conventions.FixtureIntegrityTests.test_attribution_fixtures_have_entries_with_the_expected_keys",
@@ -1300,6 +1301,7 @@
     "tests.test_inventory.UntrackedTestWarningTest.test_a_new_untracked_test_file_is_reported",
     "tests.test_inventory.UntrackedTestWarningTest.test_a_tracked_file_is_not_reported"
   ],
+  "test_japanese_text_boundary": [],
   "test_launcher_supervisor": [
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_address_already_in_use_breaks_case_insensitively",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_application_startup_failed_breaks",
