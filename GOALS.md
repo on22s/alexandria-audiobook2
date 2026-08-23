@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2340** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2351** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1990,6 +1990,17 @@ nor the tail: **272 ms median, 419 ms p90, 58% within 300 ms**. Grouping interna
 splits was not the missing lever; the VAD start timestamps themselves remain
 offset on this four-reader set. Production stays unchanged and the goal stays
 OPEN.
+
+**Known-text CTC alignment also rejected at its development gate, 2026-08-23.**
+Torchaudio forced alignment with the Japanese XLSR-53 CTC model was run through
+the serialized GPU wrapper on the first 10 frozen clips
+(`ctc_japanese_boundary_n10.json`). It scored all 10, but produced **613 ms
+median error, 739 ms p90, and only 30% within 300 ms**. That is substantially
+worse than Silero's 272 ms pooled median, so the preregistered small gate failed
+and no 50-item run was performed. Production stays unchanged. Generic
+known-transcript CTC is not the missing lever with this acoustic model; a future
+attempt needs a Japanese phoneme/mora aligner or direct onset calibration, not
+more scale with the same XLSR alignment.
 
 **A note on reproducing this.** The first run of the comparison omitted
 `--build`, silently scored a different clip set, and produced base 58.0% /
