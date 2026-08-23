@@ -599,6 +599,7 @@
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_scoring_restores_declared_identifier_digit_semantics",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_summary_keeps_books_categories_and_arms_separate"
   ],
+  "test_ctc_text_boundary": [],
   "test_dedup_benchmark": [
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
