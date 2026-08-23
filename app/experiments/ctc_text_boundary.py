@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import statistics
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,7 +53,7 @@ def align_lines(wav, texts, model_name, device):
         selected = spans[offset:offset + len(ids)]
         raw_segments.append((selected[0].start * frame_seconds,
                              selected[-1].end * frame_seconds,
-                             float(torch.stack([span.score for span in selected]).mean())))
+                             statistics.mean(float(span.score) for span in selected)))
         offset += len(ids)
     return get_segments(texts, raw_segments)
 
