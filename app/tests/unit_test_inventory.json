@@ -591,6 +591,7 @@
     "tests.test_constraint_refine.ScorerAgreementTest.test_aliases_are_loaded_from_the_fixture_not_the_artifact",
     "tests.test_constraint_refine.ScorerAgreementTest.test_it_uses_the_harness_scorer_not_its_own"
   ],
+  "test_contextual_tone_model": [],
   "test_crossbook_normalization": [
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_dates_have_explicit_ordinal_and_year",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_identifiers_are_read_digitwise",
