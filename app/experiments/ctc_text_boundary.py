@@ -19,6 +19,10 @@ def get_segments(texts, raw_segments):
             for text, (start, end, _score) in zip(texts, raw_segments)]
 
 
+def get_log_probs(output):
+    return output.logits.log_softmax(dim=-1)
+
+
 def align_lines(wav, texts, model_name, device):
     import librosa
     import torch
@@ -31,7 +35,7 @@ def align_lines(wav, texts, model_name, device):
     inputs = processor(speech, sampling_rate=processor.feature_extractor.sampling_rate,
                        return_tensors="pt")
     with torch.inference_mode():
-        logits = model(inputs.input_values.to(device)).log_softmax(dim=-1)[0].cpu().numpy()
+        logits = get_log_probs(model(inputs.input_values.to(device)))[0].cpu().numpy()
 
     token_lines = [processor.tokenizer(text, add_special_tokens=False).input_ids
                    for text in texts]
