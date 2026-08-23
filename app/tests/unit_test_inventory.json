@@ -437,6 +437,7 @@
     "tests.test_character_evidence.TestNarrationText.test_dialogue_is_excluded",
     "tests.test_character_evidence.TestNarrationText.test_handles_missing_fields"
   ],
+  "test_character_style_selector": [],
   "test_character_traits": [
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_dialogue_alone_yields_unknown",
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_male_speaker_talking_about_women_is_not_classified_female",
