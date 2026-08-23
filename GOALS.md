@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2374** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2383** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1124,6 +1124,15 @@ both reach the held-human ceiling on this triage measure. This does not establis
 a listener-calibrated quality threshold or close 2.9, but it replaces the
 falsified equal-time Mandarin template with a viable contextual baseline and
 provides no evidence that either current Mandarin arm is deficient.
+
+**Perceptual calibration package prepared, 2026-08-23.** `Japanese Accent
+Calibration.html` in Downloads contains eight independently shuffled matched
+human/clone/LoRA sentences. It asks pronunciation correctness, Japanese pitch-
+accent naturalness, and overall delivery as separate questions, with an explicit
+`cannot tell` option for the two language-specific judgements. The concealed arm
+mapping is `japanese_accent_calibration_key.json`. This prepares the listener
+calibration called for above but supplies no rating evidence until a Japanese
+speaker completes it; non-speakers can validly rate delivery only.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
