@@ -2338,6 +2338,7 @@
     "tests.test_seed_plumbing.TestSeedIsRead.test_negative_seed_does_not_seed",
     "tests.test_seed_plumbing.TestSeedIsRead.test_seed_is_not_a_hardcoded_constant"
   ],
+  "test_separator_earcheck_explicit_terms": [],
   "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline",
