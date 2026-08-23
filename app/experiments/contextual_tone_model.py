@@ -22,6 +22,15 @@ def get_contexts(tones):
             for i, tone in enumerate(tones)]
 
 
+def get_unit_intervals(spans, duration, total_frames):
+    centers = [(span.start + span.end) / 2 for span in spans]
+    scale = duration / total_frames
+    centers = [center * scale for center in centers]
+    edges = [0.0] + [(left + right) / 2
+                     for left, right in zip(centers, centers[1:])] + [duration]
+    return list(zip(edges[:-1], edges[1:]))
+
+
 def fit_means(rows, key):
     import numpy as np
     grouped = collections.defaultdict(list)
@@ -71,10 +80,9 @@ def extract_rows(document, model_name, device, limit):
         if len(spans) != len(tones):
             continue
         f0 = librosa.pyin(speech, fmin=60, fmax=400, sr=rate)[0]
-        frame_seconds = len(speech) / rate / emissions.shape[1]
         f0_seconds = len(speech) / rate / len(f0)
-        for tone, context, span in zip(tones, get_contexts(tones), spans):
-            start, end = span.start * frame_seconds, span.end * frame_seconds
+        intervals = get_unit_intervals(spans, len(speech) / rate, emissions.shape[1])
+        for tone, context, (start, end) in zip(tones, get_contexts(tones), intervals):
             chunk = f0[max(0, int(start / f0_seconds)):max(1, int(end / f0_seconds))]
             chunk = chunk[np.isfinite(chunk) & (chunk > 0)]
             if len(chunk) < 3:
