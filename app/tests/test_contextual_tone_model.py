@@ -1,5 +1,6 @@
 from experiments.contextual_tone_model import (fit_means, get_contexts,
-                                                get_unit_intervals, score)
+                                                get_audio_path, get_unit_intervals,
+                                                score)
 
 
 def test_contexts_include_sentence_boundaries():
@@ -16,3 +17,9 @@ def test_unit_intervals_cover_audio_without_gaps():
     span = lambda start, end: type("Span", (), {"start": start, "end": end})()
     assert get_unit_intervals([span(1, 2), span(4, 5)], 6.0, 6) == [
         (0.0, 3.0), (3.0, 6.0)]
+
+
+def test_audio_path_uses_requested_arm():
+    row = {"human_wav": "human.wav", "clone_wav": "clone.wav"}
+    assert get_audio_path(row, "human") == "human.wav"
+    assert get_audio_path(row, "clone") == "clone.wav"

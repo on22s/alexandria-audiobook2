@@ -52,7 +52,11 @@ def score(rows, means, key, fallback):
     return correlations
 
 
-def extract_rows(document, model_name, device, limit):
+def get_audio_path(source, arm):
+    return source.get("human_wav") if arm == "human" else source.get(f"{arm}_wav")
+
+
+def extract_rows(document, model_name, device, limit, arm="human"):
     import librosa
     import numpy as np
     import torch
@@ -63,7 +67,10 @@ def extract_rows(document, model_name, device, limit):
     model = AutoModelForCTC.from_pretrained(model_name).to(device).eval()
     output = []
     for source in document["rows"][:limit or None]:
-        path = os.path.join(REPO, source["human_wav"])
+        relative = get_audio_path(source, arm)
+        if not relative:
+            continue
+        path = os.path.join(REPO, relative)
         speech, rate = librosa.load(path, sr=processor.feature_extractor.sampling_rate)
         inputs = processor(speech, sampling_rate=rate, return_tensors="pt")
         with torch.inference_mode():
@@ -102,6 +109,7 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--limit", type=int, default=150)
     parser.add_argument("--train", type=int, default=100)
+    parser.add_argument("--arms", nargs="*", default=["clone", "lora"])
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--model", default="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn")
     args = parser.parse_args()
@@ -112,11 +120,20 @@ def main():
     tone_means, context_means = fit_means(train, "tone"), fit_means(train, "context")
     tone_scores = score(test, tone_means, "tone", tone_means)
     context_scores = score(test, context_means, "context", tone_means)
+    generated = {}
+    for arm in args.arms:
+        arm_rows = extract_rows(document, args.model, args.device, args.limit, arm=arm)
+        held_out = [row for row in arm_rows if row["id"] not in train_ids]
+        arm_scores = score(held_out, context_means, "context", tone_means)
+        generated[arm] = {"units": len(held_out),
+                          "contextual_correlation_mean": statistics.mean(arm_scores)
+                          if arm_scores else None}
     result = {"source": os.path.relpath(args.generated, REPO), "model": args.model,
               "train_units": len(train), "test_units": len(test),
               "tone_only_correlation_mean": statistics.mean(tone_scores) if tone_scores else None,
               "contextual_correlation_mean": statistics.mean(context_scores) if context_scores else None,
               "contextual_groups": len(context_means),
+              "generated": generated,
               "advance": bool(tone_scores and context_scores and
                               statistics.mean(context_scores) > statistics.mean(tone_scores))}
     from utils import atomic_json_write
