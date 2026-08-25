@@ -9,11 +9,13 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 APP = Path(__file__).parent.parent
 sys.path.insert(0, str(APP))
 
-from experiments.homograph_probe import build_items, load_words
+from experiments.homograph_probe import (build_cache_identity, build_items,
+                                         load_words)
 
 WORDS = APP / "experiments" / "homograph_words.json"
 
@@ -87,6 +89,16 @@ class HomographItemTests(unittest.TestCase):
         self.assertNotEqual([i["sentence"] for i in other],
                             [i["sentence"] for i in self.items],
                             "a different seed must give a different order")
+
+    def test_cache_identity_changes_with_voice_and_items(self):
+        with patch("experiments.homograph_probe.input_sha256",
+                   side_effect=lambda paths: {str(path): str(path) for path in paths}):
+            first = build_cache_identity(self.items, "serena")
+            second = build_cache_identity(self.items, "another")
+            changed = [dict(item) for item in self.items]
+            changed[0]["sentence"] += " changed"
+            self.assertNotEqual(first, second)
+            self.assertNotEqual(first, build_cache_identity(changed, "serena"))
 
 
 if __name__ == "__main__":

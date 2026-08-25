@@ -1,5 +1,9 @@
 import pytest
-import torch
+
+try:
+    import torch
+except ImportError:  # The CI-equivalent environment deliberately omits torch.
+    torch = None
 
 from experiments.ctc_text_boundary import get_log_probs, get_segments
 
@@ -14,6 +18,7 @@ def test_get_segments_rejects_partial_alignment():
         get_segments(["一", "二"], [(0.1, 0.8, -0.2)])
 
 
+@pytest.mark.skipif(torch is None, reason="torch is not installed")
 def test_get_log_probs_reads_transformers_output_logits():
     output = type("Output", (), {"logits": torch.tensor([[[1.0, 2.0]]])})()
     assert torch.allclose(get_log_probs(output).exp().sum(-1), torch.ones(1, 1))

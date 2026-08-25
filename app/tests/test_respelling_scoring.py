@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from experiments import measure_respellings as measure
@@ -208,6 +209,29 @@ class DefaultRowTest(unittest.TestCase):
         """
         self.assertEqual("eh", measure.DEFAULT_E_SPELLING)
         self.assertEqual("seh-n-seh-ee", measure.respell("センセイ"))
+
+    def test_rule_b_honours_separator_without_mutating_global(self):
+        original = measure.SEPARATOR
+        measure.SEPARATOR = ""
+        try:
+            self.assertEqual("sehnsay", measure.respell_b("センセイ"))
+            self.assertEqual("", measure.SEPARATOR)
+        finally:
+            measure.SEPARATOR = original
+
+    def test_limit_is_part_of_run_identity(self):
+        with tempfile.TemporaryDirectory() as root:
+            paths = [os.path.join(root, name) for name in ("c", "w", "m")]
+            for path in paths:
+                with open(path, "wb") as handle:
+                    handle.write(b"x")
+            base = dict(candidates=paths[0], whisper_cpp_bin=paths[1],
+                        whisper_cpp_model=paths[2], only_failed=None,
+                        rule="a", separator="hyphen", e_spelling="eh",
+                        verdict="japanese", min_books=1, only_e_row=False)
+            one = measure.build_run_identity(SimpleNamespace(**base, limit=1))
+            two = measure.build_run_identity(SimpleNamespace(**base, limit=2))
+        self.assertNotEqual(one, two)
 
     def test_every_row_stays_selectable(self):
         """-ay is not disproven, only unsupported by the instrument that

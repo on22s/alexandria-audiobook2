@@ -77,6 +77,15 @@ class MarkEntriesTest(unittest.TestCase):
         start, end = mark_entries(entries, self.SOURCE, "paired_quotes")[0]["source_span"]
         self.assertIn("Is there some problem", self.SOURCE[start:end])
 
+    def test_source_span_maps_collapsed_whitespace_back_to_raw_text(self):
+        source = 'He said, “Hello\t  wide\nworld.” Then left.'
+        marked = mark_entries(
+            [{"speaker": "A", "text": "Hello wide world."}], source,
+            "paired_quotes")
+        start, end = marked[0]["source_span"]
+        self.assertEqual("Hello\t  wide\nworld.", source[start:end])
+        self.assertTrue(marked[0]["spoken"])
+
     def test_an_entry_that_cannot_be_located_is_left_unmarked(self):
         # Absent `spoken` means "not established", which is a different claim
         # from `spoken: false` and must not be collapsed into it.

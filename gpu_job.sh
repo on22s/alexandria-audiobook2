@@ -459,7 +459,13 @@ vram_free_mib() {
     fi
     # Thunder cards are NVIDIA-only. Use the least-free visible card so a
     # multi-GPU host cannot pass because an unrelated card is empty.
-    nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits \
+    local selector="${CUDA_VISIBLE_DEVICES:-${NVIDIA_VISIBLE_DEVICES:-}}"
+    local -a nvidia_args
+    nvidia_args=(--query-gpu=memory.free --format=csv,noheader,nounits)
+    if [ -n "$selector" ] && [ "$selector" != "all" ]; then
+        nvidia_args=(-i "$selector" "${nvidia_args[@]}")
+    fi
+    nvidia-smi "${nvidia_args[@]}" \
         2>/dev/null | awk '
             /^[[:space:]]*[0-9]+/ {
                 value=$1+0; if (!seen || value < minimum) minimum=value; seen=1

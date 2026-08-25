@@ -12,7 +12,8 @@ goal 5.1 confirming itself from a direction that was not built to check it.
 """
 import unittest
 
-from experiments.frontend_exposure import CATEGORIES, read_scripts, scan
+from experiments.frontend_exposure import (CATEGORIES, count_lines_with_any,
+                                           read_scripts, scan)
 
 PATTERNS = {name: pattern for name, pattern, _ in CATEGORIES}
 
@@ -75,6 +76,11 @@ class ScanTest(unittest.TestCase):
 
     def test_blank_and_missing_lines_are_skipped(self):
         self.assertEqual({}, dict(scan(["", None])))
+
+    def test_numeric_total_is_a_union_of_lines(self):
+        lines = ["It was 1999.", "Value 0.75."]
+        self.assertEqual(2, count_lines_with_any(
+            lines, ("year", "bare_digits", "decimal")))
 
 
 class ReadScriptsTest(unittest.TestCase):

@@ -76,6 +76,20 @@ class ResolveGeneratedTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertIn("nothing is conflicted", result.stdout)
 
+    def test_goals_pointer_conflict_with_prose_is_refused(self):
+        self.write("GOALS.md", "met goals begin at line 10\nbase prose\n")
+        self.git("add", "GOALS.md"); self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "side")
+        self.write("GOALS.md", "met goals begin at line 11\nside prose\n")
+        self.git("add", "GOALS.md"); self.git("commit", "-q", "-m", "side")
+        self.git("checkout", "-q", "main")
+        self.write("GOALS.md", "met goals begin at line 12\nmain prose\n")
+        self.git("add", "GOALS.md"); self.git("commit", "-q", "-m", "main")
+        self.git("merge", "side", check=False)
+        result = self.run_script()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("REFUSING", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

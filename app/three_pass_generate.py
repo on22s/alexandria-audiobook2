@@ -1359,6 +1359,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                   "carry no `spoken` key rather than a guessed one")
     except Exception as exc:                                   # noqa: BLE001
         print(f"Dialogue map FAILED ({exc}); entries carry no `spoken` key")
+        diagnostic_failures.append({
+            "pass": "dialogue_map", "reason": type(exc).__name__,
+            "error": str(exc)[:500]})
     save("done")
     emit_manifest("incomplete" if diagnostic_failures or unavailable_passes
                   else "complete")

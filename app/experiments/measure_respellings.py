@@ -48,6 +48,7 @@ sys.path.insert(0, APP)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils import atomic_json_write  # noqa: E402
+from experiments.provenance import file_sha256  # noqa: E402
 
 # Kana -> an English reader's spelling. Deliberately blunt: the aim is to stop
 # an English-trained model applying English orthography to a Japanese word,
@@ -139,7 +140,7 @@ CARRIER = "She paused and said {word} before going on."
 _ARGS = None
 
 
-def respell(kana, table=None):
+def respell(kana, table=None, separator=None):
     """-> a hyphenated English-looking spelling, or None if unmappable.
 
     `table` defaults to the CURRENT row choice (DEFAULT_E_SPELLING), not to
@@ -190,7 +191,8 @@ def respell(kana, table=None):
     #
     # Kept as the default so every stored measurement stays comparable; the
     # alternatives exist to be measured against it, not to replace it quietly.
-    return SEPARATOR.join(parts) if len(parts) >= 2 else None
+    return (SEPARATOR if separator is None else separator).join(parts) \
+        if len(parts) >= 2 else None
 
 
 
@@ -227,13 +229,8 @@ def respell_b(kana, table=None):
     """
     # Merge mora spellings independently of their eventual separator. Splitting
     # the rendered string made every non-hyphen arm either wrong or unmappable.
-    global SEPARATOR
     selected_separator = SEPARATOR
-    SEPARATOR = "-"
-    try:
-        base = respell(kana, table)
-    finally:
-        SEPARATOR = selected_separator
+    base = respell(kana, table, separator="-")
     if not base:
         return None
     parts, out, index = base.split("-"), [], 0
@@ -252,24 +249,19 @@ def respell_b(kana, table=None):
     return merged if merged != unmerged else None
 
 
-def file_sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def build_run_identity(args):
     """Return every input that changes cached rows or rendered audio."""
     paths = [args.candidates, args.whisper_cpp_bin, args.whisper_cpp_model,
-             os.path.join(APP, "config.json")]
+             os.path.join(APP, "config.json"), __file__,
+             os.path.join(APP, "tts.py"),
+             os.path.join(APP, "experiments", "generation.py")]
     if args.only_failed:
         paths.append(args.only_failed)
     return {
         "rule": args.rule, "separator": args.separator,
         "e_spelling": args.e_spelling, "verdict": args.verdict,
         "min_books": args.min_books, "only_e_row": args.only_e_row,
+        "limit": args.limit,
         "inputs": {os.path.abspath(path): file_sha256(path)
                    for path in paths if os.path.isfile(path)},
         "voice": "serena",
@@ -576,8 +568,9 @@ def _write(path, results, terms, prov=None, run_identity=None):
                 # state would cost a subprocess per checkpoint across a
                 # seventeen-hour run.
                 "provenance": prov,
-                "run_identity": (run_identity or build_run_identity(_ARGS)
-                                 if _ARGS is not None else None),
+                "run_identity": (run_identity if run_identity is not None else
+                                 (build_run_identity(_ARGS)
+                                  if _ARGS is not None else None)),
                 "results": list(results.values())}
     # Atomic: this file is read by other sessions while a multi-hour run is
     # still appending to it, and a plain open() truncates it for the duration
