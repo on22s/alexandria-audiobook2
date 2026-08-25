@@ -24,6 +24,7 @@ scoring needs the ear, and the ratings come back separately. Keeping the two
 apart means the artifact cannot quietly acquire a verdict nobody listened to.
 """
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -91,10 +92,22 @@ def main():
     engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
                                       encoding="utf-8")))
     voice = {args.voice: {"type": "custom"}}
+    with open(os.path.join(APP, "config.json"), "rb") as config_handle:
+        config_sha256 = hashlib.sha256(config_handle.read()).hexdigest()
+    cache_identity = {
+        "voice": args.voice,
+        "items": [{key: item[key] for key in
+                   ("word", "reading", "expected_say", "sentence")}
+                  for item in items],
+        "config_sha256": config_sha256,
+    }
+    cache_key = hashlib.sha256(json.dumps(
+        cache_identity, sort_keys=True).encode()).hexdigest()[:12]
 
     started = time.time()
     for index, item in enumerate(items, 1):
-        name = "%02d_%s_%s.wav" % (index, item["word"], item["reading"])
+        name = "%s_%02d_%s_%s.wav" % (
+            cache_key, index, item["word"], item["reading"])
         path = os.path.join(args.work, name)
         item["clip"] = path
         if os.path.exists(path) and os.path.getsize(path) > 2000:
@@ -125,6 +138,7 @@ def main():
                "argument for Japanese pitch accent; this is its English case.",
         "voice": args.voice,
         "seed": args.seed,
+        "cache_identity": cache_identity,
         "words": len(items) // 2,
         "clips": len(items),
         "rendered_ok": sum(1 for i in items if i.get("rendered") in ("ok", "cached")),

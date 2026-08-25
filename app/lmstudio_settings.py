@@ -729,6 +729,13 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     need a guaranteed-fresh read before acting on it (e.g. ensure_ideal_settings
     deciding whether to reload) must leave this False.
     """
+    # Probe the endpoint before dispatching by location. llama.cpp exposes the
+    # same native /props endpoint locally and remotely; treating every remote
+    # endpoint as LM Studio made Thunder llama.cpp servers receive `lms`
+    # management commands they do not support.
+    native = get_llama_cpp_status(base_url, model_name)
+    if native is not None:
+        return native
     if is_remote_llm(llm_mode, base_url):
         if use_cache:
             return get_remote_lmstudio_status_cached(ssh_alias, model_name)
@@ -736,9 +743,6 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     # Ask the endpoint what it IS before asking LM Studio about it. This
     # project runs llama.cpp, whose /props answer is authoritative; falling
     # through to `lms ps` reported every llama.cpp model as unloaded.
-    native = get_llama_cpp_status(base_url, model_name)
-    if native is not None:
-        return native
     return get_lmstudio_status(model_name)
 
 
@@ -778,8 +782,17 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
     """
     is_remote = is_remote_llm(llm_mode, base_url)
 
+    initial_status = get_current_status(
+        llm_mode, base_url, model_name, ssh_alias)
+    if initial_status.get("runtime") == "llama.cpp":
+        return (is_remote, initial_status,
+                "llama.cpp server at %s - context %s, %s slot(s), fixed at "
+                "launch. No LM Studio settings to apply."
+                % (base_url, initial_status.get("context_length"),
+                   initial_status.get("parallel")))
+
     if is_remote and not ssh_alias:
-        return (True, get_remote_lmstudio_status(None, model_name),
+        return (True, initial_status,
                 "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.")
 
     if is_remote:
@@ -799,13 +812,6 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
         # warn about. get_llama_cpp_status already answers this question and
         # returns None for anything that is not llama.cpp (Rule 15) - the local
         # branch simply never asked it.
-        llama_cpp = get_llama_cpp_status(base_url, model_name)
-        if llama_cpp is not None:
-            return (False, llama_cpp,
-                    "llama.cpp server at %s - context %s, %s slot(s), fixed at "
-                    "launch. No LM Studio settings to apply."
-                    % (base_url, llama_cpp.get("context_length"),
-                       llama_cpp.get("parallel")))
         get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias)
         apply_settings = lambda: apply_lmstudio_settings(model_name, ideal=True)
         label = "LM Studio"
@@ -815,7 +821,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None):
                       "pause batches if usage gets too high, but if you hit OOM, restart "
                       "LM Studio and re-run.")
 
-    status = get_status()
+    status = initial_status
     if status["loaded"] and status["optimized"]:
         return is_remote, status, f"{label}: {model_name} already loaded with ideal settings."
 

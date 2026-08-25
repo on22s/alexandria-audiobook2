@@ -66,6 +66,15 @@ def scan(lines):
     return tally
 
 
+def count_lines_with_any(lines, category_names):
+    """Count the union of lines matching any selected category."""
+    category_names = set(category_names)
+    selected = [pattern for name, pattern, _ in CATEGORIES
+                if name in category_names]
+    return sum(any(pattern.search(text) for pattern in selected)
+               for text in lines if text)
+
+
 def read_scripts(paths):
     """-> every line of speakable text across the given script files."""
     out = []
@@ -99,9 +108,10 @@ def main():
              "share": round(tally[name] / len(lines), 5),
              "why_it_can_go_wrong": why}
             for name, _, why in CATEGORIES]
-    numeric = sum(tally[n] for n in ("year", "roman_numeral", "grouped_number",
-                                     "ordinal", "decimal", "digit_range",
-                                     "time_of_day", "bare_digits"))
+    numeric_categories = ("year", "roman_numeral", "grouped_number",
+                          "ordinal", "decimal", "digit_range",
+                          "time_of_day", "bare_digits")
+    numeric = count_lines_with_any(lines, numeric_categories)
     doc = {
         "status": "complete",
         "provenance": provenance(__file__, args),

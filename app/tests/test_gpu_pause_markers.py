@@ -35,8 +35,11 @@ class TerminalMarkerTests(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         # A process that `job_is_live` will match, so the marker set is what
         # decides the answer rather than the liveness gate.
-        self.fake = subprocess.Popen(
-            ["bash", "-c", 'exec -a "/x/gpu_job.sh jobA --fake" sleep 30'])
+        wrapper = os.path.join(self.dir, "gpu_job.sh")
+        with open(wrapper, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/bash\nsleep 30\n")
+        os.chmod(wrapper, 0o755)
+        self.fake = subprocess.Popen([wrapper, "jobA", "--fake"])
         time.sleep(1.0)
 
     def tearDown(self):

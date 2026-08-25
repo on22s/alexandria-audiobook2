@@ -25,7 +25,7 @@ import lmstudio_settings  # noqa: E402
 
 class IdealSettingsEndpointTest(unittest.TestCase):
     LLAMA = {"available": True, "loaded": True, "context_length": 32768,
-             "parallel": 1, "optimized": True}
+             "parallel": 1, "optimized": None, "runtime": "llama.cpp"}
 
     def test_a_llama_cpp_endpoint_is_left_alone(self):
         with mock.patch.object(lmstudio_settings, "get_llama_cpp_status",
@@ -68,9 +68,10 @@ class IdealSettingsEndpointTest(unittest.TestCase):
         self.assertIn("LM Studio", message)
 
     def test_a_remote_endpoint_is_unaffected_by_the_local_probe(self):
-        """Remote returns before the local branch; the probe must not run at
-        all, since it would be a network call to the wrong host."""
-        with mock.patch.object(lmstudio_settings, "get_llama_cpp_status") as probe, \
+        """Remote endpoints are probed too, so remote llama.cpp is not sent
+        LM Studio SSH management commands."""
+        with mock.patch.object(lmstudio_settings, "get_llama_cpp_status",
+                               return_value=None) as probe, \
              mock.patch.object(lmstudio_settings, "get_remote_lmstudio_status",
                                return_value={"available": False, "loaded": False,
                                              "context_length": None,
@@ -78,7 +79,7 @@ class IdealSettingsEndpointTest(unittest.TestCase):
                                              "optimized": False}):
             lmstudio_settings.ensure_ideal_settings(
                 "remote", "http://10.0.0.5:1234/v1", "qwen3-14b", None)
-        probe.assert_not_called()
+        probe.assert_called_once()
 
 
 if __name__ == "__main__":

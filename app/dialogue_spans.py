@@ -113,6 +113,26 @@ def _normalize(value):
                                       "", value or "")).strip()
 
 
+def _normalize_with_offsets(value):
+    """Return normalized text plus each character's offset in the raw text."""
+    characters, offsets = [], []
+    pending_space = None
+    for index, character in enumerate(value or ""):
+        if character in '"“”「」『』':
+            continue
+        if character.isspace():
+            if characters and pending_space is None:
+                pending_space = index
+            continue
+        if pending_space is not None and characters:
+            characters.append(" ")
+            offsets.append(pending_space)
+        pending_space = None
+        characters.append(character)
+        offsets.append(index)
+    return "".join(characters), offsets
+
+
 def mark_entries(entries, source_text, convention=None):
     """-> a NEW list of entries carrying `spoken` and `source_span`.
 
@@ -128,17 +148,19 @@ def mark_entries(entries, source_text, convention=None):
     # does not would attribute three lines from noise.
     labels = (dict(speaker_labels(source_text))
               if uses_speaker_labels(source_text) else {})
+    normalized_source, raw_offsets = _normalize_with_offsets(source_text)
     marked, cursor = [], 0
     for entry in entries:
         row = dict(entry)
         needle = _normalize(str(entry.get("text", "")))[:120]
         if needle:
-            where = source_text.find(needle, cursor)
-            if where == -1:                      # the model rewrote it, or the
-                where = source_text.find(needle)  # order slipped; try anywhere
-            if where != -1:
-                cursor = where + len(needle)
-                end = where + len(needle)
+            normalized_where = normalized_source.find(needle, cursor)
+            if normalized_where == -1:                 # the model rewrote it,
+                normalized_where = normalized_source.find(needle)  # or order slipped
+            if normalized_where != -1:
+                cursor = normalized_where + len(needle)
+                where = raw_offsets[normalized_where]
+                end = raw_offsets[normalized_where + len(needle) - 1] + 1
                 overlap = any(start < end and where < stop
                               for start, stop in spans)
                 row["spoken"] = bool(overlap)
@@ -154,6 +176,23 @@ def mark_entries(entries, source_text, convention=None):
                     row["source_speaker"] = printed
         marked.append(row)
     return marked
+
+
+def apply_dialogue_map(entries, source_text):
+    """Return source-mapped entries and reproducible mapping measurements."""
+    convention = detect_convention(source_text)
+    if not convention:
+        return {"entries": list(entries), "convention": None,
+                "located": 0, "spoken": 0, "speaker_changes": []}
+    mapped = mark_entries(entries, source_text, convention)
+    mapped, speaker_changes = apply_source_speakers(mapped)
+    return {
+        "entries": mapped,
+        "convention": convention,
+        "located": sum(1 for entry in mapped if "spoken" in entry),
+        "spoken": sum(1 for entry in mapped if entry.get("spoken")),
+        "speaker_changes": speaker_changes,
+    }
 
 # A NAME IMMEDIATELY BEFORE THE QUOTE. Web-novel transcripts often print the
 # speaker and then the line:

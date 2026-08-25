@@ -141,7 +141,7 @@ stage_commit_artifacts() {
     fi
 
     git -C "$repo" add ab_test_runtime/experiments/ >/dev/null 2>&1 || return 0
-    git -C "$repo" diff --cached --quiet && return 0
+    git -C "$repo" diff --cached --quiet -- ab_test_runtime/experiments/ && return 0
 
     local body="Committed by a chain so the dirty-tree gate does not refuse the next
 stage on this stage's own output."
@@ -158,11 +158,12 @@ it measures. This commit records which, because the previous time it happened
 the empty version was indistinguishable from a success."
     fi
 
-    git -C "$repo" commit -q -m "Artifacts from the $what stage
+    git -C "$repo" commit -q --only -m "Artifacts from the $what stage
 
 $body
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" && stage_note "committed $what artifacts"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
+        -- ab_test_runtime/experiments/ && stage_note "committed $what artifacts"
 }
 
 # THE STRICT GATE. Call this LAST. Nothing may run after it that could restore

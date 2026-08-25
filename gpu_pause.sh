@@ -73,12 +73,25 @@ logged_job() {
 }
 
 job_is_live() {
-    # -f, because the wrapper is only identifiable by its full command line.
-    # The trailing space keeps `e_row_e` from matching `e_row_ei`, and pgrep -f
-    # matching THIS script's own command line is the accident that killed my
-    # shell twice in this repo, so exclude our own pid and our parent's.
-    pgrep -f "gpu_job.sh $1 " 2>/dev/null \
-        | grep -qv -e "^$$\$" -e "^$PPID\$"
+    [ -n "$(job_pids "$1")" ]
+}
+
+job_pids() {
+    local wanted="$1" proc pid index
+    local -a argv
+    for proc in /proc/[0-9]*; do
+        pid=${proc##*/}
+        [ "$pid" = "$$" ] || [ "$pid" = "$PPID" ] && continue
+        [ -r "$proc/cmdline" ] || continue
+        mapfile -d '' -t argv < "$proc/cmdline" 2>/dev/null || continue
+        for ((index=0; index + 1 < ${#argv[@]}; index++)); do
+            if [ "${argv[index]##*/}" = "gpu_job.sh" ] \
+                    && [ "${argv[index + 1]}" = "$wanted" ]; then
+                printf '%s\n' "$pid"
+                break
+            fi
+        done
+    done
 }
 
 case "${1:-status}" in
@@ -93,8 +106,19 @@ case "${1:-status}" in
             echo "interrupting the running job '$job' (SIGINT, graceful)."
             echo "WARNING: a job that writes its artifact incrementally may"
             echo "leave a partial file that a later chain reads as finished."
-            pkill -INT -f "gpu_job.sh $job" 2>/dev/null
-            echo "$(stamp) INTERRUPTED $job (gpu_pause --now)" >> "$QLOG"
+            mapfile -t pids < <(job_pids "$job")
+            interrupted=0
+            for pid in "${pids[@]}"; do
+                if kill -INT "$pid" 2>/dev/null; then
+                    interrupted=1
+                fi
+            done
+            if [ "$interrupted" = "1" ]; then
+                echo "$(stamp) INTERRUPTED $job (gpu_pause --now)" >> "$QLOG"
+            else
+                echo "could not interrupt '$job'; no signal was delivered." >&2
+                exit 3
+            fi
         else
             echo "'$job' is still running and keeps the card until it exits."
             echo "run 'gpu_pause.sh status' to see when VRAM is actually free,"

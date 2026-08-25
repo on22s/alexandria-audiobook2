@@ -5,6 +5,7 @@ short-line renders separately versus one newline-joined render. Human duration
 is the sum of the same two source clips. This changes prompt grouping only.
 """
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -73,10 +74,17 @@ def main():
     from tts import TTSEngine
     engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
                                       encoding="utf-8")))
+    cache_identity = {
+        "seed": args.seed,
+        "inputs": input_sha256([args.input, args.build]),
+        "reference": ref,
+    }
+    cache_key = hashlib.sha256(json.dumps(
+        cache_identity, sort_keys=True).encode()).hexdigest()[:12]
 
     results = []
     for index, (left, right) in enumerate(pairs):
-        wav = os.path.join(args.out_dir, f"pair_{index:02d}.wav")
+        wav = os.path.join(args.out_dir, f"pair_{index:02d}_{cache_key}.wav")
         text = left["text"].rstrip() + "\n" + right["text"].lstrip()
         if not seconds(wav):
             try:
@@ -94,6 +102,7 @@ def main():
 
     document = {"design": "same text/reference/seed; separate vs newline-grouped",
                 "seed": args.seed, "summary": summarize(results), "rows": results,
+                "cache_identity": cache_identity,
                 "provenance": provenance(__file__, args, inputs=input_sha256(
                     [args.input, args.build]))}
     atomic_json_write(document, args.out)
