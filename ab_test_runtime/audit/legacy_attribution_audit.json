@@ -3,9 +3,9 @@
   "source_structural_sha256": "2d7fa1f042dc684704d7cdbe5e0fa6291ed3eb606887666896936bc17099d07e",
   "summary": {
     "exploratory": 9,
-    "historical_only": 46,
+    "historical_only": 47,
     "provisional": 21,
-    "supported_measurement": 66
+    "supported_measurement": 65
   },
   "artifacts": [
     {
@@ -1790,15 +1790,16 @@
         "baseline",
         "sequence"
       ],
-      "classification": "supported_measurement",
+      "classification": "historical_only",
       "dirty": false,
       "problems": [],
       "current_gold": {
-        "available": false,
-        "hash_changed": null,
-        "missing_rows": null,
-        "expected_changed_rows": null,
-        "correctness_changed_rows": null
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 83,
+        "line_count_changed": false
       },
       "semantic_limit": "A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result."
     },
