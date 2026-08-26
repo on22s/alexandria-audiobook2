@@ -87,6 +87,11 @@ def load_book(book):
     return gold, src, seg, roster, want
 
 
+def get_eval_arms(base_only=False):
+    """Return serving arms; a base-only server has no adapter endpoint state."""
+    return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--books", nargs="+",
@@ -94,6 +99,9 @@ def main():
     ap.add_argument("--model", default="qwen/qwen3-14b")
     ap.add_argument("--base_url", default="http://127.0.0.1:8090/v1")
     ap.add_argument("--tag", default="local-rocm-lora")
+    ap.add_argument("--base-only", action="store_true",
+                    help="score an untuned server without querying its empty "
+                         "/lora-adapters state")
     args = ap.parse_args()
 
     client = OpenAI(base_url=args.base_url, api_key="local")
@@ -129,9 +137,10 @@ def main():
                    if any(norm(seg[i].get("text")) in want for i in w)]
         print(f"\n{book}: {len(want)} scoreable lines, roster {len(roster)}, "
               f"{len(windows)} windows", flush=True)
-        for arm, scale in (("base", 0.0), ("lora", 1.0)):
-            got = set_adapter_scale(args.base_url, scale)
-            print(f"  adapter scale now {got}", flush=True)
+        for arm, scale in get_eval_arms(args.base_only):
+            if scale is not None:
+                got = set_adapter_scale(args.base_url, scale)
+                print(f"  adapter scale now {got}", flush=True)
             started = time.time()
             for k, win in enumerate(windows, 1):
                 send = [i for i in win
@@ -186,27 +195,29 @@ def main():
 
     print("\n  per book")
     for book, arms in per_book.items():
-        b, l = arms.get("base", (0, 0)), arms.get("lora", (0, 0))
-        print(f"    {book:18} base {b[0]/max(b[1],1)*100:5.1f}%  "
-              f"lora {l[0]/max(l[1],1)*100:5.1f}%  "
-              f"{(l[0]/max(l[1],1)-b[0]/max(b[1],1))*100:+6.1f}")
-    p, x, y, n = paired(answers["base"], answers["lora"])
+        b = arms.get("base", (0, 0))
+        line = f"    {book:18} base {b[0]/max(b[1],1)*100:5.1f}%"
+        if not args.base_only:
+            l = arms.get("lora", (0, 0))
+            line += (f"  lora {l[0]/max(l[1],1)*100:5.1f}%  "
+                     f"{(l[0]/max(l[1],1)-b[0]/max(b[1],1))*100:+6.1f}")
+        print(line)
     tb = sum(v["base"][0] for v in per_book.values())
     nb = sum(v["base"][1] for v in per_book.values())
-    tl = sum(v["lora"][0] for v in per_book.values())
-    nl = sum(v["lora"][1] for v in per_book.values())
-    print(f"\n  pooled  base {tb}/{nb} = {tb/max(nb,1)*100:.1f}%   "
-          f"lora {tl}/{nl} = {tl/max(nl,1)*100:.1f}%")
-    print(f"  paired  {(tl/max(nl,1)-tb/max(nb,1))*100:+.1f} points  "
-          f"+{y}/-{x} of {n}  p={p:.4g}")
-    print("\n  Compare to +11.7 in bf16 through transformers. A shortfall here "
-          "points at\n  Q4 quantisation of the BASE, not at the adapter, and "
-          "the fix would be a\n  higher-precision base rather than retraining.")
+    print(f"\n  pooled  base {tb}/{nb} = {tb/max(nb,1)*100:.1f}%")
+    if not args.base_only:
+        p, x, y, n = paired(answers["base"], answers["lora"])
+        tl = sum(v["lora"][0] for v in per_book.values())
+        nl = sum(v["lora"][1] for v in per_book.values())
+        print(f"  pooled  lora {tl}/{nl} = {tl/max(nl,1)*100:.1f}%")
+        print(f"  paired  {(tl/max(nl,1)-tb/max(nb,1))*100:+.1f} points  "
+              f"+{y}/-{x} of {n}  p={p:.4g}")
 
     out = record.write(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json"),
-        contract={"expected_arms": ("base", "lora")})
+        contract={"expected_arms": tuple(a for a, _ in
+                                           get_eval_arms(args.base_only))})
     print("wrote", out)
 
 
