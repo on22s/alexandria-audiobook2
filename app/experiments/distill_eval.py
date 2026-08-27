@@ -126,11 +126,23 @@ class LocalClient:
         return _Response(text, finish)
 
 
-def load_book(book):
+def get_book_paths(book, input_dir=None, checkpoint_dir=None):
+    source_path = (os.path.join(input_dir, f"{book}.txt") if input_dir
+                   else M + f"inputs/{book}.txt")
+    checkpoint_path = (
+        os.path.join(checkpoint_dir,
+                     f"{book}__three_pass.json.threepass_checkpoint.json")
+        if checkpoint_dir else
+        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
+    return source_path, checkpoint_path
+
+
+def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
-    src = open(M + f"inputs/{book}.txt", encoding="utf-8").read()
-    cp = json.load(open(
-        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    source_path, checkpoint_path = get_book_paths(
+        book, input_dir, checkpoint_dir)
+    src = open(source_path, encoding="utf-8").read()
+    cp = json.load(open(checkpoint_path))
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
@@ -157,16 +169,22 @@ def main():
     # one bad batch cost ~13 minutes per attempt and ~50 across its retries.
     # Capping bounds the failure without touching well-formed responses.
     ap.add_argument("--max_tokens", type=int, default=2000)
+    ap.add_argument("--input-dir")
+    ap.add_argument("--checkpoint-dir")
     args = ap.parse_args()
 
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import (AutoConfig, AutoModelForCausalLM,
+                              AutoModelForImageTextToText, AutoTokenizer)
     from peft import PeftModel
 
     tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    base = AutoModelForCausalLM.from_pretrained(
+    config = AutoConfig.from_pretrained(args.model, trust_remote_code=True)
+    loader = (AutoModelForImageTextToText
+              if config.model_type == "qwen3_5" else AutoModelForCausalLM)
+    base = loader.from_pretrained(
         args.model, torch_dtype=torch.bfloat16, device_map="auto",
         trust_remote_code=True)
     model = PeftModel.from_pretrained(base, args.adapter)
@@ -210,7 +228,8 @@ def main():
     totals = {"base": [0, 0], "tuned": [0, 0]}
     per_book, answers = {}, {"base": {}, "tuned": {}}
     for book in args.books:
-        gold, src, seg, roster, want = load_book(book)
+        gold, src, seg, roster, want = load_book(
+            book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
         windows = [list(range(s, min(s + BATCH, len(seg))))
                    for s in range(0, len(seg), BATCH)]
@@ -227,6 +246,12 @@ def main():
                         if get_deterministic_named_entry(seg[i]) is None]
                 if not send or not any(norm(seg[i].get("text")) in want
                                        for i in send):
+                    continue
+                rows = [i for i in send if norm(seg[i].get("text")) in want]
+                if all(record.done(
+                        arm,
+                        f"{book}:{want[norm(seg[i].get('text'))]['id']}")
+                       for i in rows):
                     continue
                 frozen = [{"type": seg[i]["type"], "text": seg[i]["text"]}
                           for i in send]
@@ -249,7 +274,10 @@ def main():
                         key = norm(seg[i].get("text"))
                         if key in want:
                             g = want[key]
-                            record.add(arm, f"{book}:{g['id']}", g["line"],
+                            row_id = f"{book}:{g['id']}"
+                            if record.done(arm, row_id):
+                                continue
+                            record.add(arm, row_id, g["line"],
                                        g["expected_speaker"].upper(), None, False,
                                        provenance=f"{arm}|{book}|batch_failed")
                             scored += 1
@@ -259,8 +287,11 @@ def main():
                     if key not in want:
                         continue
                     g = want[key]
+                    row_id = f"{book}:{g['id']}"
+                    if record.done(arm, row_id):
+                        continue
                     sp = (out[off] or {}).get("speaker") if off < len(out) else None
-                    record.add(arm, f"{book}:{g['id']}", g["line"],
+                    record.add(arm, row_id, g["line"],
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
                                provenance=f"{arm}|{book}")

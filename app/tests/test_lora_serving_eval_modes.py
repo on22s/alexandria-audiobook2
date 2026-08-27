@@ -1,6 +1,7 @@
 import unittest
 
 from experiments.lora_serving_eval import get_book_paths, get_eval_arms
+from experiments.distill_eval import get_book_paths as get_distill_book_paths
 
 
 class LoraServingEvalModeTests(unittest.TestCase):
@@ -15,6 +16,13 @@ class LoraServingEvalModeTests(unittest.TestCase):
             ("/inputs/index18.txt",
              "/checkpoints/index18__three_pass.json.threepass_checkpoint.json"),
             get_book_paths("index18", "/inputs", "/checkpoints"),
+        )
+
+    def test_distill_eval_uses_the_same_corrected_layout(self):
+        self.assertEqual(
+            ("/inputs/index18.txt",
+             "/checkpoints/index18__three_pass.json.threepass_checkpoint.json"),
+            get_distill_book_paths("index18", "/inputs", "/checkpoints"),
         )
 
 

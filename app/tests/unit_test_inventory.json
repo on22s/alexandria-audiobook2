@@ -1520,6 +1520,7 @@
   "test_lora_serving_eval_modes": [
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_base_only_mode_never_requests_adapter_state",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_corrected_data_directories_override_legacy_layout",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_distill_eval_uses_the_same_corrected_layout",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales"
   ],
   "test_lora_training_benchmark": [
