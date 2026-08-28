@@ -1519,9 +1519,13 @@
   ],
   "test_lora_serving_eval_modes": [
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_base_only_mode_never_requests_adapter_state",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_clean_adapter_load_is_returned",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_corrected_data_directories_override_legacy_layout",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_distill_eval_uses_the_same_corrected_layout",
-    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales"
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_missing_adapter_keys_fail_instead_of_running_inert",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_nf4_loader_policy_preserves_bf16_compute",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_qwen35_moe_uses_training_compatible_wrapper"
   ],
   "test_lora_training_benchmark": [
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",

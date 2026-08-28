@@ -35,7 +35,7 @@ The comparison that matters is not base vs tuned alone. A tuned 14B is only
 interesting if it approaches what the 70B cascade buys, so the cascade's
 measured gains on these same books are the standard to read it against.
 """
-import argparse, collections, contextlib, json, os, re, sys, time
+import argparse, collections, contextlib, json, os, re, sys, time, warnings
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -137,6 +137,38 @@ def get_book_paths(book, input_dir=None, checkpoint_dir=None):
     return source_path, checkpoint_path
 
 
+def get_model_load_kwargs(torch, quantization_config=None):
+    """Return one explicit loader policy for BF16 or NF4 evaluation."""
+    kwargs = {"torch_dtype": torch.bfloat16, "device_map": "auto",
+              "trust_remote_code": True}
+    if quantization_config is not None:
+        kwargs["quantization_config"] = quantization_config
+    return kwargs
+
+
+def get_model_loader_name(architectures):
+    """Match the model wrapper used to create Qwen3.5 adapter keys."""
+    conditional = {"Qwen3_5ForConditionalGeneration",
+                   "Qwen3_5MoeForConditionalGeneration"}
+    if conditional.intersection(architectures or []):
+        return "AutoModelForImageTextToText"
+    return "AutoModelForCausalLM"
+
+
+def load_peft_adapter_or_raise(peft_model, base, adapter):
+    """Load an adapter and reject PEFT's plausible-looking inert fallback."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model = peft_model.from_pretrained(base, adapter)
+    missing = [str(item.message) for item in caught
+               if "missing adapter keys" in str(item.message).lower()]
+    if missing:
+        raise RuntimeError(
+            "PEFT did not activate the adapter; model wrapper and adapter "
+            f"keys are incompatible: {missing[0]}")
+    return model
+
+
 def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
     source_path, checkpoint_path = get_book_paths(
@@ -171,6 +203,9 @@ def main():
     ap.add_argument("--max_tokens", type=int, default=2000)
     ap.add_argument("--input-dir")
     ap.add_argument("--checkpoint-dir")
+    ap.add_argument("--load-in-4bit", action="store_true",
+                    help="load the base with bitsandbytes NF4 when BF16 "
+                         "weights exceed available VRAM")
     args = ap.parse_args()
 
     import torch
@@ -183,11 +218,18 @@ def main():
         tok.pad_token = tok.eos_token
     config = AutoConfig.from_pretrained(args.model, trust_remote_code=True)
     loader = (AutoModelForImageTextToText
-              if config.model_type == "qwen3_5" else AutoModelForCausalLM)
+              if get_model_loader_name(config.architectures)
+              == "AutoModelForImageTextToText" else AutoModelForCausalLM)
+    quantization_config = None
+    if args.load_in_4bit:
+        from transformers import BitsAndBytesConfig
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True)
     base = loader.from_pretrained(
-        args.model, torch_dtype=torch.bfloat16, device_map="auto",
-        trust_remote_code=True)
-    model = PeftModel.from_pretrained(base, args.adapter)
+        args.model, **get_model_load_kwargs(torch, quantization_config))
+    model = load_peft_adapter_or_raise(PeftModel, base, args.adapter)
     model.eval()
     client = LocalClient(model, tok)
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
@@ -202,7 +244,8 @@ def main():
     environment = {"loaded": True, "context_length": 32768, "parallel": 1,
                    "optimized": None, "runtime": "transformers+peft",
                    "gpu": gpu, "torch": torch.__version__,
-                   "dtype": "bfloat16"}
+                   "dtype": "bfloat16",
+                   "quantization": "nf4" if args.load_in_4bit else "none"}
     # The constructor hashes ONE fixture; this run spans four. Record the first
     # for the schema and every book's hash alongside it, so the artifact cannot
     # imply it was scored against a single gold file.
