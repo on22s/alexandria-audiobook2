@@ -206,6 +206,7 @@
     "tests.test_attribution_adapter.ServingTest.test_the_configured_adapter_serving_is_ok",
     "tests.test_attribution_adapter.WiringTest.test_generate_script_performs_the_check"
   ],
+  "test_attribution_hybrid": [],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",
@@ -992,6 +993,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
+  "test_full_sequence_scoring": [],
   "test_gate_provenance": [
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_a_provenance_failure_is_recorded_rather_than_swallowed",
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_provenance_is_attached_before_the_document_is_written",
@@ -1539,6 +1541,7 @@
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
   ],
+  "test_modernbooknlp_adapter": [],
   "test_multi_process_state": [
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
@@ -1697,6 +1700,7 @@
     "tests.test_pause_scoring.PauseScoringTest.test_the_old_rule_fails_that_case",
     "tests.test_pause_scoring.PauseScoringTest.test_two_internal_gaps_are_both_counted"
   ],
+  "test_pdnc_balanced_trainset": [],
   "test_pdnc_context_evidence": [
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_confirmatory_requires_explicit_passing_pilot",
