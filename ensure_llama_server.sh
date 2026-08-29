@@ -54,7 +54,6 @@ URL="http://127.0.0.1:${PORT}/v1/models"
 # A default that does not exist is worse than no default: it would start a
 # server against a missing file and fail later, somewhere less obvious.
 [ -f "$MODEL" ] || { echo "ensure_llama_server: no model file at $MODEL" >&2; exit 2; }
-[ -f "$MODEL" ] || { echo "ensure_llama_server: no model at $MODEL" >&2; exit 2; }
 [ -n "$ADAPTER" ] && [ ! -f "$ADAPTER" ] && {
     echo "ensure_llama_server: no adapter at $ADAPTER" >&2; exit 2; }
 
@@ -64,7 +63,17 @@ URL="http://127.0.0.1:${PORT}/v1/models"
 # readiness check is decorative.
 ready() { curl -sf --max-time 5 "$URL" >/dev/null 2>&1; }
 
-if ready && [ "$(cat "$STAMP" 2>/dev/null)" = "$ADAPTER" ]; then
+file_identity() {
+    [ -n "$1" ] && stat -Lc '%d:%i:%s:%y' "$1" 2>/dev/null || printf '%s' none
+}
+
+SERVER_IDENTITY=$(printf '%s\n' \
+    "bin=$BIN" "model=$MODEL" "adapter=$ADAPTER" "port=$PORT" "ctx=$CTX" \
+    "thinking=${LLAMA_THINKING:-0}" "alias=${LLAMA_ALIAS:-qwen3-14b}" \
+    "bin_file=$(file_identity "$BIN")" "model_file=$(file_identity "$MODEL")" \
+    "adapter_file=$(file_identity "$ADAPTER")")
+
+if ready && [ "$(cat "$STAMP" 2>/dev/null)" = "$SERVER_IDENTITY" ]; then
     echo "ensure_llama_server: reusing server already serving ${ADAPTER:-base}"
     exit 0
 fi
@@ -116,7 +125,7 @@ fi
 
 for _ in $(seq 1 120); do
     if ready; then
-        printf '%s' "$ADAPTER" > "$STAMP"
+        printf '%s' "$SERVER_IDENTITY" > "$STAMP"
         echo "ensure_llama_server: ready for ${ADAPTER:-base}"
         exit 0
     fi

@@ -153,6 +153,10 @@ def run_measure(args):
     return 0
 
 
+def mean_chance(groups):
+    return statistics.mean(1 / len(members) for members in groups)
+
+
 def run_score(args):
     with open(args.sheet, encoding="utf-8") as handle:
         ratings = {k: v.strip().upper()
@@ -164,22 +168,31 @@ def run_score(args):
     with open(KEY, encoding="utf-8") as handle:
         key = {s["id"]: s["mapping"] for s in json.load(handle)["sets"]}
 
+    groups = {}
+    for clip_name in clips:
+        groups.setdefault(clip_name.rsplit("_", 1)[0], []).append(clip_name)
     metrics = [m for m in LOWER_IS_MORE_ROBOTIC + HIGHER_IS_MORE_ROBOTIC]
     hits = {m: 0 for m in metrics}
+    metric_scored = {m: 0 for m in metrics}
+    metric_groups = {m: [] for m in metrics}
     scored = 0
     arm_calls = {}
+    scored_groups = []
     for set_id, letter in ratings.items():
         chosen = f"{set_id}_{letter}.wav"
-        members = [c for c in clips if c.startswith(set_id + "_")]
+        members = groups.get(set_id, [])
         if chosen not in clips or len(members) < 2:
             continue
         scored += 1
+        scored_groups.append(members)
         arm = key.get(set_id, {}).get(chosen, {}).get("arm", "?")
         arm_calls[arm] = arm_calls.get(arm, 0) + 1
         for metric in metrics:
             values = {c: clips[c].get(metric) for c in members}
             if any(v is None for v in values.values()):
                 continue
+            metric_scored[metric] += 1
+            metric_groups[metric].append(members)
             # Does the metric point at the same clip the listener did?
             pick = (min if metric in LOWER_IS_MORE_ROBOTIC else max)(
                 values, key=values.get)
@@ -187,27 +200,38 @@ def run_score(args):
     if not scored:
         sys.exit("no rated set could be matched to measured clips")
 
-    chance = statistics.mean(
-        1 / len([c for c in clips if c.startswith(s + "_")])
-        for s in ratings if [c for c in clips if c.startswith(s + "_")])
+    chance = mean_chance(scored_groups)
     print(f"{scored} rated sets, chance = {chance*100:.0f}%\n")
     print(f"{'measure':16}{'agrees':>8}{'of':>4}{'':3}{'rate':>7}")
     results = {}
     for metric in metrics:
-        rate = hits[metric] / scored
-        results[metric] = {"agreed": hits[metric], "of": scored,
-                           "rate": round(rate, 3)}
-        print(f"{metric:16}{hits[metric]:>8}{scored:>4}{'':3}{rate*100:>6.0f}%")
-    best = max(results, key=lambda m: results[m]["rate"])
+        denominator = metric_scored[metric]
+        rate = hits[metric] / denominator if denominator else None
+        metric_chance = (mean_chance(metric_groups[metric])
+                         if denominator else None)
+        results[metric] = {"agreed": hits[metric], "of": denominator,
+                           "coverage": round(denominator / scored, 3),
+                           "rate": round(rate, 3) if rate is not None else None,
+                           "chance": (round(metric_chance, 3)
+                                      if metric_chance is not None else None)}
+        display = f"{rate*100:>6.0f}%" if rate is not None else "   N/A"
+        print(f"{metric:16}{hits[metric]:>8}{denominator:>4}{'':3}{display}")
+    available = [metric for metric in metrics
+                 if results[metric]["rate"] is not None]
+    if not available:
+        sys.exit("no metric is available across any rated set")
+    best = max(available, key=lambda metric: results[metric]["rate"])
     print(f"\nwhich arm the listener called robotic: {arm_calls}")
-    if results[best]["rate"] <= chance:
+    best_chance = results[best]["chance"]
+    if results[best]["rate"] <= best_chance:
         print("\nNO MEASURE BEATS CHANCE. These numbers do not capture what "
               "the ear heard, and must not be reported for Japanese or "
               "Chinese as if they did. That is a real answer, not a failed "
               "run.")
     else:
         print(f"\nbest: {best} at {results[best]['rate']*100:.0f}% against "
-              f"{chance*100:.0f}% chance, on {scored} sets - a direction, not "
+              f"{best_chance*100:.0f}% chance, on {results[best]['of']} sets - "
+              "a direction, not "
               f"yet a validated instrument. Say n every time it is quoted.")
     document = {"scored_sets": scored, "chance": round(chance, 3),
                 "agreement": results, "arms_called_robotic": arm_calls}

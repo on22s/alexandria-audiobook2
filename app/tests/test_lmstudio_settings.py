@@ -44,14 +44,39 @@ class DynamicLmStudioSettingsTests(unittest.TestCase):
                          (planned["context_length"], planned["parallel"]))
         current.assert_called_once()
 
-    def test_planned_remote_settings_use_remote_target_without_status_call(self):
-        with patch.object(lmstudio_settings, "get_current_status") as current:
+    def test_planned_remote_lmstudio_settings_use_remote_target(self):
+        status = {"runtime": "lmstudio"}
+        with patch.object(lmstudio_settings, "get_current_status",
+                          return_value=status) as current:
             planned = lmstudio_settings.get_planned_ideal_settings(
                 "remote", "http://remote:1234/v1", self.MODEL, "tnr-0")
 
         self.assertEqual((98304, 2),
                          (planned["context_length"], planned["parallel"]))
-        current.assert_not_called()
+        current.assert_called_once()
+
+    def test_planned_remote_llama_uses_live_server_limits(self):
+        status = {"runtime": "llama.cpp", "ideal_context_length": 32768,
+                  "ideal_parallel": 1, "settings_reason": "launch settings"}
+        with patch.object(lmstudio_settings, "get_current_status",
+                          return_value=status):
+            planned = lmstudio_settings.get_planned_ideal_settings(
+                "remote", "http://remote:8090/v1", self.MODEL, "tnr-0")
+        self.assertEqual((32768, 1),
+                         (planned["context_length"], planned["parallel"]))
+
+    def test_cached_remote_runtime_decision_skips_live_probe(self):
+        key = ("tnr-0", self.MODEL, "http://remote:8090/v1")
+        cached = {"runtime": "llama.cpp", "context_length": 32768}
+        with lmstudio_settings._remote_status_cache_lock:
+            lmstudio_settings._remote_status_cache[key] = (
+                __import__("time").time(), cached)
+        with patch.object(lmstudio_settings, "get_llama_cpp_status") as probe:
+            got = lmstudio_settings.get_current_status(
+                "remote", key[2], self.MODEL, key[0], use_cache=True)
+        self.assertEqual(cached, got)
+        probe.assert_not_called()
+        lmstudio_settings.invalidate_remote_status_cache()
 
 
 class RemoteServerReachabilityTests(unittest.TestCase):

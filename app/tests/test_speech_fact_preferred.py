@@ -222,6 +222,9 @@ class InventoryTest(unittest.TestCase):
         # The quote-region gate reads the SOURCE, not model output, and now
         # reports when it declines. Pinned in test_quote_gate_telemetry.py.
         "pass_quality.py",
+        # Pre-segments raw SOURCE quote regions before entries (and therefore
+        # before a dialogue-map `spoken` fact) exist.
+        "three_pass_generate.py",
     }
 
     def test_every_speech_decider_consults_the_fact_or_is_listed(self):

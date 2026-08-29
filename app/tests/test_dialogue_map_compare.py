@@ -179,7 +179,7 @@ class WiringTest(unittest.TestCase):
             with self.subTest(generator=name):
                 src = (REPO / "app" / name).read_text(encoding="utf-8")
                 self.assertIn("from dialogue_spans import", src)
-                self.assertIn("mark_entries", src)
+                self.assertIn("apply_dialogue_map", src)
 
     def test_three_pass_records_a_mapping_failure_instead_of_hiding_it(self):
         """A script silently missing `spoken` reads downstream as a book with

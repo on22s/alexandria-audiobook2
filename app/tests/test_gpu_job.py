@@ -463,6 +463,19 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._add_untracked("brand_new_probe.py")
         self.assertEqual(5, self._run().returncode)
 
+    def test_untracked_javascript_anywhere_in_repo_is_dirt_and_saved(self):
+        self._make_repo(dirty=False)
+        path = os.path.join(self.root, "tools", "new helper.js")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("console.log('new');\n")
+        self.assertEqual(5, self._run().returncode)
+        self._run(allow_dirty="1")
+        patch_dir = os.path.join(self.tmp.name, "dirty_patches")
+        patch = os.path.join(patch_dir, os.listdir(patch_dir)[0])
+        with open(patch, encoding="utf-8") as handle:
+            self.assertIn("new helper.js", handle.read())
+
     def _add_untracked(self, name):
         path = os.path.join(self.root, "app", "experiments", name)
         with open(path, "w") as handle:
@@ -813,6 +826,19 @@ class VramGateTest(unittest.TestCase):
         os.chmod(path, 0o755)
         return shadow + os.pathsep + os.environ["PATH"]
 
+    def _fake_nvidia(self):
+        shadow = os.path.join(self.tmp.name, "fakenv")
+        os.makedirs(shadow, exist_ok=True)
+        with open(os.path.join(shadow, "rocm-smi"), "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\nexit 1\n")
+        record = os.path.join(self.tmp.name, "nvidia.args")
+        with open(os.path.join(shadow, "nvidia-smi"), "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\nprintf '%s' \"$*\" > %s\necho 8192\n" %
+                         ("%s", repr(record)))
+        for name in ("rocm-smi", "nvidia-smi"):
+            os.chmod(os.path.join(shadow, name), 0o755)
+        return shadow + os.pathsep + os.environ["PATH"], record
+
     def test_a_job_is_refused_when_the_card_is_nearly_full(self):
         # 16 GiB card with 15 GiB gone: 1 GiB free against a 4 GiB need.
         gib = 1024 ** 3
@@ -831,6 +857,14 @@ class VramGateTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertIn("START", self._log())
         self.assertNotIn("NO_VRAM", self._log())
+
+    def test_nvidia_probe_targets_only_the_assigned_gpu(self):
+        path, record = self._fake_nvidia()
+        result = self._run(REQUIRE_VRAM_GB="4", PATH=path,
+                           CUDA_VISIBLE_DEVICES="1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        with open(record, encoding="utf-8") as handle:
+            self.assertIn("-i 1", handle.read())
 
     def test_the_refusal_names_what_to_do_about_it(self):
         """A gate that only says no gets overridden reflexively."""

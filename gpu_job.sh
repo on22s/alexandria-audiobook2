@@ -285,9 +285,8 @@ tree_state() {
     # run, and the gate could not see them because it only watched
     # app/experiments for .py. A chain is as much "the code that produced this
     # artifact" as the script it calls.
-    untracked=$(git -C "$root" ls-files --others --exclude-standard \
-                    -- "$root/app/experiments" "$root/run_chains" 2>/dev/null \
-                | grep -cE '\.(py|sh)$')
+    untracked=$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null \
+                | grep -cE '\.(py|sh|js|html)$')
     if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
         echo clean
         return
@@ -363,11 +362,10 @@ case "$dirty_state" in
         if mkdir -p "$patch_dir" 2>/dev/null; then
             {
                 git -C "$(dirname "$0")" diff HEAD 2>/dev/null
-                for f in $(git -C "$(dirname "$0")" ls-files --others \
-                               --exclude-standard -- \
-                               "$(dirname "$0")/app/experiments" \
-                               "$(dirname "$0")/run_chains" 2>/dev/null \
-                           | grep -E '\.(py|sh)$'); do
+                git -C "$(dirname "$0")" ls-files --others \
+                    --exclude-standard 2>/dev/null \
+                    | grep -E '\.(py|sh|js|html)$' \
+                    | while IFS= read -r f; do
                     git -C "$(dirname "$0")" diff --no-index -- /dev/null "$f" 2>/dev/null
                 done
             } > "$patch_file"
@@ -455,8 +453,24 @@ vram_free_mib() {
             | grep -im1 'total memory' | grep -oE '[0-9]+' | tail -1)
     used=$(rocm-smi --showmeminfo vram 2>/dev/null \
            | grep -im1 'total used memory' | grep -oE '[0-9]+' | tail -1)
-    [ -z "$total" ] || [ -z "$used" ] && return 1
-    echo $(( (total - used) / 1048576 ))
+    if [ -n "$total" ] && [ -n "$used" ]; then
+        echo $(( (total - used) / 1048576 ))
+        return 0
+    fi
+    # Thunder cards are NVIDIA-only. Use the least-free visible card so a
+    # multi-GPU host cannot pass because an unrelated card is empty.
+    local selector="${CUDA_VISIBLE_DEVICES:-${NVIDIA_VISIBLE_DEVICES:-}}"
+    local -a nvidia_args
+    nvidia_args=(--query-gpu=memory.free --format=csv,noheader,nounits)
+    if [ -n "$selector" ] && [ "$selector" != "all" ]; then
+        nvidia_args=(-i "$selector" "${nvidia_args[@]}")
+    fi
+    nvidia-smi "${nvidia_args[@]}" \
+        2>/dev/null | awk '
+            /^[[:space:]]*[0-9]+/ {
+                value=$1+0; if (!seen || value < minimum) minimum=value; seen=1
+            }
+            END {if (seen) print minimum; else exit 1}'
 }
 
 REQUIRE_VRAM_MIB=$(( ${REQUIRE_VRAM_GB:-4} * 1024 ))
@@ -465,7 +479,9 @@ if free_mib=$(vram_free_mib); then
         echo "$(stamp) NO_VRAM  $NAME (${free_mib}MiB free, needs ${REQUIRE_VRAM_MIB}MiB)" >> "$QLOG"
         echo "gpu_job: refusing to run $NAME - only ${free_mib} MiB of VRAM free," >&2
         echo "gpu_job: and it needs ${REQUIRE_VRAM_MIB} MiB. Holding the card:" >&2
-        rocm-smi --showpids 2>/dev/null | grep -E '^[0-9]+' | head -4 >&2
+        { rocm-smi --showpids 2>/dev/null \
+          || nvidia-smi --query-compute-apps=pid,used_memory \
+               --format=csv,noheader 2>/dev/null; } | head -4 >&2
         echo "gpu_job: a persistent llama-server is the usual cause; it is" >&2
         echo "gpu_job: started outside the lock and never stops on its own." >&2
         echo "gpu_job: stop it with: pkill -x llama-server" >&2

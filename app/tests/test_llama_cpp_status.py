@@ -114,10 +114,10 @@ class DispatchTests(unittest.TestCase):
         sentinel = {"remote": True}
         with patch.object(ls, "is_remote_llm", return_value=True), \
              patch.object(ls, "get_remote_lmstudio_status", return_value=sentinel), \
-             patch.object(ls, "get_llama_cpp_status") as native:
+             patch.object(ls, "get_llama_cpp_status", return_value=None) as native:
             out = ls.get_current_status("remote", "https://x/v1", "m", "alias")
         self.assertEqual(sentinel, out)
-        native.assert_not_called()
+        native.assert_called_once()
 
 
 class SingleReaderTests(unittest.TestCase):

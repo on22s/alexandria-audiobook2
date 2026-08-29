@@ -35,6 +35,7 @@ CHECKPOINTED, because this runs for hours over thousands of terms and will be
 interrupted. Every term's result is written as it completes.
 """
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -47,6 +48,7 @@ sys.path.insert(0, APP)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils import atomic_json_write  # noqa: E402
+from experiments.provenance import file_sha256  # noqa: E402
 
 # Kana -> an English reader's spelling. Deliberately blunt: the aim is to stop
 # an English-trained model applying English orthography to a Japanese word,
@@ -138,7 +140,7 @@ CARRIER = "She paused and said {word} before going on."
 _ARGS = None
 
 
-def respell(kana, table=None):
+def respell(kana, table=None, separator=None):
     """-> a hyphenated English-looking spelling, or None if unmappable.
 
     `table` defaults to the CURRENT row choice (DEFAULT_E_SPELLING), not to
@@ -189,7 +191,8 @@ def respell(kana, table=None):
     #
     # Kept as the default so every stored measurement stays comparable; the
     # alternatives exist to be measured against it, not to replace it quietly.
-    return SEPARATOR.join(parts) if len(parts) >= 2 else None
+    return (SEPARATOR if separator is None else separator).join(parts) \
+        if len(parts) >= 2 else None
 
 
 
@@ -216,7 +219,7 @@ VOWEL_ABSORB = {("eh", "ee"): "ay", ("ah", "ee"): "ie", ("oh", "oo"): "oh",
                 ("oo", "oo"): "oo", ("ee", "ee"): "ee", ("ah", "oo"): "ow"}
 
 
-def respell_b(kana):
+def respell_b(kana, table=None):
     """-> rule A with vowel sequences absorbed into English syllables.
 
     `seh-n-seh-ee` becomes `seh-n-say`, which is what a person writing a
@@ -224,7 +227,10 @@ def respell_b(kana):
     this rule exists to answer - rule A already showed that respelling helps
     only where the plain spelling is wrong, so this is tested only there.
     """
-    base = respell(kana)
+    # Merge mora spellings independently of their eventual separator. Splitting
+    # the rendered string made every non-hyphen arm either wrong or unmappable.
+    selected_separator = SEPARATOR
+    base = respell(kana, table, separator="-")
     if not base:
         return None
     parts, out, index = base.split("-"), [], 0
@@ -238,8 +244,28 @@ def respell_b(kana):
             continue
         out.append(current)
         index += 1
-    merged = "-".join(out)
-    return merged if merged != base else None
+    merged = selected_separator.join(out)
+    unmerged = selected_separator.join(parts)
+    return merged if merged != unmerged else None
+
+
+def build_run_identity(args):
+    """Return every input that changes cached rows or rendered audio."""
+    paths = [args.candidates, args.whisper_cpp_bin, args.whisper_cpp_model,
+             os.path.join(APP, "config.json"), __file__,
+             os.path.join(APP, "tts.py"),
+             os.path.join(APP, "experiments", "generation.py")]
+    if args.only_failed:
+        paths.append(args.only_failed)
+    return {
+        "rule": args.rule, "separator": args.separator,
+        "e_spelling": args.e_spelling, "verdict": args.verdict,
+        "min_books": args.min_books, "only_e_row": args.only_e_row,
+        "limit": args.limit,
+        "inputs": {os.path.abspath(path): file_sha256(path)
+                   for path in paths if os.path.isfile(path)},
+        "voice": "serena",
+    }
 
 
 def transcribe(wav, binary, model, language="ja"):
@@ -409,6 +435,9 @@ def main():
 
     global _ARGS
     _ARGS = args
+    run_identity = build_run_identity(args)
+    cache_key = hashlib.sha256(json.dumps(
+        run_identity, sort_keys=True).encode()).hexdigest()[:12]
     try:
         from experiments.provenance import provenance
         prov = provenance(__file__, args)
@@ -420,7 +449,12 @@ def main():
     if os.path.exists(args.out):
         try:
             with open(args.out, encoding="utf-8") as handle:
-                results = {r["term"]: r for r in json.load(handle)["results"]}
+                existing = json.load(handle)
+            if existing.get("run_identity") != run_identity:
+                raise SystemExit(
+                    "existing output belongs to a different respelling arm; "
+                    "choose a new --out or remove the stale checkpoint")
+            results = {r["term"]: r for r in existing["results"]}
         except (ValueError, KeyError):
             results = {}
 
@@ -435,14 +469,14 @@ def main():
         term, kana = candidate["term"], candidate["kana"]
         if term in results:
             continue
-        spelled = respell_b(kana) if args.rule == 'b' else respell(kana, table)
+        spelled = respell_b(kana, table) if args.rule == 'b' else respell(kana, table)
         if not spelled:
             results[term] = {"term": term, "kana": kana, "skipped": "unmappable kana"}
             continue
         row = {"term": term, "kana": kana, "respelling": spelled,
                "books": candidate["books"], "series": candidate["series"]}
         for label, word in (("plain", term), ("respelled", spelled)):
-            path = os.path.join(args.work, f"{term}_{label}.wav")
+            path = os.path.join(args.work, f"{cache_key}_{term}_{label}.wav")
             try:
                 if not os.path.exists(path):
                     render(engine, CARRIER.format(word=word), "", "serena",
@@ -469,8 +503,8 @@ def main():
             left = (len(terms) - index) * rate
             print(f"  {index}/{len(terms)}  {rate:.1f}s/term  ~{left/60:.0f} min left",
                   flush=True)
-            _write(args.out, results, terms, prov)
-    _write(args.out, results, terms, prov)
+            _write(args.out, results, terms, prov, run_identity)
+    _write(args.out, results, terms, prov, run_identity)
     scored = [r for r in results.values() if "helps" in r]
     helped = [r for r in scored if r["helps"]]
     hurt = [r for r in scored if r.get("hurts")]
@@ -481,7 +515,7 @@ def main():
     return 0
 
 
-def _write(path, results, terms, prov=None):
+def _write(path, results, terms, prov=None, run_identity=None):
     document = {"carrier": CARRIER,
                 "e_spelling": getattr(_ARGS, "e_spelling", "eh"),
                 "separator": getattr(_ARGS, "separator", "hyphen"),
@@ -534,6 +568,9 @@ def _write(path, results, terms, prov=None):
                 # state would cost a subprocess per checkpoint across a
                 # seventeen-hour run.
                 "provenance": prov,
+                "run_identity": (run_identity if run_identity is not None else
+                                 (build_run_identity(_ARGS)
+                                  if _ARGS is not None else None)),
                 "results": list(results.values())}
     # Atomic: this file is read by other sessions while a multi-hour run is
     # still appending to it, and a plain open() truncates it for the duration

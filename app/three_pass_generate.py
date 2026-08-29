@@ -13,13 +13,13 @@ from collections import Counter
 from dataclasses import replace
 
 from openai import OpenAI
+from core import llm_timeout_seconds
 
 from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
                              fix_mojibake, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss)
-from dialogue_spans import (apply_source_speakers, detect_convention,
-                            mark_entries)
+from dialogue_spans import apply_dialogue_map
 from source_normalization import (neutralize_lossy_residue,
                                   normalize_extreme_phrase_repetitions,
                                   normalize_known_source_corruptions,
@@ -42,8 +42,8 @@ from pass_quality import (is_attested_name,
                           analyze_outer_quote_regions, split_outer_quote_regions)
 from review_script import normalize_text
 from config_settings import load_app_config
-from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
-                               TokenBudgetError)
+from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
+                               get_effective_max_tokens, TokenBudgetError)
 from utils import (get_runtime_data_dir, get_app_config_path,
                    atomic_json_write, safe_load_json, is_nonverbal_text)
 
@@ -115,7 +115,7 @@ def resolve_chunk_size(cli_value, config_value, model_value=None):
 
 def resolve_three_pass_generation_settings(config, chunk_size_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
-    llm = config.get("llm") or {}
+    llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
     model_profile = resolve_model_profile(
@@ -251,7 +251,8 @@ def build_attribute_request(frozen_batch, params, roster,
 
 def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
-                    attempt_observer=None, source_text=None):
+                    attempt_observer=None, source_text=None,
+                    exhaustion_sink=None):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -283,6 +284,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         return [{**{k: v for k, v in f.items() if k != "type"},
                  "speaker": item.get("speaker")}
                 for f, item in zip(frozen_batch, ordered)]
+    if exhaustion_sink is not None:
+        exhaustion_sink.append(True)
     if on_exhaustion == "fail":
         raise PassExhausted(f"attribution failed for a {len(frozen_batch)}-entry batch")
     seeded = [{**{k: v for k, v in e.items() if k != "type"},
@@ -975,6 +978,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     checkpoint after each pass-1 chunk and each pass-2/3 batch and resumes from
     it; when None, runs purely in memory. context_windows / context_rescue_retries
     override the context-rescue defaults (finding #12)."""
+    unavailable_passes = set()
     narrator = normalize_narrator_name(first_person_narrator)
     chunk_records = split_into_chunk_records(source_text, max_size=chunk_size)
     chunks = [record["text"] for record in chunk_records]
@@ -1185,6 +1189,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # next_context would restate lines already present. Left in, they
                 # took the prompt from ~1.5k to ~8.4k tokens for the same content.
                 try:
+                    attempt_start = len(attempts)
+                    exhausted = []
                     new_named, vote_confidences = attribute_batch_voted(
                         client, model_name, batch, params, roster=roster,
                         votes=attribution_votes,
@@ -1192,6 +1198,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         on_exhaustion=on_exhaustion,
                         attempt_observer=lambda attempt: record_attempt(
                             "attribute", attempt),
+                        exhaustion_sink=exhausted,
                         source_text=source_text)
                 except PassExhausted:
                     if len(current) == 1:
@@ -1208,6 +1215,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                           f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
                     work[0:0] = [current[:midpoint], current[midpoint:]]
                     continue
+                batch_attempts = attempts[attempt_start:]
+                if (exhausted and batch_attempts
+                        and all(attempt.get("outcome") == "api_error"
+                                for attempt in batch_attempts)):
+                    unavailable_passes.add("attribute")
+                    if not collect_all_failures:
+                        raise PassExhausted(
+                            "attribute LLM unavailable; refusing fallback output")
                 for position, ((index, _), entry) in enumerate(
                         zip(current, new_named)):
                     if attribution_votes > 1 and position < len(vote_confidences):
@@ -1233,12 +1248,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # Each accepted subdivision is durable; a later single-entry
                 # failure resumes after this work instead of replaying the batch.
                 save("attribute")
-    except PassExhausted:
+    except PassExhausted as exc:
         elapsed_s["attribute"] = attr_base + time.time() - attr_start
         passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
                                "status": "failed"}
         save("attribute_failed")
         emit_manifest("failed", failed_pass="attribute")
+        if "LLM unavailable" in str(exc):
+            raise RuntimeError(str(exc)) from exc
         raise
     elapsed_s["attribute"] = attr_base + time.time() - attr_start
     passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
@@ -1275,11 +1292,25 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 work[0:0] = [current[:midpoint], current[midpoint:]]
                 continue
             exhausted = []
+            attempt_start = len(attempts)
             new_annotated = instruct_batch(
                 client, model_name, batch, params, neighbor_contexts=contexts,
                 exhaustion_sink=exhausted,
                 attempt_observer=lambda attempt: record_attempt(
                     "instruct", attempt))
+            batch_attempts = attempts[attempt_start:]
+            if (exhausted and batch_attempts
+                    and all(attempt.get("outcome") == "api_error"
+                            for attempt in batch_attempts)):
+                unavailable_passes.add("instruct")
+                if not collect_all_failures:
+                    elapsed_s["instruct"] = inst_base + time.time() - inst_start
+                    passes["instruct"] = {
+                        "elapsed_s": round(elapsed_s["instruct"], 3),
+                        "status": "failed"}
+                    emit_manifest("failed", failed_pass="instruct")
+                    raise RuntimeError(
+                        "instruct LLM unavailable; refusing fallback output")
             if exhausted and collect_all_failures and len(current) > 1:
                 midpoint = len(current) // 2
                 print(f"  Instruction batch exhausted; subdividing "
@@ -1299,14 +1330,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                           "status": ("incomplete" if any(
                               f["pass"] == "instruct" for f in diagnostic_failures)
                               else "complete")}
-    unavailable_passes = [
-        pass_name for pass_name in ("attribute", "instruct")
-        if any(attempt.get("pass") == pass_name for attempt in attempts)
-        and all(attempt.get("outcome") == "api_error"
-                for attempt in attempts if attempt.get("pass") == pass_name)
-    ]
     if unavailable_passes:
-        failed_pass = unavailable_passes[0]
+        failed_pass = next(pass_name for pass_name in ("attribute", "instruct")
+                           if pass_name in unavailable_passes)
         if collect_all_failures:
             # Diagnostic mode deliberately returns partial output so callers
             # can inspect every recorded failure. Keep it visibly incomplete;
@@ -1318,6 +1344,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             emit_manifest("failed", failed_pass=failed_pass)
             raise RuntimeError(
                 f"{failed_pass} LLM unavailable; refusing to publish fallback-only output")
+    try:
+        dialogue = apply_dialogue_map(annotated, source_text)
+        annotated = dialogue["entries"]
+        if dialogue["convention"]:
+            print(f"Dialogue map: {dialogue['convention']}, "
+                  f"{dialogue['spoken']} spoken lines, "
+                  f"{dialogue['located']}/{len(annotated)} entries located in the source")
+            if dialogue["speaker_changes"]:
+                print(f"Source speaker labels applied to "
+                      f"{len(dialogue['speaker_changes'])} entries")
+        else:
+            print("Dialogue map: convention could not be determined; entries "
+                  "carry no `spoken` key rather than a guessed one")
+    except Exception as exc:                                   # noqa: BLE001
+        print(f"Dialogue map FAILED ({exc}); entries carry no `spoken` key")
+        diagnostic_failures.append({
+            "pass": "dialogue_map", "reason": type(exc).__name__,
+            "error": str(exc)[:500]})
     save("done")
     emit_manifest("incomplete" if diagnostic_failures or unavailable_passes
                   else "complete")
@@ -1640,7 +1684,7 @@ def main():
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
     config = load_app_config(get_app_config_path(data_dir, root, app_dir))
-    llm = config.get("llm", {})
+    llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
     model_name = llm.get("model_name")
     try:
@@ -1687,7 +1731,8 @@ def main():
         attribute_system_prompt, _ = load_attribute_prompts()
         params.attribute_system_prompt = add_narrator_prior(
             attribute_system_prompt, narrator)
-    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"))
+    client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
+                    timeout=llm_timeout_seconds())
 
     # Context-rescue tuning (finding #12): config-overridable, else defaults.
     cfg_windows = gen.get("context_rescue_windows")
@@ -1744,41 +1789,8 @@ def main():
         print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
               f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
         sys.exit(1)
-    # THE DIALOGUE MAP TRAVELS WITH THIS SCRIPT TOO. Single-pass has carried it
-    # since 1f6be7a; three-pass did not, and that asymmetry made the arms
-    # incomparable on anything except attribution accuracy - a comparison of
-    # which arm received a patch rather than of which design is better.
-    #
-    # It matters MORE here, not less. Three-pass deliberately removes the
-    # outermost quotes from every fully-quoted line
-    # (`stripped_dialogue_delimiters`), so on its output punctuation carries no
-    # information about speech at all: over the 5.3 artifacts, 0 of 2056, 0 of
-    # 2479 and 0 of 3929 entries retain a quote. Marking from the SOURCE is the
-    # only way its lines can be asked "who said this" rather than "was this
-    # even speech".
-    #
-    # Failure is recorded, never swallowed: an unlocatable line simply has no
-    # `spoken` key, which is a different claim from `spoken: false`.
-    try:
-        convention = detect_convention(book)
-        if convention:
-            entries = mark_entries(entries, book, convention)
-            located = sum(1 for e in entries if "spoken" in e)
-            spoken = sum(1 for e in entries if e.get("spoken"))
-            print(f"Dialogue map: {convention}, {spoken} spoken lines, "
-                  f"{located}/{len(entries)} entries located in the source")
-            entries, label_changes = apply_source_speakers(entries)
-            if label_changes:
-                print(f"Source speaker labels applied to {label_changes} entries")
-        else:
-            print("Dialogue map: convention could not be determined; entries "
-                  "carry no `spoken` key rather than a guessed one")
-    except Exception as exc:                                   # noqa: BLE001
-        # A mapping failure must not destroy a finished generation, and must
-        # not be invisible either: a script silently missing `spoken` reads
-        # downstream as a book with no dialogue at all.
-        print(f"Dialogue map FAILED ({exc}); entries carry no `spoken` key")
-
+    # Dialogue mapping already ran inside run_three_pass before the final
+    # checkpoint and manifest were written.
     atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if chunks_path is not None and os.path.exists(chunks_path):

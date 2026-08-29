@@ -5,6 +5,7 @@ short-line renders separately versus one newline-joined render. Human duration
 is the sum of the same two source clips. This changes prompt grouping only.
 """
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -48,6 +49,20 @@ def summarize(rows):
     }
 
 
+def build_cache_identity(args, build):
+    config_path = os.path.join(APP, "config.json")
+    ref = {"type": "clone", "ref_audio": build["ref_sample"],
+           "ref_text": build["ref_text"], "seed": str(args.seed)}
+    return {
+        "seed": args.seed,
+        "inputs": input_sha256([
+            args.input, args.build, config_path, build["ref_sample"],
+            __file__, os.path.join(APP, "tts.py"),
+            os.path.join(APP, "experiments", "generation.py")]),
+        "reference": ref,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--input", default=os.path.join(
@@ -67,16 +82,19 @@ def main():
     source = json.load(open(args.input, encoding="utf-8"))
     build = json.load(open(args.build, encoding="utf-8"))
     pairs = build_short_pairs(source["rows"], args.pairs)
-    ref = {"type": "clone", "ref_audio": build["ref_sample"],
-           "ref_text": build["ref_text"], "seed": str(args.seed)}
+    cache_identity = build_cache_identity(args, build)
+    ref = cache_identity["reference"]
     os.makedirs(args.out_dir, exist_ok=True)
     from tts import TTSEngine
-    engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
+    config_path = os.path.join(APP, "config.json")
+    engine = TTSEngine(json.load(open(config_path,
                                       encoding="utf-8")))
+    cache_key = hashlib.sha256(json.dumps(
+        cache_identity, sort_keys=True).encode()).hexdigest()[:12]
 
     results = []
     for index, (left, right) in enumerate(pairs):
-        wav = os.path.join(args.out_dir, f"pair_{index:02d}.wav")
+        wav = os.path.join(args.out_dir, f"pair_{index:02d}_{cache_key}.wav")
         text = left["text"].rstrip() + "\n" + right["text"].lstrip()
         if not seconds(wav):
             try:
@@ -94,6 +112,7 @@ def main():
 
     document = {"design": "same text/reference/seed; separate vs newline-grouped",
                 "seed": args.seed, "summary": summarize(results), "rows": results,
+                "cache_identity": cache_identity,
                 "provenance": provenance(__file__, args, inputs=input_sha256(
                     [args.input, args.build]))}
     atomic_json_write(document, args.out)
