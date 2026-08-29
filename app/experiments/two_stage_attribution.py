@@ -448,7 +448,8 @@ def main():
                        candidates=roster_names(roster),
                        provenance=f"single|{book}|{entry.get('quote_type')}",
                        raw=(raw if raw is not None else failure),
-                       prompt=(build_prompt(entry, roster, narrator)
+                       prompt=(build_prompt(entry, roster, narrator,
+                                            args.prompt_variant)
                                if args.keep_prompts else None))
             if index % 25 == 0:
                 print(f"  {book}: {index}/{len(entries)}", flush=True)

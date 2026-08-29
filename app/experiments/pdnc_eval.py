@@ -74,6 +74,9 @@ def main():
     ap.add_argument("--limit", type=int, default=300,
                     help="quotations per novel; PDNC is large and this is a "
                          "generalisation probe, not a full scoring run")
+    ap.add_argument("--batch", type=int, default=BATCH,
+                    help="rows per request; use 10 for 3,200-character "
+                         "context fixtures so the prompt fits 32K")
     ap.add_argument("--out", default=REPO + "/ab_test_runtime/experiments/pdnc_eval.json")
     args = ap.parse_args()
 
@@ -94,8 +97,8 @@ def main():
         for arm, scale in (("base", 0.0), ("lora", 1.0)):
             set_scale(args.base_url, scale)
             started, rows = time.time(), []
-            for s in range(0, len(entries), BATCH):
-                block = entries[s:s + BATCH]
+            for s in range(0, len(entries), args.batch):
+                block = entries[s:s + args.batch]
                 frozen = [{"type": "SPOKEN", "text": e["line"]} for e in block]
                 ctx = [{"previous_context": {"type": "NARRATOR",
                                              "text": e["prev_context"]},
@@ -106,7 +109,7 @@ def main():
                     out = attribute_batch(client, args.model, frozen, params,
                                           roster, neighbor_contexts=ctx)
                 except Exception as exc:
-                    print(f"  {arm} block {s//BATCH}: {type(exc).__name__}",
+                    print(f"  {arm} block {s//args.batch}: {type(exc).__name__}",
                           flush=True)
                     rows.extend({"e": e, "ok": False, "pred": None}
                                 for e in block)

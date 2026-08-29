@@ -206,6 +206,16 @@
     "tests.test_attribution_adapter.ServingTest.test_the_configured_adapter_serving_is_ok",
     "tests.test_attribution_adapter.WiringTest.test_generate_script_performs_the_check"
   ],
+  "test_attribution_hybrid": [
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_cli_policy_file_shape_is_json_serializable",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_confidence_policy_falls_back_on_abstention_or_low_confidence",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_evaluate_rejects_duplicate_ids_and_gold_disagreement",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_evaluate_reports_missing_rows_instead_of_dropping_silently",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_load_rows_supports_pdnc_eval_book_mapping",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_narrator_aware_policy_protects_known_first_person_books",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_preserves_source_alias_aware_correctness",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",
@@ -338,6 +348,7 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
+  "test_build_accent_calibration": [],
   "test_build_scoring_sheet": [
     "tests.test_build_scoring_sheet.BuildSheetTest.test_agreement_is_marked",
     "tests.test_build_scoring_sheet.BuildSheetTest.test_correct_speaker_starts_blank",
@@ -437,6 +448,7 @@
     "tests.test_character_evidence.TestNarrationText.test_dialogue_is_excluded",
     "tests.test_character_evidence.TestNarrationText.test_handles_missing_fields"
   ],
+  "test_character_style_selector": [],
   "test_character_traits": [
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_dialogue_alone_yields_unknown",
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_male_speaker_talking_about_women_is_not_classified_female",
@@ -590,6 +602,7 @@
     "tests.test_constraint_refine.ScorerAgreementTest.test_aliases_are_loaded_from_the_fixture_not_the_artifact",
     "tests.test_constraint_refine.ScorerAgreementTest.test_it_uses_the_harness_scorer_not_its_own"
   ],
+  "test_contextual_tone_model": [],
   "test_crossbook_normalization": [
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_dates_have_explicit_ordinal_and_year",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_identifiers_are_read_digitwise",
@@ -597,6 +610,11 @@
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_scoring_restores_declared_date_ordinal_semantics",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_scoring_restores_declared_identifier_digit_semantics",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_summary_keeps_books_categories_and_arms_separate"
+  ],
+  "test_ctc_text_boundary": [
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_log_probs_reads_transformers_output_logits",
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_preserves_text_and_boundaries",
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_rejects_partial_alignment"
   ],
   "test_dedup_benchmark": [
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
@@ -833,6 +851,7 @@
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_case_only_differences_are_not_a_disagreement",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
   ],
+  "test_expected_prosody_fusion": [],
   "test_experiment_conventions": [
     "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
     "tests.test_experiment_conventions.FixtureIntegrityTests.test_attribution_fixtures_have_entries_with_the_expected_keys",
@@ -987,6 +1006,7 @@
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_health_dashboard_is_rendered_and_wired",
     "tests.test_frontend_regressions.FrontendTests.test_voicelab_requires_visible_preflight_before_start"
   ],
+  "test_full_sequence_scoring": [],
   "test_gate_provenance": [
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_a_provenance_failure_is_recorded_rather_than_swallowed",
     "tests.test_gate_provenance.GateWritesProvenanceTests.test_provenance_is_attached_before_the_document_is_written",
@@ -1265,6 +1285,11 @@
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_one_good_fill_and_one_bad_change_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_several_rows_filling_in_at_once_are_forgiven"
   ],
+  "test_instruct_listening": [
+    "tests.test_instruct_listening.CharacterInstructionTests.test_configured_character_style_wins",
+    "tests.test_instruct_listening.CharacterInstructionTests.test_missing_style_uses_the_shared_character_constant",
+    "tests.test_instruct_listening.CharacterInstructionTests.test_unknown_speaker_still_gets_a_nonempty_arm"
+  ],
   "test_instrument_null_test": [
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_goals_still_states_those_bands",
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_the_bands_are_the_ones_goals_states",
@@ -1295,6 +1320,7 @@
     "tests.test_inventory.UntrackedTestWarningTest.test_a_new_untracked_test_file_is_reported",
     "tests.test_inventory.UntrackedTestWarningTest.test_a_tracked_file_is_not_reported"
   ],
+  "test_japanese_text_boundary": [],
   "test_launcher_supervisor": [
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_address_already_in_use_breaks_case_insensitively",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_application_startup_failed_breaks",
@@ -1521,12 +1547,14 @@
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_verifies_produced_adapter_and_reports_metrics"
   ],
+  "test_luar_character_selector": [],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_with_no_arm_flags_the_built_in_arms_still_apply",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_zero_matches_raises_instead_of_writing_complete"
   ],
+  "test_modernbooknlp_adapter": [],
   "test_multi_process_state": [
     "tests.test_multi_process_state.MultiProcessStateTests.test_batch_cancel_signals_every_process",
     "tests.test_multi_process_state.MultiProcessStateTests.test_pause_and_resume_signal_every_process"
@@ -1566,7 +1594,7 @@
     "tests.test_narrator_prior_wiring.PromptTest.test_without_a_narrator_the_prompt_is_unchanged",
     "tests.test_narrator_prior_wiring.WiringTest.test_an_unmatched_narrator_argument_is_fatal",
     "tests.test_narrator_prior_wiring.WiringTest.test_the_artifact_records_which_books_got_a_prior",
-    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior"
+    "tests.test_narrator_prior_wiring.WiringTest.test_the_recorded_prompt_includes_the_prior_and_variant"
   ],
   "test_narrator_prompt": [
     "tests.test_narrator_prompt.NarratorPromptTests.test_attestation_requires_three_source_mentions",
@@ -1685,6 +1713,7 @@
     "tests.test_pause_scoring.PauseScoringTest.test_the_old_rule_fails_that_case",
     "tests.test_pause_scoring.PauseScoringTest.test_two_internal_gaps_are_both_counted"
   ],
+  "test_pdnc_balanced_trainset": [],
   "test_pdnc_context_evidence": [
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_book_split_is_frozen_and_disjoint",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_confirmatory_requires_explicit_passing_pilot",
@@ -2234,6 +2263,13 @@
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_rejects_stale_preflight_before_gpu_claim",
     "tests.test_runtime_regressions.RuntimeTests.test_voicelab_start_reports_unconfigured_rocm_python"
   ],
+  "test_satella_quality_probe": [
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_arms_change_one_variable_at_a_time",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_expanded_probe_has_short_and_long_lines",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_page_defines_quality_scale_and_requires_complete_sets",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_manifest_does_not_expose_arm_arguments",
+    "tests.test_satella_quality_probe.SatellaQualityProbeTests.test_public_page_does_not_name_concealed_arms"
+  ],
   "test_scene_narrowing": [
     "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",
     "tests.test_scene_narrowing.BucketTest.test_absent_is_wrong_with_the_gold_nowhere_near",
@@ -2324,6 +2360,7 @@
     "tests.test_seed_plumbing.TestSeedIsRead.test_negative_seed_does_not_seed",
     "tests.test_seed_plumbing.TestSeedIsRead.test_seed_is_not_a_hardcoded_constant"
   ],
+  "test_separator_earcheck_explicit_terms": [],
   "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline",
@@ -2515,6 +2552,12 @@
     "tests.test_statistic_discriminability.MeanTest.test_an_empty_group_is_none_not_zero",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_a_variance_statistic_can_win_and_must_be_visible",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_the_real_ordering_that_motivated_the_seconds_exclusion"
+  ],
+  "test_suite_imports_are_ci_installable": [
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_no_test_module_imports_a_declared_unavailable_package",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_detector_fires_on_the_import_that_broke_ci",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_set_is_read_from_the_files_that_define_it"
   ],
   "test_support": [],
   "test_system_version": [

@@ -1,0 +1,16 @@
+{
+  "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+  "method": "monotonic minimum reading-CER grouping of consecutive Silero windows",
+  "raw_windows": 93,
+  "grouped_windows": 50,
+  "alignment": {
+    "scored": 50,
+    "predicted_segments": 50,
+    "expected_segments": 50,
+    "median_error_s": 0.272,
+    "p90_error_s": 0.419,
+    "worst_error_s": 0.516,
+    "within_tolerance_pct": 58.0,
+    "tolerance_s": 0.3
+  }
+}

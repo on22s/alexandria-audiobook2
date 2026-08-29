@@ -1,0 +1,97 @@
+{
+  "what": "Satella blinded seed-versus-adapter quality ratings",
+  "rated_at": "2026-08-22T23:37:42.889Z",
+  "source_sha256": "aa78f9a6705f307223c3638363a5cb45b5436154b7466a16691f5cdd21c2fd33",
+  "answers": {
+    "set_0": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 5
+      },
+      "best": "A",
+      "notes": ""
+    },
+    "set_1": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 3
+      },
+      "best": "A",
+      "notes": ""
+    },
+    "set_2": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 3
+      },
+      "best": "B",
+      "notes": ""
+    },
+    "set_3": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 4
+      },
+      "best": "A",
+      "notes": ""
+    },
+    "set_4": {
+      "quality": {
+        "A": 5,
+        "B": 4,
+        "C": 4
+      },
+      "best": "A",
+      "notes": ""
+    },
+    "set_5": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 5
+      },
+      "best": "C",
+      "notes": ""
+    },
+    "set_6": {
+      "quality": {
+        "A": 5,
+        "B": 4,
+        "C": 4
+      },
+      "best": "A",
+      "notes": ""
+    },
+    "set_7": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 4
+      },
+      "best": "B",
+      "notes": ""
+    },
+    "set_8": {
+      "quality": {
+        "A": 5,
+        "B": 4,
+        "C": 5
+      },
+      "best": "C",
+      "notes": ""
+    },
+    "set_9": {
+      "quality": {
+        "A": 5,
+        "B": 5,
+        "C": 5
+      },
+      "best": "A",
+      "notes": ""
+    }
+  }
+}

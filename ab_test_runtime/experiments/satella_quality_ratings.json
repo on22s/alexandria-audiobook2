@@ -1,0 +1,36 @@
+{
+  "what": "unblinded analysis of Satella seed-versus-adapter quality ratings",
+  "rated_at": "2026-08-22T17:55:17.517Z",
+  "rater": "project owner",
+  "source_sha256": "44631063e21ac435f14a84c5cde6c152801b19b03be44878ea1c46cbbf52e310",
+  "arms": {
+    "shipped_adapter_shipped_seed": {
+      "adapter": "husky_alto_40s_f",
+      "seed": 1453101771,
+      "ratings": [5, 3, 2, 5],
+      "mean": 3.75,
+      "best_count": 2
+    },
+    "shipped_adapter_alternate_seed": {
+      "adapter": "husky_alto_40s_f",
+      "seed": 1425066263,
+      "ratings": [4, 4, 5, 3],
+      "mean": 4.0,
+      "best_count": 1
+    },
+    "control_adapter_shipped_seed": {
+      "adapter": "silky_mezzo_30s_f",
+      "seed": 1453101771,
+      "ratings": [4, 5, 4, 4],
+      "mean": 4.25,
+      "best_count": 1
+    }
+  },
+  "defect_note": {
+    "set": "set_2",
+    "arm": "shipped_adapter_shipped_seed",
+    "rating": 2,
+    "note": "had some breaking at the end voice cracking"
+  },
+  "verdict": "The shipped Satella configuration is not uniformly broken: it was preferred on two of four lines and scored 5 twice. However, it produced the only explicitly identified cracking failure and averaged 0.50 below the control adapter. Changing only the seed improved the mean by 0.25. At n=4, this supports render/seed sensitivity plus a possible smaller adapter effect; it does not justify declaring either cause sufficient by itself."
+}

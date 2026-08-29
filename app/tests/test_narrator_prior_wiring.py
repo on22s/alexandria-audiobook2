@@ -70,12 +70,14 @@ class WiringTest(unittest.TestCase):
                / "two_stage_attribution.py").read_text(encoding="utf-8")
         self.assertIn('record.meta["narrators"]', src)
 
-    def test_the_recorded_prompt_includes_the_prior(self):
+    def test_the_recorded_prompt_includes_the_prior_and_variant(self):
         """--keep-prompts exists so the artifact shows what was actually
-        asked; recording the un-prior'd prompt would misreport the run."""
+        asked; dropping either treatment would misreport the run."""
         src = (REPO / "app" / "experiments"
                / "two_stage_attribution.py").read_text(encoding="utf-8")
-        self.assertIn("build_prompt(entry, roster, narrator)", src)
+        self.assertIn("build_prompt(entry, roster, narrator,\n"
+                      "                                            args.prompt_variant)",
+                      src)
 
 
 if __name__ == "__main__":
