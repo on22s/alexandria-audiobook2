@@ -117,6 +117,9 @@ def main():
                          "ablation against the 70B teacher")
     ap.add_argument("--dry_run", action="store_true",
                     help="build and report the dataset without loading a model")
+    ap.add_argument("--load_in_4bit", action="store_true",
+                    help="QLoRA/NF4 loading for supported bitsandbytes backends; "
+                         "required for a 14B model on a 16GB card")
     args = ap.parse_args()
 
     rows = build_examples(args.data, label_field=args.label_field)
@@ -140,7 +143,8 @@ def main():
     import torch
     from transformers import (AutoModelForCausalLM, AutoTokenizer,
                               TrainingArguments, Trainer, DataCollatorForSeq2Seq)
-    from peft import LoraConfig, get_peft_model
+    from peft import (LoraConfig, get_peft_model,
+                      prepare_model_for_kbit_training)
     from datasets import Dataset
 
     tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
@@ -174,8 +178,14 @@ def main():
             prompt_ids = tok(prompt, add_special_tokens=False)["input_ids"]
             answer_ids = tok(c + tok.eos_token,
                              add_special_tokens=False)["input_ids"]
-            ids = (prompt_ids + answer_ids)[:args.max_len]
-            lab = ([-100] * len(prompt_ids) + answer_ids)[:args.max_len]
+            # KEEP THE SUPERVISION. Right-truncating prompt+answer silently
+            # removed the entire completion on long rosters. Besides teaching
+            # nothing, zero labelled tokens made logits_to_keep=0 mean "all
+            # prompt logits" and OOMed a 16GB QLoRA run before step one.
+            room = max(0, args.max_len - len(answer_ids))
+            prompt_ids = prompt_ids[-room:] if room else []
+            ids = prompt_ids + answer_ids
+            lab = [-100] * len(prompt_ids) + answer_ids
             input_ids.append(ids)
             labels.append(lab)
         return {"input_ids": input_ids, "labels": labels,
@@ -183,11 +193,22 @@ def main():
 
     ds = Dataset.from_list(train).map(
         encode, batched=True, remove_columns=["system", "user", "completion", "book"])
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=torch.bfloat16, device_map="auto",
-        trust_remote_code=True)
-    model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
+    model_kwargs = {"device_map": "auto", "trust_remote_code": True}
+    if args.load_in_4bit:
+        from transformers import BitsAndBytesConfig
+        model_kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True)
+    else:
+        model_kwargs["torch_dtype"] = torch.bfloat16
+    model = AutoModelForCausalLM.from_pretrained(args.model, **model_kwargs)
+    if args.load_in_4bit:
+        model = prepare_model_for_kbit_training(
+            model, use_gradient_checkpointing=True)
+    else:
+        model.gradient_checkpointing_enable()
+        model.enable_input_require_grads()
     model = get_peft_model(model, LoraConfig(
         r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=0.05,
         bias="none", task_type="CAUSAL_LM",
@@ -195,7 +216,32 @@ def main():
                         "gate_proj", "up_proj", "down_proj"]))
     model.print_trainable_parameters()
 
-    Trainer(
+    class AnswerOnlyTrainer(Trainer):
+        """Compute logits only where labels are unmasked.
+
+        Qwen3 otherwise materializes sequence_length x 151936 float logits,
+        even though this dataset masks the entire prompt. On a 16GB card that
+        wasted tensor is the difference between QLoRA fitting and OOM.
+        """
+        def compute_loss(self, model, inputs, return_outputs=False,
+                         num_items_in_batch=None):
+            import torch.nn.functional as functional
+            labels = inputs.pop("labels")
+            shifted = functional.pad(labels, (0, 1), value=-100)[..., 1:]
+            keep = int((shifted != -100).sum(dim=1).max().item())
+            if keep <= 0:
+                raise RuntimeError("batch has no supervised answer tokens")
+            shifted = shifted[:, -keep:].contiguous()
+            outputs = model(**inputs, logits_to_keep=keep)
+            loss = functional.cross_entropy(
+                outputs.logits.float().reshape(-1, outputs.logits.shape[-1]),
+                shifted.reshape(-1), ignore_index=-100, reduction="sum")
+            denominator = (num_items_in_batch if num_items_in_batch is not None
+                           else (shifted != -100).sum())
+            loss = loss / torch.as_tensor(denominator, device=loss.device)
+            return (loss, outputs) if return_outputs else loss
+
+    AnswerOnlyTrainer(
         model=model,
         args=TrainingArguments(
             output_dir=args.out, num_train_epochs=args.epochs,

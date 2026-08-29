@@ -1,7 +1,18 @@
+import math
+
 import pytest
-import torch
 
 from experiments.ctc_text_boundary import get_log_probs, get_segments
+
+
+class Logits:
+    def __init__(self, values):
+        self.values = values
+
+    def log_softmax(self, dim):
+        assert dim == -1
+        denominator = sum(math.exp(value) for value in self.values)
+        return [value - math.log(denominator) for value in self.values]
 
 
 def test_get_segments_preserves_text_and_boundaries():
@@ -15,5 +26,6 @@ def test_get_segments_rejects_partial_alignment():
 
 
 def test_get_log_probs_reads_transformers_output_logits():
-    output = type("Output", (), {"logits": torch.tensor([[[1.0, 2.0]]])})()
-    assert torch.allclose(get_log_probs(output).exp().sum(-1), torch.ones(1, 1))
+    output = type("Output", (), {"logits": Logits([1.0, 2.0])})()
+    probabilities = [math.exp(value) for value in get_log_probs(output)]
+    assert sum(probabilities) == pytest.approx(1.0)
