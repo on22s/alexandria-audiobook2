@@ -1024,6 +1024,8 @@
   "test_generate_personas": [
     "tests.test_generate_personas.JaccardTest.test_empty_names_score_zero",
     "tests.test_generate_personas.JaccardTest.test_it_takes_the_same_honorific_decision_as_its_caller",
+    "tests.test_generate_personas.NormalizationTest.test_automatic_aliases_accept_case_but_not_relationships",
+    "tests.test_generate_personas.NormalizationTest.test_automatic_aliases_keep_distinguishing_honorifics",
     "tests.test_generate_personas.NormalizationTest.test_case_and_punctuation_always_fold",
     "tests.test_generate_personas.NormalizationTest.test_honorific_stripping_is_optional",
     "tests.test_generate_personas.NormalizationTest.test_non_string_input_is_empty",
@@ -1459,7 +1461,9 @@
     "tests.test_llm_review_regressions.LlmReviewTests.test_token_budget_scales_with_verified_context",
     "tests.test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context",
     "tests.test_llm_review_regressions.LlmReviewTests.test_two_word_adjacent_array_boundary_is_not_treated_as_overlap",
+    "tests.test_llm_review_regressions.PassSpecificSalvageTests.test_review_rejects_same_length_shift_with_duplicate_and_drop",
     "tests.test_llm_review_regressions.PassSpecificSalvageTests.test_review_rejects_text_only_salvage_even_when_word_count_matches",
+    "tests.test_llm_review_regressions.PassSpecificSalvageTests.test_review_retries_dropped_text_then_accepts_complete_restructure",
     "tests.test_llm_review_regressions.PassSpecificSalvageTests.test_salvages_pass2_and_pass3_object_shapes",
     "tests.test_llm_review_regressions.PassSpecificSalvageTests.test_single_pass_chunk_size_validates_config_and_cli",
     "tests.test_llm_review_regressions.ReviewChangeDensityTests.test_high_change_density_warns_with_separate_structural_counts",
@@ -1808,6 +1812,9 @@
     "tests.test_production_trigram_audit.ParsingTest.test_the_span_is_read_from_the_string_form_too"
   ],
   "test_project_chunks": [
+    "tests.test_project_chunks.AudioLoadingTest.test_ambiguous_ogg_container_keeps_probe_fallback",
+    "tests.test_project_chunks.AudioLoadingTest.test_known_extension_bypasses_format_probe",
+    "tests.test_project_chunks.AudioLoadingTest.test_unknown_extension_keeps_probe_fallback",
     "tests.test_project_chunks.BracketBoundaryTest.test_bracket_split_carries_no_pause",
     "tests.test_project_chunks.BracketBoundaryTest.test_bracketed_part_gains_the_set_apart_hint",
     "tests.test_project_chunks.BracketBoundaryTest.test_scene_break_still_pauses_when_brackets_present",
@@ -2208,6 +2215,7 @@
     "tests.test_runtime_regressions.RuntimeTests.test_ensemble_renders_each_member_with_its_own_voice",
     "tests.test_runtime_regressions.RuntimeTests.test_epub2_inserts_ncx_title_at_fragment",
     "tests.test_runtime_regressions.RuntimeTests.test_epub3_inserts_toc_titles_at_anchors_without_duplicates",
+    "tests.test_runtime_regressions.RuntimeTests.test_epub_does_not_read_document_title_metadata_aloud",
     "tests.test_runtime_regressions.RuntimeTests.test_epub_extracts_spine_with_known_malformed_refines_metadata",
     "tests.test_runtime_regressions.RuntimeTests.test_epub_title_already_present_with_different_punctuation_is_not_repeated",
     "tests.test_runtime_regressions.RuntimeTests.test_epub_toc_listing_a_later_anchor_first_still_places_titles",

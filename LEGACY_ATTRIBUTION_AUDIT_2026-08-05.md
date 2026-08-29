@@ -4,10 +4,10 @@ All 145 legacy-metadata artifacts are listed exactly once. Classification descri
 
 ## Counts
 
-- `exploratory`: 9
+- `exploratory`: 24
 - `historical_only`: 46
-- `provisional`: 24
-- `supported_measurement`: 66
+- `provisional`: 21
+- `supported_measurement`: 54
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -86,9 +86,9 @@ All 145 legacy-metadata artifacts are listed exactly once. Classification descri
 | `joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 486 | 0 | 0 | False |  |
 | `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | historical_only | 450 | 0 | 266 | False |  |
 | `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | historical_only | 1094 | 0 | 324 | True |  |
-| `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
-| `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
-| `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
+| `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
+| `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | exploratory | 770 | 0 | 0 | True | recorded commit is unavailable from current history |
 | `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | historical_only | 800 | 29 | 8 | False |  |
 | `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 198 | 0 | 0 | False |  |
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |
@@ -144,22 +144,22 @@ All 145 legacy-metadata artifacts are listed exactly once. Classification descri
 | `two_stage_attribution_narrator_w3200.json` | two_stage_attribution | supported_measurement | 200 | 0 | 0 | False |  |
 | `two_stage_attribution_riqua.json` | two_stage_attribution | supported_measurement | 1287 | None | None | False |  |
 | `two_stage_attribution_w3200.json` | two_stage_attribution | historical_only | 2494 | 0 | 1224 | False |  |
-| `two_stage_attribution_wp2021.json` | two_stage_attribution | supported_measurement | 380 | None | None | False |  |
-| `two_stage_attribution_wp2021_train.json` | two_stage_attribution | supported_measurement | 200 | None | None | False |  |
+| `two_stage_attribution_wp2021.json` | two_stage_attribution | exploratory | 380 | None | None | False | recorded commit is unavailable from current history |
+| `two_stage_attribution_wp2021_train.json` | two_stage_attribution | exploratory | 200 | None | None | False | recorded commit is unavailable from current history |
 | `voting__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | voting | historical_only | 1200 | 30 | 12 | False |  |
 | `voting__index18__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 198 | 0 | 0 | False |  |
 | `voting__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 417 | 0 | 0 | False |  |
 | `voting__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | voting | supported_measurement | 324 | 0 | 0 | False |  |
-| `xc_riqua__control.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
-| `xc_riqua__explicit_hint.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
-| `xc_riqua__inner_narration.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
-| `xc_riqua__shuffled_roster.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
-| `xc_riqua__speaker_not_addressee.json` | two_stage_attribution | supported_measurement | 1537 | None | None | False |  |
-| `xc_wp2021__control.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
-| `xc_wp2021__explicit_hint.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
-| `xc_wp2021__inner_narration.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
-| `xc_wp2021__shuffled_roster.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
-| `xc_wp2021__speaker_not_addressee.json` | two_stage_attribution | supported_measurement | 1835 | None | None | False |  |
+| `xc_riqua__control.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
+| `xc_riqua__explicit_hint.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
+| `xc_riqua__inner_narration.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
+| `xc_riqua__shuffled_roster.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
+| `xc_riqua__speaker_not_addressee.json` | two_stage_attribution | exploratory | 1537 | None | None | False | recorded commit is unavailable from current history |
+| `xc_wp2021__control.json` | two_stage_attribution | exploratory | 1835 | None | None | False | recorded commit is unavailable from current history |
+| `xc_wp2021__explicit_hint.json` | two_stage_attribution | exploratory | 1835 | None | None | False | recorded commit is unavailable from current history |
+| `xc_wp2021__inner_narration.json` | two_stage_attribution | exploratory | 1835 | None | None | False | recorded commit is unavailable from current history |
+| `xc_wp2021__shuffled_roster.json` | two_stage_attribution | exploratory | 1835 | None | None | False | recorded commit is unavailable from current history |
+| `xc_wp2021__speaker_not_addressee.json` | two_stage_attribution | exploratory | 1835 | None | None | False | recorded commit is unavailable from current history |
 
 ## Family-level interpretation limits
 

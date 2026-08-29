@@ -283,7 +283,7 @@ class _HTMLTextExtractor(HTMLParser):
         'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'li', 'blockquote', 'br', 'hr', 'tr', 'section', 'article',
     })
-    SKIP_TAGS = frozenset({'style', 'script'})
+    SKIP_TAGS = frozenset({'style', 'script', 'title'})
 
     # A paragraph ends with a BLANK LINE, not a single newline. `br` is a line
     # break inside one paragraph and stays single.

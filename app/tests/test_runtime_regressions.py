@@ -48,6 +48,21 @@ class RuntimeTests(unittest.TestCase):
             for member_path, content in members.items():
                 archive.writestr(member_path, content)
 
+    def test_epub_does_not_read_document_title_metadata_aloud(self):
+        opf = b'''<package xmlns="http://www.idpf.org/2007/opf">
+          <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="chapter"/></spine></package>'''
+        chapter = b'''<html><head><title>Metadata Only Title</title></head>
+          <body><h1>Spoken Chapter Title</h1><p>Readable prose.</p></body></html>'''
+        with tempfile.TemporaryDirectory() as tmp:
+            epub = os.path.join(tmp, "book.epub")
+            self._write_epub(epub, opf, {"OEBPS/chapter.xhtml": chapter})
+            text = script_module.extract_epub_text(epub)
+
+        self.assertNotIn("Metadata Only Title", text)
+        self.assertIn("Spoken Chapter Title", text)
+        self.assertIn("Readable prose.", text)
+
     def test_epub_extracts_spine_with_known_malformed_refines_metadata(self):
         container = b'''<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'''

@@ -621,8 +621,14 @@ class ProjectManager:
             if not os.path.exists(full_path):
                 skipped += 1
                 continue
+            extension = os.path.splitext(full_path)[1].lstrip(".").lower()
+            load_kwargs = {}
+            # OGG is a container that may hold Vorbis, Opus, or another codec,
+            # so its extension alone cannot safely select a decoder.
+            if extension in ("mp3", "wav", "flac"):
+                load_kwargs = {"format": extension, "codec": extension}
             try:
-                segment = AudioSegment.from_file(full_path)
+                segment = AudioSegment.from_file(full_path, **load_kwargs)
                 result.append((chunk, segment))
             except Exception as e:
                 print(f"Error loading audio segment {path}: {e}")
