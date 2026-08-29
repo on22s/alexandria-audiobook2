@@ -924,3 +924,37 @@ class PassSpecificSalvageTests(unittest.TestCase):
         params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
         self.assertIsNone(review_script.review_batch(
             client, "m", original, 1, 1, params, max_retries=0))
+
+    def test_review_retries_dropped_text_then_accepts_complete_restructure(self):
+        original = [
+            {"speaker": "NARRATOR", "text": "He answered.", "instruct": "Neutral."},
+            {"speaker": "A", "text": "Come with me.", "instruct": "Firm."},
+        ]
+        dropped = [{"speaker": "A", "text": "Come with me.", "instruct": "Firm."}]
+        restructured = [{
+            "speaker": "NARRATOR", "text": "He answered.   Come with me.",
+            "instruct": "Neutral.",
+        }]
+        client = LlmReviewTests._client_with_responses([
+            json.dumps(dropped), json.dumps(restructured)])
+        params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
+
+        result = review_script.review_batch(
+            client, "m", original, 1, 1, params, max_retries=1)
+
+        self.assertEqual(restructured, result)
+
+    def test_review_rejects_same_length_shift_with_duplicate_and_drop(self):
+        original = [
+            {"speaker": "A", "text": "First line.", "instruct": "One."},
+            {"speaker": "B", "text": "Second line.", "instruct": "Two."},
+        ]
+        shifted = [
+            {"speaker": "A", "text": "First line.", "instruct": "One."},
+            {"speaker": "A", "text": "First line.", "instruct": "One."},
+        ]
+        client = LlmReviewTests._client_with_responses([json.dumps(shifted)])
+        params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
+
+        self.assertIsNone(review_script.review_batch(
+            client, "m", original, 1, 1, params, max_retries=0))

@@ -639,6 +639,22 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
                 findings.append({"code": "missing_fields", "entry_number": number,
                                  "fields": missing,
                                  "message": "Review entry is missing required fields."})
+        original_text = " ".join(
+            " ".join(str(entry.get("text", "")).split())
+            for entry in batch_entries
+        ).strip()
+        reviewed_text = " ".join(
+            " ".join(str(entry.get("text", "")).split())
+            for entry in entries if isinstance(entry, dict)
+        ).strip()
+        if reviewed_text != original_text:
+            findings.append({
+                "code": "review_text_mismatch",
+                "message": (
+                    "Reviewed entries must preserve the complete text in its "
+                    "original order; only entry boundaries and labels may change."
+                ),
+            })
         return {"passed": not findings, "findings": findings}
 
     entries = call_llm_for_entries(

@@ -1,8 +1,51 @@
+import os
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from project import (EXPLICIT_SILENCE_MS, get_speakable_entries,
-                     group_into_chunks)
+from project import (EXPLICIT_SILENCE_MS, ProjectManager,
+                     get_speakable_entries, group_into_chunks)
 from tts import DEFAULT_PAUSE_MS
+
+
+class AudioLoadingTest(unittest.TestCase):
+    def test_known_extension_bypasses_format_probe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audio_path = os.path.join(tmp, "line.mp3")
+            open(audio_path, "wb").close()
+            manager = ProjectManager(tmp)
+            with patch.object(manager, "load_chunks", return_value=[
+                    {"audio_path": "line.mp3"}]), \
+                 patch("project.AudioSegment.from_file", return_value="audio") as load:
+                result, skipped = manager._load_chunks_with_audio()
+
+        load.assert_called_once_with(audio_path, format="mp3", codec="mp3")
+        self.assertEqual([({"audio_path": "line.mp3"}, "audio")], result)
+        self.assertEqual(0, skipped)
+
+    def test_unknown_extension_keeps_probe_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audio_path = os.path.join(tmp, "line.custom")
+            open(audio_path, "wb").close()
+            manager = ProjectManager(tmp)
+            with patch.object(manager, "load_chunks", return_value=[
+                    {"audio_path": "line.custom"}]), \
+                 patch("project.AudioSegment.from_file", return_value="audio") as load:
+                manager._load_chunks_with_audio()
+
+        load.assert_called_once_with(audio_path)
+
+    def test_ambiguous_ogg_container_keeps_probe_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audio_path = os.path.join(tmp, "line.ogg")
+            open(audio_path, "wb").close()
+            manager = ProjectManager(tmp)
+            with patch.object(manager, "load_chunks", return_value=[
+                    {"audio_path": "line.ogg"}]), \
+                 patch("project.AudioSegment.from_file", return_value="audio") as load:
+                manager._load_chunks_with_audio()
+
+        load.assert_called_once_with(audio_path)
 
 
 class SpeakableEntryTests(unittest.TestCase):

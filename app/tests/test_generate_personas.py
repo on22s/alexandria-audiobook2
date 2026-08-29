@@ -22,6 +22,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from generate_personas import (_resolve_to_canonical, _token_jaccard,
+                               get_exact_alias_match,
                                honorifics_are_distinguishing,
                                normalize_speaker_name, pick_ref_text)
 
@@ -47,6 +48,16 @@ class NormalizationTest(unittest.TestCase):
     def test_non_string_input_is_empty(self):
         for bad in (None, 5, [], {}):
             self.assertEqual(normalize_speaker_name(bad), "")
+
+    def test_automatic_aliases_accept_case_but_not_relationships(self):
+        names = ["NITA'S DAD", "KIT'S MOTHER", "ROSHAUN'S FATHER", "Emilia"]
+        self.assertEqual("Emilia", get_exact_alias_match("EMILIA", names))
+        self.assertIsNone(get_exact_alias_match("NITA", names))
+        self.assertIsNone(get_exact_alias_match("KIT", names))
+        self.assertIsNone(get_exact_alias_match("ROSHAUN", names))
+
+    def test_automatic_aliases_keep_distinguishing_honorifics(self):
+        self.assertIsNone(get_exact_alias_match("MR. BENNET", ["MRS. BENNET"]))
 
 
 class RosterAmbiguityTest(unittest.TestCase):

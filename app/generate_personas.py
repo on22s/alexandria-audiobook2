@@ -48,6 +48,17 @@ def normalize_speaker_name(name, strip_honorifics=True):
     return s
 
 
+def get_exact_alias_match(speaker, existing_names):
+    """Return an exact normalized alias without guessing from similarity."""
+    normalized = normalize_speaker_name(speaker, strip_honorifics=False)
+    if not normalized:
+        return None
+    for candidate in existing_names:
+        if normalize_speaker_name(candidate, strip_honorifics=False) == normalized:
+            return candidate
+    return None
+
+
 def honorifics_are_distinguishing(allowed):
     """True when stripping honorifics would merge two entries of this roster.
 
@@ -802,26 +813,18 @@ def main():
 
     print(f"Processing {len(selected_speakers)} speakers")
 
-    # Step 1: Pre-process with exact heuristic + high-confidence fuzzy matching
+    # Step 1: Pre-process exact normalized aliases only. Similar names can be
+    # distinct people (for example NITA and NITA'S DAD), so fuzzy identity
+    # decisions remain behind the explicit alias-check workflow below.
     resolved_aliases = {}
     remaining_speakers = []
 
     for speaker in selected_speakers:
         existing_names = [n for n in voice_config.keys() if n != speaker]
-        # Fast heuristic exact check
-        norm_self = normalize_speaker_name(speaker)
-        heuristic_alias = ""
-        for candidate in existing_names:
-            if normalize_speaker_name(candidate) == norm_self and norm_self:
-                heuristic_alias = candidate
-                break
-
-        if not heuristic_alias and existing_names:
-            # High-confidence fuzzy check
-            heuristic_alias = _resolve_to_canonical(speaker, existing_names, threshold=0.8)
+        heuristic_alias = get_exact_alias_match(speaker, existing_names)
 
         if heuristic_alias:
-            print(f"Fast heuristic/fuzzy alias detected: {speaker} -> {heuristic_alias}")
+            print(f"Exact-name alias detected: {speaker} -> {heuristic_alias}")
             resolved_aliases[speaker] = heuristic_alias
         else:
             remaining_speakers.append(speaker)
