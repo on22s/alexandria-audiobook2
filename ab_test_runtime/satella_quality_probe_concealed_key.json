@@ -1,0 +1,87 @@
+{
+  "status": "complete",
+  "sets": [
+    {
+      "id": "set_0",
+      "mapping": {
+        "A": {
+          "arm": "shipped_adapter_alternate_seed",
+          "raw_sha256": "83b0b1ee4c20c887662916b02602425a65ed9c991e6ee2bbcff79d9d6cbc919c"
+        },
+        "B": {
+          "arm": "shipped_adapter_shipped_seed",
+          "raw_sha256": "33d7a0963e7c2907d25f597fd78288fb3cb9185169db236da8dce115dddfc350"
+        },
+        "C": {
+          "arm": "control_adapter_shipped_seed",
+          "raw_sha256": "371a3a678209655bfda411d40bc120b171aa8b5c794bf277bcf9cfa9bc7d50a7"
+        }
+      }
+    },
+    {
+      "id": "set_1",
+      "mapping": {
+        "A": {
+          "arm": "shipped_adapter_alternate_seed",
+          "raw_sha256": "ce6e6de2308af4d0053acb9b2df1db6eeaa31b495f1dc873f3bf53400f9ecbc5"
+        },
+        "B": {
+          "arm": "control_adapter_shipped_seed",
+          "raw_sha256": "1fc872544f7c116c46f924f8d8b185bd60c61afffc8732a297d25db7010a430e"
+        },
+        "C": {
+          "arm": "shipped_adapter_shipped_seed",
+          "raw_sha256": "5f7f96224a2bb03437b0cd390620b910ef20166796d0e9724feba997c1db51dc"
+        }
+      }
+    },
+    {
+      "id": "set_2",
+      "mapping": {
+        "A": {
+          "arm": "shipped_adapter_alternate_seed",
+          "raw_sha256": "91b7330aaae119cf4cc2b4f0f43d716254a3de4308563a1d8d2d18b6026c3c61"
+        },
+        "B": {
+          "arm": "control_adapter_shipped_seed",
+          "raw_sha256": "e1e5fde4a397317948e78d8edee309f2322cb7ff6b43b430ca3473ea3cb864d4"
+        },
+        "C": {
+          "arm": "shipped_adapter_shipped_seed",
+          "raw_sha256": "f8144549ca4ecff3f3bed15d2e774f85b546e10a658f625ccff2eba58341b9e4"
+        }
+      }
+    },
+    {
+      "id": "set_3",
+      "mapping": {
+        "A": {
+          "arm": "shipped_adapter_shipped_seed",
+          "raw_sha256": "238f85dc5381e8ae88da1f97d76c3d24031eb39eefe5aafa9cb5103adc2f8f75"
+        },
+        "B": {
+          "arm": "control_adapter_shipped_seed",
+          "raw_sha256": "8b982fe52789b079369e84ae32265f08b36f156844e5b46528d82e7a650c7f94"
+        },
+        "C": {
+          "arm": "shipped_adapter_alternate_seed",
+          "raw_sha256": "187d20b1db4b88a29e10926e8b09e350c63611b4574add5b66f565361123a357"
+        }
+      }
+    }
+  ],
+  "arm_configuration": {
+    "shipped_adapter_shipped_seed": {
+      "adapter_path": "lora_models/husky_alto_40s_f",
+      "seed": "1453101771"
+    },
+    "shipped_adapter_alternate_seed": {
+      "adapter_path": "lora_models/husky_alto_40s_f",
+      "seed": "1425066263"
+    },
+    "control_adapter_shipped_seed": {
+      "adapter_path": "lora_models/silky_mezzo_30s_f",
+      "seed": "1453101771"
+    }
+  }
+}

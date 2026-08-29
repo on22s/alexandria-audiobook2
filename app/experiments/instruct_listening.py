@@ -45,6 +45,15 @@ sys.path.insert(0, APP)
 ARMS = ("none", "per_char", "per_line")
 
 
+def get_character_instruction(entry, speaker):
+    """Return a real standing direction for the per-character arm."""
+    configured = (entry.get("character_style") or "").strip()
+    if configured:
+        return configured
+    from experiments.instruct_value import constant_for
+    return constant_for(speaker)
+
+
 def pick_lines(script_path, speaker, count):
     """Lines whose instruction actually asks for something.
 
@@ -130,7 +139,7 @@ def main():
         instruct = (chunk.get("instruct") or "").strip()
         # The per-character instruction is the voice's own standing direction;
         # the per-line one is what the annotator wrote for this line.
-        per_char = (entry.get("character_style") or "").strip()
+        per_char = get_character_instruction(entry, speaker)
 
         pieces, rate, arms_done, arm_files = [], None, [], {}
         for arm in ARMS:

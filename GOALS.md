@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-24
 
 ## How to read this
 
@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2308** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2458** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -86,6 +86,16 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 | index18 | 81.5% | 82.6% | 1.1 |
 | mushoku16 | 72.9% | 74.8% | 1.9 |
 | owarimonogatari3 | 69.1% | 69.8% | 0.7 |
+
+**New held-out LoRA evidence, 2026-08-24.** The
+`adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
+scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the
+base model in the same run (`lora_serving_eval__new-author_heldout_balanced-grimgar03.json`).
+Grimgar03 was not part of its twenty-novel PDNC training set. This clears the
+75% target for this one book under this new arm, but it does not close 1.1:
+the adapter has not yet been measured on index18, mushoku16 or
+owarimonogatari3 under the same harness. The hard-subset score is not directly
+comparable to a whole-book PDNC score.
 
 #### The wide context arrived, and it is worth 12.7 points — 2026-08-21
 
@@ -282,6 +292,38 @@ apply to it:
 **Gap −12.6 points against a target of 5. OPEN, and failing by more than
 double.**
 
+**Author-held-out LoRA result, 2026-08-24.** Three adapters were trained on
+twenty balanced PDNC novels while excluding every Austen, Chopin and Doyle
+novel. They were then evaluated on all **2,494** labelled quotations from
+*Pride and Prejudice* (1,270), *The Awakening* (584) and *The Sign of the
+Four* (640). These are clean author-held-out books for these adapters:
+
+| arm | correct / rows | accuracy | gain over same-run base |
+|---|---:|---:|---:|
+| base | 1911 / 2494 | **76.6%** | — |
+| `adapter_author_heldout_balanced` | 2221 / 2494 | **89.1%** | **+12.4 points** |
+| `adapter_speaker_longcontext_tophalf_5epoch` | 2173 / 2494 | **87.1%** | **+10.5 points** |
+| `adapter_speaker_hardcases_split_nonmajor` | 2035 / 2494 | **81.6%** | **+5.0 points** |
+
+The artifacts are `pdnc_new_adapter_*_full_b5.json`. Structured-output
+windows that exhausted all passes were counted as failures rather than
+silently omitted, so these are end-to-end harness results. On the separate
+385-line Grimgar03 hard subset, the same arms scored **63.6% base, 78.4%
+balanced, 77.9% long-context and 72.5% hard-cases**. This is measured evidence
+of cross-author transfer and, on Grimgar03, cross-corpus transfer.
+
+This result materially advances 1.3 but does **not** close it. The twenty PDNC
+training novels are no longer held out for these adapters and cannot be used
+as confirmatory evidence. The three excluded-author books supply the clean
+three-book number required by the target, but they are also the favourable
+top-third books identified below; they do not resolve the broad 25-book gap.
+A broader confirmation must use books that were never in these adapters'
+training data and must compare the same adapter on both development and
+held-out sets. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+these three books, 0.7 points above the new balanced adapter, so the balanced
+adapter is the strongest of the three new arms, not yet the unqualified
+production winner.
+
 **Three interventions were piloted against that gap on 2026-08-18 and none
 earned its confirmatory run.** Each is a five-book English PDNC pilot at 120
 lines per book, pre-declared to open a sealed twenty-book set only on passing
@@ -395,6 +437,26 @@ mentioned and 16/12 when absent, while the largest book effects went in opposite
 directions (*The Sun Also Rises* +13, *Persuasion* -12). The intervention mostly
 shifts dialogue-turn alignment rather than reliably following evidence. Keep the
 verified exact narrator metadata path; do not ship the generic prompt.
+
+**Character-style selection intervention rejected, 2026-08-23.** The first
+selection-side pilot reused the same 600 open-book qwen3-14b baseline rows and
+seeded character profiles only from its predictions on explicitly attributed
+quotes (`pdnc_character_style_selector__pilot.json`). A character 3–5-gram
+TF-IDF profile replaced only generic/unknown final answers with a fixed 0.05
+similarity-margin gate. It overrode 8 rows, gained 1 and lost 1: **346/600 to
+346/600, +0.0 points, p=1.0**. It misses the predeclared +3-point/p<0.05 gate,
+so no sealed book was opened. Persistent style alone does not repair the
+selection gap in this form.
+
+**Published LUAR representation-only intervention also rejected, 2026-08-23.**
+The official EMNLP 2024 `gasmichel/UAR_scene` checkpoint was pinned at revision
+`89713b0`, its remote implementation inspected, and then substituted for TF-IDF
+on the same 600 rows (`pdnc_luar_character_selector__pilot.json`). It built
+profiles from up to eight explicit baseline quotes and changed only generic
+answers behind the same 0.05 margin. It overrode 78 rows, gained 8, and lost 20:
+**346/600 to 334/600, p=0.0357 in the wrong direction**. Production stays
+unchanged. This rejects cheap nearest-profile LUAR reranking; it does not test
+the paper's substantially larger jointly trained BookNLP integration.
 
 **Target — a clean held-out number on ≥ 3 books, within 5 points of the
 development books' figure.**
@@ -889,6 +951,25 @@ The remaining 21 adapters' held-out scores are measured partly on clips they
 were trained on, and should be read as an upper bound rather than a held-out
 result.
 
+**Thirteen-seed fidelity replication, 2026-08-22–23.** The shipped-library
+probe was repeated on 13 independent validation draws (`lines=20`), producing
+234 seed-adapter measurements for the 18 adapters whose source data is still
+available. Three voices remained catastrophically low on every draw:
+
+| adapter | mean ECAPA | range | seeds |
+|---|---:|---:|---:|
+| `velvety_mezzo_30s_f_gothic` | 0.068 | 0.047–0.093 | 13 |
+| `silky_baritone_45s_m` | 0.092 | 0.070–0.119 | 13 |
+| `husky_baritone_20s_m_supernatural` | 0.119 | 0.075–0.160 | 13 |
+
+The overall seed-adapter median was 0.583. These three failures are therefore
+stable defects, not unlucky validation samples. The probe could not measure
+56 of 75 adapters because their source zips are absent, and one more adapter
+has no validation clips. That is a coverage limit on this replication, not a
+pass for those voices and not a new goal. Artifacts are the 13 files matching
+`library_voice_fidelity_seed_*_n20.json` and
+`library_fidelity_seed_*_n20.json` in `ab_test_runtime/experiments/`.
+
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
 one concept - checking only one of them silently reports the wrong count, which
@@ -1050,8 +1131,50 @@ says it should have.
 | English | lora | 0.282 | 0.475 |
 
 The fused measure — produced f0 against the *expected* accent, which is the
-one that works on a real audiobook rather than an eval set — is **NO
-BASELINE**. The extraction is built and verified; the comparison is not.
+one that works on a real audiobook rather than an eval set — now has a first
+coarse baseline. A linguistically aligned comparison is not yet built.
+
+**Expectation extraction expanded to every available line, 2026-08-22.** The
+reference-free half now runs on all 150 Japanese and all 150 Chinese evaluation
+lines (`expected_prosody__ja_n150.json` and
+`expected_prosody__zh_n150.json`). Japanese output records accent phrases,
+mora counts and accent nuclei; Chinese output records syllable tone sequences
+and neutral tones. This establishes the expected labels at useful scale. It
+does **not** establish the fused baseline: generated-audio f0 has still not
+been aligned to those mora/syllable labels, so the status and no-target policy
+above remain unchanged.
+
+**First fused baseline, 2026-08-23.** `expected_prosody_fusion.py` compared
+the generated voiced contour with the text-derived accent/tone template on all
+150 lines per language. Japanese direction agreement was **53.2%** with mean
+correlation **0.085**; Mandarin was **51.6%** and **0.066**
+(`expected_prosody_fusion__{ja,zh}_n150.json`). This is effectively chance and
+falsifies equal-time placement as a useful evaluator. The artifact identifies
+that limitation explicitly: morae/syllables were distributed across voiced
+time rather than forced-aligned. The next baseline must align linguistic units;
+no quality threshold should be set around these coarse numbers.
+
+**Context-conditioned Mandarin baseline advances, 2026-08-23.** A Chinese
+XLSR-53 CTC model aligned AISHELL-3 characters to 150 held human readings;
+five-bin, speaker-centred F0 contours were learned from the first 100 lines and
+evaluated on the untouched 50 (`contextual_mandarin_tone_generated_n150.json`).
+Conditioning each tone on its left and right tone raised held-human mean contour
+correlation from **0.2545 to 0.3939** across 622 scored units, so the online
+coarticulation hypothesis survives local data. Against the same human-trained
+expectation, clone scored **0.3947** over 655 units and LoRA **0.4188** over 676:
+both reach the held-human ceiling on this triage measure. This does not establish
+a listener-calibrated quality threshold or close 2.9, but it replaces the
+falsified equal-time Mandarin template with a viable contextual baseline and
+provides no evidence that either current Mandarin arm is deficient.
+
+**Perceptual calibration package prepared, 2026-08-23.** `Japanese Accent
+Calibration.html` in Downloads contains eight independently shuffled matched
+human/clone/LoRA sentences. It asks pronunciation correctness, Japanese pitch-
+accent naturalness, and overall delivery as separate questions, with an explicit
+`cannot tell` option for the two language-specific judgements. The concealed arm
+mapping is `japanese_accent_calibration_key.json`. This prepares the listener
+calibration called for above but supplies no rating evidence until a Japanese
+speaker completes it; non-speakers can validly rate delivery only.
 
 **No target yet, deliberately.** A correlation threshold invented before the
 fused measure has ever run would be the "invented number" this document's
@@ -1291,6 +1414,13 @@ deliberately rather than by whichever instrument was run last.
 
 **Target — a populated lexicon for the shipped demo book, and 0 substitutions
 that alter a non-name word.**
+
+**Owner earcheck prepared, 2026-08-23.** Existing measured takes for `kansai`
+and `otsuka` are packaged as four shuffled forms with the mapping in a separate
+concealed key (`kansai_otsuka_listening_{package,key}.json`; rendered to
+Downloads as `Kansai Otsuka Pronunciation Test.html`). No entry is promoted
+until the owner rates it; preparing a test is not evidence that a form is
+correct.
 
 ---
 
@@ -1925,6 +2055,26 @@ not safe. On the frozen holdout, the four extra within-utterance splits have
 also merges real boundaries. Production integration needs a segmenter-to-ASR
 windowing design that tolerates internal splits, followed by downstream
 transcription validation; it must not guess from timestamp gaps alone.
+
+**Text-aware grouping also rejected, 2026-08-23.** On the unchanged frozen
+50-clip set, monotonic minimum-reading-CER assignment reduced 93 consecutive
+Silero windows to exactly 50 transcript lines
+(`japanese_text_boundary_n50.json`). It changed neither the boundary median
+nor the tail: **272 ms median, 419 ms p90, 58% within 300 ms**. Grouping internal
+splits was not the missing lever; the VAD start timestamps themselves remain
+offset on this four-reader set. Production stays unchanged and the goal stays
+OPEN.
+
+**Known-text CTC alignment also rejected at its development gate, 2026-08-23.**
+Torchaudio forced alignment with the Japanese XLSR-53 CTC model was run through
+the serialized GPU wrapper on the first 10 frozen clips
+(`ctc_japanese_boundary_n10.json`). It scored all 10, but produced **613 ms
+median error, 739 ms p90, and only 30% within 300 ms**. That is substantially
+worse than Silero's 272 ms pooled median, so the preregistered small gate failed
+and no 50-item run was performed. Production stays unchanged. Generic
+known-transcript CTC is not the missing lever with this acoustic model; a future
+attempt needs a Japanese phoneme/mora aligner or direct onset calibration, not
+more scale with the same XLSR alignment.
 
 **A note on reproducing this.** The first run of the comparison omitted
 `--build`, silently scored a different clip set, and produced base 58.0% /
@@ -3182,10 +3332,13 @@ files.**
 
 If only three things get worked on:
 
-1. **Generalisation (1.3)** — the app scores 71.0% on 25 PDNC novels it has
-   never seen against 83.6% on the three it quotes, a −12.6 point gap against
-   a target of 5. The three quoted books rank #2, #8 and #9 of 28. This is now
-   the largest known overstatement in the document.
+1. **Generalisation (1.3)** — the new balanced LoRA scores 89.1% on three
+   author-held-out PDNC books and 78.4% on unseen Grimgar03, strong evidence
+   that training transfers. The goal remains open because its twenty PDNC
+   training novels can no longer serve as held-out confirmation, while the
+   base model's broad result remains 71.0% on 25 unseen novels against 83.6%
+   on the favourable three. Confirm on additional never-trained books and
+   compare development and held-out performance for the same adapter.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
    median is 0.927 and meets the goal, disproving the earlier cross-reader
    0.758 diagnosis. However, 43% of individual Japanese clips remain outside
@@ -3202,15 +3355,17 @@ If only three things get worked on:
 29.9% it was built on came from a model that does not ship. Re-measuring goals
 before working on them has now twice been worth more than working on them.
 
-**1.3 has now cost two attempts, and both missed the same way.** Broad
+**Earlier prompt-only work on 1.3 cost two attempts, and both missed the same
+way.** Broad
 sequence scored +2.33 points (p=0.054) and the targeted selector +1.33
 (p=0.134), against a fixed gate of +3.0 and p<0.05. Both supplied more
 CONTEXT. But 1.2 established that the roster already holds the right name
 about 85% of the time while the model picks it 29.9% — a SELECTION failure,
-not a context one. No selection-side intervention has been tried, and each
-context attempt spends pilot books from the 15 still sealed. The next
-experiment here should change how the answer is chosen, not how much the
-model is told.
+not a context one. The later character-style selector also failed its gate,
+while the 2026-08-24 LoRA training intervention produced the first large
+held-out gain. The next experiment should therefore confirm the trained
+adapters on never-trained books rather than spend another sealed set on a
+prompt-only context arm.
 
 **7.1 was rated on 2026-08-22 and is no longer the cheap one.** Its controls
 passed 3/3, so the instrument works — but the per-character instruction arm
@@ -3222,7 +3377,8 @@ experiment and neither is a ten-minute job any more.
 
 The Japanese transcription gap (5.4)
 is now measured rather than pending, and may be a metric problem rather than a
-pipeline one. The three-pass baseline (5.3) is already answered and should not
+pipeline one; its open axis is boundary alignment, where the 2026-08-23
+CTC and text-aware-grouping pilots were both rejected at their gates. The three-pass baseline (5.3) is already answered and should not
 be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
 four-book current-path rerun completed all 807 chunks.
 

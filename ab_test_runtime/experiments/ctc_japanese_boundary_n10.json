@@ -1,0 +1,17 @@
+{
+  "build": "ab_test_runtime/kokoro_ja_asr_eval/build.json",
+  "limit": 10,
+  "model": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
+  "device": "cuda",
+  "method": "known-text CTC segmentation",
+  "alignment": {
+    "scored": 10,
+    "predicted_segments": 10,
+    "expected_segments": 10,
+    "median_error_s": 0.613,
+    "p90_error_s": 0.739,
+    "worst_error_s": 0.781,
+    "within_tolerance_pct": 30.0,
+    "tolerance_s": 0.3
+  }
+}

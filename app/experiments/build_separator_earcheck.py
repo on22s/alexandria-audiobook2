@@ -42,7 +42,21 @@ FORMS = {
     "none":   ("respelling_sep_none", "_respelled.wav"),
     "dot":    ("respelling_sep_dot",  "_respelled.wav"),
 }
+FORM_FALLBACKS = {
+    "none": ("respelling_none_allrows", "_respelled.wav"),
+    "dot": ("respelling_dot_allrows", "_respelled.wav"),
+}
 LETTERS = "ABCD"
+
+
+def resolve_clip(form, term):
+    directory, suffix = FORMS[form]
+    primary = os.path.join(RUNTIME, directory, term + suffix)
+    if os.path.exists(primary):
+        return primary
+    fallback = FORM_FALLBACKS.get(form)
+    return (os.path.join(RUNTIME, fallback[0], term + fallback[1])
+            if fallback else primary)
 
 
 def encode(path, bitrate="32k"):
@@ -88,8 +102,7 @@ def choose_terms(spread, count, max_seconds=8.0):
         # ranking input and the package contents are different questions.
         if not seconds:
             continue
-        if not all(os.path.exists(os.path.join(RUNTIME, d, term + suffix))
-                   for d, suffix in FORMS.values()):
+        if not all(os.path.exists(resolve_clip(form, term)) for form in FORMS):
             continue
         values = list(seconds.values())
         if max(values) > max_seconds:
@@ -102,6 +115,9 @@ def choose_terms(spread, count, max_seconds=8.0):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--terms", type=int, default=10)
+    parser.add_argument("--term", action="append", default=[],
+                        help="explicit term to include; repeatable and takes "
+                             "precedence over --terms")
     parser.add_argument("--seed", type=int, default=20260819)
     parser.add_argument("--pauses", default=os.path.join(
         RUNTIME, "experiments", "respelling_pauses_separators_3arm.json"))
@@ -112,7 +128,8 @@ def main():
     args = parser.parse_args()
 
     spread = pause_spread(args.pauses)
-    terms = choose_terms(spread, args.terms)
+    terms = list(dict.fromkeys(args.term)) if args.term else choose_terms(
+        spread, args.terms)
     if not terms:
         raise SystemExit("no term has a clip in every form; nothing to build")
 
@@ -123,8 +140,7 @@ def main():
         rng.shuffle(order)
         takes, mapping = [], {}
         for letter, form in zip(LETTERS, order):
-            directory, suffix = FORMS[form]
-            audio = encode(os.path.join(RUNTIME, directory, term + suffix))
+            audio = encode(resolve_clip(form, term))
             if audio is None:
                 break
             takes.append({"letter": letter, "audio": audio})
@@ -134,7 +150,7 @@ def main():
             continue
         package.append({"term": term, "takes": takes})
         key.append({"term": term, "letters": mapping,
-                    "measured_pause_seconds": spread[term]})
+                    "measured_pause_seconds": spread.get(term)})
         print("  %-14s %s" % (term, " ".join(mapping[l] for l in LETTERS)),
               flush=True)
 

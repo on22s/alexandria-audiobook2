@@ -50,7 +50,30 @@
    "5b63f7884ce7 (299.8 Hz)",
    "4c614c09344c (227.0 Hz, control)"
   ],
-  "status": "sent to the rater 2026-08-21, unanswered"
- },
+    "status": "rated 2026-08-22",
+    "ratings_1_to_5": {
+      "4c614c09344c (227.0 Hz, control)": 5,
+      "2702aec220b0 (386.5 Hz, original flagged clip)": 1,
+      "5b63f7884ce7 (299.8 Hz)": 1,
+      "f02c6883a8d7 (307.4 Hz)": 2,
+      "75e3563bf4c9 (316.8 Hz)": 4
+    },
+    "result": "The clean low-pitch control scored 5 and the flagged high-pitch clip scored 1, but the intermediate clips were non-monotonic (1, 2, 4). Spearman rho is -0.60 for pitch versus quality at n=5: suggestive, not enough to claim pitch alone causes the damage."
+  },
+  "second_listening_round": {
+    "rated_at": "2026-08-22",
+    "rater": "project owner",
+    "character_pairs": {
+      "n_rated": 7,
+      "verdict": "all seven sounded clearly different"
+    },
+    "cleanliness": {
+      "satella": [1, 1, 1],
+      "non_satella": [5, 5, 5, 3],
+      "non_satella_mean": 4.5,
+      "verdict": "all three Satella clips were rated bad; the four non-Satella clips averaged 4.5/5"
+    },
+    "interpretation": "The distinctiveness question passed, while Satella exposed a separate audible-quality failure that the identity and pitch metrics do not detect. One non-Satella clip was also noted as reverberant."
+  },
  "discarded_instrument": "A frame-to-frame f0 jump rate (>6 semitones) was computed as a cracking proxy and DISCARDED before use: the NARRATOR, whose audio drew no complaint, scores 10.4-17.8% against the flagged clip's 15.9%. It measures YIN octave errors, not audible cracking. Recorded so it is not rebuilt."
 }
