@@ -2,10 +2,10 @@
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
   "source_structural_sha256": "b911774d926f53629f9365fa13037f6f83a495a9e0e999abdbb4cd18817cb414",
   "summary": {
-    "exploratory": 9,
+    "exploratory": 24,
     "historical_only": 46,
-    "provisional": 24,
-    "supported_measurement": 66
+    "provisional": 21,
+    "supported_measurement": 54
   },
   "artifacts": [
     {
@@ -1607,9 +1607,11 @@
         "base",
         "lora"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -1628,9 +1630,11 @@
         "base",
         "lora"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -1649,9 +1653,11 @@
         "base",
         "lora"
       ],
-      "classification": "provisional",
+      "classification": "exploratory",
       "dirty": true,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": true,
         "hash_changed": false,
@@ -2850,9 +2856,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -2869,9 +2877,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -2974,9 +2984,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -2993,9 +3005,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3012,9 +3026,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3031,9 +3047,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3050,9 +3068,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3069,9 +3089,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3088,9 +3110,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3107,9 +3131,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3126,9 +3152,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,
@@ -3145,9 +3173,11 @@
       "arms": [
         "single"
       ],
-      "classification": "supported_measurement",
+      "classification": "exploratory",
       "dirty": false,
-      "problems": [],
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
       "current_gold": {
         "available": false,
         "hash_changed": null,

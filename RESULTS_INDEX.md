@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-29 from `ab_test_runtime/experiments/` — 607 artifacts, 643 arms.
+Generated 2026-08-29 from `ab_test_runtime/experiments/` — 641 artifacts, 757 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -411,6 +411,12 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 76.6% | exploratory | ok | False | 1929.7s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 83.9% | historical_only | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 80.3% | exploratory | ok | False | 3920.5s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1456.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1799.3s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1441.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 78.4% | exploratory | ok | True | 1456.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 72.5% | exploratory | ok | True | 1799.3s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 77.9% | exploratory | ok | True | 1441.2s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 92 | 70.7% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
@@ -809,6 +815,114 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 81 | 59.3% | historical_only | ok | False | 940.4s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 42.5% | supported_measurement | ok | False | 212.6s |
 | attribution_gold_pdnc_thesignofthefour_w3200 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 640 | 56.1% | historical_only | ok | False | 2662.3s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 78.3% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 78.3% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 82.6% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 78.3% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 78.3% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_austen_emma_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 23 | 73.9% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 76.7% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 76.7% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 79.6% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 76.7% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 75.7% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_austen_emma_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 103 | 75.7% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 77.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 77.2% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 73.5% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 77.2% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 74.6% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_austen_emma_3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 189 | 75.1% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 16.7% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_chekhov_lady | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 6 | 33.3% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 85.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 85.0% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 90.0% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 85.0% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 85.0% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_chekhov_monk | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 20 | 90.0% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 70.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 252 | 69.8% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 252 | 72.2% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 252 | 69.8% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 252 | 68.7% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_chekhov_steppe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 252 | 71.8% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 63.5% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 320 | 61.3% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 320 | 65.6% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 320 | 61.3% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 320 | 65.3% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_dickens_xmas | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 320 | 65.0% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 38.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 38.2% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 49.1% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 38.2% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 45.5% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_doyle_boscombe | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 55 | 38.2% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_doyle_identity | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 7 | 71.4% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 50.0% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 50.0% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 52.2% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 50.0% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 39.1% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_doyle_league | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 46 | 47.8% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 5.6% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 5.6% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 11.1% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 5.6% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 11.1% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_doyle_scandal | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 18 | 16.7% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 65.3% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 65.3% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 69.5% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 65.3% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 64.2% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_flaubert_bovary_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 95 | 69.5% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 66.2% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 66.2% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 75.0% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 66.2% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 66.2% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_flaubert_bovary_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 68 | 73.5% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 54.4% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 54.4% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 54.4% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 54.4% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 57.9% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_twain_sawyer_1 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 57 | 63.2% | exploratory | ok | False | 1552.0s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 62.5% | supported_measurement | ok | False | 1179.0s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 278 | 60.8% | exploratory | ok | False | 1399.2s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 278 | 61.9% | exploratory | ok | False | 1455.5s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 278 | 60.8% | exploratory | ok | False | 1496.5s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 278 | 60.1% | exploratory | ok | False | 1501.2s |
+| attribution_gold_riqua_twain_sawyer_2 | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 278 | 62.6% | exploratory | ok | False | 1552.0s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 0.0% | exploratory | ok | False | 116.7s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 80.6% | exploratory | ok | False | 545.2s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 82.8% | exploratory | ok | False | 602.0s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 80.6% | exploratory | ok | False | 662.2s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 80.6% | exploratory | ok | False | 1378.1s |
+| attribution_gold_wp2021_dev | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 180 | 82.8% | exploratory | ok | False | 613.5s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 0.0% | exploratory | ok | False | 116.7s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 215 | 84.2% | exploratory | ok | False | 545.2s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 215 | 90.7% | exploratory | ok | False | 602.0s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 215 | 84.2% | exploratory | ok | False | 662.2s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 215 | 85.6% | exploratory | ok | False | 1378.1s |
+| attribution_gold_wp2021_test | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 215 | 89.3% | exploratory | ok | False | 613.5s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 200 | 0.0% | exploratory | ok | False | 59.2s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1440 | 83.1% | exploratory | ok | False | 545.2s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1440 | 84.7% | exploratory | ok | False | 602.0s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1440 | 83.1% | exploratory | ok | False | 662.2s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1440 | 83.2% | exploratory | ok | False | 1378.1s |
+| attribution_gold_wp2021_train | qwen3-14b | local-lmstudio | lmstudio | 32768 | single | 1440 | 84.2% | exploratory | ok | False | 613.5s |
 
 ## voting
 
@@ -923,11 +1037,14 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `clone_vs_lora_seeded.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cluster_vs_name.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `constraint_refine.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `contextual_mandarin_tone_generated_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `corpus_hnr_baseline.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cpu_chain_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `crossbook_normalization.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `ctc_japanese_boundary_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_speaker_consistency_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `decontaminate_batch1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -958,6 +1075,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `elson_trigram_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `expected_prosody__ja_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `expected_prosody__zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1068,11 +1187,15 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__velvety_mezzo_30s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `homograph_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `instruct_listening_fixed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instruct_value_seeded.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instrument_null_test.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `japanese_accent_calibration_key.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `japanese_text_boundary_n50.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_same_speaker_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1109,6 +1232,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `nonprose_split_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `offbyone_turns.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `overnight_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1116,6 +1240,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_eval_mixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_failure_telemetry.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_generalisation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_luar_character_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `pdnc_new_adapter_adapter_author_heldout_balanced_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_new_adapter_adapter_speaker_hardcases_split_nonmajor_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_new_adapter_adapter_speaker_longcontext_tophalf_5epoch_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_pilots_paired.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1199,6 +1327,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `robotic_proxy_clips.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `roster_order_bias.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `run_lengths.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `satella_quality_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `satella_quality_probe_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `satella_quality_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `satella_quality_ratings_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scale_vs_register.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_aware_casting.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `scene_narrowing_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
