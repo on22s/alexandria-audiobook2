@@ -742,6 +742,14 @@
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length"
   ],
+  "test_distill_qwen35": [
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_answer_longer_than_limit_is_still_supervised",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_conditional_architectures_use_image_text_loader",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_existing_causal_model_keeps_causal_loader",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_long_prompt_is_truncated_without_losing_answer_labels",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_refuses_when_language_targets_are_absent",
+    "tests.test_distill_qwen35.Qwen35TrainingTest.test_qwen35_targets_language_model_but_not_vision"
+  ],
   "test_distill_training_resume": [
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_resume_preserves_training_state_rng_and_sample_order"

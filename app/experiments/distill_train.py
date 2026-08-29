@@ -39,6 +39,45 @@ def get_resume_checkpoint(resume):
     return True if resume else None
 
 
+LORA_TARGET_SUFFIXES = (
+    "q_proj", "k_proj", "v_proj", "o_proj",
+    "gate_proj", "up_proj", "down_proj",
+)
+
+
+def get_model_loader_name(architectures):
+    """Return the Transformers auto-loader required by a model config."""
+    if any(name in {
+            "Qwen3_5ForConditionalGeneration",
+            "Qwen3_5MoeForConditionalGeneration",
+    } for name in (architectures or [])):
+        return "AutoModelForImageTextToText"
+    return "AutoModelForCausalLM"
+
+
+def get_lora_target_modules(model, architectures):
+    """Return projection modules, excluding Qwen3.5's vision tower."""
+    if get_model_loader_name(architectures) == "AutoModelForCausalLM":
+        return list(LORA_TARGET_SUFFIXES)
+    prefix = "model.language_model.layers."
+    targets = sorted(
+        name for name, _ in model.named_modules()
+        if name.startswith(prefix)
+        and name.rsplit(".", 1)[-1] in LORA_TARGET_SUFFIXES)
+    if not targets:
+        raise RuntimeError("Qwen3.5 language-model LoRA targets were not found")
+    return targets
+
+
+def truncate_for_supervision(prompt_ids, answer_ids, max_len):
+    """Truncate the prompt first so answer supervision is never discarded."""
+    room = max(0, max_len - len(answer_ids))
+    kept_prompt = prompt_ids[-room:] if room else []
+    kept_answer = answer_ids[:max_len]
+    return (kept_prompt + kept_answer,
+            [-100] * len(kept_prompt) + kept_answer)
+
+
 def build_examples(paths, tokenizer_name=None, label_field="teacher"):
     """One (prompt, completion) pair per teacher-labelled row.
 
@@ -120,6 +159,8 @@ def main():
     ap.add_argument("--load_in_4bit", action="store_true",
                     help="QLoRA/NF4 loading for supported bitsandbytes backends; "
                          "required for a 14B model on a 16GB card")
+    ap.add_argument("--max_steps", type=int, default=-1,
+                    help="maximum optimizer steps; use 1 for a smoke test")
     args = ap.parse_args()
 
     rows = build_examples(args.data, label_field=args.label_field)
@@ -141,7 +182,8 @@ def main():
         return
 
     import torch
-    from transformers import (AutoModelForCausalLM, AutoTokenizer,
+    import transformers
+    from transformers import (AutoConfig, AutoTokenizer,
                               TrainingArguments, Trainer, DataCollatorForSeq2Seq)
     from peft import (LoraConfig, get_peft_model,
                       prepare_model_for_kbit_training)
@@ -182,10 +224,8 @@ def main():
             # removed the entire completion on long rosters. Besides teaching
             # nothing, zero labelled tokens made logits_to_keep=0 mean "all
             # prompt logits" and OOMed a 16GB QLoRA run before step one.
-            room = max(0, args.max_len - len(answer_ids))
-            prompt_ids = prompt_ids[-room:] if room else []
-            ids = prompt_ids + answer_ids
-            lab = [-100] * len(prompt_ids) + answer_ids
+            ids, lab = truncate_for_supervision(
+                prompt_ids, answer_ids, args.max_len)
             input_ids.append(ids)
             labels.append(lab)
         return {"input_ids": input_ids, "labels": labels,
@@ -193,6 +233,9 @@ def main():
 
     ds = Dataset.from_list(train).map(
         encode, batched=True, remove_columns=["system", "user", "completion", "book"])
+    config = AutoConfig.from_pretrained(args.model, trust_remote_code=True)
+    loader_name = get_model_loader_name(config.architectures)
+    loader = getattr(transformers, loader_name)
     model_kwargs = {"device_map": "auto", "trust_remote_code": True}
     if args.load_in_4bit:
         from transformers import BitsAndBytesConfig
@@ -202,7 +245,9 @@ def main():
             bnb_4bit_use_double_quant=True)
     else:
         model_kwargs["torch_dtype"] = torch.bfloat16
-    model = AutoModelForCausalLM.from_pretrained(args.model, **model_kwargs)
+    print(f"  loader: {loader_name}  4-bit: {args.load_in_4bit}")
+    model = loader.from_pretrained(args.model, **model_kwargs)
+    targets = get_lora_target_modules(model, config.architectures)
     if args.load_in_4bit:
         model = prepare_model_for_kbit_training(
             model, use_gradient_checkpointing=True)
@@ -212,8 +257,7 @@ def main():
     model = get_peft_model(model, LoraConfig(
         r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=0.05,
         bias="none", task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj"]))
+        target_modules=targets))
     model.print_trainable_parameters()
 
     class AnswerOnlyTrainer(Trainer):
@@ -245,6 +289,7 @@ def main():
         model=model,
         args=TrainingArguments(
             output_dir=args.out, num_train_epochs=args.epochs,
+            max_steps=args.max_steps,
             per_device_train_batch_size=args.batch_size,
             gradient_accumulation_steps=args.grad_accum,
             learning_rate=args.lr, bf16=True, logging_steps=10,
