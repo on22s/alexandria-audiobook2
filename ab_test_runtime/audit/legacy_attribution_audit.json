@@ -1,10 +1,10 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "2d7fa1f042dc684704d7cdbe5e0fa6291ed3eb606887666896936bc17099d07e",
+  "source_structural_sha256": "b911774d926f53629f9365fa13037f6f83a495a9e0e999abdbb4cd18817cb414",
   "summary": {
     "exploratory": 9,
     "historical_only": 46,
-    "provisional": 21,
+    "provisional": 24,
     "supported_measurement": 66
   },
   "artifacts": [
@@ -1593,6 +1593,69 @@
         "available": true,
         "hash_changed": true,
         "missing_rows": 324,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
+      "family": "lora_serving_eval",
+      "rows": 770,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "provisional",
+      "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json",
+      "family": "lora_serving_eval",
+      "rows": 770,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "provisional",
+      "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "Two gold books and one serving stack; not a universal adapter claim."
+    },
+    {
+      "artifact": "lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json",
+      "family": "lora_serving_eval",
+      "rows": 770,
+      "arms": [
+        "base",
+        "lora"
+      ],
+      "classification": "provisional",
+      "dirty": true,
+      "problems": [],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 0,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

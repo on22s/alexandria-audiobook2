@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-23 from `ab_test_runtime/experiments/` — 627 artifacts, 751 arms.
+Generated 2026-08-29 from `ab_test_runtime/experiments/` — 641 artifacts, 757 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -411,6 +411,12 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 76.6% | exploratory | ok | False | 1929.7s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 83.9% | historical_only | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 80.3% | exploratory | ok | False | 3920.5s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | provisional | ok | True | 1456.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | provisional | ok | True | 1799.3s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | provisional | ok | True | 1441.2s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 78.4% | provisional | ok | True | 1456.9s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 72.5% | provisional | ok | True | 1799.3s |
+| grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 77.9% | provisional | ok | True | 1441.2s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 92 | 70.7% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
@@ -1031,10 +1037,12 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `clone_vs_lora_seeded.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cluster_vs_name.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `constraint_refine.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `contextual_mandarin_tone_generated_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `corpus_hnr_baseline.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cpu_chain_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `crossbook_normalization.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `ctc_japanese_boundary_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1067,6 +1075,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `elson_trigram_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `expected_prosody__ja_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `expected_prosody__zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1183,7 +1193,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instruct_value_seeded.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `instrument_null_test.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `japanese_accent_calibration_key.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `japanese_text_boundary_n50.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_same_speaker_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1220,6 +1232,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `nonprose_split_v2.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `offbyone_turns.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `overnight_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1227,6 +1240,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_eval_mixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_failure_telemetry.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_generalisation.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_luar_character_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `pdnc_new_adapter_adapter_author_heldout_balanced_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_new_adapter_adapter_speaker_hardcases_split_nonmajor_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_new_adapter_adapter_speaker_longcontext_tophalf_5epoch_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_pilots_paired.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

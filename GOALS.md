@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-24
 
 ## How to read this
 
@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2383** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2425** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -86,6 +86,16 @@ gets the wrong voice, and no amount of TTS quality repairs it.
 | index18 | 81.5% | 82.6% | 1.1 |
 | mushoku16 | 72.9% | 74.8% | 1.9 |
 | owarimonogatari3 | 69.1% | 69.8% | 0.7 |
+
+**New held-out LoRA evidence, 2026-08-24.** The
+`adapter_author_heldout_balanced` adapter scores **302/385 (78.4%)** on the
+scoreable Grimgar03 hard-subset lines, against **245/385 (63.6%)** for the
+base model in the same run (`lora_serving_eval__new-author_heldout_balanced-grimgar03.json`).
+Grimgar03 was not part of its twenty-novel PDNC training set. This clears the
+75% target for this one book under this new arm, but it does not close 1.1:
+the adapter has not yet been measured on index18, mushoku16 or
+owarimonogatari3 under the same harness. The hard-subset score is not directly
+comparable to a whole-book PDNC score.
 
 #### The wide context arrived, and it is worth 12.7 points — 2026-08-21
 
@@ -281,6 +291,38 @@ apply to it:
 
 **Gap −12.6 points against a target of 5. OPEN, and failing by more than
 double.**
+
+**Author-held-out LoRA result, 2026-08-24.** Three adapters were trained on
+twenty balanced PDNC novels while excluding every Austen, Chopin and Doyle
+novel. They were then evaluated on all **2,494** labelled quotations from
+*Pride and Prejudice* (1,270), *The Awakening* (584) and *The Sign of the
+Four* (640). These are clean author-held-out books for these adapters:
+
+| arm | correct / rows | accuracy | gain over same-run base |
+|---|---:|---:|---:|
+| base | 1911 / 2494 | **76.6%** | — |
+| `adapter_author_heldout_balanced` | 2221 / 2494 | **89.1%** | **+12.4 points** |
+| `adapter_speaker_longcontext_tophalf_5epoch` | 2173 / 2494 | **87.1%** | **+10.5 points** |
+| `adapter_speaker_hardcases_split_nonmajor` | 2035 / 2494 | **81.6%** | **+5.0 points** |
+
+The artifacts are `pdnc_new_adapter_*_full_b5.json`. Structured-output
+windows that exhausted all passes were counted as failures rather than
+silently omitted, so these are end-to-end harness results. On the separate
+385-line Grimgar03 hard subset, the same arms scored **63.6% base, 78.4%
+balanced, 77.9% long-context and 72.5% hard-cases**. This is measured evidence
+of cross-author transfer and, on Grimgar03, cross-corpus transfer.
+
+This result materially advances 1.3 but does **not** close it. The twenty PDNC
+training novels are no longer held out for these adapters and cannot be used
+as confirmatory evidence. The three excluded-author books supply the clean
+three-book number required by the target, but they are also the favourable
+top-third books identified below; they do not resolve the broad 25-book gap.
+A broader confirmation must use books that were never in these adapters'
+training data and must compare the same adapter on both development and
+held-out sets. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+these three books, 0.7 points above the new balanced adapter, so the balanced
+adapter is the strongest of the three new arms, not yet the unqualified
+production winner.
 
 **Three interventions were piloted against that gap on 2026-08-18 and none
 earned its confirmatory run.** Each is a five-book English PDNC pilot at 120
@@ -3257,10 +3299,13 @@ files.**
 
 If only three things get worked on:
 
-1. **Generalisation (1.3)** — the app scores 71.0% on 25 PDNC novels it has
-   never seen against 83.6% on the three it quotes, a −12.6 point gap against
-   a target of 5. The three quoted books rank #2, #8 and #9 of 28. This is now
-   the largest known overstatement in the document.
+1. **Generalisation (1.3)** — the new balanced LoRA scores 89.1% on three
+   author-held-out PDNC books and 78.4% on unseen Grimgar03, strong evidence
+   that training transfers. The goal remains open because its twenty PDNC
+   training novels can no longer serve as held-out confirmation, while the
+   base model's broad result remains 71.0% on 25 unseen novels against 83.6%
+   on the favourable three. Confirm on additional never-trained books and
+   compare development and held-out performance for the same adapter.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
    median is 0.927 and meets the goal, disproving the earlier cross-reader
    0.758 diagnosis. However, 43% of individual Japanese clips remain outside
@@ -3277,15 +3322,17 @@ If only three things get worked on:
 29.9% it was built on came from a model that does not ship. Re-measuring goals
 before working on them has now twice been worth more than working on them.
 
-**1.3 has now cost two attempts, and both missed the same way.** Broad
+**Earlier prompt-only work on 1.3 cost two attempts, and both missed the same
+way.** Broad
 sequence scored +2.33 points (p=0.054) and the targeted selector +1.33
 (p=0.134), against a fixed gate of +3.0 and p<0.05. Both supplied more
 CONTEXT. But 1.2 established that the roster already holds the right name
 about 85% of the time while the model picks it 29.9% — a SELECTION failure,
-not a context one. No selection-side intervention has been tried, and each
-context attempt spends pilot books from the 15 still sealed. The next
-experiment here should change how the answer is chosen, not how much the
-model is told.
+not a context one. The later character-style selector also failed its gate,
+while the 2026-08-24 LoRA training intervention produced the first large
+held-out gain. The next experiment should therefore confirm the trained
+adapters on never-trained books rather than spend another sealed set on a
+prompt-only context arm.
 
 **7.1 now has its first blinded baseline.** The 2026-08-22 ratings rejected
 per-line instruction and scene-aware casting, while also proving `per_char`

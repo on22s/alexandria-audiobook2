@@ -1,12 +1,12 @@
 # Legacy attribution audit — 2026-08-05
 
-All 142 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 145 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
 - `exploratory`: 9
 - `historical_only`: 46
-- `provisional`: 21
+- `provisional`: 24
 - `supported_measurement`: 66
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
@@ -86,6 +86,9 @@ All 142 legacy-metadata artifacts are listed exactly once. Classification descri
 | `joint_scene__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | joint_scene | supported_measurement | 486 | 0 | 0 | False |  |
 | `lora_serving_eval__local-rocm-lora-b2.json` | lora_serving_eval | historical_only | 450 | 0 | 266 | False |  |
 | `lora_serving_eval__local-rocm-lora.json` | lora_serving_eval | historical_only | 1094 | 0 | 324 | True |  |
+| `lora_serving_eval__new-author_heldout_balanced-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
+| `lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
+| `lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json` | lora_serving_eval | provisional | 770 | 0 | 0 | True |  |
 | `narrator_prior__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | historical_only | 800 | 29 | 8 | False |  |
 | `narrator_prior__index18__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 198 | 0 | 0 | False |  |
 | `narrator_prior__mushoku16__qwen__qwen3-14b__local-llamacpp.json` | narrator_prior | supported_measurement | 278 | 0 | 0 | False |  |

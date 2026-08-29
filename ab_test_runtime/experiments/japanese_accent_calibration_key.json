@@ -1,0 +1,69 @@
+{
+  "seed": 20260823,
+  "key": [
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00001",
+      "letters": {
+        "A": "human",
+        "B": "clone",
+        "C": "lora"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00002",
+      "letters": {
+        "A": "lora",
+        "B": "clone",
+        "C": "human"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00003",
+      "letters": {
+        "A": "lora",
+        "B": "clone",
+        "C": "human"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00004",
+      "letters": {
+        "A": "human",
+        "B": "clone",
+        "C": "lora"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00005",
+      "letters": {
+        "A": "lora",
+        "B": "human",
+        "C": "clone"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00006",
+      "letters": {
+        "A": "lora",
+        "B": "human",
+        "C": "clone"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00058",
+      "letters": {
+        "A": "human",
+        "B": "clone",
+        "C": "lora"
+      }
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00060",
+      "letters": {
+        "A": "human",
+        "B": "clone",
+        "C": "lora"
+      }
+    }
+  ]
+}
