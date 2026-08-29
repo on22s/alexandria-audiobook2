@@ -206,7 +206,16 @@
     "tests.test_attribution_adapter.ServingTest.test_the_configured_adapter_serving_is_ok",
     "tests.test_attribution_adapter.WiringTest.test_generate_script_performs_the_check"
   ],
-  "test_attribution_hybrid": [],
+  "test_attribution_hybrid": [
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_cli_policy_file_shape_is_json_serializable",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_confidence_policy_falls_back_on_abstention_or_low_confidence",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_evaluate_rejects_duplicate_ids_and_gold_disagreement",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_evaluate_reports_missing_rows_instead_of_dropping_silently",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_load_rows_supports_pdnc_eval_book_mapping",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_narrator_aware_policy_protects_known_first_person_books",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_preserves_source_alias_aware_correctness",
+    "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",
@@ -602,7 +611,11 @@
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_scoring_restores_declared_identifier_digit_semantics",
     "tests.test_crossbook_normalization.CrossbookNormalizationTests.test_summary_keeps_books_categories_and_arms_separate"
   ],
-  "test_ctc_text_boundary": [],
+  "test_ctc_text_boundary": [
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_log_probs_reads_transformers_output_logits",
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_preserves_text_and_boundaries",
+    "tests.test_ctc_text_boundary.CTCTextBoundaryTest.test_get_segments_rejects_partial_alignment"
+  ],
   "test_dedup_benchmark": [
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_changed_audio_is_rejected_before_dedup_runs",
     "tests.test_dedup_benchmark.DedupBenchmarkTests.test_content_hash_ignores_archive_packaging"
@@ -2539,6 +2552,12 @@
     "tests.test_statistic_discriminability.MeanTest.test_an_empty_group_is_none_not_zero",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_a_variance_statistic_can_win_and_must_be_visible",
     "tests.test_statistic_discriminability.VerdictShapeTest.test_the_real_ordering_that_motivated_the_seconds_exclusion"
+  ],
+  "test_suite_imports_are_ci_installable": [
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_no_test_module_imports_a_declared_unavailable_package",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_detector_fires_on_the_import_that_broke_ci",
+    "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_set_is_read_from_the_files_that_define_it"
   ],
   "test_support": [],
   "test_system_version": [
