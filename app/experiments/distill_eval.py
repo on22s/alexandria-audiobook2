@@ -35,7 +35,7 @@ The comparison that matters is not base vs tuned alone. A tuned 14B is only
 interesting if it approaches what the 70B cascade buys, so the cascade's
 measured gains on these same books are the standard to read it against.
 """
-import argparse, collections, contextlib, json, os, re, sys, time
+import argparse, collections, contextlib, json, os, re, sys, time, warnings
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -126,11 +126,55 @@ class LocalClient:
         return _Response(text, finish)
 
 
-def load_book(book):
+def get_book_paths(book, input_dir=None, checkpoint_dir=None):
+    source_path = (os.path.join(input_dir, f"{book}.txt") if input_dir
+                   else M + f"inputs/{book}.txt")
+    checkpoint_path = (
+        os.path.join(checkpoint_dir,
+                     f"{book}__three_pass.json.threepass_checkpoint.json")
+        if checkpoint_dir else
+        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json")
+    return source_path, checkpoint_path
+
+
+def get_model_load_kwargs(torch, quantization_config=None):
+    """Return one explicit loader policy for BF16 or NF4 evaluation."""
+    kwargs = {"torch_dtype": torch.bfloat16, "device_map": "auto",
+              "trust_remote_code": True}
+    if quantization_config is not None:
+        kwargs["quantization_config"] = quantization_config
+    return kwargs
+
+
+def get_model_loader_name(architectures):
+    """Match the model wrapper used to create Qwen3.5 adapter keys."""
+    conditional = {"Qwen3_5ForConditionalGeneration",
+                   "Qwen3_5MoeForConditionalGeneration"}
+    if conditional.intersection(architectures or []):
+        return "AutoModelForImageTextToText"
+    return "AutoModelForCausalLM"
+
+
+def load_peft_adapter_or_raise(peft_model, base, adapter):
+    """Load an adapter and reject PEFT's plausible-looking inert fallback."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model = peft_model.from_pretrained(base, adapter)
+    missing = [str(item.message) for item in caught
+               if "missing adapter keys" in str(item.message).lower()]
+    if missing:
+        raise RuntimeError(
+            "PEFT did not activate the adapter; model wrapper and adapter "
+            f"keys are incompatible: {missing[0]}")
+    return model
+
+
+def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
-    src = open(M + f"inputs/{book}.txt", encoding="utf-8").read()
-    cp = json.load(open(
-        M + INPUT_RUN + f"/{book}/result.json.threepass_checkpoint.json"))
+    source_path, checkpoint_path = get_book_paths(
+        book, input_dir, checkpoint_dir)
+    src = open(source_path, encoding="utf-8").read()
+    cp = json.load(open(checkpoint_path))
     seg = cp["segmented"]
     roster = [r.upper() for r in
               build_roster([e for e in (cp.get("named") or []) if e], src)]
@@ -157,19 +201,35 @@ def main():
     # one bad batch cost ~13 minutes per attempt and ~50 across its retries.
     # Capping bounds the failure without touching well-formed responses.
     ap.add_argument("--max_tokens", type=int, default=2000)
+    ap.add_argument("--input-dir")
+    ap.add_argument("--checkpoint-dir")
+    ap.add_argument("--load-in-4bit", action="store_true",
+                    help="load the base with bitsandbytes NF4 when BF16 "
+                         "weights exceed available VRAM")
     args = ap.parse_args()
 
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import (AutoConfig, AutoModelForCausalLM,
+                              AutoModelForImageTextToText, AutoTokenizer)
     from peft import PeftModel
 
     tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    base = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=torch.bfloat16, device_map="auto",
-        trust_remote_code=True)
-    model = PeftModel.from_pretrained(base, args.adapter)
+    config = AutoConfig.from_pretrained(args.model, trust_remote_code=True)
+    loader = (AutoModelForImageTextToText
+              if get_model_loader_name(config.architectures)
+              == "AutoModelForImageTextToText" else AutoModelForCausalLM)
+    quantization_config = None
+    if args.load_in_4bit:
+        from transformers import BitsAndBytesConfig
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True)
+    base = loader.from_pretrained(
+        args.model, **get_model_load_kwargs(torch, quantization_config))
+    model = load_peft_adapter_or_raise(PeftModel, base, args.adapter)
     model.eval()
     client = LocalClient(model, tok)
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
@@ -184,7 +244,8 @@ def main():
     environment = {"loaded": True, "context_length": 32768, "parallel": 1,
                    "optimized": None, "runtime": "transformers+peft",
                    "gpu": gpu, "torch": torch.__version__,
-                   "dtype": "bfloat16"}
+                   "dtype": "bfloat16",
+                   "quantization": "nf4" if args.load_in_4bit else "none"}
     # The constructor hashes ONE fixture; this run spans four. Record the first
     # for the schema and every book's hash alongside it, so the artifact cannot
     # imply it was scored against a single gold file.
@@ -194,9 +255,10 @@ def main():
         {"temperature": 0.0, "batch": BATCH, "adapter": args.adapter,
          "max_tokens": args.max_tokens},
         environment=environment,
-        notes="LoRA distilled from a 70B on 1,091 routed rows of grimgar06 and "
-              "mushoku18, scored on four gold books it never saw. Arms share "
-              "one loaded model and differ only by peft disable_adapter().")
+        notes="Paired base-versus-LoRA evaluation. Training-data provenance "
+              "belongs to the adapter's training manifest; this evaluator "
+              "does not infer it. Arms share one loaded model and differ only "
+              "by peft disable_adapter().")
     # Six hours of GPU with no resume point was a bad trade the first time.
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
@@ -210,7 +272,8 @@ def main():
     totals = {"base": [0, 0], "tuned": [0, 0]}
     per_book, answers = {}, {"base": {}, "tuned": {}}
     for book in args.books:
-        gold, src, seg, roster, want = load_book(book)
+        gold, src, seg, roster, want = load_book(
+            book, args.input_dir, args.checkpoint_dir)
         groups = alias_groups(gold)
         windows = [list(range(s, min(s + BATCH, len(seg))))
                    for s in range(0, len(seg), BATCH)]
@@ -227,6 +290,12 @@ def main():
                         if get_deterministic_named_entry(seg[i]) is None]
                 if not send or not any(norm(seg[i].get("text")) in want
                                        for i in send):
+                    continue
+                rows = [i for i in send if norm(seg[i].get("text")) in want]
+                if all(record.done(
+                        arm,
+                        f"{book}:{want[norm(seg[i].get('text'))]['id']}")
+                       for i in rows):
                     continue
                 frozen = [{"type": seg[i]["type"], "text": seg[i]["text"]}
                           for i in send]
@@ -249,7 +318,10 @@ def main():
                         key = norm(seg[i].get("text"))
                         if key in want:
                             g = want[key]
-                            record.add(arm, f"{book}:{g['id']}", g["line"],
+                            row_id = f"{book}:{g['id']}"
+                            if record.done(arm, row_id):
+                                continue
+                            record.add(arm, row_id, g["line"],
                                        g["expected_speaker"].upper(), None, False,
                                        provenance=f"{arm}|{book}|batch_failed")
                             scored += 1
@@ -259,8 +331,11 @@ def main():
                     if key not in want:
                         continue
                     g = want[key]
+                    row_id = f"{book}:{g['id']}"
+                    if record.done(arm, row_id):
+                        continue
                     sp = (out[off] or {}).get("speaker") if off < len(out) else None
-                    record.add(arm, f"{book}:{g['id']}", g["line"],
+                    record.add(arm, row_id, g["line"],
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
                                provenance=f"{arm}|{book}")

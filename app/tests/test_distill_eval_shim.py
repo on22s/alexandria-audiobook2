@@ -182,5 +182,15 @@ class DistillEvalShimTest(unittest.TestCase):
         self.assertIsNone(response.usage)
 
 
+class DistillEvalProvenanceTest(unittest.TestCase):
+    def test_evaluator_does_not_claim_one_adapter_training_corpus(self):
+        path = os.path.join(APP, "experiments", "distill_eval.py")
+        with open(path, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertNotIn("1,091 routed rows", source)
+        self.assertNotIn("grimgar06 and", source)
+        self.assertIn("does not infer it", source)
+
+
 if __name__ == "__main__":
     unittest.main()
