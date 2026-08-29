@@ -736,6 +736,7 @@
     "tests.test_dialogue_spans.SpanTest.test_spans_cover_the_words_and_not_the_marks"
   ],
   "test_distill_eval_shim": [
+    "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
@@ -1559,6 +1560,16 @@
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",
     "tests.test_lora_review_integration.ReviewIntegrationTests.test_full_blind_review_flow_over_real_evidence",
     "tests.test_lora_review_integration.ReviewIntegrationTests.test_mutated_checkpoint_rejects_a_stale_submission"
+  ],
+  "test_lora_serving_eval_modes": [
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_base_only_mode_never_requests_adapter_state",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_clean_adapter_load_is_returned",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_corrected_data_directories_override_legacy_layout",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_distill_eval_uses_the_same_corrected_layout",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_missing_adapter_keys_fail_instead_of_running_inert",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_nf4_loader_policy_preserves_bf16_compute",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_qwen35_moe_uses_training_compatible_wrapper"
   ],
   "test_lora_training_benchmark": [
     "tests.test_lora_training_benchmark.LoraTrainingBenchmarkTests.test_execute_fixture_rejects_changed_audio_before_training",
