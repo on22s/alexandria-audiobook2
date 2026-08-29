@@ -8,6 +8,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.scoring import same_speaker, alias_groups
 from experiments.stats import paired
+from experiments.provenance import provenance
 from utils import atomic_json_write
 
 GENERIC = ("A ", "AN ", "THE ", "UNKNOWN")
@@ -66,7 +67,8 @@ def main():
                "gained": gained, "lost": lost, "p_value": p,
                "overrides": sum(r["reason"] != "baseline_default" for r in rows),
                "advance": (100 * (sum(arm.values()) - sum(base.values())) / n >= 3 and p < .05)}
-    atomic_json_write({"summary": summary, "rows": rows}, args.out)
+    atomic_json_write({"summary": summary, "rows": rows,
+                       "provenance": provenance(__file__, args)}, args.out)
     print(json.dumps(summary, indent=2))
 
 

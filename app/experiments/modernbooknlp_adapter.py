@@ -12,6 +12,7 @@ from experiments.booknlp_baseline import (  # noqa: E402
     align_to_gold, parse_booknlp, read_tsv,
 )
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
+from experiments.provenance import provenance  # noqa: E402
 
 
 def adapt(quotes_path, entities_path, fixture, id_prefix, extra_aliases=(),
@@ -83,6 +84,7 @@ def main():
             "confidence-threshold hybrid policies therefore fall back to Qwen.",
             "Accuracy is reported on the full fixture denominator by the hybrid "
             "harness; unmatched rows are never silently removed."],
+        "provenance": provenance(__file__, args),
     }
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:

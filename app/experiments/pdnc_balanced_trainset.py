@@ -6,8 +6,11 @@ import csv
 import json
 import os
 import random
+import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.provenance import provenance  # noqa: E402
 DEFAULT_ROOT = os.path.join(REPO, "ab_test_runtime", "pdnc")
 SPECIAL = {"UNKNOWN", "UNKNOWABLE", "UNNAMED", "NOT_DIALOGUE"}
 
@@ -137,7 +140,8 @@ def main():
         total += len(rows)
     document = {"seed": args.seed, "excluded_authors": sorted(excluded),
                 "per_novel": args.per_novel, "per_speaker": args.per_speaker,
-                "total_rows": total, "books": manifest}
+                "total_rows": total, "books": manifest,
+                "provenance": provenance(__file__, args)}
     with open(os.path.join(args.out_dir, "manifest.json"), "w", encoding="utf-8") as handle:
         json.dump(document, handle, indent=1)
     print(json.dumps({"total_rows": total,

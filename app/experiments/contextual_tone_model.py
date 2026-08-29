@@ -8,6 +8,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.provenance import provenance  # noqa: E402
 
 
 def get_tones(text):
@@ -135,7 +136,8 @@ def main():
               "contextual_groups": len(context_means),
               "generated": generated,
               "advance": bool(tone_scores and context_scores and
-                              statistics.mean(context_scores) > statistics.mean(tone_scores))}
+                              statistics.mean(context_scores) > statistics.mean(tone_scores)),
+              "provenance": provenance(__file__, args)}
     from utils import atomic_json_write
     atomic_json_write(result, args.out)
     print(json.dumps(result, indent=2))

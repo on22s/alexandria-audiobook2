@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from asr_backends import build_alignment_probe, score_alignment
 from utils import atomic_json_write
+from experiments.provenance import provenance
 
 
 def get_segments(texts, raw_segments):
@@ -75,7 +76,8 @@ def main():
     result = score_alignment(truth, predicted)
     document = {"build": os.path.relpath(args.build, REPO), "limit": len(rows),
                 "model": args.model, "device": args.device,
-                "method": "known-text CTC segmentation", "alignment": result}
+                "method": "known-text CTC segmentation", "alignment": result,
+                "provenance": provenance(__file__, args)}
     atomic_json_write(document, args.out)
     print(json.dumps(document, indent=2, ensure_ascii=False))
     if not result.get("scored"):

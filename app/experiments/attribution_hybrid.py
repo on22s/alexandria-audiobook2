@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 from experiments.stats import exact_mcnemar  # noqa: E402
+from experiments.provenance import provenance  # noqa: E402
 
 
 def index_rows(rows):
@@ -175,7 +176,8 @@ def main():
     if not rows:
         raise SystemExit("no shared prediction IDs")
     document = {"status": "complete", "phase": phase, "selected_policy": policy,
-                "coverage": coverage, "summary": summarise(rows), "rows": rows}
+                "coverage": coverage, "summary": summarise(rows), "rows": rows,
+                "provenance": provenance(__file__, args)}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(document, handle, indent=1, ensure_ascii=False)

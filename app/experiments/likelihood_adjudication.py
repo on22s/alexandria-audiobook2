@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.full_sequence_scoring import LlamaSequenceScorer  # noqa: E402
 from experiments.scoring import normalize  # noqa: E402
 from utils import atomic_json_write  # noqa: E402
+from experiments.provenance import provenance  # noqa: E402
 
 
 PROMPT = """Identify who speaks THE LINE. Use the surrounding evidence. The
@@ -112,7 +113,8 @@ def main():
                 "scope": "system disagreements only",
                 "summary": {"n": len(rows), "correct": sum(r["correct"] for r in rows),
                             "qwen_correct": sum(r["qwen_correct"] for r in rows),
-                            "gains": gains, "losses": losses}, "rows": rows}
+                            "gains": gains, "losses": losses}, "rows": rows,
+                "provenance": provenance(__file__, args)}
     atomic_json_write(document, args.out)
     print(json.dumps(document["summary"], indent=1))
 

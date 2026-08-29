@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import platform
 import subprocess
 import time
@@ -9,8 +10,12 @@ import soundfile as sf
 import torch
 from qwen_tts import Qwen3TTSModel
 
-ROOT = Path("/home/ubuntu/alexandria-goals-be3e7ea")
-OUT = Path("/home/ubuntu/tts_comparison_20260824/qwen3_tts")
+# Ran on the cloud instance from /home/ubuntu/alexandria-goals-be3e7ea,
+# writing to /home/ubuntu/tts_comparison_20260824/qwen3_tts. Both are that
+# machine's paths, so take them from the environment as the sibling shell
+# chains already do, and default to this checkout.
+ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parent.parent)
+OUT = Path(os.environ.get("OUT") or ROOT / "ab_test_runtime/tts_comparison/qwen3_tts")
 OUT.mkdir(parents=True, exist_ok=True)
 build = json.loads((ROOT / "ab_test_runtime/reference_spread/build_spread3.json").read_text())
 reference = ROOT / build["ref_sample"]

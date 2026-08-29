@@ -8,6 +8,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from experiments.provenance import provenance  # noqa: E402
 
 from asr_backends import (build_alignment_probe, run_silero_whisper_cpp,
                           score_alignment, to_reading, word_error_rate)
@@ -67,7 +68,8 @@ def main():
     document = {"build": os.path.relpath(args.build, REPO),
                 "method": "monotonic minimum reading-CER grouping of consecutive Silero windows",
                 "raw_windows": len(windows), "grouped_windows": len(grouped),
-                "alignment": result}
+                "alignment": result,
+                "provenance": provenance(__file__, args)}
     from utils import atomic_json_write
     atomic_json_write(document, args.out)
     print(json.dumps(document, indent=2, ensure_ascii=False))

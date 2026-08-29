@@ -8,6 +8,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.scoring import alias_groups, same_speaker
 from experiments.stats import paired
+from experiments.provenance import provenance
 from utils import atomic_json_write
 
 GENERIC = ("A ", "AN ", "THE ", "UNKNOWN")
@@ -90,7 +91,8 @@ def main():
                "luar_correct": sum(arm_scores.values()), "gained": gained, "lost": lost,
                "p_value": p_value, "overrides": sum(r["reason"] != "baseline_default" for r in rows),
                "advance": gained > lost and p_value < 0.05, "model_revision": args.revision}
-    atomic_json_write({"summary": summary, "rows": rows}, args.out)
+    atomic_json_write({"summary": summary, "rows": rows,
+                       "provenance": provenance(__file__, args)}, args.out)
     print(json.dumps(summary, indent=2))
 
 

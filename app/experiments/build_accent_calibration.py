@@ -5,8 +5,11 @@ import json
 import os
 import random
 import subprocess
+import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.provenance import provenance  # noqa: E402
 
 
 def encode(path):
@@ -58,7 +61,8 @@ def main():
     with open(args.out_html, "w", encoding="utf-8") as handle:
         handle.write(render({"seed": args.seed, "items": items}))
     with open(args.out_key, "w", encoding="utf-8") as handle:
-        json.dump({"seed": args.seed, "key": key}, handle, indent=2)
+        json.dump({"seed": args.seed, "key": key,
+                   "provenance": provenance(__file__, args)}, handle, indent=2)
 
 
 if __name__ == "__main__":

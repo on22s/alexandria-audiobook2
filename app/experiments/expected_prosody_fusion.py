@@ -13,6 +13,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from experiments.provenance import provenance  # noqa: E402
 
 
 def get_japanese_template(phrases):
@@ -92,7 +93,7 @@ def main():
                 "correlation_mean": mean("correlation"),
                 "direction_accuracy_mean": mean("direction_accuracy"),
                 "alignment": "equal-time voiced-contour baseline; not forced alignment",
-                "rows": rows}
+                "rows": rows, "provenance": provenance(__file__, args)}
     from utils import atomic_json_write
     atomic_json_write(document, args.out)
     print(json.dumps({k: v for k, v in document.items() if k != "rows"}, indent=2))
