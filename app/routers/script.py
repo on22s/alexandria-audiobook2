@@ -23,7 +23,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from config_settings import load_app_config
 from generate_script import fix_mojibake
-from lmstudio_settings import (ensure_ideal_settings, get_planned_ideal_settings)
+from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
+                               get_planned_ideal_settings)
 from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
@@ -1300,7 +1301,7 @@ def _read_and_validate_batch_script_source(job):
 def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
-    llm = config.get("llm") or {}
+    llm = get_active_llm_config(config)
     status = get_planned_ideal_settings(
         config.get("llm_mode", "local"), llm.get("base_url", ""),
         llm.get("model_name", ""), config.get("llm_remote_ssh"))
@@ -1462,7 +1463,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
 
         if jobs and not state.get("cancel"):
             config = load_app_config(CONFIG_PATH)
-            llm = config.get("llm") or {}
+            llm = get_active_llm_config(config)
             _, _, settings_message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", ""),
                 llm.get("model_name", ""), config.get("llm_remote_ssh"))

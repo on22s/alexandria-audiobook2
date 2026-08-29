@@ -21,7 +21,7 @@ from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_current_status)
+                               get_active_llm_config, get_current_status)
 
 from core import (
     API_LOG_DIR,
@@ -271,7 +271,7 @@ async def lmstudio_status():
     """Report whether the loaded model is using ideal settings (VRAM-safe
     locally, large-context remotely) so the UI can show an at-a-glance indicator."""
     full_cfg = load_app_config(CONFIG_PATH)
-    llm_cfg = full_cfg.get("llm") or {}
+    llm_cfg = get_active_llm_config(full_cfg)
     base_url = llm_cfg.get("base_url", "")
     model_name = llm_cfg.get("model_name")
     if not model_name:
@@ -279,7 +279,10 @@ async def lmstudio_status():
                 "parallel": None, "optimized": False, "model": None}
     llm_mode = full_cfg.get("llm_mode", "local")
     ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
-    status = await asyncio.to_thread(get_current_status, llm_mode, base_url, model_name, ssh_alias, use_cache=True)
+    status = dict(await asyncio.to_thread(
+        get_current_status, llm_mode, base_url, model_name, ssh_alias,
+        use_cache=True,
+    ))
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
         status["remote"] = True

@@ -19,13 +19,14 @@ def get_valid_narrator_name(name):
 
 
 def is_narrator_attested(name, source_text, minimum=3):
-    """Require a meaningful name token to occur before seeding the roster."""
-    tokens = [token for token in normalize_narrator_name(name).split()
-              if len(token) >= 2]
+    """Require the complete exact name to occur before seeding the roster."""
+    narrator = normalize_narrator_name(name)
+    if len(narrator) < 2:
+        return False
     source = (source_text or "").upper()
-    return bool(tokens) and any(len(re.findall(
-        r"\b" + re.escape(token) + r"\b", source)) >= minimum
-        for token in tokens)
+    pattern = r"(?<!\w)" + r"\s+".join(
+        re.escape(part) for part in narrator.split()) + r"(?!\w)"
+    return len(re.findall(pattern, source)) >= minimum
 
 
 def add_narrator_prior(base_system, narrator):

@@ -14,7 +14,8 @@ from config_settings import load_app_config
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries
-from lmstudio_settings import ensure_ideal_settings, get_current_status, get_effective_max_tokens
+from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
+                               get_current_status, get_effective_max_tokens)
 from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from speaker_identity import resolve_speaker_label
 
@@ -861,7 +862,7 @@ def main():
         print("Warning: config.json not found. Using defaults.")
     config = load_app_config(config_path)
 
-    llm_config = config.get("llm", {})
+    llm_config = get_active_llm_config(config)
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")
     api_key = llm_config.get("api_key", "local")
     model_name = llm_config.get("model_name", "local-model")

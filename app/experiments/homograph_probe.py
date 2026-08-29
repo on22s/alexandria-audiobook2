@@ -24,6 +24,7 @@ scoring needs the ear, and the ratings come back separately. Keeping the two
 apart means the artifact cannot quietly acquire a verdict nobody listened to.
 """
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -35,7 +36,7 @@ sys.path.insert(0, APP)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-from experiments.provenance import provenance
+from experiments.provenance import input_sha256, provenance
 
 
 def load_words(path):
@@ -74,6 +75,20 @@ def build_items(words, seed):
     return items
 
 
+def build_cache_identity(items, voice):
+    config_path = os.path.join(APP, "config.json")
+    return {
+        "voice": voice,
+        "items": [{key: item[key] for key in
+                   ("word", "reading", "expected_say", "sentence")}
+                  for item in items],
+        "config_sha256": next(iter(input_sha256([config_path]).values())),
+        "producer_sha256": input_sha256([
+            __file__, os.path.join(APP, "tts.py"),
+            os.path.join(APP, "experiments", "generation.py")]),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--words", default=os.path.join(HERE, "homograph_words.json"))
@@ -91,10 +106,13 @@ def main():
     engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
                                       encoding="utf-8")))
     voice = {args.voice: {"type": "custom"}}
+    cache_identity = build_cache_identity(items, args.voice)
+    cache_key = hashlib.sha256(json.dumps(
+        cache_identity, sort_keys=True).encode()).hexdigest()[:12]
 
     started = time.time()
     for index, item in enumerate(items, 1):
-        name = "%02d_%s_%s.wav" % (index, item["word"], item["reading"])
+        name = "%s_%02d.wav" % (cache_key, index)
         path = os.path.join(args.work, name)
         item["clip"] = path
         if os.path.exists(path) and os.path.getsize(path) > 2000:
@@ -125,6 +143,7 @@ def main():
                "argument for Japanese pitch accent; this is its English case.",
         "voice": args.voice,
         "seed": args.seed,
+        "cache_identity": cache_identity,
         "words": len(items) // 2,
         "clips": len(items),
         "rendered_ok": sum(1 for i in items if i.get("rendered") in ("ok", "cached")),

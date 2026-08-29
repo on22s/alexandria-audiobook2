@@ -114,6 +114,38 @@ class StageRunnerTest(unittest.TestCase):
         with open(log, encoding="utf-8") as fh:
             self.assertIn("hello from the stage", fh.read())
 
+    def test_artifact_commit_preserves_unrelated_staged_change(self):
+        repo = os.path.join(self.tmp.name, "repo")
+        os.makedirs(os.path.join(repo, "ab_test_runtime", "experiments"))
+        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+        for key, value in (("user.email", "t@example.com"), ("user.name", "t")):
+            subprocess.run(["git", "-C", repo, "config", key, value], check=True)
+        artifact = os.path.join(repo, "ab_test_runtime", "experiments", "a.json")
+        unrelated = os.path.join(repo, "unrelated.txt")
+        for path in (artifact, unrelated):
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("base\n")
+        subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", repo, "commit", "-q", "-m", "base"], check=True)
+        with open(artifact, "w", encoding="utf-8") as handle:
+            handle.write("artifact\n")
+        with open(unrelated, "w", encoding="utf-8") as handle:
+            handle.write("unrelated\n")
+        subprocess.run(["git", "-C", repo, "add", "unrelated.txt"], check=True)
+        command = (f'source "{LIB}"; STAGE_LOG_DIR="{self.tmp.name}/logs"; '
+                   f'stage_commit_artifacts probe "{repo}"')
+        result = subprocess.run(["bash", "-c", command], capture_output=True,
+                                text=True, timeout=60)
+        self.assertEqual(0, result.returncode, result.stderr)
+        committed = subprocess.run(
+            ["git", "-C", repo, "show", "--pretty=", "--name-only", "HEAD"],
+            capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual(["ab_test_runtime/experiments/a.json"], committed)
+        staged = subprocess.run(
+            ["git", "-C", repo, "diff", "--cached", "--name-only"],
+            capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual(["unrelated.txt"], staged)
+
     def test_running_the_same_chain_twice_is_idempotent(self):
         """Best practice from every pipeline guide: prove it by running twice.
 

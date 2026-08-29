@@ -401,6 +401,7 @@
     "tests.test_chain_stage_lib.StageRunnerTest.test_a_later_stage_still_runs_after_an_unrelated_failure",
     "tests.test_chain_stage_lib.StageRunnerTest.test_a_timeout_is_reported_as_a_timeout_not_a_generic_failure",
     "tests.test_chain_stage_lib.StageRunnerTest.test_all_stages_passing_exits_zero",
+    "tests.test_chain_stage_lib.StageRunnerTest.test_artifact_commit_preserves_unrelated_staged_change",
     "tests.test_chain_stage_lib.StageRunnerTest.test_each_stage_writes_its_own_log",
     "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_skips_a_stage_whose_predecessor_failed",
     "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
@@ -719,6 +720,7 @@
     "tests.test_dialogue_spans.ConventionTest.test_curly_quotes_are_recognised",
     "tests.test_dialogue_spans.MarkEntriesTest.test_a_stripped_line_is_still_located_and_marked_spoken",
     "tests.test_dialogue_spans.MarkEntriesTest.test_an_entry_that_cannot_be_located_is_left_unmarked",
+    "tests.test_dialogue_spans.MarkEntriesTest.test_source_span_maps_collapsed_whitespace_back_to_raw_text",
     "tests.test_dialogue_spans.MarkEntriesTest.test_the_input_entries_are_not_mutated",
     "tests.test_dialogue_spans.MarkEntriesTest.test_the_source_span_points_at_the_real_words",
     "tests.test_dialogue_spans.MixedQuoteStyleTest.test_a_real_quoted_line_on_one_paragraph_still_counts",
@@ -754,6 +756,7 @@
     "tests.test_duplicate_classification.UnderscoreMarkupTest.test_emphasis_markers_do_not_change_a_word"
   ],
   "test_duration_length_intervention": [
+    "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_cache_identity_changes_with_reference_audio",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_pairs_are_deterministic_and_use_the_shortest_complete_rows",
     "tests.test_duration_length_intervention.DurationLengthInterventionTests.test_summary_measures_matched_improvement_toward_one"
   ],
@@ -797,6 +800,7 @@
   "test_ensure_llama_server_default": [
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_a_missing_model_file_is_refused_rather_than_served",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_an_explicit_model_still_wins",
+    "tests.test_ensure_llama_server_default.DefaultModelTest.test_file_identity_changes_when_same_path_is_replaced",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_it_resolves_a_model_with_no_environment_at_all",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_no_chain_needs_to_paste_the_path_to_make_it_work",
     "tests.test_ensure_llama_server_default.DefaultModelTest.test_the_project_override_is_honoured"
@@ -980,7 +984,8 @@
     "tests.test_frontend_exposure.ReadScriptsTest.test_both_script_shapes_are_read",
     "tests.test_frontend_exposure.ScanTest.test_a_line_can_fall_in_several_categories",
     "tests.test_frontend_exposure.ScanTest.test_a_line_counts_once_per_category",
-    "tests.test_frontend_exposure.ScanTest.test_blank_and_missing_lines_are_skipped"
+    "tests.test_frontend_exposure.ScanTest.test_blank_and_missing_lines_are_skipped",
+    "tests.test_frontend_exposure.ScanTest.test_numeric_total_is_a_union_of_lines"
   ],
   "test_frontend_regressions": [
     "tests.test_frontend_regressions.FrontendJsSplitTests.test_cross_file_forward_reference_lands_in_a_later_script_tag",
@@ -1192,6 +1197,7 @@
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_refusal_names_what_is_uncommitted",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_saved_patch_includes_an_untracked_harness_script",
     "tests.test_gpu_job.DirtyTreeGateTest.test_the_shell_gate_agrees_with_the_python_provenance",
+    "tests.test_gpu_job.DirtyTreeGateTest.test_untracked_javascript_anywhere_in_repo_is_dirt_and_saved",
     "tests.test_gpu_job.DirtyTreeGateTest.test_untracked_notes_are_not_treated_as_dirt",
     "tests.test_gpu_job.GpuJobTest.test_a_failed_flock_refuses_to_run_the_command",
     "tests.test_gpu_job.GpuJobTest.test_a_successful_job_runs_and_logs_ok",
@@ -1239,6 +1245,7 @@
     "tests.test_gpu_job.TerminalMarkerTest.test_an_interrupted_job_still_records_a_terminal_line",
     "tests.test_gpu_job.VramGateTest.test_a_job_is_refused_when_the_card_is_nearly_full",
     "tests.test_gpu_job.VramGateTest.test_an_unreadable_gpu_warns_rather_than_blocking",
+    "tests.test_gpu_job.VramGateTest.test_nvidia_probe_targets_only_the_assigned_gpu",
     "tests.test_gpu_job.VramGateTest.test_the_refusal_names_what_to_do_about_it",
     "tests.test_gpu_job.VramGateTest.test_the_same_job_runs_when_the_card_is_free",
     "tests.test_gpu_job.VramGateTest.test_zero_disables_the_check_for_small_jobs"
@@ -1259,6 +1266,7 @@
   ],
   "test_homograph_probe": [
     "tests.test_homograph_probe.HomographItemTests.test_a_pair_is_never_adjacent",
+    "tests.test_homograph_probe.HomographItemTests.test_cache_identity_changes_with_voice_and_items",
     "tests.test_homograph_probe.HomographItemTests.test_the_offered_alternative_is_the_other_reading",
     "tests.test_homograph_probe.HomographItemTests.test_the_shuffle_is_seeded",
     "tests.test_homograph_probe.HomographItemTests.test_two_items_per_word",
@@ -1486,10 +1494,12 @@
     "tests.test_llm_review_regressions.ReviewSummaryTests.test_unsupported_quality_claim_uses_deterministic_fallback"
   ],
   "test_lmstudio_settings": [
+    "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_cached_remote_runtime_decision_skips_live_probe",
     "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_external_vram_pressure_uses_fallback",
     "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_missing_gpu_metrics_use_fallback",
     "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_local_settings_use_verified_target_without_mutating",
-    "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_remote_settings_use_remote_target_without_status_call",
+    "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_remote_llama_uses_live_server_limits",
+    "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_planned_remote_lmstudio_settings_use_remote_target",
     "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_unknown_model_uses_fallback",
     "tests.test_lmstudio_settings.DynamicLmStudioSettingsTests.test_verified_profile_selected_with_headroom",
     "tests.test_lmstudio_settings.RemoteServerReachabilityTests.test_apply_remote_settings_ensures_server_before_loading",
@@ -1501,6 +1511,9 @@
     "tests.test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_false_when_only_localhost",
     "tests.test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_none_on_ssh_failure",
     "tests.test_lmstudio_settings.RemoteServerReachabilityTests.test_server_bound_true_when_listening_on_all_interfaces"
+  ],
+  "test_lmstudio_status_route": [
+    "tests.test_lmstudio_status_route.LmStudioStatusRouteTest.test_status_uses_the_active_profile_not_the_stale_mirror"
   ],
   "test_local_gpu_job": [
     "tests.test_local_gpu_job.LocalGpuJobTests.test_runner_uses_one_approved_lock_queue_and_checked_timeout"
@@ -2067,6 +2080,7 @@
     "tests.test_replay_artifact.ScriptFromNameTests.test_the_longest_match_wins"
   ],
   "test_resolve_generated": [
+    "tests.test_resolve_generated.ResolveGeneratedTest.test_goals_pointer_conflict_with_prose_is_refused",
     "tests.test_resolve_generated.ResolveGeneratedTest.test_it_refuses_a_conflict_in_real_code",
     "tests.test_resolve_generated.ResolveGeneratedTest.test_it_refuses_when_a_real_file_conflicts_alongside_generated_ones",
     "tests.test_resolve_generated.ResolveGeneratedTest.test_it_reports_when_nothing_is_conflicted"
@@ -2076,7 +2090,9 @@
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_an_interrupted_run_is_marked_partial",
     "tests.test_respelling_scoring.ArtifactCompletenessTest.test_the_checkpoint_partway_through_is_partial",
     "tests.test_respelling_scoring.DefaultRowTest.test_every_row_stays_selectable",
+    "tests.test_respelling_scoring.DefaultRowTest.test_limit_is_part_of_run_identity",
     "tests.test_respelling_scoring.DefaultRowTest.test_rows_other_than_e_are_untouched_by_the_change",
+    "tests.test_respelling_scoring.DefaultRowTest.test_rule_b_honours_separator_without_mutating_global",
     "tests.test_respelling_scoring.DefaultRowTest.test_the_default_row_is_the_one_the_ear_did_not_reject",
     "tests.test_respelling_scoring.DefaultRowTest.test_the_separator_is_selectable_because_it_is_now_a_suspect",
     "tests.test_respelling_scoring.LongestCommonRunTests.test_an_empty_expectation_scores_zero_rather_than_one",
@@ -2137,6 +2153,9 @@
     "tests.test_riqua_fixture.ParseTests.test_discontinuous_spans_take_the_envelope",
     "tests.test_riqua_fixture.ParseTests.test_inverted_relation_arguments_raise",
     "tests.test_riqua_fixture.ParseTests.test_spans_and_relations_round_trip"
+  ],
+  "test_robotic_proxy": [
+    "tests.test_robotic_proxy.RoboticChanceTest.test_chance_is_computed_on_the_metric_population"
   ],
   "test_roster_admission": [
     "tests.test_roster_admission.AttestedNewSpeakersTest.test_a_name_repeated_within_one_batch_is_returned_once",
@@ -2661,6 +2680,7 @@
     "tests.test_three_pass_generate.FreezeEnforcementTests.test_attribute_text_comes_byte_exact_from_frozen",
     "tests.test_three_pass_generate.FreezeEnforcementTests.test_instruct_keeps_speaker_and_text_from_prior",
     "tests.test_three_pass_generate.FreezeEnforcementTests.test_instruct_preserves_pause_after",
+    "tests.test_three_pass_generate.ManifestTests.test_dialogue_map_failure_makes_manifest_incomplete",
     "tests.test_three_pass_generate.ManifestTests.test_fallback_refuses_output_when_llm_is_unavailable",
     "tests.test_three_pass_generate.ManifestTests.test_manifest_records_clean_resolution_counts_and_timing",
     "tests.test_three_pass_generate.ManifestTests.test_manifest_written_on_failure_with_failing_chunk",

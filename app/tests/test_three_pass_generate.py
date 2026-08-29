@@ -888,6 +888,24 @@ class RescueBudgetTests(unittest.TestCase):
 
 
 class ManifestTests(unittest.TestCase):
+    def test_dialogue_map_failure_makes_manifest_incomplete(self):
+        source = "The room was cold."
+        segmented = [{"type": "NARRATOR", "text": source}]
+        instructed = [{"n": 0, "head": "The room was", "instruct": "Cold."}]
+        client = _client_returning([segmented, instructed])
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(tp, "apply_dialogue_map",
+                          side_effect=ValueError("bad mapping")):
+            out = os.path.join(root, "book.json")
+            tp.run_three_pass(client, "m", source,
+                              LLMGenParams(max_tokens=500, temperature=0.1),
+                              chunk_size=6000, output_path=out)
+            with open(tp.three_pass_manifest_path(out), encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertEqual("dialogue_map",
+                         manifest["diagnostic_failures"][-1]["pass"])
+
     def test_manifest_records_clean_resolution_counts_and_timing(self):
         source = "The room was cold. \"Tell me the truth.\""
         seg = [{"type": "NARRATOR", "text": "The room was cold."},

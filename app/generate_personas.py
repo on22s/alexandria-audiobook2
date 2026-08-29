@@ -12,7 +12,8 @@ from config_settings import load_app_config
 from tts import TTSEngine, sanitize_filename
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
-from lmstudio_settings import ensure_ideal_settings, get_effective_max_tokens
+from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
+                               get_effective_max_tokens)
 
 
 HONORIFIC_RE = re.compile(r'^(mr|mrs|ms|miss|dr|prof|sir|lady|lord)\.?\s+')
@@ -744,7 +745,7 @@ def main():
     # Load LLM config
     config = load_app_config(app_config_path)
 
-    llm_cfg = config.get("llm", {})
+    llm_cfg = get_active_llm_config(config)
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
     api_key = llm_cfg.get("api_key", "local")
     model_name = llm_cfg.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")

@@ -43,9 +43,19 @@ real=$(printf '%s\n' "$conflicted" | grep -vE "$GENERATED" || true)
 goals_only_pointer=0
 if printf '%s\n' "$real" | grep -qx "GOALS.md"; then
     hunks=$(grep -c '^<<<<<<<' "$REPO/GOALS.md" || echo 0)
-    pointer=$(grep -A2 '^<<<<<<<' "$REPO/GOALS.md" \
-              | grep -c 'met goals begin at line' || echo 0)
-    if [ "$hunks" = "1" ] && [ "$pointer" -ge 1 ]; then
+    left=$(sed -n '/^<<<<<<< /,/^=======/p' "$REPO/GOALS.md" \
+           | sed '1d;$d')
+    right=$(sed -n '/^=======/,/^>>>>>>> /p' "$REPO/GOALS.md" \
+            | sed '1d;$d')
+    left_normalized=$(printf '%s\n' "$left" \
+        | sed -E 's/(met goals begin at line )[0-9]+/\1N/')
+    right_normalized=$(printf '%s\n' "$right" \
+        | sed -E 's/(met goals begin at line )[0-9]+/\1N/')
+    if [ "$hunks" = "1" ] \
+            && [ "$(printf '%s\n' "$left" | wc -l)" = "1" ] \
+            && [ "$(printf '%s\n' "$right" | wc -l)" = "1" ] \
+            && printf '%s\n' "$left" | grep -q 'met goals begin at line' \
+            && [ "$left_normalized" = "$right_normalized" ]; then
         goals_only_pointer=1
         real=$(printf '%s\n' "$real" | grep -vx "GOALS.md" || true)
     fi

@@ -81,6 +81,21 @@ class DefaultModelTest(unittest.TestCase):
         with open(SCRIPT, encoding="utf-8") as handle:
             self.assertIn("DEFAULT_MODEL=", handle.read())
 
+    def test_file_identity_changes_when_same_path_is_replaced(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = os.path.join(root, "adapter.gguf")
+            with open(target, "wb") as handle:
+                handle.write(b"old")
+            snippet = ("source <(sed -n '/^file_identity()/,/^}/p' %s); "
+                       "file_identity %s" % (repr(SCRIPT), repr(target)))
+            first = subprocess.run(["bash", "-c", snippet], capture_output=True,
+                                   text=True, check=True).stdout
+            with open(target, "wb") as handle:
+                handle.write(b"replacement")
+            second = subprocess.run(["bash", "-c", snippet], capture_output=True,
+                                    text=True, check=True).stdout
+        self.assertNotEqual(first, second)
+
 
 if __name__ == "__main__":
     unittest.main()

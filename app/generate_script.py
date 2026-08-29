@@ -12,12 +12,11 @@ from core import llm_timeout_seconds
 from config_settings import load_app_config
 from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
-from dialogue_spans import (apply_source_speakers, detect_convention,
-                            mark_entries)
+from dialogue_spans import apply_dialogue_map
 from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
                              get_valid_narrator_name, is_narrator_attested)
-from lmstudio_settings import (ensure_ideal_settings, get_effective_max_tokens,
-                               get_next_retry_max_tokens)
+from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
+                               get_effective_max_tokens, get_next_retry_max_tokens)
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
 from source_normalization import (normalize_extreme_phrase_repetitions,
@@ -1397,7 +1396,7 @@ def main():
         print("Warning: config.json not found. Using defaults.")
     config = load_app_config(config_path)
 
-    llm_config = config.get("llm", {})
+    llm_config = get_active_llm_config(config)
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")
     api_key = llm_config.get("api_key", "local")
     model_name = llm_config.get("model_name", "richardyoung/qwen3-14b-abliterated:Q8_0")
@@ -1618,6 +1617,20 @@ def main():
     final_repair = build_final_generation_repair(all_entries, book_content)
     if not final_repair["unresolved"]:
         all_entries = final_repair["entries"]
+    try:
+        dialogue = apply_dialogue_map(all_entries, book_content)
+        all_entries = dialogue["entries"]
+        if dialogue["convention"]:
+            print(f"Dialogue map: {dialogue['convention']}, "
+                  f"{dialogue['spoken']} spoken lines, "
+                  f"{dialogue['located']}/{len(all_entries)} entries located in the source")
+            if dialogue["speaker_changes"]:
+                print(f"Printed speaker labels: corrected "
+                      f"{len(dialogue['speaker_changes'])} entries from the source")
+        else:
+            print("Dialogue map: no convention detected; entries left unmarked")
+    except Exception as exc:                              # noqa: BLE001
+        print(f"WARNING: dialogue map failed, entries left unmarked: {str(exc)[:160]}")
     whole_quality = validate_chunk_quality(book_content, all_entries)
     preflight = audit_script(all_entries, book_content, is_generic_speaker)
     identity_review = stabilize_speaker_identities(all_entries)["review"]
@@ -1641,42 +1654,6 @@ def main():
     if final_manifest["status"] != "verified":
         print("Error: final whole-book quality gate failed; preserving existing output and checkpoint")
         sys.exit(1)
-
-    # THE DIALOGUE MAP TRAVELS WITH THE SCRIPT. The prompt asks for the
-    # outermost quotes to be dropped - a voice should not say punctuation -
-    # and that is fine for the audio and destructive for everything else: the
-    # fact that a line was speech is thrown away, and compliance varies (22%,
-    # 16% and 1% retention across three books), so downstream code cannot even
-    # rely on the punctuation being consistently absent.
-    #
-    # Marking from the SOURCE is what makes the attribution question answerable
-    # later: "who said this known line" rather than "was this speech, and who
-    # said it". `spoken` absent means the line could not be located, which is a
-    # different claim from `spoken: false`.
-    try:
-        convention = detect_convention(book_content)
-        if convention:
-            all_entries = mark_entries(all_entries, book_content, convention)
-            located = sum(1 for e in all_entries if "spoken" in e)
-            spoken = sum(1 for e in all_entries if e.get("spoken"))
-            print(f"Dialogue map: {convention}, {spoken} spoken lines, "
-                  f"{located}/{len(all_entries)} entries located in the source")
-            # WHERE THE BOOK PRINTS THE SPEAKER, USE IT. Transcript-style
-            # sources name the speaker before each line, and copying that is
-            # exact: on arc4_volume10wn the printed label agrees with the model
-            # on 2,909 of 2,967 lines and is RIGHT in all 59 disagreements,
-            # which were the model misspelling the printed name.
-            all_entries, label_changes = apply_source_speakers(all_entries)
-            if label_changes:
-                print(f"Printed speaker labels: corrected {len(label_changes)} "
-                      f"entries from the source's own attributions")
-        else:
-            print("Dialogue map: no convention detected; entries left unmarked")
-    except Exception as exc:                              # noqa: BLE001
-        # Never lose a finished book to a mapping failure - but say so, rather
-        # than writing an unmarked script that looks like a book with no
-        # dialogue.
-        print(f"WARNING: dialogue map failed, entries left unmarked: {str(exc)[:160]}")
 
     atomic_json_write(all_entries, output_path)
     save_generation_quality_manifest(output_path, {**final_manifest, "status": "complete"})
