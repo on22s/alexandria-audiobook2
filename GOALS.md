@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2425** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2458** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -2388,37 +2388,70 @@ the gross failure a number hides, not for ranking arms.
 **Metric** — blinded preference between paired renders of the same passage.
 **Probe** — `app/experiments/blinded_listening.py`, which renders the sets and
 conceals the key in `ab_test_runtime/blinded_listening_concealed_key.json`.
-**Current** — **BASELINE MEASURED 2026-08-22**, one project-owner session over
-all eight concealed sets. The saved key hash verified before unblinding and all
-three positive-control sets were answered consistently, so the session carried
-a usable listening signal (`blinded_listening_ratings.json`). Results:
+#### The package has been rated — 2026-08-22
 
-- The four `per_char` instruction renders were byte-identical to the no-
-  instruction renders. The listener reported no difference where the files
-  were identical.
-- Per-line instruction won **0 of 4** instruction sets. This is evidence
-  against shipping that arm, not merely an absence of preference.
-- The listener preferred the current shipped casting over scene-aware casting;
-  scene-aware received the run's worst delivery and emotional-fit scores
-  (1 and 1).
-- Blind notes found a fast render cutting off mid-word and identified robotic
-  delivery in another set—defects the component metrics did not expose.
+`blinded_listening_ratings.json`. The 20-clip package was rated in one
+sitting of about ten minutes and unblinded against the sealed key afterwards;
+`key_sha256_verified` is true, so the ratings were made before the key was
+opened.
 
-The baseline has one rater and one session, so it answers the tested arm
-comparisons but does not estimate population preference.
+**The positive controls passed 3 of 3.** Every control went the same way
+(`preferred_very_slow`), which is the check that says the rest carries signal
+at all: the rater hears a real difference and is consistent about its
+direction. Nothing below would be worth reading if this cell had failed.
 
-**No target yet, deliberately.** A preference threshold invented before any
-human has heard a set would be the "invented number" this document's own rules
-forbid. The first task is the listening, not the fix.
+**Current** — **BASELINE RECORDED, goal still OPEN.** The measurement exists.
+What it establishes is mostly negative, and one cell of it is not a result
+about audio at all:
 
-**A listener also rated a different package, and it worked.** On 2026-08-19
-the same person rated nine terms of the respelling separator comparison
+| what was compared | outcome |
+|---|---|
+| positive controls | 3 / 3 preferred `very_slow` |
+| per-line instruction, 4 sets | **0 sets won** |
+| per-character instruction, 4 sets | **no-op — see below** |
+| `scene_aware` vs shipped casting | shipped casting preferred |
+
+**The per-character instruction arm never changed the audio.** Hashing the
+wavs — not reading the key — shows all 4 of its sets render EXACTLY the file
+that no instruction renders. Every "instruction" set was therefore partly a
+clip compared against itself, and the rater's "no difference" was correct for
+a reason invisible to them. This is [[Rule 21]] again from a new direction:
+the instrument was sound and the *arm* was hollow, so a real listening session
+was spent partly on a comparison that could not have had an outcome. **Do not
+quote the instruction comparison as four sets; it is at most two.**
+
+**`scene_aware` casting lost**, and took the worst delivery and emotional-fit
+scores in the run — 1 and 1. That is one rater on two sets and is not a
+decision on its own, but it points the same way as goal 1's narrowing result:
+scene-narrowed context has now lost twice, on different measures.
+
+**Two defects were found blind**, neither of which any metric here reports:
+the `very_fast` arm truncates words ("*A cut off mid word very bad*", set 8
+clip A), and set 5 drew "*some are natural and some are robots*" on **both**
+arms — a complaint about the shipped voice itself, not about the comparison.
+
+**Still no target, still deliberately.** A preference threshold invented after
+one rater and one session would be the same invented number the rules forbid.
+What has changed is that the goal is no longer unmeasured — it is measured
+once, thinly, by a non-naive rater.
+
+**What this goal now needs** is no longer "someone, headphones, ten minutes".
+It is: fix or delete the `per_char` no-op arm and re-run the instruction
+comparison so its four sets are real; then a second rater who is not the
+project owner, because every limitation below turns on that.
+
+**Limitations, as recorded in the artifact.** One rater, one session, eight
+sets. The instruction comparison is weaker than eight sets suggests. The
+`voice_distinction` question is hard to read on the two-clip sets and must not
+be pooled with the three-clip ones. The rater is the project owner, not a
+naive listener.
+
+**The method was already known to work.** On 2026-08-19 the same person rated
+nine terms of the respelling separator comparison
 (`earcheck_separator_results.json`) — four takes each, shuffled per term, key
 held in a file the page never contained. It produced a usable result at
-p=0.020 and agreed with the pause measurement, and the free-text notes are what
-identified the mechanism in the first place. It measures a different thing —
-respelling forms rather than paired renders of a passage — and is supporting
-evidence for the method rather than part of the eight sets scored above.
+p=0.020, agreed with the pause measurement, and its free-text notes identified
+the mechanism. As there, the notes here found more than the ratings did.
 
 ---
 
@@ -3334,14 +3367,20 @@ held-out gain. The next experiment should therefore confirm the trained
 adapters on never-trained books rather than spend another sealed set on a
 prompt-only context arm.
 
-**7.1 now has its first blinded baseline.** The 2026-08-22 ratings rejected
-per-line instruction and scene-aware casting, while also proving `per_char`
-was a byte-identical no-op. A broader-rater preference target is still
-deliberately unset. The Japanese transcription gap (5.4) is measured rather
-than pending; its open axis is boundary alignment. The three-pass baseline
-(5.3) is already answered and should not be listed as pending. Reliability
-3.1 is MET after the 2026-08-16 unseen four-book current-path rerun completed
-all 807 chunks.
+**7.1 was rated on 2026-08-22 and is no longer the cheap one.** Its controls
+passed 3/3, so the instrument works — but the per-character instruction arm
+turned out to render byte-identical audio, so a real listening session was
+spent partly on a comparison that could not have had an outcome. The next
+move there is to fix or delete that arm and re-run the instruction sets, then
+find a rater who is not the project owner. Both are cheaper than a GPU
+experiment and neither is a ten-minute job any more.
+
+The Japanese transcription gap (5.4)
+is now measured rather than pending, and may be a metric problem rather than a
+pipeline one; its open axis is boundary alignment, where the 2026-08-23
+CTC and text-aware-grouping pilots were both rejected at their gates. The three-pass baseline (5.3) is already answered and should not
+be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
+four-book current-path rerun completed all 807 chunks.
 
 ## Rules for changing this file
 
