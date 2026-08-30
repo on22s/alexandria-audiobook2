@@ -33,6 +33,27 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 SPECIAL = {"UNKNOWN", "UNNAMED", "NOT_DIALOGUE"}
 
+# PDNC MARKS NON-CHARACTERS WITH A LEADING UNDERSCORE, and this builder did
+# not know it. `_group`, `_unknowable` and `_narr` are pseudo-speakers in
+# character_info.csv, present in 21 of the corpus's 28 novels but absent from
+# PrideAndPrejudice and TheSignOfTheFour - which is why the first fixtures
+# looked clean and the fault stayed hidden until the Austen books were built.
+#
+# Two distinct harms, and only the second changes a score:
+#   roster  the model was offered `_GROUP` and `_UNKNOWABLE` as candidates in
+#           some books and not others, so a cross-book comparison was partly a
+#           comparison of roster contents. TheAwakening carries them and is one
+#           of the three books behind the 89.1% author-held-out result.
+#   gold    MansfieldPark had 16 rows whose expected_speaker WAS `_GROUP` or
+#           `_UNKNOWABLE`: unanswerable rows scored as ordinary ones.
+#
+# Matched by name rather than by prefix would have been the fragile choice -
+# a 22nd novel may add a fourth marker - so the prefix is the rule and
+# test_pdnc_fixture_excludes_pseudo_speakers pins both halves.
+def is_pseudo_speaker(name):
+    """True for PDNC's non-character markers (_group, _unknowable, _narr)."""
+    return name.strip().startswith("_")
+
 
 def load_novel(folder, name):
     legacy = os.path.join(folder, f"{name}_quotes.csv")
@@ -56,7 +77,7 @@ def build(folder, name, context_chars=400):
     aliases, category, roster = [], {}, []
     for c in chars:
         main = (c.get("Main Name") or "").strip()
-        if not main:
+        if not main or is_pseudo_speaker(main):
             continue
         roster.append(main.upper())
         category[main.upper()] = (c.get("Category") or "").strip()
@@ -74,6 +95,9 @@ def build(folder, name, context_chars=400):
         speaker = (q.get("speaker") or "").strip().upper()
         if not line or not speaker or speaker in SPECIAL:
             skipped["no speaker"] += 1
+            continue
+        if is_pseudo_speaker(speaker):
+            skipped["pseudo speaker"] += 1
             continue
         # Context comes from the byte spans, so the model sees the same
         # surroundings a reader would - not a reconstruction.

@@ -6498,26 +6498,28 @@
   "ROBERT LEBRUN",
   "THE COLONEL",
   "VALMONDE",
-  "VICTOR LEBRUN",
-  "_GROUP",
-  "_UNKNOWABLE"
+  "VICTOR LEBRUN"
  ],
  "skipped": {},
  "context_chars": 3200,
  "rebuilt_from": "TheAwakening/novel_text.txt",
  "provenance": {
   "script": "pdnc_gold_rebuild.py",
-  "written": "2026-08-21T10:38:29",
+  "written": "2026-08-30T06:14:24",
   "host": "mitch-linux",
   "git": {
-   "commit": "5e699101ef3eb3e14e7ffad41f589eef96fe66ed",
-   "branch": "agent/split-quote-repair-20260821",
+   "commit": "81583ce41703dda014c1d592445b6c0608e7c7fb",
+   "branch": "agent/pdnc-heldout-fixtures-20260830",
    "dirty": true,
    "modified_tracked_files": [
-    "M app/experiments/pdnc_gold_rebuild.py"
+    "M app/experiments/pdnc_fixture.py",
+    " M app/fixtures/attribution_gold_pdnc_prideandprejudice_w3200.json",
+    " M app/fixtures/attribution_gold_pdnc_theawakening.json",
+    " M app/fixtures/attribution_gold_pdnc_thegambler.json",
+    " M app/fixtures/attribution_gold_pdnc_themysteriousaffairatstyles.json"
    ],
    "untracked_harness_files": null,
-   "harness_sha256": "816b490bac8805ac011a8f09ab8aacd1d177c26601cc805e42b601f03772919a"
+   "harness_sha256": "197b0797679479ed41c4f42c260e9e50d086ead8dfd866f2e1fd337336363805"
   },
   "window": 3200,
   "book": "TheAwakening"
