@@ -1,4 +1,11 @@
 {
+  "test_adapter_dataset_identity": [
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_a_missing_manifest_is_not_an_error",
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_a_placeholder_is_replaced_by_the_recorded_dataset_id",
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_a_placeholder_with_no_manifest_entry_yields_no_dataset",
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_an_adapter_absent_from_the_manifest_still_resolves_by_path",
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_the_tracked_manifest_names_a_real_dataset_for_every_adapter"
+  ],
   "test_adapter_provenance": [
     "tests.test_adapter_provenance.BackfillTest.test_a_correct_digest_is_left_alone",
     "tests.test_adapter_provenance.BackfillTest.test_a_meta_with_no_adapter_beside_it_is_not_invented",

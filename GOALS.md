@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2488** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2497** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -990,15 +990,24 @@ seed-adapter measurements, still over the same 18 adapters. Artifacts are the
 21 files matching `library_voice_fidelity_seed_*_n20.json` and
 `library_fidelity_seed_*_n20.json` in `ab_test_runtime/experiments/`.
 
-**The stated cause of the 56 was wrong, and the correction is actionable.**
-This document said their "source zips are absent". They are not: 101 zips sit
-in the configured directory. **54 of the 56 record their dataset as the literal
-string `data`, and 2 as `train`** — placeholder names where a narrator identity
-belongs, so `find_zip` has nothing to match. The defect is in those adapters'
-`training_meta`, not in the corpus and not in the probe, which means the fix is
-a metadata repair rather than a hunt for lost files. Until it is done, every
-fidelity figure here describes 18 adapters and no more; the 56 are unmeasured,
-which is not the same as unmeasurable.
+**The stated cause of the 56 was wrong, and it is now fixed.** This document
+said their "source zips are absent". They were not: all 101 sat in the
+configured directory the whole time. A retrain's reference sample lives at
+`<campaign>/<adapter>/data/ref.wav`, and `adapter_sources` took the dataset
+from the directory holding it — so 54 adapters reported the literal string
+`data` and 2 reported `train`, and no zip matched.
+
+`training_meta` was not at fault either: `ref_sample_audio` faithfully records
+where that sample sits. The INFERENCE from it was wrong, while `manifest.json`
+had recorded `dataset_id` per adapter all along. The probe now reads that,
+checked first against every adapter whose path-derived name was already a real
+dataset — **19 of 19 agree, none disagree**. With it, **75 of 75 adapters
+resolve to a dataset that finds its zip, against 19 before**, so the next
+fidelity run covers 74 (one adapter has no validation clips) rather than 18.
+
+**The figures above still describe 18 adapters.** They were measured before the
+fix and are not retroactively widened by it; a re-run is what would widen
+them.
 
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
