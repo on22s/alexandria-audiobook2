@@ -169,6 +169,33 @@ def load_peft_adapter_or_raise(peft_model, base, adapter):
     return model
 
 
+def classify_gold_population(gold, seg):
+    """Return scoreable rows and a complete ledger of excluded gold rows."""
+    occ = collections.Counter(norm(e.get("text")) for e in seg)
+    by_text = {norm(entry.get("text")): entry for entry in seg}
+    want, exclusions = {}, []
+    for entry in gold["entries"]:
+        key = norm(entry["line"])
+        speaker = entry["expected_speaker"].upper()
+        reason = None
+        if speaker in SPECIAL:
+            reason = "special_speaker"
+        elif occ[key] == 0:
+            reason = "missing_from_checkpoint"
+        elif occ[key] > 1:
+            reason = "duplicate_in_checkpoint"
+        elif get_deterministic_named_entry(by_text[key]) is not None:
+            reason = "deterministically_resolved"
+        if reason:
+            exclusions.append({
+                "id": entry["id"], "expected_speaker": speaker,
+                "reason": reason, "checkpoint_occurrences": occ[key],
+            })
+        else:
+            want[key] = entry
+    return want, exclusions
+
+
 def load_book(book, input_dir=None, checkpoint_dir=None):
     gold = json.load(open(APP + f"fixtures/attribution_gold_{book}.json"))
     source_path, checkpoint_path = get_book_paths(
@@ -180,11 +207,8 @@ def load_book(book, input_dir=None, checkpoint_dir=None):
               build_roster([e for e in (cp.get("named") or []) if e], src)]
     roster = sorted(set(roster) | {n.upper() for n in
                                    gold.get("roster_additions", {}).get("names", [])})
-    occ = collections.Counter(norm(e.get("text")) for e in seg)
-    want = {norm(g["line"]): g for g in gold["entries"]
-            if occ[norm(g["line"])] == 1
-            and g["expected_speaker"].upper() not in SPECIAL}
-    return gold, src, seg, roster, want
+    want, exclusions = classify_gold_population(gold, seg)
+    return gold, src, seg, roster, want, exclusions
 
 
 def main():
@@ -251,7 +275,10 @@ def main():
     # imply it was scored against a single gold file.
     record = ExperimentRecord(
         "distill_eval", REPO, args.model, f"peft:{args.adapter}",
-        APP + f"fixtures/attribution_gold_{args.books[0]}.json",
+        # EVERY book, not args.books[0]. ExperimentRecord hashes each one and
+        # keeps the singular gold_path/gold_sha256 fields pointing at the first
+        # for the consumers that select on them.
+        [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
         {"temperature": 0.0, "batch": BATCH, "adapter": args.adapter,
          "max_tokens": args.max_tokens},
         environment=environment,
@@ -263,17 +290,25 @@ def main():
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"distill_eval__{args.tag}.json.ckpt"))
-    import hashlib
-    record.meta["gold_files"] = {
-        b: hashlib.sha256(open(APP + f"fixtures/attribution_gold_{b}.json",
-                               "rb").read()).hexdigest()
-        for b in args.books}
+    # gold_files is NOT built here. ExperimentRecord already hashes every gold
+    # it was handed, and a second definition assigned after the constructor
+    # silently overwrote the first with a different shape - dict of book->sha
+    # against a list of {gold_path, sha256, lines}. Two answers to one question
+    # is the drift Rule 15 exists to stop, and neither side's tests could see
+    # the other. One hashing path, in the class every experiment shares.
+    record.meta["gold_population"] = {}
 
     totals = {"base": [0, 0], "tuned": [0, 0]}
     per_book, answers = {}, {"base": {}, "tuned": {}}
     for book in args.books:
-        gold, src, seg, roster, want = load_book(
+        gold, src, seg, roster, want, exclusions = load_book(
             book, args.input_dir, args.checkpoint_dir)
+        record.meta["gold_population"][book] = {
+            "fixture_entries": len(gold["entries"]),
+            "eligible_entries": len(want),
+            "excluded_entries": len(exclusions),
+            "exclusions": exclusions,
+        }
         groups = alias_groups(gold)
         windows = [list(range(s, min(s + BATCH, len(seg))))
                    for s in range(0, len(seg), BATCH)]
@@ -356,6 +391,13 @@ def main():
                   f"  [{lo:.1f}-{hi:.1f}]  unanswered {unanswered}"
                   f"  distinct names {distinct}  {time.time()-started:.0f}s",
                   flush=True)
+
+    populations = record.meta["gold_population"].values()
+    record.meta["gold_population_summary"] = {
+        "fixture_entries": sum(row["fixture_entries"] for row in populations),
+        "eligible_entries": sum(row["eligible_entries"] for row in populations),
+        "excluded_entries": sum(row["excluded_entries"] for row in populations),
+    }
 
     print("\n  per book")
     for book, arms in per_book.items():

@@ -46,7 +46,7 @@ class RecordStampsEveryGoldTest(unittest.TestCase):
         self.assertEqual("attribution_gold_index18.json",
                          os.path.basename(meta["gold_path"]))
         self.assertEqual(99, meta["gold_lines"])
-        self.assertEqual(1, len(meta["gold_files"]))
+        self.assertEqual({"index18"}, set(meta["gold_files"]))
 
     def test_every_gold_of_a_multi_book_run_is_hashed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -54,11 +54,12 @@ class RecordStampsEveryGoldTest(unittest.TestCase):
                      write_gold(d, "attribution_gold_mushoku16.json", 136),
                      write_gold(d, "attribution_gold_owarimonogatari3.json", 162)]
             meta = record(paths, d).meta
-        self.assertEqual(3, len(meta["gold_files"]))
-        self.assertEqual([99, 136, 162], [g["gold_lines"] for g in meta["gold_files"]])
-        self.assertEqual(3, len({g["gold_sha256"] for g in meta["gold_files"]}),
+        self.assertEqual({"index18", "mushoku16", "owarimonogatari3"},
+                         set(meta["gold_files"]),
+                         "keyed by book, matching the 34 artifacts that already "
+                         "carry this field")
+        self.assertEqual(3, len(set(meta["gold_files"].values())),
                          "each gold must hash distinctly")
-        self.assertEqual(397, sum(g["gold_lines"] for g in meta["gold_files"]))
 
     def test_the_consumers_selector_still_matches(self):
         """narration_signal and length_bins both key off this exact expression."""
@@ -77,9 +78,38 @@ class RecordStampsEveryGoldTest(unittest.TestCase):
             before = record([first, second], d).meta["gold_files"]
             write_gold(d, "attribution_gold_mushoku16.json", 135)   # gold edited
             after = record([first, second], d).meta["gold_files"]
-        self.assertEqual(before[0], after[0], "the untouched gold must not move")
-        self.assertNotEqual(before[1]["gold_sha256"], after[1]["gold_sha256"],
+        self.assertEqual(before["index18"], after["index18"],
+                         "the untouched gold must not move")
+        self.assertNotEqual(before["mushoku16"], after["mushoku16"],
                             "editing the second gold must change the record")
+
+    def test_only_the_record_defines_gold_files(self):
+        """One answer to one question (Rule 15).
+
+        Two changes landed on the same day both defining meta["gold_files"]:
+        this class as a list of {gold_path, gold_sha256, gold_lines}, and
+        distill_eval as a dict of book -> sha256, assigned AFTER the
+        constructor so it silently overwrote the first and changed the type.
+        Neither side's tests could see the other. A reader of the field would
+        have got whichever shape ran last.
+        """
+        experiments = os.path.join(REPO, "app", "experiments")
+        offenders = []
+        for name in sorted(os.listdir(experiments)):
+            if not name.endswith(".py") or name == "manifest.py":
+                continue
+            with open(os.path.join(experiments, name), encoding="utf-8") as fh:
+                for n, line in enumerate(fh, 1):
+                    stripped = line.strip()
+                    if stripped.startswith("#"):
+                        continue
+                    if 'meta["gold_files"]' in stripped and "=" in stripped:
+                        offenders.append(f"{name}:{n}: {stripped[:70]}")
+        self.assertEqual(
+            [], offenders,
+            "gold_files is built by ExperimentRecord and nowhere else; these "
+            "assignments overwrite it, possibly with another shape:\n  "
+            + "\n  ".join(offenders))
 
     def test_declaring_no_gold_is_refused(self):
         with tempfile.TemporaryDirectory() as d:

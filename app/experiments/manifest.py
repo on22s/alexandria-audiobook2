@@ -223,28 +223,34 @@ class ExperimentRecord:
         self.started = time.time()
         # A MULTI-BOOK RUN USED TO STAMP ONE BOOK'S GOLD. The nine cloud
         # evaluations of 2026-08-28/29 scored 383 rows across owarimonogatari3
-        # (162), mushoku16 (133) and index18 (88), and recorded
+        # (162), mushoku16 (133) and index18 (88) and recorded
         # gold_path=attribution_gold_index18.json with a correct hash - which
-        # verifies 88 of 383 rows. A change to the other two books' gold would
-        # have left no trace in the artifact.
+        # verifies 88 of 383 rows. A change to the other two golds would have
+        # left no trace.
         #
-        # `gold_path` therefore also accepts a sequence. The singular fields
-        # keep their exact meaning for the first (or only) file, because
-        # narration_signal.py and length_bins.py both select artifacts by
-        # os.path.basename(meta["gold_path"]) and must not start missing them.
-        # `gold_files` is additive and lists every gold the run actually read.
+        # `gold_files` is {book: sha256}, which is NOT a new shape: 34 committed
+        # artifacts already carry exactly that, written by three callers that
+        # each built it themselves after construction. Building it here instead
+        # is the Rule 15 half - one answer to one question - and keeping their
+        # shape is the other, because a second shape in a corpus that already
+        # has one is worse than the gap it would close.
+        #
+        # The singular gold_path/gold_sha256/gold_lines keep their meaning for
+        # the first file: narration_signal.py and length_bins.py both select
+        # artifacts by os.path.basename(meta["gold_path"]) and must not start
+        # matching nothing.
         gold_paths = ([gold_path] if isinstance(gold_path, (str, bytes, os.PathLike))
                       else list(gold_path))
         if not gold_paths:
             raise ValueError("a run must declare at least one gold file")
-        gold_files = []
+        gold_files = {}
         for one in gold_paths:
             with open(one, "rb") as handle:
                 raw = handle.read()
-            gold_files.append({
-                "gold_path": os.path.relpath(one, repo),
-                "gold_sha256": hashlib.sha256(raw).hexdigest(),
-                "gold_lines": len(json.loads(raw)["entries"])})
+            stem = os.path.basename(one)
+            if stem.startswith("attribution_gold_") and stem.endswith(".json"):
+                stem = stem[len("attribution_gold_"):-len(".json")]
+            gold_files[stem] = hashlib.sha256(raw).hexdigest()
         gold_path = gold_paths[0]
         with open(gold_path, "rb") as handle:
             gold_bytes = handle.read()

@@ -748,6 +748,7 @@
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_without_the_exclusion_an_artifact_makes_the_tree_dirty"
   ],
   "test_distill_eval_shim": [
+    "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_classifier_accounts_for_every_excluded_gold_entry",
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
@@ -2012,6 +2013,7 @@
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_single_path_still_produces_the_singular_fields",
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_declaring_no_gold_is_refused",
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_every_gold_of_a_multi_book_run_is_hashed",
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_only_the_record_defines_gold_files",
     "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_the_consumers_selector_still_matches"
   ],
   "test_reference_rebuild": [

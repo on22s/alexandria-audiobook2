@@ -127,7 +127,8 @@ def main():
     _env = os.environ.get("EXPERIMENT_ENV")
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
-        APP + f"fixtures/attribution_gold_{args.books[0]}.json",
+        # Every book, so gold_files covers every row this run scores.
+        [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
         {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
          "base_quant": "Q4_K_M", "lora": "f16"},
         environment=json.loads(_env) if _env else None,
@@ -138,11 +139,6 @@ def main():
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json.ckpt"))
-    import hashlib
-    record.meta["gold_files"] = {
-        b: hashlib.sha256(open(APP + f"fixtures/attribution_gold_{b}.json",
-                               "rb").read()).hexdigest() for b in args.books}
-
     per_book, answers = {}, {"base": {}, "lora": {}}
     for book in args.books:
         gold, src, seg, roster, want = load_book(
