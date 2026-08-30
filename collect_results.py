@@ -388,6 +388,15 @@ md = [f"# Results index\n",
       "built from the pre-gold labels, so the arm was shown shortlists derived "
       "from answers that have since changed. `valid=ok` on those rows means "
       "internally consistent, NOT trustworthy — do not read them as results.\n",
+      # Same failure mode as closed-oracle, from the other direction: `valid=ok`
+      # says the rows agree with the summary, and they do - an arm that answered
+      # nothing is internally consistent. 266 of 383 tuned rows came back empty.
+      "**`qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch` is "
+      "invalidated.** Its tuned arm returned an empty prediction on 266 of 383 "
+      "rows (69%), against 3-10% for every sibling run in the same batch. The "
+      "25.6% it reports measures a generation failure, not attribution "
+      "accuracy — see its `.INVALID.json` sidecar. Do not read it as a "
+      "result.\n",
       "`closed_set.json` and `two_by_two.json` predate the environment "
       "contract and captured no `context_length` or `parallel`, which cannot "
       "be reconstructed. Their rows and summaries were recomputed and are "

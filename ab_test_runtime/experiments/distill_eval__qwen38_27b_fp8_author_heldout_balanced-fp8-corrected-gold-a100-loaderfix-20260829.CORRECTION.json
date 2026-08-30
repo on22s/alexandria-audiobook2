@@ -1,0 +1,15 @@
+{
+  "artifact": "distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.json",
+  "artifact_sha256": "e4a88cd39aad2872c3b85222b368903a670ad9b10e6e527cc04e2d573db1d664",
+  "field": "meta.notes",
+  "incorrect_claim": "LoRA distilled from a 70B on 1,091 routed rows of grimgar06 and mushoku18",
+  "correction": "This adapter was trained for 3 epochs from data/train__pdnc_*.jsonl. The evaluator's hard-coded note described an older adapter and was not valid provenance for this run.",
+  "evidence": {
+    "training_script": "/home/ubuntu/qwen38_author_adapter_after_eval_a100_20260826.sh",
+    "training_script_sha256": "43b07c8424c618a5bbe5df87d4456a6a842c96deb0eb58be6e22e042c09d7c19",
+    "training_data_argument": "data/train__pdnc_*.jsonl",
+    "epochs": 3,
+    "completed_steps": 1491
+  },
+  "measurement_changed": false
+}

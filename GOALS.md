@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2488** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2519** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -329,6 +329,37 @@ transfer beyond the training novels, not transfer beyond Austen. The older `adap
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
+
+**The gain does not carry to newer or larger models — 2026-08-30.** All three
+adapters were evaluated on corrected gold (383 rows per arm) against three
+models they were not trained for. Eight of the nine runs are usable:
+
+| model | adapter | base | tuned | delta |
+|---|---|---:|---:|---:|
+| qwen35-27b-nf4 | `speaker_longcontext_tophalf_5epoch` | 72.6% | 75.5% | **+2.9** |
+| qwen35-27b-nf4 | `speaker_hardcases_split_nonmajor` | 72.6% | 72.8% | +0.3 |
+| qwen35-27b-nf4 | `author_heldout_balanced` | 72.6% | 71.5% | −1.0 |
+| qwen35-35b-a3b-bf16 | `author_heldout_balanced` | 64.8% | 69.2% | **+4.4** |
+| qwen35-35b-a3b-bf16 | `speaker_hardcases_split_nonmajor` | 64.8% | 68.1% | **+3.4** |
+| qwen38-27b | `speaker_longcontext_tophalf_5epoch` | 71.0% | 70.8% | −0.3 |
+| qwen38-27b | `speaker_hardcases_split_nonmajor` | 71.0% | 68.7% | −2.3 |
+| qwen38-27b | `author_heldout_balanced` | 71.0% | 66.1% | −5.0 |
+
+**Three of eight are positive and the best is +4.4**, against the +12.4 the
+same balanced adapter gave on the 14B it was distilled for. On qwen38-27b every
+arm is negative. Adapter gain is therefore a property of the adapter AND the
+base model together, not of the adapter alone, and no figure in this section
+should be quoted as applying to a model other than the one it was measured on.
+
+The artifacts are `distill_eval__qwen3*-corrected-gold-*.json`. A ninth run,
+`qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch`, reads 25.6% and is
+**not a result**: its tuned arm returned an empty prediction on 266 of 383 rows
+against 3–10% for every sibling, so it measures a generation failure. It
+carries an `.INVALID.json` sidecar and a caveat in the results index, and that
+model/adapter pair has no measurement until it is re-run.
+
+Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
+each other but the tuned columns are not comparable across rows.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
