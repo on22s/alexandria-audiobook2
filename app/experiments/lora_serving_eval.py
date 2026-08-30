@@ -104,6 +104,25 @@ def get_eval_arms(base_only=False):
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
 
 
+def get_eval_metadata(base_only=False):
+    """Describe only settings this evaluator controls or directly observes."""
+    arms = get_eval_arms(base_only)
+    decoding = {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
+                "arms": [arm for arm, _ in arms]}
+    if base_only:
+        notes = (
+            "Base-only serving evaluation; no adapter was loaded or toggled. "
+            "The evaluator does not observe base quantisation or adapter "
+            "precision and makes no claim about either.")
+    else:
+        notes = (
+            "Paired serving evaluation. Arms share one server and differ only "
+            "by adapter scale, toggled via POST /lora-adapters. The evaluator "
+            "does not observe base quantisation or adapter precision and makes "
+            "no claim about either.")
+    return decoding, notes
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--books", nargs="+",
@@ -125,27 +144,14 @@ def main():
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
     _env = os.environ.get("EXPERIMENT_ENV")
+    decoding, notes = get_eval_metadata(args.base_only)
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
         [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
-        # DECLARE THE RUN, NOT A REMEMBERED ONE. base_quant and lora were
-        # hardcoded to "Q4_K_M" and "f16" here, so every artifact asserted a
-        # quantization it had not checked. The Llama-4-Scout base-only run of
-        # 2026-08-30 recorded base_quant=Q4_K_M, lora=f16 and a note about
-        # "arms differing only by the adapter scale" while serving
-        # meta-llama/llama-4-scout with NO lora arm at all - three false claims
-        # in one artifact whose numbers were fine. Same defect the distill_eval
-        # note carried, fixed there and left here.
-        {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
-         "arms": [arm for arm, _ in get_eval_arms(args.base_only)]},
+        decoding,
         environment=json.loads(_env) if _env else None,
-        notes="Paired base-versus-LoRA evaluation through llama.cpp, with the "
-              "arms differing only by the adapter scale toggled via POST "
-              "/lora-adapters. With --base-only there is one arm and no "
-              "adapter is applied. Base quantization and adapter precision "
-              "belong to whatever this endpoint was started with; this "
-              "evaluator does not observe them and does not claim them.")
+        notes=notes)
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json.ckpt"))

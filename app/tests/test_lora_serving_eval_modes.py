@@ -1,6 +1,7 @@
 import unittest
 
-from experiments.lora_serving_eval import get_book_paths, get_eval_arms
+from experiments.lora_serving_eval import (get_book_paths, get_eval_arms,
+                                           get_eval_metadata)
 from experiments.distill_eval import (get_book_paths as get_distill_book_paths,
                                       get_model_loader_name,
                                       get_model_load_kwargs,
@@ -13,6 +14,22 @@ class LoraServingEvalModeTests(unittest.TestCase):
 
     def test_base_only_mode_never_requests_adapter_state(self):
         self.assertEqual((("base", None),), get_eval_arms(base_only=True))
+
+    def test_base_only_metadata_claims_only_the_arm_actually_run(self):
+        decoding, notes = get_eval_metadata(base_only=True)
+        self.assertEqual(["base"], decoding["arms"])
+        self.assertNotIn("base_quant", decoding)
+        self.assertNotIn("lora", decoding)
+        self.assertIn("no adapter was loaded", notes)
+        self.assertIn("does not observe base quantisation", notes)
+
+    def test_paired_metadata_matches_the_two_executed_arms(self):
+        decoding, notes = get_eval_metadata()
+        self.assertEqual(["base", "lora"], decoding["arms"])
+        self.assertNotIn("base_quant", decoding)
+        self.assertNotIn("lora", decoding)
+        self.assertIn("differ only by adapter scale", notes)
+        self.assertIn("does not observe base quantisation", notes)
 
     def test_corrected_data_directories_override_legacy_layout(self):
         self.assertEqual(

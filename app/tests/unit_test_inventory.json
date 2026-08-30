@@ -753,10 +753,7 @@
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
-    "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length",
-    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_no_quantization_is_asserted",
-    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_the_arms_recorded_follow_base_only",
-    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_the_note_no_longer_claims_a_remembered_measurement"
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length"
   ],
   "test_distill_qwen35": [
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_answer_longer_than_limit_is_still_supervised",
@@ -1586,6 +1583,7 @@
     "tests.test_lora_review_integration.ReviewIntegrationTests.test_mutated_checkpoint_rejects_a_stale_submission"
   ],
   "test_lora_serving_eval_modes": [
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_base_only_metadata_claims_only_the_arm_actually_run",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_base_only_mode_never_requests_adapter_state",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_clean_adapter_load_is_returned",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_corrected_data_directories_override_legacy_layout",
@@ -1593,6 +1591,7 @@
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_missing_adapter_keys_fail_instead_of_running_inert",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_nf4_loader_policy_preserves_bf16_compute",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales",
+    "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_paired_metadata_matches_the_two_executed_arms",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_qwen35_moe_uses_training_compatible_wrapper"
   ],
   "test_lora_training_benchmark": [
