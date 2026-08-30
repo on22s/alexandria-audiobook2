@@ -29,11 +29,21 @@
 # transfer beyond the TRAINING NOVELS, not beyond Austen. Do not let a
 # five-book number be quoted as general generalisation.
 #
-# COST. No local run of pdnc_eval exists, so there is no measured rate for this
-# machine: the estimate below is derived from a DIFFERENT harness (the 2026-08-28
-# lora_serving_eval, 766 rows in 2,890 s = 3.8 s/row) and is a guess. At
-# --limit 300 this is 8 books x 300 x 2 arms = 4,800 rows, so call it 4-6 hours
-# and measure the real rate from the first book's printed per-arm timing.
+# COST, MEASURED - and the first estimate here was wrong by an order of
+# magnitude. It was derived per-ROW from a different harness (lora_serving_eval,
+# 766 rows in 2,890 s) and read as 4-6 hours. pdnc_eval batches 25 rows into ONE
+# request, so the unit is the batch, not the row: a 25-row batch of Emma took
+# 14.3 s base and 11.3 s lora against this server, prompt 8,664 tokens.
+#
+# That makes the FULL fixtures affordable, so this takes no --limit by default
+# and scores every quotation rather than a 300-row subsample:
+#
+#   held-out     5,149 rows   development  4,965 rows
+#   10,114 rows x 2 arms = 810 batches x ~13 s = ~2.9 hours
+#
+# Rosters differ more than row counts do - AHandfulOfDust has 104 characters
+# against Emma's 16 - so its prompts are larger; 32K context has ample room at
+# batch 25, and GOAL13_BATCH lowers it if a book ever refuses.
 #
 # One gpu_job per book, so an interrupted run resumes instead of restarting,
 # and ensure_llama_server keeps ONE model load across all of them.
@@ -49,7 +59,11 @@ source "$REPO/run_chains/lib/stage.sh"
 
 ADAPTER="$runtime/distill/gguf/new_20260824/adapter_author_heldout_balanced.gguf"
 PORT="${LLAMA_PORT:-8090}"
-LIMIT="${GOAL13_LIMIT:-300}"
+# Every quotation, not a subsample: at the measured rate the whole corpus
+# costs ~3 hours, and a 300-row cap would throw away 70% of the evidence
+# for no saving worth having. Set GOAL13_LIMIT to subsample deliberately.
+LIMIT="${GOAL13_LIMIT:-100000}"
+BATCH="${GOAL13_BATCH:-25}"
 
 HELDOUT="emma mansfieldpark northangerabbey persuasion senseandsensibility"
 DEVELOPMENT="ahandfulofdust thegambler themysteriousaffairatstyles"
@@ -86,6 +100,7 @@ run_book() {
         --base_url "http://127.0.0.1:$PORT/v1" \
         --model qwen/qwen3-14b \
         --limit "$LIMIT" \
+        --batch "$BATCH" \
         --out "$out"
     stage_commit_artifacts "$name" "$REPO"
 }
