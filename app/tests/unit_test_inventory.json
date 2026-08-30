@@ -1773,6 +1773,13 @@
     "tests.test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_load_novel_accepts_native_pdnc_layout",
     "tests.test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_roster_and_alias_context_matching"
   ],
+  "test_pdnc_fixture_pseudo_speakers": [
+    "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_no_fixture_asks_for_a_pseudo_character_as_the_answer",
+    "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_no_fixture_offers_a_pseudo_character_as_a_candidate",
+    "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_the_corpus_has_fixtures_to_check",
+    "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_the_five_heldout_books_are_present_and_answerable",
+    "tests.test_pdnc_fixture_pseudo_speakers.PseudoSpeakerTest.test_the_predicate_accepts_every_marker_the_corpus_actually_uses"
+  ],
   "test_pitch_profile_matrix": [
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_load_adapters_accepts_complete_manifest_entries",
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_locked_fixture_matches_six_distinct_source_passages",

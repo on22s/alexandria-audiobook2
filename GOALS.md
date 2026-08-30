@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2458** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2475** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -319,10 +319,27 @@ three-book number required by the target, but they are also the favourable
 top-third books identified below; they do not resolve the broad 25-book gap.
 A broader confirmation must use books that were never in these adapters'
 training data and must compare the same adapter on both development and
-held-out sets. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+held-out sets. **That confirmation is now runnable, 2026-08-30.**
+`attribution_gold_pdnc_{emma,mansfieldpark,northangerabbey,persuasion,senseandsensibility}.json`
+supply **5,149 quotations across five Austen novels**, none of which appear in
+the balanced adapter's twenty-novel training manifest (author `AUST` was
+excluded wholesale). They are still one author, so they widen the held-out set
+without widening its register — a five-book Austen result would confirm
+transfer beyond the training novels, not transfer beyond Austen. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
+
+**One of those three books had a dirty roster, 2026-08-30.** PDNC lists
+`_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
+`pdnc_fixture.py` copied them into the roster. *TheAwakening* carried both;
+*Pride and Prejudice* and *The Sign of the Four* do not have them in the
+source at all. So the 89.1% above was measured with the model offered two junk
+candidates on one book of three and not on the other two — a difference in the
+task, not in the adapter. The gold answers were unaffected (no row in those
+three books asks for a pseudo-name), so **the accuracies stand as computed**;
+what is compromised is their comparability across books. Fixed in the builder
+and re-fixtured; the five held-out Austen novels below were built with the fix.
 
 **Three interventions were piloted against that gap on 2026-08-18 and none
 earned its confirmatory run.** Each is a five-book English PDNC pilot at 120
