@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2475** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2488** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -981,11 +981,24 @@ available. Three voices remained catastrophically low on every draw:
 
 The overall seed-adapter median was 0.583. These three failures are therefore
 stable defects, not unlucky validation samples. The probe could not measure
-56 of 75 adapters because their source zips are absent, and one more adapter
-has no validation clips. That is a coverage limit on this replication, not a
-pass for those voices and not a new goal. Artifacts are the 13 files matching
-`library_voice_fidelity_seed_*_n20.json` and
+56 of 75 adapters, and one more adapter has no validation clips. That is a
+coverage limit on this replication, not a pass for those voices and not a new
+goal.
+
+**Extended to 21 seeds, 2026-08-30**, adding eight overnight draws: 378
+seed-adapter measurements, still over the same 18 adapters. Artifacts are the
+21 files matching `library_voice_fidelity_seed_*_n20.json` and
 `library_fidelity_seed_*_n20.json` in `ab_test_runtime/experiments/`.
+
+**The stated cause of the 56 was wrong, and the correction is actionable.**
+This document said their "source zips are absent". They are not: 101 zips sit
+in the configured directory. **54 of the 56 record their dataset as the literal
+string `data`, and 2 as `train`** — placeholder names where a narrator identity
+belongs, so `find_zip` has nothing to match. The defect is in those adapters'
+`training_meta`, not in the corpus and not in the probe, which means the fix is
+a metadata repair rather than a hunt for lost files. Until it is done, every
+fidelity figure here describes 18 adapters and no more; the 56 are unmeasured,
+which is not the same as unmeasurable.
 
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for
