@@ -2007,6 +2007,13 @@
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_stage_passes_when_every_adapter_was_measured",
     "tests.test_recheck_reporting.RecheckReportingTest.test_the_total_is_counted_not_hard_coded"
   ],
+  "test_record_stamps_every_gold": [
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_changed_second_gold_changes_the_record",
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_a_single_path_still_produces_the_singular_fields",
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_declaring_no_gold_is_refused",
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_every_gold_of_a_multi_book_run_is_hashed",
+    "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_the_consumers_selector_still_matches"
+  ],
   "test_reference_rebuild": [
     "tests.test_reference_rebuild.BandConstantTest.test_the_band_is_the_published_one",
     "tests.test_reference_rebuild.CandidateBandTest.test_a_corpus_that_cannot_reach_the_band_yields_nothing",

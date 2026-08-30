@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2555** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -387,6 +387,31 @@ What is genuinely new is the mechanism rather than a rescue: these adapters
 change output COMPLIANCE, not only attribution, and the newer the base model
 the more they suppress. That is a different failure from attributing badly and
 suggests a different fix, but it does not soften the result above.
+
+**What these nine artifacts do and do not verify about themselves — audited
+2026-08-30.** The comparisons are sound. Base and tuned see byte-identical
+prompts in all nine (383 of 383, none differing), the three runs sharing a base
+produce identical base predictions, confirming determinism at temperature 0,
+and no candidate set is oracle-derived, so the closed-oracle caveat does not
+apply. The deltas above can be read as comparisons.
+
+Two limits are recorded here because neither is visible from the artifacts:
+
+- **The stamped gold covers a third of the rows.** Every run records
+  `gold_path: app/fixtures/attribution_gold_index18.json` and that hash is
+  correct, but the rows span three books — owarimonogatari3 (162), mushoku16
+  (133), index18 (88). The recorded hash therefore verifies **88 of 383 rows**.
+  A change to the other two books' gold would leave no trace. This is the same
+  class of defect as the hardcoded evaluator note and is NOT covered by the
+  fix for it.
+- **Fourteen of 397 gold entries were not scored, and only ten are
+  explained.** All ten `UNNAMED` entries are excluded, which is principled -
+  they are unanswerable. The other four (`index18-00380`, `-00513`, `-00863`,
+  `-01150`) are ordinary named speakers with ordinary lines, dropped for no
+  reason recorded anywhere; `judged_by` does not distinguish them, since all
+  397 entries carry the same value. At 1% this cannot move the result, but an
+  unexplained filter is where a real bias would hide, so it is written down
+  rather than rounded away.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
