@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2609** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2623** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -441,6 +441,20 @@ worth a claim on its own.
 **This experiment does not test the refusal**, and should not be read as
 having done so: **zero rows were unanswered in all four arms.** Its own note
 says it targets off-list errors. What repairs the refusal is still unknown.
+
+**One hypothesis is already dead.** The light-novel teacher corpus routes
+12.8% of its rows to an `UNKNOWN` target, which looked like a candidate
+mechanism — an adapter taught to answer `UNKNOWN` might decline when handed a
+roster. It cannot be the explanation here: the three adapters trained on
+`train__pdnc_*.jsonl`, which contains **0 `UNKNOWN` rows in 5,000**. The
+corpus that carries them was built on 2026-08-30, after these adapters, for
+future distillation.
+
+The obvious follow-up — stratifying refusals by whether the gold speaker was
+in the evaluation roster, which would separate a roster defect from a learned
+refusal — **cannot be run on the existing artifacts**: `candidates` is empty
+and `in_candidates` is `None` on every row of every serving evaluation. That
+needs a re-run of the evaluator populating those fields, not a re-analysis.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
