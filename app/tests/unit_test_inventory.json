@@ -753,7 +753,10 @@
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
-    "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length"
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length",
+    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_no_quantization_is_asserted",
+    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_the_arms_recorded_follow_base_only",
+    "tests.test_distill_eval_shim.ServingEvalDeclaresOnlyWhatItRanTest.test_the_note_no_longer_claims_a_remembered_measurement"
   ],
   "test_distill_qwen35": [
     "tests.test_distill_qwen35.Qwen35TrainingTest.test_answer_longer_than_limit_is_still_supervised",

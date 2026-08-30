@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 492,
-    "exploratory": 255,
+    "exploratory": 256,
     "provisional": 162
   },
   "artifacts": [
@@ -6978,6 +6978,22 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",
+      "bytes": 175025,
+      "sha256": "d61da75d4a17d10e2dd6caa5e71fa44665cb5072ec3af443f9aa3cce0ab72834",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 383,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
     },
     {
       "artifact": "medoid_counterexample.json",
