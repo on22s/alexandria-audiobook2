@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-30 from `ab_test_runtime/experiments/` — 898 artifacts, 850 arms.
+Generated 2026-08-30 from `ab_test_runtime/experiments/` — 910 artifacts, 907 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -13,6 +13,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 `dirty=True` means tracked files were modified when the artifact was written: the numbers are inspectable but the run is not reproducible from its recorded commit.
 
 **`closed-oracle` arms are invalidated.** Their candidate sets were built from the pre-gold labels, so the arm was shown shortlists derived from answers that have since changed. `valid=ok` on those rows means internally consistent, NOT trustworthy — do not read them as results.
+
+**`qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch` is invalidated.** Its tuned arm returned an empty prediction on 266 of 383 rows (69%), against 3-10% for every sibling run in the same batch. The 25.6% it reports measures a generation failure, not attribution accuracy — see its `.INVALID.json` sidecar. Do not read it as a result.
 
 `closed_set.json` and `two_by_two.json` predate the environment contract and captured no `context_length` or `parallel`, which cannot be reconstructed. Their rows and summaries were recomputed and are internally consistent, but the runs are not comparable to artifacts that record an environment: inspectable, not citable.
 
@@ -324,18 +326,72 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 78.7% | exploratory | ok | False | 40991.3s |
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 68.3% | exploratory | ok | False | 23636.2s |
 | grimgar03 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 385 | 78.4% | exploratory | ok | False | 50138.1s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 46972.6s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 44817.8s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 78.4% | exploratory | ok | False | 43536.4s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 78.4% | exploratory | ok | False | 46972.6s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 44817.8s |
+| index18 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 76.1% | exploratory | ok | False | 43536.4s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 13881.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 14009.3s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 64.8% | exploratory | ok | False | 13881.0s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 14009.3s |
+| index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 25.0% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 16723.5s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18279.0s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 16723.5s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 18279.0s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 92 | 71.7% | exploratory | ok | False | 40304.5s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 92 | 71.7% | exploratory | ok | False | 40991.3s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 92 | 71.7% | exploratory | ok | False | 50138.1s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 92 | 75.0% | exploratory | ok | False | 40304.5s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 92 | 75.0% | exploratory | ok | False | 40991.3s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 92 | 75.0% | exploratory | ok | False | 50138.1s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 46972.6s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 44817.8s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 71.4% | exploratory | ok | False | 43536.4s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 46972.6s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 78.2% | exploratory | ok | False | 44817.8s |
+| mushoku16 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 78.2% | exploratory | ok | False | 43536.4s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 13881.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 14009.3s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 133 | 61.7% | exploratory | ok | False | 27294.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 13881.0s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 69.9% | exploratory | ok | False | 14009.3s |
+| mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 22.6% | exploratory | ok | False | 27294.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 16723.5s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18279.0s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 16723.5s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.2% | exploratory | ok | False | 18279.0s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 50.4% | exploratory | ok | False | 40304.5s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 50.4% | exploratory | ok | False | 40991.3s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 50.4% | exploratory | ok | False | 50138.1s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.9% | exploratory | ok | False | 40304.5s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 62.4% | exploratory | ok | False | 40991.3s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 62.4% | exploratory | ok | False | 50138.1s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 46972.6s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 44817.8s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 70.4% | exploratory | ok | False | 43536.4s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.3% | exploratory | ok | False | 46972.6s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 66.0% | exploratory | ok | False | 44817.8s |
+| owarimonogatari3 | Qwen3.5-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 72.8% | exploratory | ok | False | 43536.4s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 13881.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 14009.3s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | base | 162 | 61.1% | exploratory | ok | False | 27294.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.9% | exploratory | ok | False | 13881.0s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 14009.3s |
+| owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 28.4% | exploratory | ok | False | 27294.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 16723.5s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18279.0s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 56.2% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.2% | exploratory | ok | False | 16723.5s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.6% | exploratory | ok | False | 18279.0s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 40.1% | exploratory | ok | False | 40304.5s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 40.1% | exploratory | ok | False | 40991.3s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 40.1% | exploratory | ok | False | 23636.2s |
@@ -423,6 +479,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 78.4% | exploratory | ok | True | 1456.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 72.5% | exploratory | ok | True | 1799.3s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 77.9% | exploratory | ok | True | 1441.2s |
+| index18 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 3282.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 92 | 70.7% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
@@ -452,6 +509,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2957.1s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2890.6s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2890.6s |
+| mushoku16 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 3282.9s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 133 | 49.6% | exploratory | ok | False | 6206.6s |
 | mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4494.5s |
 | mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 6000.3s |
@@ -487,6 +545,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.9% | exploratory | ok | False | 2957.1s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2890.6s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2890.6s |
+| owarimonogatari3 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3282.9s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 162 | 45.7% | exploratory | ok | False | 6206.6s |
 | owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4494.5s |
 | owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 6000.3s |
@@ -1162,6 +1221,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `dialogue_attribution_library.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dialogue_map_compare.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dialogue_map_compare_fresh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_length_intervention.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

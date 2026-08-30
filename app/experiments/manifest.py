@@ -221,6 +221,37 @@ class ExperimentRecord:
         spent; tests supply one so they need no server."""
         self.name = name
         self.started = time.time()
+        # A MULTI-BOOK RUN USED TO STAMP ONE BOOK'S GOLD. The nine cloud
+        # evaluations of 2026-08-28/29 scored 383 rows across owarimonogatari3
+        # (162), mushoku16 (133) and index18 (88) and recorded
+        # gold_path=attribution_gold_index18.json with a correct hash - which
+        # verifies 88 of 383 rows. A change to the other two golds would have
+        # left no trace.
+        #
+        # `gold_files` is {book: sha256}, which is NOT a new shape: 34 committed
+        # artifacts already carry exactly that, written by three callers that
+        # each built it themselves after construction. Building it here instead
+        # is the Rule 15 half - one answer to one question - and keeping their
+        # shape is the other, because a second shape in a corpus that already
+        # has one is worse than the gap it would close.
+        #
+        # The singular gold_path/gold_sha256/gold_lines keep their meaning for
+        # the first file: narration_signal.py and length_bins.py both select
+        # artifacts by os.path.basename(meta["gold_path"]) and must not start
+        # matching nothing.
+        gold_paths = ([gold_path] if isinstance(gold_path, (str, bytes, os.PathLike))
+                      else list(gold_path))
+        if not gold_paths:
+            raise ValueError("a run must declare at least one gold file")
+        gold_files = {}
+        for one in gold_paths:
+            with open(one, "rb") as handle:
+                raw = handle.read()
+            stem = os.path.basename(one)
+            if stem.startswith("attribution_gold_") and stem.endswith(".json"):
+                stem = stem[len("attribution_gold_"):-len(".json")]
+            gold_files[stem] = hashlib.sha256(raw).hexdigest()
+        gold_path = gold_paths[0]
         with open(gold_path, "rb") as handle:
             gold_bytes = handle.read()
         self.meta = {
@@ -236,6 +267,9 @@ class ExperimentRecord:
             "gold_path": os.path.relpath(gold_path, repo),
             "gold_sha256": hashlib.sha256(gold_bytes).hexdigest(),
             "gold_lines": len(json.loads(gold_bytes)["entries"]),
+            # Every gold this run read, so a multi-book artifact verifies all
+            # of its rows and not just the ones from the first book.
+            "gold_files": gold_files,
             # Empty when a run reads nothing but its gold; never absent, so
             # "this run declared no inputs" and "this artifact predates the
             # field" stay distinguishable.

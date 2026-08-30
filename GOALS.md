@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2497** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -329,6 +329,89 @@ transfer beyond the training novels, not transfer beyond Austen. The older `adap
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
+
+**The gain does not carry to newer or larger models — 2026-08-30.** All three
+adapters were evaluated on corrected gold (383 rows per arm) against three
+models they were not trained for. Eight of the nine runs are usable:
+
+| model | adapter | base | tuned | delta |
+|---|---|---:|---:|---:|
+| qwen35-27b-nf4 | `speaker_longcontext_tophalf_5epoch` | 72.6% | 75.5% | **+2.9** |
+| qwen35-27b-nf4 | `speaker_hardcases_split_nonmajor` | 72.6% | 72.8% | +0.3 |
+| qwen35-27b-nf4 | `author_heldout_balanced` | 72.6% | 71.5% | −1.0 |
+| qwen35-35b-a3b-bf16 | `author_heldout_balanced` | 64.8% | 69.2% | **+4.4** |
+| qwen35-35b-a3b-bf16 | `speaker_hardcases_split_nonmajor` | 64.8% | 68.1% | **+3.4** |
+| qwen38-27b | `speaker_longcontext_tophalf_5epoch` | 71.0% | 70.8% | −0.3 |
+| qwen38-27b | `speaker_hardcases_split_nonmajor` | 71.0% | 68.7% | −2.3 |
+| qwen38-27b | `author_heldout_balanced` | 71.0% | 66.1% | −5.0 |
+
+**Three of eight are positive and the best is +4.4**, against the +12.4 the
+same balanced adapter gave on the 14B it was distilled for. On qwen38-27b every
+arm is negative. Adapter gain is therefore a property of the adapter AND the
+base model together, not of the adapter alone, and no figure in this section
+should be quoted as applying to a model other than the one it was measured on.
+
+The artifacts are `distill_eval__qwen3*-corrected-gold-*.json`. A ninth run,
+`qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch`, reads 25.6% and is
+**not a result**: its tuned arm returned an empty prediction on 266 of 383 rows
+against 3–10% for every sibling, so it measures a generation failure. The
+refusal is recorded beside the artifact in
+`distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json`
+and as a caveat in the results index, which is where a reader meets the
+number. That model/adapter pair has no measurement until it is re-run.
+
+Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
+each other but the tuned columns are not comparable across rows.
+
+**Why qwen38 is worst: the adapters induce refusal, and they refuse the hard
+rows.** Every tuned arm answers fewer rows than its base — 13 to 37 empty
+predictions against 11 to 20 — and qwen38 refuses most. Scored on ANSWERED
+rows only, every arm turns positive or neutral (qwen38 goes −5.0 → −0.4,
+−2.3 → +2.1, −0.3 → +1.1), which invites the reading that the adapter knows
+the answer and merely declines to give it.
+
+**That reading is wrong, and the check that kills it is worth keeping.**
+Conditioning on "answered" conditions on an outcome. Scoring the BASE arm
+separately on the rows the tuned arm refused versus the rows it answered:
+
+| | base accuracy on rows tuned REFUSED | on rows tuned ANSWERED |
+|---|---:|---:|
+| across all nine runs | **11.4–61.5%** | **65.0–77.0%** |
+
+The refusals land squarely on the hard rows. So the answered-only figures are
+selection-inflated in every run, and the all-rows numbers in the table above
+are the honest ones: a refusal is a wrong answer, and in production it is
+worse than a guess. **Do not quote answered-only deltas from these artifacts.**
+
+What is genuinely new is the mechanism rather than a rescue: these adapters
+change output COMPLIANCE, not only attribution, and the newer the base model
+the more they suppress. That is a different failure from attributing badly and
+suggests a different fix, but it does not soften the result above.
+
+**What these nine artifacts do and do not verify about themselves — audited
+2026-08-30.** The comparisons are sound. Base and tuned see byte-identical
+prompts in all nine (383 of 383, none differing), the three runs sharing a base
+produce identical base predictions, confirming determinism at temperature 0,
+and no candidate set is oracle-derived, so the closed-oracle caveat does not
+apply. The deltas above can be read as comparisons.
+
+Two limits are recorded here because neither is visible from the artifacts:
+
+- **The stamped gold covers a third of the rows.** Every run records
+  `gold_path: app/fixtures/attribution_gold_index18.json` and that hash is
+  correct, but the rows span three books — owarimonogatari3 (162), mushoku16
+  (133), index18 (88). The recorded hash therefore verifies **88 of 383 rows**.
+  A change to the other two books' gold would leave no trace. This is the same
+  class of defect as the hardcoded evaluator note and is NOT covered by the
+  fix for it.
+- **Fourteen of 397 gold entries were not scored, and only ten are
+  explained.** All ten `UNNAMED` entries are excluded, which is principled -
+  they are unanswerable. The other four (`index18-00380`, `-00513`, `-00863`,
+  `-01150`) are ordinary named speakers with ordinary lines, dropped for no
+  reason recorded anywhere; `judged_by` does not distinguish them, since all
+  397 entries carry the same value. At 1% this cannot move the result, but an
+  unexplained filter is where a real bias would hide, so it is written down
+  rather than rounded away.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and

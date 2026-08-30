@@ -183,6 +183,15 @@ class DistillEvalShimTest(unittest.TestCase):
 
 
 class DistillEvalProvenanceTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.deps = _dependencies()
+        cls.module = _load_distill_eval() if cls.deps else None
+
+    def setUp(self):
+        if not self.deps:
+            self.skipTest("openai/production path unavailable in this environment")
+
     def test_evaluator_does_not_claim_one_adapter_training_corpus(self):
         path = os.path.join(APP, "experiments", "distill_eval.py")
         with open(path, encoding="utf-8") as handle:
@@ -190,6 +199,31 @@ class DistillEvalProvenanceTest(unittest.TestCase):
         self.assertNotIn("1,091 routed rows", source)
         self.assertNotIn("grimgar06 and", source)
         self.assertIn("does not infer it", source)
+
+    def test_classifier_accounts_for_every_excluded_gold_entry(self):
+        gold = {"entries": [
+            {"id": "kept", "line": "Keep me", "expected_speaker": "ALICE"},
+            {"id": "missing", "line": "Gone", "expected_speaker": "ALICE"},
+            {"id": "duplicate", "line": "Again", "expected_speaker": "BOB"},
+            {"id": "special", "line": "Mystery", "expected_speaker": "UNNAMED"},
+            {"id": "fixed", "line": "Narrated", "expected_speaker": "CAROL"},
+        ]}
+        seg = [
+            {"type": "SPOKEN", "text": "Keep me"},
+            {"type": "SPOKEN", "text": "Again"},
+            {"type": "SPOKEN", "text": "Again"},
+            {"type": "SPOKEN", "text": "Mystery"},
+            {"type": "SPOKEN", "text": "Narrated", "source_label": "CAROL"},
+        ]
+        want, exclusions = self.module.classify_gold_population(gold, seg)
+        self.assertEqual([row["id"] for row in want.values()], ["kept"])
+        self.assertEqual(
+            {row["id"]: row["reason"] for row in exclusions},
+            {"missing": "missing_from_checkpoint",
+             "duplicate": "duplicate_in_checkpoint",
+             "special": "special_speaker",
+             "fixed": "deterministically_resolved"})
+        self.assertEqual(len(want) + len(exclusions), len(gold["entries"]))
 
 
 if __name__ == "__main__":

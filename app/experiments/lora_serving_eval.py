@@ -104,6 +104,25 @@ def get_eval_arms(base_only=False):
     return (("base", None),) if base_only else (("base", 0.0), ("lora", 1.0))
 
 
+def get_eval_metadata(base_only=False):
+    """Describe only settings this evaluator controls or directly observes."""
+    arms = get_eval_arms(base_only)
+    decoding = {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
+                "arms": [arm for arm, _ in arms]}
+    if base_only:
+        notes = (
+            "Base-only serving evaluation; no adapter was loaded or toggled. "
+            "The evaluator does not observe base quantisation or adapter "
+            "precision and makes no claim about either.")
+    else:
+        notes = (
+            "Paired serving evaluation. Arms share one server and differ only "
+            "by adapter scale, toggled via POST /lora-adapters. The evaluator "
+            "does not observe base quantisation or adapter precision and makes "
+            "no claim about either.")
+    return decoding, notes
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--books", nargs="+",
@@ -125,24 +144,17 @@ def main():
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
     _env = os.environ.get("EXPERIMENT_ENV")
+    decoding, notes = get_eval_metadata(args.base_only)
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
-        APP + f"fixtures/attribution_gold_{args.books[0]}.json",
-        {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
-         "base_quant": "Q4_K_M", "lora": "f16"},
+        # Every book, so gold_files covers every row this run scores.
+        [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
+        decoding,
         environment=json.loads(_env) if _env else None,
-        notes="The shippable configuration: Q4_K_M base plus an f16 LoRA "
-              "through llama.cpp, against the +11.7 measured in bf16 through "
-              "transformers. Arms share one server and differ only by the "
-              "adapter scale, toggled via POST /lora-adapters.")
+        notes=notes)
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json.ckpt"))
-    import hashlib
-    record.meta["gold_files"] = {
-        b: hashlib.sha256(open(APP + f"fixtures/attribution_gold_{b}.json",
-                               "rb").read()).hexdigest() for b in args.books}
-
     per_book, answers = {}, {"base": {}, "lora": {}}
     for book in args.books:
         gold, src, seg, roster, want = load_book(

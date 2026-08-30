@@ -102,18 +102,15 @@ def main():
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
     environment = get_llama_server_environment(args.base_url, args.model)
-    first_gold = fixture_paths[args.books[0]]
     record = ExperimentRecord(
-        "pdnc_narrator_prior", REPO, args.model, args.base_url, first_gold,
+        "pdnc_narrator_prior", REPO, args.model, args.base_url,
+        # Every book's fixture, so gold_files covers every row scored.
+        [fixture_paths[b] for b in args.books],
         {"temperature": 0.0, "batch": BATCH, "limit": args.limit,
          "narrators": NARRATORS},
         notes="Baseline production attribution prompt versus the same prompt "
               "with known first-person narrator metadata on two weak PDNC books.",
         environment=environment)
-    record.meta["gold_files"] = {
-        book: hashlib.sha256(open(os.path.join(
-            data, book, "quotation_info.csv"), "rb").read()).hexdigest()
-        for book in args.books}
     checkpoint = os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"pdnc_narrator_prior__{args.tag}.json.ckpt")

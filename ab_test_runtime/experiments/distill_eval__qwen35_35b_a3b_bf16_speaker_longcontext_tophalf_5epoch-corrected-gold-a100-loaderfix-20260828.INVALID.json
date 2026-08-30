@@ -1,0 +1,17 @@
+{
+  "artifact": "distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.json",
+  "artifact_sha256": "1355214ab2e1033f361a21385e97e79f4d593d55b83251ec971ad48dfbfe53f3",
+  "field": "summary.tuned",
+  "status": "INVALID - do not read as a result",
+  "incorrect_reading": "the adapter scores 25.6%, a 39.2-point loss against base",
+  "correction": "The tuned arm did not answer. It returned an empty prediction on 266 of 383 rows (69%), with raw_response literally 'None'. The base arm of the same run was empty on 20 of 383 (5%), and the eight other runs in this batch sit at 3-10%. The figure measures a generation failure, not attribution accuracy, and the arm must be re-run before this model/adapter pair has any result at all.",
+  "evidence": {
+    "tuned_empty_predictions": 266,
+    "tuned_rows": 383,
+    "base_empty_predictions": 20,
+    "base_rows": 383,
+    "sibling_runs_empty_rate": "3-10%",
+    "retries_recorded": 0
+  },
+  "measurement_changed": false
+}
