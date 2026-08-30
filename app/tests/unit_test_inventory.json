@@ -735,6 +735,12 @@
     "tests.test_dialogue_spans.SpanTest.test_narration_between_two_quotes_is_not_included",
     "tests.test_dialogue_spans.SpanTest.test_spans_cover_the_words_and_not_the_marks"
   ],
+  "test_dirty_gate_ignores_artifacts": [
+    "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_a_harness_in_the_code_tree_is_still_caught",
+    "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_an_untracked_artifact_is_not_dirt",
+    "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_both_implementations_exclude_the_artifact_tree",
+    "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_the_artifact_tree_is_what_made_the_flag_always_true"
+  ],
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
