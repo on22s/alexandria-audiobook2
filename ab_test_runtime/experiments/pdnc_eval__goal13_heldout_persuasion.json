@@ -1,0 +1,7824 @@
+{
+ "Persuasion": {
+  "base": {
+   "n": 488,
+   "correct": 351,
+   "rows": [
+    {
+     "id": "Persuasion-00000",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "UNKNOWN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00001",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "UNKNOWN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00002",
+     "expected": "LADY RUSSELL",
+     "predicted": "UNKNOWN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00003",
+     "expected": "MR SHEPHERD",
+     "predicted": "UNKNOWN",
+     "correct": false,
+     "quote_type": "nan",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00004",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00005",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00006",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00007",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00008",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00009",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00010",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00011",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00012",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00013",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00014",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00015",
+     "expected": "MR SHEPHERD",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00016",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00017",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00018",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00019",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00020",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00021",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00022",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00023",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00024",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00025",
+     "expected": "MR SHEPHERD",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00026",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00027",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00028",
+     "expected": "ADMIRAL",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00029",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00030",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00031",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00032",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00033",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00034",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00035",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00036",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00037",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00038",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00039",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00040",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00041",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00042",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00043",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00044",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00045",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00046",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00047",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00048",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00049",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00050",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00051",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00052",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00053",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00054",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00055",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00056",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00057",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00058",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00059",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00060",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00061",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00062",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00063",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00064",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00065",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00066",
+     "expected": "MRS CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00067",
+     "expected": "MRS CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00068",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00069",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00070",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00071",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00072",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "LITTLE CHARLES",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00073",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00074",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00075",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00076",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00077",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00078",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00079",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00080",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00081",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00082",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MARY MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00083",
+     "expected": "MARY",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00084",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00085",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00086",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00087",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00088",
+     "expected": "MRS MUSGROVE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00089",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00090",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00091",
+     "expected": "ADMIRAL",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00092",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00093",
+     "expected": "ADMIRAL",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00094",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00095",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00096",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00097",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN BENWICK",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00098",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00099",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00100",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00101",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00102",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00103",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00104",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00105",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00106",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00107",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00108",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00109",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00110",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00111",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00112",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00113",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00114",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00115",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00116",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00117",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00118",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00119",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS CROFT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00120",
+     "expected": "MRS CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00121",
+     "expected": "MRS CROFT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00122",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS CROFT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00123",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "THE WAITER",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00124",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00125",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00126",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00127",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00128",
+     "expected": "HENRIETTA",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00129",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00130",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00131",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00132",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00133",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00134",
+     "expected": "CHARLES HAYTER",
+     "predicted": "CHARLES HAYTER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00135",
+     "expected": "CHARLES HAYTER",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00136",
+     "expected": "MARY MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00137",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00138",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00139",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00140",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00141",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00142",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00143",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00144",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00145",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00146",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00147",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00148",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00149",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00150",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00151",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00152",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00153",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00154",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00155",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00156",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00157",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00158",
+     "expected": "SOPHIA CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00159",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00160",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00161",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00162",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00163",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00164",
+     "expected": "HENRIETTA MUSGROVE",
+     "predicted": "HENRIETTA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00165",
+     "expected": "HENRIETTA MUSGROVE",
+     "predicted": "HENRIETTA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00166",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00167",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00168",
+     "expected": "THE WAITER",
+     "predicted": "THE WAITER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00169",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00170",
+     "expected": "THE WAITER",
+     "predicted": "THE WAITER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00171",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00172",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00173",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00174",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00175",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00176",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00177",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00178",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00179",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00180",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00181",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00182",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00183",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00184",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00185",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00186",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00187",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00188",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00189",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00190",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00191",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00192",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00193",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00194",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00195",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00196",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00197",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00198",
+     "expected": "LADY RUSSELL",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00199",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00200",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00201",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00202",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00203",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00204",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00205",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00206",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00207",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00208",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00209",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00210",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00211",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00212",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00213",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00214",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00215",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00216",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00217",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00218",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00219",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00220",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00221",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00222",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00223",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00224",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00225",
+     "expected": "LADY RUSSELL",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00226",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00227",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00228",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00229",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00230",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00231",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00232",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00233",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00234",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00235",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00236",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00237",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00238",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00239",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00240",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00241",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00242",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00243",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00244",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00245",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00246",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00247",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00248",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00249",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00250",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00251",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00252",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00253",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00254",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00255",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00256",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00257",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00258",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00259",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00260",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00261",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00262",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00263",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00264",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00265",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00266",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00267",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00268",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00269",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00270",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00271",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00272",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00273",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00274",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00275",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00276",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00277",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00278",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00279",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00280",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00281",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00282",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00283",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00284",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00285",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00286",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00287",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00288",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00289",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00290",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00291",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00292",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00293",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00294",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00295",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00296",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00297",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00298",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00299",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00300",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00301",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00302",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00303",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00304",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00305",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00306",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00307",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00308",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00309",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00310",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00311",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00312",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00313",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00314",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00315",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00316",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00317",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00318",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00319",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00320",
+     "expected": "LADY DALRYMPLE",
+     "predicted": "LADY DALRYMPLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00321",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00322",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00323",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00324",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00325",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00326",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00327",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00328",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00329",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00330",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00331",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00332",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00333",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00334",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00335",
+     "expected": "MRS SMITH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00336",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00337",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00338",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00339",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00340",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00341",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00342",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00343",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00344",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00345",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00346",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00347",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00348",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00349",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00350",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS SMITH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00351",
+     "expected": "MRS SMITH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00352",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00353",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00354",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00355",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00356",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00357",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00358",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00359",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00360",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00361",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00362",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00363",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00364",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00365",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00366",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00367",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00368",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00369",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00370",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00371",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00372",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00373",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00374",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00375",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS SMITH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00376",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00377",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00378",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00379",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00380",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00381",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00382",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00383",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00384",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00385",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00386",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00387",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00388",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00389",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00390",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00391",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00392",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00393",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00394",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00395",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00396",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00397",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00398",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00399",
+     "expected": "MRS CLAY",
+     "predicted": "MRS SMITH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00400",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00401",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00402",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00403",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00404",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00405",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00406",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00407",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00408",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00409",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00410",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00411",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00412",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00413",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00414",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00415",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00416",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00417",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00418",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00419",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00420",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00421",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00422",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00423",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00424",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00425",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00426",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00427",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00428",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00429",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00430",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00431",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00432",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00433",
+     "expected": "MARY MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00434",
+     "expected": "MRS CLAY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00435",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00436",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00437",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00438",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00439",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00440",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00441",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00442",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00443",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00444",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00445",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00446",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00447",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00448",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00449",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00450",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00451",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00452",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00453",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00454",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00455",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00456",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00457",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00458",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00459",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00460",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00461",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00462",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00463",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00464",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00465",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00466",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00467",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00468",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00469",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00470",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00471",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00472",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00473",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00474",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00475",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00476",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00477",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00478",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00479",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00480",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00481",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00482",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00483",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00484",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00485",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00486",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00487",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    }
+   ]
+  },
+  "lora": {
+   "n": 488,
+   "correct": 369,
+   "rows": [
+    {
+     "id": "Persuasion-00000",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00001",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "ELIZABETH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00002",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00003",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "nan",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00004",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00005",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00006",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00007",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00008",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00009",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00010",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00011",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00012",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00013",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00014",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00015",
+     "expected": "MR SHEPHERD",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00016",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00017",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00018",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00019",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00020",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00021",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00022",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00023",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00024",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00025",
+     "expected": "MR SHEPHERD",
+     "predicted": "MR SHEPHERD",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00026",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00027",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00028",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00029",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00030",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00031",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00032",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00033",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00034",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00035",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00036",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00037",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00038",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00039",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00040",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00041",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00042",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00043",
+     "expected": "MARY",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00044",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00045",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00046",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00047",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00048",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00049",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00050",
+     "expected": "MARY",
+     "predicted": "MISS ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00051",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00052",
+     "expected": "MARY",
+     "predicted": "MISS ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00053",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00054",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00055",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00056",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00057",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00058",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00059",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00060",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00061",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00062",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00063",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00064",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00065",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00066",
+     "expected": "MRS CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00067",
+     "expected": "MRS CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00068",
+     "expected": "ADMIRAL",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00069",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00070",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00071",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00072",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "LITTLE CHARLES",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00073",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00074",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00075",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00076",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00077",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00078",
+     "expected": "ANNE ELLIOT",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00079",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00080",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00081",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00082",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MARY MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00083",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00084",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00085",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "LADY RUSSELL",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00086",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00087",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00088",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00089",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00090",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00091",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00092",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00093",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00094",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00095",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00096",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00097",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00098",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00099",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00100",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00101",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00102",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00103",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00104",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00105",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00106",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00107",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00108",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00109",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00110",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00111",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00112",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00113",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00114",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00115",
+     "expected": "ADMIRAL",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00116",
+     "expected": "MRS CROFT",
+     "predicted": "SOPHIA CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00117",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00118",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00119",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00120",
+     "expected": "MRS CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00121",
+     "expected": "MRS CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00122",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00123",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00124",
+     "expected": "MARY",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00125",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00126",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00127",
+     "expected": "MARY",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00128",
+     "expected": "HENRIETTA",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "unknown"
+    },
+    {
+     "id": "Persuasion-00129",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00130",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00131",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00132",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00133",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00134",
+     "expected": "CHARLES HAYTER",
+     "predicted": "CHARLES HAYTER",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00135",
+     "expected": "CHARLES HAYTER",
+     "predicted": "CHARLES HAYTER",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00136",
+     "expected": "MARY MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00137",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00138",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00139",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00140",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00141",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00142",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00143",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00144",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00145",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00146",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00147",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00148",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00149",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00150",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00151",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00152",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00153",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00154",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00155",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00156",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00157",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "LOUISA MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00158",
+     "expected": "SOPHIA CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00159",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00160",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00161",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00162",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00163",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00164",
+     "expected": "HENRIETTA MUSGROVE",
+     "predicted": "HENRIETTA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00165",
+     "expected": "HENRIETTA MUSGROVE",
+     "predicted": "HENRIETTA MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00166",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00167",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00168",
+     "expected": "THE WAITER",
+     "predicted": "THE WAITER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00169",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00170",
+     "expected": "THE WAITER",
+     "predicted": "THE WAITER",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00171",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00172",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00173",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00174",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00175",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00176",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00177",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00178",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00179",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00180",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00181",
+     "expected": "LOUISA MUSGROVE",
+     "predicted": "HENRIETTA MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00182",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00183",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00184",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00185",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00186",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00187",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00188",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00189",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00190",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00191",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00192",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00193",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00194",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00195",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00196",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00197",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00198",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00199",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00200",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00201",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00202",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00203",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00204",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00205",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00206",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00207",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00208",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00209",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00210",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00211",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00212",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00213",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00214",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00215",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00216",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00217",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00218",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00219",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00220",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00221",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00222",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00223",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00224",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00225",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00226",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00227",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00228",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00229",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00230",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00231",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00232",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00233",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00234",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00235",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00236",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00237",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00238",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00239",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00240",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00241",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00242",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00243",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00244",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00245",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00246",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00247",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00248",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00249",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00250",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00251",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00252",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00253",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00254",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00255",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00256",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00257",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00258",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00259",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00260",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00261",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00262",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00263",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00264",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00265",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00266",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00267",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00268",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00269",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00270",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00271",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00272",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00273",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00274",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL CROFT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00275",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00276",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00277",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00278",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00279",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00280",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00281",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00282",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00283",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00284",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00285",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00286",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00287",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00288",
+     "expected": "ADMIRAL CROFT",
+     "predicted": "ADMIRAL BALDWIN",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00289",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00290",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00291",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00292",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00293",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00294",
+     "expected": "ANNE ELLIOT",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00295",
+     "expected": "LADY RUSSELL",
+     "predicted": "LADY RUSSELL",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00296",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00297",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00298",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00299",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00300",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00301",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00302",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00303",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00304",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00305",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00306",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00307",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00308",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00309",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00310",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MR SHEPHERD",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00311",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00312",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00313",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00314",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00315",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00316",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00317",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00318",
+     "expected": "WILLIAM WALTER ELLIOT",
+     "predicted": "MR. MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00319",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00320",
+     "expected": "LADY DALRYMPLE",
+     "predicted": "LADY DALRYMPLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00321",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00322",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00323",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00324",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00325",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00326",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00327",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00328",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00329",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00330",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00331",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00332",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00333",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00334",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00335",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00336",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00337",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00338",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00339",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00340",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00341",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00342",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00343",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00344",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00345",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00346",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00347",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00348",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00349",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00350",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00351",
+     "expected": "MRS SMITH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00352",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00353",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00354",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00355",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00356",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00357",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00358",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00359",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00360",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00361",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00362",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00363",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00364",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00365",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00366",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00367",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00368",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00369",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00370",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00371",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00372",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00373",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00374",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00375",
+     "expected": "ANNE ELLIOT",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00376",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00377",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00378",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00379",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00380",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00381",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00382",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00383",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00384",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00385",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00386",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00387",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00388",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00389",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00390",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00391",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00392",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00393",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00394",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00395",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00396",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00397",
+     "expected": "MRS SMITH",
+     "predicted": "MRS SMITH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00398",
+     "expected": "ELIZABETH",
+     "predicted": "ELIZABETH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00399",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00400",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00401",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00402",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00403",
+     "expected": "MRS CLAY",
+     "predicted": "MRS CLAY",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00404",
+     "expected": "ELIZABETH",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00405",
+     "expected": "ELIZABETH",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00406",
+     "expected": "SIR WALTER ELLIOT",
+     "predicted": "SIR WALTER ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00407",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00408",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00409",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00410",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00411",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00412",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00413",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00414",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00415",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00416",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00417",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00418",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00419",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00420",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00421",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00422",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00423",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00424",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MARY MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00425",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "ANNE ELLIOT",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00426",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00427",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00428",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00429",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00430",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00431",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00432",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00433",
+     "expected": "MARY MUSGROVE",
+     "predicted": "MRS CLAY",
+     "correct": false,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00434",
+     "expected": "MRS CLAY",
+     "predicted": "MRS SMITH",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00435",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00436",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00437",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00438",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00439",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS CROFT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00440",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00441",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00442",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00443",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00444",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00445",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00446",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00447",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00448",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00449",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00450",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00451",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00452",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00453",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00454",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00455",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00456",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00457",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00458",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00459",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00460",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00461",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00462",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00463",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00464",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00465",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00466",
+     "expected": "SOPHIA CROFT",
+     "predicted": "MRS MUSGROVE",
+     "correct": false,
+     "quote_type": "Anaphoric",
+     "category": "minor"
+    },
+    {
+     "id": "Persuasion-00467",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00468",
+     "expected": "CAPTAIN HARVILLE",
+     "predicted": "CAPTAIN HARVILLE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00469",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00470",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00471",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00472",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00473",
+     "expected": "MRS MUSGROVE",
+     "predicted": "MRS MUSGROVE",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00474",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES MUSGROVE",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00475",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00476",
+     "expected": "CHARLES MUSGROVE",
+     "predicted": "CHARLES HAYTER",
+     "correct": false,
+     "quote_type": "Implicit",
+     "category": "intermediate"
+    },
+    {
+     "id": "Persuasion-00477",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00478",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00479",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00480",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00481",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Explicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00482",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Implicit",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00483",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00484",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00485",
+     "expected": "ANNE ELLIOT",
+     "predicted": "ANNE ELLIOT",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00486",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    },
+    {
+     "id": "Persuasion-00487",
+     "expected": "CAPTAIN WENTWORTH",
+     "predicted": "CAPTAIN WENTWORTH",
+     "correct": true,
+     "quote_type": "Anaphoric",
+     "category": "major"
+    }
+   ]
+  }
+ }
+}
