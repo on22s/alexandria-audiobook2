@@ -129,13 +129,23 @@ def main():
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
         [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
+        # DECLARE THE RUN, NOT A REMEMBERED ONE. base_quant and lora were
+        # hardcoded to "Q4_K_M" and "f16" here, so every artifact asserted a
+        # quantization it had not checked. The Llama-4-Scout base-only run of
+        # 2026-08-30 recorded base_quant=Q4_K_M, lora=f16 and a note about
+        # "arms differing only by the adapter scale" while serving
+        # meta-llama/llama-4-scout with NO lora arm at all - three false claims
+        # in one artifact whose numbers were fine. Same defect the distill_eval
+        # note carried, fixed there and left here.
         {"temperature": 0.0, "batch": BATCH, "max_tokens": 2000,
-         "base_quant": "Q4_K_M", "lora": "f16"},
+         "arms": [arm for arm, _ in get_eval_arms(args.base_only)]},
         environment=json.loads(_env) if _env else None,
-        notes="The shippable configuration: Q4_K_M base plus an f16 LoRA "
-              "through llama.cpp, against the +11.7 measured in bf16 through "
-              "transformers. Arms share one server and differ only by the "
-              "adapter scale, toggled via POST /lora-adapters.")
+        notes="Paired base-versus-LoRA evaluation through llama.cpp, with the "
+              "arms differing only by the adapter scale toggled via POST "
+              "/lora-adapters. With --base-only there is one arm and no "
+              "adapter is applied. Base quantization and adapter precision "
+              "belong to whatever this endpoint was started with; this "
+              "evaluator does not observe them and does not claim them.")
     record.enable_checkpoint(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"lora_serving_eval__{args.tag}.json.ckpt"))

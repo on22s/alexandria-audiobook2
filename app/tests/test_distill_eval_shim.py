@@ -228,3 +228,52 @@ class DistillEvalProvenanceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServingEvalDeclaresOnlyWhatItRanTest(unittest.TestCase):
+    """The evaluator must not assert a configuration it never observed.
+
+    lora_serving_eval hardcoded base_quant="Q4_K_M" and lora="f16" into
+    `decoding`, and a note saying "arms differ only by the adapter scale".
+    The Llama-4-Scout base-only run of 2026-08-30 therefore recorded all three
+    while serving meta-llama/llama-4-scout with a single arm and no adapter -
+    an artifact whose numbers were correct and whose self-description was not.
+    Same defect distill_eval's note carried; fixed there and left here.
+    """
+
+    def _record_call(self):
+        """Only the ExperimentRecord(...) call, which is what reaches meta.
+
+        Scoped deliberately: the module docstring explains WHY this experiment
+        exists and cites the +11.7 bf16 result as motivation. That is
+        documentation and belongs there. The defect was stamping the same
+        claims into every artifact through notes= and decoding.
+        """
+        path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "experiments", "lora_serving_eval.py")
+        with open(path, encoding="utf-8") as handle:
+            src = handle.read()
+        start = src.index("record = ExperimentRecord(")
+        end = src.index("record.enable_checkpoint(", start)
+        return src[start:end]
+
+    def test_no_quantization_is_asserted(self):
+        src = self._record_call()
+        for claim in ('"base_quant": "Q4_K_M"', '"lora": "f16"'):
+            with self.subTest(claim):
+                self.assertNotIn(
+                    claim, src,
+                    "the evaluator cannot see how the endpoint was quantized, "
+                    "so it must not record it as fact")
+
+    def test_the_arms_recorded_follow_base_only(self):
+        from experiments.lora_serving_eval import get_eval_arms
+        self.assertEqual(["base"], [a for a, _ in get_eval_arms(True)])
+        self.assertEqual(["base", "lora"], [a for a, _ in get_eval_arms(False)])
+
+    def test_the_note_no_longer_claims_a_remembered_measurement(self):
+        """A note quoting another run's number is not provenance for this one.
+
+        The docstring may cite +11.7 as motivation; meta must not.
+        """
+        self.assertNotIn("+11.7", self._record_call())
