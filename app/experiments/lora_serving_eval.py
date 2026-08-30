@@ -198,7 +198,8 @@ def main():
                         if not record.done(arm, f"{book}:{g['id']}"):
                             record.add(arm, f"{book}:{g['id']}", g["line"],
                                        g["expected_speaker"].upper(), None,
-                                       False, provenance=f"{arm}|batch_failed")
+                                       False, candidates=roster,
+                                       provenance=f"{arm}|batch_failed")
                     continue
                 for off, i in enumerate(send):
                     key = norm(seg[i].get("text"))
@@ -212,6 +213,8 @@ def main():
                     record.add(arm, row_id, g["line"],
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
+                               # The roster the model was shown; see distill_eval.
+                               candidates=roster,
                                provenance=f"{arm}|scale={scale}")
                 if k % 25 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)

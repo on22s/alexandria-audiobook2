@@ -882,6 +882,11 @@
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_case_only_differences_are_not_a_disagreement",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
   ],
+  "test_evaluators_record_the_roster": [
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_a_recorded_row_reports_membership_both_ways",
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_an_empty_roster_is_not_silently_a_pass",
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_every_scoring_call_passes_candidates"
+  ],
   "test_expected_prosody_fusion": [],
   "test_experiment_conventions": [
     "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
