@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2623** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -412,6 +412,49 @@ Two limits are recorded here because neither is visible from the artifacts:
   397 entries carry the same value. At 1% this cannot move the result, but an
   unexplained filter is where a real bias would hide, so it is written down
   rather than rounded away.
+
+**The refusal replicates, and constrained decoding does not fix it —
+2026-08-30.** A fresh A100 run of `author_heldout_balanced` on qwen3.8-27b
+reproduces the pattern exactly: base **72.1%** with 3.9% of rows unanswered,
+tuned **65.5%** with **11.7%** unanswered
+(`lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json`).
+The adapter costs 6.6 points and triples the refusal rate on a run that was not
+part of the batch the mechanism was found in.
+
+**GBNF-constrained decoding was tested and is not the repair.** A 2x2 on
+mushoku16 — {open, oracle} x {free, grammar}, n=139
+(`grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json`):
+
+| | free | grammar |
+|---|---:|---:|
+| open, all rows | 61.2% | 59.0% |
+| open, answerable only | **69.5%** | **69.5%** |
+| oracle | 77.0% | 79.1% |
+
+On the rows where the gold is actually in the roster the two are **identical —
+82 of 118 both** — so constraining the output changed nothing that could be
+changed. The open-condition difference is an artefact: 21 of 139 rows have gold
+OUTSIDE the candidate list, and free decoding occasionally names it anyway
+while the grammar forbids it. The oracle gain is +3 rows of 139 and is not
+worth a claim on its own.
+
+**This experiment does not test the refusal**, and should not be read as
+having done so: **zero rows were unanswered in all four arms.** Its own note
+says it targets off-list errors. What repairs the refusal is still unknown.
+
+**One hypothesis is already dead.** The light-novel teacher corpus routes
+12.8% of its rows to an `UNKNOWN` target, which looked like a candidate
+mechanism — an adapter taught to answer `UNKNOWN` might decline when handed a
+roster. It cannot be the explanation here: the three adapters trained on
+`train__pdnc_*.jsonl`, which contains **0 `UNKNOWN` rows in 5,000**. The
+corpus that carries them was built on 2026-08-30, after these adapters, for
+future distillation.
+
+The obvious follow-up — stratifying refusals by whether the gold speaker was
+in the evaluation roster, which would separate a roster defect from a learned
+refusal — **cannot be run on the existing artifacts**: `candidates` is empty
+and `in_candidates` is `None` on every row of every serving evaluation. That
+needs a re-run of the evaluator populating those fields, not a re-analysis.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
