@@ -47,8 +47,44 @@ DEFAULT_ZIPS = os.environ.get(
                  "_deduped_labeled"))
 
 
+# A retrain's reference sample lives in the campaign's working directory, whose
+# layout is <campaign>/<adapter>/data/ref.wav - so the parent directory is the
+# literal word "data", and for two adapters "train". Inferring the dataset from
+# that path yielded those words for 56 of 75 adapters, no zip matched them, and
+# every fidelity figure since has described 18 adapters while reading as though
+# it described the library. GOALS 2.7 recorded the cause as "their source zips
+# are absent"; the zips were there all along.
+#
+# training_meta is NOT wrong - ref_sample_audio faithfully records where that
+# sample sits. The inference from it was. manifest.json carries `dataset_id`
+# per adapter, which is the recorded answer rather than a reconstructed one,
+# and is authoritative here (Rule 15): checked against all 19 adapters whose
+# path-derived name was already a real dataset, it agrees 19/19 with none
+# disagreeing, and it supplies an id for all 56 placeholders - every one of
+# which then finds its zip.
+PLACEHOLDER_DATASETS = {"data", "train"}
+
+
+def get_manifest_dataset_ids(models_dir):
+    """-> {adapter_id: dataset_id} from lora_models/manifest.json, if present."""
+    path = os.path.join(models_dir, "manifest.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            entries = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return {e["id"]: e["dataset_id"] for e in entries
+            if isinstance(e, dict) and e.get("id") and e.get("dataset_id")}
+
+
 def adapter_sources(models_dir):
-    """-> [(adapter_name, dataset_name)] from each adapter's training_meta."""
+    """-> [(adapter_name, dataset_name, meta)] for every adapter with a source.
+
+    The dataset is the manifest's recorded `dataset_id` where there is one, and
+    the directory holding ref_sample_audio otherwise, so an adapter missing
+    from the manifest still resolves exactly as it did before.
+    """
+    recorded = get_manifest_dataset_ids(models_dir)
     out = []
     for name in sorted(os.listdir(models_dir)):
         meta_path = os.path.join(models_dir, name, "training_meta.json")
@@ -60,6 +96,13 @@ def adapter_sources(models_dir):
             continue
         ref = str(meta.get("ref_sample_audio") or "")
         dataset = os.path.basename(os.path.dirname(ref)) if ref else ""
+        # A placeholder is never a dataset, so it must not survive as one even
+        # when the manifest has nothing to say: reporting "data" as an identity
+        # is what made 56 adapters look measurable and score nothing.
+        if dataset in PLACEHOLDER_DATASETS:
+            dataset = recorded.get(name, "")
+        else:
+            dataset = recorded.get(name, dataset)
         if dataset:
             out.append((name, dataset, meta))
     return out
