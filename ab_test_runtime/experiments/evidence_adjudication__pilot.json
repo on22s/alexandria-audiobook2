@@ -1,0 +1,2921 @@
+{
+  "status": "complete",
+  "method": "generation",
+  "scope": "system disagreements only",
+  "summary": {
+    "n": 323,
+    "correct": 145,
+    "qwen_correct": 137,
+    "gains": 62,
+    "losses": 54
+  },
+  "rows": [
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00000",
+      "expected": "RACHEL LYNDE",
+      "predicted": "MRS. RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00001",
+      "expected": "RACHEL LYNDE",
+      "predicted": "MRS. RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00003",
+      "expected": "RACHEL LYNDE",
+      "predicted": "RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00005",
+      "expected": "RACHEL LYNDE",
+      "predicted": "RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00007",
+      "expected": "RACHEL LYNDE",
+      "predicted": "MRS. RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00010",
+      "expected": "RACHEL LYNDE",
+      "predicted": "RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00012",
+      "expected": "RACHEL LYNDE",
+      "predicted": "MRS. RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00014",
+      "expected": "RACHEL LYNDE",
+      "predicted": "MRS. RACHEL LYNDE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00017",
+      "expected": "THE STATION-MASTER",
+      "predicted": "STATION-MASTER",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00019",
+      "expected": "THE STATION-MASTER",
+      "predicted": "STATION-MASTER",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00020",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00022",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00023",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00025",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "THE CHILD",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00027",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00028",
+      "expected": "MATTHEW CUTHBERT",
+      "predicted": "MATTHEW CUTHBERT",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00030",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00035",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00039",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00041",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00043",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00045",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00050",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00052",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00054",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00056",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00059",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00061",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00063",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00064",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNIE SHIRLEY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00066",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00067",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00068",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00073",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00075",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00076",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00077",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00078",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00079",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00080",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00081",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00082",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00083",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00084",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00085",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00086",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00087",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00088",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00089",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00090",
+      "expected": "MATTHEW CUTHBERT",
+      "predicted": "MATTHEW CUTHBERT",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00091",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00092",
+      "expected": "ANNE SHIRLEY",
+      "predicted": "ANNE SHIRLEY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00093",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00094",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00096",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00100",
+      "expected": "MATTHEW CUTHBERT",
+      "predicted": "MATTHEW CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00101",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00103",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00104",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00106",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00108",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00110",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00112",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00114",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00116",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "AnneOfGreenGables:AnneOfGreenGables-00118",
+      "expected": "MARILLA CUTHBERT",
+      "predicted": "MARILLA CUTHBERT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00000",
+      "expected": "SIR WALTER ELLIOT",
+      "predicted": "SIR WALTER ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00001",
+      "expected": "SIR WALTER ELLIOT",
+      "predicted": "SIR WALTER ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00002",
+      "expected": "LADY RUSSELL",
+      "predicted": "LADY RUSSELL",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00003",
+      "expected": "MR SHEPHERD",
+      "predicted": "MR SHEPHERD",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00013",
+      "expected": "ANNE ELLIOT",
+      "predicted": "ANNE ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00015",
+      "expected": "MR SHEPHERD",
+      "predicted": "ANNE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00016",
+      "expected": "SIR WALTER ELLIOT",
+      "predicted": "SIR WALTER ELLIOT",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00025",
+      "expected": "MR SHEPHERD",
+      "predicted": "MR SHEPHERD",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00026",
+      "expected": "SIR WALTER ELLIOT",
+      "predicted": "SIR WALTER ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00029",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00031",
+      "expected": "ELIZABETH",
+      "predicted": "ELIZABETH",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00034",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00036",
+      "expected": "MARY",
+      "predicted": "MRS MUSGROVE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00037",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00038",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MRS MUSGROVE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00039",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00040",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MRS MUSGROVE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00041",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00042",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MRS MUSGROVE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00043",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00044",
+      "expected": "ANNE ELLIOT",
+      "predicted": "ANNE ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00045",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00046",
+      "expected": "ANNE ELLIOT",
+      "predicted": "ANNE ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00047",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00048",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00049",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MARY",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00050",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00051",
+      "expected": "ANNE ELLIOT",
+      "predicted": "ANNE ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00052",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00053",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00055",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00057",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00058",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00059",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00060",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00061",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00062",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MRS MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00063",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00064",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MRS MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00065",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00066",
+      "expected": "MRS CROFT",
+      "predicted": "ADMIRAL BALDWIN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00067",
+      "expected": "MRS CROFT",
+      "predicted": "MRS CROFT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00068",
+      "expected": "ADMIRAL",
+      "predicted": "ADMIRAL BALDWIN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00069",
+      "expected": "LOUISA MUSGROVE",
+      "predicted": "LOUISA MUSGROVE",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00070",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00071",
+      "expected": "MARY",
+      "predicted": "MRS MUSGROVE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00072",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00073",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00074",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MARY",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00075",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00076",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MARY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00077",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00078",
+      "expected": "ANNE ELLIOT",
+      "predicted": "MARY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00079",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00080",
+      "expected": "MARY",
+      "predicted": "MARY MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00081",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00082",
+      "expected": "ANNE ELLIOT",
+      "predicted": "ANNE ELLIOT",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00083",
+      "expected": "MARY",
+      "predicted": "MARY",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00087",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00088",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MOTHER",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00090",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "ADMIRAL BALDWIN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00091",
+      "expected": "ADMIRAL",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00092",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00093",
+      "expected": "ADMIRAL",
+      "predicted": "ADMIRAL",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00094",
+      "expected": "LOUISA MUSGROVE",
+      "predicted": "LOUISA MUSGROVE",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00096",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MOTHER",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00097",
+      "expected": "CHARLES MUSGROVE",
+      "predicted": "CHARLES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00098",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MOTHER",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00100",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MRS MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00101",
+      "expected": "MRS MUSGROVE",
+      "predicted": "MRS MUSGROVE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00102",
+      "expected": "ADMIRAL",
+      "predicted": "ADMIRAL BALDWIN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00105",
+      "expected": "MRS CROFT",
+      "predicted": "SOPHY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00106",
+      "expected": "MRS CROFT",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00107",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00108",
+      "expected": "MRS CROFT",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00109",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00110",
+      "expected": "MRS CROFT",
+      "predicted": "SOPHY",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00111",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "ADMIRAL CROFT",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00112",
+      "expected": "MRS CROFT",
+      "predicted": "ADMIRAL CROFT",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00113",
+      "expected": "CAPTAIN WENTWORTH",
+      "predicted": "ADMIRAL CROFT",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00114",
+      "expected": "MRS CROFT",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00115",
+      "expected": "ADMIRAL",
+      "predicted": "ADMIRAL CROFT",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00116",
+      "expected": "MRS CROFT",
+      "predicted": "CAPTAIN WENTWORTH",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "Persuasion:Persuasion-00119",
+      "expected": "MRS MUSGROVE",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00000",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00001",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00002",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00003",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00004",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00005",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00006",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00007",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00008",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00009",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00010",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00012",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "MARQIS DE GRIERS",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00013",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00014",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00015",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00018",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00020",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00022",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00024",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00026",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00030",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00031",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00033",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00034",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00036",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00038",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00040",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00042",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00045",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00047",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00049",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00051",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00052",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00054",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00057",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00058",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00063",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00065",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00067",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00068",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00069",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00070",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00071",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "MARQIS DE GRIERS",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00072",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00073",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00074",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00075",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00076",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00077",
+      "expected": "THE GENERAL",
+      "predicted": "HE",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00078",
+      "expected": "MARQIS DE GRIERS",
+      "predicted": "THE FRENCHMAN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00079",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00080",
+      "expected": "THE GENERAL",
+      "predicted": "THE GENERAL",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00081",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00082",
+      "expected": "THE GENERAL",
+      "predicted": "HE",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00084",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00086",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00088",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00090",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00092",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00094",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00095",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00096",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00097",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00098",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00099",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00100",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00101",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00103",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00105",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00107",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00111",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00112",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00113",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00114",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00115",
+      "expected": "ALEXIS IVANOVITCH",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00116",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "POLINA ALEXANDROVNA",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00117",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheGambler:TheGambler-00119",
+      "expected": "POLINA ALEXANDROVNA",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00000",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00001",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00002",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00004",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00005",
+      "expected": "ROBERT COHN",
+      "predicted": "ROBERT COHN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00007",
+      "expected": "ROBERT COHN",
+      "predicted": "ROBERT COHN",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00008",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00009",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00010",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00011",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00012",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00013",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00014",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00015",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00016",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00017",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00018",
+      "expected": "ROBERT COHN",
+      "predicted": "HIM",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00019",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00023",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00025",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00026",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00028",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00030",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00031",
+      "expected": "ROBERT COHN",
+      "predicted": "JAKE BARNES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00032",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00034",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00036",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00037",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00038",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00039",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00040",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00041",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00042",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00043",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00044",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00045",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00046",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00047",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00050",
+      "expected": "JAKE BARNES",
+      "predicted": "ROBERT COHN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00052",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00053",
+      "expected": "ROBERT COHN",
+      "predicted": "ROBERT COHN",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00054",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00056",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00058",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00059",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00060",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00061",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00062",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00063",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00064",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00065",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00066",
+      "expected": "JAKE BARNES",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00067",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00068",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00070",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00071",
+      "expected": "ROBERT COHN",
+      "predicted": "I",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00072",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00074",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00076",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00078",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00080",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00082",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00083",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00084",
+      "expected": "JAKE BARNES",
+      "predicted": "ROBERT COHN",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00085",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00086",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00088",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00089",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00090",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00092",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00093",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00094",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00095",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00096",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00097",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00098",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00100",
+      "expected": "JAKE BARNES",
+      "predicted": "GEORGETTE",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00101",
+      "expected": "GEORGETTE",
+      "predicted": "JAKE BARNES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00103",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00104",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00105",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00106",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00107",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00108",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00109",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00110",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00111",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00112",
+      "expected": "GEORGETTE",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00113",
+      "expected": "JAKE BARNES",
+      "predicted": "JAKE BARNES",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00114",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": true,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00115",
+      "expected": "GEORGETTE",
+      "predicted": "JAKE BARNES",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00116",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00117",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00118",
+      "expected": "JAKE BARNES",
+      "predicted": "YOU",
+      "correct": false,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    },
+    {
+      "id": "TheSunAlsoRises:TheSunAlsoRises-00119",
+      "expected": "GEORGETTE",
+      "predicted": "GEORGETTE",
+      "correct": true,
+      "qwen_correct": false,
+      "ranking": null,
+      "method": "generation"
+    }
+  ]
+}

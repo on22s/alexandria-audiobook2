@@ -1,0 +1,45 @@
+{
+ "books": [
+  "pdnc_thegambler",
+  "pdnc_thesignofthefour"
+ ],
+ "results": [],
+ "failures": [
+  {
+   "book": "pdnc_thegambler",
+   "arm": "three_pass",
+   "rc": 1
+  },
+  {
+   "book": "pdnc_thesignofthefour",
+   "arm": "three_pass",
+   "rc": 1
+  }
+ ],
+ "provenance": {
+  "script": "three_pass_vs_single.py",
+  "written": "2026-08-24T19:21:43",
+  "host": "instance-clv9wc8t-main",
+  "git": {
+   "commit": "dd62206712450786fe3b018eef88dbe3338bd5d8",
+   "branch": "master",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5320145ca25057936d308188dd0161a1a3a588c90d4efafb32d185f70d6c13af"
+  },
+  "args": {
+   "books": [
+    "pdnc_thegambler",
+    "pdnc_thesignofthefour"
+   ],
+   "inputs": "ab_test_runtime/dialogue_map_5_3_inputs",
+   "work": "ab_test_runtime/dialogue_map_5_3",
+   "timeout": 14400,
+   "reuse_complete": true,
+   "model": null,
+   "pass2_on_exhaustion": "fallback",
+   "out": "ab_test_runtime/experiments/three_pass_vs_single_pdnc_resumed.json"
+  }
+ }
+}

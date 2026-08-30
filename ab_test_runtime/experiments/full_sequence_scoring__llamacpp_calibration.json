@@ -1,0 +1,15 @@
+{
+ "status": "blocked",
+ "date": "2026-08-23",
+ "endpoint": "http://127.0.0.1:8090",
+ "model": "qwen3-14b",
+ "llama_cpp_build": "10568 (30325cf)",
+ "method": "force each candidate token with a known logit bias, then algebraically remove the bias",
+ "bias_policies_tested": [20.0, 30.0, 40.0, [20.0, 25.0, 30.0]],
+ "result": "No usable bias range exists for every candidate token in the calibration rows. At lower bias some extremely unlikely candidate tokens are not forced; at higher bias llama.cpp returns a saturated probability of 1.0, which erases the information required to recover the original likelihood.",
+ "decision": "Do not use first-token scoring (53.44% of roster candidates collide on their first token) and do not report full-sequence likelihood from this endpoint build. Evidence-constrained generation was run instead.",
+ "related_artifacts": [
+  "candidate_scoring_feasibility__endpoint.json",
+  "evidence_adjudication__pilot.json"
+ ]
+}

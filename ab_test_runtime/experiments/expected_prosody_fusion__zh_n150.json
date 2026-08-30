@@ -1,0 +1,1061 @@
+{
+  "language": "zh",
+  "arm": "clone",
+  "scored": 150,
+  "available": 150,
+  "correlation_mean": 0.06621974207191532,
+  "direction_accuracy_mean": 0.5158377579044077,
+  "alignment": "equal-time voiced-contour baseline; not forced alignment",
+  "rows": [
+    {
+      "id": "SSB15850002",
+      "correlation": 0.21998644372879733,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 1096,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850003",
+      "correlation": 0.22199006831671406,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 76,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850004",
+      "correlation": 0.3526660686769615,
+      "direction_accuracy": 0.6527777777777778,
+      "voiced_frames": 105,
+      "expected_points": 100
+    },
+    {
+      "id": "SSB15850005",
+      "correlation": -0.17718355252043957,
+      "direction_accuracy": 0.4782608695652174,
+      "voiced_frames": 75,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850007",
+      "correlation": -0.09933789904930318,
+      "direction_accuracy": 0.39215686274509803,
+      "voiced_frames": 33,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850008",
+      "correlation": -0.027496339863460863,
+      "direction_accuracy": 0.4444444444444444,
+      "voiced_frames": 1465,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850009",
+      "correlation": 0.12451013208994097,
+      "direction_accuracy": 0.48936170212765956,
+      "voiced_frames": 1026,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850010",
+      "correlation": 0.05976894236965897,
+      "direction_accuracy": 0.4936708860759494,
+      "voiced_frames": 93,
+      "expected_points": 110
+    },
+    {
+      "id": "SSB15850011",
+      "correlation": 0.009559399096976449,
+      "direction_accuracy": 0.48936170212765956,
+      "voiced_frames": 75,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850012",
+      "correlation": -0.17477270572203094,
+      "direction_accuracy": 0.5918367346938775,
+      "voiced_frames": 1784,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850014",
+      "correlation": 0.10642355422463189,
+      "direction_accuracy": 0.49295774647887325,
+      "voiced_frames": 791,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850017",
+      "correlation": 0.18235269954933633,
+      "direction_accuracy": 0.6341463414634146,
+      "voiced_frames": 76,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850019",
+      "correlation": -0.06740641976244936,
+      "direction_accuracy": 0.5428571428571428,
+      "voiced_frames": 294,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850020",
+      "correlation": -0.04127227809050121,
+      "direction_accuracy": 0.4307692307692308,
+      "voiced_frames": 27,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850022",
+      "correlation": -0.05819951411952366,
+      "direction_accuracy": 0.78125,
+      "voiced_frames": 81,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850024",
+      "correlation": -0.1719760450448293,
+      "direction_accuracy": 0.43243243243243246,
+      "voiced_frames": 79,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850025",
+      "correlation": -0.037468442093339084,
+      "direction_accuracy": 0.5416666666666666,
+      "voiced_frames": 1588,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850026",
+      "correlation": -0.06755204401759125,
+      "direction_accuracy": 0.4,
+      "voiced_frames": 495,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850027",
+      "correlation": -0.15899200584209897,
+      "direction_accuracy": 0.6190476190476191,
+      "voiced_frames": 69,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850028",
+      "correlation": -0.0463433101792902,
+      "direction_accuracy": 0.43478260869565216,
+      "voiced_frames": 37,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850029",
+      "correlation": -0.06283591854946649,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 78,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850031",
+      "correlation": 0.1683397655527686,
+      "direction_accuracy": 0.4642857142857143,
+      "voiced_frames": 109,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850032",
+      "correlation": -0.011366371870806271,
+      "direction_accuracy": 0.5172413793103449,
+      "voiced_frames": 951,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850034",
+      "correlation": 0.14760081797399174,
+      "direction_accuracy": 0.5576923076923077,
+      "voiced_frames": 449,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850036",
+      "correlation": -0.02453667080730493,
+      "direction_accuracy": 0.4794520547945205,
+      "voiced_frames": 1116,
+      "expected_points": 100
+    },
+    {
+      "id": "SSB15850038",
+      "correlation": 0.13099766070339547,
+      "direction_accuracy": 0.42857142857142855,
+      "voiced_frames": 1642,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850039",
+      "correlation": -0.08391200198247985,
+      "direction_accuracy": 0.5625,
+      "voiced_frames": 86,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850040",
+      "correlation": -0.011552326942027683,
+      "direction_accuracy": 0.4444444444444444,
+      "voiced_frames": 877,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850043",
+      "correlation": -0.14109298203645268,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 60,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850044",
+      "correlation": 0.1398859124149233,
+      "direction_accuracy": 0.5636363636363636,
+      "voiced_frames": 1037,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850045",
+      "correlation": -0.05686267256825776,
+      "direction_accuracy": 0.4634146341463415,
+      "voiced_frames": 3842,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850046",
+      "correlation": 0.26149125726256883,
+      "direction_accuracy": 0.5416666666666666,
+      "voiced_frames": 84,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850048",
+      "correlation": -0.05152905133472079,
+      "direction_accuracy": 0.5483870967741935,
+      "voiced_frames": 65,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850049",
+      "correlation": 0.09430422410858612,
+      "direction_accuracy": 0.47368421052631576,
+      "voiced_frames": 930,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850051",
+      "correlation": 0.1744370203277484,
+      "direction_accuracy": 0.4722222222222222,
+      "voiced_frames": 91,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850052",
+      "correlation": 0.2781890309712352,
+      "direction_accuracy": 0.6046511627906976,
+      "voiced_frames": 92,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850053",
+      "correlation": 0.17168004487702737,
+      "direction_accuracy": 0.5348837209302325,
+      "voiced_frames": 726,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850056",
+      "correlation": 0.36071048579937215,
+      "direction_accuracy": 0.6136363636363636,
+      "voiced_frames": 74,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850058",
+      "correlation": -0.18359001198367672,
+      "direction_accuracy": 0.4492753623188406,
+      "voiced_frames": 88,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850059",
+      "correlation": -0.08668863943763355,
+      "direction_accuracy": 0.39473684210526316,
+      "voiced_frames": 55,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850060",
+      "correlation": 0.35917194826874893,
+      "direction_accuracy": 0.5813953488372093,
+      "voiced_frames": 105,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850061",
+      "correlation": 0.0192284760977923,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 804,
+      "expected_points": 110
+    },
+    {
+      "id": "SSB15850062",
+      "correlation": -0.03462016820126571,
+      "direction_accuracy": 0.4358974358974359,
+      "voiced_frames": 463,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850063",
+      "correlation": 0.059601188898789695,
+      "direction_accuracy": 0.6153846153846154,
+      "voiced_frames": 73,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850066",
+      "correlation": -0.15977962278402139,
+      "direction_accuracy": 0.40625,
+      "voiced_frames": 87,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850067",
+      "correlation": 0.16445035948377032,
+      "direction_accuracy": 0.48333333333333334,
+      "voiced_frames": 88,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850069",
+      "correlation": 0.20210962838992422,
+      "direction_accuracy": 0.6521739130434783,
+      "voiced_frames": 134,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850070",
+      "correlation": 0.28848520722907456,
+      "direction_accuracy": 0.4772727272727273,
+      "voiced_frames": 69,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850071",
+      "correlation": -0.046268819630418775,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 73,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850072",
+      "correlation": 0.23254787601791535,
+      "direction_accuracy": 0.47761194029850745,
+      "voiced_frames": 154,
+      "expected_points": 105
+    },
+    {
+      "id": "SSB15850073",
+      "correlation": 0.26764899327970904,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 78,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850074",
+      "correlation": -0.30162859072261433,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 62,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850075",
+      "correlation": 0.19466859155421048,
+      "direction_accuracy": 0.7076923076923077,
+      "voiced_frames": 113,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850076",
+      "correlation": -0.16586106050054988,
+      "direction_accuracy": 0.4583333333333333,
+      "voiced_frames": 416,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850077",
+      "correlation": -0.05458620123078854,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 90,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850079",
+      "correlation": 0.3878418031574398,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 63,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850081",
+      "correlation": 0.09687588524704398,
+      "direction_accuracy": 0.4,
+      "voiced_frames": 53,
+      "expected_points": 40
+    },
+    {
+      "id": "SSB15850082",
+      "correlation": 0.4383880721259687,
+      "direction_accuracy": 0.5714285714285714,
+      "voiced_frames": 879,
+      "expected_points": 40
+    },
+    {
+      "id": "SSB15850083",
+      "correlation": -0.17986694143482052,
+      "direction_accuracy": 0.43548387096774194,
+      "voiced_frames": 99,
+      "expected_points": 95
+    },
+    {
+      "id": "SSB15850084",
+      "correlation": 0.045063872963693644,
+      "direction_accuracy": 0.45614035087719296,
+      "voiced_frames": 1115,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850085",
+      "correlation": -0.1415558675712728,
+      "direction_accuracy": 0.38235294117647056,
+      "voiced_frames": 80,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850086",
+      "correlation": -0.24715196056082053,
+      "direction_accuracy": 0.358974358974359,
+      "voiced_frames": 64,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850087",
+      "correlation": 0.22294733599021896,
+      "direction_accuracy": 0.5892857142857143,
+      "voiced_frames": 548,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850088",
+      "correlation": 0.31779915855024976,
+      "direction_accuracy": 0.6875,
+      "voiced_frames": 68,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850089",
+      "correlation": -0.1131909500417412,
+      "direction_accuracy": 0.40625,
+      "voiced_frames": 71,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850090",
+      "correlation": 0.18704985677624036,
+      "direction_accuracy": 0.5151515151515151,
+      "voiced_frames": 726,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850091",
+      "correlation": -0.039663218072578534,
+      "direction_accuracy": 0.4339622641509434,
+      "voiced_frames": 89,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850092",
+      "correlation": 0.001245278676276444,
+      "direction_accuracy": 0.5614035087719298,
+      "voiced_frames": 108,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850093",
+      "correlation": -0.11347035738685254,
+      "direction_accuracy": 0.4897959183673469,
+      "voiced_frames": 601,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850095",
+      "correlation": 0.09718961873928794,
+      "direction_accuracy": 0.5348837209302325,
+      "voiced_frames": 78,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850097",
+      "correlation": 0.3557882936109549,
+      "direction_accuracy": 0.5967741935483871,
+      "voiced_frames": 126,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850098",
+      "correlation": 0.1268270397530943,
+      "direction_accuracy": 0.55,
+      "voiced_frames": 1807,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850101",
+      "correlation": -0.16662777806097614,
+      "direction_accuracy": 0.5277777777777778,
+      "voiced_frames": 4375,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850102",
+      "correlation": -0.1864157202114182,
+      "direction_accuracy": 0.3958333333333333,
+      "voiced_frames": 2631,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850103",
+      "correlation": -0.13142190012196595,
+      "direction_accuracy": 0.44155844155844154,
+      "voiced_frames": 93,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850104",
+      "correlation": 0.2449672390237342,
+      "direction_accuracy": 0.5769230769230769,
+      "voiced_frames": 74,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850105",
+      "correlation": 0.1721099323637467,
+      "direction_accuracy": 0.6481481481481481,
+      "voiced_frames": 77,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850106",
+      "correlation": -0.005495545897497725,
+      "direction_accuracy": 0.5869565217391305,
+      "voiced_frames": 66,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850107",
+      "correlation": 0.11793079933599888,
+      "direction_accuracy": 0.4691358024691358,
+      "voiced_frames": 1006,
+      "expected_points": 105
+    },
+    {
+      "id": "SSB15850108",
+      "correlation": 0.30586272027180167,
+      "direction_accuracy": 0.725,
+      "voiced_frames": 104,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850109",
+      "correlation": -0.1269341955209181,
+      "direction_accuracy": 0.36666666666666664,
+      "voiced_frames": 77,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850110",
+      "correlation": 0.19347544524246332,
+      "direction_accuracy": 0.6326530612244898,
+      "voiced_frames": 87,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850111",
+      "correlation": -0.00937755996432762,
+      "direction_accuracy": 0.5205479452054794,
+      "voiced_frames": 1482,
+      "expected_points": 105
+    },
+    {
+      "id": "SSB15850112",
+      "correlation": 0.0030642813831467212,
+      "direction_accuracy": 0.44285714285714284,
+      "voiced_frames": 119,
+      "expected_points": 110
+    },
+    {
+      "id": "SSB15850113",
+      "correlation": -0.2634005042856168,
+      "direction_accuracy": 0.4426229508196721,
+      "voiced_frames": 453,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850114",
+      "correlation": 0.09908534751727922,
+      "direction_accuracy": 0.4117647058823529,
+      "voiced_frames": 57,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850115",
+      "correlation": 0.23285332066702516,
+      "direction_accuracy": 0.4722222222222222,
+      "voiced_frames": 109,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850116",
+      "correlation": 0.39875573226422995,
+      "direction_accuracy": 0.6538461538461539,
+      "voiced_frames": 64,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850117",
+      "correlation": -0.0004162252723798593,
+      "direction_accuracy": 0.5161290322580645,
+      "voiced_frames": 708,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850119",
+      "correlation": -0.1690187861578417,
+      "direction_accuracy": 0.4696969696969697,
+      "voiced_frames": 888,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850120",
+      "correlation": -0.12684412526433061,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 115,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850122",
+      "correlation": -0.03361170358809328,
+      "direction_accuracy": 0.5060240963855421,
+      "voiced_frames": 771,
+      "expected_points": 110
+    },
+    {
+      "id": "SSB15850124",
+      "correlation": 0.00392273273655681,
+      "direction_accuracy": 0.527027027027027,
+      "voiced_frames": 85,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850125",
+      "correlation": 0.4948657554760066,
+      "direction_accuracy": 0.6153846153846154,
+      "voiced_frames": 57,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850127",
+      "correlation": 0.10162375019445317,
+      "direction_accuracy": 0.59375,
+      "voiced_frames": 116,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850128",
+      "correlation": 0.2702033797764885,
+      "direction_accuracy": 0.6304347826086957,
+      "voiced_frames": 91,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850129",
+      "correlation": 0.2112082345166958,
+      "direction_accuracy": 0.5853658536585366,
+      "voiced_frames": 6567,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850135",
+      "correlation": 0.20194339633602262,
+      "direction_accuracy": 0.34782608695652173,
+      "voiced_frames": 102,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850136",
+      "correlation": 0.25992007482183405,
+      "direction_accuracy": 0.48717948717948717,
+      "voiced_frames": 90,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850137",
+      "correlation": 0.13141589106414772,
+      "direction_accuracy": 0.4423076923076923,
+      "voiced_frames": 72,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850138",
+      "correlation": -0.029879265763662864,
+      "direction_accuracy": 0.4482758620689655,
+      "voiced_frames": 897,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850139",
+      "correlation": -0.1402910396650083,
+      "direction_accuracy": 0.45714285714285713,
+      "voiced_frames": 74,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850140",
+      "correlation": -0.10181291823725645,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 66,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850142",
+      "correlation": 0.00287305094765634,
+      "direction_accuracy": 0.45454545454545453,
+      "voiced_frames": 912,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850143",
+      "correlation": -0.01717120208710846,
+      "direction_accuracy": 0.5471698113207547,
+      "voiced_frames": 110,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850145",
+      "correlation": -0.19387682892010552,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 1687,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850146",
+      "correlation": 0.36509511985911064,
+      "direction_accuracy": 0.6533333333333333,
+      "voiced_frames": 132,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850147",
+      "correlation": -0.11266938461515211,
+      "direction_accuracy": 0.5238095238095238,
+      "voiced_frames": 858,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850148",
+      "correlation": 0.24250348621592796,
+      "direction_accuracy": 0.5789473684210527,
+      "voiced_frames": 63,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850149",
+      "correlation": 0.12771513819199354,
+      "direction_accuracy": 0.52,
+      "voiced_frames": 126,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850152",
+      "correlation": 0.13106153149216804,
+      "direction_accuracy": 0.46511627906976744,
+      "voiced_frames": 101,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850156",
+      "correlation": 0.2716721575856861,
+      "direction_accuracy": 0.5714285714285714,
+      "voiced_frames": 71,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850157",
+      "correlation": 0.24053237969763674,
+      "direction_accuracy": 0.5813953488372093,
+      "voiced_frames": 123,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850160",
+      "correlation": -0.3420408178963245,
+      "direction_accuracy": 0.4634146341463415,
+      "voiced_frames": 278,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850161",
+      "correlation": -0.0045800089050517905,
+      "direction_accuracy": 0.5227272727272727,
+      "voiced_frames": 104,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850162",
+      "correlation": 0.14197894692767768,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 542,
+      "expected_points": 40
+    },
+    {
+      "id": "SSB15850163",
+      "correlation": 0.17866532417467648,
+      "direction_accuracy": 0.48717948717948717,
+      "voiced_frames": 939,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850164",
+      "correlation": 0.3598034834035326,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 86,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850165",
+      "correlation": -0.08668863943763355,
+      "direction_accuracy": 0.39473684210526316,
+      "voiced_frames": 55,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850166",
+      "correlation": 0.25685246980797094,
+      "direction_accuracy": 0.6031746031746031,
+      "voiced_frames": 105,
+      "expected_points": 100
+    },
+    {
+      "id": "SSB15850167",
+      "correlation": 0.3650312052010879,
+      "direction_accuracy": 0.7297297297297297,
+      "voiced_frames": 105,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850168",
+      "correlation": 0.37379268983718916,
+      "direction_accuracy": 0.6166666666666667,
+      "voiced_frames": 99,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850169",
+      "correlation": -0.3378754915571015,
+      "direction_accuracy": 0.42857142857142855,
+      "voiced_frames": 98,
+      "expected_points": 85
+    },
+    {
+      "id": "SSB15850170",
+      "correlation": 0.08489648660251424,
+      "direction_accuracy": 0.42857142857142855,
+      "voiced_frames": 53,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850171",
+      "correlation": -0.07833654522070979,
+      "direction_accuracy": 0.6296296296296297,
+      "voiced_frames": 71,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850172",
+      "correlation": -0.16863970090471825,
+      "direction_accuracy": 0.48,
+      "voiced_frames": 744,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850173",
+      "correlation": 0.17868588522520942,
+      "direction_accuracy": 0.3404255319148936,
+      "voiced_frames": 49,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850174",
+      "correlation": 0.19088019226315575,
+      "direction_accuracy": 0.5098039215686274,
+      "voiced_frames": 738,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850175",
+      "correlation": -0.0473635665366289,
+      "direction_accuracy": 0.42424242424242425,
+      "voiced_frames": 976,
+      "expected_points": 80
+    },
+    {
+      "id": "SSB15850176",
+      "correlation": -0.05154710546769192,
+      "direction_accuracy": 0.5476190476190477,
+      "voiced_frames": 75,
+      "expected_points": 50
+    },
+    {
+      "id": "SSB15850177",
+      "correlation": 0.04695067043316337,
+      "direction_accuracy": 0.47474747474747475,
+      "voiced_frames": 693,
+      "expected_points": 120
+    },
+    {
+      "id": "SSB15850178",
+      "correlation": 0.1039270236238451,
+      "direction_accuracy": 0.5614035087719298,
+      "voiced_frames": 5824,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850180",
+      "correlation": 0.26779564207281853,
+      "direction_accuracy": 0.5645161290322581,
+      "voiced_frames": 69,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850181",
+      "correlation": 0.025420519330831857,
+      "direction_accuracy": 0.5633802816901409,
+      "voiced_frames": 112,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850182",
+      "correlation": 0.10501953716693212,
+      "direction_accuracy": 0.43137254901960786,
+      "voiced_frames": 78,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850183",
+      "correlation": 0.17330553637318197,
+      "direction_accuracy": 0.3488372093023256,
+      "voiced_frames": 82,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850185",
+      "correlation": 0.31822460562843635,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 91,
+      "expected_points": 65
+    },
+    {
+      "id": "SSB15850186",
+      "correlation": 0.10070980629497978,
+      "direction_accuracy": 0.46551724137931033,
+      "voiced_frames": 95,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850187",
+      "correlation": -0.23287579315306464,
+      "direction_accuracy": 0.35526315789473684,
+      "voiced_frames": 1137,
+      "expected_points": 100
+    },
+    {
+      "id": "SSB15850188",
+      "correlation": 0.09062284385210816,
+      "direction_accuracy": 0.5930232558139535,
+      "voiced_frames": 140,
+      "expected_points": 110
+    },
+    {
+      "id": "SSB15850189",
+      "correlation": 0.15491605954606033,
+      "direction_accuracy": 0.509090909090909,
+      "voiced_frames": 103,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850190",
+      "correlation": 0.10777316400417043,
+      "direction_accuracy": 0.5617977528089888,
+      "voiced_frames": 1584,
+      "expected_points": 105
+    },
+    {
+      "id": "SSB15850191",
+      "correlation": 0.1019491816281587,
+      "direction_accuracy": 0.38095238095238093,
+      "voiced_frames": 83,
+      "expected_points": 55
+    },
+    {
+      "id": "SSB15850193",
+      "correlation": 0.253791515726016,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 130,
+      "expected_points": 75
+    },
+    {
+      "id": "SSB15850195",
+      "correlation": -0.061134654009236934,
+      "direction_accuracy": 0.4838709677419355,
+      "voiced_frames": 23,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850196",
+      "correlation": -0.036994917640245935,
+      "direction_accuracy": 0.4146341463414634,
+      "voiced_frames": 83,
+      "expected_points": 45
+    },
+    {
+      "id": "SSB15850197",
+      "correlation": 0.1485632127591243,
+      "direction_accuracy": 0.5892857142857143,
+      "voiced_frames": 108,
+      "expected_points": 70
+    },
+    {
+      "id": "SSB15850198",
+      "correlation": 0.06657465898618078,
+      "direction_accuracy": 0.5423728813559322,
+      "voiced_frames": 681,
+      "expected_points": 90
+    },
+    {
+      "id": "SSB15850199",
+      "correlation": 0.12806249435377973,
+      "direction_accuracy": 0.5348837209302325,
+      "voiced_frames": 90,
+      "expected_points": 60
+    },
+    {
+      "id": "SSB15850200",
+      "correlation": 0.21723813204514317,
+      "direction_accuracy": 0.5789473684210527,
+      "voiced_frames": 1322,
+      "expected_points": 65
+    }
+  ]
+}
