@@ -358,6 +358,7 @@ def main():
                                 continue
                             record.add(arm, row_id, g["line"],
                                        g["expected_speaker"].upper(), None, False,
+                                       candidates=roster,
                                        provenance=f"{arm}|{book}|batch_failed")
                             scored += 1
                     continue
@@ -373,6 +374,12 @@ def main():
                     record.add(arm, row_id, g["line"],
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
+                               # The roster the model was shown. Without it
+                               # in_candidates is None on every row and a refusal
+                               # cannot be told apart from a roster that never
+                               # held the answer - which is the question the
+                               # refusal finding of 2026-08-30 arrived at.
+                               candidates=roster,
                                provenance=f"{arm}|{book}")
                     scored += 1
                 if k % 20 == 0:
