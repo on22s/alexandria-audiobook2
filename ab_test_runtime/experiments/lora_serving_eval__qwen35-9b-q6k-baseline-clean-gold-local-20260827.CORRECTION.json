@@ -1,0 +1,9 @@
+{
+  "artifact": "lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json",
+  "artifact_sha256": "1e10999d1cfa02a38741efec320c072bbb6d42965d0972a12f04d0befb52c229",
+  "incorrect_fields": ["meta.decoding.base_quant", "meta.decoding.lora", "meta.notes"],
+  "correction": "This was a base-only run. No adapter arm ran. The evaluator did not observe base quantisation or adapter precision; use the model label only as the run's declared configuration.",
+  "actual_arms": ["base"],
+  "measurement_changed": false,
+  "audit": "../audit/serving_metadata_audit.json"
+}

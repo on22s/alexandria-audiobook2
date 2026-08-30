@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 492,
-    "exploratory": 256,
+    "exploratory": 262,
     "provisional": 162
   },
   "artifacts": [
@@ -6612,6 +6612,35 @@
       "reason": "metadata present without commit identity"
     },
     {
+      "artifact": "lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.CORRECTION.json",
+      "bytes": 592,
+      "sha256": "406c87112d085f9633f20bf7e1fb8f9b6a688035bf9cad35e3c410062125354d",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.json",
+      "bytes": 175217,
+      "sha256": "154223e3542a40ffa4706f956418ad26c32e14a084481876c2c354c3d0bcd50a",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 383,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
       "artifact": "lora_serving_eval__local-balanced-q4-20260825.json",
       "bytes": 576513,
       "sha256": "17f953d0965e3ef40982fe4d5da8d92d4b852002c6ae0723defec8ee591f22b3",
@@ -6756,6 +6785,19 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.CORRECTION.json",
+      "bytes": 569,
+      "sha256": "7bdb98b34643fbbc34ad20a49da3004e30cb0f70b434c702bad8151d1b745146",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
       "artifact": "lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json",
       "bytes": 175332,
       "sha256": "5e043c09f26e5ef70da1504d8ab849942da3af32276f047a5175e9534795a9fd",
@@ -6786,6 +6828,19 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.CORRECTION.json",
+      "bytes": 577,
+      "sha256": "2c40a585f12f75fa3e8bdc5d4e8c6f3507a4561183a3115d5038c9beeecb2144",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json",
@@ -6850,6 +6905,19 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.CORRECTION.json",
+      "bytes": 576,
+      "sha256": "0bc6d33a29c2c0a1432f6063722563a2ad7f53d479eb095f0e4570a31b6c0c82",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.json",
@@ -6978,6 +7046,19 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.CORRECTION.json",
+      "bytes": 590,
+      "sha256": "2c5871c404769481818e3b9bd57012c5d32c42fcc501670463782ab4111936ba",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
     },
     {
       "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",

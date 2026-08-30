@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-30 from `ab_test_runtime/experiments/` — 910 artifacts, 907 arms.
+Generated 2026-08-30 from `ab_test_runtime/experiments/` — 916 artifacts, 910 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -479,6 +479,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 78.4% | exploratory | ok | True | 1456.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 72.5% | exploratory | ok | True | 1799.3s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 77.9% | exploratory | ok | True | 1441.2s |
+| index18 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 88 | 77.3% | exploratory | ok | False | 4021.8s |
 | index18 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 88 | 62.5% | exploratory | ok | False | 3282.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 92 | 70.7% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
@@ -509,6 +510,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2957.1s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2890.6s |
 | index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2890.6s |
+| mushoku16 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 133 | 73.7% | exploratory | ok | False | 4021.8s |
 | mushoku16 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 133 | 45.1% | exploratory | ok | False | 3282.9s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 133 | 49.6% | exploratory | ok | False | 6206.6s |
 | mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4494.5s |
@@ -545,6 +547,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.9% | exploratory | ok | False | 2957.1s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2890.6s |
 | mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2890.6s |
+| owarimonogatari3 | llama-3.3-70b | local-lmstudio | lmstudio | 32768 | base | 162 | 65.4% | exploratory | ok | False | 4021.8s |
 | owarimonogatari3 | llama-4-scout | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3282.9s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 162 | 45.7% | exploratory | ok | False | 6206.6s |
 | owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4494.5s |
@@ -1413,6 +1416,11 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `longref__ja_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `longref__zh_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `longref__zh_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `medoid_counterexample.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_library_retrain.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `modernbooknlp_direct__Persuasion.json` | SKIPPED: 'rows' is not a list of scored arms |

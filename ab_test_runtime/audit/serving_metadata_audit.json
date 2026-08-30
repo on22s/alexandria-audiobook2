@@ -1,0 +1,625 @@
+{
+  "scope": "Committed lora_serving_eval artifacts",
+  "affected_artifacts": 29,
+  "base_only_false_adapter_claims": 5,
+  "artifacts": [
+    {
+      "artifact": "lora_serving_eval__cloud-alldata.json",
+      "artifact_sha256": "c734a7dc4664841aeac07ee2df26a326c712b2e5cdeddc8d83352e56070e816e",
+      "model": "qwen/qwen3-14b",
+      "rows": 1544,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__cloud-curve-25.json",
+      "artifact_sha256": "1412c5d86fcabc1e0301c054b5811a2def271ae1eb5345760ba0c5d35b4f3c1f",
+      "model": "qwen/qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__cloud-curve-50.json",
+      "artifact_sha256": "79bfc8badd3890c75801f652a1f5bb061ea228bee7c7769cea60d82b184c8631",
+      "model": "qwen/qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__cloud-curve-75.json",
+      "artifact_sha256": "8acad5ce37e1f32d62120f9b754b17c3a6f40e732e7c00936623f53ce89a98ed",
+      "model": "qwen/qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.json",
+      "artifact_sha256": "154223e3542a40ffa4706f956418ad26c32e14a084481876c2c354c3d0bcd50a",
+      "model": "meta-llama/llama-3.3-70b",
+      "rows": 383,
+      "actual_arms": [
+        "base"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": true,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__local-balanced-q4-20260825.json",
+      "artifact_sha256": "17f953d0965e3ef40982fe4d5da8d92d4b852002c6ae0723defec8ee591f22b3",
+      "model": "qwen/qwen3-14b",
+      "rows": 1360,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__local-hardcases-q4-20260825.json",
+      "artifact_sha256": "fd2d3d88568badaf05f02c5fe5f5f689ec9d9103e3dac12118b86021f6951926",
+      "model": "qwen/qwen3-14b",
+      "rows": 1360,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__local-longcontext-q4-20260825.json",
+      "artifact_sha256": "07f9df14ab673b1c057aeed74a062afc4f5d362cf7cf6cf5a9c8389f9d7edfd5",
+      "model": "qwen/qwen3-14b",
+      "rows": 1360,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__local-rocm-lora-b2.json",
+      "artifact_sha256": "b1330fe177097223ff09db0862a0ed1e9b0c47940e43de75a10886301a391302",
+      "model": "qwen/qwen3-14b",
+      "rows": 450,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__local-rocm-lora.json",
+      "artifact_sha256": "a6d557aa40bf92d24bd7a3e9452b38becbde44e71f241654cbd4c668bc36da24",
+      "model": "qwen/qwen3-14b",
+      "rows": 1094,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__mixed-shippable.json",
+      "artifact_sha256": "9b8d0cac3df4802dbe54c8191dd317661e22bf4c8e6eac4d21a0b401ed9f27bf",
+      "model": "qwen/qwen3-14b",
+      "rows": 1094,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__new-author_heldout_balanced-grimgar03.json",
+      "artifact_sha256": "6610ac90fd4f71aa632966d2b8fe0ff53269ee0e143d8b2bf33152337ec59e0b",
+      "model": "qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__new-speaker_hardcases_split_nonmajor-grimgar03.json",
+      "artifact_sha256": "92412075c44616a72f59a2d319ae45820b34d05e3b31fe77ae5ca3dc2d8c667c",
+      "model": "qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__new-speaker_longcontext_tophalf_5epoch-grimgar03.json",
+      "artifact_sha256": "32f50676293b6ea9a445a3a9839d06f4cbf96fa3ad8f4fdf00cc6eccb76bf26e",
+      "model": "qwen3-14b",
+      "rows": 770,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q4km-clean-gold-local-20260827.json",
+      "artifact_sha256": "5e043c09f26e5ef70da1504d8ab849942da3af32276f047a5175e9534795a9fd",
+      "model": "qwen35-9b-q4km",
+      "rows": 383,
+      "actual_arms": [
+        "base"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": true,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q4km-hardcases-clean-gold-repeat-20260828.json",
+      "artifact_sha256": "e1f40882f3fda0d3f9e2d8bae6ceffb9388af6e5029e216d1c26c7e84d10a74e",
+      "model": "qwen35-9b-q4km-hardcases-repeat",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q6k-baseline-clean-gold-local-20260827.json",
+      "artifact_sha256": "1e10999d1cfa02a38741efec320c072bbb6d42965d0972a12f04d0befb52c229",
+      "model": "qwen35-9b-q6k",
+      "rows": 383,
+      "actual_arms": [
+        "base"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": true,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json",
+      "artifact_sha256": "243ae97aab6a3f27eaab0e5c4c72b39b1254c083aa9b4e26760658a1c1fa7311",
+      "model": "qwen35-9b-q6k",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json",
+      "artifact_sha256": "6d0eda3fd7dc396c779dcf759e95d4a6969b8adbee8207e488891ca0cd59e654",
+      "model": "qwen35-9b-q6k",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q6k-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json",
+      "artifact_sha256": "b39296cbca8d1ff19e9a16ccc9ed6bb967a454307d0e60f38e42f56bd4d09188",
+      "model": "qwen35-9b-q6k",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-baseline-clean-gold-local-20260827.json",
+      "artifact_sha256": "3750bd2ced5be7f74d06d1480883c43ae055983ad2885883d73004192b418a43",
+      "model": "qwen35-9b-q8",
+      "rows": 383,
+      "actual_arms": [
+        "base"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": true,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-hardcases-clean-gold-repeat-20260828.json",
+      "artifact_sha256": "9b6c8ce5341207f00494a1fdeced79c38a348f363e0867cd24375aa8d6a2eed2",
+      "model": "qwen35-9b-q8-hardcases-repeat",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_author_heldout_balanced-clean-gold-local-20260827.json",
+      "artifact_sha256": "2ced2b458ee1a417074656c5a707f62c1ef659b089d510f1911a9c53beefed60",
+      "model": "qwen35-9b-q8",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_hardcases_split_nonmajor-clean-gold-local-20260827.json",
+      "artifact_sha256": "750af494b18cb5f90d69318919d4927d0eeee308676e2447aa44c447159c1a2f",
+      "model": "qwen35-9b-q8",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35-9b-q8-qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-clean-gold-local-20260827.json",
+      "artifact_sha256": "1e82ed505348ba79b2876f5f8e404164f2a415f032880a485e460cedbae3082e",
+      "model": "qwen35-9b-q8",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35_9b_bf16_author_heldout_balanced-q4km-clean-gold-local-20260827.json",
+      "artifact_sha256": "98ae827535d78bbb9aa10e6adf7aec91c82e640dc8ae9cf3cbcc01c40beb0258",
+      "model": "qwen35-9b-q4km+qwen35_9b_bf16_author_heldout_balanced",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-q4km-clean-gold-local-20260827.json",
+      "artifact_sha256": "a6f0d7549c48603940e924bcba2be441f89056272db0eece3988c4ffd651c0d5",
+      "model": "qwen35-9b-q4km+qwen35_9b_bf16_speaker_hardcases_split_nonmajor",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-q4km-clean-gold-local-20260827.json",
+      "artifact_sha256": "45bec3d5e81ccebfe7c2adc02cca8f66c935c6a2c9293d7600380781c380d426",
+      "model": "qwen35-9b-q4km+qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch",
+      "rows": 766,
+      "actual_arms": [
+        "base",
+        "lora"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": false,
+      "measurement_changed": false
+    },
+    {
+      "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",
+      "artifact_sha256": "d61da75d4a17d10e2dd6caa5e71fa44665cb5072ec3af443f9aa3cce0ab72834",
+      "model": "meta-llama/llama-4-scout",
+      "rows": 383,
+      "actual_arms": [
+        "base"
+      ],
+      "unsupported_decoding_fields": [
+        "base_quant",
+        "lora"
+      ],
+      "false_paired_claim": true,
+      "measurement_changed": false
+    }
+  ],
+  "baseline_comparison": [
+    {
+      "label": "Llama 4 Scout",
+      "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",
+      "artifact_sha256": "d61da75d4a17d10e2dd6caa5e71fa44665cb5072ec3af443f9aa3cce0ab72834",
+      "per_book": {
+        "index18": {
+          "rows": 88,
+          "correct": 55,
+          "unanswered": 12
+        },
+        "mushoku16": {
+          "rows": 133,
+          "correct": 60,
+          "unanswered": 21
+        },
+        "owarimonogatari3": {
+          "rows": 162,
+          "correct": 74,
+          "unanswered": 21
+        }
+      },
+      "pooled": {
+        "rows": 383,
+        "correct": 189,
+        "unanswered": 54
+      }
+    },
+    {
+      "label": "Llama 3.3 70B",
+      "artifact": "lora_serving_eval__llama33-q4km-corrected-gold-a100-20260830.json",
+      "artifact_sha256": "154223e3542a40ffa4706f956418ad26c32e14a084481876c2c354c3d0bcd50a",
+      "per_book": {
+        "index18": {
+          "rows": 88,
+          "correct": 68,
+          "unanswered": 1
+        },
+        "mushoku16": {
+          "rows": 133,
+          "correct": 98,
+          "unanswered": 6
+        },
+        "owarimonogatari3": {
+          "rows": 162,
+          "correct": 106,
+          "unanswered": 1
+        }
+      },
+      "pooled": {
+        "rows": 383,
+        "correct": 272,
+        "unanswered": 8
+      }
+    },
+    {
+      "label": "/home/ubuntu/models/Qwen3.5-27B",
+      "artifact": "distill_eval__qwen35_27b_nf4_author_heldout_balanced-corrected-gold-a6000-20260828.json",
+      "artifact_sha256": "6a73d70b9e4ddf21c5d0607b2674b231384483aedadb0b7995420f2f250000d5",
+      "per_book": {
+        "index18": {
+          "rows": 88,
+          "correct": 69,
+          "unanswered": 3
+        },
+        "mushoku16": {
+          "rows": 133,
+          "correct": 95,
+          "unanswered": 6
+        },
+        "owarimonogatari3": {
+          "rows": 162,
+          "correct": 114,
+          "unanswered": 2
+        }
+      },
+      "pooled": {
+        "rows": 383,
+        "correct": 278,
+        "unanswered": 11
+      }
+    },
+    {
+      "label": "/home/ubuntu/models/Qwen3.5-35B-A3B",
+      "artifact": "distill_eval__qwen35_35b_a3b_bf16_author_heldout_balanced-corrected-gold-a100-loaderfix-20260828.json",
+      "artifact_sha256": "c027f20926d15be9201d9e746bcc965d65fae0fd8ec26ffde180bedfe80210f5",
+      "per_book": {
+        "index18": {
+          "rows": 88,
+          "correct": 67,
+          "unanswered": 5
+        },
+        "mushoku16": {
+          "rows": 133,
+          "correct": 82,
+          "unanswered": 9
+        },
+        "owarimonogatari3": {
+          "rows": 162,
+          "correct": 99,
+          "unanswered": 6
+        }
+      },
+      "pooled": {
+        "rows": 383,
+        "correct": 248,
+        "unanswered": 20
+      }
+    },
+    {
+      "label": "/home/ubuntu/models/Qwen3.8-27B-FP8",
+      "artifact": "distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.json",
+      "artifact_sha256": "e4a88cd39aad2872c3b85222b368903a670ad9b10e6e527cc04e2d573db1d664",
+      "per_book": {
+        "index18": {
+          "rows": 88,
+          "correct": 67,
+          "unanswered": 1
+        },
+        "mushoku16": {
+          "rows": 133,
+          "correct": 96,
+          "unanswered": 6
+        },
+        "owarimonogatari3": {
+          "rows": 162,
+          "correct": 109,
+          "unanswered": 6
+        }
+      },
+      "pooled": {
+        "rows": 383,
+        "correct": 272,
+        "unanswered": 13
+      }
+    }
+  ],
+  "provenance": {
+    "script": "audit_serving_metadata.py",
+    "written": "2026-08-30T13:52:22",
+    "host": "mitch-linux",
+    "git": {
+      "commit": "501d4d785fc65fc91b933d5c22a3813cfd286d9e",
+      "branch": "fix/serving-artifact-audit-20260830",
+      "dirty": true,
+      "modified_tracked_files": [
+        "A  ab_test_runtime/ln_teacher_routed/routed__vtuber01.json",
+        "AM app/experiments/audit_serving_metadata.py",
+        "A  app/tests/test_audit_serving_metadata.py",
+        "M  app/tests/unit_test_inventory.json"
+      ],
+      "untracked_harness_files": null,
+      "harness_sha256": "e6c1f12c441464d6c7ef4f822da4a0cade954a4a829631ea995e295d99ea7884"
+    },
+    "args": {
+      "artifact_dir": "ab_test_runtime/experiments",
+      "out": "ab_test_runtime/audit/serving_metadata_audit.json"
+    }
+  }
+}
