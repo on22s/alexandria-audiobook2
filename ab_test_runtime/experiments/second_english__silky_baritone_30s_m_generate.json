@@ -1,0 +1,222 @@
+{
+ "seed": 1234,
+ "arms": [
+  "lora",
+  "clone"
+ ],
+ "reference_id": "ref",
+ "test_books": [
+  "silky_baritone_30s_m"
+ ],
+ "corpus": "silky_baritone_30s_m",
+ "rows": [
+  {
+   "id": "sample_2004",
+   "book": "silky_baritone_30s_m",
+   "text": "Lily said firmly. Evan sighed dramatically and lifted his hands up. .... Slowly, *painfully*, he began to draw in the air with his hands.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2004.wav",
+   "human_seconds": 9.66,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2004__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2004__clone.wav"
+  },
+  {
+   "id": "sample_2006",
+   "book": "silky_baritone_30s_m",
+   "text": "Nowhere near close. .... \u201cGood, good. .... That\u2019s actually *fairly* accurate. .... Your will isn\u2019t forming it completely though. ....",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2006.wav",
+   "human_seconds": 8.2,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2006__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2006__clone.wav"
+  },
+  {
+   "id": "sample_2028",
+   "book": "silky_baritone_30s_m",
+   "text": "Then he stepped out into the center of the training area. .... It was a simple square room, sized for lots of movement and empty.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2028.wav",
+   "human_seconds": 8.1,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2028__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2028__clone.wav"
+  },
+  {
+   "id": "sample_2037",
+   "book": "silky_baritone_30s_m",
+   "text": "Her ... powers *made* her *gifted* in everything and anything. .... Lately she\u2019d been training much more *diligently* as well. .... Her",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2037.wav",
+   "human_seconds": 8.1,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2037__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2037__clone.wav"
+  },
+  {
+   "id": "sample_2042",
+   "book": "silky_baritone_30s_m",
+   "text": "\u201c*I* hit *much* harder. .... *I\u2019ve* been *training*. .... *I\u2019ll* be *your* bloody *blade*, *gladly*,\u201d she said. .... Felix didn\u2019t let *his* guard down.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2042.wav",
+   "human_seconds": 8.12,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2042__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2042__clone.wav"
+  },
+  {
+   "id": "sample_2053",
+   "book": "silky_baritone_30s_m",
+   "text": "The blood *he\u2019d* spit up. ... With shivering fingers she wiped it *across* the bridge of her nose and down her cheek.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2053.wav",
+   "human_seconds": 7.08,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2053__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2053__clone.wav"
+  },
+  {
+   "id": "sample_2065",
+   "book": "silky_baritone_30s_m",
+   "text": "\u201cOh, and Kit sent over an email to you. .... She listed the contents as secure and *your* eyes only, so I didn\u2019t read it.\u201d .... That\u2019d be the answers she *promised* me.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2065.wav",
+   "human_seconds": 8.58,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2065__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2065__clone.wav"
+  },
+  {
+   "id": "sample_2100",
+   "book": "silky_baritone_30s_m",
+   "text": "\u201cYou\u2019ve been ... *modifying* me?\u201d Felix nodded as an Andrea laid a plate down in front of him. .... It had a toasted sandwich of some sort on it with a small salad to one side.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2100.wav",
+   "human_seconds": 11.54,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2100__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2100__clone.wav"
+  },
+  {
+   "id": "sample_2118",
+   "book": "silky_baritone_30s_m",
+   "text": "\u201cOk, ok, I *got* it. Just\u2026 ... just in the future, *ask* me?\u201d Eva said, looking down at her *plate*.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2118.wav",
+   "human_seconds": 7.7,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2118__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2118__clone.wav"
+  },
+  {
+   "id": "sample_2119",
+   "book": "silky_baritone_30s_m",
+   "text": "\u201c*I* *promise*. I will,\u201d Felix said. He felt *better* coming clean about it. \u201cSo,",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2119.wav",
+   "human_seconds": 7.12,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2119__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2119__clone.wav"
+  },
+  {
+   "id": "sample_2120",
+   "book": "silky_baritone_30s_m",
+   "text": "could I take Ioana or Miu in a fight?\u201d Eva asked ... \u201cPower to power? *Definitely*. .... Skill and experience?",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2120.wav",
+   "human_seconds": 7.3,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2120__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2120__clone.wav"
+  },
+  {
+   "id": "sample_2126",
+   "book": "silky_baritone_30s_m",
+   "text": "The moderator was going through introductions and explaining the format, and what everyone could expect. .... As far as he could tell, *Felix* thought everything was fairly *generic*.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2126.wav",
+   "human_seconds": 9.12,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2126__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2126__clone.wav"
+  },
+  {
+   "id": "sample_2132",
+   "book": "silky_baritone_30s_m",
+   "text": "They want to see the back and forth. .... Watch the candidates draw blood and argue. .... Our goal, Legion\u2019s goal, is to get our *message* out.\u201d",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2132.wav",
+   "human_seconds": 8.16,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2132__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2132__clone.wav"
+  },
+  {
+   "id": "sample_2142",
+   "book": "silky_baritone_30s_m",
+   "text": "A small light set to the side of the TV went from red to yellow. ... \u201cAh, time to go and take my place I suppose,\u201d",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2142.wav",
+   "human_seconds": 8.12,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2142__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2142__clone.wav"
+  },
+  {
+   "id": "sample_2143",
+   "book": "silky_baritone_30s_m",
+   "text": "Felix said. .... Standing up he turned to face Lily directly. \u201c*Let\u2019s* catch up after this. .... Maybe go hit a restaurant with those *handy* disguises of yours?\u201d",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2143.wav",
+   "human_seconds": 9.26,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2143__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2143__clone.wav"
+  },
+  {
+   "id": "sample_2145",
+   "book": "silky_baritone_30s_m",
+   "text": "I\u2019ll take you up on that. .... You\u2019ll have to tell me where the *courage* came from as well.\u201d \u201cI\u2019ll tell you right *now*, since it\u2019s actually rather *simple*,\u201d *Felix* said, walking to the door that would lead him behind the stage.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2145.wav",
+   "human_seconds": 12.06,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2145__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2145__clone.wav"
+  },
+  {
+   "id": "sample_2156",
+   "book": "silky_baritone_30s_m",
+   "text": "Only a few sentences on each card. .... Bullet points *if* you will. .... Short enough that you can read them in a *glance*. .... I sorted it out by person with tabs on the side,\u201d",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2156.wav",
+   "human_seconds": 8.4,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2156__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2156__clone.wav"
+  },
+  {
+   "id": "sample_2176",
+   "book": "silky_baritone_30s_m",
+   "text": "Each candidate will have two minutes to answer the question,\u201d said one of the moderators. \u201cThese questions were all submitted by the audience prior to this evening.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2176.wav",
+   "human_seconds": 8.22,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2176__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2176__clone.wav"
+  },
+  {
+   "id": "sample_2179",
+   "book": "silky_baritone_30s_m",
+   "text": "Damn. .... They\u2019re not playing around. .... That\u2019s a *pretty* loaded question to answer. .... This\u2019ll separate those who support the Heroes from those who don\u2019t right at the start.",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2179.wav",
+   "human_seconds": 8.92,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2179__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2179__clone.wav"
+  },
+  {
+   "id": "sample_2199",
+   "book": "silky_baritone_30s_m",
+   "text": "our taxes will be spent repairing a city that was damaged through the neglect of the *current* local government, and the guild. .... *Thankfully*,",
+   "human_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/retrain_honest/silky_baritone_30s_m/data/val/sample_2199.wav",
+   "human_seconds": 7.3,
+   "lora_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2199__lora.wav",
+   "clone_wav": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/second_english_eval/silky_baritone_30s_m/audio/sample_2199__clone.wav"
+  }
+ ],
+ "failures": [],
+ "provenance": {
+  "script": "ljspeech_generate.py",
+  "written": "2026-08-24T21:28:34",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "be3e7eadec171fac532c98a0ab65507b56181483",
+   "branch": "HEAD",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "5320145ca25057936d308188dd0161a1a3a588c90d4efafb32d185f70d6c13af"
+  },
+  "args": {
+   "build": "build.json",
+   "adapter": "adapter",
+   "config": "app/config.json",
+   "out_dir": "audio",
+   "seed": 1234,
+   "limit": 0,
+   "arms": [
+    "lora",
+    "clone"
+   ],
+   "out": "second_english__silky_baritone_30s_m_generate.json"
+  },
+  "seed": 1234
+ }
+}

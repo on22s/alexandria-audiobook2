@@ -1,0 +1,52 @@
+{
+ "key": [
+  {
+   "term": "kansai",
+   "letters": {
+    "A": "none",
+    "B": "hyphen",
+    "C": "plain",
+    "D": "dot"
+   },
+   "measured_pause_seconds": null
+  },
+  {
+   "term": "otsuka",
+   "letters": {
+    "A": "dot",
+    "B": "none",
+    "C": "hyphen",
+    "D": "plain"
+   },
+   "measured_pause_seconds": null
+  }
+ ],
+ "seed": 20260823,
+ "provenance": {
+  "script": "build_separator_earcheck.py",
+  "written": "2026-08-23T08:44:28",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "7a418a6fc31ac6052457e7277e4be97fda8e7508",
+   "branch": "main",
+   "dirty": true,
+   "modified_tracked_files": [
+    "M app/experiments/build_separator_earcheck.py"
+   ],
+   "untracked_harness_files": null,
+   "harness_sha256": "e0c4e49b8a0cc1230c52018c901cfd19862ed80892a6ffb55caee676a0e01918"
+  },
+  "args": {
+   "terms": 10,
+   "term": [
+    "kansai",
+    "otsuka"
+   ],
+   "seed": 20260823,
+   "pauses": "ab_test_runtime/experiments/respelling_pauses_separators_3arm.json",
+   "out_data": "ab_test_runtime/experiments/kansai_otsuka_listening_package.json",
+   "out_key": "ab_test_runtime/experiments/kansai_otsuka_listening_key.json"
+  },
+  "seed": 20260823
+ }
+}

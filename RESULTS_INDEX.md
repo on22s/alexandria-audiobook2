@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-30 from `ab_test_runtime/experiments/` — 641 artifacts, 757 arms.
+Generated 2026-08-30 from `ab_test_runtime/experiments/` — 898 artifacts, 850 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -403,12 +403,18 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 2253.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 1984.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 385 | 64.4% | exploratory | ok | False | 1929.7s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 4494.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 6000.3s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 385 | 63.6% | historical_only | ok | False | 4544.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 79.7% | historical_only | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 385 | 64.4% | exploratory | ok | False | 3920.5s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 75.8% | exploratory | ok | False | 6206.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 68.1% | exploratory | ok | False | 2253.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 72.7% | exploratory | ok | False | 1984.6s |
 | grimgar03 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 385 | 76.6% | exploratory | ok | False | 1929.7s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 78.4% | historical_only | ok | False | 4494.5s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 72.5% | historical_only | ok | False | 6000.3s |
+| grimgar03 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 385 | 77.9% | historical_only | ok | False | 4544.9s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 385 | 83.9% | historical_only | ok | True | 28194.5s |
 | grimgar03 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 385 | 80.3% | exploratory | ok | False | 3920.5s |
 | grimgar03 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 385 | 63.6% | exploratory | ok | True | 1456.9s |
@@ -421,16 +427,103 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 92 | 81.5% | historical_only | ok | False | 19529.9s |
+| index18 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 1090.3s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 2352.4s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2352.4s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 2251.0s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 88 | 58.0% | exploratory | ok | False | 2251.0s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 2348.9s |
+| index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 88 | 53.4% | exploratory | ok | False | 2348.9s |
+| index18 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 2306.9s |
+| index18 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | lora | 88 | 58.0% | exploratory | ok | False | 2306.9s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 88 | 64.8% | exploratory | ok | False | 23.5s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 88 | 64.8% | exploratory | ok | False | 2831.8s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 88 | 64.8% | exploratory | ok | False | 2758.0s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 88 | 64.8% | exploratory | ok | False | 2791.1s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 88 | 67.0% | exploratory | ok | False | 2831.8s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 88 | 59.1% | exploratory | ok | False | 2758.0s |
+| index18 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 88 | 62.5% | exploratory | ok | False | 2791.1s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 1374.4s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2992.4s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2854.6s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2957.1s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 59.1% | exploratory | ok | False | 2992.4s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2854.6s |
+| index18 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2957.1s |
+| index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 88 | 65.9% | exploratory | ok | False | 2890.6s |
+| index18 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 88 | 55.7% | exploratory | ok | False | 2890.6s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 133 | 49.6% | exploratory | ok | False | 6206.6s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4494.5s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 6000.3s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 133 | 48.1% | historical_only | ok | False | 4544.9s |
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 133 | 51.9% | historical_only | ok | False | 19529.9s |
 | mushoku16 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 133 | 64.7% | exploratory | ok | False | 6206.6s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 59.4% | historical_only | ok | False | 4494.5s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 6000.3s |
+| mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 4544.9s |
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 133 | 60.9% | historical_only | ok | False | 19529.9s |
+| mushoku16 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 1090.3s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 2352.4s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 133 | 52.6% | exploratory | ok | False | 2352.4s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 2251.0s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 133 | 49.6% | exploratory | ok | False | 2251.0s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 2348.9s |
+| mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.1% | exploratory | ok | False | 2348.9s |
+| mushoku16 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 2306.9s |
+| mushoku16 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | lora | 133 | 49.6% | exploratory | ok | False | 2306.9s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 133 | 45.1% | exploratory | ok | False | 23.5s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 133 | 45.1% | exploratory | ok | False | 2831.8s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 133 | 45.1% | exploratory | ok | False | 2758.0s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 133 | 45.1% | exploratory | ok | False | 2791.1s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 133 | 48.9% | exploratory | ok | False | 2831.8s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 133 | 48.9% | exploratory | ok | False | 2758.0s |
+| mushoku16 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 133 | 48.9% | exploratory | ok | False | 2791.1s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 1374.4s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2992.4s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2854.6s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2957.1s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 53.4% | exploratory | ok | False | 2992.4s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2854.6s |
+| mushoku16 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 133 | 51.9% | exploratory | ok | False | 2957.1s |
+| mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 133 | 41.4% | exploratory | ok | False | 2890.6s |
+| mushoku16 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 133 | 47.4% | exploratory | ok | False | 2890.6s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | base | 162 | 45.7% | exploratory | ok | False | 6206.6s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4494.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 6000.3s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | base | 162 | 43.8% | historical_only | ok | False | 4544.9s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 162 | 53.7% | historical_only | ok | True | 28194.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | base | 162 | 45.7% | exploratory | ok | False | 3920.5s |
 | owarimonogatari3 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 162 | 54.9% | exploratory | ok | False | 6206.6s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 42.0% | historical_only | ok | False | 4494.5s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | historical_only | ok | False | 6000.3s |
+| owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | historical_only | ok | False | 4544.9s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 162 | 58.0% | historical_only | ok | True | 28194.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 57.4% | exploratory | ok | False | 3920.5s |
+| owarimonogatari3 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 1090.3s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 2352.4s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2352.4s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 2251.0s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2251.0s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 2348.9s |
+| owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 162 | 35.2% | exploratory | ok | False | 2348.9s |
+| owarimonogatari3 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 2306.9s |
+| owarimonogatari3 | qwen35-9b-q4km-hardcases-r | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2306.9s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 162 | 30.9% | exploratory | ok | False | 23.5s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 162 | 30.9% | exploratory | ok | False | 2831.8s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 162 | 30.9% | exploratory | ok | False | 2758.0s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | base | 162 | 30.9% | exploratory | ok | False | 2791.1s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2831.8s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 162 | 32.7% | exploratory | ok | False | 2758.0s |
+| owarimonogatari3 | qwen35-9b-q6k | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.6% | exploratory | ok | False | 2791.1s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 1374.4s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2992.4s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2854.6s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2957.1s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2992.4s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 162 | 32.7% | exploratory | ok | False | 2854.6s |
+| owarimonogatari3 | qwen35-9b-q8 | local-Vulkan | Vulkan | 32768 | lora | 162 | 33.3% | exploratory | ok | False | 2957.1s |
+| owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | base | 162 | 35.2% | exploratory | ok | False | 2890.6s |
+| owarimonogatari3 | qwen35-9b-q8-hardcases-rep | local-Vulkan | Vulkan | 32768 | lora | 162 | 32.7% | exploratory | ok | False | 2890.6s |
 
 ## narrator_prior
 
@@ -991,6 +1084,14 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `asr_silero_whisper_ja_offset20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_zh_ggml-base.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `asr_zh_ggml-large-v3.bin.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `attribution_hybrid__anne_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__evidence_direct_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__evidence_joint_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__evidence_joint_robustness2.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__mixed_adapter_joint_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__open5_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__sequence_joint_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `attribution_hybrid__sequence_repeat_joint_pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `audible_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `audio_views.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `baseline_heldout__husky_baritone_40s_m_2.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1002,6 +1103,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `blinded_listening.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `blinded_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `candidate_scoring_feasibility.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `candidate_scoring_feasibility__endpoint.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `cascade_state__grimgar03__a6000-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__grimgar03__a6000-contig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cascade_state__grimgar03__local-batchtrig.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1038,11 +1140,13 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `cluster_vs_name.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `constraint_refine.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `contextual_mandarin_tone_generated_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `contextual_mandarin_tone_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `corpus_hnr_baseline.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `cpu_chain_release.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `crossbook_normalization.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `crossbook_normalization_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `ctc_japanese_boundary_n10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `ctc_japanese_boundary_n150.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_ref_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `dataset_source_identification.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `dataset_speaker_consistency.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1075,8 +1179,11 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `elson_trigram_w3200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extraction_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `epub_extractor_comparison.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `evidence_adjudication__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `expected_prosody__ja_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody__zh_n150.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `expected_prosody_fusion__ja_n150.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `expected_prosody_fusion__zh_n150.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `expected_prosody_ja.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_ja_n200.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `expected_prosody_zh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1087,8 +1194,10 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `fix_verification.json` | SKIPPED: not a result object (list) |
 | `frontend_exposure.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `full_api_gpu_20260816.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `full_sequence_scoring__llamacpp_calibration.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_known_bad.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `gate_known_good.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `gate_postpromotion__breathy_alto_50s_f_fantasy_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_promote__breathy_alto_50s_f_fantasy.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_promote__breathy_baritone_40s_m_literary.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `gate_promote__breathy_baritone_40s_m_military_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1188,6 +1297,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `gate_reference_rank2__warm_alto_50s_f_gothic.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `hnr_length_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `homograph_listening_ratings.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `homograph_probe.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_listening.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `instruct_listening_fixed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `instruct_value.json` | SKIPPED: 'rows' is not a list of scored arms |
@@ -1196,6 +1306,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `japanese_accent_calibration_key.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `japanese_quote_robustness.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `japanese_text_boundary_n50.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `kansai_otsuka_listening_key.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `kansai_otsuka_listening_package.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_same_speaker_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `kokoro_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1205,9 +1317,31 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `lexicon_candidates.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `lexicon_corpus_candidates.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `lexicon_pilot.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `library_fidelity_seed_20260827_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260828_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260829_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260831_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260901_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260902_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260903_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260904_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260905_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260906_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260907_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260908_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260909_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260910_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260911_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260912_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260913_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_voice_fidelity_postpromotion_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_voice_fidelity_seed_20260824_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_voice_fidelity_seed_20260825_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_voice_fidelity_seed_20260826_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_voice_fidelity_seed_20260830_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `listener_impact.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `listening_verdicts.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `ljspeech_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1220,6 +1354,14 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `longref__zh_score.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_counterexample.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `medoid_library_retrain.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `modernbooknlp_direct__Persuasion.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_direct__TheGambler.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_direct__TheSunAlsoRises.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_direct__anneofgreengables.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_joint__Persuasion.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_joint__TheGambler.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_joint__TheSunAlsoRises.json` | SKIPPED: 'rows' is not a list of scored arms |
+| `modernbooknlp_joint__anneofgreengables.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `name_consistency.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `name_variant_triage.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `nonprose_category_expansion.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1235,6 +1377,9 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__mixed_adapter_clean_heldout_n900.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__mixed_adapter_clean_heldout_n900_b10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__qwen35_9b_author_five_new_heldout_20260828.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_full_summary.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval_mixed.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1244,6 +1389,16 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_new_adapter_adapter_author_heldout_balanced_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_new_adapter_adapter_speaker_hardcases_split_nonmajor_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_new_adapter_adapter_speaker_longcontext_tophalf_5epoch_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_adapter_ln_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_adapter_ln_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_adapter_mixed_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_adapter_mixed_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-25_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-50_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-75_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-alldata_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-f16_full_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_old_adapter_attrib-lora-f16_n200_b5.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_pilots_paired.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pitch_profile_matrix_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1274,6 +1429,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `prosody_second_english__husky_baritone_50s_m_military.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__husky_soprano_20s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__silky_alto_40s_f.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `prosody_second_english__silky_baritone_30s_m.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__silky_baritone_40s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__warm_baritone_30s_m_1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `prosody_second_english__warm_baritone_30s_m_scifi.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1286,9 +1442,184 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `reference_rank1_all21.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_rank1_pilot.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_rank2_failed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__21seed_aggregate_20260828.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `reference_spread__en.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_spread__en_generate_arm0.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm0_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm1_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm2_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_generate_arm3_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `reference_spread__en_score_arm0.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm0_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm1_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm2_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260825.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260826.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260827.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260828.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260829.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260830.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260831.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260901.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260902.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260903.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260904.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260905.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260906.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260907.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260908.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260909.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260910.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260911.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260912.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260913.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `reference_spread__en_score_arm3_seed20260914.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `repair_candidate_reference_text.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `residual_errors.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `respelling_dot_allrows_n1600.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1339,6 +1670,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `second_english__husky_baritone_50s_m_military_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__husky_soprano_20s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__silky_alto_40s_f_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `second_english__silky_baritone_30s_m_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__silky_baritone_40s_m_scifi_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_30s_m_1_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `second_english__warm_baritone_30s_m_scifi_generate.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1362,6 +1694,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `three_pass_vs_single_index18.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_mapped.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_pdnc.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `three_pass_vs_single_pdnc_resumed.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `three_pass_vs_single_qwen3.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `training_composition.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `training_determinism.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |

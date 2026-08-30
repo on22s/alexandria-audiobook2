@@ -1,0 +1,31 @@
+{
+ "adapter": "lora_models/breathy_alto_50s_f_fantasy",
+ "median_ecapa": 0.3992,
+ "lines": 20,
+ "generation_failures": 0,
+ "threshold": 0.45,
+ "passed": false,
+ "verdict": "FAIL - 0.3992 is below 0.45. Working adapters reach 0.65-0.74; the five known-broken ones scored 0.027-0.404. Retrain before shipping: on 2026-08-07 all five failures recovered on a rerun, two of them to ~0.67.",
+ "provenance": {
+  "script": "verify_adapter_identity.py",
+  "written": "2026-08-22T14:18:50",
+  "host": "mitch-linux",
+  "git": {
+   "commit": "7014a5e5491dc4efe80054846ae287dd67d8ad68",
+   "branch": "main",
+   "dirty": false,
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "76a2d8c25ebc84812df868fc07de08c79199c28dcbaf47f74985861fcd90a3df"
+  },
+  "args": {
+   "adapter": "lora_models/breathy_alto_50s_f_fantasy",
+   "dataset": "ab_test_runtime/reference_rank2_failed/breathy_alto_50s_f_fantasy/data",
+   "lines": 20,
+   "min_ecapa": 0.45,
+   "seed": 20260823,
+   "out": "ab_test_runtime/experiments/gate_postpromotion__breathy_alto_50s_f_fantasy_n20.json"
+  },
+  "seed": 20260823
+ }
+}

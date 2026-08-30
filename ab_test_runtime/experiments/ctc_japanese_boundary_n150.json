@@ -1,0 +1,17 @@
+{
+  "build": "../../../home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/kokoro_ja_asr_eval/build.json",
+  "limit": 50,
+  "model": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
+  "device": "cuda",
+  "method": "known-text CTC segmentation",
+  "alignment": {
+    "scored": 50,
+    "predicted_segments": 50,
+    "expected_segments": 50,
+    "median_error_s": 0.611,
+    "p90_error_s": 0.727,
+    "worst_error_s": 0.933,
+    "within_tolerance_pct": 16.0,
+    "tolerance_s": 0.3
+  }
+}

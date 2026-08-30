@@ -1,0 +1,1061 @@
+{
+  "language": "ja",
+  "arm": "clone",
+  "scored": 150,
+  "available": 150,
+  "correlation_mean": 0.08504868283381974,
+  "direction_accuracy_mean": 0.5321577115129478,
+  "alignment": "equal-time voiced-contour baseline; not forced alignment",
+  "rows": [
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00001",
+      "correlation": 0.08330628824392697,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 167,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00002",
+      "correlation": 0.00459996242502948,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 92,
+      "expected_points": 19
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00003",
+      "correlation": 0.04511899455877521,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 161,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00004",
+      "correlation": 0.33093166682174385,
+      "direction_accuracy": 0.4166666666666667,
+      "voiced_frames": 123,
+      "expected_points": 28
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00005",
+      "correlation": -0.31637512367814624,
+      "direction_accuracy": 0.375,
+      "voiced_frames": 199,
+      "expected_points": 37
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00006",
+      "correlation": -0.18721547429857655,
+      "direction_accuracy": 0.3333333333333333,
+      "voiced_frames": 144,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00058",
+      "correlation": 0.5952353783493032,
+      "direction_accuracy": 0.8571428571428571,
+      "voiced_frames": 94,
+      "expected_points": 17
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00060",
+      "correlation": 0.18605993840444804,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 141,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00061",
+      "correlation": 0.34664304262988005,
+      "direction_accuracy": 0.7857142857142857,
+      "voiced_frames": 130,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00062",
+      "correlation": -0.01760648505298136,
+      "direction_accuracy": 0.45,
+      "voiced_frames": 160,
+      "expected_points": 37
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00063",
+      "correlation": -0.0128539484518061,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 124,
+      "expected_points": 19
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00064",
+      "correlation": 0.19791527845043597,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 145,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00124",
+      "correlation": -0.22253303647984357,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 144,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00126",
+      "correlation": 0.0571650071117695,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 165,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00127",
+      "correlation": 0.2380154695366977,
+      "direction_accuracy": 0.5909090909090909,
+      "voiced_frames": 266,
+      "expected_points": 55
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00128",
+      "correlation": -0.16947593106702194,
+      "direction_accuracy": 0.375,
+      "voiced_frames": 144,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00130",
+      "correlation": 0.31957592877457824,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 96,
+      "expected_points": 20
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00131",
+      "correlation": -0.05539204962979499,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 153,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00179",
+      "correlation": -0.01817870386208652,
+      "direction_accuracy": 0.6,
+      "voiced_frames": 194,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00180",
+      "correlation": 0.09103692683171896,
+      "direction_accuracy": 0.7142857142857143,
+      "voiced_frames": 110,
+      "expected_points": 19
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00181",
+      "correlation": 0.10520264684773216,
+      "direction_accuracy": 0.35294117647058826,
+      "voiced_frames": 183,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00182",
+      "correlation": 0.2364094989630833,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 129,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00183",
+      "correlation": 0.231865526815679,
+      "direction_accuracy": 0.7272727272727273,
+      "voiced_frames": 114,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00184",
+      "correlation": -0.2515311775464062,
+      "direction_accuracy": 0.2,
+      "voiced_frames": 188,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00232",
+      "correlation": 0.14900118950087612,
+      "direction_accuracy": 0.5714285714285714,
+      "voiced_frames": 157,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00233",
+      "correlation": -0.17738531408114672,
+      "direction_accuracy": 0.25,
+      "voiced_frames": 126,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00234",
+      "correlation": 0.2666865532708001,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 130,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00235",
+      "correlation": 0.28332397976447865,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 176,
+      "expected_points": 39
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00236",
+      "correlation": -0.05869543035587962,
+      "direction_accuracy": 0.6111111111111112,
+      "voiced_frames": 168,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00237",
+      "correlation": -0.15496940750454102,
+      "direction_accuracy": 0.5714285714285714,
+      "voiced_frames": 161,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00287",
+      "correlation": 0.127085187979529,
+      "direction_accuracy": 0.5263157894736842,
+      "voiced_frames": 181,
+      "expected_points": 37
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00288",
+      "correlation": 0.3847253668070404,
+      "direction_accuracy": 0.45454545454545453,
+      "voiced_frames": 153,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00289",
+      "correlation": 0.046505726370110835,
+      "direction_accuracy": 0.2857142857142857,
+      "voiced_frames": 116,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00290",
+      "correlation": 0.023200079438570536,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 174,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00291",
+      "correlation": -0.38377426921376306,
+      "direction_accuracy": 0.1111111111111111,
+      "voiced_frames": 121,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00293",
+      "correlation": 0.14783141700658978,
+      "direction_accuracy": 0.6,
+      "voiced_frames": 165,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00340",
+      "correlation": -0.09287663411830467,
+      "direction_accuracy": 0.3076923076923077,
+      "voiced_frames": 160,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00341",
+      "correlation": -0.23063399124875278,
+      "direction_accuracy": 0.6428571428571429,
+      "voiced_frames": 143,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00343",
+      "correlation": 0.19103807118158267,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 174,
+      "expected_points": 36
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00344",
+      "correlation": -0.04120694121545957,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 134,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00345",
+      "correlation": -0.18011468511463732,
+      "direction_accuracy": 0.36363636363636365,
+      "voiced_frames": 120,
+      "expected_points": 22
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00346",
+      "correlation": 0.19155236284094213,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 136,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00392",
+      "correlation": 0.005290595568964838,
+      "direction_accuracy": 0.47058823529411764,
+      "voiced_frames": 202,
+      "expected_points": 41
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00393",
+      "correlation": 0.10757471586048295,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 146,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00395",
+      "correlation": 0.1411049975440439,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 137,
+      "expected_points": 28
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00396",
+      "correlation": -0.515830196196227,
+      "direction_accuracy": 0.08333333333333333,
+      "voiced_frames": 165,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00397",
+      "correlation": 0.08533632119020214,
+      "direction_accuracy": 0.7272727272727273,
+      "voiced_frames": 113,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00398",
+      "correlation": -0.36154573487096875,
+      "direction_accuracy": 0.3684210526315789,
+      "voiced_frames": 229,
+      "expected_points": 43
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00445",
+      "correlation": 0.04129498440275957,
+      "direction_accuracy": 0.52,
+      "voiced_frames": 215,
+      "expected_points": 47
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00446",
+      "correlation": -0.15983357155453068,
+      "direction_accuracy": 0.5238095238095238,
+      "voiced_frames": 222,
+      "expected_points": 46
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00447",
+      "correlation": -0.08917059658989826,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 166,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00448",
+      "correlation": 0.043963419570061606,
+      "direction_accuracy": 0.375,
+      "voiced_frames": 107,
+      "expected_points": 22
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00449",
+      "correlation": 0.11782286198319639,
+      "direction_accuracy": 0.4375,
+      "voiced_frames": 136,
+      "expected_points": 35
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00450",
+      "correlation": 0.011938637825367382,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 137,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00497",
+      "correlation": 0.4006266084892177,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 149,
+      "expected_points": 35
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00498",
+      "correlation": -0.16016620933379644,
+      "direction_accuracy": 0.3684210526315789,
+      "voiced_frames": 169,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00500",
+      "correlation": 0.13029075389824893,
+      "direction_accuracy": 0.6,
+      "voiced_frames": 171,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00501",
+      "correlation": -0.31782920508243573,
+      "direction_accuracy": 0.26666666666666666,
+      "voiced_frames": 126,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00502",
+      "correlation": 0.37362115498236315,
+      "direction_accuracy": 0.7692307692307693,
+      "voiced_frames": 180,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00503",
+      "correlation": 0.15545434758676346,
+      "direction_accuracy": 0.6153846153846154,
+      "voiced_frames": 137,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00546",
+      "correlation": 0.33295895066882075,
+      "direction_accuracy": 0.8,
+      "voiced_frames": 132,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00547",
+      "correlation": -0.021625550964291067,
+      "direction_accuracy": 0.5714285714285714,
+      "voiced_frames": 120,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00548",
+      "correlation": 0.25311425287856637,
+      "direction_accuracy": 0.8,
+      "voiced_frames": 118,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00549",
+      "correlation": 0.20348823078986086,
+      "direction_accuracy": 0.42857142857142855,
+      "voiced_frames": 134,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00550",
+      "correlation": 0.13880329672113562,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 146,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00551",
+      "correlation": -0.011908675182273279,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 151,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00601",
+      "correlation": -0.27009179799471467,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 190,
+      "expected_points": 35
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00602",
+      "correlation": -0.02952057436837718,
+      "direction_accuracy": 0.5217391304347826,
+      "voiced_frames": 199,
+      "expected_points": 41
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00603",
+      "correlation": 0.1562860312664296,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 82,
+      "expected_points": 17
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00605",
+      "correlation": 0.19936199993693424,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 176,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00606",
+      "correlation": 0.057757695106545485,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 123,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00607",
+      "correlation": 0.4001875490531733,
+      "direction_accuracy": 0.8,
+      "voiced_frames": 103,
+      "expected_points": 20
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00648",
+      "correlation": 0.16704066699181203,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 111,
+      "expected_points": 20
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00650",
+      "correlation": -0.06399952725047384,
+      "direction_accuracy": 0.4117647058823529,
+      "voiced_frames": 148,
+      "expected_points": 37
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00651",
+      "correlation": 0.3167897150951885,
+      "direction_accuracy": 0.7272727272727273,
+      "voiced_frames": 236,
+      "expected_points": 51
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00652",
+      "correlation": -0.16110514330195713,
+      "direction_accuracy": 0.2857142857142857,
+      "voiced_frames": 163,
+      "expected_points": 33
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00653",
+      "correlation": -0.09987006980897285,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 135,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00654",
+      "correlation": 0.13928178902059854,
+      "direction_accuracy": 0.4,
+      "voiced_frames": 141,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00700",
+      "correlation": 0.024288502114867553,
+      "direction_accuracy": 0.35714285714285715,
+      "voiced_frames": 148,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00701",
+      "correlation": 0.23212148875985658,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 109,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00702",
+      "correlation": 0.23986224639949363,
+      "direction_accuracy": 1.0,
+      "voiced_frames": 104,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00703",
+      "correlation": -0.0890512326603593,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 131,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00704",
+      "correlation": 0.15540803223082236,
+      "direction_accuracy": 0.5416666666666666,
+      "voiced_frames": 268,
+      "expected_points": 55
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00705",
+      "correlation": 0.04717811413855091,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 165,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00753",
+      "correlation": 0.4252818089830469,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 155,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00754",
+      "correlation": 0.015721537116593385,
+      "direction_accuracy": 0.38461538461538464,
+      "voiced_frames": 131,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00755",
+      "correlation": 0.3135480784517803,
+      "direction_accuracy": 0.7222222222222222,
+      "voiced_frames": 261,
+      "expected_points": 51
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00756",
+      "correlation": -0.17219942046953637,
+      "direction_accuracy": 0.4117647058823529,
+      "voiced_frames": 179,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00757",
+      "correlation": -0.11672709551999129,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 103,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00758",
+      "correlation": 0.0788440343653969,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 107,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00794",
+      "correlation": 0.2976012388164717,
+      "direction_accuracy": 0.7222222222222222,
+      "voiced_frames": 192,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00795",
+      "correlation": 0.40139218139975646,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 104,
+      "expected_points": 20
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00796",
+      "correlation": 0.5234841708766953,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 93,
+      "expected_points": 22
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00797",
+      "correlation": 0.05680117365409254,
+      "direction_accuracy": 0.4444444444444444,
+      "voiced_frames": 104,
+      "expected_points": 19
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00798",
+      "correlation": 0.20121229903038593,
+      "direction_accuracy": 0.2857142857142857,
+      "voiced_frames": 170,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00799",
+      "correlation": 0.11541972731041407,
+      "direction_accuracy": 0.4375,
+      "voiced_frames": 210,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00839",
+      "correlation": -0.090026596151579,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 121,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00840",
+      "correlation": 0.32454397305250454,
+      "direction_accuracy": 0.5882352941176471,
+      "voiced_frames": 156,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00841",
+      "correlation": 0.08126831965893362,
+      "direction_accuracy": 0.45454545454545453,
+      "voiced_frames": 106,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00842",
+      "correlation": -0.13911318280632162,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 131,
+      "expected_points": 26
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00843",
+      "correlation": 0.1547290403418563,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 139,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00844",
+      "correlation": 0.008568788099887864,
+      "direction_accuracy": 0.3,
+      "voiced_frames": 98,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00887",
+      "correlation": 0.028310805453498476,
+      "direction_accuracy": 0.35714285714285715,
+      "voiced_frames": 122,
+      "expected_points": 17
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00888",
+      "correlation": -0.2613408252756367,
+      "direction_accuracy": 0.4444444444444444,
+      "voiced_frames": 130,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00889",
+      "correlation": 0.1509094460648849,
+      "direction_accuracy": 0.6875,
+      "voiced_frames": 190,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00890",
+      "correlation": 0.16500998282781792,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 127,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00891",
+      "correlation": 0.03620219639953901,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 123,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00892",
+      "correlation": -0.11427995489596808,
+      "direction_accuracy": 0.4,
+      "voiced_frames": 197,
+      "expected_points": 39
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00940",
+      "correlation": 0.201593704828554,
+      "direction_accuracy": 0.5294117647058824,
+      "voiced_frames": 232,
+      "expected_points": 47
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00941",
+      "correlation": 0.08524732815610142,
+      "direction_accuracy": 0.16666666666666666,
+      "voiced_frames": 144,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00942",
+      "correlation": -0.036723425245188915,
+      "direction_accuracy": 0.38461538461538464,
+      "voiced_frames": 138,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00943",
+      "correlation": 0.2868284773380565,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 109,
+      "expected_points": 19
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00944",
+      "correlation": 0.07888049763317949,
+      "direction_accuracy": 0.42857142857142855,
+      "voiced_frames": 121,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00946",
+      "correlation": 0.46870085993362515,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 122,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00992",
+      "correlation": -0.28697067363089773,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 165,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00993",
+      "correlation": 0.43620902195200245,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 110,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00995",
+      "correlation": -0.0009697570160999237,
+      "direction_accuracy": 0.5454545454545454,
+      "voiced_frames": 131,
+      "expected_points": 28
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00996",
+      "correlation": 0.035118057303021935,
+      "direction_accuracy": 0.47058823529411764,
+      "voiced_frames": 172,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00997",
+      "correlation": 0.2539357188723285,
+      "direction_accuracy": 0.45454545454545453,
+      "voiced_frames": 129,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-00998",
+      "correlation": 0.10543149261014063,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 109,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01038",
+      "correlation": -0.1036830800613494,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 139,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01039",
+      "correlation": 0.3310228992184013,
+      "direction_accuracy": 0.6,
+      "voiced_frames": 175,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01040",
+      "correlation": -0.033821821418274646,
+      "direction_accuracy": 0.3076923076923077,
+      "voiced_frames": 142,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01041",
+      "correlation": -0.12314657449159601,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 120,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01042",
+      "correlation": 0.20207554276162998,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 179,
+      "expected_points": 35
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01090",
+      "correlation": 0.44368737819006915,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 97,
+      "expected_points": 18
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01091",
+      "correlation": 0.015198583969648934,
+      "direction_accuracy": 0.4444444444444444,
+      "voiced_frames": 131,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01092",
+      "correlation": -0.03420059946077755,
+      "direction_accuracy": 0.4,
+      "voiced_frames": 198,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01093",
+      "correlation": 0.41708979602909085,
+      "direction_accuracy": 0.6842105263157895,
+      "voiced_frames": 214,
+      "expected_points": 41
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01094",
+      "correlation": 0.20362785267084468,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 164,
+      "expected_points": 34
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01133",
+      "correlation": 0.14731262047218147,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 136,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01134",
+      "correlation": 0.1258131572987449,
+      "direction_accuracy": 0.6153846153846154,
+      "voiced_frames": 139,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01135",
+      "correlation": -0.11421458561451757,
+      "direction_accuracy": 0.5333333333333333,
+      "voiced_frames": 164,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01136",
+      "correlation": 0.18628181204361566,
+      "direction_accuracy": 0.7,
+      "voiced_frames": 140,
+      "expected_points": 24
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01137",
+      "correlation": 0.29709778419790395,
+      "direction_accuracy": 0.6666666666666666,
+      "voiced_frames": 123,
+      "expected_points": 25
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01187",
+      "correlation": 0.27325157487060797,
+      "direction_accuracy": 0.6363636363636364,
+      "voiced_frames": 197,
+      "expected_points": 40
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01188",
+      "correlation": -0.030002901398966605,
+      "direction_accuracy": 0.4166666666666667,
+      "voiced_frames": 147,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01189",
+      "correlation": 0.016518937074982497,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 115,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01191",
+      "correlation": 0.07437241996348837,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 127,
+      "expected_points": 29
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01192",
+      "correlation": 0.4153249373262492,
+      "direction_accuracy": 0.75,
+      "voiced_frames": 126,
+      "expected_points": 30
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01241",
+      "correlation": 0.2002187713179223,
+      "direction_accuracy": 0.631578947368421,
+      "voiced_frames": 244,
+      "expected_points": 46
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01242",
+      "correlation": 0.06980481521162855,
+      "direction_accuracy": 0.631578947368421,
+      "voiced_frames": 223,
+      "expected_points": 43
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01244",
+      "correlation": 0.06824232071440245,
+      "direction_accuracy": 0.5833333333333334,
+      "voiced_frames": 185,
+      "expected_points": 32
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01245",
+      "correlation": 0.06899697838868113,
+      "direction_accuracy": 0.7,
+      "voiced_frames": 171,
+      "expected_points": 27
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01246",
+      "correlation": 0.09562733860127061,
+      "direction_accuracy": 0.5384615384615384,
+      "voiced_frames": 161,
+      "expected_points": 28
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01292",
+      "correlation": 0.01385498742958634,
+      "direction_accuracy": 0.5,
+      "voiced_frames": 121,
+      "expected_points": 23
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01293",
+      "correlation": 0.10266343287367558,
+      "direction_accuracy": 0.5555555555555556,
+      "voiced_frames": 112,
+      "expected_points": 21
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01294",
+      "correlation": 0.22235178865278094,
+      "direction_accuracy": 0.5789473684210527,
+      "voiced_frames": 192,
+      "expected_points": 38
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01295",
+      "correlation": -0.0366059084892564,
+      "direction_accuracy": 0.46153846153846156,
+      "voiced_frames": 171,
+      "expected_points": 31
+    },
+    {
+      "id": "kouyahijiri-by-kyoka-izumi-01296",
+      "correlation": 0.49418637628971973,
+      "direction_accuracy": 0.7857142857142857,
+      "voiced_frames": 156,
+      "expected_points": 33
+    }
+  ]
+}

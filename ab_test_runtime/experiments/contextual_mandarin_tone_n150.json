@@ -1,0 +1,10 @@
+{
+  "source": "ab_test_runtime/experiments/aishell3_generate.json",
+  "model": "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+  "train_units": 1200,
+  "test_units": 622,
+  "tone_only_correlation_mean": 0.2544989784435492,
+  "contextual_correlation_mean": 0.3939405286794646,
+  "contextual_groups": 148,
+  "advance": true
+}
