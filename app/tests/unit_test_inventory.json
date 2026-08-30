@@ -238,6 +238,11 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audit_serving_metadata": [
+    "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_base_only_rejects_the_legacy_paired_claim",
+    "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_baseline_summary_keeps_book_and_unanswered_counts",
+    "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_corrected_metadata_is_not_flagged"
+  ],
   "test_batch_script_concurrency": [
     "tests.test_batch_script_concurrency.BatchScriptConcurrencyTests.test_batch_source_accepts_attested_narrator",
     "tests.test_batch_script_concurrency.BatchScriptConcurrencyTests.test_batch_source_rejects_unattested_narrator_before_gpu_work",

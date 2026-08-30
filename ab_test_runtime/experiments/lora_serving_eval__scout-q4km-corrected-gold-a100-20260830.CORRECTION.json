@@ -1,0 +1,9 @@
+{
+  "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.json",
+  "artifact_sha256": "d61da75d4a17d10e2dd6caa5e71fa44665cb5072ec3af443f9aa3cce0ab72834",
+  "incorrect_fields": ["meta.decoding.base_quant", "meta.decoding.lora", "meta.notes"],
+  "correction": "This was a base-only Llama 4 Scout run. No adapter arm ran. The evaluator did not observe base quantisation or adapter precision, so those hardcoded fields and the paired-arm note are not provenance.",
+  "actual_arms": ["base"],
+  "measurement_changed": false,
+  "audit": "../audit/serving_metadata_audit.json"
+}
