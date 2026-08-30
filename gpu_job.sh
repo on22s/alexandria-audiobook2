@@ -285,7 +285,15 @@ tree_state() {
     # run, and the gate could not see them because it only watched
     # app/experiments for .py. A chain is as much "the code that produced this
     # artifact" as the script it calls.
-    untracked=$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null \
+    # ...but ab_test_runtime/ is EXCLUDED, because it is where runs write.
+    # Scanning it counted an untracked virtualenv
+    # (ab_test_runtime/envs/ctc-align/.../site-packages, thousands of .py),
+    # three cloud_backup_* trees and generated .html views, so on 2026-08-29
+    # this flag was true on every run - which, as the note above says, is the
+    # same as being false. It refused the night's first job in 0s. Harness code
+    # lives in app/, run_chains/ and the root; artifacts live there.
+    untracked=$(git -C "$root" ls-files --others --exclude-standard \
+                    -- ':(exclude)ab_test_runtime/*' 2>/dev/null \
                 | grep -cE '\.(py|sh|js|html)$')
     if [ -z "$modified" ] && [ "${untracked:-0}" -eq 0 ]; then
         echo clean

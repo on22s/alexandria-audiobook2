@@ -79,8 +79,12 @@ def _git_state(repo):
     # it: a new experiment script is untracked while it runs, so the tree
     # reported clean and the artifact claimed a commit that did not contain the
     # code that produced it. Untracked .py inside the harness directory is dirt.
+    # ab_test_runtime/ is excluded: it is where runs WRITE. Scanning it
+    # counted an untracked virtualenv, three cloud_backup_* trees and
+    # generated .html views, making this flag true on every run (2026-08-29).
     untracked = [n for n in (run("git", "ls-files", "--others",
-                                 "--exclude-standard")
+                                 "--exclude-standard",
+                                 "--", ":(exclude)ab_test_runtime/*")
                              or "").splitlines()
                  if n.endswith((".py", ".sh", ".js", ".html"))]
     return {"commit": run("git", "rev-parse", "HEAD"),
