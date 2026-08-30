@@ -2,7 +2,7 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 492,
-    "exploratory": 262,
+    "exploratory": 264,
     "provisional": 162
   },
   "artifacts": [
@@ -5537,6 +5537,22 @@
       "reason": "older metadata contract; semantic/manual review required"
     },
     {
+      "artifact": "grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json",
+      "bytes": 339960,
+      "sha256": "fe15652806804db29192f01fed639d3e6d822622f73947f1264b49d84df7fe4e",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 556,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
       "artifact": "grammar_constraint__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json",
       "bytes": 466730,
       "sha256": "5f84ce62513a7317f3c3fb247eb45bbbc272658028b167596c233776629cf49b",
@@ -7046,6 +7062,22 @@
       "dirty": false,
       "classification": "provisional",
       "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json",
+      "bytes": 347722,
+      "sha256": "7f56caa5d475ce7ebea3d5bcdcb036c725b161a1227ff83af8ba5882037106d2",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 766,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
     },
     {
       "artifact": "lora_serving_eval__scout-q4km-corrected-gold-a100-20260830.CORRECTION.json",
