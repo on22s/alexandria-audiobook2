@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2528** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2530** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -354,9 +354,11 @@ should be quoted as applying to a model other than the one it was measured on.
 The artifacts are `distill_eval__qwen3*-corrected-gold-*.json`. A ninth run,
 `qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch`, reads 25.6% and is
 **not a result**: its tuned arm returned an empty prediction on 266 of 383 rows
-against 3–10% for every sibling, so it measures a generation failure. It
-carries an `.INVALID.json` sidecar and a caveat in the results index, and that
-model/adapter pair has no measurement until it is re-run.
+against 3–10% for every sibling, so it measures a generation failure. The
+refusal is recorded beside the artifact in
+`distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json`
+and as a caveat in the results index, which is where a reader meets the
+number. That model/adapter pair has no measurement until it is re-run.
 
 Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
 each other but the tuned columns are not comparable across rows.
