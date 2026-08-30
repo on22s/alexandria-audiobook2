@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2530** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2555** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -362,6 +362,31 @@ number. That model/adapter pair has no measurement until it is re-run.
 
 Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
 each other but the tuned columns are not comparable across rows.
+
+**Why qwen38 is worst: the adapters induce refusal, and they refuse the hard
+rows.** Every tuned arm answers fewer rows than its base — 13 to 37 empty
+predictions against 11 to 20 — and qwen38 refuses most. Scored on ANSWERED
+rows only, every arm turns positive or neutral (qwen38 goes −5.0 → −0.4,
+−2.3 → +2.1, −0.3 → +1.1), which invites the reading that the adapter knows
+the answer and merely declines to give it.
+
+**That reading is wrong, and the check that kills it is worth keeping.**
+Conditioning on "answered" conditions on an outcome. Scoring the BASE arm
+separately on the rows the tuned arm refused versus the rows it answered:
+
+| | base accuracy on rows tuned REFUSED | on rows tuned ANSWERED |
+|---|---:|---:|
+| across all nine runs | **11.4–61.5%** | **65.0–77.0%** |
+
+The refusals land squarely on the hard rows. So the answered-only figures are
+selection-inflated in every run, and the all-rows numbers in the table above
+are the honest ones: a refusal is a wrong answer, and in production it is
+worse than a guess. **Do not quote answered-only deltas from these artifacts.**
+
+What is genuinely new is the mechanism rather than a rescue: these adapters
+change output COMPLIANCE, not only attribution, and the newer the base model
+the more they suppress. That is a different failure from attributing badly and
+suggests a different fix, but it does not soften the result above.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
