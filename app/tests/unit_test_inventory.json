@@ -1384,6 +1384,7 @@
   ],
   "test_legacy_attribution_audit": [
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_commit_identity_requires_ancestry_not_unrelated_object_presence",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_never_reads_outside_the_checkout",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_rescore_exposes_changed_and_unmapped_rows",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_inventory_is_exhaustive_and_semantically_bounded",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_markdown_lists_every_artifact_once"

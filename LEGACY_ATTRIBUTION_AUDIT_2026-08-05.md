@@ -5,9 +5,9 @@ All 162 legacy-metadata artifacts are listed exactly once. Classification descri
 ## Counts
 
 - `exploratory`: 38
-- `historical_only`: 50
+- `historical_only`: 49
 - `provisional`: 21
-- `supported_measurement`: 53
+- `supported_measurement`: 54
 
 `historical_only` means current-gold rescoring changes at least one judgment or cannot map at least one row. Original files remain preserved; their saved summaries were not rewritten.
 
@@ -115,7 +115,7 @@ All 162 legacy-metadata artifacts are listed exactly once. Classification descri
 | `pdnc_narrator_prior__clean-3book.json` | pdnc_narrator_prior | supported_measurement | 720 | None | None | False |  |
 | `pdnc_narrator_prior__local-llamacpp-generic.json` | pdnc_narrator_prior | provisional | 240 | None | None | True |  |
 | `pdnc_narrator_prior__local-llamacpp.json` | pdnc_narrator_prior | provisional | 480 | None | None | True |  |
-| `pdnc_sequence__pilot__local-llamacpp.json` | pdnc_sequence | historical_only | 1200 | 83 | 0 | False |  |
+| `pdnc_sequence__pilot__local-llamacpp.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_sequence__pilot__repeat2.json` | pdnc_sequence | supported_measurement | 1200 | None | None | False |  |
 | `pdnc_targeted_sequence__pilot__local-llamacpp.json` | pdnc_targeted_sequence | supported_measurement | 1800 | None | None | False |  |
 | `reasoning_arms__grimgar03__google__gemma-3-27b__thunder-a6000.json` | reasoning_arms | historical_only | 2000 | 111 | 20 | False |  |

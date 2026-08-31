@@ -66,6 +66,15 @@ def _commit_is_in_history(commit):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
 
+def is_path_within_repo(path):
+    """Return whether path resolves inside this checkout."""
+    try:
+        return os.path.commonpath(
+            [os.path.realpath(REPO), os.path.realpath(path)]) == os.path.realpath(REPO)
+    except (OSError, ValueError):
+        return False
+
+
 def _current_gold(meta, rows):
     """Compare an artifact's rows against the gold it was scored on.
 
@@ -96,6 +105,8 @@ def _current_gold(meta, rows):
     path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
+    if not is_path_within_repo(path):
+        return result
     # Skip ONLY on a definite "untracked". Outside a repository git cannot
     # answer, and refusing to read the fixture there would mean auditing
     # nothing while reporting success.
@@ -247,7 +258,8 @@ def main():
             str(json.load(open(os.path.join(EXPERIMENTS, row["artifact"]),
                                encoding="utf-8"))["meta"].get("gold_path") or "")
             for row in audit["artifacts"])
-        if rel and os.path.isfile(os.path.join(REPO, rel))
+        if rel and is_path_within_repo(os.path.join(REPO, rel))
+        and os.path.isfile(os.path.join(REPO, rel))
         and tracked_state(rel, REPO) == "untracked"})
     if local_only:
         print(f"note: {len(local_only)} gold fixture(s) exist here but are not "
