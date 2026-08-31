@@ -2,6 +2,7 @@
 """Audit every legacy ExperimentRecord artifact against current evidence."""
 import argparse
 import collections
+import difflib
 import hashlib
 import json
 import os
@@ -260,6 +261,20 @@ def main():
         with open(args.markdown, encoding="utf-8") as handle:
             existing_md = handle.read()
         if existing != audit or existing_md != markdown:
+            existing_json = json.dumps(
+                existing, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+            expected_json = json.dumps(
+                audit, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+            for line in difflib.unified_diff(
+                    existing_json, expected_json,
+                    fromfile="committed legacy audit",
+                    tofile="regenerated legacy audit", lineterm=""):
+                print(line, file=sys.stderr)
+            for line in difflib.unified_diff(
+                    existing_md.splitlines(), markdown.splitlines(),
+                    fromfile="committed legacy audit markdown",
+                    tofile="regenerated legacy audit markdown", lineterm=""):
+                print(line, file=sys.stderr)
             raise SystemExit("legacy attribution audit is stale")
         print(f"legacy attribution audit is current ({len(audit['artifacts'])} artifacts)")
         return
