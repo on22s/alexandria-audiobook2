@@ -54,6 +54,26 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             self.assertEqual(1, result["correctness_changed_rows"])
             self.assertEqual(1, result["missing_rows"])
 
+    def test_current_gold_never_reads_outside_the_checkout(self):
+        with tempfile.TemporaryDirectory() as repo, tempfile.TemporaryDirectory() as outside:
+            fixture = Path(outside, "gold.json")
+            fixture.write_text(json.dumps({
+                "entries": [{"id": "one", "expected_speaker": "ALICE"}]
+            }), encoding="utf-8")
+            meta = {"gold_path": str(fixture), "gold_sha256": "old",
+                    "gold_lines": 1}
+            rows = [{"id": "one", "expected": "BOB", "predicted": "ALICE",
+                     "correct": False}]
+            with mock.patch.object(audit, "REPO", repo):
+                result = audit._current_gold(meta, rows)
+            self.assertEqual({
+                "available": False,
+                "hash_changed": None,
+                "missing_rows": None,
+                "expected_changed_rows": None,
+                "correctness_changed_rows": None,
+            }, result)
+
     def test_markdown_lists_every_artifact_once(self):
         result = audit.build_audit()
         rendered = audit.render_markdown(result)
