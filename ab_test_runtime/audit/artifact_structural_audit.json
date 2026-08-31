@@ -1,7 +1,7 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 492,
+    "supported_structure": 493,
     "exploratory": 276,
     "provisional": 162
   },
@@ -6335,6 +6335,22 @@
       "identity_contract": "tts_provenance",
       "written": "2026-08-30T03:18:42",
       "commit": "59001c16485207cfa3e472c01965cf6e0cdf8dcd",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
+      "artifact": "library_fidelity_seed_20260914_n20.json",
+      "bytes": 682279,
+      "sha256": "3928c05bce6ec8138b8b6f8a05af7a73fb6f958210ed67fdef7f888199a2c069",
+      "completeness": "unknown",
+      "seed": 20260914,
+      "status": null,
+      "row_count": 75,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-31T08:47:24",
+      "commit": "00b84dd782827a99e7a407496eae001420c15227",
       "dirty": false,
       "classification": "supported_structure",
       "reason": "embedded provenance and identifiable harness"

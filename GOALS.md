@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2654** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2661** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -1159,12 +1159,19 @@ where that sample sits. The INFERENCE from it was wrong, while `manifest.json`
 had recorded `dataset_id` per adapter all along. The probe now reads that,
 checked first against every adapter whose path-derived name was already a real
 dataset — **19 of 19 agree, none disagree**. With it, **75 of 75 adapters
-resolve to a dataset that finds its zip, against 19 before**, so the next
-fidelity run covers 74 (one adapter has no validation clips) rather than 18.
+resolve to a dataset that finds its zip, against 19 before**.
 
-**The figures above still describe 18 adapters.** They were measured before the
-fix and are not retroactively widened by it; a re-run is what would widen
-them.
+**The full-library re-run completed 2026-08-31.** On seed 20260914 at up to 20
+validation lines per adapter, `library_fidelity_seed_20260914_n20.json` scores
+**74 of 75 adapters over 1,417 generated/reference pairs**; the remaining
+adapter explicitly reports `no val clips`. Sixty-seven adapters supplied all
+20 pairs and seven supplied 2–18, so the latter estimates carry less support.
+The adapter-level ECAPA median is **0.626** and 9 adapters fall below 0.45.
+The three failures stable over the earlier 21 seeds remain the bottom three:
+`velvety_mezzo_30s_f_gothic` **0.079**, `silky_baritone_45s_m` **0.103**, and
+`husky_baritone_20s_m_supernatural` **0.160**. This widens coverage; it does
+not remove the contamination caveat above because the shipped adapters heard
+their validation lines during training.
 
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for

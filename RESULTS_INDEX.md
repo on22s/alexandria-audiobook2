@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-31 from `ab_test_runtime/experiments/` — 930 artifacts, 932 arms.
+Generated 2026-08-31 from `ab_test_runtime/experiments/` — 931 artifacts, 932 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1422,6 +1422,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `library_fidelity_seed_20260911_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_fidelity_seed_20260912_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_fidelity_seed_20260913_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260914_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
