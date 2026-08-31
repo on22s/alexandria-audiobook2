@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-30 from `ab_test_runtime/experiments/` — 918 artifacts, 920 arms.
+Generated 2026-08-31 from `ab_test_runtime/experiments/` — 926 artifacts, 920 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -1456,6 +1456,14 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_ahandfulofdust.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_thegambler.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_themysteriousaffairatstyles.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_emma.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_mansfieldpark.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_northangerabbey.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_persuasion.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_senseandsensibility.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__mixed_adapter_clean_heldout_n900.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__mixed_adapter_clean_heldout_n900_b10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__qwen35_9b_author_five_new_heldout_20260828.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
