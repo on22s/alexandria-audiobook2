@@ -2662,6 +2662,14 @@
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_experiment_gates_on_speaker",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_schema_has_no_type_key"
   ],
+  "test_teacher_coverage": [
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_a_complete_corpus_passes",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_a_silent_loss_is_refused",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_allow_unexplained_reports_but_does_not_refuse",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_over_recording_does_not_hide_a_further_loss",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_recording_the_loss_satisfies_the_invariant",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_sources_that_were_never_routed_are_not_a_failure"
+  ],
   "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways",
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_even_split_once",
