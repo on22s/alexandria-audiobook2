@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-31 from `ab_test_runtime/experiments/` — 926 artifacts, 920 arms.
+Generated 2026-08-31 from `ab_test_runtime/experiments/` — 930 artifacts, 932 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -338,10 +338,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 64.8% | exploratory | ok | False | 13881.0s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 14009.3s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 25.0% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 47025.9s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 47025.9s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18279.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 18279.0s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 92 | 71.7% | exploratory | ok | False | 40304.5s |
@@ -362,10 +366,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 13881.0s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 69.9% | exploratory | ok | False | 14009.3s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 22.6% | exploratory | ok | False | 27294.0s |
+| mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 47025.9s |
+| mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 79.7% | exploratory | ok | False | 47025.9s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18279.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.9% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.2% | exploratory | ok | False | 18279.0s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 50.4% | exploratory | ok | False | 40304.5s |
@@ -386,10 +394,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.9% | exploratory | ok | False | 13881.0s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 14009.3s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 28.4% | exploratory | ok | False | 27294.0s |
+| owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 62.3% | exploratory | ok | False | 47025.9s |
+| owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.0% | exploratory | ok | False | 47025.9s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18279.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 56.2% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.2% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.6% | exploratory | ok | False | 18279.0s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 40.1% | exploratory | ok | False | 40304.5s |
@@ -661,25 +673,25 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 | book | model | env | backend | ctx | arm | n | acc | evidence | valid | dirty | elapsed |
 |---|---|---|---|---:|---|---:|---:|---|---|---|---:|
-| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 58.3% | historical_only | ok | False | 741.2s |
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
-| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 64.2% | supported_measurement | ok | False | 741.2s |
+| AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 64.2% | historical_only | ok | False | 741.2s |
 | AnneOfGreenGables | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 70.0% | supported_measurement | ok | False | 823.6s |
-| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | historical_only | ok | False | 741.2s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
-| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 58.3% | supported_measurement | ok | False | 741.2s |
+| MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 58.3% | historical_only | ok | False | 741.2s |
 | MansfieldPark | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 60.0% | supported_measurement | ok | False | 823.6s |
-| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 61.7% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 61.7% | historical_only | ok | False | 741.2s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 55.0% | supported_measurement | ok | False | 823.6s |
-| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 741.2s |
+| Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | historical_only | ok | False | 741.2s |
 | Persuasion | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 51.7% | historical_only | ok | False | 741.2s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 49.2% | supported_measurement | ok | False | 823.6s |
-| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 741.2s |
+| TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | historical_only | ok | False | 741.2s |
 | TheGambler | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 51.7% | supported_measurement | ok | False | 823.6s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 54.2% | historical_only | ok | False | 741.2s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | baseline | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
-| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 63.3% | supported_measurement | ok | False | 741.2s |
+| TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 63.3% | historical_only | ok | False | 741.2s |
 | TheSunAlsoRises | qwen3-14b | local-lmstudio | lmstudio | 32768 | sequence | 120 | 62.5% | supported_measurement | ok | False | 823.6s |
 
 ## pdnc_targeted_sequence
@@ -1236,6 +1248,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `dialogue_map_compare_fresh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_length_intervention.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

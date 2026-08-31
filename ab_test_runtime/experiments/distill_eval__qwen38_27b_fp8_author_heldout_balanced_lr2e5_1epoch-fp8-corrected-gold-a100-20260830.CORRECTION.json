@@ -1,0 +1,18 @@
+{
+  "artifact": "distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.json",
+  "artifact_sha256": "4f426e9bd735e2e3f49c4ed4cd802c30e7f5830a7a10f6d923a665b8c28e79e3",
+  "field": "meta.notes",
+  "incorrect_claim": "LoRA distilled from a 70B on 1,091 routed rows of grimgar06 and mushoku18",
+  "correction": "This adapter was trained for 1 epoch from data/train__pdnc_*.jsonl at learning rate 2e-5. The evaluator's hard-coded note described an older adapter and is not valid provenance for this run.",
+  "evidence": {
+    "training_script": "/home/ubuntu/qwen38_fp8_balanced_lr2e5_1epoch_a100_20260830a.sh",
+    "training_script_sha256": "538954e6624acd4976960e248b8ea601b0cc4daa3f396f964e4045a4beb6299e",
+    "training_data_argument": "data/train__pdnc_*.jsonl",
+    "training_files_observed": 20,
+    "training_rows_observed": 3974,
+    "epochs": 1,
+    "learning_rate": 0.00002,
+    "completed_steps": 497
+  },
+  "measurement_changed": false
+}
