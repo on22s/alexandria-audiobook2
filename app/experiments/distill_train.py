@@ -161,7 +161,27 @@ def main():
                          "required for a 14B model on a 16GB card")
     ap.add_argument("--max_steps", type=int, default=-1,
                     help="maximum optimizer steps; use 1 for a smoke test")
+    ap.add_argument("--routed-dir",
+                    help="directory of routed__<book>.json artifacts; when "
+                         "given, training refuses to start unless every "
+                         "routed row is in the corpus or its loss is recorded")
+    ap.add_argument("--allow-unexplained-loss", action="store_true",
+                    help="proceed despite an unexplained coverage gap; the "
+                         "report is still printed and the reason belongs in "
+                         "whatever queued this run")
     args = ap.parse_args()
+
+    # REFUSE BEFORE THE GPU, NOT AFTER. A corpus can be silently short - on
+    # 2026-08-31 it was short by 195 routed rows, 131 of them from one book,
+    # with nothing anywhere recording the loss. An adapter trained on that is
+    # believable and worse than it should be, and the deficit is
+    # indistinguishable afterwards from a bad recipe. Minutes to stop; a
+    # wasted training run and a wrong conclusion not to.
+    if args.routed_dir:
+        from experiments.teacher_coverage import assert_coverage, format_report
+        report = assert_coverage(args.routed_dir, args.data,
+                                 allow_unexplained=args.allow_unexplained_loss)
+        print("teacher coverage:\n" + format_report(report), flush=True)
 
     rows = build_examples(args.data, label_field=args.label_field)
     train = [r for r in rows if r["book"] != args.holdout]
