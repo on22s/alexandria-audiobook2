@@ -419,6 +419,12 @@
     "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
     "tests.test_chain_stage_lib.StageRunnerTest.test_running_the_same_chain_twice_is_idempotent"
   ],
+  "test_chains_reclaim_vram": [
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_a_chain_that_starts_a_server_reclaims_before_a_gpu_heavy_stage",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_no_chain_reclaims_with_pkill_dash_f",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
+  ],
   "test_character_distinctiveness": [
     "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
     "tests.test_character_distinctiveness.ManifestTest.test_clips_are_grouped_by_the_chunk_speaker",

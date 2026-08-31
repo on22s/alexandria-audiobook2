@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2623** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2654** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -325,7 +325,38 @@ supply **5,149 quotations across five Austen novels**, none of which appear in
 the balanced adapter's twenty-novel training manifest (author `AUST` was
 excluded wholesale). They are still one author, so they widen the held-out set
 without widening its register — a five-book Austen result would confirm
-transfer beyond the training novels, not transfer beyond Austen. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+transfer beyond the training novels, not transfer beyond Austen.
+
+**CONFIRMED, 2026-08-31: the adapter transfers, and does BETTER on books it
+never trained on.** The balanced adapter was run over all five never-trained
+Austen novels and three of its own training books, 10,114 quotations, two arms,
+one model load:
+
+| half | rows | base | lora | delta |
+|---|---:|---:|---:|---:|
+| **held-out** (never trained) | 5,149 | 73.4% | **82.8%** | **+9.4** |
+| **development** (in training) | 4,965 | 66.6% | 75.9% | +9.3 |
+
+Per book, held-out: Emma 73.4→82.9 (+9.5), MansfieldPark 72.6→76.5 (+3.9),
+NorthangerAbbey 68.2→91.4 (+23.3), Persuasion 71.9→75.6 (+3.7),
+SenseAndSensibility 79.2→85.9 (+6.7). Artifacts are
+`pdnc_eval__goal13_heldout_*.json` and `pdnc_eval__goal13_development_*.json`.
+
+**DEV MINUS HELD-OUT is −6.9 points**, and the sign is the finding. A large
+POSITIVE gap would be memorisation — the adapter doing well only where it had
+seen the answers. It is negative: the adapter scores *higher* on the five books
+it never saw than on its own twenty training novels. The gain itself is almost
+identical on both halves, **+9.4 against +9.3**, which is what transfer looks
+like and is not what memorisation looks like.
+
+**What this still does not settle.** All five held-out books are Austen, so
+this confirms transfer beyond the TRAINING NOVELS and not beyond the register;
+a sixth author remains untested. The development half is three books and its
+base rate is 6.8 points lower than the held-out half's, so the two halves are
+not matched in difficulty and only the deltas should be compared across them.
+Refusals are absent here — 0.0% unanswered on all five held-out books — so
+unlike the qwen3.5/3.8 evaluations these numbers are not confounded by the
+refusal mechanism recorded above. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
