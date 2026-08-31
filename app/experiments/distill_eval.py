@@ -68,6 +68,7 @@ def norm(t):
 class _Msg:
     def __init__(self, content):
         self.content = content
+        self.reasoning_content = None
 
 
 class _Choice:
@@ -76,20 +77,29 @@ class _Choice:
         self.finish_reason = finish_reason
 
 
+class _Usage:
+    def __init__(self, completion_tokens):
+        self.prompt_tokens = None
+        self.completion_tokens = completion_tokens
+        self.completion_tokens_details = None
+
+
 class _Response:
-    def __init__(self, content, finish_reason):
+    def __init__(self, content, finish_reason, completion_tokens):
         self.choices = [_Choice(content, finish_reason)]
-        self.usage = None
+        self.usage = _Usage(completion_tokens)
 
 
 class LocalClient:
     """Mimics the sliver of the OpenAI client that the LLM path touches."""
 
-    def __init__(self, model, tok):
+    def __init__(self, model, tok, thinking_mode="off"):
         self.model, self.tok = model, tok
+        self.thinking_mode = thinking_mode
         self.chat = self
         self.completions = self
         self.adapter_enabled = True
+        self.diagnostics = []
 
     def create(self, model=None, messages=None, temperature=0.0, top_p=1.0,
                presence_penalty=0.0, max_tokens=512, extra_body=None):
@@ -100,10 +110,14 @@ class LocalClient:
         # reasoning while the thing they are compared against ran without it,
         # and each call generated thousands of thinking tokens (~7 minutes per
         # batch, against ~8 seconds). Wrong configuration first, slow second.
+        template_kwargs = ({"enable_thinking": False}
+                           if self.thinking_mode == "off" else
+                           {"enable_thinking": True,
+                            "reasoning_effort": self.thinking_mode})
         try:
             prompt = self.tok.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True,
-                enable_thinking=False)
+                **template_kwargs)
         except TypeError:
             # Tokenizers without the flag never had the behaviour to disable.
             prompt = self.tok.apply_chat_template(
@@ -123,7 +137,18 @@ class LocalClient:
         gen = out[0][enc["input_ids"].shape[1]:]
         text = self.tok.decode(gen, skip_special_tokens=True)
         finish = "length" if len(gen) >= max_tokens else "stop"
-        return _Response(text, finish)
+        token_ids = gen.tolist() if hasattr(gen, "tolist") else list(gen)
+        eos_ids = self.tok.eos_token_id
+        if not isinstance(eos_ids, (list, tuple, set)):
+            eos_ids = [eos_ids]
+        self.diagnostics.append({
+            "finish_reason": finish,
+            "generated_tokens": len(token_ids),
+            "emitted_eos": bool(token_ids and token_ids[-1] in eos_ids),
+            "raw_response": text,
+            "thinking_mode": self.thinking_mode,
+        })
+        return _Response(text, finish, len(token_ids))
 
 
 def get_book_paths(book, input_dir=None, checkpoint_dir=None):
@@ -230,6 +255,8 @@ def main():
     ap.add_argument("--load-in-4bit", action="store_true",
                     help="load the base with bitsandbytes NF4 when BF16 "
                          "weights exceed available VRAM")
+    ap.add_argument("--thinking-mode", choices=("off", "low", "medium", "xhigh"),
+                    default="off", help="Qwen chat-template reasoning mode")
     args = ap.parse_args()
 
     import torch
@@ -255,7 +282,7 @@ def main():
         args.model, **get_model_load_kwargs(torch, quantization_config))
     model = load_peft_adapter_or_raise(PeftModel, base, args.adapter)
     model.eval()
-    client = LocalClient(model, tok)
+    client = LocalClient(model, tok, args.thinking_mode)
     params = LLMGenParams(max_tokens=args.max_tokens, context_length=32768,
                           temperature=0.0, attribute_temperature=0.0,
                           top_p=0.8, reasoning_effort="none")
@@ -280,7 +307,7 @@ def main():
         # for the consumers that select on them.
         [APP + f"fixtures/attribution_gold_{b}.json" for b in args.books],
         {"temperature": 0.0, "batch": BATCH, "adapter": args.adapter,
-         "max_tokens": args.max_tokens},
+         "max_tokens": args.max_tokens, "thinking_mode": args.thinking_mode},
         environment=environment,
         notes="Paired base-versus-LoRA evaluation. Training-data provenance "
               "belongs to the adapter's training manifest; this evaluator "
@@ -297,6 +324,7 @@ def main():
     # is the drift Rule 15 exists to stop, and neither side's tests could see
     # the other. One hashing path, in the class every experiment shares.
     record.meta["gold_population"] = {}
+    record.meta["generation_diagnostics"] = []
 
     totals = {"base": [0, 0], "tuned": [0, 0]}
     per_book, answers = {}, {"base": {}, "tuned": {}}
@@ -339,12 +367,22 @@ def main():
                        for i in send]
                 ctxmgr = (model.disable_adapter() if arm == "base"
                           else contextlib.nullcontext())
+                diagnostic_start = len(client.diagnostics)
                 try:
                     with ctxmgr:
                         out = attribute_batch(client, args.model, frozen, params,
                                               roster, neighbor_contexts=ctx,
                                               source_text=src)
                 except Exception as exc:
+                    batch_diagnostics = client.diagnostics[diagnostic_start:]
+                    record.meta["generation_diagnostics"].append({
+                        "arm": arm, "book": book, "window": k,
+                        "outcome": "batch_failed",
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "attempts": batch_diagnostics,
+                    })
+                    raw = (batch_diagnostics[-1]["raw_response"]
+                           if batch_diagnostics else None)
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
                     # A failed batch is a failure, not an absence. Dropping it
                     # would remove from the denominator exactly the rows this
@@ -359,9 +397,18 @@ def main():
                             record.add(arm, row_id, g["line"],
                                        g["expected_speaker"].upper(), None, False,
                                        candidates=roster,
-                                       provenance=f"{arm}|{book}|batch_failed")
+                                       provenance=f"{arm}|{book}|batch_failed",
+                                       raw=raw)
                             scored += 1
                     continue
+                batch_diagnostics = client.diagnostics[diagnostic_start:]
+                record.meta["generation_diagnostics"].append({
+                    "arm": arm, "book": book, "window": k,
+                    "outcome": "accepted", "error": None,
+                    "attempts": batch_diagnostics,
+                })
+                raw = (batch_diagnostics[-1]["raw_response"]
+                       if batch_diagnostics else None)
                 for off, i in enumerate(send):
                     key = norm(seg[i].get("text"))
                     if key not in want:
@@ -380,7 +427,7 @@ def main():
                                # held the answer - which is the question the
                                # refusal finding of 2026-08-30 arrived at.
                                candidates=roster,
-                               provenance=f"{arm}|{book}")
+                               provenance=f"{arm}|{book}", raw=raw)
                     scored += 1
                 if k % 20 == 0:
                     print(f"  {arm} {k}/{len(windows)} ...", flush=True)
