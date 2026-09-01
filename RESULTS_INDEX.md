@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-08-30 from `ab_test_runtime/experiments/` — 916 artifacts, 910 arms.
+Generated 2026-09-01 from `ab_test_runtime/experiments/` — 924 artifacts, 920 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -417,6 +417,10 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | magistral-small | local-llamacpp-hip | llama.cpp-hip b101 | 8192 | open-grammar | 139 | 51.8% | supported_measurement | ok | False | 114.0s |
 | mushoku16 | magistral-small | local-llamacpp-hip | llama.cpp-hip b101 | 8192 | oracle-free | 139 | 58.3% | supported_measurement | ok | False | 114.0s |
 | mushoku16 | magistral-small | local-llamacpp-hip | llama.cpp-hip b101 | 8192 | oracle-grammar | 139 | 66.2% | supported_measurement | ok | False | 114.0s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | open-free | 139 | 61.2% | exploratory | ok | False | 1382.5s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | open-grammar | 139 | 59.0% | exploratory | ok | False | 1382.5s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | oracle-free | 139 | 77.0% | exploratory | ok | False | 1382.5s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | oracle-grammar | 139 | 79.1% | exploratory | ok | False | 1382.5s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | open-free | 162 | 47.5% | supported_measurement | ok | False | 135.1s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | open-grammar | 162 | 46.3% | supported_measurement | ok | False | 135.1s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 16384 | oracle-free | 162 | 51.9% | supported_measurement | ok | False | 135.1s |
@@ -485,6 +489,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | base | 92 | 73.9% | historical_only | ok | False | 19529.9s |
 | index18 | qwen3-14b | cloud-a6000-llamacpp-cuda | llama.cpp-cuda | 32768 | lora | 92 | 67.4% | exploratory | ok | False | 6206.6s |
 | index18 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 92 | 81.5% | historical_only | ok | False | 19529.9s |
+| index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 6147.6s |
+| index18 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 88 | 73.9% | exploratory | ok | False | 6147.6s |
 | index18 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 1090.3s |
 | index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 88 | 59.1% | exploratory | ok | False | 2352.4s |
 | index18 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 88 | 60.2% | exploratory | ok | False | 2352.4s |
@@ -522,6 +528,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 6000.3s |
 | mushoku16 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 133 | 62.4% | historical_only | ok | False | 4544.9s |
 | mushoku16 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 133 | 60.9% | historical_only | ok | False | 19529.9s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 133 | 74.4% | exploratory | ok | False | 6147.6s |
+| mushoku16 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 133 | 71.4% | exploratory | ok | False | 6147.6s |
 | mushoku16 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 1090.3s |
 | mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 133 | 34.6% | exploratory | ok | False | 2352.4s |
 | mushoku16 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 133 | 52.6% | exploratory | ok | False | 2352.4s |
@@ -561,6 +569,8 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | qwen3-14b | local-ROCm | ROCm | 32768 | lora | 162 | 43.8% | historical_only | ok | False | 4544.9s |
 | owarimonogatari3 | qwen3-14b | local-llamacpp-hip | llama.cpp-hip | 32768 | lora | 162 | 58.0% | historical_only | ok | True | 28194.5s |
 | owarimonogatari3 | qwen3-14b | local-lmstudio | lmstudio | 32768 | lora | 162 | 57.4% | exploratory | ok | False | 3920.5s |
+| owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | base | 162 | 67.9% | exploratory | ok | False | 6147.6s |
+| owarimonogatari3 | qwen3.8-27b | local-lmstudio | lmstudio | 32768 | lora | 162 | 56.2% | exploratory | ok | False | 6147.6s |
 | owarimonogatari3 | qwen35-9b-q4km | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 1090.3s |
 | owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | base | 162 | 37.0% | exploratory | ok | False | 2352.4s |
 | owarimonogatari3 | qwen35-9b-q4km+qwen35_9b_b | local-Vulkan | Vulkan | 32768 | lora | 162 | 34.0% | exploratory | ok | False | 2352.4s |
@@ -1446,6 +1456,12 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_character_style_selector__pilot.json` | SKIPPED: 'rows' is not a list of scored arms |
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_ahandfulofdust.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_emma.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_mansfieldpark.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_northangerabbey.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_persuasion.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_heldout_senseandsensibility.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__mixed_adapter_clean_heldout_n900.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__mixed_adapter_clean_heldout_n900_b10.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__qwen35_9b_author_five_new_heldout_20260828.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
