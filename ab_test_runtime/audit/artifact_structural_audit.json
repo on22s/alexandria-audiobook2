@@ -1,8 +1,8 @@
 {
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
-    "supported_structure": 492,
-    "exploratory": 270,
+    "supported_structure": 493,
+    "exploratory": 276,
     "provisional": 162
   },
   "artifacts": [
@@ -3425,6 +3425,64 @@
       "reason": "metadata present without commit identity"
     },
     {
+      "artifact": "distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.CORRECTION.json",
+      "bytes": 990,
+      "sha256": "978192fdb1d962e0993154a416bb7240ce1aff1e05600f27e76a80330b6bcdf2",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.json",
+      "bytes": 351015,
+      "sha256": "4f426e9bd735e2e3f49c4ed4cd802c30e7f5830a7a10f6d923a665b8c28e79e3",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 766,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.CORRECTION.json",
+      "bytes": 1181,
+      "sha256": "fb595bd13b1ed31abdaf65cbd2ebe0d492429b868cca01de70c7d0bf543ad99a",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.json",
+      "bytes": 350898,
+      "sha256": "483fcc82d5f62ea55680d66fad9b68f4c5cb8108716105a178f2fe7c6283f6a8",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 766,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
       "artifact": "distill_eval__qwen38_27b_nf4_speaker_hardcases_split_nonmajor-fp8-corrected-gold-a100-loaderfix-20260829.json",
       "bytes": 351021,
       "sha256": "117e25f894b1df6ccd54f6e333e115265c3d62cf67270894ecb52232dc6963d0",
@@ -6282,6 +6340,22 @@
       "reason": "embedded provenance and identifiable harness"
     },
     {
+      "artifact": "library_fidelity_seed_20260914_n20.json",
+      "bytes": 682279,
+      "sha256": "3928c05bce6ec8138b8b6f8a05af7a73fb6f958210ed67fdef7f888199a2c069",
+      "completeness": "unknown",
+      "seed": 20260914,
+      "status": null,
+      "row_count": 75,
+      "has_rows": true,
+      "identity_contract": "tts_provenance",
+      "written": "2026-08-31T08:47:24",
+      "commit": "00b84dd782827a99e7a407496eae001420c15227",
+      "dirty": false,
+      "classification": "supported_structure",
+      "reason": "embedded provenance and identifiable harness"
+    },
+    {
       "artifact": "library_voice_fidelity.json",
       "bytes": 151729,
       "sha256": "d7ba86dede4829c3462165a295c17cdc3119e40035548799234ccbaad479195e",
@@ -7541,6 +7615,32 @@
       "artifact": "pdnc_eval__goal13_development_ahandfulofdust.json",
       "bytes": 895120,
       "sha256": "190e74eb54eb5cc41857269cd9259dfa4f84b876248450839a7a37fab0072d3b",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pdnc_eval__goal13_development_thegambler.json",
+      "bytes": 308081,
+      "sha256": "bcd8a2f7617425132b8def3327469290ba91cbeeb138467b6401642d1ca6038a",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": null,
+      "has_rows": false,
+      "identity_contract": "none",
+      "classification": "exploratory",
+      "reason": "no embedded provenance or experiment metadata"
+    },
+    {
+      "artifact": "pdnc_eval__goal13_development_themysteriousaffairatstyles.json",
+      "bytes": 781039,
+      "sha256": "50e2ee75d9a841ad351fd82e0255fbe0a4cf1a1cc571ac05a6c3af417d01ba3e",
       "completeness": "unknown",
       "seed": null,
       "status": null,

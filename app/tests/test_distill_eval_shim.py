@@ -57,10 +57,12 @@ class _Tok:
     def __init__(self, reply):
         self.reply = reply
         self.messages = None
+        self.template_kwargs = None
 
     def apply_chat_template(self, messages, tokenize=False,
-                            add_generation_prompt=False):
+                            add_generation_prompt=False, **kwargs):
         self.messages = messages
+        self.template_kwargs = kwargs
         return json.dumps(messages)
 
     def __call__(self, text, return_tensors=None):
@@ -172,14 +174,30 @@ class DistillEvalShimTest(unittest.TestCase):
             client.create(messages=[], max_tokens=99).choices[0].finish_reason,
             "stop")
 
-    def test_response_exposes_only_what_the_caller_reads(self):
+    def test_response_exposes_generation_diagnostics_the_caller_reads(self):
         response = self.module.LocalClient(_Model(), _Tok("[]")).create(
             messages=[], max_tokens=8)
         self.assertIsInstance(response.choices[0].message.content, str)
-        # getattr(response, 'usage', None) is how the caller reads it; None is
-        # a value the caller already handles, and inventing token counts would
-        # put fabricated numbers into an artifact.
-        self.assertIsNone(response.usage)
+        self.assertEqual(response.usage.completion_tokens, 3)
+
+    def test_thinking_mode_reaches_the_template(self):
+        tok = _Tok("[]")
+        self.module.LocalClient(_Model(), tok, "off").create(messages=[])
+        self.assertEqual(tok.template_kwargs, {"enable_thinking": False})
+
+        tok = _Tok("[]")
+        self.module.LocalClient(_Model(), tok, "low").create(messages=[])
+        self.assertEqual(tok.template_kwargs,
+                         {"enable_thinking": True, "reasoning_effort": "low"})
+
+    def test_diagnostic_distinguishes_eos_from_empty_content(self):
+        tok = _Tok("")
+        tok.eos_token_id = 6
+        client = self.module.LocalClient(_Model(), tok)
+        client.create(messages=[])
+        self.assertEqual(client.diagnostics[-1]["generated_tokens"], 3)
+        self.assertIs(client.diagnostics[-1]["emitted_eos"], True)
+        self.assertEqual(client.diagnostics[-1]["raw_response"], "")
 
 
 class DistillEvalProvenanceTest(unittest.TestCase):

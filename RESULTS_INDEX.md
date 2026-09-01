@@ -1,6 +1,6 @@
 # Results index
 
-Generated 2026-09-01 from `ab_test_runtime/experiments/` — 924 artifacts, 920 arms.
+Generated 2026-09-01 from `ab_test_runtime/experiments/` — 931 artifacts, 932 arms.
 
 Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_index.csv`.
 
@@ -338,10 +338,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 64.8% | exploratory | ok | False | 13881.0s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 14009.3s |
 | index18 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 25.0% | exploratory | ok | False | 27294.0s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 88 | 72.7% | exploratory | ok | False | 47025.9s |
+| index18 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 47025.9s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 88 | 76.1% | exploratory | ok | False | 18279.0s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 18920.4s |
+| index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 75.0% | exploratory | ok | False | 17394.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 71.6% | exploratory | ok | False | 16723.5s |
 | index18 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 88 | 77.3% | exploratory | ok | False | 18279.0s |
 | index18 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 92 | 71.7% | exploratory | ok | False | 40304.5s |
@@ -362,10 +366,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 73.7% | exploratory | ok | False | 13881.0s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 69.9% | exploratory | ok | False | 14009.3s |
 | mushoku16 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 22.6% | exploratory | ok | False | 27294.0s |
+| mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 47025.9s |
+| mushoku16 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 133 | 79.7% | exploratory | ok | False | 47025.9s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 133 | 72.2% | exploratory | ok | False | 18279.0s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 18920.4s |
+| mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.9% | exploratory | ok | False | 17394.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 72.2% | exploratory | ok | False | 16723.5s |
 | mushoku16 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 133 | 75.2% | exploratory | ok | False | 18279.0s |
 | mushoku16 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 133 | 50.4% | exploratory | ok | False | 40304.5s |
@@ -386,10 +394,14 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 67.9% | exploratory | ok | False | 13881.0s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 14009.3s |
 | owarimonogatari3 | Qwen3.5-35B-A3B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 28.4% | exploratory | ok | False | 27294.0s |
+| owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | base | 162 | 62.3% | exploratory | ok | False | 47025.9s |
+| owarimonogatari3 | Qwen3.8-27B | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.0% | exploratory | ok | False | 47025.9s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | base | 162 | 67.3% | exploratory | ok | False | 18279.0s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 56.2% | exploratory | ok | False | 18920.4s |
+| owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.8% | exploratory | ok | False | 17394.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 64.2% | exploratory | ok | False | 16723.5s |
 | owarimonogatari3 | Qwen3.8-27B-FP8 | local-lmstudio | lmstudio | 32768 | tuned | 162 | 63.6% | exploratory | ok | False | 18279.0s |
 | owarimonogatari3 | Qwen3-14B | local-lmstudio | lmstudio | 32768 | base | 162 | 40.1% | exploratory | ok | False | 40304.5s |
@@ -1236,6 +1248,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `dialogue_map_compare_fresh.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `distill_eval__qwen38_27b_fp8_author_heldout_balanced-fp8-corrected-gold-a100-loaderfix-20260829.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `distill_eval__qwen38_27b_fp8_author_heldout_balanced_lr2e5_1epoch-fp8-corrected-gold-a100-20260830.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.CORRECTION.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `duration_length_intervention.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_outlier_analysis.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `duration_probe.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
@@ -1408,6 +1422,7 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `library_fidelity_seed_20260911_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_fidelity_seed_20260912_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_fidelity_seed_20260913_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
+| `library_fidelity_seed_20260914_n20.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_n10.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `library_voice_fidelity_postfix.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
@@ -1457,6 +1472,8 @@ These artifacts exist and hold real results; this table only represents per-arm 
 | `pdnc_context_audit.json` | NOT INDEXED: TTS provenance artifact; read its per-book/category summary directly |
 | `pdnc_eval.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__goal13_development_ahandfulofdust.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_thegambler.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
+| `pdnc_eval__goal13_development_themysteriousaffairatstyles.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__goal13_heldout_emma.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__goal13_heldout_mansfieldpark.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |
 | `pdnc_eval__goal13_heldout_northangerabbey.json` | NOT INDEXED: no 'rows' list - this table only represents per-arm attribution results |

@@ -25,6 +25,9 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
 SEED="${FIDELITY_SEED:-20260914}"
+STAGE_LOG_DIR="$REPO/ab_test_runtime/logs/overnight_20260830b"
+mkdir -p "$STAGE_LOG_DIR"
+source "$REPO/run_chains/lib/stage.sh"
 
 echo "[$(date -u +%FT%TZ)] STAGE 1: goal 1.3 confirmation"
 ./run_chains/goal_13_confirmation_20260830.sh
@@ -39,12 +42,25 @@ out="ab_test_runtime/experiments/${name}.json"
 if [ -s "$out" ]; then
     echo "[$(date -u +%FT%TZ)] SKIP $name (already complete)"
 else
+    # THIS STAGE MUST RECLAIM THE CARD FIRST, and the first version of this
+    # chain did not. Stage 1 starts llama-server through ensure_llama_server,
+    # which deliberately OUTLIVES the job that started it so consecutive LLM
+    # stages share one load. Nothing stops it afterwards. So on 2026-08-31 this
+    # stage was refused at 01:49 with 1350 MiB free against a 4096 MiB floor,
+    # the chain printed exit=0, and the card sat idle for SEVEN HOURS until a
+    # person requeued it by hand.
+    #
+    # run_stage --needs-vram exists for exactly this and its own comment
+    # records the same failure on 2026-08-19, five stages lost the same way.
+    # Calling ./gpu_job.sh directly skipped it. It also polls for the memory
+    # rather than sleeping a fixed interval, because the driver frees VRAM some
+    # time after the process exits.
     echo "[$(date -u +%FT%TZ)] STAGE 2: $name  (74 adapters, ~4 h estimated)"
-    ./gpu_job.sh "$name" \
+    run_stage "$name" 5h --needs-vram -- \
+        ./gpu_job.sh "$name" \
         ./app/env/bin/python -u app/experiments/library_voice_fidelity.py \
         --lines 20 --seed "$SEED" \
-        --work "ab_test_runtime/${name}" --out "$out" \
-        > "ab_test_runtime/logs/${name}.out" 2>&1
-    echo "[$(date -u +%FT%TZ)] STAGE 2 exit=$?"
+        --work "ab_test_runtime/${name}" --out "$out"
+    stage_summary overnight_20260830b_stage2
 fi
 echo "[$(date -u +%FT%TZ)] COMPLETE overnight_20260830b"

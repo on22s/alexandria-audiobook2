@@ -419,6 +419,12 @@
     "tests.test_chain_stage_lib.StageRunnerTest.test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied",
     "tests.test_chain_stage_lib.StageRunnerTest.test_running_the_same_chain_twice_is_idempotent"
   ],
+  "test_chains_reclaim_vram": [
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_a_chain_that_starts_a_server_reclaims_before_a_gpu_heavy_stage",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_no_chain_reclaims_with_pkill_dash_f",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
+    "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
+  ],
   "test_character_distinctiveness": [
     "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
     "tests.test_character_distinctiveness.ManifestTest.test_clips_are_grouped_by_the_chunk_speaker",
@@ -755,9 +761,11 @@
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_classifier_accounts_for_every_excluded_gold_entry",
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
-    "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_only_what_the_caller_reads",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_diagnostic_distinguishes_eos_from_empty_content",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_generation_diagnostics_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_temperature_zero_is_greedy_not_sampled",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_thinking_mode_reaches_the_template",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_truncated_generation_reports_finish_reason_length"
   ],
   "test_distill_qwen35": [
@@ -881,6 +889,11 @@
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_a_repeated_line_is_excluded_from_the_sheet",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_case_only_differences_are_not_a_disagreement",
     "tests.test_evaluation_tools.RepeatedDialogueTest.test_unambiguous_lines_still_appear"
+  ],
+  "test_evaluators_record_the_roster": [
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_a_recorded_row_reports_membership_both_ways",
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_an_empty_roster_is_not_silently_a_pass",
+    "tests.test_evaluators_record_the_roster.EvaluatorsRecordTheRosterTest.test_every_scoring_call_passes_candidates"
   ],
   "test_expected_prosody_fusion": [],
   "test_experiment_conventions": [
@@ -1373,6 +1386,7 @@
   ],
   "test_legacy_attribution_audit": [
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_commit_identity_requires_ancestry_not_unrelated_object_presence",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_never_reads_outside_the_checkout",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_rescore_exposes_changed_and_unmapped_rows",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_inventory_is_exhaustive_and_semantically_bounded",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_markdown_lists_every_artifact_once"
@@ -2650,6 +2664,14 @@
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_gating_on_type_finds_nothing",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_experiment_gates_on_speaker",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_schema_has_no_type_key"
+  ],
+  "test_teacher_coverage": [
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_a_complete_corpus_passes",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_a_silent_loss_is_refused",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_allow_unexplained_reports_but_does_not_refuse",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_over_recording_does_not_hide_a_further_loss",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_recording_the_loss_satisfies_the_invariant",
+    "tests.test_teacher_coverage.TeacherCoverageTest.test_sources_that_were_never_routed_are_not_a_failure"
   ],
   "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways",

@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2580** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2661** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -325,7 +325,38 @@ supply **5,149 quotations across five Austen novels**, none of which appear in
 the balanced adapter's twenty-novel training manifest (author `AUST` was
 excluded wholesale). They are still one author, so they widen the held-out set
 without widening its register — a five-book Austen result would confirm
-transfer beyond the training novels, not transfer beyond Austen. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+transfer beyond the training novels, not transfer beyond Austen.
+
+**CONFIRMED, 2026-08-31: the adapter transfers, and does BETTER on books it
+never trained on.** The balanced adapter was run over all five never-trained
+Austen novels and three of its own training books, 10,114 quotations, two arms,
+one model load:
+
+| half | rows | base | lora | delta |
+|---|---:|---:|---:|---:|
+| **held-out** (never trained) | 5,149 | 73.4% | **82.8%** | **+9.4** |
+| **development** (in training) | 4,965 | 66.6% | 75.9% | +9.3 |
+
+Per book, held-out: Emma 73.4→82.9 (+9.5), MansfieldPark 72.6→76.5 (+3.9),
+NorthangerAbbey 68.2→91.4 (+23.3), Persuasion 71.9→75.6 (+3.7),
+SenseAndSensibility 79.2→85.9 (+6.7). Artifacts are
+`pdnc_eval__goal13_heldout_*.json` and `pdnc_eval__goal13_development_*.json`.
+
+**DEV MINUS HELD-OUT is −6.9 points**, and the sign is the finding. A large
+POSITIVE gap would be memorisation — the adapter doing well only where it had
+seen the answers. It is negative: the adapter scores *higher* on the five books
+it never saw than on its own twenty training novels. The gain itself is almost
+identical on both halves, **+9.4 against +9.3**, which is what transfer looks
+like and is not what memorisation looks like.
+
+**What this still does not settle.** All five held-out books are Austen, so
+this confirms transfer beyond the TRAINING NOVELS and not beyond the register;
+a sixth author remains untested. The development half is three books and its
+base rate is 6.8 points lower than the held-out half's, so the two halves are
+not matched in difficulty and only the deltas should be compared across them.
+Refusals are absent here — 0.0% unanswered on all five held-out books — so
+unlike the qwen3.5/3.8 evaluations these numbers are not confounded by the
+refusal mechanism recorded above. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
@@ -412,6 +443,49 @@ Two limits are recorded here because neither is visible from the artifacts:
   397 entries carry the same value. At 1% this cannot move the result, but an
   unexplained filter is where a real bias would hide, so it is written down
   rather than rounded away.
+
+**The refusal replicates, and constrained decoding does not fix it —
+2026-08-30.** A fresh A100 run of `author_heldout_balanced` on qwen3.8-27b
+reproduces the pattern exactly: base **72.1%** with 3.9% of rows unanswered,
+tuned **65.5%** with **11.7%** unanswered
+(`lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json`).
+The adapter costs 6.6 points and triples the refusal rate on a run that was not
+part of the batch the mechanism was found in.
+
+**GBNF-constrained decoding was tested and is not the repair.** A 2x2 on
+mushoku16 — {open, oracle} x {free, grammar}, n=139
+(`grammar_constraint__mushoku16__qwen__qwen3.8-27b__qwen38-fp8-author-balanced-grammar-a100-20260830.json`):
+
+| | free | grammar |
+|---|---:|---:|
+| open, all rows | 61.2% | 59.0% |
+| open, answerable only | **69.5%** | **69.5%** |
+| oracle | 77.0% | 79.1% |
+
+On the rows where the gold is actually in the roster the two are **identical —
+82 of 118 both** — so constraining the output changed nothing that could be
+changed. The open-condition difference is an artefact: 21 of 139 rows have gold
+OUTSIDE the candidate list, and free decoding occasionally names it anyway
+while the grammar forbids it. The oracle gain is +3 rows of 139 and is not
+worth a claim on its own.
+
+**This experiment does not test the refusal**, and should not be read as
+having done so: **zero rows were unanswered in all four arms.** Its own note
+says it targets off-list errors. What repairs the refusal is still unknown.
+
+**One hypothesis is already dead.** The light-novel teacher corpus routes
+12.8% of its rows to an `UNKNOWN` target, which looked like a candidate
+mechanism — an adapter taught to answer `UNKNOWN` might decline when handed a
+roster. It cannot be the explanation here: the three adapters trained on
+`train__pdnc_*.jsonl`, which contains **0 `UNKNOWN` rows in 5,000**. The
+corpus that carries them was built on 2026-08-30, after these adapters, for
+future distillation.
+
+The obvious follow-up — stratifying refusals by whether the gold speaker was
+in the evaluation roster, which would separate a roster defect from a learned
+refusal — **cannot be run on the existing artifacts**: `candidates` is empty
+and `in_candidates` is `None` on every row of every serving evaluation. That
+needs a re-run of the evaluator populating those fields, not a re-analysis.
 
 **One of those three books had a dirty roster, 2026-08-30.** PDNC lists
 `_group` and `_unknowable` as pseudo-characters in `character_info.csv`, and
@@ -1085,12 +1159,19 @@ where that sample sits. The INFERENCE from it was wrong, while `manifest.json`
 had recorded `dataset_id` per adapter all along. The probe now reads that,
 checked first against every adapter whose path-derived name was already a real
 dataset — **19 of 19 agree, none disagree**. With it, **75 of 75 adapters
-resolve to a dataset that finds its zip, against 19 before**, so the next
-fidelity run covers 74 (one adapter has no validation clips) rather than 18.
+resolve to a dataset that finds its zip, against 19 before**.
 
-**The figures above still describe 18 adapters.** They were measured before the
-fix and are not retroactively widened by it; a re-run is what would widen
-them.
+**The full-library re-run completed 2026-08-31.** On seed 20260914 at up to 20
+validation lines per adapter, `library_fidelity_seed_20260914_n20.json` scores
+**74 of 75 adapters over 1,417 generated/reference pairs**; the remaining
+adapter explicitly reports `no val clips`. Sixty-seven adapters supplied all
+20 pairs and seven supplied 2–18, so the latter estimates carry less support.
+The adapter-level ECAPA median is **0.626** and 9 adapters fall below 0.45.
+The three failures stable over the earlier 21 seeds remain the bottom three:
+`velvety_mezzo_30s_f_gothic` **0.079**, `silky_baritone_45s_m` **0.103**, and
+`husky_baritone_20s_m_supernatural` **0.160**. This widens coverage; it does
+not remove the contamination caveat above because the shipped adapters heard
+their validation lines during training.
 
 One trap for anyone re-running this audit: the retrained adapters record
 `num_samples` while the older ones record `sample_count`. Two field names for

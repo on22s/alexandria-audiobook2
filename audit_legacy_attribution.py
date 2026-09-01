@@ -2,6 +2,7 @@
 """Audit every legacy ExperimentRecord artifact against current evidence."""
 import argparse
 import collections
+import difflib
 import hashlib
 import json
 import os
@@ -65,6 +66,15 @@ def _commit_is_in_history(commit):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
 
+def is_path_within_repo(path):
+    """Return whether path resolves inside this checkout."""
+    try:
+        return os.path.commonpath(
+            [os.path.realpath(REPO), os.path.realpath(path)]) == os.path.realpath(REPO)
+    except (OSError, ValueError):
+        return False
+
+
 def _current_gold(meta, rows):
     """Compare an artifact's rows against the gold it was scored on.
 
@@ -95,6 +105,8 @@ def _current_gold(meta, rows):
     path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
+    if not is_path_within_repo(path):
+        return result
     # Skip ONLY on a definite "untracked". Outside a repository git cannot
     # answer, and refusing to read the fixture there would mean auditing
     # nothing while reporting success.
@@ -246,7 +258,8 @@ def main():
             str(json.load(open(os.path.join(EXPERIMENTS, row["artifact"]),
                                encoding="utf-8"))["meta"].get("gold_path") or "")
             for row in audit["artifacts"])
-        if rel and os.path.isfile(os.path.join(REPO, rel))
+        if rel and is_path_within_repo(os.path.join(REPO, rel))
+        and os.path.isfile(os.path.join(REPO, rel))
         and tracked_state(rel, REPO) == "untracked"})
     if local_only:
         print(f"note: {len(local_only)} gold fixture(s) exist here but are not "
@@ -260,6 +273,20 @@ def main():
         with open(args.markdown, encoding="utf-8") as handle:
             existing_md = handle.read()
         if existing != audit or existing_md != markdown:
+            existing_json = json.dumps(
+                existing, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+            expected_json = json.dumps(
+                audit, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+            for line in difflib.unified_diff(
+                    existing_json, expected_json,
+                    fromfile="committed legacy audit",
+                    tofile="regenerated legacy audit", lineterm=""):
+                print(line, file=sys.stderr)
+            for line in difflib.unified_diff(
+                    existing_md.splitlines(), markdown.splitlines(),
+                    fromfile="committed legacy audit markdown",
+                    tofile="regenerated legacy audit markdown", lineterm=""):
+                print(line, file=sys.stderr)
             raise SystemExit("legacy attribution audit is stale")
         print(f"legacy attribution audit is current ({len(audit['artifacts'])} artifacts)")
         return

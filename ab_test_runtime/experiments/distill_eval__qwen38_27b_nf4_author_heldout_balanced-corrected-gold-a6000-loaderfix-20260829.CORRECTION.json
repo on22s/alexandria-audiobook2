@@ -1,0 +1,20 @@
+{
+  "artifact": "distill_eval__qwen38_27b_nf4_author_heldout_balanced-corrected-gold-a6000-loaderfix-20260829.json",
+  "artifact_sha256": "483fcc82d5f62ea55680d66fad9b68f4c5cb8108716105a178f2fe7c6283f6a8",
+  "field": "meta.notes",
+  "incorrect_claim": "LoRA distilled from a 70B on 1,091 routed rows of grimgar06 and mushoku18",
+  "correction": "This adapter was trained for 3 epochs from data/train__pdnc_*.jsonl at learning rate 1e-4. The evaluator's hard-coded note described an older adapter and is not valid provenance for this run.",
+  "evidence": {
+    "training_script": "/home/ubuntu/qwen38_balanced_and_corrected_gold_tnr0_20260828b.sh",
+    "training_script_sha256": "3770763e6f8b962b9284386bf8953ecab3cf9edc32b2f48fb3141f6271465ff7",
+    "evaluation_script": "/home/ubuntu/qwen38_balanced_and_corrected_gold_tnr0_20260829c.sh",
+    "evaluation_script_sha256": "b79221d70f9461bcfca371ca5d23ab0b5f6f93a686fbbf2db366c0c841b04bce",
+    "training_data_argument": "data/train__pdnc_*.jsonl",
+    "training_files_observed": 20,
+    "training_rows_observed": 3974,
+    "epochs": 3,
+    "learning_rate": 0.0001,
+    "completed_steps": 1491
+  },
+  "measurement_changed": false
+}
