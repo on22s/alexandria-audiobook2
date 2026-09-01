@@ -43,7 +43,15 @@ LLAMA_PORT="$PORT" "$REPO/ensure_llama_server.sh" "$ADAPTER" \
     > "$runtime/logs/${TAG}.server.log" 2>&1 \
     || { echo "REFUSING: llama-server failed to start" >&2; exit 1; }
 
-env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 "$REPO/gpu_job.sh" "$TAG" \
+# ExperimentRecord queries LM Studio when no environment is supplied, and
+# refuses to write an artifact it cannot describe. This chain serves through
+# llama.cpp, so LM Studio is absent and the run aborted in one second with
+# EnvironmentCaptureError - correctly, before spending any GPU. Declare the
+# environment we actually have, the way the 2026-08-28 quant chain does.
+EXPERIMENT_ENV="$(printf '%s' "{\"loaded\":true,\"context_length\":32768,\"parallel\":1,\"optimized\":true,\"verified_model\":\"qwen3-14b+author_heldout_balanced\",\"host\":\"$(hostname)\",\"gpu\":\"AMD Radeon RX 9070 XT\",\"backend\":\"Vulkan\",\"server\":\"llama.cpp\"}")"
+export EXPERIMENT_ENV
+
+env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 EXPERIMENT_ENV="$EXPERIMENT_ENV" "$REPO/gpu_job.sh" "$TAG" \
     "$python" -u "$REPO/app/experiments/lora_serving_eval.py" \
     --books index18 \
     --input-dir "$runtime/dialogue_map_5_3_inputs" \
