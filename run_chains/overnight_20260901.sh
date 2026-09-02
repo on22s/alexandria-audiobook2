@@ -26,7 +26,7 @@ mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
 
 echo "[$(date -u +%FT%TZ)] STAGE 1: refusal stratification"
-./run_chains/refusal_stratification_20260830.sh || echo "  stage 1 rc=$?"
+./run_chains/unanswered_stratification_20260830.sh || echo "  stage 1 rc=$?"
 
 # --needs-vram because stage 1 leaves llama-server holding the card:
 # ensure_llama_server deliberately outlives its job, and on 2026-08-31 that

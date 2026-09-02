@@ -422,10 +422,10 @@ def main():
                                g["expected_speaker"].upper(), sp,
                                same_speaker(g["expected_speaker"], sp, groups),
                                # The roster the model was shown. Without it
-                               # in_candidates is None on every row and a refusal
-                               # cannot be told apart from a roster that never
-                               # held the answer - which is the question the
-                               # refusal finding of 2026-08-30 arrived at.
+                               # in_candidates is None on every row and a blank
+                               # answer cannot be told apart from a roster that
+                               # never held it - the question the unanswered-row
+                               # finding of 2026-08-30 arrived at.
                                candidates=roster,
                                provenance=f"{arm}|{book}", raw=raw)
                     scored += 1

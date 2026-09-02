@@ -1,15 +1,24 @@
 #!/bin/bash
-# Is the refusal a roster defect, or is it learned?
+# Is the unanswered row a roster defect, or is it learned?
+#
+# NAMING, CORRECTED 2026-09-02. This was called "refusal" until the raw outputs
+# were read. Of 93 unanswered rows carrying a raw_response, ZERO are safety
+# refusals: 81 are the model emitting its own deliberation where the JSON goes
+# ("We need answer user's request... output ONLY valid JSON array"), 10 are a
+# literal [], 2 are malformed JSON. The 12 that matched a refusal regex were
+# the model QUOTING the novel - "...I cannot call it ideal,". Nothing declines.
+# The measured quantity is an UNANSWERED row, which is what the evaluators
+# already print. The question below is unchanged and still worth asking.
 #
 # THE QUESTION THIS EXISTS TO ANSWER. On 2026-08-30 the adapters were found to
-# refuse - to return an empty prediction - and to refuse the rows they would
-# have got wrong: base accuracy is 11-62% on the rows the tuned arm declined
+# leave rows unanswered - to return an empty prediction - and to do so on the
+# rows they would have got wrong: base accuracy is 11-62% on the rows the tuned arm declined
 # against 65-77% on the rows it answered. Two explanations survive:
 #
 #   roster defect     the model declines because the gold genuinely is not in
 #                     the roster it was shown, and declining is correct
-#   learned refusal   the adapter declines regardless of whether the answer
-#                     was available
+#   learned blanking  the adapter returns nothing regardless of whether the
+#                     answer was available
 #
 # They imply different fixes. `in_candidates` separates them, and it was None
 # on all 766 rows of every serving evaluation because neither evaluator passed
@@ -29,7 +38,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
 runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
-TAG="${TAG:-refusal-stratification-20260830}"
+TAG="${TAG:-unanswered-stratification-20260830}"
 ADAPTER="$runtime/distill/gguf/new_20260824/adapter_author_heldout_balanced.gguf"
 PORT="${LLAMA_PORT:-8090}"
 out="$runtime/experiments/lora_serving_eval__${TAG}.json"
@@ -61,7 +70,7 @@ env REQUIRE_LLM=1 REQUIRE_VRAM_GB=0 EXPERIMENT_ENV="$EXPERIMENT_ENV" "$REPO/gpu_
     > "$runtime/logs/${TAG}.out" 2>&1
 rc=$?
 
-# The point of the run: refusal rate split by whether the answer was there.
+# The point of the run: unanswered rate split by whether the answer was there.
 "$python" - "$out" <<'PYEOF'
 import json, sys
 try:
@@ -71,7 +80,7 @@ except Exception as exc:
 rows = d["rows"]
 if not any(r.get("candidates") for r in rows):
     print("REFUSING TO REPORT: candidates still empty, so this run cannot "
-          "separate a roster defect from a learned refusal.")
+          "separate a roster defect from learned blanking.")
     raise SystemExit(0)
 print(f"\n{'arm':8} {'gold in roster':>22} {'gold absent':>22}")
 for arm in sorted({r["arm"] for r in rows}):
@@ -84,7 +93,7 @@ for arm in sorted({r["arm"] for r in rows}):
         e = sum(1 for r in sub if not (r.get("predicted") or "").strip())
         cells.append(f"{100*e/len(sub):5.1f}% empty of {len(sub):3}")
     print(f"{arm:8} {cells[0]:>22} {cells[1]:>22}")
-print("\nSimilar rates on both sides = learned refusal.")
-print("Refusals concentrated where the gold is absent = roster defect.")
+print("\nSimilar rates on both sides = learned blanking.")
+print("Blanks concentrated where the gold is absent = roster defect.")
 PYEOF
 echo "[$(date -u +%FT%TZ)] COMPLETE $TAG (job rc=$rc)"

@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2661** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2676** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -354,9 +354,9 @@ this confirms transfer beyond the TRAINING NOVELS and not beyond the register;
 a sixth author remains untested. The development half is three books and its
 base rate is 6.8 points lower than the held-out half's, so the two halves are
 not matched in difficulty and only the deltas should be compared across them.
-Refusals are absent here — 0.0% unanswered on all five held-out books — so
+Unanswered rows are absent here — 0.0% on all five held-out books — so
 unlike the qwen3.5/3.8 evaluations these numbers are not confounded by the
-refusal mechanism recorded above. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
+unanswered-row mechanism recorded above. The older `adapter_mixed` also scores **2240/2494 (89.8%)** on
 these three books, 0.7 points above the new balanced adapter, so the balanced
 adapter is the strongest of the three new arms, not yet the unqualified
 production winner.
@@ -386,7 +386,7 @@ The artifacts are `distill_eval__qwen3*-corrected-gold-*.json`. A ninth run,
 `qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch`, reads 25.6% and is
 **not a result**: its tuned arm returned an empty prediction on 266 of 383 rows
 against 3–10% for every sibling, so it measures a generation failure. The
-refusal is recorded beside the artifact in
+generation failure is recorded beside the artifact in
 `distill_eval__qwen35_35b_a3b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-a100-loaderfix-20260828.INVALID.json`
 and as a caveat in the results index, which is where a reader meets the
 number. That model/adapter pair has no measurement until it is re-run.
@@ -394,9 +394,24 @@ number. That model/adapter pair has no measurement until it is re-run.
 Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
 each other but the tuned columns are not comparable across rows.
 
-**Why qwen38 is worst: the adapters induce refusal, and they refuse the hard
-rows.** Every tuned arm answers fewer rows than its base — 13 to 37 empty
-predictions against 11 to 20 — and qwen38 refuses most. Scored on ANSWERED
+**"Refusal" is a misnomer — corrected 2026-09-02.** Everything below called
+this a refusal for three days. The raw outputs say otherwise. Of **93**
+unanswered rows across the qwen38 artifacts that carry a `raw_response`,
+**zero** are safety refusals: **81** are the model emitting its own
+deliberation where the JSON belongs — *"We need answer user's request: assign
+speaker names to entries, output ONLY valid JSON array, no markdown"* — **10**
+are a literal `[]`, and **2** are malformed JSON. Twelve rows matched a
+refusal regex; all twelve were the model **quoting the novel** (*"…I cannot
+call it ideal,"*). Nothing declines. The model knows the task and the required
+format and writes the reasoning instead of the answer, which is a
+thinking-control failure, not an alignment one. The measured quantity is an
+**unanswered** row — the word the evaluators already print. Historical artifact
+tags keep `refusal` in their names because renaming them would orphan the
+evidence they hold; the mechanism claim is what was wrong, not the data.
+
+**Why qwen38 is worst: the adapters leave rows unanswered, and the unanswered
+rows are the hard ones.** Every tuned arm answers fewer rows than its base — 13
+to 37 empty predictions against 11 to 20 — and qwen38 answers fewest. Scored on ANSWERED
 rows only, every arm turns positive or neutral (qwen38 goes −5.0 → −0.4,
 −2.3 → +2.1, −0.3 → +1.1), which invites the reading that the adapter knows
 the answer and merely declines to give it.
@@ -409,9 +424,9 @@ separately on the rows the tuned arm refused versus the rows it answered:
 |---|---:|---:|
 | across all nine runs | **11.4–61.5%** | **65.0–77.0%** |
 
-The refusals land squarely on the hard rows. So the answered-only figures are
+The unanswered rows land squarely on the hard rows. So the answered-only figures are
 selection-inflated in every run, and the all-rows numbers in the table above
-are the honest ones: a refusal is a wrong answer, and in production it is
+are the honest ones: an unanswered row is a wrong answer, and in production it is
 worse than a guess. **Do not quote answered-only deltas from these artifacts.**
 
 What is genuinely new is the mechanism rather than a rescue: these adapters
@@ -444,13 +459,13 @@ Two limits are recorded here because neither is visible from the artifacts:
   unexplained filter is where a real bias would hide, so it is written down
   rather than rounded away.
 
-**The refusal replicates, and constrained decoding does not fix it —
+**The unanswered rate replicates, and constrained decoding does not fix it —
 2026-08-30.** A fresh A100 run of `author_heldout_balanced` on qwen3.8-27b
 reproduces the pattern exactly: base **72.1%** with 3.9% of rows unanswered,
 tuned **65.5%** with **11.7%** unanswered
 (`lora_serving_eval__qwen38-fp8-author-balanced-q4km-scale01-compliance-a100-20260830.json`).
-The adapter costs 6.6 points and triples the refusal rate on a run that was not
-part of the batch the mechanism was found in.
+The adapter costs 6.6 points and triples the unanswered rate on a run that was
+not part of the batch the mechanism was found in.
 
 **GBNF-constrained decoding was tested and is not the repair.** A 2x2 on
 mushoku16 — {open, oracle} x {free, grammar}, n=139
@@ -469,9 +484,9 @@ OUTSIDE the candidate list, and free decoding occasionally names it anyway
 while the grammar forbids it. The oracle gain is +3 rows of 139 and is not
 worth a claim on its own.
 
-**This experiment does not test the refusal**, and should not be read as
-having done so: **zero rows were unanswered in all four arms.** Its own note
-says it targets off-list errors. What repairs the refusal is still unknown.
+**This experiment does not test the unanswered rows**, and should not be read
+as having done so: **zero rows were unanswered in all four arms.** Its own note
+says it targets off-list errors. What repairs them is still unknown.
 
 **One hypothesis is already dead.** The light-novel teacher corpus routes
 12.8% of its rows to an `UNKNOWN` target, which looked like a candidate
@@ -481,9 +496,9 @@ roster. It cannot be the explanation here: the three adapters trained on
 corpus that carries them was built on 2026-08-30, after these adapters, for
 future distillation.
 
-The obvious follow-up — stratifying refusals by whether the gold speaker was
-in the evaluation roster, which would separate a roster defect from a learned
-refusal — **cannot be run on the existing artifacts**: `candidates` is empty
+The obvious follow-up — stratifying unanswered rows by whether the gold speaker was
+in the evaluation roster, which would separate a roster defect from learned
+blanking — **cannot be run on the existing artifacts**: `candidates` is empty
 and `in_candidates` is `None` on every row of every serving evaluation. That
 needs a re-run of the evaluator populating those fields, not a re-analysis.
 
