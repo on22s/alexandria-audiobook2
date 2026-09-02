@@ -761,6 +761,7 @@
   "test_distill_eval_shim": [
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_classifier_accounts_for_every_excluded_gold_entry",
     "tests.test_distill_eval_shim.DistillEvalProvenanceTest.test_evaluator_does_not_claim_one_adapter_training_corpus",
+    "tests.test_distill_eval_shim.DistillEvalShimTest.test_artifact_contract_requires_predictions_and_raw_responses",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_diagnostic_distinguishes_eos_from_empty_content",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_response_exposes_generation_diagnostics_the_caller_reads",
     "tests.test_distill_eval_shim.DistillEvalShimTest.test_shim_drives_attribute_batch_and_freezes_text",
@@ -940,8 +941,10 @@
     "tests.test_experiment_manifest.ContractValidationTest.test_a_missing_arm_is_caught",
     "tests.test_experiment_manifest.ContractValidationTest.test_a_missing_context_length_is_caught",
     "tests.test_experiment_manifest.ContractValidationTest.test_a_missing_harness_fingerprint_is_caught",
+    "tests.test_experiment_manifest.ContractValidationTest.test_all_empty_predictions_are_not_a_measured_null_result",
     "tests.test_experiment_manifest.ContractValidationTest.test_arms_scoring_different_lines_are_caught_without_a_contract",
     "tests.test_experiment_manifest.ContractValidationTest.test_dropped_lines_are_caught",
+    "tests.test_experiment_manifest.ContractValidationTest.test_missing_raw_responses_are_caught_only_when_demanded",
     "tests.test_experiment_manifest.ContractValidationTest.test_non_ideal_load_settings_are_caught_only_when_demanded",
     "tests.test_experiment_manifest.HarnessEvidenceParityTest.test_every_harness_records_raw_evidence",
     "tests.test_experiment_manifest.HarnessEvidenceParityTest.test_harnesses_using_attribute_batch_capture_attempts",

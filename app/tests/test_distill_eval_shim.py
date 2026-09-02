@@ -199,6 +199,13 @@ class DistillEvalShimTest(unittest.TestCase):
         self.assertIs(client.diagnostics[-1]["emitted_eos"], True)
         self.assertEqual(client.diagnostics[-1]["raw_response"], "")
 
+    def test_artifact_contract_requires_predictions_and_raw_responses(self):
+        path = os.path.join(APP, "experiments", "distill_eval.py")
+        with open(path, encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn('"require_any_prediction": True', source)
+        self.assertIn('"require_raw_response": True', source)
+
 
 class DistillEvalProvenanceTest(unittest.TestCase):
     @classmethod

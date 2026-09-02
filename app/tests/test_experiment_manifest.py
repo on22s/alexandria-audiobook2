@@ -268,6 +268,26 @@ class ContractValidationTest(unittest.TestCase):
         self.assertEqual([], record.validate(
             {"expected_arms": ("a", "b"), "expected_ids": ("id1", "id2")}))
 
+    def test_all_empty_predictions_are_not_a_measured_null_result(self):
+        record = self._record(arms=(), ids=())
+        for arm in ("base", "tuned"):
+            record.add(arm, "id1", "L", "ROXY", None, False,
+                       raw=None)
+        problems = record.validate({"require_any_prediction": True})
+        self.assertEqual(2, sum("every prediction is empty" in p
+                                for p in problems))
+
+    def test_missing_raw_responses_are_caught_only_when_demanded(self):
+        record = self._record()
+        self.assertFalse(any("raw response" in p for p in record.validate()))
+        problems = record.validate({"require_raw_response": True})
+        self.assertEqual(2, sum("no raw response" in p for p in problems))
+
+        for row in record.rows:
+            row["raw_response"] = '[{"n":0,"speaker":"ROXY"}]'
+        self.assertFalse(any("raw response" in p for p in
+                             record.validate({"require_raw_response": True})))
+
     def test_non_ideal_load_settings_are_caught_only_when_demanded(self):
         # "optimized" is computed against an ideal derived from live VRAM, so
         # it moves with whatever else is on the card. Recording it is right;
