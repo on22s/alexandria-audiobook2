@@ -1066,7 +1066,11 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     requires a gapless accepted-chunk prefix, Rule 9).
     """
     from response_codecs import get_codec
-    codec = get_codec(getattr(params, "output_format", "json") or "json")
+    output_format = getattr(params, "output_format", "json") or "json"
+    # two_step runs stage 1 freeform and stage 2 as JSON, so the codec that
+    # matters for the gate is the JSON one; stage 1 gets its own below.
+    two_step = output_format == "two_step"
+    codec = get_codec("json" if two_step else output_format)
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
 
@@ -1092,7 +1096,39 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         if attempt_observer:
             attempt_observer(attempt)
 
+    def call_two_step(retries):
+        """Annotate freely, then serialise. The gate still scores the FINAL
+        entries against the ORIGINAL chunk, so neither stage can hide a loss."""
+        from response_codecs import FREEFORM_KEY
+        from two_step import (CONVERSION_SYSTEM, build_conversion_prompt,
+                              build_freeform_prompt, PromptShapeError)
+        stage1 = call_llm_for_entries(
+            client, model_name, build_freeform_prompt(sys_prompt), user_prompt,
+            params, log_name="llm_responses.log",
+            label=f"CHUNK {chunk_num}/{total_chunks} stage1",
+            max_retries=retries, attempt_observer=observe,
+            codec=get_codec("freeform"))
+        if not stage1:
+            print(f"  CHUNK {chunk_num}/{total_chunks} stage1 produced nothing")
+            return []
+        try:
+            convert_prompt = build_conversion_prompt(stage1[0].get(FREEFORM_KEY))
+        except PromptShapeError as exc:
+            print(f"  CHUNK {chunk_num}/{total_chunks} stage1 unusable: {exc}")
+            return []
+        return call_llm_for_entries(
+            client, model_name, CONVERSION_SYSTEM, convert_prompt, params,
+            log_name="llm_responses.log",
+            label=f"CHUNK {chunk_num}/{total_chunks} stage2",
+            max_retries=retries,
+            validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+            transform_entries=prepare_entries,
+            attempt_observer=observe,
+            codec=codec)
+
     def call(retries):
+        if two_step:
+            return call_two_step(retries)
         return call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, params,
             log_name="llm_responses.log",
@@ -1316,7 +1352,8 @@ def main():
                               "run only, without editing config.json. Smaller chunks shorten "
                               "each call's output. The chunk size is part of the generation "
                               "fingerprint, so a different value starts a fresh checkpoint.")
-    parser.add_argument("--output-format", choices=("json", "lines"), default="json",
+    parser.add_argument("--output-format", choices=("json", "lines", "two_step"),
+                        default="json",
                         help="wire format the model is asked to emit. 'lines' "
                              "uses SPEAKER|INSTRUCT|TEXT, which measured ~25%% "
                              "fewer output tokens than the JSON the model "
@@ -1549,6 +1586,8 @@ def main():
     start_time = time.monotonic()
 
     # Sampling/prompt settings are constant across chunks - build once.
+    if args.output_format == "two_step":
+        print("Output format: two_step (annotate freeform, then serialise)")
     if args.output_format == "lines":
         from response_codecs import build_line_format_prompt
         # Raises rather than half-converting: an arm still told to emit JSON
