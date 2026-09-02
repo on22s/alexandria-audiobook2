@@ -3370,6 +3370,61 @@ language, RX 9070 XT). **MET, barely.**
 
 **Target — hold local within 5% of cloud on every book.**
 
+### Tested and not adopted — a compact wire format for generation (2026-09-02)
+
+*Not a numbered goal: this is a result, and every `### N.N` heading is parsed
+as a goal that must sit in the half matching its verdict.*
+
+**Tested and NOT adopted — 2026-09-02.** `generate_script` fails by truncation,
+not by malformed syntax, and every entry pays for a JSON wrapper around prose
+it must reproduce verbatim. `SPEAKER|INSTRUCT|TEXT` removes that wrapper.
+Re-encoding 100,776 real entries across the whole `scripts/` library measured
+**25.2% fewer output tokens** — against the shape the model *actually emits*
+(all 135 CHUNK responses in `llm_responses.log` are one line with `", "`
+separators, never the 2-space form the prompt demonstrates; measuring against
+the demonstrated shape would have claimed 32.5% and been wrong).
+
+Run live on the H100: 23 chunks of *The Awakening*, Qwen3.8-27B-UD-Q6_K via
+llama-server with `--reasoning off`, both arms sharing a byte-identical RULES
+section so only the format spec differs.
+
+| | JSON | LINES | |
+|---|---|---|---|
+| **22 of 23 chunks** | | | |
+| LLM calls | 24 | 23 | −4% |
+| completion tokens | 22,287 | **17,859** | **−19.9%** |
+| gate rejections | 2 | 1 | |
+| **chunk 14 alone** | | | |
+| LLM calls | 1 | **26** | |
+| completion tokens | 949 | **11,849** | |
+| gate rejections | 0 | **25** | |
+| **all 23 chunks** | | | |
+| completion tokens | 23,236 | 29,708 | **+27.9%** |
+
+**The format works. The tail is what kills it.** On 22 of 23 chunks it does
+exactly what the offline count predicted — ~20% fewer tokens at equal or lower
+rejection rates. Then one chunk went into a 26-attempt spiral, burning 11,849
+tokens (more than half the entire JSON run), taking three adaptive splits and
+seven near-miss acceptances, and never passing cleanly — it entered the script
+only through the exhaustion-only 0.82 trigram floor, which JSON needed zero
+times. A 20% saving became a 28% loss on one chunk in 23.
+
+**What this does NOT say.** Rejections landed on **two distinct chunks in each
+arm** — the 26-vs-2 raw counts are an artifact of `process_chunk_adaptively`
+reusing the parent chunk number for every split part, and reading them as a
+book-wide format penalty would be wrong. Whether the tail is inherent to the
+format or a property of that one chunk is untested: n=1 pathological chunk, one
+book, one model, and a brand-new lines prompt against a JSON prompt iterated on
+for months. That asymmetry alone could explain it.
+
+The code ships behind `--output-format`, defaulting to `json`, so nothing in
+production changes. Re-propose only with the tail measured across several
+books — the per-call saving is real and worth revisiting, but the token count
+alone is not the reason to adopt it.
+
+Evidence: `ab_test_runtime/lineformat_ab_20260902/` (comparison + every
+rejection reason, both arms).
+
 ---
 
 ## 5. Text handling

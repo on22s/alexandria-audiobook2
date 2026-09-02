@@ -1,0 +1,51 @@
+# line-format A/B, H100, 2026-09-02
+# book:  head -c 62000 pdnc_flat/TheAwakening.txt   (23 chunks @ 3000 chars)
+# model: Qwen3.8-27B-UD-Q6_K.gguf via llama-server, --reasoning off --reasoning-budget 0
+# repo:  6ed5634 (clone at /home/ubuntu/alexandria-lineformat-ab on thunder instance 3)
+# arms differ ONLY in the format spec; the RULES half of the system prompt is byte-identical.
+
+=== headline (all 23 chunks) ===
+metric                                 JSON          LINES        delta
+chunks started                           23             23        +0.0%
+LLM calls (incl. retries)                25             49       +96.0%
+gate rejections                           2             26
+retries                                   2             18
+adaptive splits                           0              3
+near-miss acceptances                     0              7
+completion tokens (total)             23236          29708       +27.9%
+completion tokens (mean/call)           929            606       -34.8%
+wall seconds (generation)              1368           1497        +9.4%
+entries produced                        250            320       +28.0%
+text chars kept                       60951          60312        -1.0%
+distinct speakers                         6              6        +0.0%
+recall on rejected attempts   json min 0.862 max 0.990 n=2
+                              lines min 0.762 max 0.950 n=26
+
+=== THE CORRECTION THAT MATTERS ===
+Rejections landed on TWO DISTINCT CHUNKS IN EACH ARM. The 26-vs-2 raw counts are
+an artifact of process_chunk_adaptively reusing the parent chunk number for every
+split part, so one chunk's recursion prints "CHUNK 14/23" 25 times. Reading the
+raw counts as a book-wide format penalty is wrong.
+
+  json  rejected chunks: 4, 17
+  lines rejected chunks: 14 (x25), 17
+
+=== 22 of 23 chunks (excluding chunk 14) ===
+  LLM calls        json    24   lines    23    -4%
+  completion tokens json 22287  lines 17859   -19.9%
+  gate rejections  json     2   lines     1
+  mean tok/call    json   929   lines   776   -16.4%
+
+=== chunk 14 alone ===
+  json   calls= 1  tokens=   949  rejects= 0
+  lines  calls=26  tokens= 11849  rejects=25
+
+The format delivers ~20% fewer tokens on the ordinary case. One chunk in 23 went
+into a 26-attempt spiral costing 11,849 tokens - more than half the entire JSON
+run - three adaptive splits and seven near-miss acceptances, and it entered the
+script only via the exhaustion-only 0.82 trigram floor (JSON needed that zero
+times). The tail erased the saving.
+
+UNTESTED: whether the tail is inherent to the format or a property of that one
+chunk. n=1 pathological chunk, one book, one model, and a brand-new lines prompt
+against a JSON prompt iterated on for months.
