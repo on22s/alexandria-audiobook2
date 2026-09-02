@@ -471,7 +471,9 @@ def main():
     out = record.write(os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"distill_eval__{args.tag}.json"),
-        contract={"expected_arms": ("base", "tuned")})
+        contract={"expected_arms": ("base", "tuned"),
+                  "require_any_prediction": True,
+                  "require_raw_response": True})
     print("wrote", out)
 
 

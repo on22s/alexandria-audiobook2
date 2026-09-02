@@ -480,6 +480,22 @@ class ExperimentRecord:
         expected_arms = contract.get("expected_arms")
         if expected_arms is not None and arms != set(expected_arms):
             problems.append(f"arms {sorted(arms)} != expected {sorted(expected_arms)}")
+        if contract.get("require_any_prediction"):
+            for arm in sorted(arms):
+                arm_rows = [r for r in self.rows if r["arm"] == arm]
+                if arm_rows and not any(r.get("predicted") for r in arm_rows):
+                    problems.append(
+                        f"{arm}: every prediction is empty; this can be an "
+                        "inference failure, not a measured null result")
+        if contract.get("require_raw_response"):
+            for arm in sorted(arms):
+                arm_rows = [r for r in self.rows if r["arm"] == arm]
+                if arm_rows and not any(
+                        r.get("raw_response") not in (None, "None")
+                        for r in arm_rows):
+                    problems.append(
+                        f"{arm}: no raw response was recorded; generation "
+                        "success cannot be verified")
         expected_ids = contract.get("expected_ids")
         if expected_ids is not None:
             expected_ids = set(expected_ids)
