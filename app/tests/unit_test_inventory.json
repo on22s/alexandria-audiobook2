@@ -1428,6 +1428,19 @@
     "tests.test_limit_zero_means_all.LimitConventionTest.test_slicing_semantics_directly",
     "tests.test_limit_zero_means_all.LimitConventionTest.test_the_help_text_says_what_zero_does"
   ],
+  "test_line_format": [
+    "tests.test_line_format.GateIsUnaffected.test_quality_metrics_identical_via_either_codec",
+    "tests.test_line_format.LineFormatFailsLoud.test_empty_speaker_raises",
+    "tests.test_line_format.LineFormatFailsLoud.test_missing_field_raises",
+    "tests.test_line_format.LineFormatFailsLoud.test_salvage_does_not_silently_shorten",
+    "tests.test_line_format.LineFormatFailsLoud.test_salvage_reports_what_it_skipped",
+    "tests.test_line_format.LineFormatRoundTrip.test_backslash_is_not_eaten",
+    "tests.test_line_format.LineFormatRoundTrip.test_delimiter_inside_text_survives",
+    "tests.test_line_format.LineFormatRoundTrip.test_newline_inside_text_survives",
+    "tests.test_line_format.LineFormatRoundTrip.test_round_trip_is_exact",
+    "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
+    "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
+  ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
     "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
@@ -2179,6 +2192,18 @@
     "tests.test_respelling_scoring.RescoreTests.test_a_skipped_row_passes_through_untouched",
     "tests.test_respelling_scoring.RescoreTests.test_breaking_a_working_word_is_recorded_as_hurting",
     "tests.test_respelling_scoring.RescoreTests.test_the_summary_counts_phantom_helps"
+  ],
+  "test_response_codecs": [
+    "tests.test_response_codecs.EndToEndThroughTheRealPipeline.test_json_path_is_unchanged_by_the_refactor",
+    "tests.test_response_codecs.EndToEndThroughTheRealPipeline.test_line_output_reaches_entries",
+    "tests.test_response_codecs.FingerprintSeparatesTheArms.test_existing_json_checkpoints_are_not_invalidated",
+    "tests.test_response_codecs.FingerprintSeparatesTheArms.test_lines_and_json_do_not_share_a_checkpoint",
+    "tests.test_response_codecs.LineCodec.test_extract_drops_fences_and_commentary",
+    "tests.test_response_codecs.LineCodec.test_extract_returns_empty_when_no_records",
+    "tests.test_response_codecs.LineCodec.test_unknown_format_is_rejected",
+    "tests.test_response_codecs.PromptConversion.test_json_instruction_does_not_survive",
+    "tests.test_response_codecs.PromptConversion.test_rules_section_is_byte_identical",
+    "tests.test_response_codecs.PromptConversion.test_unrecognised_prompt_raises_rather_than_half_converting"
   ],
   "test_retrain_honest": [
     "tests.test_retrain_honest.RetrainResumeTests.test_resume_refuses_a_different_reference_strategy",

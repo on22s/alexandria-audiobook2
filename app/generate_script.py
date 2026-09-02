@@ -117,6 +117,14 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
         "presence_penalty": params.presence_penalty, "banned_tokens": params.banned_tokens,
         "context_length": params.context_length, "hard_max_tokens": params.hard_max_tokens,
     }
+    # Added ONLY when non-default. Every checkpoint written before this key
+    # existed was a JSON run, so including it unconditionally would change
+    # settings_sha256 for all of them and throw away resumable work that is
+    # still perfectly valid (Rule 9). A "lines" run gets its own fingerprint,
+    # which is the behaviour that matters.
+    output_format = getattr(params, "output_format", "json") or "json"
+    if output_format != "json":
+        settings["output_format"] = output_format
     encoded = json.dumps(settings, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return {
         "source_sha256": hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
@@ -500,6 +508,11 @@ class LLMGenParams:
     seed: int = None
     # Kept at the end so legacy positional constructors retain their meaning.
     attribute_system_prompt: str = None
+    # Wire format the model is asked to emit: "json" (shipped) or "lines".
+    # See response_codecs; the compact form drops ~25% of output tokens on real
+    # scripts, all of it wrapper around prose the quality gate measures anyway.
+    output_format: str = "json"
+
 
 
 def _rotate_log_if_large(log_path, max_bytes=10 * 1024 * 1024):
@@ -656,7 +669,7 @@ def _build_retry_feedback_message(quality):
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
-                         retry_decider=None, near_miss_sink=None):
+                         retry_decider=None, near_miss_sink=None, codec=None):
     """Call the LLM and parse a JSON array of entries, with retries.
 
     Shared by process_chunk() (script generation) and review_batch() (review):
@@ -665,6 +678,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     `log_name` is the raw-response log basename; `label` tags each block
     (e.g. "CHUNK 3/40" or "BATCH 2/10").
     """
+    if codec is None:
+        from response_codecs import get_codec
+        codec = get_codec("json")
     retry_feedback = None
     requested_max = params.max_tokens
     consecutive_severe = 0
@@ -820,9 +836,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 continue
             return []
 
-        # Clean and extract JSON from response
+        # Clean and extract the payload region for whichever wire format
+        # this run asked for (see response_codecs).
         try:
-            json_text = clean_json_string(text)
+            json_text = codec.extract(text)
         except AdjacentArrayOverlapError as exc:
             if attempt_record is not None:
                 attempt_record["outcome"] = "response_rejected"
@@ -839,7 +856,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if attempt_record is not None:
                 attempt_record["outcome"] = "response_rejected"
                 attempt_record["failure_codes"] = ["missing_json_array"]
-            print(f"Warning: Could not find JSON array in {label} response (attempt {attempt + 1})")
+            print(f"Warning: Could not find {codec.name} payload in {label} "
+                  f"response (attempt {attempt + 1})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
                 print("Retrying...")
                 continue
@@ -848,15 +866,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # extract complete objects from the raw array region. It remains
             # safe only because the normal transform + deterministic quality
             # gates below must accept the reconstructed source in full.
-            array_start = text.find("[")
-            if array_start == -1:
+            json_text = codec.raw_fallback(text)
+            if not json_text:
                 print(f"Response preview: {text[:300]}...")
                 return []
-            json_text = text[array_start:]
             print("  Trying quality-gated raw-array salvage after retries exhausted")
 
         # Try to parse, with repair attempts
-        entries = repair_json_array(json_text)
+        entries = codec.parse(json_text)
 
         if entries and len(entries) > 0:
             if transform_entries:
@@ -949,7 +966,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             return []
 
         # Last resort after every full-response retry is exhausted.
-        salvaged_entries = salvage_json_entries(json_text)
+        salvaged_entries = codec.salvage(json_text)
         if salvaged_entries:
             if transform_entries:
                 transformed = transform_entries(salvaged_entries)
@@ -1048,6 +1065,8 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     how often a single unlucky run costs the rest of a book (checkpoint/resume
     requires a gapless accepted-chunk prefix, Rule 9).
     """
+    from response_codecs import get_codec
+    codec = get_codec(getattr(params, "output_format", "json") or "json")
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
 
@@ -1082,6 +1101,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
             validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
             transform_entries=prepare_entries,
             attempt_observer=observe,
+            codec=codec,
             retry_decider=(
                 (lambda quality, attempt_number: get_chunk_retry_action(
                     quality, attempt_number, allow_early_split=True))
@@ -1296,6 +1316,15 @@ def main():
                               "run only, without editing config.json. Smaller chunks shorten "
                               "each call's output. The chunk size is part of the generation "
                               "fingerprint, so a different value starts a fresh checkpoint.")
+    parser.add_argument("--output-format", choices=("json", "lines"), default="json",
+                        help="wire format the model is asked to emit. 'lines' "
+                             "uses SPEAKER|INSTRUCT|TEXT, which measured ~25%% "
+                             "fewer output tokens than the JSON the model "
+                             "actually emits, on 100,776 real entries. The "
+                             "RULES half of the prompt is identical either way; "
+                             "only the format spec is rewritten. It is part of "
+                             "the generation fingerprint, so switching starts a "
+                             "fresh checkpoint.")
     parser.add_argument("--narrator", default=None,
                         help="Name of the first-person narrator, if the book "
                              "has one. Measured on PDNC gold: telling the model "
@@ -1520,6 +1549,14 @@ def main():
     start_time = time.monotonic()
 
     # Sampling/prompt settings are constant across chunks - build once.
+    if args.output_format == "lines":
+        from response_codecs import build_line_format_prompt
+        # Raises rather than half-converting: an arm still told to emit JSON
+        # while being parsed as lines would record a format failure that is
+        # really a harness bug.
+        system_prompt = build_line_format_prompt(system_prompt)
+        print("Output format: lines (SPEAKER|INSTRUCT|TEXT)")
+
     gen_params = LLMGenParams(
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
@@ -1531,6 +1568,7 @@ def main():
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
         context_length=lm_status.get("context_length"),
+        output_format=args.output_format,
     )
 
     fingerprint = get_generation_fingerprint(
