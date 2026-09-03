@@ -19,6 +19,7 @@ from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, get_next_retry_max_tokens)
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
+from apostrophe_repair import restore_stripped_apostrophes
 from source_normalization import (normalize_extreme_phrase_repetitions,
                                   normalize_homoglyph_words,
                                   normalize_known_source_corruptions,
@@ -392,7 +393,16 @@ def fix_mojibake(text):
 def get_preprocessed_source(text, strip_front_matter=True):
     """Return source text and cleanup reports exactly as generation uses them."""
     text = fix_mojibake(text)
+    # RESTORE APOSTROPHES A SOURCE LOST TO SPACES. 9 of PDNC's 28 novels ship
+    # plain text with none, reading "don t" and "Miller s". The model corrects
+    # them, and validate_chunk_quality scores the correction as MISSING source
+    # content - so the retry loop is unwinnable and the chunk can never pass.
+    # DaisyMiller cost 129 rejections, three adaptive splits and a permanent
+    # chunk failure on 2026-09-03 before the run gave up. This runs before every
+    # other normalisation and is a no-op on healthy text (see looks_damaged).
+    text, apostrophe_repairs = restore_stripped_apostrophes(text)
     text, source_normalizations = normalize_known_source_corruptions(text)
+    source_normalizations.extend(apostrophe_repairs)
     text, homoglyph_normalizations = normalize_homoglyph_words(text)
     source_normalizations.extend(homoglyph_normalizations)
     text, repetition_normalizations = normalize_extreme_phrase_repetitions(text)
@@ -1066,7 +1076,11 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     requires a gapless accepted-chunk prefix, Rule 9).
     """
     from response_codecs import get_codec
-    codec = get_codec(getattr(params, "output_format", "json") or "json")
+    output_format = getattr(params, "output_format", "json") or "json"
+    # two_step runs stage 1 freeform and stage 2 as JSON, so the codec that
+    # matters for the gate is the JSON one; stage 1 gets its own below.
+    two_step = output_format == "two_step"
+    codec = get_codec("json" if two_step else output_format)
     sys_prompt = params.system_prompt or DEFAULT_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or DEFAULT_USER_PROMPT
 
@@ -1092,7 +1106,39 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
         if attempt_observer:
             attempt_observer(attempt)
 
+    def call_two_step(retries):
+        """Annotate freely, then serialise. The gate still scores the FINAL
+        entries against the ORIGINAL chunk, so neither stage can hide a loss."""
+        from response_codecs import FREEFORM_KEY
+        from two_step import (CONVERSION_SYSTEM, build_conversion_prompt,
+                              build_freeform_prompt, PromptShapeError)
+        stage1 = call_llm_for_entries(
+            client, model_name, build_freeform_prompt(sys_prompt), user_prompt,
+            params, log_name="llm_responses.log",
+            label=f"CHUNK {chunk_num}/{total_chunks} stage1",
+            max_retries=retries, attempt_observer=observe,
+            codec=get_codec("freeform"))
+        if not stage1:
+            print(f"  CHUNK {chunk_num}/{total_chunks} stage1 produced nothing")
+            return []
+        try:
+            convert_prompt = build_conversion_prompt(stage1[0].get(FREEFORM_KEY))
+        except PromptShapeError as exc:
+            print(f"  CHUNK {chunk_num}/{total_chunks} stage1 unusable: {exc}")
+            return []
+        return call_llm_for_entries(
+            client, model_name, CONVERSION_SYSTEM, convert_prompt, params,
+            log_name="llm_responses.log",
+            label=f"CHUNK {chunk_num}/{total_chunks} stage2",
+            max_retries=retries,
+            validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+            transform_entries=prepare_entries,
+            attempt_observer=observe,
+            codec=codec)
+
     def call(retries):
+        if two_step:
+            return call_two_step(retries)
         return call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, params,
             log_name="llm_responses.log",
@@ -1316,7 +1362,8 @@ def main():
                               "run only, without editing config.json. Smaller chunks shorten "
                               "each call's output. The chunk size is part of the generation "
                               "fingerprint, so a different value starts a fresh checkpoint.")
-    parser.add_argument("--output-format", choices=("json", "lines"), default="json",
+    parser.add_argument("--output-format", choices=("json", "lines", "two_step"),
+                        default="json",
                         help="wire format the model is asked to emit. 'lines' "
                              "uses SPEAKER|INSTRUCT|TEXT, which measured ~25%% "
                              "fewer output tokens than the JSON the model "
@@ -1549,6 +1596,8 @@ def main():
     start_time = time.monotonic()
 
     # Sampling/prompt settings are constant across chunks - build once.
+    if args.output_format == "two_step":
+        print("Output format: two_step (annotate freeform, then serialise)")
     if args.output_format == "lines":
         from response_codecs import build_line_format_prompt
         # Raises rather than half-converting: an arm still told to emit JSON

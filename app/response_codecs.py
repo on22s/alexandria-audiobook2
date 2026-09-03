@@ -72,11 +72,35 @@ def _line_codec():
     return ResponseCodec("lines", extract, parse, salvage, lambda text: None)
 
 
+def _freeform_codec():
+    """Stage 1 of the two-step path: keep the reply, parse nothing.
+
+    WHY A CODEC AND NOT A SECOND CALLER. Stage 1 still needs every retry rule
+    call_llm_for_entries owns - length escalation, the repeat-prompt
+    fingerprint, the attempt observer. Writing a bare chat call beside it would
+    be a Rule 15 parallel copy that drifts. So stage 1 goes through the same
+    function with a codec that wraps the whole reply in one sentinel entry;
+    an empty reply yields [] and is retried exactly like unparseable JSON.
+    """
+    def extract(text):
+        return str(text or "").strip()
+
+    def parse(payload):
+        return [{FREEFORM_KEY: payload}] if payload and payload.strip() else []
+
+    return ResponseCodec("freeform", extract, parse, parse, lambda text: None)
+
+
+FREEFORM_KEY = "_freeform"
+
+
 def get_codec(name):
     if name == "json":
         return _json_codec()
     if name == "lines":
         return _line_codec()
+    if name == "freeform":
+        return _freeform_codec()
     raise ValueError("unknown output format: %r" % (name,))
 
 

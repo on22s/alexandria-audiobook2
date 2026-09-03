@@ -132,6 +132,22 @@
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
   ],
+  "test_apostrophe_repair": [
+    "tests.test_apostrophe_repair.Detection.test_a_lone_apostrophe_does_not_mask_heavy_damage",
+    "tests.test_apostrophe_repair.Detection.test_a_short_damaged_excerpt_is_still_repaired",
+    "tests.test_apostrophe_repair.Detection.test_damaged_signature_is_recognised",
+    "tests.test_apostrophe_repair.Detection.test_empty_input",
+    "tests.test_apostrophe_repair.Detection.test_healthy_prose_is_never_flagged",
+    "tests.test_apostrophe_repair.Detection.test_no_broken_contraction_means_untouched",
+    "tests.test_apostrophe_repair.Detection.test_one_stray_break_in_healthy_prose_is_ignored",
+    "tests.test_apostrophe_repair.Pipeline.test_generation_preprocessing_leaves_healthy_source_alone",
+    "tests.test_apostrophe_repair.Pipeline.test_generation_preprocessing_repairs_damaged_source",
+    "tests.test_apostrophe_repair.Repair.test_changes_are_reported_with_locations",
+    "tests.test_apostrophe_repair.Repair.test_contractions_and_clitics",
+    "tests.test_apostrophe_repair.Repair.test_healthy_text_is_returned_byte_identical",
+    "tests.test_apostrophe_repair.Repair.test_hyphenated_word_is_not_split",
+    "tests.test_apostrophe_repair.Repair.test_length_is_preserved"
+  ],
   "test_argparse_help_strings": [
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_no_help_string_contains_an_unescaped_percent",
     "tests.test_argparse_help_strings.ArgparseHelpStringTest.test_the_check_catches_the_real_case",
@@ -2958,6 +2974,19 @@
     "tests.test_two_stage_roster.SummaryTest.test_accuracy_is_over_what_was_answered",
     "tests.test_two_stage_roster.SummaryTest.test_every_quote_type_bucket_carries_every_category",
     "tests.test_two_stage_roster.SummaryTest.test_failed_requests_have_no_accuracy"
+  ],
+  "test_two_step": [
+    "tests.test_two_step.EndToEnd.test_a_stage2_drop_is_caught_by_the_gate",
+    "tests.test_two_step.EndToEnd.test_both_stages_run_and_produce_entries",
+    "tests.test_two_step.EndToEnd.test_empty_stage1_fails_without_calling_stage2",
+    "tests.test_two_step.EndToEnd.test_stage2_gets_stage1_output_not_the_chunk",
+    "tests.test_two_step.Fingerprint.test_two_step_does_not_share_a_checkpoint_with_json",
+    "tests.test_two_step.FreeformCodec.test_empty_reply_is_a_failed_attempt_not_an_empty_success",
+    "tests.test_two_step.FreeformCodec.test_wraps_the_whole_reply",
+    "tests.test_two_step.Prompts.test_stage1_keeps_rules_and_drops_the_json_demand",
+    "tests.test_two_step.Prompts.test_stage1_refuses_an_unrecognised_prompt",
+    "tests.test_two_step.Prompts.test_stage2_is_never_shown_the_source_chunk",
+    "tests.test_two_step.Prompts.test_stage2_refuses_empty_input"
   ],
   "test_unattested_speakers": [
     "tests.test_unattested_speakers.HonorificSuffixTest.test_a_hyphenated_honorific_name_is_attested",
