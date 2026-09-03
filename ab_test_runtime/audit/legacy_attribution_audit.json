@@ -1,8 +1,8 @@
 {
   "scope": "legacy ExperimentRecord artifacts; integrity and current-gold compatibility, not perceptual evidence",
-  "source_structural_sha256": "fb19f9a7f10709a94d3a84c7517c65641f9446c3a3d5f8cca66dae8942c8b936",
+  "source_structural_sha256": "6d6f5024297317d9a6bee6efb052980704a71aaf7705a4b5a2293395445d5169",
   "summary": {
-    "exploratory": 47,
+    "exploratory": 48,
     "historical_only": 49,
     "provisional": 21,
     "supported_measurement": 54
@@ -1532,6 +1532,29 @@
         "available": true,
         "hash_changed": false,
         "missing_rows": 40,
+        "expected_changed_rows": 0,
+        "correctness_changed_rows": 0,
+        "line_count_changed": false
+      },
+      "semantic_limit": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling."
+    },
+    {
+      "artifact": "distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json",
+      "family": "distill_eval",
+      "rows": 766,
+      "arms": [
+        "base",
+        "tuned"
+      ],
+      "classification": "exploratory",
+      "dirty": false,
+      "problems": [
+        "recorded commit is unavailable from current history"
+      ],
+      "current_gold": {
+        "available": true,
+        "hash_changed": false,
+        "missing_rows": 590,
         "expected_changed_rows": 0,
         "correctness_changed_rows": 0,
         "line_count_changed": false

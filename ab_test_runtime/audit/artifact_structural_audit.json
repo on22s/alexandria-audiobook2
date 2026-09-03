@@ -2,8 +2,8 @@
   "scope": "structural audit only; classifications do not validate scientific conclusions",
   "summary": {
     "supported_structure": 511,
-    "exploratory": 307,
-    "provisional": 171
+    "exploratory": 309,
+    "provisional": 172
   },
   "artifacts": [
     {
@@ -3319,6 +3319,38 @@
       "reason": "metadata present without commit identity"
     },
     {
+      "artifact": "distill_eval__qwen3-14b-lr2e5_r16-mushoku16-h100-20260903.json",
+      "bytes": 531899,
+      "sha256": "1f29fd390ef42950799ee4034fb70de0b9b79fec2c56fa39d2444215a660c2bf",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 266,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
+      "artifact": "distill_eval__qwen3-14b-lr2e5_r16-owarimonogatari3-h100-20260903.json",
+      "bytes": 1030310,
+      "sha256": "ac21c01703f2e498ed36dff69d25feeda436caeb78cd94c07b6428358062f6a6",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 324,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": null,
+      "written": null,
+      "dirty": false,
+      "classification": "exploratory",
+      "reason": "metadata present without commit identity"
+    },
+    {
       "artifact": "distill_eval__qwen3-14b-lr2e5_r32-h100-20260901.json",
       "bytes": 381415,
       "sha256": "0387e8b6b7560c4f3ba090ad2ee8518467c01858004922e44f0660f92664429f",
@@ -3675,6 +3707,22 @@
       "seed": null,
       "status": null,
       "row_count": 60,
+      "has_rows": true,
+      "identity_contract": "experiment_meta",
+      "commit": "8fa4fe64bcea8e4a0b7221d0a93b6c18feab6a75",
+      "written": null,
+      "dirty": false,
+      "classification": "provisional",
+      "reason": "older metadata contract; semantic/manual review required"
+    },
+    {
+      "artifact": "distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json",
+      "bytes": 1447631,
+      "sha256": "77ff71ef33196d1d71344bb295ca155521eee84e846501d0b0fc7a742a6e6e1b",
+      "completeness": "unknown",
+      "seed": null,
+      "status": null,
+      "row_count": 766,
       "has_rows": true,
       "identity_contract": "experiment_meta",
       "commit": "8fa4fe64bcea8e4a0b7221d0a93b6c18feab6a75",

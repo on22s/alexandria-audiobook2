@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 171 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 172 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 47
+- `exploratory`: 48
 - `historical_only`: 49
 - `provisional`: 21
 - `supported_measurement`: 54
@@ -83,6 +83,7 @@ All 171 legacy-metadata artifacts are listed exactly once. Classification descri
 | `distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-low-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-medium-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-off-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `distill_eval__qwen38-multientry-thinking-xhigh-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 1584 | 0 | 0 | False |  |

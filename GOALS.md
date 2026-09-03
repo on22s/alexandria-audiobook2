@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2711** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2722** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -401,15 +401,24 @@ at least 50 rows per arm:
 
 | model | n | median Δacc | median Δempty | helped |
 |---|---|---|---|---|
-| qwen3-14b | 13 | **+11.7** | +1.1 | **13/13** |
+| qwen3-14b | 15 | **+9.8** | +0.1 | **15/15** |
 | qwen3.5 | 11 | +1.6 | +0.5 | 9/11 |
-| qwen3.8 | 14 | **−0.1** | +1.7 | 5/14 |
+| qwen3.8 | 15 | **−0.3** | +1.8 | 5/15 |
 
-**Qwen3.8 is not regressing; it has no reliable effect.** Median −0.1 with 5 of
-14 arms helping is a coin flip, which is a different failure from "the adapter
-destroys the model" and points somewhere different: adaptation not taking,
-rather than a mechanism actively doing damage. The phrasing below this line
-predates that count and should be read with it.
+*Refreshed 2026-09-03 after the rank-confirmation and thinking-off-full
+artifacts landed; the survey is a re-read of whatever artifacts exist, so these
+move as arms complete. Re-run it rather than quoting this table from memory.*
+
+**Qwen3.8 has no reliable effect, with a long negative tail.** Median −0.3
+with 5 of 15 arms helping is a coin flip in the middle — but the median hides
+the spread, and the spread is where the failure lives. The thinking-off arm at
+full n, run 2026-09-03 on 383 rows, is **−14.1 points with the tuned arm empty
+on 26.4% of rows against the base's 3.4%**
+(`distill_eval__qwen38-multientry-thinking-off-full-a100-20260901.json`). That
+is the clearest, best-powered instance of the failure this project has been
+chasing, and an earlier version of this paragraph — written before that
+artifact was pulled — called the family "a coin flip" full stop. Both are true:
+typical arms do nothing, and the bad ones are very bad.
 
 **Emptiness is a symptom, not the tax.** "Adapters induce unanswered rows" is
 stated repeatedly in this file. Across all 38 arms, 27 tuned arms have MORE
@@ -418,12 +427,14 @@ cost of adapting. It does track failure: arms that helped moved +0.5 pp, arms
 that hurt +3.4 pp. Emptiness accompanies a failed adaptation; it has not been
 shown to cause one.
 
-**The 14B result is unanimous and its magnitude is inflated.** 13 of 13 is the
-strongest signal in the artifact set. But those arms are largely the strength
-ladder - one book at 88 rows, evaluated repeatedly - so they are not 13
-independent measurements, and +11.7 should be read as one book seen 13 ways.
-The direction is what carries; the size needs the rank-confirmation run on
-mushoku16 and owarimonogatari3.
+**The 14B result is unanimous, and the confirmation has started.** 15 of 15 is
+the strongest signal in the artifact set. The first two rank-confirmation arms
+landed 2026-09-03 and the shipped r16 holds its SIGN on two books it had never
+been scored on — **mushoku16 +8.3** (51.1% → 59.4%) and **owarimonogatari3
++2.5** (39.5% → 42.0%), against index18's +9.1. Magnitude varies by a factor of
+four across books, so the ladder's +14.8 for r32 is still a single-book number
+until its own two arms finish. Empty rows FELL in both new books (10→7, 23→6),
+which is further evidence against reading emptiness as a cost of adapting.
 
 **Where the compute has gone is the opposite of what this says.** Days went to
 diagnosing the family with no reliable effect, while the family with a perfect
