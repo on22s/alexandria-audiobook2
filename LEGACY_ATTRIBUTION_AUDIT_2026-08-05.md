@@ -1,10 +1,10 @@
 # Legacy attribution audit — 2026-08-05
 
-All 162 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
+All 171 legacy-metadata artifacts are listed exactly once. Classification describes whether the recorded measurement can be used with today's fixtures; it does not turn accuracy into a product or perceptual conclusion.
 
 ## Counts
 
-- `exploratory`: 38
+- `exploratory`: 47
 - `historical_only`: 49
 - `provisional`: 21
 - `supported_measurement`: 54
@@ -76,6 +76,15 @@ All 162 legacy-metadata artifacts are listed exactly once. Classification descri
 | `context_width_production__mushoku16__qwen__qwen3-14b__local.json` | context_width_production | supported_measurement | 278 | 0 | 0 | False |  |
 | `context_width_production__owarimonogatari3__qwen__qwen3-14b__local-llamacpp.json` | context_width_production | supported_measurement | 324 | 0 | 0 | False |  |
 | `crossover__grimgar03__local.json` | segmentation_crossover | historical_only | 7980 | 320 | 60 | False |  |
+| `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-full-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen35-27b-lightnovel-teacher-production-off-diagnostic-n10-a6000-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen35_9b_bf16_author_heldout_balanced-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen35_9b_bf16_speaker_hardcases_split_nonmajor-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen35_9b_bf16_speaker_longcontext_tophalf_5epoch-corrected-gold-production-off-diagnostic-a6000-20260901.json` | distill_eval | exploratory | 766 | 0 | 590 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-low-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-medium-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-off-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
+| `distill_eval__qwen38-multientry-thinking-xhigh-n10-a100-20260831.json` | distill_eval | exploratory | 60 | 0 | 40 | False | recorded commit is unavailable from current history |
 | `grammar_constraint__grimgar03__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 1584 | 0 | 0 | False |  |
 | `grammar_constraint__index18__qwen__qwen3-14b__local-llamacpp.json` | grammar_constraint | supported_measurement | 396 | 0 | 0 | False |  |
 | `grammar_constraint__mushoku16__mistralai__magistral-small__local-llamacpp.json` | grammar_constraint | supported_measurement | 556 | 0 | 0 | False |  |
@@ -180,14 +189,18 @@ All 162 legacy-metadata artifacts are listed exactly once. Classification descri
 
 ## Family-level interpretation limits
 
+- `batch_alignment`: One book. Where a batch is CUT is not where a batch is SIZED; this cannot be read as a batching policy.
 - `batch_contiguity`: Isolates companion ordering, not end-to-end production quality.
 - `batch_size`: Accuracy and throughput must be considered together; books differ.
 - `because_production`: A justification field test; explanations are not confidence estimates.
+- `booknlp_baseline`: An external baseline on one PDNC book, recorded with no notes field. Its provenance is thinner than every other family here; treat it as a reference point, not a measurement of ours.
 - `candidate_id`: One model/corpus comparison; opaque IDs do not prove general naming gains.
+- `cascade`: Live end-to-end routing whose decisions come from answers produced in the SAME run, so routing and outcome are not independent. Offline pricing is a prediction, not a control arm.
 - `closed_set`: Oracle candidate arms are invalid for current claims because their lists used superseded labels.
 - `committed_history`: Oracle history is an upper bound and is not shippable state.
 - `context_width`: A harness diagnostic; production-path confirmation is separate.
 - `context_width_production`: Book-specific repeats; report each book/repeat rather than pooling.
+- `distill_eval`: LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder's +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter's ceiling.
 - `grammar_constraint`: Roster-valid output does not establish correct speaker identity.
 - `joint_scene`: Joint and shuffled controls answer ordering only within the tested fixtures.
 - `lora_serving_eval`: Two gold books and one serving stack; not a universal adapter claim.
@@ -197,6 +210,7 @@ All 162 legacy-metadata artifacts are listed exactly once. Classification descri
 - `pdnc_narrator_prior`: Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.
 - `pdnc_sequence`: A five-book English PDNC pilot at 120 lines per book; sequence-aware resolution beats baseline by 14 correct lines in 600 (57.7% vs 60.0%), which is a reason to run the confirmatory arm, not a result.
 - `pdnc_targeted_sequence`: A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure.
+- `qwen38_forced_choice`: Sixteen rows SELECTED for being tuned-empty and base-answered - conditioned on the outcome it is asked about. It can show whether the answer was recoverable on those rows; it cannot estimate any rate, because the denominator was chosen after seeing the result.
 - `reasoning_arms`: Reasoning/justification settings are model- and serving-stack-specific.
 - `reasoning_check`: Justification disagreement is a routing signal, not calibrated confidence.
 - `reexamine`: Selected previously negative results; selection prevents broad inference.

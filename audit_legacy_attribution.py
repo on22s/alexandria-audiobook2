@@ -23,7 +23,11 @@ DEFAULT_JSON = os.path.join(
 DEFAULT_MD = os.path.join(REPO, "LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md")
 
 FAMILY_LIMITS = {
+    "batch_alignment": "One book. Where a batch is CUT is not where a batch is SIZED; this cannot be read as a batching policy.",
     "batch_contiguity": "Isolates companion ordering, not end-to-end production quality.",
+    "booknlp_baseline": "An external baseline on one PDNC book, recorded with no notes field. Its provenance is thinner than every other family here; treat it as a reference point, not a measurement of ours.",
+    "cascade": "Live end-to-end routing whose decisions come from answers produced in the SAME run, so routing and outcome are not independent. Offline pricing is a prediction, not a control arm.",
+    "distill_eval": "LoRA adapter arms that share one loaded model and differ only by peft disable_adapter(), scored on Japanese light-novel gold books. Three limits travel with every number here. (1) Light novels in translation only - nothing in this family speaks to PDNC or Chinese. (2) A single-book arm is 88 scoreable rows on index18, where a five-point gap is about five rows; the 14B strength ladder\'s +14.8 at r32 against +9.1 at the shipped r16 is exactly that size. (3) Measured 2026-09-03: every PDNC-trained adapter in this family learned from a corpus where 18.1% of rows carried apostrophes stripped to spaces upstream, which caps the TUNED arm and not the base one, so the deltas are a floor rather than the adapter\'s ceiling.",
     "batch_size": "Accuracy and throughput must be considered together; books differ.",
     "because_production": "A justification field test; explanations are not confidence estimates.",
     "candidate_id": "One model/corpus comparison; opaque IDs do not prove general naming gains.",
@@ -40,6 +44,7 @@ FAMILY_LIMITS = {
     "pdnc_targeted_sequence": "A pilot on five newly-opened PDNC books, 120 lines each; the three arms span 8 correct lines in 600 (73.5% / 74.5% / 74.8%), inside noise, and the books were previously sealed so this is also their first exposure.",
     "pdnc_evidence": "A five-book English PDNC pilot, 120 lines per book, run 2026-08-18: baseline 58.5% against evidence 59.5% overall (351 vs 357 correct of 600), conditional 59.0% vs 61.1%. Six lines apart on a pre-declared gate the arm did NOT clear, so the twenty-book confirmatory set stayed sealed - which is the pilot working, not a result. Nothing here supports a claim that supplying evidence spans helps attribution; it is the reason not to spend the confirmatory run.",
     "pdnc_narrator_prior": "Two books and 120 rows per book with an explicitly supplied narrator identity; not a general held-out attribution result.",
+    "qwen38_forced_choice": "Sixteen rows SELECTED for being tuned-empty and base-answered - conditioned on the outcome it is asked about. It can show whether the answer was recoverable on those rows; it cannot estimate any rate, because the denominator was chosen after seeing the result.",
     "reasoning_arms": "Reasoning/justification settings are model- and serving-stack-specific.",
     "reasoning_check": "Justification disagreement is a routing signal, not calibrated confidence.",
     "reexamine": "Selected previously negative results; selection prevents broad inference.",
