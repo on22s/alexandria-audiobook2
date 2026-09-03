@@ -27,7 +27,7 @@ A target is only listed when something in the measured record suggests it is
 reachable — a better arm, a cloud model, a human ceiling. Where the ceiling
 itself is unknown, the goal says so rather than inventing a number.
 
-> **Where things are.** Open goals come first; **met goals begin at line 2676** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
+> **Where things are.** Open goals come first; **met goals begin at line 2711** (`# Part II — Met`). The split is by status rather than topic, so what is left to do reads top-down without scrolling past what is finished. Goal numbers are unchanged — 2.7 is 2.7 in either part.
 
 > **This line number is checked, not trusted.** `app/tests/test_goals_navigation.py` recomputes it and fails if it drifts, so moving a goal between parts cannot quietly leave the pointer wrong. Update the number when you move something, or run the test and let it tell you what it should be.
 
@@ -393,6 +393,41 @@ number. That model/adapter pair has no measurement until it is re-run.
 
 Base accuracy differs by model (64.8–72.6%), so the deltas are comparable to
 each other but the tuned columns are not comparable across rows.
+
+**What all 38 adapter evaluations say together — 2026-09-03.** Every arm here
+is normally read alone. Counted at once by
+`app/experiments/adapter_outcome_survey.py` over every paired evaluation with
+at least 50 rows per arm:
+
+| model | n | median Δacc | median Δempty | helped |
+|---|---|---|---|---|
+| qwen3-14b | 13 | **+11.7** | +1.1 | **13/13** |
+| qwen3.5 | 11 | +1.6 | +0.5 | 9/11 |
+| qwen3.8 | 14 | **−0.1** | +1.7 | 5/14 |
+
+**Qwen3.8 is not regressing; it has no reliable effect.** Median −0.1 with 5 of
+14 arms helping is a coin flip, which is a different failure from "the adapter
+destroys the model" and points somewhere different: adaptation not taking,
+rather than a mechanism actively doing damage. The phrasing below this line
+predates that count and should be read with it.
+
+**Emptiness is a symptom, not the tax.** "Adapters induce unanswered rows" is
+stated repeatedly in this file. Across all 38 arms, 27 tuned arms have MORE
+empty rows and **11 have fewer**, median +1.3 pp — so it is not a universal
+cost of adapting. It does track failure: arms that helped moved +0.5 pp, arms
+that hurt +3.4 pp. Emptiness accompanies a failed adaptation; it has not been
+shown to cause one.
+
+**The 14B result is unanimous and its magnitude is inflated.** 13 of 13 is the
+strongest signal in the artifact set. But those arms are largely the strength
+ladder - one book at 88 rows, evaluated repeatedly - so they are not 13
+independent measurements, and +11.7 should be read as one book seen 13 ways.
+The direction is what carries; the size needs the rank-confirmation run on
+mushoku16 and owarimonogatari3.
+
+**Where the compute has gone is the opposite of what this says.** Days went to
+diagnosing the family with no reliable effect, while the family with a perfect
+record was measured on one book.
 
 **"Refusal" is a misnomer — corrected 2026-09-02.** Everything below called
 this a refusal for three days. The raw outputs say otherwise. Of **93**
